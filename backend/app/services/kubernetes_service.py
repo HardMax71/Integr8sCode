@@ -5,15 +5,15 @@ import os
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 from kubernetes.config import ConfigException
-
+from app.config import get_settings
 
 class KubernetesService:
     def __init__(self):
+        self.settings = get_settings()
         try:
-            kube_config_path = os.environ.get('KUBERNETES_CONFIG_PATH', '/app/kubeconfig.yaml')
-            config.load_kube_config(config_file=kube_config_path)
+            config.load_kube_config(config_file=self.settings.KUBERNETES_CONFIG_PATH)
             self.v1 = client.CoreV1Api()
-            logging.info(f"Successfully loaded Kubernetes config from {kube_config_path}")
+            logging.info(f"Successfully loaded Kubernetes config from {self.settings.KUBERNETES_CONFIG_PATH}")
         except ConfigException as e:
             logging.error(f"Error loading Kubernetes config: {e}")
             raise
@@ -33,8 +33,14 @@ class KubernetesService:
                     "image": "python:3.9-slim",
                     "command": ["python", "-c", script],
                     "resources": {
-                        "limits": {"cpu": "100m", "memory": "128Mi"},
-                        "requests": {"cpu": "100m", "memory": "128Mi"}
+                        "limits": {
+                            "cpu": self.settings.K8S_POD_CPU_LIMIT,
+                            "memory": self.settings.K8S_POD_MEMORY_LIMIT
+                        },
+                        "requests": {
+                            "cpu": self.settings.K8S_POD_CPU_REQUEST,
+                            "memory": self.settings.K8S_POD_MEMORY_REQUEST
+                        }
                     }
                 }]
             }
@@ -48,6 +54,7 @@ class KubernetesService:
         except ApiException as e:
             logging.error(f"Exception when calling CoreV1Api->create_namespaced_pod: {e}")
             raise
+
 
     async def get_pod_logs(self, execution_id: str) -> str:
         pod_name = f"execution-{execution_id}"

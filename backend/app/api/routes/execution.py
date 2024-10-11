@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from app.core.exceptions import IntegrationException
 from app.core.security import security_service
 from app.models.user import UserInDB
-from app.schemas.execution import ExecutionRequest, ExecutionResponse, ExecutionResult
+from app.schemas.execution import ExecutionRequest, ExecutionResponse, ExecutionResult, K8SResourceLimits
 from app.services.execution_service import ExecutionService, get_execution_service
-from app.core.exceptions import IntegrationException
+from fastapi import APIRouter, Depends, HTTPException
 
 router = APIRouter()
 
@@ -38,3 +38,15 @@ async def get_result(
         output=result.output,
         errors=result.errors
     )
+
+
+@router.get("/k8s-limits", response_model=K8SResourceLimits)
+async def get_k8s_resource_limits(
+        current_user: UserInDB = Depends(security_service.get_current_user),
+        execution_service: ExecutionService = Depends(get_execution_service)
+):
+    try:
+        limits = await execution_service.get_k8s_resource_limits()
+        return K8SResourceLimits(**limits)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")

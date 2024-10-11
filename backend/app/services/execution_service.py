@@ -1,5 +1,6 @@
 import logging
 
+from app.config import get_settings
 from app.core.exceptions import IntegrationException
 from app.db.repositories.execution_repository import ExecutionRepository, get_execution_repository
 from app.models.execution import ExecutionCreate, ExecutionInDB, ExecutionUpdate
@@ -12,6 +13,15 @@ class ExecutionService:
     def __init__(self, execution_repo: ExecutionRepository, k8s_service: KubernetesService):
         self.execution_repo = execution_repo
         self.k8s_service = k8s_service
+        self.settings = get_settings()
+
+    async def get_k8s_resource_limits(self):
+        return {
+            "cpu_limit": self.settings.K8S_POD_CPU_LIMIT,
+            "memory_limit": self.settings.K8S_POD_MEMORY_LIMIT,
+            "cpu_request": self.settings.K8S_POD_CPU_REQUEST,
+            "memory_request": self.settings.K8S_POD_MEMORY_REQUEST
+        }
 
     async def execute_script(self, script: str) -> ExecutionInDB:
         execution = ExecutionCreate(script=script)

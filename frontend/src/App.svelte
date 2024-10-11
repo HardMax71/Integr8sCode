@@ -7,6 +7,7 @@
     import Header from "./components/Header.svelte";
     import Footer from "./components/Footer.svelte";
     import Notifications from "./components/Notifications.svelte";
+    import About from "./routes/About.svelte";
 
     export let url = "";
 </script>
@@ -20,6 +21,7 @@
             <Route path="/editor" component={Editor}/>
             <Route path="/login" component={Login}/>
             <Route path="/register" component={Register}/>
+            <Route path="/about" component={About}/>
         </main>
         <Footer/>
     </div>

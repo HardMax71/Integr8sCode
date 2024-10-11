@@ -28,3 +28,7 @@ async def register(user: UserCreate, user_repo: UserRepository = Depends(get_use
     hashed_password = security_service.get_password_hash(user.password)
     db_user = UserInDB(**user.dict(), hashed_password=hashed_password)
     return await user_repo.create_user(db_user)
+
+@router.get("/verify-token")
+async def verify_token(current_user: UserInDB = Depends(security_service.get_current_user)):
+    return {"valid": True, "username": current_user.username}

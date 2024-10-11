@@ -4,7 +4,7 @@
     import {get, writable} from "svelte/store";
     import axios from "axios";
     import {authToken} from "../stores/auth.js";
-    import {notifications, addNotification} from "../stores/notifications.js";
+    import {addNotification} from "../stores/notifications.js";
     import Spinner from "../components/Spinner.svelte";
     import {navigate} from "svelte-routing";
 
@@ -36,6 +36,19 @@
         const authTokenValue = get(authToken);
         if (!authTokenValue) {
             addNotification("Please log in to access the editor.", "error");
+            navigate("/login");
+            return;
+        }
+
+        try {
+            // Verify the token with the backend
+            await axios.get("http://localhost:8000/api/v1/verify-token", {
+                headers: {Authorization: `Bearer ${authTokenValue}`}
+            });
+        } catch (err) {
+            localStorage.removeItem("authToken");
+            authToken.set(null);
+            addNotification("Your session has expired. Please log in again.", "error");
             navigate("/login");
             return;
         }
@@ -113,17 +126,18 @@
 
 <div class="container" in:fade>
     <h2 class="title">Python Code Editor</h2>
-    <div class="flex">
-        <div id="editor-container" class="editor-container flex-grow"></div>
-        <div class="result-section ml-4 w-1/3">
-            <button class="button w-full" on:click={executeScript} disabled={executing}>
+    <div class="flex flex-col lg:flex-row">
+        <div class="editor-section w-full lg:w-2/3 lg:pr-4">
+            <div id="editor-container" class="editor-container"></div>
+            <button class="button w-full mt-4" on:click={executeScript} disabled={executing}>
                 {#if executing}
                     Executing...
                 {:else}
                     Run Script
                 {/if}
             </button>
-
+        </div>
+        <div class="result-section w-full lg:w-1/3 mt-4 lg:mt-0">
             {#if executing}
                 <div class="result-container" in:fade>
                     <Spinner/>
@@ -195,10 +209,11 @@
     }
 
     .result-container {
-        margin-top: 1rem;
         padding: 1rem;
         background-color: #f5f5f5;
         border-radius: 4px;
+        height: 100%;
+        overflow-y: auto;
     }
 
     .executing-text {

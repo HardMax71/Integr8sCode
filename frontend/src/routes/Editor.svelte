@@ -4,11 +4,12 @@
     import {get, writable} from "svelte/store";
     import axios from "axios";
     import {authToken} from "../stores/auth.js";
+    import {notifications, addNotification} from "../stores/notifications.js";
     import Spinner from "../components/Spinner.svelte";
     import {navigate} from "svelte-routing";
 
     import {EditorState} from "@codemirror/state";
-    import {EditorView, keymap} from "@codemirror/view";
+    import {EditorView, keymap, lineNumbers} from "@codemirror/view";
     import {defaultKeymap} from "@codemirror/commands";
     import {python} from "@codemirror/lang-python";
     import {oneDark} from "@codemirror/theme-one-dark";
@@ -31,8 +32,10 @@
     let result = null;
     let editor;
 
-    onMount(() => {
-        if (!get(authToken)) {
+    onMount(async () => {
+        const authTokenValue = get(authToken);
+        if (!authTokenValue) {
+            addNotification("Please log in to access the editor.", "error");
             navigate("/login");
             return;
         }
@@ -44,6 +47,7 @@
                 keymap.of(defaultKeymap),
                 python(),
                 oneDark,
+                lineNumbers(),
                 EditorView.updateListener.of(update => {
                     if (update.docChanged) {
                         script.set(update.state.doc.toString());
@@ -109,44 +113,46 @@
 
 <div class="container" in:fade>
     <h2 class="title">Python Code Editor</h2>
-    <div id="editor-container" class="editor-container"></div>
-    <button class="button" on:click={executeScript} disabled={executing}>
-        {#if executing}
-            Executing...
-        {:else}
-            Run Script
-        {/if}
-    </button>
+    <div class="flex">
+        <div id="editor-container" class="editor-container flex-grow"></div>
+        <div class="result-section ml-4 w-1/3">
+            <button class="button w-full" on:click={executeScript} disabled={executing}>
+                {#if executing}
+                    Executing...
+                {:else}
+                    Run Script
+                {/if}
+            </button>
 
-    {#if executing}
-        <div class="result-container" in:fade>
-            <Spinner/>
-            <p class="executing-text">Executing script...</p>
-        </div>
-    {:else if error}
-        <p class="error" in:fly={{ y: 20, duration: 300 }}>{error}</p>
-    {:else if result}
-        <div class="result-container" in:fly={{ y: 20, duration: 300 }}>
-            <h3 class="subtitle">Execution Result</h3>
-            <p><strong>Status:</strong> {result.status}</p>
-            <p><strong>Execution ID:</strong> {result.execution_id}</p>
-            {#if result.output}
-                <p><strong>Output:</strong></p>
-                <pre class="output">{result.output}</pre>
+            {#if executing}
+                <div class="result-container" in:fade>
+                    <Spinner/>
+                    <p class="executing-text">Executing script...</p>
+                </div>
+            {:else if error}
+                <p class="error" in:fly={{ y: 20, duration: 300 }}>{error}</p>
+            {:else if result}
+                <div class="result-container" in:fly={{ y: 20, duration: 300 }}>
+                    <h3 class="subtitle">Execution Result</h3>
+                    <p><strong>Status:</strong> {result.status}</p>
+                    <p><strong>Execution ID:</strong> {result.execution_id}</p>
+                    {#if result.output}
+                        <p><strong>Output:</strong></p>
+                        <pre class="output">{result.output}</pre>
+                    {/if}
+                    {#if result.errors}
+                        <p><strong>Errors:</strong></p>
+                        <pre class="error">{result.errors}</pre>
+                    {/if}
+                </div>
             {/if}
-            {#if result.errors}
-                <p><strong>Errors:</strong></p>
-                <pre class="error">{result.errors}</pre>
-            {/if}
-            <p><strong>Full Result Object:</strong></p>
-            <pre class="full-result">{JSON.stringify(result, null, 2)}</pre>
         </div>
-    {/if}
+    </div>
 </div>
 
 <style>
     .container {
-        max-width: 900px;
+        max-width: 1200px;
         margin: 0 auto;
         padding: 2rem 1rem;
         background-color: #ffffff;
@@ -162,8 +168,7 @@
     }
 
     .editor-container {
-        margin-bottom: 1rem;
-        height: 400px;
+        height: 600px;
         border: 1px solid #dbdbdb;
         border-radius: 4px;
         overflow: hidden;
@@ -227,11 +232,6 @@
         background-color: #ffe6e6;
         border: 1px solid #ffb3b3;
         color: #cc0000;
-    }
-
-    .full-result {
-        background-color: #f0f0f0;
-        border: 1px solid #d9d9d9;
     }
 
     :global(.cm-editor) {

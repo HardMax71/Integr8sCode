@@ -1,22 +1,22 @@
-<footer class="bg-gray-800 text-white py-8">
+<footer class="bg-gray-800 text-white py-6">
   <div class="container mx-auto px-4">
-    <div class="flex flex-wrap justify-between items-center">
-      <div class="w-full md:w-1/3 text-center md:text-left mb-4 md:mb-0">
-        <h2 class="text-2xl font-bold mb-2">Integr8sCode</h2>
-        <p class="text-gray-400">Empowering developers with integrated solutions.</p>
+    <div class="flex flex-wrap justify-between items-start">
+      <div class="w-full sm:w-1/2 md:w-1/4 mb-4 sm:mb-0">
+        <h2 class="text-xl font-bold mb-2">Integr8sCode</h2>
+        <p class="text-sm text-gray-400">Empowering developers with integrated solutions.</p>
       </div>
-      <div class="w-full md:w-1/3 text-center mb-4 md:mb-0">
+      <div class="w-full sm:w-1/2 md:w-1/4 mb-4 sm:mb-0">
         <h3 class="text-lg font-semibold mb-2">Quick Links</h3>
-        <ul class="space-y-2">
+        <ul class="text-sm space-y-1">
           <li><a href="/" class="hover:text-purple-300 transition-colors duration-200">Home</a></li>
           <li><a href="/editor" class="hover:text-purple-300 transition-colors duration-200">Code Editor</a></li>
           <li><a href="/about" class="hover:text-purple-300 transition-colors duration-200">About Us</a></li>
           <li><a href="/contact" class="hover:text-purple-300 transition-colors duration-200">Contact</a></li>
         </ul>
       </div>
-      <div class="w-full md:w-1/3 text-center md:text-right">
+      <div class="w-full sm:w-1/2 md:w-1/4 mb-4 sm:mb-0">
         <h3 class="text-lg font-semibold mb-2">Connect With Us</h3>
-        <div class="flex justify-center md:justify-end space-x-4">
+        <div class="flex space-x-4">
           <a href="#" class="text-gray-400 hover:text-white transition-colors duration-200">
             <span class="sr-only">Facebook</span>
             <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -38,7 +38,7 @@
         </div>
       </div>
     </div>
-    <div class="mt-8 border-t border-gray-700 pt-8 text-center text-sm text-gray-400">
+    <div class="mt-4 pt-4 border-t border-gray-700 text-center text-xs text-gray-400">
       &copy; {new Date().getFullYear()} Integr8sCode. All rights reserved.
     </div>
   </div>

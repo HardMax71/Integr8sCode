@@ -21,27 +21,47 @@
   }
 </script>
 
-<header class="bg-gray-800 text-white">
-  <nav class="container mx-auto px-4 py-4 flex justify-between items-center">
-    <Link to="/" class="text-xl font-bold">Integr8sCode</Link>
-
-    <button class="lg:hidden" on:click={toggleMenu}>
-      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path>
-      </svg>
-    </button>
-
-    <div class={`lg:flex ${isMenuActive ? 'block' : 'hidden'}`}>
-      <Link to="/" class="block mt-4 lg:inline-block lg:mt-0 hover:text-gray-300 mr-4">Home</Link>
-      <Link to="/editor" class="block mt-4 lg:inline-block lg:mt-0 hover:text-gray-300 mr-4">Code Editor</Link>
-
-      {#if $authToken}
-        <span class="block mt-4 lg:inline-block lg:mt-0 mr-4">Welcome, {$username}!</span>
-        <button on:click={logout} class="block mt-4 lg:inline-block lg:mt-0 bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded" in:fade>Logout</button>
-      {:else}
-        <Link to="/login" class="block mt-4 lg:inline-block lg:mt-0 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded mr-2">Login</Link>
-        <Link to="/register" class="block mt-4 lg:inline-block lg:mt-0 bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded">Register</Link>
-      {/if}
-    </div>
-  </nav>
+<header class="bg-gray-800 text-gray-100 shadow-md">
+  <div class="container mx-auto px-4 py-3">
+    <nav class="flex items-center justify-between flex-wrap">
+      <div class="flex items-center flex-shrink-0 mr-6">
+        <Link to="/" class="font-semibold text-xl tracking-tight hover:text-yellow-400 transition-colors duration-200">
+          Integr8sCode
+        </Link>
+      </div>
+      <div class="block lg:hidden">
+        <button on:click={toggleMenu} class="flex items-center px-3 py-2 border rounded text-gray-300 border-gray-400 hover:text-white hover:border-white transition-colors duration-200">
+          <svg class="fill-current h-3 w-3" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+            <title>Menu</title>
+            <path d="M0 3h20v2H0V3zm0 6h20v2H0V9zm0 6h20v2H0v-2z"/>
+          </svg>
+        </button>
+      </div>
+      <div class={`w-full flex-grow lg:flex lg:items-center lg:w-auto ${isMenuActive ? 'block' : 'hidden'}`}>
+        <div class="text-sm lg:flex-grow">
+          <Link to="/" class="block mt-4 lg:inline-block lg:mt-0 hover:text-yellow-400 mr-4 transition-colors duration-200">
+            Home
+          </Link>
+          <Link to="/editor" class="block mt-4 lg:inline-block lg:mt-0 hover:text-yellow-400 mr-4 transition-colors duration-200">
+            Code Editor
+          </Link>
+        </div>
+        <div class="mt-4 lg:mt-0">
+          {#if $authToken}
+            <span class="text-yellow-400 mr-4">Welcome, {$username}!</span>
+            <button on:click={logout} class="inline-block text-sm px-4 py-2 leading-none border rounded text-white border-white hover:border-transparent hover:text-gray-800 hover:bg-white transition-colors duration-200" in:fade>
+              Logout
+            </button>
+          {:else}
+            <Link to="/login" class="inline-block text-sm px-4 py-2 leading-none border rounded text-white border-white hover:border-transparent hover:text-gray-800 hover:bg-white mt-4 lg:mt-0 mr-2 transition-colors duration-200">
+              Login
+            </Link>
+            <Link to="/register" class="inline-block text-sm px-4 py-2 leading-none border rounded text-yellow-400 border-yellow-400 hover:border-transparent hover:text-gray-800 hover:bg-yellow-400 mt-4 lg:mt-0 transition-colors duration-200">
+              Register
+            </Link>
+          {/if}
+        </div>
+      </div>
+    </nav>
+  </div>
 </header>

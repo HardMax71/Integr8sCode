@@ -449,6 +449,24 @@
         border-radius: 6px;
         padding: 1rem;
         overflow-y: auto;
+        max-height: 500px;
+    }
+
+    .result-content::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .result-content::-webkit-scrollbar-track {
+        background: #f1f1f1;
+    }
+
+    .result-content::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 4px;
+    }
+
+    .result-content::-webkit-scrollbar-thumb:hover {
+        background: #555;
     }
 
     .executing-text {

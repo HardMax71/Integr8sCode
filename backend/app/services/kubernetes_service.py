@@ -28,10 +28,20 @@ class KubernetesService:
             },
             "spec": {
                 "restartPolicy": "Never",
+                "securityContext": {
+                    "runAsNonRoot": True,
+                    "runAsUser": 1000,
+                    "runAsGroup": 3000,
+                    "fsGroup": 2000,
+                },
                 "containers": [{
                     "name": "python",
                     "image": "python:3.9-slim",
-                    "command": ["python", "-c", script],
+                    "command": [
+                        "/bin/sh",
+                        "-c",
+                        f"timeout {self.settings.K8S_POD_EXECUTION_TIMEOUT} python -c '{script}'"
+                    ],
                     "resources": {
                         "limits": {
                             "cpu": self.settings.K8S_POD_CPU_LIMIT,
@@ -41,6 +51,13 @@ class KubernetesService:
                             "cpu": self.settings.K8S_POD_CPU_REQUEST,
                             "memory": self.settings.K8S_POD_MEMORY_REQUEST
                         }
+                    },
+                    "securityContext": {
+                        "allowPrivilegeEscalation": False,
+                        "capabilities": {
+                            "drop": ["ALL"]
+                        },
+                        "readOnlyRootFilesystem": True
                     }
                 }]
             }

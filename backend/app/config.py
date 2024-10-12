@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     K8S_POD_MEMORY_LIMIT: str = "128Mi"
     K8S_POD_CPU_REQUEST: str = "100m"
     K8S_POD_MEMORY_REQUEST: str = "128Mi"
+    K8S_POD_EXECUTION_TIMEOUT: int = 5 # in seconds
 
     class Config:
         env_file = ".env"

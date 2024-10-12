@@ -20,7 +20,8 @@ class ExecutionService:
             "cpu_limit": self.settings.K8S_POD_CPU_LIMIT,
             "memory_limit": self.settings.K8S_POD_MEMORY_LIMIT,
             "cpu_request": self.settings.K8S_POD_CPU_REQUEST,
-            "memory_request": self.settings.K8S_POD_MEMORY_REQUEST
+            "memory_request": self.settings.K8S_POD_MEMORY_REQUEST,
+            "execution_timeout": self.settings.K8S_POD_EXECUTION_TIMEOUT
         }
 
     async def execute_script(self, script: str) -> ExecutionInDB:

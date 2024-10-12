@@ -212,6 +212,19 @@
                         <span class="limit-value">{k8sLimits.memory_request}</span>
                     </div>
                 </div>
+                <div class="limit-item">
+                    <div class="limit-icon">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                             xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="limit-details">
+                        <span class="limit-label">Execution Timeout</span>
+                        <span class="limit-value">{k8sLimits.execution_timeout} seconds</span>
+                    </div>
+                </div>
             </div>
         </div>
     {/if}

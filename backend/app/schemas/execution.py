@@ -27,3 +27,5 @@ class K8SResourceLimits(BaseModel):
     memory_limit: str
     cpu_request: str
     memory_request: str
+    execution_timeout: int
+

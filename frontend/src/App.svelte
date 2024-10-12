@@ -15,14 +15,16 @@
 <Router {url}>
     <div class="app">
         <Header/>
-        <Notifications/>
-        <main>
-            <Route path="/" component={Home}/>
-            <Route path="/editor" component={Editor}/>
-            <Route path="/login" component={Login}/>
-            <Route path="/register" component={Register}/>
-            <Route path="/about" component={About}/>
-        </main>
+        <div class="content-wrapper">
+            <Notifications/>
+            <main>
+                <Route path="/" component={Home}/>
+                <Route path="/editor" component={Editor}/>
+                <Route path="/login" component={Login}/>
+                <Route path="/register" component={Register}/>
+                <Route path="/about" component={About}/>
+            </main>
+        </div>
         <Footer/>
     </div>
 </Router>
@@ -40,6 +42,12 @@
         display: flex;
         flex-direction: column;
         min-height: 100vh;
+    }
+
+    .content-wrapper {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
     }
 
     main {

@@ -14,24 +14,32 @@ class KubernetesService:
         self.settings = get_settings()
         try:
             config.load_kube_config(config_file=self.settings.KUBERNETES_CONFIG_PATH)
-            self.v1 = client.CoreV1Api()
-            logging.info(f"Successfully loaded Kubernetes config from {self.settings.KUBERNETES_CONFIG_PATH}")
+            logging.info(f"Using kubeconfig from {self.settings.KUBERNETES_CONFIG_PATH}")
+
+            configuration = client.Configuration.get_default_copy()
+            configuration.verify_ssl = False  # TODO: add SSL certs
+
+            api_client = client.ApiClient(configuration=configuration)
+            self.v1 = client.CoreV1Api(api_client)
+
+            logging.info(f"Kubernetes API server: {configuration.host}")
         except ConfigException as e:
             logging.error(f"Error loading Kubernetes config: {e}")
             raise
 
-    async def create_execution_pod(self, execution_id: str, script: str):
-        # Create a temporary file with the script content
+    async def create_execution_pod(self, execution_id: str, script: str, python_version: str):
         with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as temp_file:
             temp_file.write(script)
             temp_file_path = temp_file.name
 
         try:
-            # Create a ConfigMap to store the script
             config_map_name = f"script-{execution_id}"
+            with open(temp_file_path, "r") as f:
+                script_content = f.read()
+
             config_map = client.V1ConfigMap(
                 metadata=client.V1ObjectMeta(name=config_map_name),
-                data={"script.py": open(temp_file_path, "r").read()}
+                data={"script.py": script_content}
             )
 
             await self.create_config_map(config_map)
@@ -54,13 +62,13 @@ class KubernetesService:
                         "runAsGroup": 3000,
                         "fsGroup": 2000,
                         "seccompProfile": {
-                            "type": "RuntimeDefault"  # Apply Seccomp profile
+                            "type": "RuntimeDefault"
                         },
                         "supplementalGroups": [4000]
                     },
                     "containers": [{
                         "name": "python",
-                        "image": "python:3.9-slim",
+                        "image": f"python:{python_version}-slim",
                         "imagePullPolicy": "IfNotPresent",
                         "command": [
                             "/bin/sh",
@@ -71,7 +79,7 @@ class KubernetesService:
                             {
                                 "name": "script-volume",
                                 "mountPath": "/scripts",
-                                "readOnly": True  # Mount ConfigMap as read-only
+                                "readOnly": True
                             }
                         ],
                         "resources": {
@@ -84,12 +92,12 @@ class KubernetesService:
                                 "memory": self.settings.K8S_POD_MEMORY_REQUEST
                             }
                         },
-                        "securityContext": {  # Container-level security context
+                        "securityContext": {
                             "allowPrivilegeEscalation": False,
                             "capabilities": {
-                                "drop": ["ALL"]  # Drop all capabilities
+                                "drop": ["ALL"]
                             },
-                            "readOnlyRootFilesystem": True,  # Ensure container filesystem is read-only
+                            "readOnlyRootFilesystem": True,
                             "seccompProfile": {
                                 "type": "RuntimeDefault"
                             }
@@ -100,16 +108,16 @@ class KubernetesService:
                             "name": "script-volume",
                             "configMap": {
                                 "name": config_map_name,
-                                "defaultMode": 0o444  # Set ConfigMap files as read-only
+                                "defaultMode": 0o444
                             }
                         }
                     ],
-                    "hostPID": False,  # Disable host PID namespace
-                    "hostIPC": False,  # Disable host IPC namespace
-                    "hostNetwork": False,  # Disable host networking
-                    "dnsPolicy": "Default",  # Use default DNS policy
+                    "hostPID": False,
+                    "hostIPC": False,
+                    "hostNetwork": False,
+                    "dnsPolicy": "Default",
                     "nodeSelector": {
-                        "kubernetes.io/os": "linux"  # Ensure Pod runs on Linux nodes
+                        "kubernetes.io/os": "linux"
                     }
                 }
             }
@@ -123,7 +131,6 @@ class KubernetesService:
             logging.error(f"Exception when calling CoreV1Api->create_namespaced_pod: {e}")
             raise
         finally:
-            # Clean up the temporary file
             os.unlink(temp_file_path)
 
     async def create_config_map(self, config_map):
@@ -137,34 +144,50 @@ class KubernetesService:
             logging.error(f"Exception when calling CoreV1Api->create_namespaced_config_map: {e}")
             raise
 
-    async def get_pod_logs(self, execution_id: str) -> str:
+    async def get_pod_logs(self, execution_id: str):
         pod_name = f"execution-{execution_id}"
+        namespace = "default"
         loop = asyncio.get_event_loop()
         try:
-            # Wait for the pod to be in a state where logs can be read
-            for _ in range(60):  # Wait up to 60 seconds
+            # Wait for pod to complete
+            for _ in range(60):
                 pod = await loop.run_in_executor(
                     None,
-                    lambda: self.v1.read_namespaced_pod(name=pod_name, namespace="default")
+                    lambda: self.v1.read_namespaced_pod(name=pod_name, namespace=namespace)
                 )
-                if pod.status.phase in ['Running', 'Succeeded', 'Failed']:
+                if pod.status.phase in ['Succeeded', 'Failed']:
                     break
                 await asyncio.sleep(1)
             else:
-                raise Exception("Timeout waiting for pod to be ready")
+                raise Exception("Timeout waiting for pod to complete")
 
+            # Get pod logs
             logs = await loop.run_in_executor(
                 None,
-                lambda: self.v1.read_namespaced_pod_log(name=pod_name, namespace="default")
+                lambda: self.v1.read_namespaced_pod_log(name=pod_name, namespace=namespace)
             )
-            await loop.run_in_executor(
-                None,
-                lambda: self.v1.delete_namespaced_pod(name=pod_name, namespace="default")
-            )
+
             return logs
         except ApiException as e:
-            logging.error(f"Exception when interacting with pod {pod_name}: {e}")
+            if e.status == 404:
+                logging.error(f"Pod {pod_name} not found. It might have been deleted already.")
+            else:
+                logging.error(f"Exception when interacting with pod {pod_name}: {e}")
             raise
+        finally:
+            # Always attempt to delete the pod, even if an exception occurred
+            try:
+                await loop.run_in_executor(
+                    None,
+                    lambda: self.v1.delete_namespaced_pod(name=pod_name, namespace=namespace)
+                )
+                logging.info(f"Successfully deleted pod {pod_name}")
+            except ApiException as delete_error:
+                if delete_error.status == 404:
+                    logging.warning(
+                        f"Pod {pod_name} not found when attempting to delete. It may have been deleted already.")
+                else:
+                    logging.error(f"Failed to delete pod {pod_name}: {delete_error}")
 
 
 def get_kubernetes_service() -> KubernetesService:

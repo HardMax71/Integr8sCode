@@ -1,18 +1,18 @@
 <script>
-    import {onMount} from "svelte";
-    import {fade, fly} from "svelte/transition";
-    import {get, writable} from "svelte/store";
+    import { onMount } from "svelte";
+    import { fade, fly } from "svelte/transition";
+    import { get, writable } from "svelte/store";
     import axios from "axios";
-    import {authToken} from "../stores/auth.js";
-    import {addNotification} from "../stores/notifications.js";
+    import { authToken } from "../stores/auth.js";
+    import { addNotification } from "../stores/notifications.js";
     import Spinner from "../components/Spinner.svelte";
-    import {navigate} from "svelte-routing";
+    import { navigate } from "svelte-routing";
 
-    import {EditorState} from "@codemirror/state";
-    import {EditorView, keymap, lineNumbers} from "@codemirror/view";
-    import {defaultKeymap} from "@codemirror/commands";
-    import {python} from "@codemirror/lang-python";
-    import {oneDark} from "@codemirror/theme-one-dark";
+    import { EditorState } from "@codemirror/state";
+    import { EditorView, keymap, lineNumbers } from "@codemirror/view";
+    import { defaultKeymap } from "@codemirror/commands";
+    import { python } from "@codemirror/lang-python";
+    import { oneDark } from "@codemirror/theme-one-dark";
 
     // Custom persistent store
     function createPersistentStore(key, startValue) {
@@ -32,6 +32,8 @@
     let result = null;
     let editor;
     let k8sLimits = null;
+    let pythonVersion = writable("3.9");
+    let supportedPythonVersions = [];
 
     onMount(async () => {
         const authTokenValue = get(authToken);
@@ -62,6 +64,7 @@
                 }
             );
             k8sLimits = limitsResponse.data;
+            supportedPythonVersions = k8sLimits.supported_python_versions;
         } catch (err) {
             console.error("Error fetching K8s limits:", err);
             addNotification("Failed to fetch resource limits.", "error");
@@ -97,11 +100,12 @@
 
         const scriptValue = get(script);
         const authTokenValue = get(authToken);
+        const pythonVersionValue = get(pythonVersion);
 
         try {
             const executeResponse = await axios.post(
                 "http://localhost:8000/api/v1/execute",
-                {script: scriptValue},
+                { script: scriptValue, python_version: pythonVersionValue },
                 {
                     headers: {Authorization: `Bearer ${authTokenValue}`}
                 }
@@ -191,32 +195,6 @@
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"
                              xmlns="http://www.w3.org/2000/svg">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                  d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
-                        </svg>
-                    </div>
-                    <div class="limit-details">
-                        <span class="limit-label">CPU Request</span>
-                        <span class="limit-value">{k8sLimits.cpu_request}</span>
-                    </div>
-                </div>
-                <div class="limit-item">
-                    <div class="limit-icon">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                             xmlns="http://www.w3.org/2000/svg">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                  d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
-                        </svg>
-                    </div>
-                    <div class="limit-details">
-                        <span class="limit-label">Memory Request</span>
-                        <span class="limit-value">{k8sLimits.memory_request}</span>
-                    </div>
-                </div>
-                <div class="limit-item">
-                    <div class="limit-icon">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                             xmlns="http://www.w3.org/2000/svg">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                   d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                         </svg>
                     </div>
@@ -229,17 +207,23 @@
         </div>
     {/if}
 
-
     <div class="flex flex-col lg:flex-row">
         <div class="editor-section w-full lg:w-2/3 lg:pr-4">
             <div id="editor-container" class="editor-container"></div>
-            <button class="button w-full mt-4" on:click={executeScript} disabled={executing}>
-                {#if executing}
-                    Executing...
-                {:else}
-                    Run Script
-                {/if}
-            </button>
+            <div class="flex items-center mt-4">
+                <select bind:value={$pythonVersion} class="mr-4 p-2 border rounded">
+                    {#each supportedPythonVersions as version}
+                        <option value={version}>Python {version}</option>
+                    {/each}
+                </select>
+                <button class="button flex-grow" on:click={executeScript} disabled={executing}>
+                    {#if executing}
+                        Executing...
+                    {:else}
+                        Run Script
+                    {/if}
+                </button>
+            </div>
         </div>
         <div class="result-section w-full lg:w-1/3 mt-4 lg:mt-0">
             <div class="result-container">
@@ -265,6 +249,14 @@
                             <p><strong>Errors:</strong></p>
                             <pre class="error">{result.errors}</pre>
                         {/if}
+                        {#if result.resource_usage}
+                            <div class="resource-usage">
+                                <h4>Resource Usage:</h4>
+                                <p><strong>CPU Usage:</strong> {result.resource_usage.cpu_usage}</p>
+                                <p><strong>Memory Usage:</strong> {result.resource_usage.memory_usage}</p>
+                                <p><strong>Execution Time:</strong> {result.resource_usage.execution_time.toFixed(2)} seconds</p>
+                            </div>
+                        {/if}
                     </div>
                 {:else}
                     <p class="result-content">Run your script to see the output here.</p>
@@ -275,6 +267,22 @@
 </div>
 
 <style>
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 2rem 1rem;
+        background-color: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .title {
+        font-size: 2rem;
+        color: #333;
+        margin-bottom: 1.5rem;
+        text-align: center;
+    }
+
     .limits-container {
         background-color: #f8fafc;
         border: 1px solid #e2e8f0;
@@ -341,22 +349,6 @@
         font-weight: 600;
     }
 
-    .container {
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 2rem 1rem;
-        background-color: #ffffff;
-        border-radius: 8px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-
-    .title {
-        font-size: 2rem;
-        color: #333;
-        margin-bottom: 1.5rem;
-        text-align: center;
-    }
-
     .editor-container {
         height: 600px;
         border: 1px solid #dbdbdb;
@@ -386,10 +378,32 @@
 
     .result-container {
         padding: 1rem;
-        background-color: #f5f5f5;
+        background-color:  #f5f5f5;
         border-radius: 4px;
         height: 100%;
         overflow-y: auto;
+    }
+
+    .result-title {
+        font-size: 1.25rem;
+        color: #2d3748;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+    }
+
+    .result-description {
+        font-size: 0.875rem;
+        color: #718096;
+        margin-bottom: 1rem;
+    }
+
+    .result-content {
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 1rem;
+        overflow-y: auto;
+        max-height: 500px;
     }
 
     .executing-text {
@@ -419,75 +433,19 @@
         color: #cc0000;
     }
 
-    .result-container {
-        background-color: #f8fafc;
-        border: 2px solid #e2e8f0;
-        border-radius: 8px;
+    .resource-usage {
+        margin-top: 1rem;
         padding: 1rem;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
+        background-color: #f0f8ff;
+        border: 1px solid #b0d4ff;
+        border-radius: 4px;
     }
 
-    .result-title {
-        font-size: 1.25rem;
-        color: #2d3748;
+    .resource-usage h4 {
         margin-bottom: 0.5rem;
         font-weight: 600;
+        color: #2c5282;
     }
-
-    .result-description {
-        font-size: 0.875rem;
-        color: #718096;
-        margin-bottom: 1rem;
-    }
-
-    .result-content {
-        flex-grow: 1;
-        background-color: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 6px;
-        padding: 1rem;
-        overflow-y: auto;
-        max-height: 500px;
-    }
-
-    .result-content::-webkit-scrollbar {
-        width: 8px;
-    }
-
-    .result-content::-webkit-scrollbar-track {
-        background: #f1f1f1;
-    }
-
-    .result-content::-webkit-scrollbar-thumb {
-        background: #888;
-        border-radius: 4px;
-    }
-
-    .result-content::-webkit-scrollbar-thumb:hover {
-        background: #555;
-    }
-
-    .executing-text {
-        text-align: center;
-        color: #3182ce;
-        font-weight: bold;
-    }
-
-    .error {
-        color: #e53e3e;
-    }
-
-    .output {
-        background-color: #edf2f7;
-        border: 1px solid #e2e8f0;
-        border-radius: 4px;
-        padding: 0.5rem;
-        font-family: 'Fira Code', monospace;
-        font-size: 0.875rem;
-    }
-
 
     :global(.cm-editor) {
         height: 100%;
@@ -506,5 +464,15 @@
         min-width: 20px;
         text-align: right;
         color: #999;
+    }
+
+    @media (max-width: 1023px) {
+        .editor-section, .result-section {
+            width: 100%;
+        }
+
+        .editor-section {
+            margin-bottom: 1rem;
+        }
     }
 </style>

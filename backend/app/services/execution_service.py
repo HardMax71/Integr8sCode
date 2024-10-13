@@ -21,16 +21,17 @@ class ExecutionService:
             "memory_limit": self.settings.K8S_POD_MEMORY_LIMIT,
             "cpu_request": self.settings.K8S_POD_CPU_REQUEST,
             "memory_request": self.settings.K8S_POD_MEMORY_REQUEST,
-            "execution_timeout": self.settings.K8S_POD_EXECUTION_TIMEOUT
+            "execution_timeout": self.settings.K8S_POD_EXECUTION_TIMEOUT,
+            "supported_python_versions": self.settings.SUPPORTED_PYTHON_VERSIONS
         }
 
-    async def execute_script(self, script: str) -> ExecutionInDB:
-        execution = ExecutionCreate(script=script)
+    async def execute_script(self, script: str, python_version: str = "3.11") -> ExecutionInDB:
+        execution = ExecutionCreate(script=script, python_version=python_version)
         execution_in_db = ExecutionInDB(**execution.dict())
         await self.execution_repo.create_execution(execution_in_db)
 
         try:
-            await self.k8s_service.create_execution_pod(execution_in_db.id, script)
+            await self.k8s_service.create_execution_pod(execution_in_db.id, script, python_version)
         except Exception as e:
             error_message = f"Failed to create execution pod: {str(e)}"
             logging.error(error_message)
@@ -55,17 +56,13 @@ class ExecutionService:
             update_data = ExecutionUpdate(status="completed", output=logs).dict()
             await self.execution_repo.update_execution(execution_id, update_data)
         except ApiException as e:
-            # Handle specific Kubernetes API exceptions
             if e.status == 400 and "ContainerCreating" in e.body:
-                # Pod is still starting; return current execution status
                 logging.info(f"Pod {execution_id} is not ready yet.")
                 return execution
             else:
-                # Mark execution as failed
                 update_data = ExecutionUpdate(status="failed", errors=str(e)).dict()
                 await self.execution_repo.update_execution(execution_id, update_data)
         except Exception as e:
-            # General exception handling
             update_data = ExecutionUpdate(status="failed", errors=str(e)).dict()
             await self.execution_repo.update_execution(execution_id, update_data)
 

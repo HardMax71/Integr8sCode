@@ -14,7 +14,6 @@
     import { python } from "@codemirror/lang-python";
     import { oneDark } from "@codemirror/theme-one-dark";
 
-    // Custom persistent store
     function createPersistentStore(key, startValue) {
         const storedValue = localStorage.getItem(key);
         const store = writable(storedValue ? JSON.parse(storedValue) : startValue);
@@ -34,6 +33,7 @@
     let k8sLimits = null;
     let pythonVersion = writable("3.9");
     let supportedPythonVersions = [];
+    let showLimits = false;
 
     onMount(async () => {
         const authTokenValue = get(authToken);
@@ -44,7 +44,6 @@
         }
 
         try {
-            // Verify the token with the backend
             await axios.get("http://localhost:8000/api/v1/verify-token", {
                 headers: {Authorization: `Bearer ${authTokenValue}`}
             });
@@ -70,7 +69,6 @@
             addNotification("Failed to fetch resource limits.", "error");
         }
 
-        // Create the initial editor state
         const startState = EditorState.create({
             doc: get(script),
             extensions: [
@@ -86,7 +84,6 @@
             ],
         });
 
-        // Create the editor view and attach it to a DOM element
         editor = new EditorView({
             state: startState,
             parent: document.getElementById("editor-container"),
@@ -113,7 +110,6 @@
 
             const executionId = executeResponse.data.execution_id;
 
-            // Poll for results
             while (true) {
                 const resultResponse = await axios.get(
                     `http://localhost:8000/api/v1/result/${executionId}`,
@@ -131,11 +127,10 @@
                     break;
                 }
 
-                await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before polling again
+                await new Promise(resolve => setTimeout(resolve, 1000));
             }
         } catch (err) {
             if (err.response && err.response.status === 401) {
-                // Handle 401 Unauthorized error
                 addNotification("Your session has expired. Please log in again.", "error");
                 localStorage.removeItem("authToken");
                 authToken.set(null);
@@ -148,88 +143,110 @@
             executing = false;
         }
     }
+
+    function exportScript() {
+        const blob = new Blob([get(script)], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'script.py';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    function toggleLimits() {
+        showLimits = !showLimits;
+    }
 </script>
 
 <div class="container" in:fade>
-    <h2 class="title">Python Code Editor</h2>
-
-    {#if k8sLimits}
-        <div class="limits-container mb-6" in:fly={{ y: 20, duration: 300 }}>
-            <h3 class="limits-title">
-                <svg class="inline-block w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                     xmlns="http://www.w3.org/2000/svg">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-                </svg>
-                Execution Resource Limits
-            </h3>
-            <div class="limits-grid">
-                <div class="limit-item">
-                    <div class="limit-icon">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                             xmlns="http://www.w3.org/2000/svg">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                  d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path>
-                        </svg>
+    <div class="header-row">
+        <h2 class="title">Python Code Editor</h2>
+        {#if k8sLimits}
+            <div class="limits-container">
+                <button class="limits-toggle" on:click={toggleLimits}>
+                    <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                         xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                    Resource Limits
+                    <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                         xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d={showLimits ? "M19 9l-7 7-7-7" : "M9 5l7 7-7 7"}></path>
+                    </svg>
+                </button>
+                {#if showLimits}
+                    <div class="limits-grid" transition:fly={{ y: -20, duration: 300 }}>
+                        <div class="limit-item">
+                            <div class="limit-icon">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                     xmlns="http://www.w3.org/2000/svg">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path>
+                                </svg>
+                            </div>
+                            <div class="limit-details">
+                                <span class="limit-label">CPU Limit</span>
+                                <span class="limit-value">{k8sLimits.cpu_limit}</span>
+                            </div>
+                        </div>
+                        <div class="limit-item">
+                            <div class="limit-icon">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                     xmlns="http://www.w3.org/2000/svg">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                                </svg>
+                            </div>
+                            <div class="limit-details">
+                                <span class="limit-label">Memory Limit</span>
+                                <span class="limit-value">{k8sLimits.memory_limit}</span>
+                            </div>
+                        </div>
+                        <div class="limit-item">
+                            <div class="limit-icon">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                     xmlns="http://www.w3.org/2000/svg">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </div>
+                            <div class="limit-details">
+                                <span class="limit-label">Execution Timeout</span>
+                                <span class="limit-value">{k8sLimits.execution_timeout} seconds</span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="limit-details">
-                        <span class="limit-label">CPU Limit</span>
-                        <span class="limit-value">{k8sLimits.cpu_limit}</span>
-                    </div>
-                </div>
-                <div class="limit-item">
-                    <div class="limit-icon">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                             xmlns="http://www.w3.org/2000/svg">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                  d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
-                        </svg>
-                    </div>
-                    <div class="limit-details">
-                        <span class="limit-label">Memory Limit</span>
-                        <span class="limit-value">{k8sLimits.memory_limit}</span>
-                    </div>
-                </div>
-                <div class="limit-item">
-                    <div class="limit-icon">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                             xmlns="http://www.w3.org/2000/svg">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                    </div>
-                    <div class="limit-details">
-                        <span class="limit-label">Execution Timeout</span>
-                        <span class="limit-value">{k8sLimits.execution_timeout} seconds</span>
-                    </div>
-                </div>
+                {/if}
             </div>
-        </div>
-    {/if}
+        {/if}
+    </div>
 
-    <div class="flex flex-col lg:flex-row">
-        <div class="editor-section w-full lg:w-2/3 lg:pr-4">
+    <div class="editor-result-container">
+        <div class="editor-section">
             <div id="editor-container" class="editor-container"></div>
-            <div class="flex items-center mt-4">
-                <select bind:value={$pythonVersion} class="mr-4 p-2 border rounded">
+            <div class="editor-controls">
+                <select bind:value={$pythonVersion} class="version-select">
                     {#each supportedPythonVersions as version}
                         <option value={version}>Python {version}</option>
                     {/each}
                 </select>
-                <button class="button flex-grow" on:click={executeScript} disabled={executing}>
-                    {#if executing}
-                        Executing...
-                    {:else}
-                        Run Script
-                    {/if}
+                <button class="button" on:click={executeScript} disabled={executing}>
+                    {executing ? 'Executing...' : 'Run Script'}
+                </button>
+                <button class="icon-button" on:click={exportScript} title="Export Script">
+                    Export
                 </button>
             </div>
         </div>
-        <div class="result-section w-full lg:w-1/3 mt-4 lg:mt-0">
+        <div class="result-section">
             <div class="result-container">
                 <h3 class="result-title">Execution Output</h3>
-                <p class="result-description">Here you'll see the output of your script, including any errors or
-                    results.</p>
+                <p class="result-description">Here you'll see the output of your script, including any errors or results.</p>
                 {#if executing}
                     <div class="result-content" in:fade>
                         <Spinner/>
@@ -270,65 +287,84 @@
     .container {
         max-width: 1200px;
         margin: 0 auto;
-        padding: 2rem 1rem;
+        padding: 1rem;
         background-color: #ffffff;
         border-radius: 8px;
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     }
 
+    .header-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 1.5rem;
+        margin-bottom: 1rem;
+    }
+
     .title {
-        font-size: 2rem;
+        font-size: 1.5rem;
         color: #333;
-        margin-bottom: 1.5rem;
-        text-align: center;
+        margin: 0;
     }
 
     .limits-container {
+        flex-shrink: 0;
+        position: relative;
+    }
+
+    .limits-toggle {
+        display: flex;
+        align-items: center;
         background-color: #f8fafc;
         border: 1px solid #e2e8f0;
         border-radius: 8px;
-        padding: 1.5rem;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+        color: #2d3748;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
     }
 
-    .limits-title {
-        font-size: 1.25rem;
-        color: #2d3748;
-        margin-bottom: 1rem;
-        display: flex;
-        align-items: center;
-        font-weight: 600;
+    .limits-toggle:hover {
+        background-color: #edf2f7;
+    }
+
+    .icon {
+        width: 1.25rem;
+        height: 1.25rem;
+        margin-right: 0.5rem;
     }
 
     .limits-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1rem;
-    }
-
-    .limit-item {
+        position: absolute;
+        top: 100%;
+        right: 0;
+        margin-top: 0.5rem;
         background-color: #ffffff;
         border: 1px solid #e2e8f0;
         border-radius: 8px;
         padding: 1rem;
-        display: flex;
-        align-items: center;
-        transition: all 0.3s ease;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        z-index: 10;
     }
 
-    .limit-item:hover {
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-        transform: translateY(-2px);
+    .limit-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 0.5rem;
     }
 
     .limit-icon {
         background-color: #ebf8ff;
         border-radius: 50%;
-        padding: 0.5rem;
-        margin-right: 1rem;
+        padding: 0.25rem;
+        margin-right: 0.5rem;
     }
 
     .limit-icon svg {
+        width: 1rem;
+        height: 1rem;
         color: #3182ce;
     }
 
@@ -338,22 +374,46 @@
     }
 
     .limit-label {
-        font-size: 0.875rem;
+        font-size: 0.75rem;
         color: #4a5568;
-        margin-bottom: 0.25rem;
     }
 
     .limit-value {
-        font-size: 1rem;
+        font-size: 0.875rem;
         color: #2d3748;
         font-weight: 600;
     }
 
+    .editor-result-container {
+        display: flex;
+        gap: 1rem;
+    }
+
+    .editor-section {
+        flex: 2;
+        display: flex;
+        flex-direction: column;
+    }
+
     .editor-container {
-        height: 600px;
-        border: 1px solid #dbdbdb;
+        height: 500px;
+        border: 1px solid #e2e8f0;
         border-radius: 4px;
         overflow: hidden;
+    }
+
+    .editor-controls {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1rem;
+    }
+
+    .version-select {
+        padding: 0.5rem;
+        border-radius: 4px;
+        border: 1px solid #e2e8f0;
+        background-color: #ffffff;
+        font-size: 0.875rem;
     }
 
     .button {
@@ -361,10 +421,11 @@
         color: #ffffff;
         border: none;
         padding: 0.5rem 1rem;
-        font-size: 1rem;
+        font-size: 0.875rem;
         border-radius: 4px;
         cursor: pointer;
         transition: background-color 0.3s ease;
+        flex-grow: 1;
     }
 
     .button:hover:not(:disabled) {
@@ -376,10 +437,32 @@
         cursor: not-allowed;
     }
 
-    .result-container {
-        padding: 1rem;
-        background-color:  #f5f5f5;
+    .icon-button {
+        background-color: #4a5568;
+        color: #ffffff;
+        border: none;
+        padding: 0.5rem;
+        font-size: 0.875rem;
         border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .icon-button:hover {
+        background-color: #2d3748;
+    }
+
+    .result-section {
+        flex: 1;
+    }
+
+    .result-container {
+        background-color: #f7fafc;
+        border-radius: 4px;
+        padding: 1rem;
         height: 100%;
         overflow-y: auto;
     }
@@ -400,7 +483,7 @@
     .result-content {
         background-color: #ffffff;
         border: 1px solid #e2e8f0;
-        border-radius: 6px;
+        border-radius: 4px;
         padding: 1rem;
         overflow-y: auto;
         max-height: 500px;
@@ -418,7 +501,7 @@
         background-color: #f0f0f0;
         padding: 1rem;
         border-radius: 4px;
-        font-size: 0.9rem;
+        font-size: 0.875rem;
         line-height: 1.5;
     }
 
@@ -454,25 +537,78 @@
     }
 
     :global(.cm-gutters) {
-        border-right: 1px solid #ddd;
-        background-color: #f7f7f7;
-        white-space: nowrap;
+        border-right: 1px solid #e2e8f0;
+        background-color: #f7fafc;
     }
 
     :global(.cm-lineNumbers) {
         padding: 0 3px 0 5px;
         min-width: 20px;
         text-align: right;
-        color: #999;
+        color: #718096;
     }
 
-    @media (max-width: 1023px) {
+    @media (max-width: 768px) {
+        .header-row {
+            flex-direction: row;
+            flex-wrap: nowrap;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .title {
+            font-size: 1rem;
+            margin-bottom: 0;
+            margin-right: 0.5rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .limits-container {
+            margin-top: 0;
+            margin-left: 0;
+        }
+
+        .limits-toggle {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            white-space: nowrap;
+        }
+
+        .icon {
+            width: 0.875rem;
+            height: 0.875rem;
+            margin-right: 0.25rem;
+        }
+
+        .limits-grid {
+            right: 0;
+            left: auto;
+            width: 100%;
+            max-width: 300px;
+        }
+
+        .editor-result-container {
+            flex-direction: column;
+        }
+
         .editor-section, .result-section {
             width: 100%;
         }
 
-        .editor-section {
-            margin-bottom: 1rem;
+        .editor-container {
+            height: 400px;
+        }
+
+        .button, .icon-button {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+        }
+
+        .version-select {
+            font-size: 0.75rem;
+            padding: 0.25rem;
         }
     }
 </style>

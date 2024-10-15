@@ -12,11 +12,12 @@ spec:
       labels:
         app: backend
     spec:
+      serviceAccountName: backend-sa
       containers:
-      - name: backend
-        image: hardmax71/backend:latest
-        ports:
-        - containerPort: 8000
-        env:
-        - name: MONGODB_URL
-          value: "mongodb://mongo-service:27017/integr8scode"
+        - name: backend
+          image: hardmax71/backend:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: MONGODB_URL
+              value: "mongodb://mongo-service:27017/integr8scode"

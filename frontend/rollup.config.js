@@ -6,7 +6,10 @@ import terser from '@rollup/plugin-terser';
 import postcss from 'rollup-plugin-postcss';
 import { spawn } from 'child_process';
 import sveltePreprocess from 'svelte-preprocess';
+import replace from '@rollup/plugin-replace';
+import dotenv from 'dotenv';
 
+dotenv.config();
 const production = !process.env.ROLLUP_WATCH;
 
 function serve() {
@@ -39,6 +42,10 @@ export default {
     dir: 'public/build'
   },
   plugins: [
+      replace({
+      'process.env.VITE_BACKEND_URL': JSON.stringify(process.env.VITE_BACKEND_URL),
+      preventAssignment: true
+    }),
     svelte({
       preprocess: sveltePreprocess({
         postcss: true,

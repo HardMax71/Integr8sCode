@@ -1,6 +1,6 @@
 <script>
   import { navigate } from "svelte-routing";
-  import { login, authToken, username as usernameStore } from "../stores/auth.js";
+  import { login } from "../stores/auth.js";
   import { addNotification } from "../stores/notifications.js";
   import { fade, fly } from "svelte/transition";
 

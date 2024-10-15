@@ -1,18 +1,19 @@
 <script>
-    import { onMount } from "svelte";
-    import { fade, fly } from "svelte/transition";
-    import { get, writable } from "svelte/store";
+    import {onMount} from "svelte";
+    import {fade, fly} from "svelte/transition";
+    import {get, writable} from "svelte/store";
     import axios from "axios";
-    import { authToken } from "../stores/auth.js";
-    import { addNotification } from "../stores/notifications.js";
+    import {authToken} from "../stores/auth.js";
+    import {addNotification} from "../stores/notifications.js";
     import Spinner from "../components/Spinner.svelte";
-    import { navigate } from "svelte-routing";
+    import {navigate} from "svelte-routing";
+    import {backendUrl} from "../config.js";
 
-    import { EditorState } from "@codemirror/state";
-    import { EditorView, keymap, lineNumbers } from "@codemirror/view";
-    import { defaultKeymap } from "@codemirror/commands";
-    import { python } from "@codemirror/lang-python";
-    import { oneDark } from "@codemirror/theme-one-dark";
+    import {EditorState} from "@codemirror/state";
+    import {EditorView, keymap, lineNumbers} from "@codemirror/view";
+    import {defaultKeymap} from "@codemirror/commands";
+    import {python} from "@codemirror/lang-python";
+    import {oneDark} from "@codemirror/theme-one-dark";
 
     function createPersistentStore(key, startValue) {
         const storedValue = localStorage.getItem(key);
@@ -44,7 +45,7 @@
         }
 
         try {
-            await axios.get("http://localhost:8000/api/v1/verify-token", {
+            await axios.get(`${backendUrl}/api/v1/verify-token`, {
                 headers: {Authorization: `Bearer ${authTokenValue}`}
             });
         } catch (err) {
@@ -57,7 +58,7 @@
 
         try {
             const limitsResponse = await axios.get(
-                "http://localhost:8000/api/v1/k8s-limits",
+                `${backendUrl}/api/v1/k8s-limits`,
                 {
                     headers: {Authorization: `Bearer ${authTokenValue}`}
                 }
@@ -101,8 +102,8 @@
 
         try {
             const executeResponse = await axios.post(
-                "http://localhost:8000/api/v1/execute",
-                { script: scriptValue, python_version: pythonVersionValue },
+                `${backendUrl}/api/v1/execute`,
+                {script: scriptValue, python_version: pythonVersionValue},
                 {
                     headers: {Authorization: `Bearer ${authTokenValue}`}
                 }
@@ -112,7 +113,7 @@
 
             while (true) {
                 const resultResponse = await axios.get(
-                    `http://localhost:8000/api/v1/result/${executionId}`,
+                    `${backendUrl}/api/v1/result/${executionId}`,
                     {
                         headers: {Authorization: `Bearer ${authTokenValue}`}
                     }
@@ -145,7 +146,7 @@
     }
 
     function exportScript() {
-        const blob = new Blob([get(script)], { type: 'text/plain' });
+        const blob = new Blob([get(script)], {type: 'text/plain'});
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -246,7 +247,8 @@
         <div class="result-section">
             <div class="result-container">
                 <h3 class="result-title">Execution Output</h3>
-                <p class="result-description">Here you'll see the output of your script, including any errors or results.</p>
+                <p class="result-description">Here you'll see the output of your script, including any errors or
+                    results.</p>
                 {#if executing}
                     <div class="result-content" in:fade>
                         <Spinner/>
@@ -271,7 +273,8 @@
                                 <h4>Resource Usage:</h4>
                                 <p><strong>CPU Usage:</strong> {result.resource_usage.cpu_usage}</p>
                                 <p><strong>Memory Usage:</strong> {result.resource_usage.memory_usage}</p>
-                                <p><strong>Execution Time:</strong> {result.resource_usage.execution_time.toFixed(2)} seconds</p>
+                                <p><strong>Execution Time:</strong> {result.resource_usage.execution_time.toFixed(2)}
+                                    seconds</p>
                             </div>
                         {/if}
                     </div>

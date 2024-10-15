@@ -13,11 +13,11 @@ class KubernetesService:
     def __init__(self):
         self.settings = get_settings()
         try:
-            config.load_kube_config(config_file=self.settings.KUBERNETES_CONFIG_PATH)
-            logging.info(f"Using kubeconfig from {self.settings.KUBERNETES_CONFIG_PATH}")
+            config.load_incluster_config()
+            logging.info("Using in-cluster Kubernetes configuration")
 
             configuration = client.Configuration.get_default_copy()
-            configuration.verify_ssl = False  # TODO: add SSL certs
+            configuration.verify_ssl = True
 
             api_client = client.ApiClient(configuration=configuration)
             self.v1 = client.CoreV1Api(api_client)

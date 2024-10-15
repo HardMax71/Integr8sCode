@@ -42,8 +42,8 @@ CMD ["uvicorn", "app.main
 2. Build the Docker image and push it to your DockerHub repository:
 
 ```bash
-docker buildx build --platform linux/amd64 -t <your-dockerhub-username>/backend
-. docker push <your-dockerhub-username>/backend
+docker buildx build --platform linux/amd64 -t <your-dockerhub-username>/backend . 
+docker push <your-dockerhub-username>/backend
 ```
 
 

@@ -1,4 +1,5 @@
 import { writable } from 'svelte/store';
+import {backendUrl} from "../config.js";
 
 function createPersistentStore(key, startValue) {
     const storedValue = localStorage.getItem(key);
@@ -20,7 +21,7 @@ export async function login(email, password) {
         formData.append('username', email);
         formData.append('password', password);
 
-        const response = await fetch("http://localhost:8000/api/v1/login", {
+        const response = await fetch(`${backendUrl}/api/v1/login`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',

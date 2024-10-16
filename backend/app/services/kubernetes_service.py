@@ -6,25 +6,52 @@ import tempfile
 from app.config import get_settings
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
-from kubernetes.config import ConfigException
+
 
 
 class KubernetesService:
     def __init__(self):
         self.settings = get_settings()
         try:
-            config.load_incluster_config()
-            logging.info("Using in-cluster Kubernetes configuration")
+            logging.info(f"KUBERNETES_CONFIG_PATH: {self.settings.KUBERNETES_CONFIG_PATH}")
+            logging.info(f"KUBERNETES_CA_CERTIFICATE_PATH: {self.settings.KUBERNETES_CA_CERTIFICATE_PATH}")
+
+            if os.path.exists('/var/run/secrets/kubernetes.io/serviceaccount'):
+                config.load_incluster_config()
+                logging.info("Using in-cluster Kubernetes configuration")
+            else:
+                config.load_kube_config(config_file=self.settings.KUBERNETES_CONFIG_PATH)
+                logging.info(f"Using kubeconfig from {self.settings.KUBERNETES_CONFIG_PATH}")
 
             configuration = client.Configuration.get_default_copy()
             configuration.verify_ssl = True
+            ca_cert_path = self.settings.KUBERNETES_CA_CERTIFICATE_PATH
+            if ca_cert_path and os.path.exists(ca_cert_path):
+                configuration.ssl_ca_cert = ca_cert_path
+                logging.info(f"Using custom CA certificate: {ca_cert_path}")
+            else:
+                logging.warning("Custom CA certificate not found. Using default CA bundle.")
 
-            api_client = client.ApiClient(configuration=configuration)
+            api_client = client.ApiClient(configuration)
             self.v1 = client.CoreV1Api(api_client)
+            self.version_api = client.VersionApi(api_client)
 
             logging.info(f"Kubernetes API server: {configuration.host}")
-        except ConfigException as e:
-            logging.error(f"Error loading Kubernetes config: {e}")
+            logging.info(f"Using token authentication: {bool(configuration.api_key)}")
+            logging.info(f"API Key prefix: {configuration.api_key_prefix}")
+
+            # Test API connection
+            try:
+                version = self.version_api.get_code()
+                logging.info(f"Successfully connected to Kubernetes API. Server version: {version.git_version}")
+            except ApiException as e:
+                logging.error(f"Error getting Kubernetes version: {e}")
+                if e.status == 401:
+                    logging.error("Authentication failed. Please check your token.")
+                raise
+
+        except Exception as e:
+            logging.error(f"Error in Kubernetes configuration: {str(e)}")
             raise
 
     async def create_execution_pod(self, execution_id: str, script: str, python_version: str):

@@ -252,3 +252,11 @@ curl -vk https://kubernetes.docker.internal:6443
 - If you're still having issues, check your application logs for more detailed error messages.
 
 Remember to replace self-signed certificates with proper ones from a trusted Certificate Authority for production use.
+
+If you did everything correctly, but smh get `401 Unauthorized` from k8s container, try updating your token in `kubeconfig.yaml`:
+
+```bash
+kubectl create token integr8scode-sa --duration=24h -n default
+```
+
+and then paste output to `user/token` field. 

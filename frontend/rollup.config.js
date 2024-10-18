@@ -56,7 +56,8 @@ export default {
             https: {
                 key: fs.readFileSync('./server.key'),
                 cert: fs.readFileSync('./server.crt')
-            }
+            },
+            historyApiFallback: true,
         }),
       //  !production && livereload('public'),
         production && terser()

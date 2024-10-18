@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 
-from app.api.routes import execution, health, auth
+from app.api.routes import execution, health, auth, saved_scripts
 from app.config import get_settings
 from app.core.exceptions import configure_exception_handlers
 from app.db.mongodb import close_mongo_connection
@@ -53,6 +53,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix=settings.API_V1_STR)
     app.include_router(execution.router, prefix=settings.API_V1_STR)
     app.include_router(health.router, prefix=settings.API_V1_STR)
+    app.include_router(saved_scripts.router, prefix=settings.API_V1_STR)
 
     configure_exception_handlers(app)
 

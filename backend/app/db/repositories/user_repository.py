@@ -1,8 +1,8 @@
+from app.db.mongodb import get_database
+from app.models.user import UserInDB
 from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from app.models.user import UserInDB
-from app.db.mongodb import get_database
-from app.config import get_settings
+
 
 class UserRepository:
     def __init__(self, db: AsyncIOMotorDatabase):
@@ -15,9 +15,10 @@ class UserRepository:
         return None
 
     async def create_user(self, user: UserInDB):
-        user_dict = user.dict()
+        user_dict = user.dict(by_alias=True)
         await self.db.users.insert_one(user_dict)
         return user
+
 
 def get_user_repository(db: AsyncIOMotorDatabase = Depends(get_database)) -> UserRepository:
     return UserRepository(db)

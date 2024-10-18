@@ -6,7 +6,6 @@
     import {authToken} from "../stores/auth.js";
     import {addNotification} from "../stores/notifications.js";
     import Spinner from "../components/Spinner.svelte";
-    import {navigate} from "svelte-routing";
     import {backendUrl} from "../config.js";
 
     import {EditorState} from "@codemirror/state";
@@ -36,32 +35,21 @@
     let supportedPythonVersions = [];
     let showLimits = false;
 
+    let isAuthenticated = false;
+    let savedScripts = [];
+    let showSavedScripts = false;
+    let scriptName = "";
+    let currentScriptId = null;
+
+    // Watch authToken to determine authentication status
+    authToken.subscribe(token => {
+        isAuthenticated = !!token;
+    });
+
     onMount(async () => {
-        const authTokenValue = get(authToken);
-        if (!authTokenValue) {
-            addNotification("Please log in to access the editor.", "error");
-            navigate("/login");
-            return;
-        }
-
-        try {
-            await axios.get(`${backendUrl}/api/v1/verify-token`, {
-                headers: {Authorization: `Bearer ${authTokenValue}`}
-            });
-        } catch (err) {
-            localStorage.removeItem("authToken");
-            authToken.set(null);
-            addNotification("Your session has expired. Please log in again.", "error");
-            navigate("/login");
-            return;
-        }
-
         try {
             const limitsResponse = await axios.get(
-                `${backendUrl}/api/v1/k8s-limits`,
-                {
-                    headers: {Authorization: `Bearer ${authTokenValue}`}
-                }
+                `${backendUrl}/api/v1/k8s-limits`
             );
             k8sLimits = limitsResponse.data;
             supportedPythonVersions = k8sLimits.supported_python_versions;
@@ -89,6 +77,10 @@
             state: startState,
             parent: document.getElementById("editor-container"),
         });
+
+        if (isAuthenticated) {
+            await loadSavedScripts();
+        }
     });
 
     async function executeScript() {
@@ -97,26 +89,19 @@
         result = null;
 
         const scriptValue = get(script);
-        const authTokenValue = get(authToken);
         const pythonVersionValue = get(pythonVersion);
 
         try {
             const executeResponse = await axios.post(
                 `${backendUrl}/api/v1/execute`,
-                {script: scriptValue, python_version: pythonVersionValue},
-                {
-                    headers: {Authorization: `Bearer ${authTokenValue}`}
-                }
+                {script: scriptValue, python_version: pythonVersionValue}
             );
 
             const executionId = executeResponse.data.execution_id;
 
             while (true) {
                 const resultResponse = await axios.get(
-                    `${backendUrl}/api/v1/result/${executionId}`,
-                    {
-                        headers: {Authorization: `Bearer ${authTokenValue}`}
-                    }
+                    `${backendUrl}/api/v1/result/${executionId}`
                 );
 
                 if (
@@ -131,26 +116,20 @@
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
         } catch (err) {
-            if (err.response && err.response.status === 401) {
-                addNotification("Your session has expired. Please log in again.", "error");
-                localStorage.removeItem("authToken");
-                authToken.set(null);
-                navigate("/login");
-            } else {
-                error = err.response?.data?.detail || "An error occurred while executing the script.";
-                console.error("Error executing script:", err);
-            }
+            error = err.response?.data?.detail || "An error occurred while executing the script.";
+            console.error("Error executing script:", err);
         } finally {
             executing = false;
         }
     }
 
     function exportScript() {
-        const blob = new Blob([get(script)], {type: 'text/plain'});
+        const blob = new Blob([get(script)], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
+        const filename = scriptName ? `${scriptName}` : 'script.py'; // Use scriptName if available
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'script.py';
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -159,6 +138,126 @@
 
     function toggleLimits() {
         showLimits = !showLimits;
+    }
+
+    async function saveScript() {
+        if (!scriptName.trim()) {
+            addNotification("Please provide a name for your script.", "warning");
+            return;
+        }
+
+        const scriptValue = get(script);
+        const authTokenValue = get(authToken);
+
+        try {
+            if (currentScriptId) {
+                // Update existing script
+                await axios.put(
+                    `${backendUrl}/api/v1/scripts/${currentScriptId}`,
+                    { name: scriptName, script: scriptValue },
+                    {
+                        headers: { Authorization: `Bearer ${authTokenValue}` },
+                    }
+                );
+                addNotification("Script updated successfully.", "success");
+            } else {
+                // Create new script
+                const response = await axios.post(
+                    `${backendUrl}/api/v1/scripts`,
+                    { name: scriptName, script: scriptValue },
+                    {
+                        headers: { Authorization: `Bearer ${authTokenValue}` },
+                    }
+                );
+                currentScriptId = response.data.id;
+                addNotification("Script saved successfully.", "success");
+            }
+
+            await loadSavedScripts();
+        } catch (err) {
+            console.error("Error saving script:", err);
+            addNotification("Failed to save script.", "error");
+        }
+    }
+
+
+    async function loadSavedScripts() {
+        const authTokenValue = get(authToken);
+
+        try {
+            const response = await axios.get(
+                `${backendUrl}/api/v1/scripts`,
+                {
+                    headers: { Authorization: `Bearer ${authTokenValue}` },
+                }
+            );
+            savedScripts = response.data;
+        } catch (err) {
+            console.error("Error loading saved scripts:", err);
+            addNotification("Failed to load saved scripts.", "error");
+        }
+    }
+
+    function toggleSavedScripts() {
+        showSavedScripts = !showSavedScripts;
+    }
+
+    function loadScript(scriptData) {
+        script.set(scriptData.script);
+        scriptName = scriptData.name;
+        currentScriptId = scriptData.id; // Set the current script ID
+        // Update the editor's content
+        editor.dispatch({
+            changes: {
+                from: 0,
+                to: editor.state.doc.length,
+                insert: scriptData.script,
+            }
+        });
+        addNotification(`Loaded script: ${scriptData.name}`, "info");
+        showSavedScripts = false;
+    }
+
+    function newScript() {
+        script.set("");
+        scriptName = "";
+        currentScriptId = null;
+        // Clear the editor content
+        editor.dispatch({
+            changes: {
+                from: 0,
+                to: editor.state.doc.length,
+                insert: "",
+            }
+        });
+    }
+
+    async function deleteScript(scriptId) {
+        const confirmDelete = confirm("Are you sure you want to delete this script?");
+        if (!confirmDelete) {
+            return;
+        }
+
+        const authTokenValue = get(authToken);
+
+        try {
+            await axios.delete(
+                `${backendUrl}/api/v1/scripts/${scriptId}`,
+                {
+                    headers: { Authorization: `Bearer ${authTokenValue}` },
+                }
+            );
+            addNotification("Script deleted successfully.", "success");
+            // If the deleted script is the one currently loaded, reset currentScriptId and scriptName
+            if (currentScriptId === scriptId) {
+                currentScriptId = null;
+                scriptName = "";
+            }
+            await loadSavedScripts();
+        } catch (err) {
+            console.error("Error deleting script:", err);
+            addNotification("Failed to delete script.", "error");
+        }
     }
 </script>
 
@@ -242,7 +341,45 @@
                 <button class="icon-button" on:click={exportScript} title="Export Script">
                     Export
                 </button>
+                {#if isAuthenticated}
+                    <input
+                            type="text"
+                            class="script-name-input"
+                            placeholder="Script Name"
+                            bind:value={scriptName}
+                    />
+                    <button class="button" on:click={saveScript}>
+                        Save Script
+                    </button>
+                    <button class="button" on:click={toggleSavedScripts}>
+                        {showSavedScripts ? 'Hide' : 'Show'} Saved Scripts
+                    </button>
+                    <button class="button" on:click={newScript}>
+                        New Script
+                    </button>
+                {/if}
             </div>
+            {#if showSavedScripts}
+                <div class="saved-scripts" transition:fly={{ y: -20, duration: 300 }}>
+                    <h3>Your Saved Scripts</h3>
+                    {#if savedScripts.length > 0}
+                        <ul>
+                            {#each savedScripts as savedScript}
+                                <li>
+                                    <span on:click={() => loadScript(savedScript)} class="script-link">
+                                        {savedScript.name}
+                                    </span>
+                                    <button class="delete-button" on:click|stopPropagation={() => deleteScript(savedScript.id)}>
+                                        Delete
+                                    </button>
+                                </li>
+                            {/each}
+                        </ul>
+                    {:else}
+                        <p>You have no saved scripts.</p>
+                    {/if}
+                </div>
+            {/if}
         </div>
         <div class="result-section">
             <div class="result-container">
@@ -549,6 +686,61 @@
         min-width: 20px;
         text-align: right;
         color: #718096;
+    }
+
+    .script-name-input {
+        padding: 0.5rem;
+        border-radius: 4px;
+        border: 1px solid #e2e8f0;
+        font-size: 0.875rem;
+        flex-grow: 1;
+        margin-right: 0.5rem;
+    }
+
+    .saved-scripts {
+        margin-top: 1rem;
+        background-color: #f7fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+        padding: 1rem;
+    }
+
+    .saved-scripts h3 {
+        margin-top: 0;
+        font-size: 1rem;
+        color: #2d3748;
+    }
+
+    .saved-scripts ul {
+        list-style-type: none;
+        padding-left: 0;
+    }
+
+    .saved-scripts li {
+        margin-bottom: 0.5rem;
+    }
+
+    .script-link {
+        color: #3273dc;
+        cursor: pointer;
+        text-decoration: underline;
+    }
+
+    .script-link:hover {
+        color: #2366d1;
+    }
+
+    .delete-button {
+        background-color: transparent;
+        border: none;
+        color: #e53e3e;
+        cursor: pointer;
+        font-size: 0.875rem;
+        margin-left: 0.5rem;
+    }
+
+    .delete-button:hover {
+        color: #c53030;
     }
 
     @media (max-width: 768px) {

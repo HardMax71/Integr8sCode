@@ -8,23 +8,22 @@ Welcome to **Integr8sCode**! This is a platform where you can run Python scripts
 ## Table of Contents
 
 - [Introduction](#introduction)
-- [Architecture Overview](#architecture-overview)
-- [Backend Details](#backend-details)
-  - [API Endpoints](#api-endpoints)
-  - [Script Execution Workflow](#script-execution-workflow)
-  - [Database Design](#database-design)
-- [Frontend Details](#frontend-details)
-  - [User Interface Components](#user-interface-components)
-  - [State Management](#state-management)
-- [Kubernetes Integration](#kubernetes-integration)
-  - [Pod Setup](#pod-setup)
-  - [Resource Management](#resource-management)
-  - [Security Considerations](#security-considerations)
-- [User Authentication](#user-authentication)
+- [Architecture Overview ✅](#architecture-overview)
+- [Backend Details ✅](#backend-details)
+  - [API Endpoints ✅](#api-endpoints)
+  - [Script Execution Workflow ✅](#script-execution-workflow)
+  - [Database Design ✅](#database-design)
+- [Frontend Details ✅](#frontend-details)
+  - [User Interface Components ✅](#user-interface-components)
+  - [State Management ✅](#state-management)
+- [Kubernetes Integration ✅](#kubernetes-integration)
+  - [Pod Setup ✅](#pod-setup)
+  - [Resource Management ✅](#resource-management)
+  - [Security Considerations ✅](#security-considerations)
+- [User Authentication ✅](#user-authentication)
 - [Logging and Monitoring](#logging-and-monitoring)
 - [Testing Strategy](#testing-strategy)
 - [Deployment Plan](#deployment-plan)
-- [Future Plans](#future-plans)
 
 ## Introduction
 
@@ -32,7 +31,7 @@ Integr8sCode aims to make running Python scripts online a breeze. No need to set
 
 ## Architecture Overview
 
-The platform is built on three main pillars:
+The platform is built on three main pillars: 
 
 - **Frontend**: A sleek Svelte app that users interact with.
 - **Backend**: Powered by FastAPI, Python, and MongoDB to handle all the heavy lifting.
@@ -141,7 +140,6 @@ Our Svelte app includes:
 
 - **Accounts**: Optional—users can sign up to save scripts.
 - **Security**: We use JWT tokens to secure API endpoints.
-- **Permissions**: Potential to add roles (like admin, user) down the line.
 
 ## Logging and Monitoring
 
@@ -160,11 +158,3 @@ Our Svelte app includes:
 - **CI/CD**: Implement pipelines with tools like GitHub Actions.
 - **Infrastructure as Code**: Manage resources with Terraform or Helm charts.
 - **Configuration Management**: Use environment variables for settings.
-
-## Future Plans
-
-- **More Languages**: Expand to support languages beyond Python.
-- **Enhanced Editor**: Add features like syntax highlighting and auto-completion.
-- **Collaboration**: Allow users to share and collaborate on scripts.
-- **Persistent Storage**: Provide options to read/write files within the execution environment.
-

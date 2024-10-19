@@ -1,6 +1,6 @@
 <script>
     import {onMount} from "svelte";
-    import {fade, fly} from "svelte/transition";
+    import {fade, fly, slide} from "svelte/transition";
     import {get, writable} from "svelte/store";
     import axios from "axios";
     import {authToken} from "../stores/auth.js";
@@ -34,6 +34,7 @@
     let pythonVersion = writable("3.9");
     let supportedPythonVersions = [];
     let showLimits = false;
+    let showOptions = false;
 
     let isAuthenticated = false;
     let savedScripts = [];
@@ -124,7 +125,7 @@
     }
 
     function exportScript() {
-        const blob = new Blob([get(script)], { type: 'text/plain' });
+        const blob = new Blob([get(script)], {type: 'text/plain'});
         const url = URL.createObjectURL(blob);
         const filename = scriptName ? `${scriptName}` : 'script.py'; // Use scriptName if available
         const a = document.createElement('a');
@@ -154,9 +155,9 @@
                 // Update existing script
                 await axios.put(
                     `${backendUrl}/api/v1/scripts/${currentScriptId}`,
-                    { name: scriptName, script: scriptValue },
+                    {name: scriptName, script: scriptValue},
                     {
-                        headers: { Authorization: `Bearer ${authTokenValue}` },
+                        headers: {Authorization: `Bearer ${authTokenValue}`},
                     }
                 );
                 addNotification("Script updated successfully.", "success");
@@ -164,9 +165,9 @@
                 // Create new script
                 const response = await axios.post(
                     `${backendUrl}/api/v1/scripts`,
-                    { name: scriptName, script: scriptValue },
+                    {name: scriptName, script: scriptValue},
                     {
-                        headers: { Authorization: `Bearer ${authTokenValue}` },
+                        headers: {Authorization: `Bearer ${authTokenValue}`},
                     }
                 );
                 currentScriptId = response.data.id;
@@ -188,7 +189,7 @@
             const response = await axios.get(
                 `${backendUrl}/api/v1/scripts`,
                 {
-                    headers: { Authorization: `Bearer ${authTokenValue}` },
+                    headers: {Authorization: `Bearer ${authTokenValue}`},
                 }
             );
             savedScripts = response.data;
@@ -244,7 +245,7 @@
             await axios.delete(
                 `${backendUrl}/api/v1/scripts/${scriptId}`,
                 {
-                    headers: { Authorization: `Bearer ${authTokenValue}` },
+                    headers: {Authorization: `Bearer ${authTokenValue}`},
                 }
             );
             addNotification("Script deleted successfully.", "success");
@@ -330,47 +331,83 @@
         <div class="editor-section">
             <div id="editor-container" class="editor-container"></div>
             <div class="editor-controls">
-                <select bind:value={$pythonVersion} class="version-select">
-                    {#each supportedPythonVersions as version}
-                        <option value={version}>Python {version}</option>
-                    {/each}
-                </select>
-                <button class="button" on:click={executeScript} disabled={executing}>
-                    {executing ? 'Executing...' : 'Run Script'}
-                </button>
-                <button class="icon-button" on:click={exportScript} title="Export Script">
-                    Export
-                </button>
-                {#if isAuthenticated}
-                    <input
-                            type="text"
-                            class="script-name-input"
-                            placeholder="Script Name"
-                            bind:value={scriptName}
-                    />
-                    <button class="button" on:click={saveScript}>
-                        Save Script
+                <div class="primary-controls">
+                    <select bind:value={$pythonVersion} class="version-select">
+                        {#each supportedPythonVersions as version}
+                            <option value={version}>Python {version}</option>
+                        {/each}
+                    </select>
+                    <button class="button primary" on:click={executeScript} disabled={executing}>
+                        {executing ? 'Executing...' : 'Run Script'}
                     </button>
-                    <button class="button" on:click={toggleSavedScripts}>
-                        {showSavedScripts ? 'Hide' : 'Show'} Saved Scripts
+                    <button class="button secondary" on:click={() => showOptions = !showOptions}>
+                        {showOptions ? 'Hide Options' : 'Show Options'}
                     </button>
-                    <button class="button" on:click={newScript}>
-                        New Script
-                    </button>
+                </div>
+
+                {#if showOptions}
+                    <div class="secondary-controls" transition:slide>
+                        <button class="button secondary" on:click={exportScript} title="Export Script">
+                            <svg viewBox="0 0 24 24" class="icon">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                            </svg>
+                            Export
+                        </button>
+                        {#if isAuthenticated}
+                            <button class="button secondary" on:click={toggleSavedScripts}>
+                                <svg viewBox="0 0 24 24" class="icon">
+                                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+                                </svg>
+                                {showSavedScripts ? 'Hide' : 'Show'} Saved
+                            </button>
+                            <button class="button secondary" on:click={newScript}>
+                                <svg viewBox="0 0 24 24" class="icon">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                    <polyline points="14 2 14 8 20 8"/>
+                                    <line x1="12" y1="18" x2="12" y2="12"/>
+                                    <line x1="9" y1="15" x2="15" y2="15"/>
+                                </svg>
+                                New
+                            </button>
+                            <div class="save-script-controls">
+                                <input
+                                        type="text"
+                                        class="script-name-input"
+                                        placeholder="Script Name"
+                                        bind:value={scriptName}
+                                />
+                                <button class="button primary" on:click={saveScript}>
+                                    <svg viewBox="0 0 24 24" class="icon">
+                                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                                        <polyline points="17 21 17 13 7 13 7 21"/>
+                                        <polyline points="7 3 7 8 15 8"/>
+                                    </svg>
+                                    Save Script
+                                </button>
+                            </div>
+                        {/if}
+                    </div>
                 {/if}
             </div>
+
             {#if showSavedScripts}
-                <div class="saved-scripts" transition:fly={{ y: -20, duration: 300 }}>
+                <div class="saved-scripts" transition:slide>
                     <h3>Your Saved Scripts</h3>
                     {#if savedScripts.length > 0}
                         <ul>
                             {#each savedScripts as savedScript}
                                 <li>
-                                    <span on:click={() => loadScript(savedScript)} class="script-link">
-                                        {savedScript.name}
-                                    </span>
-                                    <button class="delete-button" on:click|stopPropagation={() => deleteScript(savedScript.id)}>
-                                        Delete
+                            <span on:click={() => loadScript(savedScript)} class="script-link">
+                                {savedScript.name}
+                            </span>
+                                    <button class="delete-button"
+                                            on:click|stopPropagation={() => deleteScript(savedScript.id)}>
+                                        <svg viewBox="0 0 24 24" class="icon">
+                                            <polyline points="3 6 5 6 21 6"/>
+                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                            <line x1="10" y1="11" x2="10" y2="17"/>
+                                            <line x1="14" y1="11" x2="14" y2="17"/>
+                                        </svg>
                                     </button>
                                 </li>
                             {/each}
@@ -424,386 +461,378 @@
 </div>
 
 <style>
+  :global(.cm-editor) {
+    height: 100%;
+    font-family: 'Fira Code', monospace;
+    font-size: 14px;
+  }
+
+  :global(.cm-gutters) {
+    border-right: 1px solid #e2e8f0;
+    background-color: #f7fafc;
+  }
+
+  :global(.cm-lineNumbers) {
+    padding: 0 3px 0 5px;
+    min-width: 20px;
+    text-align: right;
+    color: #718096;
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1.5rem;
+    background-color: #ffffff;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  .header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+      margin-top: 2rem;
+  }
+
+  .title {
+    font-size: 1.5rem;
+    color: #2d3748;
+    margin: 0;
+  }
+
+  .limits-container {
+    position: relative;
+  }
+
+  .limits-toggle {
+    display: flex;
+    align-items: center;
+    background-color: #edf2f7;
+    border: none;
+    border-radius: 0.375rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    color: #4a5568;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+
+  .limits-toggle:hover {
+    background-color: #e2e8f0;
+  }
+
+  .icon {
+    width: 1.25rem;
+    height: 1.25rem;
+    margin-right: 0.5rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .limits-grid {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 0.5rem;
+    background-color: #ffffff;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    z-index: 10;
+  }
+
+  .limit-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.75rem;
+  }
+
+  .limit-icon {
+    background-color: #ebf8ff;
+    border-radius: 50%;
+    padding: 0.5rem;
+    margin-right: 0.75rem;
+  }
+
+  .limit-details {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .limit-label {
+    font-size: 0.75rem;
+    color: #718096;
+  }
+
+  .limit-value {
+    font-size: 0.875rem;
+    color: #2d3748;
+    font-weight: 600;
+  }
+
+  .editor-result-container {
+    display: flex;
+    gap: 1.5rem;
+  }
+
+  .editor-section {
+    flex: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .editor-container {
+    height: 500px;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.375rem;
+    overflow: hidden;
+  }
+
+  .editor-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .primary-controls,
+  .secondary-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .version-select {
+    padding: 0.5rem;
+    border-radius: 0.375rem;
+    border: 1px solid #e2e8f0;
+    background-color: #f7fafc;
+    font-size: 0.875rem;
+    color: #4a5568;
+    min-width: 120px;
+  }
+
+  .button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .button.primary {
+    background-color: #4299e1;
+    color: #ffffff;
+    border: none;
+  }
+
+  .button.primary:hover:not(:disabled) {
+    background-color: #3182ce;
+  }
+
+  .button.secondary {
+    background-color: #edf2f7;
+    color: #4a5568;
+    border: 1px solid #e2e8f0;
+  }
+
+  .button.secondary:hover {
+    background-color: #e2e8f0;
+  }
+
+  .button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+
+  .save-script-controls {
+    display: flex;
+    gap: 0.5rem;
+    width: 100%;
+  }
+
+  .script-name-input {
+    flex-grow: 1;
+    padding: 0.5rem;
+    border-radius: 0.375rem;
+    border: 1px solid #e2e8f0;
+    font-size: 0.875rem;
+  }
+
+  .saved-scripts {
+    background-color: #f7fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.375rem;
+    padding: 1rem;
+  }
+
+  .saved-scripts h3 {
+    margin-top: 0;
+    font-size: 1rem;
+    color: #2d3748;
+    margin-bottom: 0.75rem;
+  }
+
+  .saved-scripts ul {
+    list-style-type: none;
+    padding-left: 0;
+  }
+
+  .saved-scripts li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .saved-scripts li:last-child {
+    border-bottom: none;
+  }
+
+  .script-link {
+    color: #4299e1;
+    cursor: pointer;
+    text-decoration: none;
+  }
+
+  .script-link:hover {
+    text-decoration: underline;
+  }
+
+  .delete-button {
+    background-color: transparent;
+    border: none;
+    color: #e53e3e;
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 0.25rem;
+    transition: background-color 0.2s ease;
+  }
+
+  .delete-button:hover {
+    background-color: #fed7d7;
+  }
+
+  .result-section {
+    flex: 1;
+  }
+
+  .result-container {
+    background-color: #f7fafc;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    height: 100%;
+    overflow-y: auto;
+  }
+
+  .result-title {
+    font-size: 1.25rem;
+    color: #2d3748;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+  }
+
+  .result-description {
+    font-size: 0.875rem;
+    color: #718096;
+    margin-bottom: 1rem;
+  }
+
+  .result-content {
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    overflow-y: auto;
+    max-height: 500px;
+  }
+
+  .executing-text {
+    text-align: center;
+    color: #4299e1;
+    font-weight: bold;
+  }
+
+  pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    background-color: #f0f0f0;
+    padding: 1rem;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  .output {
+    background-color: #e6fffa;
+    border: 1px solid #b2f5ea;
+  }
+
+  .error {
+    background-color: #fff5f5;
+    border: 1px solid #fed7d7;
+    color: #c53030;
+  }
+
+  .resource-usage {
+    margin-top: 1rem;
+    padding: 1rem;
+    background-color: #ebf8ff;
+    border: 1px solid #bee3f8;
+    border-radius: 0.375rem;
+  }
+
+  .resource-usage h4 {
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: #2c5282;
+  }
+
+  @media (max-width: 768px) {
     .container {
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 1rem;
-        background-color: #ffffff;
-        border-radius: 8px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      padding: 1rem;
     }
 
-    .header-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-top: 1.5rem;
-        margin-bottom: 1rem;
-    }
 
-    .title {
-        font-size: 1.5rem;
-        color: #333;
-        margin: 0;
-    }
-
-    .limits-container {
-        flex-shrink: 0;
-        position: relative;
-    }
-
-    .limits-toggle {
-        display: flex;
-        align-items: center;
-        background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-        padding: 0.5rem 1rem;
-        font-size: 0.875rem;
-        color: #2d3748;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.3s ease;
-    }
-
-    .limits-toggle:hover {
-        background-color: #edf2f7;
-    }
-
-    .icon {
-        width: 1.25rem;
-        height: 1.25rem;
-        margin-right: 0.5rem;
-    }
-
-    .limits-grid {
-        position: absolute;
-        top: 100%;
-        right: 0;
-        margin-top: 0.5rem;
-        background-color: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-        padding: 1rem;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        z-index: 10;
-    }
-
-    .limit-item {
-        display: flex;
-        align-items: center;
-        margin-bottom: 0.5rem;
-    }
-
-    .limit-icon {
-        background-color: #ebf8ff;
-        border-radius: 50%;
-        padding: 0.25rem;
-        margin-right: 0.5rem;
-    }
-
-    .limit-icon svg {
-        width: 1rem;
-        height: 1rem;
-        color: #3182ce;
-    }
-
-    .limit-details {
-        display: flex;
-        flex-direction: column;
-    }
-
-    .limit-label {
-        font-size: 0.75rem;
-        color: #4a5568;
-    }
-
-    .limit-value {
-        font-size: 0.875rem;
-        color: #2d3748;
-        font-weight: 600;
-    }
-
-    .editor-result-container {
-        display: flex;
-        gap: 1rem;
-    }
-
-    .editor-section {
-        flex: 2;
-        display: flex;
-        flex-direction: column;
+    .editor-section,
+    .result-section {
+      width: 100%;
     }
 
     .editor-container {
-        height: 500px;
-        border: 1px solid #e2e8f0;
-        border-radius: 4px;
-        overflow: hidden;
+      height: 300px;
     }
 
-    .editor-controls {
-        display: flex;
-        gap: 0.5rem;
-        margin-top: 1rem;
+    .editor-controls,
+    .primary-controls,
+    .secondary-controls,
+    .save-script-controls {
+      flex-direction: column;
+      width: 100%;
     }
 
-    .version-select {
-        padding: 0.5rem;
-        border-radius: 4px;
-        border: 1px solid #e2e8f0;
-        background-color: #ffffff;
-        font-size: 0.875rem;
-    }
-
-    .button {
-        background-color: #3273dc;
-        color: #ffffff;
-        border: none;
-        padding: 0.5rem 1rem;
-        font-size: 0.875rem;
-        border-radius: 4px;
-        cursor: pointer;
-        transition: background-color 0.3s ease;
-        flex-grow: 1;
-    }
-
-    .button:hover:not(:disabled) {
-        background-color: #2366d1;
-    }
-
-    .button:disabled {
-        opacity: 0.7;
-        cursor: not-allowed;
-    }
-
-    .icon-button {
-        background-color: #4a5568;
-        color: #ffffff;
-        border: none;
-        padding: 0.5rem;
-        font-size: 0.875rem;
-        border-radius: 4px;
-        cursor: pointer;
-        transition: background-color 0.3s ease;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .icon-button:hover {
-        background-color: #2d3748;
-    }
-
-    .result-section {
-        flex: 1;
-    }
-
-    .result-container {
-        background-color: #f7fafc;
-        border-radius: 4px;
-        padding: 1rem;
-        height: 100%;
-        overflow-y: auto;
-    }
-
-    .result-title {
-        font-size: 1.25rem;
-        color: #2d3748;
-        margin-bottom: 0.5rem;
-        font-weight: 600;
-    }
-
-    .result-description {
-        font-size: 0.875rem;
-        color: #718096;
-        margin-bottom: 1rem;
-    }
-
-    .result-content {
-        background-color: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 4px;
-        padding: 1rem;
-        overflow-y: auto;
-        max-height: 500px;
-    }
-
-    .executing-text {
-        text-align: center;
-        color: #3273dc;
-        font-weight: bold;
-    }
-
-    pre {
-        white-space: pre-wrap;
-        word-wrap: break-word;
-        background-color: #f0f0f0;
-        padding: 1rem;
-        border-radius: 4px;
-        font-size: 0.875rem;
-        line-height: 1.5;
-    }
-
-    .output {
-        background-color: #e6f3ff;
-        border: 1px solid #b3d9ff;
-    }
-
-    .error {
-        background-color: #ffe6e6;
-        border: 1px solid #ffb3b3;
-        color: #cc0000;
-    }
-
-    .resource-usage {
-        margin-top: 1rem;
-        padding: 1rem;
-        background-color: #f0f8ff;
-        border: 1px solid #b0d4ff;
-        border-radius: 4px;
-    }
-
-    .resource-usage h4 {
-        margin-bottom: 0.5rem;
-        font-weight: 600;
-        color: #2c5282;
-    }
-
-    :global(.cm-editor) {
-        height: 100%;
-        font-family: 'Fira Code', monospace;
-        font-size: 14px;
-    }
-
-    :global(.cm-gutters) {
-        border-right: 1px solid #e2e8f0;
-        background-color: #f7fafc;
-    }
-
-    :global(.cm-lineNumbers) {
-        padding: 0 3px 0 5px;
-        min-width: 20px;
-        text-align: right;
-        color: #718096;
-    }
-
+    .version-select,
+    .button,
     .script-name-input {
-        padding: 0.5rem;
-        border-radius: 4px;
-        border: 1px solid #e2e8f0;
-        font-size: 0.875rem;
-        flex-grow: 1;
-        margin-right: 0.5rem;
+      width: 100%;
     }
 
-    .saved-scripts {
-        margin-top: 1rem;
-        background-color: #f7fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 4px;
-        padding: 1rem;
+    .limits-grid {
+      left: 0;
+      right: auto;
+      width: calc(100vw - 2rem);
+      max-width: none;
     }
-
-    .saved-scripts h3 {
-        margin-top: 0;
-        font-size: 1rem;
-        color: #2d3748;
-    }
-
-    .saved-scripts ul {
-        list-style-type: none;
-        padding-left: 0;
-    }
-
-    .saved-scripts li {
-        margin-bottom: 0.5rem;
-    }
-
-    .script-link {
-        color: #3273dc;
-        cursor: pointer;
-        text-decoration: underline;
-    }
-
-    .script-link:hover {
-        color: #2366d1;
-    }
-
-    .delete-button {
-        background-color: transparent;
-        border: none;
-        color: #e53e3e;
-        cursor: pointer;
-        font-size: 0.875rem;
-        margin-left: 0.5rem;
-    }
-
-    .delete-button:hover {
-        color: #c53030;
-    }
-
-    @media (max-width: 768px) {
-        .header-row {
-            flex-direction: row;
-            flex-wrap: nowrap;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .title {
-            font-size: 1rem;
-            margin-bottom: 0;
-            margin-right: 0.5rem;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .limits-container {
-            margin-top: 0;
-            margin-left: 0;
-        }
-
-        .limits-toggle {
-            font-size: 0.75rem;
-            padding: 0.25rem 0.5rem;
-            white-space: nowrap;
-        }
-
-        .icon {
-            width: 0.875rem;
-            height: 0.875rem;
-            margin-right: 0.25rem;
-        }
-
-        .limits-grid {
-            right: 0;
-            left: auto;
-            width: 100%;
-            max-width: 300px;
-        }
-
-        .editor-result-container {
-            flex-direction: column;
-        }
-
-        .editor-section, .result-section {
-            width: 100%;
-        }
-
-        .editor-container {
-            height: 400px;
-        }
-
-        .button, .icon-button {
-            font-size: 0.75rem;
-            padding: 0.25rem 0.5rem;
-        }
-
-        .version-select {
-            font-size: 0.75rem;
-            padding: 0.25rem;
-        }
-    }
+  }
 </style>

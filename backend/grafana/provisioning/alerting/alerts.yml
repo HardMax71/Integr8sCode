@@ -1,0 +1,48 @@
+apiVersion: 1
+
+groups:
+  - name: IntegrationAlerts
+    folder: Integr8sCode
+    interval: "1m"
+    rules:
+      - uid: high_error_rate
+        title: High Script Error Rate
+        data:
+          - refId: A
+            datasourceUid: PBFA97CFB590B2093
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              expr: rate(script_executions_total{status="error"}[5m])
+              datasource:
+                type: prometheus
+                uid: PBFA97CFB590B2093
+        condition: "A > 0.2"
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High script error rate detected
+          description: "The rate of script execution errors is above 20% in the last 5 minutes"
+
+      - uid: high_active_scripts
+        title: High Active Scripts
+        data:
+          - refId: A
+            datasourceUid: PBFA97CFB590B2093
+            relativeTimeRange:
+              from: 120
+              to: 0
+            model:
+              expr: active_executions
+              datasource:
+                type: prometheus
+                uid: PBFA97CFB590B2093
+        condition: "A > 5"
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: High number of active scripts
+          description: "More than 5 scripts are running simultaneously"

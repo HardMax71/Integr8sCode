@@ -21,7 +21,7 @@ Welcome to **Integr8sCode**! This is a platform where you can run Python scripts
   - [Resource Management ✅](#resource-management)
   - [Security Considerations ✅](#security-considerations)
 - [User Authentication ✅](#user-authentication)
-- [Logging and Monitoring](#logging-and-monitoring)
+- [Logging and Monitoring ✅](#logging-and-monitoring)
 - [Testing Strategy](#testing-strategy)
 - [Deployment Plan](#deployment-plan)
 
@@ -146,6 +146,10 @@ Our Svelte app includes:
 - **Logs**: Centralized logging helps us track what's happening across pods.
 - **Monitoring Tools**: Using Prometheus and Grafana to keep an eye on system health.
 - **Alerts**: Set up notifications for when things go wrong.
+
+To access:
+- Prometheus: http://localhost:9090
+- Grafana: http://localhost:3000 (login with admin/admin123)
 
 ## Testing Strategy
 

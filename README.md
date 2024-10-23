@@ -22,7 +22,7 @@ Welcome to **Integr8sCode**! This is a platform where you can run Python scripts
   - [Security Considerations ✅](#security-considerations)
 - [User Authentication ✅](#user-authentication)
 - [Logging and Monitoring ✅](#logging-and-monitoring)
-- [Testing Strategy](#testing-strategy)
+- [Testing Strategy ✅](#testing-strategy)
 - [Deployment Plan](#deployment-plan)
 
 ## Introduction
@@ -153,9 +153,81 @@ To access:
 
 ## Testing Strategy
 
-- **Unit Tests**: For individual components and functions.
-- **Integration Tests**: To ensure the frontend and backend work seamlessly together.
-- **Load Testing**: Simulate multiple users to see how the system holds up.
+<details>
+<summary>Unit Tests</summary>
+
+- **Repository Tests**: Testing individual database operations
+ - Located in `tests/unit/test_repositories/`
+ - Testing CRUD operations for each model
+ - Using real MongoDB test instance
+ - Ensuring data integrity and constraints
+ - Running with pytest-asyncio for async operations
+
+- **Service Tests**: Testing business logic and service layer
+ - Located in `tests/unit/test_services/`
+ - Testing service methods independently
+ - Using actual repositories with test database
+ - Ensuring proper error handling
+ - Verifying state changes and data transformations
+</details>
+
+<details>
+<summary>Integration Tests</summary>
+
+- **API Endpoint Tests**: Testing complete HTTP workflows
+ - Located in `tests/integration/test_api_endpoints.py`
+ - Testing all REST endpoints
+ - Using FastAPI TestClient
+ - Verifying response codes and payloads
+ - Testing authentication and authorization
+ - Ensuring proper error responses
+
+- **Kubernetes Integration Tests**: Testing pod execution
+ - Located in `tests/integration/test_k8s_integration.py`
+ - Testing script execution in pods
+ - Verifying resource limits and constraints
+ - Testing cleanup and error scenarios
+ - Using test Kubernetes cluster
+</details>
+
+<details>
+<summary>Load Testing</summary>
+
+- **Performance Scenarios**: Using Locust for load testing
+ - Located in `tests/load/`
+ - Different load profiles:
+   - Smoke Test: 1 user, basic functionality
+   - Light Load: 10 users, 5 minutes
+   - Medium Load: 50 users, 10 minutes
+   - Heavy Load: 100 users, 15 minutes
+   - Stress Test: 200 users, 30 minutes
+ - Measuring:
+   - Response times
+   - Error rates
+   - System resource usage
+   - Database performance
+   - Kubernetes scaling
+</details>
+
+<details>
+<summary>Test Configuration</summary>
+
+- **Environment Setup**:
+ - `.env.test` for test environment variables
+ - `pytest.ini` for pytest configuration
+ - `conftest.py` for shared fixtures
+ - Docker compose for test dependencies
+
+- **Test Database**:
+ - Separate MongoDB instance for testing
+ - Fresh database for each test run
+ - Automated cleanup after tests
+
+- **Test Coverage**:
+ - pytest-cov for coverage reporting
+ - Minimum 80% coverage requirement
+ - Coverage reports in HTML and XML
+</details>
 
 ## Deployment Plan
 

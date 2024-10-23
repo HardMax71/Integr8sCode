@@ -176,7 +176,7 @@ To access:
 <details>
 <summary>Integration Tests</summary>
 
-- **API Endpoint Tests**: Testing complete HTTP workflows
+**API Endpoint Tests**: Testing complete HTTP workflows
  - Located in `tests/integration/test_api_endpoints.py`
  - Testing all REST endpoints
  - Using FastAPI TestClient
@@ -184,7 +184,7 @@ To access:
  - Testing authentication and authorization
  - Ensuring proper error responses
 
-- **Kubernetes Integration Tests**: Testing pod execution
+**Kubernetes Integration Tests**: Testing pod execution
  - Located in `tests/integration/test_k8s_integration.py`
  - Testing script execution in pods
  - Verifying resource limits and constraints
@@ -195,7 +195,7 @@ To access:
 <details>
 <summary>Load Testing</summary>
 
-- **Performance Scenarios**: Using Locust for load testing
+**Performance Scenarios**: Using Locust for load testing
  - Located in `tests/load/`
  - Different load profiles:
    - Smoke Test: 1 user, basic functionality

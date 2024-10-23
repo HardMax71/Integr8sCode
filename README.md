@@ -156,14 +156,16 @@ To access:
 <details>
 <summary>Unit Tests</summary>
 
-- **Repository Tests**: Testing individual database operations
+**Repository Tests**: Testing individual database operations
+
  - Located in `tests/unit/test_repositories/`
  - Testing CRUD operations for each model
  - Using real MongoDB test instance
  - Ensuring data integrity and constraints
  - Running with pytest-asyncio for async operations
 
-- **Service Tests**: Testing business logic and service layer
+**Service Tests**: Testing business logic and service layer
+
  - Located in `tests/unit/test_services/`
  - Testing service methods independently
  - Using actual repositories with test database
@@ -212,18 +214,21 @@ To access:
 <details>
 <summary>Test Configuration</summary>
 
-- **Environment Setup**:
+**Environment Setup**:
+
  - `.env.test` for test environment variables
  - `pytest.ini` for pytest configuration
  - `conftest.py` for shared fixtures
  - Docker compose for test dependencies
 
-- **Test Database**:
+**Test Database**:
+
  - Separate MongoDB instance for testing
  - Fresh database for each test run
  - Automated cleanup after tests
 
-- **Test Coverage**:
+**Test Coverage**:
+
  - pytest-cov for coverage reporting
  - Minimum 80% coverage requirement
  - Coverage reports in HTML and XML

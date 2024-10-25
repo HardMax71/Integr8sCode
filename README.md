@@ -23,7 +23,6 @@ Welcome to **Integr8sCode**! This is a platform where you can run Python scripts
 - [User Authentication ✅](#user-authentication)
 - [Logging and Monitoring ✅](#logging-and-monitoring)
 - [Testing Strategy ✅](#testing-strategy)
-- [Deployment Plan](#deployment-plan)
 
 ## Introduction
 
@@ -234,8 +233,3 @@ To access:
  - Coverage reports in HTML and XML
 </details>
 
-## Deployment Plan
-
-- **CI/CD**: Implement pipelines with tools like GitHub Actions.
-- **Infrastructure as Code**: Manage resources with Terraform or Helm charts.
-- **Configuration Management**: Use environment variables for settings.

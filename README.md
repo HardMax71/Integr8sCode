@@ -1,74 +1,101 @@
-# Integr8sCode
+<p align="center">
+ <img src="./files_for_readme/logo.png" alt="Integr8sCode Logo" width="100" height="100">
+ <h1 align="center"><b>Integr8sCode</b></h1>
+</p>
 
-Welcome to **Integr8sCode**! This is a platform where you can run Python scripts online with ease. Just paste your script, and we'll run it in an isolated environment within its own Kubernetes pod, complete with resource limits to keep things safe and efficient. You'll get the results back in no time.
+---
 
-> [!NOTE]
-> This document is just an outline of the project description. Project is under development, newer versions will be pushed soon. 
-
-## Table of Contents
-
-- [Introduction](#introduction)
-- [Architecture Overview ✅](#architecture-overview)
-- [Backend Details ✅](#backend-details)
-  - [API Endpoints ✅](#api-endpoints)
-  - [Script Execution Workflow ✅](#script-execution-workflow)
-  - [Database Design ✅](#database-design)
-- [Frontend Details ✅](#frontend-details)
-  - [User Interface Components ✅](#user-interface-components)
-  - [State Management ✅](#state-management)
-- [Kubernetes Integration ✅](#kubernetes-integration)
-  - [Pod Setup ✅](#pod-setup)
-  - [Resource Management ✅](#resource-management)
-  - [Security Considerations ✅](#security-considerations)
-- [User Authentication ✅](#user-authentication)
-- [Logging and Monitoring ✅](#logging-and-monitoring)
-- [Testing Strategy ✅](#testing-strategy)
-
-## Introduction
-
-Integr8sCode aims to make running Python scripts online a breeze. No need to set up environments or worry about dependencies—just code and run. It's perfect for testing snippets, sharing code, or learning Python.
+Welcome to **Integr8sCode**! This is a platform where you can run Python scripts online with ease. Just paste your
+script, and we'll run it in an isolated environment within its own Kubernetes pod, complete with resource limits to keep
+things safe and efficient. You'll get the results back in no time.
 
 ## Architecture Overview
 
-The platform is built on three main pillars: 
+The platform is built on three main pillars:
 
 - **Frontend**: A sleek Svelte app that users interact with.
 - **Backend**: Powered by FastAPI, Python, and MongoDB to handle all the heavy lifting.
 - **Kubernetes Cluster**: Each script runs in its own pod, ensuring isolation and resource control.
 
-## Backend Details
+<details>
+<summary>Components diagram</summary>
 
-### API Endpoints
+```plantuml
+@startuml
+skin rose
+!include <C4/C4_Container>
 
-I've designed some straightforward API endpoints:
+package "Frontend (Svelte)" {
+ [Code Editor] as editor
+ [Auth Components] as auth
+ [Execution Status] as status
+ component "State Management" {
+   [Svelte Stores] as stores
+ }
+}
 
-- **POST /execute**
-  - **Purpose**: Send us your Python script, and we'll get it running.
-  - **What You Send**:
-    ```json
-    {
-      "script": "print('Hello, Integr8sCode!')"
-    }
-    ```
-  - **What You Get Back**:
-    ```json
-    {
-      "execution_id": "abc123",
-      "status": "queued"
-    }
-    ```
+package "Backend (FastAPI)" {
+ [Auth Service] as authService
+ [Execution Service] as execService
+ [K8s Service] as k8sService
+ [MongoDB Service] as dbService
+ 
+ interface "REST API" as api
+}
 
-- **GET /result/{execution_id}**
-  - **Purpose**: Check on your script's result.
-  - **What You Get Back**:
-    ```json
-    {
-      "execution_id": "abc123",
-      "status": "completed",
-      "output": "Hello, Integr8sCode!\n",
-      "errors": null
-    }
-    ```
+package "Infrastructure" {
+ database "MongoDB" {
+   [Users]
+   [Executions]
+   [Saved Scripts]
+ }
+ 
+ package "Kubernetes Cluster" {
+   [Pod Manager] as podMgr
+   frame "Execution Pods" {
+     [Pod 1] as pod1
+     [Pod 2] as pod2
+     [Pod N] as podN
+   }
+ }
+ 
+ package "Monitoring" {
+   [Prometheus]
+   [Grafana Dashboards] as grafana
+ }
+}
+
+' Frontend connections
+editor --> api
+auth --> api
+status --> api
+stores --> api
+
+' Backend connections
+api --> authService
+api --> execService
+execService --> k8sService
+execService --> dbService
+authService --> dbService
+
+' Infrastructure connections
+dbService --> MongoDB
+k8sService --> podMgr
+podMgr --> pod1
+podMgr --> pod2
+podMgr --> podN
+
+' Monitoring
+Prometheus ..> Backend : metrics
+Prometheus ..> "Kubernetes Cluster" : metrics
+grafana ..> Prometheus : visualize
+
+@enduml
+```
+</details>
+
+<details>
+<summary>Backend Details</summary>
 
 ### Script Execution Workflow
 
@@ -86,14 +113,16 @@ Here's how we handle your scripts:
 Our MongoDB setup includes an `executions` collection:
 
 - **Fields**:
-  - `execution_id`: Unique ID for each execution.
-  - `script`: The code you provided.
-  - `output`: What your script printed out.
-  - `errors`: Any errors that occurred.
-  - `status`: Where your script is in the process (`queued`, `running`, `completed`, `failed`).
-  - `created_at` and `updated_at`: Timestamps for tracking.
+   - `execution_id`: Unique ID for each execution.
+   - `script`: The code you provided.
+   - `output`: What your script printed out.
+   - `errors`: Any errors that occurred.
+   - `status`: Where your script is in the process (`queued`, `running`, `completed`, `failed`).
+   - `created_at` and `updated_at`: Timestamps for tracking.
+</details>
 
-## Frontend Details
+<details>
+<summary>Frontend Details</summary>
 
 ### User Interface Components
 
@@ -108,6 +137,7 @@ Our Svelte app includes:
 
 - **Stores**: We use Svelte's built-in stores to keep track of your script and its execution status.
 - **API Calls**: Functions that talk to our backend endpoints and handle responses smoothly.
+</details>
 
 ## Kubernetes Integration
 
@@ -122,8 +152,8 @@ Our Svelte app includes:
 > [!TIP]
 > By limiting resources, we ensure fair usage and prevent any single script from hogging the system.
 
-- **CPU & Memory Limits**: Each pod has caps to prevent overuse.
-- **Timeouts**: Scripts can't run forever—they'll stop after a set time.
+- **CPU & Memory Limits**: Each pod has caps to prevent overuse (128 Mi for RAM and 100m for CPU).
+- **Timeouts**: Scripts can't run forever—they'll stop after a set time (default: 5s).
 - **Disk Space**: Limited to prevent excessive storage use.
 
 ### Security Considerations
@@ -133,7 +163,6 @@ Our Svelte app includes:
 
 - **Network Restrictions**: Pods can't make external network calls.
 - **No Privileged Access**: Pods run without elevated permissions.
-- **Sandboxing**: We consider tools like gVisor for extra isolation layers.
 
 ## User Authentication
 
@@ -147,6 +176,7 @@ Our Svelte app includes:
 - **Alerts**: Set up notifications for when things go wrong.
 
 To access:
+
 - Prometheus: http://localhost:9090
 - Grafana: http://localhost:3000 (login with admin/admin123)
 
@@ -157,57 +187,67 @@ To access:
 
 **Repository Tests**: Testing individual database operations
 
- - Located in `tests/unit/test_repositories/`
- - Testing CRUD operations for each model
- - Using real MongoDB test instance
- - Ensuring data integrity and constraints
- - Running with pytest-asyncio for async operations
+- Located in `tests/unit/test_repositories/`
+- Testing CRUD operations for each model
+- Using real MongoDB test instance
+- Ensuring data integrity and constraints
+- Running with pytest-asyncio for async operations
 
 **Service Tests**: Testing business logic and service layer
 
- - Located in `tests/unit/test_services/`
- - Testing service methods independently
- - Using actual repositories with test database
- - Ensuring proper error handling
- - Verifying state changes and data transformations
+- Located in `tests/unit/test_services/`
+- Testing service methods independently
+- Using actual repositories with test database
+- Ensuring proper error handling
+- Verifying state changes and data transformations
+
 </details>
 
 <details>
 <summary>Integration Tests</summary>
 
 **API Endpoint Tests**: Testing complete HTTP workflows
- - Located in `tests/integration/test_api_endpoints.py`
- - Testing all REST endpoints
- - Using FastAPI TestClient
- - Verifying response codes and payloads
- - Testing authentication and authorization
- - Ensuring proper error responses
+
+- Located in `tests/integration/test_api_endpoints.py`
+- Testing all REST endpoints
+- Using FastAPI TestClient
+- Verifying response codes and payloads
+- Testing authentication and authorization
+- Ensuring proper error responses
 
 **Kubernetes Integration Tests**: Testing pod execution
- - Located in `tests/integration/test_k8s_integration.py`
- - Testing script execution in pods
- - Verifying resource limits and constraints
- - Testing cleanup and error scenarios
- - Using test Kubernetes cluster
+
+- Located in `tests/integration/test_k8s_integration.py`
+- Testing script execution in pods
+- Verifying resource limits and constraints
+- Testing cleanup and error scenarios
+- Using test Kubernetes cluster
+
 </details>
 
 <details>
 <summary>Load Testing</summary>
 
 **Performance Scenarios**: Using Locust for load testing
- - Located in `tests/load/`
- - Different load profiles:
-   - Smoke Test: 1 user, basic functionality
-   - Light Load: 10 users, 5 minutes
-   - Medium Load: 50 users, 10 minutes
-   - Heavy Load: 100 users, 15 minutes
-   - Stress Test: 200 users, 30 minutes
- - Measuring:
-   - Response times
-   - Error rates
-   - System resource usage
-   - Database performance
-   - Kubernetes scaling
+
+- Located in `tests/load/`
+- Different load profiles:
+    - Smoke Test: 1 user, basic functionality
+    - Light Load: 10 users, 5 minutes
+    - Medium Load: 50 users, 10 minutes
+    - Heavy Load: 100 users, 15 minutes
+    - Stress Test: 200 users, 30 minutes
+- Measuring:
+    - Response times
+    - Error rates
+    - System resource usage
+    - Database performance
+    - Kubernetes scaling
+
+Main results:
+
+<img src="./files_for_readme/load_testing_results.png">
+
 </details>
 
 <details>
@@ -215,21 +255,22 @@ To access:
 
 **Environment Setup**:
 
- - `.env.test` for test environment variables
- - `pytest.ini` for pytest configuration
- - `conftest.py` for shared fixtures
- - Docker compose for test dependencies
+- `.env.test` for test environment variables
+- `pytest.ini` for pytest configuration
+- `conftest.py` for shared fixtures
+- Docker compose for test dependencies
 
 **Test Database**:
 
- - Separate MongoDB instance for testing
- - Fresh database for each test run
- - Automated cleanup after tests
+- Separate MongoDB instance for testing
+- Fresh database for each test run
+- Automated cleanup after tests
 
 **Test Coverage**:
 
- - pytest-cov for coverage reporting
- - Minimum 80% coverage requirement
- - Coverage reports in HTML and XML
+- `pytest-cov` for coverage reporting 
+- 92% coverage of core functionality
+- Coverage reports in HTML and XML
+
 </details>
 

@@ -6,7 +6,7 @@
 ---
 
 Welcome to **Integr8sCode**! This is a platform where you can run Python scripts online with ease. Just paste your
-script, and we'll run it in an isolated environment within its own Kubernetes pod, complete with resource limits to keep
+script, and the platform run it in an isolated environment within its own Kubernetes pod, complete with resource limits to keep
 things safe and efficient. You'll get the results back in no time.
 
 ## Architecture Overview
@@ -20,78 +20,8 @@ The platform is built on three main pillars:
 <details>
 <summary>Components diagram</summary>
 
-```plantuml
-@startuml
-skin rose
-!include <C4/C4_Container>
+<img src="./files_for_readme/components-diagram.png">
 
-package "Frontend (Svelte)" {
- [Code Editor] as editor
- [Auth Components] as auth
- [Execution Status] as status
- component "State Management" {
-   [Svelte Stores] as stores
- }
-}
-
-package "Backend (FastAPI)" {
- [Auth Service] as authService
- [Execution Service] as execService
- [K8s Service] as k8sService
- [MongoDB Service] as dbService
- 
- interface "REST API" as api
-}
-
-package "Infrastructure" {
- database "MongoDB" {
-   [Users]
-   [Executions]
-   [Saved Scripts]
- }
- 
- package "Kubernetes Cluster" {
-   [Pod Manager] as podMgr
-   frame "Execution Pods" {
-     [Pod 1] as pod1
-     [Pod 2] as pod2
-     [Pod N] as podN
-   }
- }
- 
- package "Monitoring" {
-   [Prometheus]
-   [Grafana Dashboards] as grafana
- }
-}
-
-' Frontend connections
-editor --> api
-auth --> api
-status --> api
-stores --> api
-
-' Backend connections
-api --> authService
-api --> execService
-execService --> k8sService
-execService --> dbService
-authService --> dbService
-
-' Infrastructure connections
-dbService --> MongoDB
-k8sService --> podMgr
-podMgr --> pod1
-podMgr --> pod2
-podMgr --> podN
-
-' Monitoring
-Prometheus ..> Backend : metrics
-Prometheus ..> "Kubernetes Cluster" : metrics
-grafana ..> Prometheus : visualize
-
-@enduml
-```
 </details>
 
 <details>
@@ -99,25 +29,25 @@ grafana ..> Prometheus : visualize
 
 ### Script Execution Workflow
 
-Here's how we handle your scripts:
+Here's how your script gets executed:
 
-1. **Receive Script**: You send us your code via the `/execute` endpoint.
-2. **Spin Up Pod**: We create a Kubernetes pod just for your script.
-3. **Run Script**: Your code runs inside this isolated pod.
-4. **Capture Output**: We grab any output or errors.
+1. **Receive Script**: You send your code via the `/execute` endpoint.
+2. **Spin Up Pod**: K8s creates a new pod for your script.
+3. **Run Script**: Your code is executed in the pod.
+4. **Capture Output**: Any output or errors are recorded.
 5. **Store Results**: Everything gets saved in MongoDB.
-6. **Update Status**: We keep you informed about the execution status.
+6. **Update Status**: Execution status is updated for you.
 
 ### Database Design
 
-Our MongoDB setup includes an `executions` collection:
+MongoDB setup includes an `executions` collection:
 
 - **Fields**:
    - `execution_id`: Unique ID for each execution.
-   - `script`: The code you provided.
-   - `output`: What your script printed out.
+   - `script`: The code provided.
+   - `output`: What the script printed out.
    - `errors`: Any errors that occurred.
-   - `status`: Where your script is in the process (`queued`, `running`, `completed`, `failed`).
+   - `status`: Whether your script is in the process (`queued`, `running`, `completed`, `failed`).
    - `created_at` and `updated_at`: Timestamps for tracking.
 </details>
 
@@ -126,24 +56,24 @@ Our MongoDB setup includes an `executions` collection:
 
 ### User Interface Components
 
-Our Svelte app includes:
+Svelte app includes:
 
-- **Code Editor**: A place to write or paste your Python code.
+- **Code Editor**: A place to write or paste Python code.
 - **Run Button**: Kick off the execution.
-- **Output Area**: See the results or errors from your script.
+- **Output Area**: See the results or errors from the script.
 - **Status Display**: Know if your script is queued, running, or done.
 
 ### State Management
 
-- **Stores**: We use Svelte's built-in stores to keep track of your script and its execution status.
-- **API Calls**: Functions that talk to our backend endpoints and handle responses smoothly.
+- **Stores**: Svelte's built-in stores are used to keep track of your script and its execution status.
+- **API Calls**: Functions that talk to backend endpoints and handle responses smoothly.
 </details>
 
 ## Kubernetes Integration
 
 ### Pod Setup
 
-- **Docker Image**: We use a lightweight Python image with just what we need.
+- **Docker Image**:Lightweight Python image with just what we need is used.
 - **Isolation**: Every script gets its own pod for security and reliability.
 - **Cleanup**: Once your script is done, the pod goes away to keep things tidy.
 

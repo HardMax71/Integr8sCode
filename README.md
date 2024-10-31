@@ -95,11 +95,7 @@ Svelte app includes:
 - **Timeouts**: Scripts can't run forever—they'll stop after a set time (default: 5s).
 - **Disk Space**: Limited to prevent excessive storage use.
 
-<figure align="center">
-<img src="./files_for_readme/resource-limits.png" alt="Default limits">
-<figcaption style="font-style: italic">Default limits</figcaption>
-</figure>
-
+> You can find actual limits in dropdown above execution output. 
 
 ### Security Considerations
 

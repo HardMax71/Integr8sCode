@@ -6,7 +6,8 @@
 ---
 
 Welcome to **Integr8sCode**! This is a platform where you can run Python scripts online with ease. Just paste your
-script, and the platform run it in an isolated environment within its own Kubernetes pod, complete with resource limits to keep
+script, and the platform run it in an isolated environment within its own Kubernetes pod, complete with resource limits
+to keep
 things safe and efficient. You'll get the results back in no time.
 
 <p align="center">
@@ -49,12 +50,13 @@ Here's how your script gets executed:
 MongoDB setup includes an `executions` collection:
 
 - **Fields**:
-   - `execution_id`: Unique ID for each execution.
-   - `script`: The code provided.
-   - `output`: What the script printed out.
-   - `errors`: Any errors that occurred.
-   - `status`: Whether your script is in the process (`queued`, `running`, `completed`, `failed`).
-   - `created_at` and `updated_at`: Timestamps for tracking.
+    - `execution_id`: Unique ID for each execution.
+    - `script`: The code provided.
+    - `output`: What the script printed out.
+    - `errors`: Any errors that occurred.
+    - `status`: Whether your script is in the process (`queued`, `running`, `completed`, `failed`).
+    - `created_at` and `updated_at`: Timestamps for tracking.
+
 </details>
 
 <details>
@@ -73,6 +75,7 @@ Svelte app includes:
 
 - **Stores**: Svelte's built-in stores are used to keep track of your script and its execution status.
 - **API Calls**: Functions that talk to backend endpoints and handle responses smoothly.
+
 </details>
 
 ## Kubernetes Integration
@@ -92,11 +95,11 @@ Svelte app includes:
 - **Timeouts**: Scripts can't run forever—they'll stop after a set time (default: 5s).
 - **Disk Space**: Limited to prevent excessive storage use.
 
-<p align="center">
+<figure align="center">
+<img src="./files_for_readme/resource-limits.png" alt="Default limits">
+<figcaption style="font-style: italic">Default limits</figcaption>
+</figure>
 
-![Default Limits](./files_for_readme/resource-limits.png)
-
-</p>
 
 ### Security Considerations
 
@@ -210,7 +213,7 @@ Main results:
 
 **Test Coverage**:
 
-- `pytest-cov` for coverage reporting 
+- `pytest-cov` for coverage reporting
 - 92% coverage of core functionality
 - Coverage reports in HTML and XML
 

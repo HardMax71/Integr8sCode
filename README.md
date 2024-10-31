@@ -9,6 +9,12 @@ Welcome to **Integr8sCode**! This is a platform where you can run Python scripts
 script, and the platform run it in an isolated environment within its own Kubernetes pod, complete with resource limits to keep
 things safe and efficient. You'll get the results back in no time.
 
+<p align="center">
+
+![Example of usage](./files_for_readme/usage_example.gif)
+
+</p>
+
 ## Architecture Overview
 
 The platform is built on three main pillars:
@@ -85,6 +91,12 @@ Svelte app includes:
 - **CPU & Memory Limits**: Each pod has caps to prevent overuse (128 Mi for RAM and 100m for CPU).
 - **Timeouts**: Scripts can't run forever—they'll stop after a set time (default: 5s).
 - **Disk Space**: Limited to prevent excessive storage use.
+
+<p align="center">
+
+![Default Limits](./files_for_readme/resource-limits.png)
+
+</p>
 
 ### Security Considerations
 

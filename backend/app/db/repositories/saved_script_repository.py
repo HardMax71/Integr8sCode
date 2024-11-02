@@ -15,16 +15,21 @@ class SavedScriptRepository:
         await self.db.saved_scripts.insert_one(saved_script_dict)
         return saved_script.id
 
-    async def get_saved_script(self, script_id: str, user_id: str) -> Optional[SavedScriptInDB]:
-        saved_script = await self.db.saved_scripts.find_one({"_id": script_id, "user_id": user_id})
+    async def get_saved_script(
+        self, script_id: str, user_id: str
+    ) -> Optional[SavedScriptInDB]:
+        saved_script = await self.db.saved_scripts.find_one(
+            {"_id": script_id, "user_id": user_id}
+        )
         if saved_script:
             return SavedScriptInDB(**saved_script)
         return None
 
-    async def update_saved_script(self, script_id: str, user_id: str, update_data: dict):
+    async def update_saved_script(
+        self, script_id: str, user_id: str, update_data: dict
+    ):
         await self.db.saved_scripts.update_one(
-            {"_id": script_id, "user_id": user_id},
-            {"$set": update_data}
+            {"_id": script_id, "user_id": user_id}, {"$set": update_data}
         )
 
     async def delete_saved_script(self, script_id: str, user_id: str):
@@ -38,5 +43,7 @@ class SavedScriptRepository:
         return scripts
 
 
-def get_saved_script_repository(db: AsyncIOMotorDatabase = Depends(get_db_dependency)) -> SavedScriptRepository:
+def get_saved_script_repository(
+    db: AsyncIOMotorDatabase = Depends(get_db_dependency),
+) -> SavedScriptRepository:
     return SavedScriptRepository(db)

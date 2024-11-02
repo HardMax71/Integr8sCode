@@ -1,9 +1,13 @@
 from typing import Optional, List
 from pydantic import BaseModel, Field
 
+
 class ExecutionRequest(BaseModel):
     script: str
-    python_version: Optional[str] = Field(default="3.11", description="Python version to use for execution")
+    python_version: Optional[str] = Field(
+        default="3.11", description="Python version to use for execution"
+    )
+
 
 class ExecutionResponse(BaseModel):
     execution_id: str
@@ -19,6 +23,7 @@ class ExecutionResult(BaseModel):
 
     class Config:
         from_attributes = True
+
 
 class K8SResourceLimits(BaseModel):
     cpu_limit: str

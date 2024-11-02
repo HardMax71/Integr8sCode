@@ -11,16 +11,19 @@ class ExecutionBase(BaseModel):
     errors: Optional[str] = None
     python_version: str = "3.11"
 
+
 class ExecutionCreate(ExecutionBase):
     pass
 
+
 class ExecutionInDB(ExecutionBase):
-    id: str = Field(default_factory=lambda: str(ObjectId()), alias='_id')
+    id: str = Field(default_factory=lambda: str(ObjectId()), alias="_id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     class Config:
         populate_by_name = True
+
 
 class ExecutionUpdate(BaseModel):
     status: Optional[str] = None

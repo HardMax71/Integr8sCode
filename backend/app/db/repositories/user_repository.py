@@ -20,5 +20,7 @@ class UserRepository:
         return user
 
 
-def get_user_repository(db: AsyncIOMotorDatabase = Depends(get_database)) -> UserRepository:
+def get_user_repository(
+    db: AsyncIOMotorDatabase = Depends(get_database),
+) -> UserRepository:
     return UserRepository(db)

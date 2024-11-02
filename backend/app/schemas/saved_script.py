@@ -2,13 +2,16 @@ from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel
 
+
 class SavedScriptBase(BaseModel):
     name: str
     script: str
     description: Optional[str] = None
 
+
 class SavedScriptCreateRequest(SavedScriptBase):
     pass
+
 
 class SavedScriptResponse(BaseModel):
     id: str
@@ -20,6 +23,7 @@ class SavedScriptResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
 
 class SavedScriptListResponse(BaseModel):
     scripts: List[SavedScriptResponse]

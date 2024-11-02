@@ -10,12 +10,6 @@ script, and the platform run it in an isolated environment within its own Kubern
 to keep
 things safe and efficient. You'll get the results back in no time.
 
-<p align="center">
-
-![Example of usage](./files_for_readme/usage_example.gif)
-
-</p>
-
 ## Architecture Overview
 
 The platform is built on three main pillars:

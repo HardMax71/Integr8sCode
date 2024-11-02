@@ -1,8 +1,8 @@
-from bson import ObjectId
+from app.api.dependencies import get_db_dependency
+from app.models.execution import ExecutionInDB
 from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from app.models.execution import ExecutionInDB
-from app.api.dependencies import get_db_dependency
+
 
 class ExecutionRepository:
     def __init__(self, db: AsyncIOMotorDatabase):
@@ -21,9 +21,11 @@ class ExecutionRepository:
 
     async def update_execution(self, execution_id: str, update_data: dict):
         await self.db.executions.update_one(
-            {"_id": execution_id},
-            {"$set": update_data}
+            {"_id": execution_id}, {"$set": update_data}
         )
 
-def get_execution_repository(db: AsyncIOMotorDatabase = Depends(get_db_dependency)) -> ExecutionRepository:
+
+def get_execution_repository(
+        db: AsyncIOMotorDatabase = Depends(get_db_dependency),
+) -> ExecutionRepository:
     return ExecutionRepository(db)

@@ -25,8 +25,8 @@ async def lifespan(app: FastAPI):
         "Starting application",
         extra={
             "project_name": settings.PROJECT_NAME,
-            "environment": "test" if settings.TESTING else "production"
-        }
+            "environment": "test" if settings.TESTING else "production",
+        },
     )
 
     try:
@@ -34,10 +34,7 @@ async def lifespan(app: FastAPI):
         app.state.db = app.state.mongodb_client[settings.PROJECT_NAME]
         logger.info("Successfully connected to MongoDB")
     except Exception as e:
-        logger.error(
-            "Failed to connect to MongoDB",
-            extra={"error": str(e)}
-        )
+        logger.error("Failed to connect to MongoDB", extra={"error": str(e)})
         raise
 
     yield
@@ -47,10 +44,7 @@ async def lifespan(app: FastAPI):
         await close_mongo_connection(app.state.mongodb_client)
         logger.info("Successfully closed MongoDB connection")
     except Exception as e:
-        logger.error(
-            "Error closing MongoDB connection",
-            extra={"error": str(e)}
-        )
+        logger.error("Error closing MongoDB connection", extra={"error": str(e)})
 
 
 def create_app() -> FastAPI:
@@ -102,16 +96,12 @@ if __name__ == "__main__":
 
     logger.info(
         "Starting uvicorn server",
-        extra={
-            "host": "0.0.0.0",
-            "port": 443,
-            "ssl_enabled": True
-        }
+        extra={"host": "0.0.0.0", "port": 443, "ssl_enabled": True},
     )
     uvicorn.run(
         app,
         host="0.0.0.0",
         port=443,
         ssl_keyfile="/app/certs/server.key",
-        ssl_certfile="/app/certs/server.crt"
+        ssl_certfile="/app/certs/server.crt",
     )

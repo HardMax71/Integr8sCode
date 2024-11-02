@@ -2,7 +2,10 @@ import logging
 
 from app.config import get_settings
 from app.core.exceptions import IntegrationException
-from app.db.repositories.execution_repository import ExecutionRepository, get_execution_repository
+from app.db.repositories.execution_repository import (
+    ExecutionRepository,
+    get_execution_repository,
+)
 from app.models.execution import ExecutionCreate, ExecutionInDB, ExecutionUpdate
 from app.services.kubernetes_service import KubernetesService, get_kubernetes_service
 from fastapi import Depends
@@ -10,7 +13,9 @@ from kubernetes.client.rest import ApiException
 
 
 class ExecutionService:
-    def __init__(self, execution_repo: ExecutionRepository, k8s_service: KubernetesService):
+    def __init__(
+        self, execution_repo: ExecutionRepository, k8s_service: KubernetesService
+    ):
         self.execution_repo = execution_repo
         self.k8s_service = k8s_service
         self.settings = get_settings()
@@ -22,22 +27,26 @@ class ExecutionService:
             "cpu_request": self.settings.K8S_POD_CPU_REQUEST,
             "memory_request": self.settings.K8S_POD_MEMORY_REQUEST,
             "execution_timeout": self.settings.K8S_POD_EXECUTION_TIMEOUT,
-            "supported_python_versions": self.settings.SUPPORTED_PYTHON_VERSIONS
+            "supported_python_versions": self.settings.SUPPORTED_PYTHON_VERSIONS,
         }
 
-    async def execute_script(self, script: str, python_version: str = "3.11") -> ExecutionInDB:
+    async def execute_script(
+        self, script: str, python_version: str = "3.11"
+    ) -> ExecutionInDB:
         execution = ExecutionCreate(script=script, python_version=python_version)
         execution_in_db = ExecutionInDB(**execution.dict())
         await self.execution_repo.create_execution(execution_in_db)
 
         try:
-            await self.k8s_service.create_execution_pod(execution_in_db.id, script, python_version)
+            await self.k8s_service.create_execution_pod(
+                execution_in_db.id, script, python_version
+            )
         except Exception as e:
             error_message = f"Failed to create execution pod: {str(e)}"
             logging.error(error_message)
             await self.execution_repo.update_execution(
                 execution_in_db.id,
-                ExecutionUpdate(status="failed", errors=error_message).dict()
+                ExecutionUpdate(status="failed", errors=error_message).dict(),
             )
             raise IntegrationException(status_code=500, detail=error_message)
 
@@ -70,7 +79,7 @@ class ExecutionService:
 
 
 def get_execution_service(
-        execution_repo: ExecutionRepository = Depends(get_execution_repository),
-        k8s_service: KubernetesService = Depends(get_kubernetes_service)
+    execution_repo: ExecutionRepository = Depends(get_execution_repository),
+    k8s_service: KubernetesService = Depends(get_kubernetes_service),
 ) -> ExecutionService:
     return ExecutionService(execution_repo, k8s_service)

@@ -10,6 +10,7 @@ from app.db.repositories.user_repository import UserRepository, get_user_reposit
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/login")
 
+
 class SecurityService:
     def __init__(self):
         self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -21,24 +22,34 @@ class SecurityService:
     def get_password_hash(self, password: str) -> str:
         return self.pwd_context.hash(password)
 
-    def create_access_token(self, data: dict, expires_delta: Optional[timedelta] = None):
+    def create_access_token(
+        self, data: dict, expires_delta: Optional[timedelta] = None
+    ):
         to_encode = data.copy()
         if expires_delta:
             expire = datetime.utcnow() + expires_delta
         else:
             expire = datetime.utcnow() + timedelta(minutes=15)
         to_encode.update({"exp": expire})
-        encoded_jwt = jwt.encode(to_encode, self.settings.SECRET_KEY, algorithm=self.settings.ALGORITHM)
+        encoded_jwt = jwt.encode(
+            to_encode, self.settings.SECRET_KEY, algorithm=self.settings.ALGORITHM
+        )
         return encoded_jwt
 
-    async def get_current_user(self, token: str = Depends(oauth2_scheme), user_repo: UserRepository = Depends(get_user_repository)) -> UserInDB:
+    async def get_current_user(
+        self,
+        token: str = Depends(oauth2_scheme),
+        user_repo: UserRepository = Depends(get_user_repository),
+    ) -> UserInDB:
         credentials_exception = HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
         try:
-            payload = jwt.decode(token, self.settings.SECRET_KEY, algorithms=[self.settings.ALGORITHM])
+            payload = jwt.decode(
+                token, self.settings.SECRET_KEY, algorithms=[self.settings.ALGORITHM]
+            )
             username: str = payload.get("sub")
             if username is None:
                 raise credentials_exception
@@ -48,5 +59,6 @@ class SecurityService:
         if user is None:
             raise credentials_exception
         return user
+
 
 security_service = SecurityService()

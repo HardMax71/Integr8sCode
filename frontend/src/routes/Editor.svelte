@@ -404,9 +404,13 @@
                         <ul>
                             {#each savedScripts as savedScript}
                                 <li>
-                            <span on:click={() => loadScript(savedScript)} class="script-link">
-                                {savedScript.name}
-                            </span>
+                                    <button
+                                            type="button"
+                                            on:click={() => loadScript(savedScript)}
+                                            class="script-link"
+                                    >
+                                        {savedScript.name}
+                                    </button>
                                     <button class="delete-button"
                                             on:click|stopPropagation={() => deleteScript(savedScript.id)}>
                                         <svg viewBox="0 0 24 24" class="icon">
@@ -708,9 +712,14 @@
     }
 
     .script-link {
+        background: none;
+        border: none;
         color: #4299e1;
         cursor: pointer;
         text-decoration: none;
+        padding: 0;
+        font-size: inherit;
+        text-align: left;
     }
 
     .script-link:hover {

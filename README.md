@@ -18,6 +18,49 @@ https://github.com/user-attachments/assets/5501579f-1478-4374-a7d8-0d65c14a6c33
 
 </details>
 
+<details>
+<summary>How to deploy</summary>
+
+**Backend:**
+
+1. Change directory to `backend`
+
+```bash
+cd backend
+```
+
+2. Call `docker-compose up --build`
+
+```bash
+docker-compose up --build
+```
+
+3. The backend will be available at `https://0.0.0.0:443`. Docs are available at `https://0.0.0.0:443/docs`.
+
+**Frontend:**
+
+1. Change directory to `frontend`
+
+```bash
+cd frontend
+```
+
+2. Install dependencies: `npm install`
+
+```bash
+npm install
+```
+
+3. Build the app: `npm run dev`
+
+```bash
+npm run dev
+```
+
+4. The frontend will be available at `https://localhost:5001/`.
+
+</details>
+
 
 ## Architecture Overview
 

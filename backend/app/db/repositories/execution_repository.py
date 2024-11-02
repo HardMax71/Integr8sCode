@@ -26,6 +26,6 @@ class ExecutionRepository:
 
 
 def get_execution_repository(
-        db: AsyncIOMotorDatabase = Depends(get_db_dependency),
+    db: AsyncIOMotorDatabase = Depends(get_db_dependency),
 ) -> ExecutionRepository:
     return ExecutionRepository(db)

@@ -16,15 +16,12 @@ class TestKubernetesService:
 
         try:
             await self.k8s_service.create_execution_pod(
-                execution_id=execution_id,
-                script=script,
-                python_version=python_version
+                execution_id=execution_id, script=script, python_version=python_version
             )
 
             # Verify pod creation
             pod = await self.k8s_service.v1.read_namespaced_pod(
-                name=f"execution-{execution_id}",
-                namespace="default"
+                name=f"execution-{execution_id}", namespace="default"
             )
             assert pod.metadata.name == f"execution-{execution_id}"
 
@@ -34,8 +31,7 @@ class TestKubernetesService:
             # Cleanup
             try:
                 await self.k8s_service.v1.delete_namespaced_pod(
-                    name=f"execution-{execution_id}",
-                    namespace="default"
+                    name=f"execution-{execution_id}", namespace="default"
                 )
             except ApiException:
                 pass
@@ -47,9 +43,7 @@ class TestKubernetesService:
 
         try:
             await self.k8s_service.create_execution_pod(
-                execution_id=execution_id,
-                script=script,
-                python_version="3.11"
+                execution_id=execution_id, script=script, python_version="3.11"
             )
 
             logs = await self.k8s_service.get_pod_logs(execution_id)

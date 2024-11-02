@@ -13,15 +13,15 @@ class TestAPIEndpoints:
 
         # Create a test user
         test_user = UserCreate(
-            username="testuser",
-            email="test@example.com",
-            password="testpass123"
+            username="testuser", email="test@example.com", password="testpass123"
         )
         # Register the user and get token
-        register_response = await self.client.post("/api/v1/register", json=test_user.dict())
+        register_response = await self.client.post(
+            "/api/v1/register", json=test_user.dict()
+        )
         login_response = await self.client.post(
             "/api/v1/login",
-            data={"username": test_user.username, "password": test_user.password}
+            data={"username": test_user.username, "password": test_user.password},
         )
         self.token = login_response.json()["access_token"]
         self.headers = {"Authorization": f"Bearer {self.token}"}
@@ -37,12 +37,10 @@ class TestAPIEndpoints:
         # Test script execution
         execution_request = {
             "script": "print('Hello, Integration Test!')",
-            "python_version": "3.11"
+            "python_version": "3.11",
         }
         execute_response = await self.client.post(
-            "/api/v1/execute",
-            json=execution_request,
-            headers=self.headers
+            "/api/v1/execute", json=execution_request, headers=self.headers
         )
         assert execute_response.status_code == 200
         execution_data = execute_response.json()
@@ -51,8 +49,7 @@ class TestAPIEndpoints:
 
         # Test getting execution result
         result_response = await self.client.get(
-            f"/api/v1/result/{execution_data['execution_id']}",
-            headers=self.headers
+            f"/api/v1/result/{execution_data['execution_id']}", headers=self.headers
         )
         assert result_response.status_code == 200
         result_data = result_response.json()
@@ -65,14 +62,17 @@ class TestAPIEndpoints:
         response = await self.client.get("/api/v1/k8s-limits", headers=self.headers)
         assert response.status_code == 200
         limits = response.json()
-        assert all(key in limits for key in [
-            "cpu_limit",
-            "memory_limit",
-            "cpu_request",
-            "memory_request",
-            "execution_timeout",
-            "supported_python_versions"
-        ])
+        assert all(
+            key in limits
+            for key in [
+                "cpu_limit",
+                "memory_limit",
+                "cpu_request",
+                "memory_request",
+                "execution_timeout",
+                "supported_python_versions",
+            ]
+        )
 
     @pytest.mark.asyncio
     async def test_saved_scripts_crud(self):
@@ -80,12 +80,10 @@ class TestAPIEndpoints:
         script_data = {
             "name": "Test Script",
             "script": "print('Hello from saved script')",
-            "description": "Test description"
+            "description": "Test description",
         }
         create_response = await self.client.post(
-            "/api/v1/scripts",
-            json=script_data,
-            headers=self.headers
+            "/api/v1/scripts", json=script_data, headers=self.headers
         )
         assert create_response.status_code == 200
         created_script = create_response.json()
@@ -93,8 +91,7 @@ class TestAPIEndpoints:
 
         # Get script
         get_response = await self.client.get(
-            f"/api/v1/scripts/{script_id}",
-            headers=self.headers
+            f"/api/v1/scripts/{script_id}", headers=self.headers
         )
         assert get_response.status_code == 200
         assert get_response.json()["name"] == script_data["name"]
@@ -103,12 +100,10 @@ class TestAPIEndpoints:
         update_data = {
             "name": "Updated Script",
             "script": "print('Updated!')",
-            "description": "Updated description"
+            "description": "Updated description",
         }
         update_response = await self.client.put(
-            f"/api/v1/scripts/{script_id}",
-            json=update_data,
-            headers=self.headers
+            f"/api/v1/scripts/{script_id}", json=update_data, headers=self.headers
         )
         assert update_response.status_code == 200
         assert update_response.json()["name"] == update_data["name"]
@@ -122,47 +117,34 @@ class TestAPIEndpoints:
 
         # Delete script
         delete_response = await self.client.delete(
-            f"/api/v1/scripts/{script_id}",
-            headers=self.headers
+            f"/api/v1/scripts/{script_id}", headers=self.headers
         )
         assert delete_response.status_code == 204
 
         # Verify deletion
         get_deleted = await self.client.get(
-            f"/api/v1/scripts/{script_id}",
-            headers=self.headers
+            f"/api/v1/scripts/{script_id}", headers=self.headers
         )
         assert get_deleted.status_code == 404
 
     @pytest.mark.asyncio
     async def test_error_handling(self):
         # Test invalid script execution
-        invalid_request = {
-            "script": "invalid python code!!!",
-            "python_version": "3.11"
-        }
+        invalid_request = {"script": "invalid python code!!!", "python_version": "3.11"}
         response = await self.client.post(
-            "/api/v1/execute",
-            json=invalid_request,
-            headers=self.headers
+            "/api/v1/execute", json=invalid_request, headers=self.headers
         )
         assert response.status_code in [400, 500]
 
         # Test non-existent execution result
         response = await self.client.get(
-            "/api/v1/result/nonexistent_id",
-            headers=self.headers
+            "/api/v1/result/nonexistent_id", headers=self.headers
         )
         assert response.status_code == 404
 
         # Test invalid script creation
-        invalid_script = {
-            "name": "",  # Invalid empty name
-            "script": "print('test')"
-        }
+        invalid_script = {"name": "", "script": "print('test')"}  # Invalid empty name
         response = await self.client.post(
-            "/api/v1/scripts",
-            json=invalid_script,
-            headers=self.headers
+            "/api/v1/scripts", json=invalid_script, headers=self.headers
         )
         assert response.status_code in [400, 422]

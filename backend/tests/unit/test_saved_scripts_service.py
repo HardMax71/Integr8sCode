@@ -19,12 +19,11 @@ class TestSavedScriptService:
         script_create = SavedScriptCreate(
             name="Test Python Script",
             script="print('Hello, World!')",
-            description="A simple test script"
+            description="A simple test script",
         )
 
         result = await self.saved_script_service.create_saved_script(
-            script_create,
-            self.test_user_id
+            script_create, self.test_user_id
         )
 
         assert result.name == script_create.name
@@ -41,17 +40,15 @@ class TestSavedScriptService:
         script_create = SavedScriptCreate(
             name="Test Get Script",
             script="print('Get Test')",
-            description="Testing get functionality"
+            description="Testing get functionality",
         )
         created_script = await self.saved_script_service.create_saved_script(
-            script_create,
-            self.test_user_id
+            script_create, self.test_user_id
         )
 
         # Then retrieve it
         retrieved_script = await self.saved_script_service.get_saved_script(
-            created_script.id,
-            self.test_user_id
+            created_script.id, self.test_user_id
         )
 
         assert retrieved_script.id == created_script.id
@@ -64,11 +61,10 @@ class TestSavedScriptService:
         script_create = SavedScriptCreate(
             name="Original Name",
             script="print('Original')",
-            description="Original description"
+            description="Original description",
         )
         created_script = await self.saved_script_service.create_saved_script(
-            script_create,
-            self.test_user_id
+            script_create, self.test_user_id
         )
 
         await asyncio.sleep(0.1)
@@ -77,19 +73,16 @@ class TestSavedScriptService:
         update_data = SavedScriptUpdate(
             name="Updated Name",
             script="print('Updated')",
-            description="Updated description"
+            description="Updated description",
         )
 
         await self.saved_script_service.update_saved_script(
-            created_script.id,
-            self.test_user_id,
-            update_data
+            created_script.id, self.test_user_id, update_data
         )
 
         # Retrieve and verify the update
         updated_script = await self.saved_script_service.get_saved_script(
-            created_script.id,
-            self.test_user_id
+            created_script.id, self.test_user_id
         )
 
         assert updated_script.name == "Updated Name"
@@ -103,23 +96,20 @@ class TestSavedScriptService:
         script_create = SavedScriptCreate(
             name="To Be Deleted",
             script="print('Delete Me')",
-            description="Testing delete functionality"
+            description="Testing delete functionality",
         )
         created_script = await self.saved_script_service.create_saved_script(
-            script_create,
-            self.test_user_id
+            script_create, self.test_user_id
         )
 
         # Delete the script
         await self.saved_script_service.delete_saved_script(
-            created_script.id,
-            self.test_user_id
+            created_script.id, self.test_user_id
         )
 
         # Verify it's deleted
         retrieved_script = await self.saved_script_service.get_saved_script(
-            created_script.id,
-            self.test_user_id
+            created_script.id, self.test_user_id
         )
         assert retrieved_script is None
 
@@ -127,21 +117,22 @@ class TestSavedScriptService:
     async def test_list_saved_scripts(self):
         # Clear any existing scripts first
         await self.saved_script_repo.db.saved_scripts.delete_many(
-            {"user_id": self.test_user_id})  # Changed from collection to db.saved_scripts
+            {"user_id": self.test_user_id}
+        )  # Changed from collection to db.saved_scripts
 
         # Create multiple scripts
         test_scripts = [
             SavedScriptCreate(
                 name=f"Test Script {i}",
                 script=f"print('Hello {i}')",
-                description=f"Test Description {i}"
-            ) for i in range(3)
+                description=f"Test Description {i}",
+            )
+            for i in range(3)
         ]
 
         for script in test_scripts:
             await self.saved_script_service.create_saved_script(
-                script,
-                self.test_user_id
+                script, self.test_user_id
             )
 
         # List scripts
@@ -181,31 +172,27 @@ class TestSavedScriptService:
         script_create = SavedScriptCreate(
             name="Original Name",
             script="print('Original')",
-            description="Original description"
+            description="Original description",
         )
         created_script = await self.saved_script_service.create_saved_script(
-            script_create,
-            self.test_user_id
+            script_create, self.test_user_id
         )
 
         # Perform partial update (only name)
-        partial_update = SavedScriptUpdate(
-            name="Updated Name Only"
-        )
+        partial_update = SavedScriptUpdate(name="Updated Name Only")
 
         await self.saved_script_service.update_saved_script(
-            created_script.id,
-            self.test_user_id,
-            partial_update
+            created_script.id, self.test_user_id, partial_update
         )
 
         # Verify partial update
         updated_script = await self.saved_script_service.get_saved_script(
-            created_script.id,
-            self.test_user_id
+            created_script.id, self.test_user_id
         )
 
         assert updated_script.name == "Updated Name Only"
         assert updated_script.script == "print('Original')"  # Should remain unchanged
-        assert updated_script.description == "Original description"  # Should remain unchanged
+        assert (
+            updated_script.description == "Original description"
+        )  # Should remain unchanged
         assert updated_script.updated_at > created_script.updated_at

@@ -10,8 +10,7 @@ class TestExecutionService:
         self.k8s_service = KubernetesService()
         self.execution_repo = ExecutionRepository(db)
         self.execution_service = ExecutionService(
-            execution_repo=self.execution_repo,
-            k8s_service=self.k8s_service
+            execution_repo=self.execution_repo, k8s_service=self.k8s_service
         )
 
     @pytest.mark.asyncio

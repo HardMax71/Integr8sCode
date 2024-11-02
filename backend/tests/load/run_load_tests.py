@@ -12,14 +12,20 @@ def run_load_test(scenario: str, host: str):
 
     cmd = [
         "locust",
-        "-f", "locustfile.py",
-        "--host", host,
-        "--users", str(config["users"]),
-        "--spawn-rate", str(config["spawn_rate"]),
-        "--run-time", config["run_time"],
+        "-f",
+        "locustfile.py",
+        "--host",
+        host,
+        "--users",
+        str(config["users"]),
+        "--spawn-rate",
+        str(config["spawn_rate"]),
+        "--run-time",
+        config["run_time"],
         "--headless",  # Run without web UI
         "--only-summary",  # Only show summary stats
-        "--html", f"report_{scenario}.html"  # Generate HTML report
+        "--html",
+        f"report_{scenario}.html",  # Generate HTML report
     ]
 
     subprocess.run(cmd)
@@ -31,12 +37,10 @@ if __name__ == "__main__":
         "--scenario",
         choices=SCENARIOS.keys(),
         default="smoke",
-        help="Load test scenario to run"
+        help="Load test scenario to run",
     )
     parser.add_argument(
-        "--host",
-        default="http://localhost:443",
-        help="Host to test against"
+        "--host", default="http://localhost:443", help="Host to test against"
     )
 
     args = parser.parse_args()

@@ -10,6 +10,15 @@ script, and the platform run it in an isolated environment within its own Kubern
 to keep
 things safe and efficient. You'll get the results back in no time.
 
+
+<details>
+<summary><b>Full demo</b></summary>
+ 
+https://github.com/user-attachments/assets/5501579f-1478-4374-a7d8-0d65c14a6c33
+
+</details>
+
+
 ## Architecture Overview
 
 The platform is built on three main pillars:

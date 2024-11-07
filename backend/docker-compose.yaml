@@ -34,8 +34,19 @@ services:
       - '--storage.tsdb.path=/prometheus'
       - '--web.console.libraries=/etc/prometheus/console_libraries'
       - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=15d'     # Retain data for 15 days
+      - '--storage.tsdb.retention.size=5GB'     # Maximum storage size
+      - '--query.max-samples=50000000'          # Limit query size to 50M samples
     networks:
       - app-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
 
   grafana:
     image: grafana/grafana:10.2.0

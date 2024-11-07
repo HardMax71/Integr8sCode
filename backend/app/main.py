@@ -3,8 +3,10 @@ from contextlib import asynccontextmanager
 from app.api.routes import execution, health, auth, saved_scripts
 from app.config import get_settings
 from app.core.exceptions import configure_exception_handlers
-from app.core.logging import logger  # Import logger from the new location
-from app.db.mongodb import close_mongo_connection
+from app.core.logging import logger
+from app.core.middleware import RequestSizeLimitMiddleware
+from app.db.mongodb import init_mongodb, close_mongo_connection
+from app.services.kubernetes_service import KubernetesServiceManager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -30,21 +32,31 @@ async def lifespan(app: FastAPI):
     )
 
     try:
-        app.state.mongodb_client = AsyncIOMotorClient(settings.MONGODB_URL)
+        # Initialize MongoDB with retries
+        app.state.mongodb_client = await init_mongodb()
         app.state.db = app.state.mongodb_client[settings.PROJECT_NAME]
-        logger.info("Successfully connected to MongoDB")
+        logger.info("MongoDB initialization completed")
+
+        # Initialize K8s manager
+        app.state.k8s_manager = KubernetesServiceManager()
+        logger.info("Kubernetes service manager initialized")
     except Exception as e:
-        logger.error("Failed to connect to MongoDB", extra={"error": str(e)})
+        logger.critical("Failed to initialize MongoDB", extra={"error": str(e)})
         raise
 
     yield
 
     # Shutdown
     try:
+        # Shutdown all K8s services first
+        if hasattr(app.state, "k8s_manager"):
+            await app.state.k8s_manager.shutdown_all()
+            logger.info("All Kubernetes services shut down")
+
+        # Then close MongoDB connection
         await close_mongo_connection(app.state.mongodb_client)
-        logger.info("Successfully closed MongoDB connection")
     except Exception as e:
-        logger.error("Error closing MongoDB connection", extra={"error": str(e)})
+        logger.error("Error during application shutdown", extra={"error": str(e)})
 
 
 def create_app() -> FastAPI:
@@ -56,6 +68,8 @@ def create_app() -> FastAPI:
         app.state.mongodb_client = AsyncIOMotorClient(settings.MONGODB_URL)
         app.state.db = app.state.mongodb_client[settings.PROJECT_NAME + "_test"]
 
+    app.add_middleware(RequestSizeLimitMiddleware)
+
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -66,9 +80,15 @@ def create_app() -> FastAPI:
             "https://127.0.0.1:5001",
         ],
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-        expose_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "Accept",
+            "Origin",
+            "X-Requested-With",
+        ],
+        expose_headers=["Content-Length", "Content-Range"],
     )
     logger.info("CORS middleware configured")
 

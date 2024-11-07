@@ -26,22 +26,41 @@ async def login(
             "username": form_data.username,
             "client_ip": get_remote_address(request),
             "endpoint": "/login",
+            "user_agent": request.headers.get("user-agent"),
         },
     )
 
     user = await user_repo.get_user(form_data.username)
-    if not user or not security_service.verify_password(
-        form_data.password, user.hashed_password
-    ):
+
+    if not user:
         logger.warning(
-            "Failed login attempt",
+            "Login failed - user not found",
             extra={
                 "username": form_data.username,
                 "client_ip": get_remote_address(request),
-                "reason": "Invalid credentials",
+                "user_agent": request.headers.get("user-agent"),
             },
         )
-        raise HTTPException(status_code=400, detail="Incorrect username or password")
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not security_service.verify_password(form_data.password, user.hashed_password):
+        logger.warning(
+            "Login failed - invalid password",
+            extra={
+                "username": form_data.username,
+                "client_ip": get_remote_address(request),
+                "user_agent": request.headers.get("user-agent"),
+            },
+        )
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     settings = get_settings()
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -50,10 +69,11 @@ async def login(
     )
 
     logger.info(
-        "Successful login",
+        "Login successful",
         extra={
             "username": user.username,
             "client_ip": get_remote_address(request),
+            "user_agent": request.headers.get("user-agent"),
             "token_expires_in_minutes": settings.ACCESS_TOKEN_EXPIRE_MINUTES,
         },
     )
@@ -74,6 +94,7 @@ async def register(
             "username": user.username,
             "client_ip": get_remote_address(request),
             "endpoint": "/register",
+            "user_agent": request.headers.get("user-agent"),
         },
     )
 
@@ -81,7 +102,11 @@ async def register(
     if db_user:
         logger.warning(
             "Registration failed - username taken",
-            extra={"username": user.username, "client_ip": get_remote_address(request)},
+            extra={
+                "username": user.username,
+                "client_ip": get_remote_address(request),
+                "user_agent": request.headers.get("user-agent"),
+            },
         )
         raise HTTPException(status_code=400, detail="Username already registered")
 
@@ -91,10 +116,11 @@ async def register(
         created_user = await user_repo.create_user(db_user)
 
         logger.info(
-            "Successful registration",
+            "Registration successful",
             extra={
                 "username": created_user.username,
                 "client_ip": get_remote_address(request),
+                "user_agent": request.headers.get("user-agent"),
             },
         )
 
@@ -106,6 +132,7 @@ async def register(
             extra={
                 "username": user.username,
                 "client_ip": get_remote_address(request),
+                "user_agent": request.headers.get("user-agent"),
                 "error_type": type(e).__name__,
                 "error_detail": str(e),
             },
@@ -125,15 +152,17 @@ async def verify_token(
             "username": current_user.username,
             "client_ip": get_remote_address(request),
             "endpoint": "/verify-token",
+            "user_agent": request.headers.get("user-agent"),
         },
     )
 
     try:
         logger.info(
-            "Successful token verification",
+            "Token verification successful",
             extra={
                 "username": current_user.username,
                 "client_ip": get_remote_address(request),
+                "user_agent": request.headers.get("user-agent"),
             },
         )
         return {"valid": True, "username": current_user.username}
@@ -143,8 +172,13 @@ async def verify_token(
             "Token verification failed",
             extra={
                 "client_ip": get_remote_address(request),
+                "user_agent": request.headers.get("user-agent"),
                 "error_type": type(e).__name__,
                 "error_detail": str(e),
             },
         )
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )

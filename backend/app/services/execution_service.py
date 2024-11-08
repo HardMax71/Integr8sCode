@@ -8,7 +8,7 @@ from app.core.metrics import (
     SCRIPT_EXECUTIONS,
     EXECUTION_DURATION,
     ACTIVE_EXECUTIONS,
-    ERROR_COUNTER
+    ERROR_COUNTER,
 )
 from app.db.repositories.execution_repository import (
     ExecutionRepository,
@@ -34,9 +34,7 @@ class ExecutionService:
     """
 
     def __init__(
-            self,
-            execution_repo: ExecutionRepository,
-            k8s_service: KubernetesService
+        self, execution_repo: ExecutionRepository, k8s_service: KubernetesService
     ):
         self.execution_repo = execution_repo
         self.k8s_service = k8s_service
@@ -53,17 +51,16 @@ class ExecutionService:
             "supported_python_versions": self.settings.SUPPORTED_PYTHON_VERSIONS,
         }
 
-    async def _start_k8s_execution(self, execution_id: str, script: str, python_version: str) -> None:
+    async def _start_k8s_execution(
+        self, execution_id: str, script: str, python_version: str
+    ) -> None:
         """Internal method to handle Kubernetes execution"""
         try:
             await self.k8s_service.create_execution_pod(
-                execution_id=execution_id,
-                script=script,
-                python_version=python_version
+                execution_id=execution_id, script=script, python_version=python_version
             )
             await self.execution_repo.update_execution(
-                execution_id,
-                ExecutionUpdate(status=ExecutionStatus.RUNNING).dict()
+                execution_id, ExecutionUpdate(status=ExecutionStatus.RUNNING).dict()
             )
 
         except Exception as e:
@@ -71,13 +68,14 @@ class ExecutionService:
             await self.execution_repo.update_execution(
                 execution_id,
                 ExecutionUpdate(
-                    status=ExecutionStatus.FAILED,
-                    errors=error_message
-                ).dict()
+                    status=ExecutionStatus.FAILED, errors=error_message
+                ).dict(),
             )
             raise IntegrationException(status_code=500, detail=error_message)
 
-    async def _get_k8s_execution_output(self, execution_id: str) -> tuple[Optional[str], Optional[str]]:
+    async def _get_k8s_execution_output(
+        self, execution_id: str
+    ) -> tuple[Optional[str], Optional[str]]:
         """Internal method to get execution output from Kubernetes"""
         try:
             output = await self.k8s_service.get_pod_logs(execution_id)
@@ -89,7 +87,9 @@ class ExecutionService:
         except Exception as e:
             return None, str(e)
 
-    async def execute_script(self, script: str, python_version: str = "3.11") -> ExecutionInDB:
+    async def execute_script(
+        self, script: str, python_version: str = "3.11"
+    ) -> ExecutionInDB:
         """
         Execute a script with metrics tracking and proper error handling.
         Manages the complete execution lifecycle.
@@ -102,7 +102,7 @@ class ExecutionService:
             execution = ExecutionCreate(
                 script=script,
                 python_version=python_version,
-                status=ExecutionStatus.QUEUED
+                status=ExecutionStatus.QUEUED,
             )
             execution_in_db = ExecutionInDB(**execution.dict())
             await self.execution_repo.create_execution(execution_in_db)
@@ -110,32 +110,26 @@ class ExecutionService:
             try:
                 # Start execution in Kubernetes
                 await self._start_k8s_execution(
-                    execution_in_db.id,
-                    script,
-                    python_version
+                    execution_in_db.id, script, python_version
                 )
 
                 SCRIPT_EXECUTIONS.labels(
-                    status="success",
-                    python_version=python_version
+                    status="success", python_version=python_version
                 ).inc()
 
             except Exception as e:
                 SCRIPT_EXECUTIONS.labels(
-                    status="error",
-                    python_version=python_version
+                    status="error", python_version=python_version
                 ).inc()
-                ERROR_COUNTER.labels(
-                    error_type=type(e).__name__
-                ).inc()
+                ERROR_COUNTER.labels(error_type=type(e).__name__).inc()
                 raise
 
             return await self.execution_repo.get_execution(execution_in_db.id)
 
         finally:
-            EXECUTION_DURATION.labels(
-                python_version=python_version
-            ).observe(time() - start_time)
+            EXECUTION_DURATION.labels(python_version=python_version).observe(
+                time() - start_time
+            )
             ACTIVE_EXECUTIONS.dec()
 
     async def get_execution_result(self, execution_id: str) -> ExecutionInDB:
@@ -159,22 +153,18 @@ class ExecutionService:
         # Update execution status
         if error:
             update_data = ExecutionUpdate(
-                status=ExecutionStatus.FAILED,
-                errors=error
+                status=ExecutionStatus.FAILED, errors=error
             ).dict()
             SCRIPT_EXECUTIONS.labels(
-                status="error",
-                python_version=execution.python_version
+                status="error", python_version=execution.python_version
             ).inc()
             ERROR_COUNTER.labels(error_type="ExecutionError").inc()
         else:
             update_data = ExecutionUpdate(
-                status=ExecutionStatus.COMPLETED,
-                output=output
+                status=ExecutionStatus.COMPLETED, output=output
             ).dict()
             SCRIPT_EXECUTIONS.labels(
-                status="success",
-                python_version=execution.python_version
+                status="success", python_version=execution.python_version
             ).inc()
 
         await self.execution_repo.update_execution(execution_id, update_data)
@@ -182,7 +172,7 @@ class ExecutionService:
 
 
 def get_execution_service(
-        execution_repo: ExecutionRepository = Depends(get_execution_repository),
-        k8s_service: KubernetesService = Depends(get_kubernetes_service),
+    execution_repo: ExecutionRepository = Depends(get_execution_repository),
+    k8s_service: KubernetesService = Depends(get_kubernetes_service),
 ) -> ExecutionService:
     return ExecutionService(execution_repo, k8s_service)

@@ -229,25 +229,36 @@ class KubernetesService:
             if temp_file_path and os.path.exists(temp_file_path):
                 os.unlink(temp_file_path)
 
-    async def get_pod_logs(self, execution_id: str) -> str:
+    async def get_pod_logs(self, execution_id: str) -> tuple[str, str]:
         """
-        Wait for pod to complete, gather logs, then cleanup resources
+        Return (logs, phase) for the finished pod.
+        phase will be either "Succeeded" or "Failed" (or something else, if incomplete).
         """
-        if not self.circuit_breaker.should_allow_request():
-            raise KubernetesServiceError("Service circuit breaker is open")
-
         pod_name = f"execution-{execution_id}"
         config_map_name = f"script-{execution_id}"
 
-        try:
-            logs = await self._wait_for_pod_and_get_logs(pod_name)
-            self.circuit_breaker.record_success()
-            return logs
-        finally:
-            # Cleanup resources once logs are obtained
-            await self._cleanup_resources(pod_name, config_map_name)
-            if execution_id in self._active_pods:
-                del self._active_pods[execution_id]
+        # same logic, but keep track of the final phase:
+        for _ in range(self.POD_RETRY_ATTEMPTS):
+            pod = await asyncio.to_thread(
+                self.v1.read_namespaced_pod, name=pod_name, namespace=self.NAMESPACE
+            )
+            if pod.status.phase in self.POD_SUCCESS_STATES:  # {"Succeeded", "Failed"}
+                break
+            await asyncio.sleep(self.POD_RETRY_INTERVAL)
+        else:
+            raise KubernetesPodError("Timeout waiting for pod to complete")
+
+        # Now retrieve logs
+        logs = await asyncio.to_thread(
+            self.v1.read_namespaced_pod_log, name=pod_name, namespace=self.NAMESPACE
+        )
+
+        # Clean up resources
+        await self._cleanup_resources(pod_name, config_map_name)
+        if execution_id in self._active_pods:
+            del self._active_pods[execution_id]
+
+        return logs, pod.status.phase
 
     async def _create_config_map(self, config_map: client.V1ConfigMap) -> None:
         """Asynchronously create a ConfigMap in the cluster."""

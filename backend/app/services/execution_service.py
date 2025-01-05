@@ -73,19 +73,22 @@ class ExecutionService:
             )
             raise IntegrationException(status_code=500, detail=error_message)
 
-    async def _get_k8s_execution_output(
-        self, execution_id: str
-    ) -> tuple[Optional[str], Optional[str]]:
-        """Internal method to get execution output from Kubernetes"""
+    async def _get_k8s_execution_output(self, execution_id: str) -> tuple[Optional[str], Optional[str], Optional[str]]:
+        """
+        Return (output, error, phase).
+        If error is not None, that means we had a K8s-level exception, not just script exit code.
+        If phase == "Failed", that means the container ended with a non-zero exit code.
+        """
         try:
-            output = await self.k8s_service.get_pod_logs(execution_id)
-            return output, None
+            output, phase = await self.k8s_service.get_pod_logs(execution_id)
+            return output, None, phase
         except ApiException as e:
             if e.status == 400 and "ContainerCreating" in e.body:
-                return None, None
-            return None, str(e)
+                return None, None, None  # Pod still starting
+            return None, str(e), None
         except Exception as e:
-            return None, str(e)
+            return None, str(e), None
+
 
     async def execute_script(
         self, script: str, python_version: str = "3.11"
@@ -133,9 +136,6 @@ class ExecutionService:
             ACTIVE_EXECUTIONS.dec()
 
     async def get_execution_result(self, execution_id: str) -> ExecutionInDB:
-        """
-        Get execution result with proper error handling and status updates.
-        """
         execution = await self.execution_repo.get_execution(execution_id)
         if not execution:
             ERROR_COUNTER.labels(error_type="ExecutionNotFound").inc()
@@ -144,28 +144,36 @@ class ExecutionService:
         if execution.status in [ExecutionStatus.COMPLETED, ExecutionStatus.FAILED]:
             return execution
 
-        output, error = await self._get_k8s_execution_output(execution_id)
+        output, error, phase = await self._get_k8s_execution_output(execution_id)
+        if output is None and error is None and phase is None:
+            return execution  # still "RUNNING" or "QUEUED"
 
-        # Handle executing state
-        if output is None and error is None:
-            return execution
-
-        # Update execution status
         if error:
+            # K8s-level error
             update_data = ExecutionUpdate(
-                status=ExecutionStatus.FAILED, errors=error
+                status=ExecutionStatus.FAILED,
+                errors=error
             ).dict()
-            SCRIPT_EXECUTIONS.labels(
-                status="error", python_version=execution.python_version
-            ).inc()
+            SCRIPT_EXECUTIONS.labels(status="error", python_version=execution.python_version).inc()
             ERROR_COUNTER.labels(error_type="ExecutionError").inc()
         else:
-            update_data = ExecutionUpdate(
-                status=ExecutionStatus.COMPLETED, output=output
-            ).dict()
-            SCRIPT_EXECUTIONS.labels(
-                status="success", python_version=execution.python_version
-            ).inc()
+            # Check pod phase to see if container exit code was success or fail
+            if phase == "Failed":
+                # The Python script crashed => this is an error
+                update_data = ExecutionUpdate(
+                    status=ExecutionStatus.FAILED,
+                    output=output,  # might contain traceback
+                    errors="Script exited with non-zero exit code",
+                ).dict()
+                SCRIPT_EXECUTIONS.labels(status="error", python_version=execution.python_version).inc()
+                ERROR_COUNTER.labels(error_type="ScriptRuntimeError").inc()
+            else:
+                # phase == "Succeeded"
+                update_data = ExecutionUpdate(
+                    status=ExecutionStatus.COMPLETED,
+                    output=output,
+                ).dict()
+                SCRIPT_EXECUTIONS.labels(status="success", python_version=execution.python_version).inc()
 
         await self.execution_repo.update_execution(execution_id, update_data)
         return await self.execution_repo.get_execution(execution_id)

@@ -29,13 +29,104 @@ https://github.com/user-attachments/assets/5501579f-1478-4374-a7d8-0d65c14a6c33
 cd backend
 ```
 
-2. Call `docker-compose up --build`
+2. Create a certs folder
 
-```bash
-docker-compose up --build
+```bash 
+mkdir certs
 ```
 
-3. The backend will be available at `https://0.0.0.0:443`. Docs are available at `https://0.0.0.0:443/docs`.
+3. Enable Kubernetes in Docker Desktop
+
+- In Docker Desktop => Settings => Kubernetes, check `Enable Kubernetes`.
+- Let Docker Desktop spin up the single-node cluster. Confirm it’s running:
+```bash
+kubectl cluster-info
+```
+
+Should show something like:
+``` 
+Kubernetes control plane is running at https://kubernetes.docker.internal:6443
+```
+
+4. Create a Service Account and Token 
+
+```bash 
+kubectl create serviceaccount integr8scode-sa -n default
+kubectl create clusterrolebinding integr8scode-sa-admin-binding --clusterrole=cluster-admin --serviceaccount=default:integr8scode-sa
+kubectl create token integr8scode-sa -n default --duration=24h
+```
+
+After 3rd command, you’ll get back a JWT token string. That’s what you’ll paste into your `kubeconfig.yaml` as the `token:` property.
+
+5. Extract Docker Desktop’s CA Certificate
+
+Docker Desktop’s Kubernetes cluster uses a root CA that’s separate from your self-signed one. 
+The certificate-authority-data or certificate-authority in your local `~/.kube/config` (or `%USERPROFILE%\.kube\config`
+on Windows) is the Docker Desktop CA you want to trust inside the container.
+
+```bash 
+kubectl config view --raw -o jsonpath="{.clusters[?(@.name=='docker-desktop')].cluster.certificate-authority-data}" \
+  | base64 --decode \
+  > ./certs/docker-desktop-ca.crt
+```
+
+On Windows: it's complicated. Do following: 
+
+```bash 
+kubectl config view --raw -o jsonpath="{.clusters[?(@.name=='docker-desktop')].cluster.certificate-authority-data}"
+```
+
+will return some string starting with `LS0..`. You need to decode it to get the certificate itself, simplest way is to
+use online base64 decoder, like [this one](https://www.base64decode.org/). Copy the string and paste it into the decoder, 
+then copy the decoded string and save it to `./certs/docker-desktop-ca.crt` file (last line should be empty!).
+
+6. Generate Self-Signed Certificates for FastAPI
+
+While in `/backend`:
+
+> Idea about using OpenSSL from Git in Win came from [here](https://stackoverflow.com/a/51757939), if needed - change commands below accordingly. 
+
+```bash 
+openssl req -x509 -newkey rsa:4096 -nodes -keyout ./certs/server.key -out ./certs/server.crt -days 365 -subj "/C=US/ST=Test/L=Test/O=Test Org/CN=localhost"
+```
+Win:
+```bash 
+` & "C:\Program Files\Git\usr\bin\openssl.exe" req -x509 -newkey rsa:4096 -nodes -keyout ./certs/server.key -out ./certs/server.crt -days 365 -subj "/C=US/ST=Test/L=Test/O=Test Org/CN=localhost"` 
+```
+
+You’ll now have:
+``` 
+backend/
+  certs/
+    docker-desktop-ca.crt  # Step 5
+    server.key             # Step 6
+    server.crt             # Step 6
+```
+
+7. Change `kubeconfig.yaml`
+
+``` 
+apiVersion: v1
+kind: Config
+clusters:
+- name: docker-desktop
+  cluster:
+    server: https://kubernetes.docker.internal:6443
+    certificate-authority: /app/certs/docker-desktop-ca.crt
+users:
+- name: integr8scode-sa
+  user:
+    token: <paste here output from `kubectl create token integr8scode-sa ..`, should start presumably with `ey..`>
+contexts:
+- name: integr8scode
+  context:
+    cluster: docker-desktop
+    user: integr8scode-sa
+current-context: integr8scode
+```
+
+8. Now call `docker-compose up --build` - that will download all required stuff and start the backend part. 
+Backend will be available at `https://0.0.0.0:443`.
 
 **Frontend:**
 
@@ -51,13 +142,86 @@ cd frontend
 npm install
 ```
 
-3. Build the app: `npm run dev`
+3. Generate self-signed private key for SSL/TLS encryption: 
+
+- Windows 10: ` & "C:\Program Files\Git\usr\bin\openssl.exe" req -x509 -newkey rsa:4096 -keyout ./server.key -out ./server.crt -days 365 -nodes -keyout ./server.key -out ./server.crt -subj "/CN=localhost"`
+- Mac: `openssl req -x509 -newkey rsa:4096 -nodes -keyout ./certs/server.key -out ./certs/server.crt -days 365 -nodes -keyout ./server.key -out ./server.crt -subj "/CN=localhost"`
+
+
+4. Build the app: `npm run dev`
 
 ```bash
 npm run dev
 ```
+5. The frontend will be available at `https://localhost:5001/`.
 
-4. The frontend will be available at `https://localhost:5001/`.
+If the browser shows a security warning, it's because the certificate is self-signed. You have to proceed by accepting 
+the risk and continuing to the site.
+
+Except that, you may find out following (at least, in Chrome): 
+
+> Failed to load resource: net::ERR_FAILED - for `/api/v1/k8s-limits:1`
+
+This error effectively means that K8s cluster isn't started: thus, go to Docker Desktop => Settings => Kubernetes => Enable Kubernetes
+and check if K8s is enabled - it should be. If not - enable it, wait till it will be, then:
+
+```bash 
+docker-compose down -v
+docker-compose up --build
+```
+
+Effectively, you will need to rebuild images and restart containers.
+
+</details>
+
+<details>
+<summary>Sample test</summary>
+
+You can check correctness of start by running a sample test script:
+1. Open website at `https://localhost:5001/`, go to Editor
+2. In code window, paste following code:
+```python 
+from typing import TypeGuard
+
+def is_string(value: object) -> TypeGuard[str]:
+    return isinstance(value, str)
+
+def example_function(data: object):
+    match data:  # Match statement introduced in Python 3.10
+        case int() if data > 10:
+            print("An integer greater than 10")
+        case str() if is_string(data):
+            print(f"A string: {data}")
+        case _:
+            print("Something else")
+
+example_function(15)
+example_function("hello")
+example_function([1, 2, 3])
+```
+
+First, select `>= Python 3.10` and run script, will output: 
+``` 
+Status: completed
+Execution ID: <some hex number>
+Output:
+  An integer greater than 10
+  A string: hello
+  Something else
+```
+
+Then, select `< Python 3.10` and do the same: 
+``` 
+Status: completed
+Execution ID: <some other hex number>
+Output:
+  File "/scripts/script.py", line 7
+    match data:  # Match statement introduced in Python 3.10
+          ^
+SyntaxError: invalid syntax
+```
+This shows that pods with specified python versions are creating and working as expected. Btw, the latter throws error 
+cause `match-case` was introduced first in `Python 3.10`.
 
 </details>
 

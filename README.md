@@ -144,9 +144,14 @@ npm install
 
 3. Generate self-signed private key for SSL/TLS encryption: 
 
-- Windows 10: ` & "C:\Program Files\Git\usr\bin\openssl.exe" req -x509 -newkey rsa:4096 -keyout ./server.key -out ./server.crt -days 365 -nodes -keyout ./server.key -out ./server.crt -subj "/CN=localhost"`
-- Mac: `openssl req -x509 -newkey rsa:4096 -nodes -keyout ./certs/server.key -out ./certs/server.crt -days 365 -nodes -keyout ./server.key -out ./server.crt -subj "/CN=localhost"`
-
+- Windows 10: 
+```bash 
+ & "C:\Program Files\Git\usr\bin\openssl.exe" req -x509 -newkey rsa:4096 -nodes -keyout ./server.key -out ./server.crt -days 365 -subj "/C=US/ST=Test/L=Test/O=Test Org/CN=localhost" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"`
+```
+- Mac: 
+```bash 
+openssl req -x509 -newkey rsa:4096 -nodes -keyout ./server.key -out ./server.crt -days 365 -subj "/C=US/ST=Test/L=Test/O=Test Org/CN=localhost" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+```
 
 4. Build the app: `npm run dev`
 
@@ -170,7 +175,17 @@ docker-compose down -v
 docker-compose up --build
 ```
 
-Effectively, you will need to rebuild images and restart containers.
+Effectively, you will need to rebuild images and restart containers. Also, check output of:
+```bash 
+curl -k https://localhost/api/v1/k8s-limits                                                 
+```
+
+if the output is:
+
+> {"cpu_limit":"100m","memory_limit":"128Mi","cpu_request":"100m","memory_request":"128Mi","execution_timeout":5,
+> "supported_python_versions":["3.7","3.8","3.9","3.10","3.11","3.12"]}%    
+
+then the problem is only in frontend. 
 
 </details>
 

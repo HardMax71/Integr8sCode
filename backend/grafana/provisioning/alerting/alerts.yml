@@ -2,7 +2,7 @@ apiVersion: 1
 
 groups:
   - name: IntegrationAlerts
-    folder: Integr8sCode
+    folder: Integr8sCode_Alerts
     interval: "1m"
     rules:
       - uid: high_error_rate

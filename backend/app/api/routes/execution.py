@@ -61,11 +61,11 @@ async def create_execution(
             extra={
                 "error_type": "IntegrationException",
                 "status_code": e.status_code,
-                "error_detail": str(e),
+                "error_detail": e.detail,
                 "python_version": execution.python_version,
             },
         )
-        raise HTTPException(status_code=e.status_code, detail=str(e))
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
 
     except Exception as e:
         SCRIPT_EXECUTIONS.labels(

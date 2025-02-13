@@ -65,9 +65,9 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
-          "expr": "rate(script_executions_total[5m])",
+          "expr": "floor(increase(script_executions_total[5m]))",
           "instant": false,
-          "legendFormat": "{{status}}",
+          "legendFormat": "{{python_version}} {{status}}",
           "range": true,
           "refId": "A"
         }
@@ -123,7 +123,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(script_executions_total{status=\"error\"}[5m]) / rate(script_executions_total[5m])",
+          "expr": "sum(rate(script_executions_total{status=\"error\"}[5m])) / sum(rate(script_executions_total[5m]))",
           "refId": "A"
         }
       ],
@@ -141,8 +141,8 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
-        "y": 16
+        "x": 12,
+        "y": 0
       },
       "id": 4,
       "options": {
@@ -167,7 +167,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 16
+        "y": 8
       },
       "id": 5,
       "options": {

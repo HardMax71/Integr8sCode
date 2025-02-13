@@ -1,0 +1,140 @@
+services:
+  cert-generator-backend:
+    build:
+      context: ./cert-generator
+      dockerfile: Dockerfile
+    volumes:
+      - ./backend/certs:/certs
+      - ./backend:/backend
+      - ~/.kube:/root/.kube
+    restart: "no"
+    networks:
+      - app-network
+    healthcheck:
+      test: "[ -f /certs/server.crt ] && [ -f /backend/kubeconfig.yaml ]"
+      interval: 1s
+      timeout: 5s
+      retries: 30
+
+  cert-generator-frontend:
+    build:
+      context: ./cert-generator
+      dockerfile: Dockerfile
+    volumes:
+      - ./frontend/certs:/certs
+      - ~/.kube:/root/.kube
+    restart: "no"
+    networks:
+      - app-network
+    healthcheck:
+      test: "[ -f /certs/server.crt ]"
+      interval: 1s
+      timeout: 5s
+      retries: 30
+
+  mongo:
+    image: mongo:4.4
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - app-network
+    container_name: mongo
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    depends_on:
+      cert-generator-backend:
+        condition: service_healthy
+      mongo:
+        condition: service_started
+    volumes:
+      - ./backend:/app
+      - ./backend/certs:/app/certs
+    ports:
+      - "443:443"
+    networks:
+      - app-network
+    container_name: backend
+    environment:
+      - MONGODB_URL=mongodb://mongo:27017/integr8scode
+    healthcheck:
+      test: [ "CMD", "curl", "-k", "https://localhost/api/v1/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    container_name: frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    depends_on:
+      cert-generator-frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    volumes:
+      - ./frontend:/app
+      - ./frontend/certs:/app/certs
+    ports:
+      - "5001:5001"
+    networks:
+      - app-network
+    environment:
+      - VITE_BACKEND_URL=https://127.0.0.1:443
+
+  prometheus:
+    container_name: prometheus
+    image: prom/prometheus:v2.45.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./backend/prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=15d'
+      - '--storage.tsdb.retention.size=5GB'
+      - '--query.max-samples=50000000'
+    networks:
+      - app-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+
+  grafana:
+    container_name: grafana
+    image: grafana/grafana:latest
+    user: "472" # user rights
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./backend/grafana/grafana.ini:/etc/grafana/grafana.ini
+      - ./backend/grafana/provisioning:/etc/grafana/provisioning
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_started
+    networks:
+      - app-network
+
+volumes:
+  mongo_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  app-network:
+    driver: bridge

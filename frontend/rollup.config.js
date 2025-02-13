@@ -1,7 +1,6 @@
 import svelte from 'rollup-plugin-svelte';
 import commonjs from '@rollup/plugin-commonjs';
 import resolve from '@rollup/plugin-node-resolve';
-import livereload from 'rollup-plugin-livereload';
 import terser from '@rollup/plugin-terser';
 import postcss from 'rollup-plugin-postcss';
 import sveltePreprocess from 'svelte-preprocess';
@@ -12,6 +11,7 @@ import fs from 'fs';
 
 dotenv.config();
 const production = !process.env.ROLLUP_WATCH;
+const backendUrl = process.env.VITE_BACKEND_URL || 'https://127.0.0.1:443';
 
 export default {
     input: 'src/main.js',
@@ -48,18 +48,16 @@ export default {
         commonjs(),
         !production && serve({
             contentBase: ['public'],
-            host: 'localhost',
+            host: '0.0.0.0',
             port: 5001,
-            headers: {
-                'Access-Control-Allow-Origin': '*'
-            },
             https: {
-                key: fs.readFileSync('./server.key'),
-                cert: fs.readFileSync('./server.crt')
+                key: fs.readFileSync('./certs/server.key'),
+                cert: fs.readFileSync('./certs/server.crt'),
+                secure: true
             },
             historyApiFallback: true,
         }),
-      //  !production && livereload('public'),
+        //  !production && livereload('public'),
         production && terser()
     ],
     watch: {

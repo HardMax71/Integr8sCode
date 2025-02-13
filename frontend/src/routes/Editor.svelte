@@ -50,9 +50,8 @@
 
     onMount(async () => {
         try {
-            const limitsResponse = await axios.get(
-                `${backendUrl}/api/v1/k8s-limits`
-            );
+            const limitsResponse = await axios.get(`${backendUrl}/api/v1/k8s-limits`);
+            // console.log(limitsResponse);
             k8sLimits = limitsResponse.data;
             supportedPythonVersions = k8sLimits.supported_python_versions;
         } catch (err) {

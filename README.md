@@ -14,6 +14,8 @@ things safe and efficient. You'll get the results back in no time.
 <details>
 <summary><b>Full demo</b></summary>
  
+> Video with extended functionality will be uploaded soon. For now, here is a short demo:
+
 https://github.com/user-attachments/assets/5501579f-1478-4374-a7d8-0d65c14a6c33
 
 </details>
@@ -28,7 +30,7 @@ https://github.com/user-attachments/assets/5501579f-1478-4374-a7d8-0d65c14a6c33
 - Frontend: `https://127.0.0.1:5001/`
 - Backend: `https://127.0.0.1:443/`
   - To check if it works, you can use `curl -k https://127.0.0.1/api/v1/k8s-limits`, should return JSON with current limits
-- Grafana: `http://127.0.0.1:3000`
+- Grafana: `http://127.0.0.1:3000` (login - `admin`, pw - `admin123`)
 - Prometheus: `http://127.0.0.1:9090/targets` (`integr8scode` must be `1/1 up`)
 
 </details>

@@ -18,11 +18,9 @@
     function createPersistentStore(key, startValue) {
         const storedValue = localStorage.getItem(key);
         const store = writable(storedValue ? JSON.parse(storedValue) : startValue);
-
         store.subscribe(value => {
             localStorage.setItem(key, JSON.stringify(value));
         });
-
         return store;
     }
 
@@ -43,7 +41,9 @@
     let scriptName = "";
     let currentScriptId = null;
 
-    // Watch authToken to determine authentication status
+    // For file upload
+    let fileInput;
+
     authToken.subscribe(token => {
         isAuthenticated = !!token;
     });
@@ -51,7 +51,6 @@
     onMount(async () => {
         try {
             const limitsResponse = await axios.get(`${backendUrl}/api/v1/k8s-limits`);
-            // console.log(limitsResponse);
             k8sLimits = limitsResponse.data;
             supportedPythonVersions = k8sLimits.supported_python_versions;
         } catch (err) {
@@ -88,23 +87,18 @@
         executing = true;
         error = "";
         result = null;
-
         const scriptValue = get(script);
         const pythonVersionValue = get(pythonVersion);
-
         try {
             const executeResponse = await axios.post(
                 `${backendUrl}/api/v1/execute`,
                 {script: scriptValue, python_version: pythonVersionValue}
             );
-
             const executionId = executeResponse.data.execution_id;
-
             while (true) {
                 const resultResponse = await axios.get(
                     `${backendUrl}/api/v1/result/${executionId}`
                 );
-
                 if (
                     resultResponse.data.status === "completed" ||
                     resultResponse.data.status === "failed"
@@ -113,7 +107,6 @@
                     result = resultResponse.data;
                     break;
                 }
-
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
         } catch (err) {
@@ -125,10 +118,13 @@
     }
 
     function exportScript() {
-        const blob = new Blob([get(script)], {type: 'text/plain'});
+        const blob = new Blob([get(script)], {type: "text/plain"});
         const url = URL.createObjectURL(blob);
-        const filename = scriptName ? `${scriptName}` : 'script.py'; // Use scriptName if available
-        const a = document.createElement('a');
+        let filename = scriptName ? scriptName : "script.py";
+        if (!filename.toLowerCase().endsWith(".py")) {
+            filename += ".py";
+        }
+        const a = document.createElement("a");
         a.href = url;
         a.download = filename;
         document.body.appendChild(a);
@@ -146,34 +142,25 @@
             addNotification("Please provide a name for your script.", "warning");
             return;
         }
-
         const scriptValue = get(script);
         const authTokenValue = get(authToken);
-
         try {
             if (currentScriptId) {
-                // Update existing script
                 await axios.put(
                     `${backendUrl}/api/v1/scripts/${currentScriptId}`,
                     {name: scriptName, script: scriptValue},
-                    {
-                        headers: {Authorization: `Bearer ${authTokenValue}`},
-                    }
+                    {headers: {Authorization: `Bearer ${authTokenValue}`}}
                 );
                 addNotification("Script updated successfully.", "success");
             } else {
-                // Create new script
                 const response = await axios.post(
                     `${backendUrl}/api/v1/scripts`,
                     {name: scriptName, script: scriptValue},
-                    {
-                        headers: {Authorization: `Bearer ${authTokenValue}`},
-                    }
+                    {headers: {Authorization: `Bearer ${authTokenValue}`}}
                 );
                 currentScriptId = response.data.id;
                 addNotification("Script saved successfully.", "success");
             }
-
             await loadSavedScripts();
         } catch (err) {
             console.error("Error saving script:", err);
@@ -188,18 +175,13 @@
 
     async function loadSavedScripts() {
         const authTokenValue = get(authToken);
-
         try {
-            const response = await axios.get(
-                `${backendUrl}/api/v1/scripts`,
-                {
-                    headers: {Authorization: `Bearer ${authTokenValue}`},
-                }
-            );
+            const response = await axios.get(`${backendUrl}/api/v1/scripts`, {
+                headers: {Authorization: `Bearer ${authTokenValue}`},
+            });
             savedScripts = response.data;
         } catch (err) {
             console.error("Error loading saved scripts:", err);
-
             addNotification("Failed to load saved scripts. Logging out...", "error");
             logout();
         }
@@ -207,19 +189,21 @@
 
     function toggleSavedScripts() {
         showSavedScripts = !showSavedScripts;
+        if (showSavedScripts && isAuthenticated) {
+            loadSavedScripts();
+        }
     }
 
     function loadScript(scriptData) {
         script.set(scriptData.script);
         scriptName = scriptData.name;
-        currentScriptId = scriptData.id; // Set the current script ID
-        // Update the editor's content
+        currentScriptId = scriptData.id;
         editor.dispatch({
             changes: {
                 from: 0,
                 to: editor.state.doc.length,
                 insert: scriptData.script,
-            }
+            },
         });
         addNotification(`Loaded script: ${scriptData.name}`, "info");
         showSavedScripts = false;
@@ -229,33 +213,20 @@
         script.set("");
         scriptName = "";
         currentScriptId = null;
-        // Clear the editor content
         editor.dispatch({
-            changes: {
-                from: 0,
-                to: editor.state.doc.length,
-                insert: "",
-            }
+            changes: {from: 0, to: editor.state.doc.length, insert: ""},
         });
     }
 
     async function deleteScript(scriptId) {
         const confirmDelete = confirm("Are you sure you want to delete this script?");
-        if (!confirmDelete) {
-            return;
-        }
-
+        if (!confirmDelete) return;
         const authTokenValue = get(authToken);
-
         try {
-            await axios.delete(
-                `${backendUrl}/api/v1/scripts/${scriptId}`,
-                {
-                    headers: {Authorization: `Bearer ${authTokenValue}`},
-                }
-            );
+            await axios.delete(`${backendUrl}/api/v1/scripts/${scriptId}`, {
+                headers: {Authorization: `Bearer ${authTokenValue}`},
+            });
             addNotification("Script deleted successfully.", "success");
-            // If the deleted script is the one currently loaded, reset currentScriptId and scriptName
             if (currentScriptId === scriptId) {
                 currentScriptId = null;
                 scriptName = "";
@@ -266,180 +237,165 @@
             addNotification("Failed to delete script.", "error");
         }
     }
+
+    function handleFileUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        if (!file.name.toLowerCase().endsWith(".py")) {
+            addNotification("Only .py files are allowed.", "error");
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = e => {
+            const text = e.target.result;
+            script.set(text);
+            if (editor) {
+                editor.dispatch({
+                    changes: {from: 0, to: editor.state.doc.length, insert: text},
+                });
+            }
+        };
+        reader.readAsText(file);
+    }
 </script>
 
+<!-- Hidden file input for uploading .py files -->
+<input
+        type="file"
+        accept=".py"
+        bind:this={fileInput}
+        on:change={handleFileUpload}
+        style="display: none;"
+/>
+
 <div class="container" in:fade>
+    <!-- Row 1: Header -->
     <div class="header-row">
-        <h2 class="title">Python Code Editor</h2>
-        {#if k8sLimits}
-            <div class="limits-container">
-                <button class="limits-toggle" on:click={toggleLimits}>
-                    <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                         xmlns="http://www.w3.org/2000/svg">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-                    </svg>
-                    Resource Limits
-                    <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                         xmlns="http://www.w3.org/2000/svg">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d={showLimits ? "M19 9l-7 7-7-7" : "M9 5l7 7-7 7"}></path>
-                    </svg>
-                </button>
-                {#if showLimits}
-                    <div class="limits-grid" transition:fly={{ y: -20, duration: 300 }}>
-                        <div class="limit-item">
-                            <div class="limit-icon">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                                     xmlns="http://www.w3.org/2000/svg">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                          d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path>
-                                </svg>
-                            </div>
-                            <div class="limit-details">
-                                <span class="limit-label">CPU Limit</span>
-                                <span class="limit-value">{k8sLimits.cpu_limit}</span>
-                            </div>
-                        </div>
-                        <div class="limit-item">
-                            <div class="limit-icon">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                                     xmlns="http://www.w3.org/2000/svg">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                          d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
-                                </svg>
-                            </div>
-                            <div class="limit-details">
-                                <span class="limit-label">Memory Limit</span>
-                                <span class="limit-value">{k8sLimits.memory_limit}</span>
-                            </div>
-                        </div>
-                        <div class="limit-item">
-                            <div class="limit-icon">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                                     xmlns="http://www.w3.org/2000/svg">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                </svg>
-                            </div>
-                            <div class="limit-details">
-                                <span class="limit-label">Execution Timeout</span>
-                                <span class="limit-value">{k8sLimits.execution_timeout} seconds</span>
-                            </div>
-                        </div>
-                    </div>
-                {/if}
-            </div>
-        {/if}
-    </div>
-
-    <div class="editor-result-container">
-        <div class="editor-section">
-            <div id="editor-container" class="editor-container"></div>
-            <div class="editor-controls">
-                <div class="primary-controls">
-                    <select bind:value={$pythonVersion} class="version-select">
-                        {#each supportedPythonVersions as version}
-                            <option value={version}>Python {version}</option>
-                        {/each}
-                    </select>
-                    <button class="button primary" on:click={executeScript} disabled={executing}>
-                        {executing ? 'Executing...' : 'Run Script'}
+        <div class="header-left">
+            <h2 class="title">Python Code Editor</h2>
+        </div>
+        <div class="header-right">
+            {#if k8sLimits}
+                <div class="limits-container">
+                    <!-- Make the button fill its container's width -->
+                    <button class="limits-toggle full-width" on:click={toggleLimits}>
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                             xmlns="http://www.w3.org/2000/svg">
+                            <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M13 10V3L4 14h7v7l9-11h-7z"
+                            ></path>
+                        </svg>
+                        Resource Limits
+                        <svg class="icon arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                             xmlns="http://www.w3.org/2000/svg">
+                            <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d={showLimits ? "M19 9l-7 7-7-7" : "M9 5l7 7-7 7"}
+                            ></path>
+                        </svg>
                     </button>
-                    <button class="button secondary" on:click={() => showOptions = !showOptions}>
-                        {showOptions ? 'Hide Options' : 'Show Options'}
-                    </button>
-                </div>
-
-                {#if showOptions}
-                    <div class="secondary-controls" transition:slide>
-                        <button class="button secondary" on:click={exportScript} title="Export Script">
-                            <svg viewBox="0 0 24 24" class="icon">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
-                            </svg>
-                            Export
-                        </button>
-                        {#if isAuthenticated}
-                            <button class="button secondary" on:click={toggleSavedScripts}>
-                                <svg viewBox="0 0 24 24" class="icon">
-                                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
-                                </svg>
-                                {showSavedScripts ? 'Hide' : 'Show'} Saved
-                            </button>
-                            <button class="button secondary" on:click={newScript}>
-                                <svg viewBox="0 0 24 24" class="icon">
-                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                                    <polyline points="14 2 14 8 20 8"/>
-                                    <line x1="12" y1="18" x2="12" y2="12"/>
-                                    <line x1="9" y1="15" x2="15" y2="15"/>
-                                </svg>
-                                New
-                            </button>
-                            <div class="save-script-controls">
-                                <input
-                                        type="text"
-                                        class="script-name-input"
-                                        placeholder="Script Name"
-                                        bind:value={scriptName}
-                                />
-                                <button class="button primary" on:click={saveScript}>
-                                    <svg viewBox="0 0 24 24" class="icon">
-                                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-                                        <polyline points="17 21 17 13 7 13 7 21"/>
-                                        <polyline points="7 3 7 8 15 8"/>
-                                    </svg>
-                                    Save Script
-                                </button>
-                            </div>
-                        {/if}
-                    </div>
-                {/if}
-            </div>
-
-            {#if showSavedScripts}
-                <div class="saved-scripts" transition:slide>
-                    <h3>Your Saved Scripts</h3>
-                    {#if savedScripts.length > 0}
-                        <ul>
-                            {#each savedScripts as savedScript}
-                                <li>
-                                    <button
-                                            type="button"
-                                            on:click={() => loadScript(savedScript)}
-                                            class="script-link"
+                    {#if showLimits}
+                        <div class="limits-grid" transition:fly={{ y: -20, duration: 300 }}>
+                            <div class="limit-item">
+                                <div class="limit-icon">
+                                    <svg
+                                            class="w-6 h-6"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                            xmlns="http://www.w3.org/2000/svg"
                                     >
-                                        {savedScript.name}
-                                    </button>
-                                    <button class="delete-button"
-                                            on:click|stopPropagation={() => deleteScript(savedScript.id)}>
-                                        <svg viewBox="0 0 24 24" class="icon">
-                                            <polyline points="3 6 5 6 21 6"/>
-                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                                            <line x1="10" y1="11" x2="10" y2="17"/>
-                                            <line x1="14" y1="11" x2="14" y2="17"/>
-                                        </svg>
-                                    </button>
-                                </li>
-                            {/each}
-                        </ul>
-                    {:else}
-                        <p>You have no saved scripts.</p>
+                                        <path
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                stroke-width="2"
+                                                d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"
+                                        ></path>
+                                    </svg>
+                                </div>
+                                <div class="limit-details">
+                                    <span class="limit-label">CPU Limit</span>
+                                    <span class="limit-value">{k8sLimits.cpu_limit}</span>
+                                </div>
+                            </div>
+                            <div class="limit-item">
+                                <div class="limit-icon">
+                                    <svg
+                                            class="w-6 h-6"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                            xmlns="http://www.w3.org/2000/svg"
+                                    >
+                                        <path
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                stroke-width="2"
+                                                d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+                                        ></path>
+                                    </svg>
+                                </div>
+                                <div class="limit-details">
+                                    <span class="limit-label">Memory Limit</span>
+                                    <span class="limit-value">{k8sLimits.memory_limit}</span>
+                                </div>
+                            </div>
+                            <div class="limit-item">
+                                <div class="limit-icon">
+                                    <svg
+                                            class="w-6 h-6"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                            xmlns="http://www.w3.org/2000/svg"
+                                    >
+                                        <path
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                stroke-width="2"
+                                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                                        ></path>
+                                    </svg>
+                                </div>
+                                <div class="limit-details">
+                                    <span class="limit-label">Execution Timeout</span>
+                                    <span class="limit-value">{k8sLimits.execution_timeout} seconds</span>
+                                </div>
+                            </div>
+                        </div>
                     {/if}
                 </div>
             {/if}
         </div>
-        <div class="result-section">
+    </div>
+
+    <!-- Row 2: Main Content -->
+    <div class="main-row">
+        <div class="code-column">
+            <!-- Removed fixed height so it expands as needed -->
+            <div id="editor-container" class="editor-container"></div>
+        </div>
+        <div class="output-column">
+            <!-- Also removed fixed height so it expands with content -->
             <div class="result-container">
                 <h3 class="result-title">Execution Output</h3>
-                <p class="result-description">Here you'll see the output of your script, including any errors or
-                    results.</p>
+                <p class="result-description">
+                    Here you'll see the output of your script, including any errors or results.
+                </p>
                 {#if executing}
                     <div class="result-content" in:fade>
                         <Spinner/>
                         <p class="executing-text">Executing script...</p>
                     </div>
                 {:else if error}
-                    <p class="error result-content" in:fly={{ y: 20, duration: 300 }}>{error}</p>
+                    <p class="error result-content" in:fly={{ y: 20, duration: 300 }}>
+                        {error}
+                    </p>
                 {:else if result}
                     <div class="result-content" in:fly={{ y: 20, duration: 300 }}>
                         <p><strong>Status:</strong> {result.status}</p>
@@ -457,23 +413,144 @@
                                 <h4>Resource Usage:</h4>
                                 <p><strong>CPU Usage:</strong> {result.resource_usage.cpu_usage}</p>
                                 <p><strong>Memory Usage:</strong> {result.resource_usage.memory_usage}</p>
-                                <p><strong>Execution Time:</strong> {result.resource_usage.execution_time.toFixed(2)}
-                                    seconds</p>
+                                <p>
+                                    <strong>Execution Time:</strong>
+                                    {result.resource_usage.execution_time.toFixed(2)} seconds
+                                </p>
                             </div>
                         {/if}
                     </div>
                 {:else}
-                    <p class="result-content">Run your script to see the output here.</p>
+                    <p class="result-content">
+                        Run your script to see the output here.
+                    </p>
                 {/if}
             </div>
         </div>
     </div>
+
+    <!-- Row 3: Controls -->
+    <div class="controls-row">
+        <div class="editor-controls">
+            <div class="primary-controls">
+                <div class="control-group">
+                    <select bind:value={$pythonVersion} class="version-select">
+                        {#each supportedPythonVersions as version}
+                            <option value={version}>Python {version}</option>
+                        {/each}
+                    </select>
+                    <button class="button primary" on:click={executeScript} disabled={executing}>
+                        {executing ? "Executing..." : "Run Script"}
+                    </button>
+                    <button class="button secondary" on:click={() => (showOptions = !showOptions)}>
+                        {showOptions ? "Hide Options" : "Show Options"}
+                    </button>
+                </div>
+            </div>
+            {#if showOptions}
+                <div class="secondary-controls" transition:slide>
+                    <div class="control-panel">
+                        <div class="control-group">
+                            <button class="button control" on:click={newScript}>
+                                <svg class="icon" viewBox="0 0 24 24">
+                                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                                </svg>
+                                New
+                            </button>
+                            <button class="button control" on:click={() => fileInput.click()}>
+                                <svg class="icon" viewBox="0 0 24 24">
+                                    <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/>
+                                </svg>
+                                Upload
+                            </button>
+                            <button class="button control" on:click={exportScript}>
+                                <svg class="icon" viewBox="0 0 24 24">
+                                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                                </svg>
+                                Export
+                            </button>
+                        </div>
+                    </div>
+                    {#if isAuthenticated}
+                        <div class="control-panel">
+                            <div class="save-control-group">
+                                <input
+                                        type="text"
+                                        class="script-name-input"
+                                        placeholder="Script Name"
+                                        bind:value={scriptName}
+                                />
+                                <div class="save-buttons-group">
+                                    <button class="button primary" on:click={saveScript}>
+                                        Save Script
+                                    </button>
+                                    <button
+                                            class="button icon-only"
+                                            on:click={toggleSavedScripts}
+                                            title={showSavedScripts ? "Hide Saved Scripts" : "Show Saved Scripts"}
+                                    >
+                                        <svg viewBox="0 0 24 24" class="icon toggle-icon">
+                                            {#if showSavedScripts}
+                                                <path
+                                                        d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
+                                                        fill="#3b82f6"
+                                                />
+                                                <path d="M12 9l-3 3 3 3 3-3z" fill="#3b82f6"/>
+                                            {:else}
+                                                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+                                            {/if}
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    {/if}
+                </div>
+            {/if}
+            {#if showSavedScripts}
+                <div class="saved-scripts-panel" transition:slide>
+                    <h3>Your Saved Scripts</h3>
+                    {#if savedScripts.length > 0}
+                        <ul class="scripts-list">
+                            {#each savedScripts as savedScript (savedScript.id)}
+                                <li class="script-item">
+                                    <button
+                                            class="script-name"
+                                            on:click={() => loadScript(savedScript)}
+                                    >
+                                        {savedScript.name}
+                                    </button>
+                                    <button
+                                            class="delete-button"
+                                            on:click|stopPropagation={() => deleteScript(savedScript.id)}
+                                    >
+                                        <svg viewBox="0 0 24 24" class="icon delete-icon">
+                                            <polyline points="3 6 5 6 21 6"/>
+                                            <path
+                                                    d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                                            />
+                                            <line x1="10" y1="11" x2="10" y2="17"/>
+                                            <line x1="14" y1="11" x2="14" y2="17"/>
+                                        </svg>
+                                    </button>
+                                </li>
+                            {/each}
+                        </ul>
+                    {:else}
+                        <p class="no-scripts-message">You have no saved scripts.</p>
+                    {/if}
+                </div>
+            {/if}
+        </div>
+    </div>
 </div>
 
+
 <style>
+    /* --- CodeMirror Global Styles --- */
     :global(.cm-editor) {
         height: 100%;
-        font-family: 'Fira Code', monospace;
+        font-family: "Fira Code", monospace;
         font-size: 14px;
     }
 
@@ -489,21 +566,46 @@
         color: #718096;
     }
 
-    .container {
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 1.5rem;
-        background-color: #ffffff;
-        border-radius: 0.5rem;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    :global(.cm-scroller) {
+        overflow-x: auto !important;
+        overflow-y: auto !important;
+        white-space: nowrap;
+        height: 100%;
     }
 
+    :global(.cm-content) {
+        white-space: pre;
+    }
+
+    /* --- Container ---
+       - No fixed height: grows as needed
+       - Centered card with top/bottom margin and padding */
+    .container {
+        max-width: 1200px;
+        margin: 2rem auto; /* top margin => space above header */
+        padding: 2rem;
+        background-color: #ffffff;
+        border-radius: 0.5rem;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+
+        display: flex;
+        flex-direction: column;
+        box-sizing: border-box;
+    }
+
+    /* --- Row 1: Header (70/30) --- */
     .header-row {
         display: flex;
-        justify-content: space-between;
-        align-items: center;
+        gap: 1rem;
         margin-bottom: 1.5rem;
-        margin-top: 2rem;
+    }
+
+    .header-left {
+        width: 70%;
+    }
+
+    .header-right {
+        width: 30%;
     }
 
     .title {
@@ -512,12 +614,16 @@
         margin: 0;
     }
 
+    /* Resource Limits button & dropdown */
     .limits-container {
         position: relative;
+        display: inline-block;
+        vertical-align: top;
+        width: 100%;
     }
 
     .limits-toggle {
-        display: flex;
+        display: inline-flex;
         align-items: center;
         background-color: #edf2f7;
         border: none;
@@ -534,6 +640,10 @@
         background-color: #e2e8f0;
     }
 
+    .limits-toggle.full-width {
+        width: 100%;
+    }
+
     .icon {
         width: 1.25rem;
         height: 1.25rem;
@@ -545,16 +655,23 @@
         stroke-linejoin: round;
     }
 
+    .arrow {
+        margin-left: auto;
+        margin-right: 0.25rem;
+    }
+
     .limits-grid {
         position: absolute;
         top: 100%;
-        right: 0;
+        left: 0;
         margin-top: 0.5rem;
+        z-index: 10;
+        width: 100%;
+        min-width: 200px;
         background-color: #ffffff;
         border-radius: 0.375rem;
-        padding: 1rem;
+        padding: 1rem 1rem 0.5rem 1rem;
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        z-index: 10;
     }
 
     .limit-item {
@@ -586,45 +703,95 @@
         font-weight: 600;
     }
 
-    .editor-result-container {
+    /* --- Row 2: Main Content (70/30) --- */
+    .main-row {
         display: flex;
         gap: 1.5rem;
+        margin-bottom: 1.5rem;
     }
 
-    .editor-section {
-        flex: 2;
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
+    .code-column {
+        width: 70%;
+        overflow: hidden;
     }
 
+    .output-column {
+        width: 30%;
+    }
+
+    /* Editor container: fixed height => scroll instead of pushing content */
     .editor-container {
-        height: 500px;
         border: 1px solid #e2e8f0;
         border-radius: 0.375rem;
-        overflow: hidden;
+        width: 100%;
+        height: 600px; /* Fix a height so it won't overlap controls */
+        overflow: auto;
+    }
+
+    .result-container {
+        background-color: #f7fafc;
+        border-radius: 0.375rem;
+        padding: 1rem;
+        overflow-y: auto;
+    }
+
+    /* --- Row 3: Controls Row ---
+       - Normal block flow => “Show Options” expands downward */
+    .controls-row {
+        width: 100%;
+        margin-top: 1rem;
+        display: block;
+        clear: both;
     }
 
     .editor-controls {
         display: flex;
-        flex-wrap: wrap;
-        gap: 0.75rem;
+        flex-direction: column;
+        gap: 12px;
     }
 
-    .primary-controls,
+    .primary-controls {
+        display: flex;
+        align-items: center;
+    }
+
+    .control-group {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
     .secondary-controls {
         display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
+        flex-direction: column;
+        gap: 12px;
+        padding: 16px;
+        background-color: #f8fafc;
+        border-radius: 8px;
+        border: 1px solid #e2e8f0;
     }
 
+    .control-panel {
+        padding-bottom: 12px;
+        border-bottom: 1px solid #e2e8f0;
+        width: 100%;
+    }
+
+    .control-panel:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+    }
+
+    /* Buttons & Inputs */
     .version-select {
-        padding: 0.5rem;
-        border-radius: 0.375rem;
-        border: 1px solid #e2e8f0;
+        height: 38px;
+        padding: 0 12px;
+        border-radius: 6px;
+        border: 1px solid #cbd5e1;
         background-color: #f7fafc;
-        font-size: 0.875rem;
-        color: #4a5568;
+        font-size: 14px;
+        color: #334155;
         min-width: 120px;
     }
 
@@ -638,6 +805,7 @@
         border-radius: 0.375rem;
         cursor: pointer;
         transition: all 0.2s ease;
+        height: 38px;
     }
 
     .button.primary {
@@ -660,97 +828,153 @@
         background-color: #e2e8f0;
     }
 
+    .button.control {
+        background-color: white;
+        color: #475569;
+        border: 1px solid #cbd5e1;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .button.control .icon {
+        width: 18px;
+        height: 18px;
+        fill: currentColor;
+        stroke: none;
+        margin-right: 0;
+    }
+
+    .button.control:hover {
+        background-color: #f1f5f9;
+    }
+
+    .button.icon-only {
+        width: 38px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: white;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+    }
+
+    .button.icon-only:hover {
+        background-color: #f1f5f9;
+    }
+
+    .button.icon-only .icon {
+        margin-right: 0;
+    }
+
     .button:disabled {
         opacity: 0.7;
         cursor: not-allowed;
     }
 
-    .save-script-controls {
+    /* “Save” row inputs */
+    .save-control-group {
         display: flex;
-        gap: 0.5rem;
+        align-items: center;
+        gap: 8px;
         width: 100%;
     }
 
     .script-name-input {
-        flex-grow: 1;
-        padding: 0.5rem;
-        border-radius: 0.375rem;
-        border: 1px solid #e2e8f0;
-        font-size: 0.875rem;
+        flex: 1;
+        min-width: 100px;
+        height: 38px;
+        padding: 0 12px;
+        border-radius: 6px;
+        border: 1px solid #cbd5e1;
+        font-size: 14px;
     }
 
-    .saved-scripts {
-        background-color: #f7fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 0.375rem;
-        padding: 1rem;
-    }
-
-    .saved-scripts h3 {
-        margin-top: 0;
-        font-size: 1rem;
-        color: #2d3748;
-        margin-bottom: 0.75rem;
-    }
-
-    .saved-scripts ul {
-        list-style-type: none;
-        padding-left: 0;
-    }
-
-    .saved-scripts li {
+    /* We push the group of Save + icon button to the right */
+    .save-buttons-group {
+        margin-left: auto;
         display: flex;
-        justify-content: space-between;
         align-items: center;
-        padding: 0.5rem 0;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+
+    /* Saved scripts panel */
+    .saved-scripts-panel {
+        background-color: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 16px;
+        margin-top: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .saved-scripts-panel h3 {
+        margin-top: 0;
+        font-size: 16px;
+        color: #334155;
+        margin-bottom: 12px;
+        padding-bottom: 8px;
         border-bottom: 1px solid #e2e8f0;
     }
 
-    .saved-scripts li:last-child {
+    .scripts-list {
+        list-style-type: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .script-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px solid #f1f5f9;
+    }
+
+    .script-item:last-child {
         border-bottom: none;
     }
 
-    .script-link {
+    .script-name {
         background: none;
         border: none;
-        color: #4299e1;
+        color: #3b82f6;
         cursor: pointer;
-        text-decoration: none;
-        padding: 0;
-        font-size: inherit;
         text-align: left;
+        font-size: 14px;
+        padding: 0;
     }
 
-    .script-link:hover {
+    .script-name:hover {
         text-decoration: underline;
     }
 
     .delete-button {
-        background-color: transparent;
+        background: none;
         border: none;
-        color: #e53e3e;
+        padding: 4px;
+        color: #ef4444;
         cursor: pointer;
-        padding: 0.25rem;
-        border-radius: 0.25rem;
-        transition: background-color 0.2s ease;
+        border-radius: 4px;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
     .delete-button:hover {
-        background-color: #fed7d7;
+        background-color: #fee2e2;
     }
 
-    .result-section {
-        flex: 1;
+    .delete-button .icon {
+        margin: 0;
+        display: block;
     }
 
-    .result-container {
-        background-color: #f7fafc;
-        border-radius: 0.375rem;
-        padding: 1rem;
-        height: 100%;
-        overflow-y: auto;
-    }
-
+    /* Execution Output & Error Boxes */
     .result-title {
         font-size: 1.25rem;
         color: #2d3748;
@@ -814,27 +1038,61 @@
         color: #2c5282;
     }
 
+    /* --- Responsive (max-width: 768px) --- */
     @media (max-width: 768px) {
         .container {
             padding: 1rem;
+            height: auto; /* no forced height on small screens */
         }
 
+        .header-row {
+            flex-direction: column;
+        }
 
-        .editor-section,
-        .result-section {
+        .header-left,
+        .header-right {
             width: 100%;
         }
 
+        .main-row {
+            flex-direction: column;
+        }
+
+        .code-column,
+        .output-column {
+            width: 100%;
+            margin-bottom: 1.5rem;
+        }
+
         .editor-container {
-            height: 300px;
+            height: 400px; /* shorter on mobile if desired */
+        }
+
+        .control-group {
+            flex-direction: column;
+            align-items: stretch;
+            width: 100%;
+        }
+
+        .script-name-input {
+            max-width: none;
+        }
+
+        .button,
+        .version-select {
+            width: 100%;
         }
 
         .editor-controls,
         .primary-controls,
-        .secondary-controls,
-        .save-script-controls {
+        .secondary-controls {
             flex-direction: column;
             width: 100%;
+        }
+
+        .secondary-controls {
+            gap: 0.75rem;
+            justify-content: flex-start;
         }
 
         .version-select,
@@ -851,3 +1109,6 @@
         }
     }
 </style>
+
+
+

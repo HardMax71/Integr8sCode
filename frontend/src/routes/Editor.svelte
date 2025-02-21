@@ -399,8 +399,10 @@
                         <p><strong>Status:</strong> {result.status}</p>
                         <p><strong>Execution ID:</strong> {result.execution_id}</p>
                         {#if result.output}
-                            <p><strong>Output:</strong></p>
-                            <pre class="output">{result.output}</pre>
+                            <div class="output-section">
+                                <h4>Output:</h4>
+                                <pre class="output">{result.output}</pre>
+                            </div>
                         {/if}
                         {#if result.errors}
                             <p><strong>Errors:</strong></p>
@@ -582,7 +584,7 @@
        - No fixed height: grows as needed
        - Centered card with top/bottom margin and padding */
     .container {
-        max-width: 1200px;
+        max-width: 1600px;
         margin: 2rem auto; /* top margin => space above header */
         padding: 2rem;
         background-color: #ffffff;
@@ -658,7 +660,7 @@
 
     .arrow {
         margin-left: auto;
-        margin-right: 0.25rem;
+        margin-right: -0.5rem;
     }
 
     .limits-grid {
@@ -713,12 +715,16 @@
 
     .code-column {
         width: 70%;
+        height: 600px;
         overflow: hidden;
     }
 
     .output-column {
         width: 30%;
+        height: 600px;
+        box-sizing: border-box;
     }
+
 
     /* Editor container: fixed height => scroll instead of pushing content */
     .editor-container {
@@ -732,8 +738,12 @@
     .result-container {
         background-color: #f7fafc;
         border-radius: 0.375rem;
+        height: 100%;
+        max-height: 100%;
         padding: 1rem;
         overflow-y: auto;
+        overflow-x: auto;
+        max-width: 100%;
     }
 
     /* --- Row 3: Controls Row ---
@@ -990,14 +1000,13 @@
     .result-title {
         font-size: 1.25rem;
         color: #2d3748;
-        margin-bottom: 0.75rem;
         font-weight: 600;
     }
 
     .result-description {
         font-size: 0.875rem;
         color: #718096;
-        margin-bottom: 1rem;
+        margin-bottom: 0.25rem;
     }
 
     .result-content {
@@ -1006,7 +1015,6 @@
         border-radius: 0.375rem;
         padding: 1rem;
         overflow-y: auto;
-        max-height: 500px;
     }
 
     .executing-text {
@@ -1018,16 +1026,26 @@
     pre {
         white-space: pre-wrap;
         word-wrap: break-word;
-        background-color: #f0f0f0;
+        background-color: #ffffff;
         padding: 1rem;
         border-radius: 0.375rem;
         font-size: 0.875rem;
         line-height: 1.5;
     }
 
-    .output {
-        background-color: #e6fffa;
-        border: 1px solid #b2f5ea;
+    .output-section {
+        margin-top: 1rem;
+        padding: 1rem;
+        background-color: #f0f7ff;
+        border: 1px solid #bae6fd;
+        border-radius: 0.375rem;
+    }
+
+    .output-section h4 {
+        margin-top: 0;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+        color: #2c5282;
     }
 
     .error {

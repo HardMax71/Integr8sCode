@@ -116,6 +116,7 @@ async def get_result(
             "status": result.status,
             "python_version": result.python_version,
             "has_errors": bool(result.errors),
+            "resource_usage": result.resource_usage,
         },
     )
 
@@ -125,6 +126,7 @@ async def get_result(
         output=result.output,
         errors=result.errors,
         python_version=result.python_version,
+        resource_usage=result.resource_usage,
     )
 
 

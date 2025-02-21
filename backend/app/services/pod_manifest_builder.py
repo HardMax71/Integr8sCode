@@ -1,12 +1,7 @@
-from datetime import datetime, timezone
 from typing import Dict, Any
-
+import textwrap
 
 class PodManifestBuilder:
-    """
-    Responsible for building the Pod manifest YAML/JSON for Python script execution.
-    """
-
     def __init__(
             self,
             python_version: str,
@@ -30,51 +25,69 @@ class PodManifestBuilder:
         self.namespace = namespace
 
     def build(self) -> Dict[str, Any]:
-        """
-        Returns a dictionary that can be passed directly to the K8s Python client
-        or turned into YAML, representing a single Pod specification.
-        """
-        # Format timestamp in a k8s-compliant way
-        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H-%M-%S")
+        # The wrapper runs the target script, calculates metrics,
+        # and always exits with 0 so that the pod status is "Succeeded".
+        # The actual exit code from the script is included in the metrics.
+        wrapper_code = textwrap.dedent(f"""
+            import time, resource, subprocess, sys, json
+            start = time.time()
+            timeout = {self.pod_execution_timeout}
+            exit_code = 0
+            try:
+                result = subprocess.run(['python', '/scripts/script.py'],
+                                          timeout=timeout,
+                                          check=True,
+                                          capture_output=True,
+                                          text=True)
+                print(result.stdout, end='')
+                if result.stderr:
+                    print(result.stderr, file=sys.stderr, end='')
+            except subprocess.TimeoutExpired:
+                exit_code = 124
+            except subprocess.CalledProcessError as e:
+                if e.stdout:
+                    print(e.stdout, end='')
+                if e.stderr:
+                    print(e.stderr, file=sys.stderr, end='')
+                exit_code = e.returncode
+            end = time.time()
+            elapsed = end - start
+
+            usage = resource.getrusage(resource.RUSAGE_CHILDREN)
+            cpu_time_used = usage.ru_utime + usage.ru_stime
+            cpu_usage_m = (cpu_time_used / elapsed) * 1000 if elapsed > 0 else 0
+            memory_used_mi = usage.ru_maxrss / 1024.0
+
+            metrics = {{
+                "execution_id": "{self.execution_id}",
+                "execution_time": round(elapsed, 2),        # in seconds
+                "cpu_usage": round(cpu_usage_m, 2),         # in m
+                "memory_usage": round(memory_used_mi, 2),   # in Mi
+                "exit_code": exit_code
+            }}
+            print("\\n###METRICS###")
+            print(json.dumps(metrics))
+            sys.exit(0)
+        """)
+
         return {
             "apiVersion": "v1",
             "kind": "Pod",
             "metadata": {
                 "name": f"execution-{self.execution_id}",
+                "namespace": self.namespace,
                 "labels": {
-                    "app": "integr8scode",
-                    "execution_id": self.execution_id,
-                    "created_at": timestamp,
+                    "app": "script-execution",
+                    "execution-id": self.execution_id,
                 },
             },
             "spec": {
-                "restartPolicy": "Never",
-                "terminationGracePeriodSeconds": 30,
-                "securityContext": {
-                    "runAsNonRoot": True,
-                    "runAsUser": 1000,
-                    "runAsGroup": 3000,
-                    "fsGroup": 2000,
-                    "seccompProfile": {"type": "RuntimeDefault"},
-                    "supplementalGroups": [4000],
-                },
+                "shareProcessNamespace": True,
                 "containers": [
                     {
-                        "name": "python",
+                        "name": "script",
                         "image": f"python:{self.python_version}-slim",
-                        "imagePullPolicy": "IfNotPresent",
-                        "command": [
-                            "/bin/sh",
-                            "-c",
-                            f"timeout {self.pod_execution_timeout} python /scripts/script.py",
-                        ],
-                        "volumeMounts": [
-                            {
-                                "name": "script-volume",
-                                "mountPath": "/scripts",
-                                "readOnly": True,
-                            }
-                        ],
+                        "command": ["python", "-u", "-c", wrapper_code],
                         "resources": {
                             "limits": {
                                 "cpu": self.pod_cpu_limit,
@@ -85,32 +98,15 @@ class PodManifestBuilder:
                                 "memory": self.pod_memory_request,
                             },
                         },
-                        "securityContext": {
-                            "allowPrivilegeEscalation": False,
-                            "capabilities": {"drop": ["ALL"]},
-                            "readOnlyRootFilesystem": True,
-                            "seccompProfile": {"type": "RuntimeDefault"},
-                        },
-                        "lifecycle": {
-                            "preStop": {
-                                "exec": {"command": ["/bin/sh", "-c", "sleep 5"]}
-                            }
-                        },
+                        "volumeMounts": [
+                            {"name": "script-volume", "mountPath": "/scripts"},
+                        ],
                     }
                 ],
                 "volumes": [
-                    {
-                        "name": "script-volume",
-                        "configMap": {
-                            "name": self.script_config_map_name,
-                            "defaultMode": 0o444,
-                        },
-                    }
+                    {"name": "script-volume", "configMap": {"name": self.script_config_map_name}},
                 ],
-                "hostPID": False,
-                "hostIPC": False,
-                "hostNetwork": False,
-                "dnsPolicy": "Default",
-                "nodeSelector": {"kubernetes.io/os": "linux"},
+                "restartPolicy": "Never",
+                "activeDeadlineSeconds": self.pod_execution_timeout,
             },
         }

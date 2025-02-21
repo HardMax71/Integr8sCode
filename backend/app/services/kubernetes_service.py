@@ -1,9 +1,14 @@
 import asyncio
 import logging
 import os
+import re
 import tempfile
+import json
+import subprocess
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Set
+
+from dateutil.parser import isoparse
 
 from app.config import get_settings
 from app.core.logging import logger
@@ -31,7 +36,6 @@ class KubernetesServiceManager:
     Sits at a higher level to manage multiple KubernetesService
     instances (like a registry).
     """
-
     def __init__(self):
         self.services: Set["KubernetesService"] = set()
 
@@ -54,12 +58,11 @@ class KubernetesServiceManager:
 class KubernetesService:
     """
     Responsible for:
-      - Checking circuit breaker
-      - Checking K8s health
-      - Creating configmaps & pods
-      - Getting logs & cleaning up
+      - Checking circuit breaker and K8s health
+      - Creating ConfigMaps & Pods
+      - Getting logs and resource usage (before cleaning up)
+      - Cleaning up resources
     """
-
     NAMESPACE = "default"
     POD_RETRY_ATTEMPTS = 60
     POD_RETRY_INTERVAL = 1
@@ -85,10 +88,8 @@ class KubernetesService:
     async def check_health(self) -> bool:
         """Checks health of K8s, with a cooldown to avoid spamming the cluster."""
         try:
-            # If last check was < X seconds ago, use cached result
             if (datetime.now(timezone.utc) - self._last_health_check).seconds < self.HEALTH_CHECK_INTERVAL:
                 return self._is_healthy
-
             await asyncio.to_thread(self.version_api.get_code)
             self._is_healthy = True
             self.circuit_breaker.record_success()
@@ -107,20 +108,17 @@ class KubernetesService:
         Terminates early if we exceed the shutdown deadline.
         """
         shutdown_deadline = datetime.now(timezone.utc) + timedelta(seconds=self.SHUTDOWN_TIMEOUT)
-
         for pod_name in list(self._active_pods.keys()):
             if datetime.now(timezone.utc) > shutdown_deadline:
                 logger.warning("Shutdown timeout reached, forcing pod termination")
                 break
-
             try:
-                # Use the new helper to clean up resources for this Pod
                 await self._cleanup_pod_resources(pod_name)
             except Exception as e:
                 logger.error(f"Error during pod cleanup on shutdown: {str(e)}")
 
     def _initialize_kubernetes_client(self) -> None:
-        """Initializes the K8s client, including config + testing API connection."""
+        """Initializes the K8s client, including config and testing API connection."""
         try:
             self._setup_kubernetes_config()
             self._setup_api_client()
@@ -129,10 +127,8 @@ class KubernetesService:
             raise KubernetesConfigError(f"Failed to initialize Kubernetes client: {str(e)}")
 
     def _setup_kubernetes_config(self) -> None:
-        """Loads either in-cluster or external KUBECONFIG."""
         logging.info(f"KUBERNETES_CONFIG_PATH: {self.settings.KUBERNETES_CONFIG_PATH}")
         logging.info(f"KUBERNETES_CA_CERTIFICATE_PATH: {self.settings.KUBERNETES_CA_CERTIFICATE_PATH}")
-
         if os.path.exists("/var/run/secrets/kubernetes.io/serviceaccount"):
             config.load_incluster_config()
             logging.info("Using in-cluster Kubernetes configuration")
@@ -144,20 +140,19 @@ class KubernetesService:
         """Configures the global API client with SSL and CA certificate, if present."""
         configuration = client.Configuration.get_default_copy()
         configuration.verify_ssl = True
-
         ca_cert_path = self.settings.KUBERNETES_CA_CERTIFICATE_PATH
         if ca_cert_path and os.path.exists(ca_cert_path):
             configuration.ssl_ca_cert = ca_cert_path
             logging.info(f"Using custom CA certificate: {ca_cert_path}")
         else:
             logging.warning("Custom CA certificate not found. Using default CA bundle.")
-
         api_client = client.ApiClient(configuration)
         self.v1 = client.CoreV1Api(api_client)
         self.version_api = client.VersionApi(api_client)
+        self.custom_api = client.CustomObjectsApi(api_client)
 
     def _test_api_connection(self) -> None:
-        """Just to confirm authentication + connectivity before proceeding."""
+        """Confirms authentication and connectivity before proceeding."""
         try:
             version = self.version_api.get_code()
             logging.info(f"Successfully connected to Kubernetes API. Server version: {version.git_version}")
@@ -168,38 +163,29 @@ class KubernetesService:
 
     async def create_execution_pod(self, execution_id: str, script: str, python_version: str) -> None:
         """
-        Create and execute a pod with the provided script.
-        1) Check circuit breaker
-        2) Health check
-        3) Create configmap for script
-        4) Build & create Pod
+        Creates and executes a pod for the provided script:
+          1) Checks the circuit breaker and health
+          2) Creates a ConfigMap to hold the script
+          3) Builds and creates the Pod via a PodManifestBuilder
         """
         if not self.circuit_breaker.should_allow_request():
             raise KubernetesServiceError("Service circuit breaker is open")
-
         if not await self.check_health():
             raise KubernetesServiceError("Kubernetes service is unhealthy")
 
         temp_file_path = None
         config_map_name = f"script-{execution_id}"
-
         try:
-            # 1) Write script to a temp file
             with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as temp_file:
                 temp_file.write(script)
                 temp_file_path = temp_file.name
-
-            # 2) Create configmap
             with open(temp_file_path, "r") as f:
                 script_content = f.read()
-
             config_map = client.V1ConfigMap(
                 metadata=client.V1ObjectMeta(name=config_map_name),
                 data={"script.py": script_content},
             )
             await self._create_config_map(config_map)
-
-            # 3) Build Pod manifest using the new builder
             builder = PodManifestBuilder(
                 python_version=python_version,
                 execution_id=execution_id,
@@ -212,56 +198,90 @@ class KubernetesService:
                 namespace=self.NAMESPACE,
             )
             pod_manifest = builder.build()
-
-            # 4) Create the Pod
             await self._create_namespaced_pod(pod_manifest)
-
-            # Store it in _active_pods
             self._active_pods[execution_id] = datetime.now(timezone.utc)
             self.circuit_breaker.record_success()
-
         except Exception as e:
             self.circuit_breaker.record_failure()
             raise KubernetesPodError(f"Failed to create execution pod: {str(e)}")
-
         finally:
-            # Cleanup local temp file
             if temp_file_path and os.path.exists(temp_file_path):
                 os.unlink(temp_file_path)
 
-    async def get_pod_logs(self, execution_id: str) -> tuple[str, str]:
-        """
-        Return (logs, phase) for the finished pod.
-        phase will be either "Succeeded" or "Failed" (or something else, if incomplete).
-        """
+    async def get_pod_logs(self, execution_id: str) -> tuple[str, str, dict]:
         pod_name = f"execution-{execution_id}"
         config_map_name = f"script-{execution_id}"
 
-        # same logic, but keep track of the final phase:
-        for _ in range(self.POD_RETRY_ATTEMPTS):
-            pod = await asyncio.to_thread(
-                self.v1.read_namespaced_pod, name=pod_name, namespace=self.NAMESPACE
-            )
-            if pod.status.phase in self.POD_SUCCESS_STATES:  # {"Succeeded", "Failed"}
-                break
-            await asyncio.sleep(self.POD_RETRY_INTERVAL)
-        else:
-            raise KubernetesPodError("Timeout waiting for pod to complete")
+        try:
+            # Wait for pod completion
+            pod = None
+            for _ in range(self.POD_RETRY_ATTEMPTS):
+                pod = await asyncio.to_thread(self.v1.read_namespaced_pod, pod_name, self.NAMESPACE)
+                if pod.status.phase in self.POD_SUCCESS_STATES:
+                    break
+                await asyncio.sleep(self.POD_RETRY_INTERVAL)
 
-        # Now retrieve logs
-        logs = await asyncio.to_thread(
-            self.v1.read_namespaced_pod_log, name=pod_name, namespace=self.NAMESPACE
-        )
+            if not pod or pod.status.phase not in self.POD_SUCCESS_STATES:
+                raise KubernetesPodError("Timeout waiting for pod to complete")
 
-        # Clean up resources
-        await self._cleanup_resources(pod_name, config_map_name)
-        if execution_id in self._active_pods:
-            del self._active_pods[execution_id]
+            # Get logs from the 'script' container
+            try:
+                full_logs = await asyncio.to_thread(
+                    self.v1.read_namespaced_pod_log,
+                    pod_name,
+                    self.NAMESPACE,
+                    container='script'
+                )
+            except ApiException:
+                full_logs = "No script output available"
 
-        return logs, pod.status.phase
+            print(f"SCRIPT LOGS (raw): {full_logs}", flush=True)  # for debugging
+
+            # Split out metrics and script output
+            script_output, resource_usage = self._extract_execution_metrics(full_logs, execution_id, pod.status.phase)
+
+            # Return the cleaned script output, pod status, and parsed metrics.
+            return script_output, pod.status.phase, resource_usage
+
+        finally:
+            await self._cleanup_resources(pod_name, config_map_name)
+            if execution_id in self._active_pods:
+                del self._active_pods[execution_id]
+
+    def _extract_execution_metrics(self, logs: str, execution_id: str, pod_phase: str) -> tuple:
+        """
+        Splits the logs into the executed script output and metrics JSON.
+        Returns a tuple: (script_output, metrics_dict)
+        """
+        default_metrics = {
+            "execution_id": execution_id,
+            "execution_time": 0,
+            "cpu_usage": 0.0,
+            "memory_usage": 0.0,
+            "exit_code": 0,
+            "status": pod_phase
+        }
+        try:
+            # Use a regex to find the metrics marker and capture the JSON block that follows.
+            # The pattern assumes the marker is "###METRICS###" followed by some whitespace and a JSON object.
+            pattern = r"###METRICS###\s*(\{.*?\})"
+            match = re.search(pattern, logs, re.DOTALL)
+            if match:
+                metrics_json = match.group(1).strip()
+                metrics = json.loads(metrics_json)
+                exit_code = metrics.get("exit_code", 0)
+                computed_status = "completed" if exit_code == 0 else "failed"
+                metrics["status"] = computed_status
+                # Remove the entire metrics section (marker + JSON) from the logs.
+                output = re.sub(pattern, "", logs, flags=re.DOTALL).strip()
+                return output, metrics
+            else:
+                return logs, default_metrics
+        except Exception as e:
+            logger.error(f"Failed to parse metrics for {execution_id}: {str(e)}")
+            return logs, default_metrics
 
     async def _create_config_map(self, config_map: client.V1ConfigMap) -> None:
-        """Asynchronously create a ConfigMap in the cluster."""
         try:
             await asyncio.to_thread(
                 self.v1.create_namespaced_config_map,
@@ -272,7 +292,6 @@ class KubernetesService:
             raise KubernetesServiceError(f"Failed to create ConfigMap: {str(e)}")
 
     async def _create_namespaced_pod(self, pod_manifest: Dict[str, Any]) -> None:
-        """Asynchronously create a Pod in the cluster."""
         try:
             await asyncio.to_thread(
                 self.v1.create_namespaced_pod,
@@ -282,24 +301,7 @@ class KubernetesService:
         except ApiException as e:
             raise KubernetesPodError(f"Failed to create pod: {str(e)}")
 
-    async def _wait_for_pod_and_get_logs(self, pod_name: str) -> str:
-        """Poll the Pod until it completes, then return its logs."""
-        for _ in range(self.POD_RETRY_ATTEMPTS):
-            pod = await asyncio.to_thread(
-                self.v1.read_namespaced_pod, name=pod_name, namespace=self.NAMESPACE
-            )
-            if pod.status.phase in self.POD_SUCCESS_STATES:
-                break
-            await asyncio.sleep(self.POD_RETRY_INTERVAL)
-        else:
-            raise KubernetesPodError("Timeout waiting for pod to complete")
-
-        return await asyncio.to_thread(
-            self.v1.read_namespaced_pod_log, name=pod_name, namespace=self.NAMESPACE
-        )
-
     async def _cleanup_resources(self, pod_name: str, config_map_name: str) -> None:
-        """Delete the specified Pod and ConfigMap."""
         try:
             await asyncio.to_thread(
                 self.v1.delete_namespaced_pod,
@@ -308,7 +310,6 @@ class KubernetesService:
                 grace_period_seconds=30,
             )
             logger.info(f"Successfully deleted pod {pod_name}")
-
             await asyncio.to_thread(
                 self.v1.delete_namespaced_config_map,
                 name=config_map_name,
@@ -320,20 +321,11 @@ class KubernetesService:
                 logger.error(f"Failed to cleanup resources: {str(e)}")
 
     async def _cleanup_pod_resources(self, pod_name: str) -> None:
-        """
-        Helper used by graceful_shutdown. We don't have an `execution_id`,
-        but we can reconstruct it from the `pod_name` = "execution-{execution_id}"
-        and hence guess the config_map_name = "script-{execution_id}".
-        """
         if not pod_name.startswith("execution-"):
             logger.error(f"Unrecognized pod naming convention: {pod_name}")
             return
-
-        # In this naming scheme, `pod_name` is "execution-abcdef123"
-        execution_id = pod_name[len("execution-"):]  # everything after "execution-"
+        execution_id = pod_name[len("execution-"):]
         config_map_name = f"script-{execution_id}"
-
-        # Now reuse `_cleanup_resources()` to do the actual deletions
         await self._cleanup_resources(pod_name, config_map_name)
 
 

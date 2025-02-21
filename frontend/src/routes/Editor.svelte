@@ -377,11 +377,9 @@
     <!-- Row 2: Main Content -->
     <div class="main-row">
         <div class="code-column">
-            <!-- Removed fixed height so it expands as needed -->
             <div id="editor-container" class="editor-container"></div>
         </div>
         <div class="output-column">
-            <!-- Also removed fixed height so it expands with content -->
             <div class="result-container">
                 <h3 class="result-title">Execution Output</h3>
                 <p class="result-description">
@@ -411,12 +409,9 @@
                         {#if result.resource_usage}
                             <div class="resource-usage">
                                 <h4>Resource Usage:</h4>
-                                <p><strong>CPU Usage:</strong> {result.resource_usage.cpu_usage}</p>
-                                <p><strong>Memory Usage:</strong> {result.resource_usage.memory_usage}</p>
-                                <p>
-                                    <strong>Execution Time:</strong>
-                                    {result.resource_usage.execution_time.toFixed(2)} seconds
-                                </p>
+                                <p><strong>CPU:</strong> {result.resource_usage.cpu_usage}m</p>
+                                <p><strong>Memory:</strong> {result.resource_usage.memory_usage}Mi</p>
+                                <p><strong>Time:</strong> {result.resource_usage.execution_time}s</p>
                             </div>
                         {/if}
                     </div>
@@ -442,8 +437,14 @@
                     <button class="button primary" on:click={executeScript} disabled={executing}>
                         {executing ? "Executing..." : "Run Script"}
                     </button>
-                    <button class="button secondary" on:click={() => (showOptions = !showOptions)}>
-                        {showOptions ? "Hide Options" : "Show Options"}
+                    <button class="button icon-only settings-button {showOptions ? 'active' : ''}"
+                            on:click={() => (showOptions = !showOptions)}
+                            title={showOptions ? "Hide Options" : "Show Options"}>
+                        <svg viewBox="0 0 24 24" class="icon settings-icon">
+                            <path fill="none" stroke="currentColor" stroke-width="2"
+                                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                            <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2" fill="none"/>
+                        </svg>
                     </button>
                 </div>
             </div>
@@ -739,7 +740,6 @@
        - Normal block flow => “Show Options” expands downward */
     .controls-row {
         width: 100%;
-        margin-top: 1rem;
         display: block;
         clear: both;
     }
@@ -818,14 +818,26 @@
         background-color: #3182ce;
     }
 
-    .button.secondary {
-        background-color: #edf2f7;
-        color: #4a5568;
-        border: 1px solid #e2e8f0;
+    .settings-button {
+        margin-left: 8px;
+        background-color: #f3f4f6;
     }
 
-    .button.secondary:hover {
-        background-color: #e2e8f0;
+    .settings-button .icon {
+        stroke: #4b5563;
+        fill: none;
+    }
+
+    .settings-button:hover {
+        background-color: #e5e7eb;
+    }
+
+    .settings-button.active {
+        background-color: #dbeafe;
+    }
+
+    .settings-button.active .icon {
+        stroke: #3b82f6;
     }
 
     .button.control {
@@ -978,7 +990,7 @@
     .result-title {
         font-size: 1.25rem;
         color: #2d3748;
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.75rem;
         font-weight: 600;
     }
 

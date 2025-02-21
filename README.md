@@ -33,6 +33,19 @@ https://github.com/user-attachments/assets/5501579f-1478-4374-a7d8-0d65c14a6c33
 - Grafana: `http://127.0.0.1:3000` (login - `admin`, pw - `admin123`)
 - Prometheus: `http://127.0.0.1:9090/targets` (`integr8scode` must be `1/1 up`)
 
+You may also find out that k8s doesn't capture metrics (`CPU` and `Memory` params are `null`), it may well be that metrics server
+for k8s is turned off/not enabled. To enable, execute:
+```bash
+kubectl create -f https://raw.githubusercontent.com/pythianarora/total-practice/master/sample-kubernetes-code/metrics-server.yaml
+```
+
+and test output by writing `kubectl top node` in console, should output sth like:
+``` 
+PS C:\Users\User\Desktop\Integr8sCode> kubectl top node                                                                                                                 
+NAME             CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%   
+docker-desktop   267m         3%     4732Mi          29%
+```
+
 </details>
 
 <details>

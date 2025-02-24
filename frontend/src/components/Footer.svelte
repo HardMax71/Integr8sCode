@@ -11,7 +11,6 @@
                     <li><a href="/" class="hover:text-purple-300 transition-colors duration-200">Home</a></li>
                     <li><a href="/editor" class="hover:text-purple-300 transition-colors duration-200">Code Editor</a>
                     </li>
-                    <li><a href="/about" class="hover:text-purple-300 transition-colors duration-200">About</a></li>
                 </ul>
             </div>
             <div class="w-full sm:w-1/2 md:w-1/4 mb-4 sm:mb-0">

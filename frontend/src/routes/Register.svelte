@@ -19,7 +19,7 @@
 
         loading = true;
         try {
-            await axios.post(`${backendUrl}/api/v1/register`, {
+            await axios.post(`/api/v1/register`, {
                 username,
                 email,
                 password

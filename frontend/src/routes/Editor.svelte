@@ -6,7 +6,6 @@
     import {authToken} from "../stores/auth.js";
     import {addNotification} from "../stores/notifications.js";
     import Spinner from "../components/Spinner.svelte";
-    import {backendUrl} from "../config.js";
 
     import {EditorState} from "@codemirror/state";
     import {EditorView, keymap, lineNumbers} from "@codemirror/view";
@@ -50,8 +49,10 @@
 
     onMount(async () => {
         try {
-            const limitsResponse = await axios.get(`${backendUrl}/api/v1/k8s-limits`);
+            const limitsResponse = await axios.get(`/api/v1/k8s-limits`);
+            console.log("Limits response: ", limitsResponse);
             k8sLimits = limitsResponse.data;
+            console.log("Supported versions: ", k8sLimits.supported_python_versions);
             supportedPythonVersions = k8sLimits.supported_python_versions;
         } catch (err) {
             console.error("Error fetching K8s limits:", err);
@@ -91,13 +92,13 @@
         const pythonVersionValue = get(pythonVersion);
         try {
             const executeResponse = await axios.post(
-                `${backendUrl}/api/v1/execute`,
+                `/api/v1/execute`,
                 {script: scriptValue, python_version: pythonVersionValue}
             );
             const executionId = executeResponse.data.execution_id;
             while (true) {
                 const resultResponse = await axios.get(
-                    `${backendUrl}/api/v1/result/${executionId}`
+                    `/api/v1/result/${executionId}`
                 );
                 if (
                     resultResponse.data.status === "completed" ||
@@ -137,6 +138,14 @@
         showLimits = !showLimits;
     }
 
+    function toggleOptions() {
+        showOptions = !showOptions;
+        // When closing options, also close saved scripts
+        if (!showOptions) {
+            showSavedScripts = false;
+        }
+    }
+
     async function saveScript() {
         if (!scriptName.trim()) {
             addNotification("Please provide a name for your script.", "warning");
@@ -147,14 +156,14 @@
         try {
             if (currentScriptId) {
                 await axios.put(
-                    `${backendUrl}/api/v1/scripts/${currentScriptId}`,
+                    `/api/v1/scripts/${currentScriptId}`,
                     {name: scriptName, script: scriptValue},
                     {headers: {Authorization: `Bearer ${authTokenValue}`}}
                 );
                 addNotification("Script updated successfully.", "success");
             } else {
                 const response = await axios.post(
-                    `${backendUrl}/api/v1/scripts`,
+                    `/api/v1/scripts`,
                     {name: scriptName, script: scriptValue},
                     {headers: {Authorization: `Bearer ${authTokenValue}`}}
                 );
@@ -176,7 +185,7 @@
     async function loadSavedScripts() {
         const authTokenValue = get(authToken);
         try {
-            const response = await axios.get(`${backendUrl}/api/v1/scripts`, {
+            const response = await axios.get(`/api/v1/scripts`, {
                 headers: {Authorization: `Bearer ${authTokenValue}`},
             });
             savedScripts = response.data;
@@ -223,7 +232,7 @@
         if (!confirmDelete) return;
         const authTokenValue = get(authToken);
         try {
-            await axios.delete(`${backendUrl}/api/v1/scripts/${scriptId}`, {
+            await axios.delete(`/api/v1/scripts/${scriptId}`, {
                 headers: {Authorization: `Bearer ${authTokenValue}`},
             });
             addNotification("Script deleted successfully.", "success");
@@ -440,7 +449,7 @@
                         {executing ? "Executing..." : "Run Script"}
                     </button>
                     <button class="button icon-only settings-button {showOptions ? 'active' : ''}"
-                            on:click={() => (showOptions = !showOptions)}
+                            on:click={() => toggleOptions()}
                             title={showOptions ? "Hide Options" : "Show Options"}>
                         <svg viewBox="0 0 24 24" class="icon settings-icon">
                             <path fill="none" stroke="currentColor" stroke-width="2"
@@ -584,8 +593,8 @@
        - No fixed height: grows as needed
        - Centered card with top/bottom margin and padding */
     .container {
-        max-width: 1600px;
-        margin: 2rem auto; /* top margin => space above header */
+        /*max-width: 1600px;*/
+        margin: 3rem auto; /* top margin => space above header */
         padding: 2rem;
         background-color: #ffffff;
         border-radius: 0.5rem;
@@ -622,7 +631,8 @@
         position: relative;
         display: inline-block;
         vertical-align: top;
-        width: 100%;
+        width: 50%;
+        float: right;
     }
 
     .limits-toggle {

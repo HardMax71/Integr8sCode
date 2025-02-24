@@ -78,6 +78,10 @@ def create_app() -> FastAPI:
         allow_origins=[
             "https://localhost:5001",
             "https://127.0.0.1:5001",
+            "https://localhost",
+            "https://127.0.0.1",
+            "https://localhost:443",
+            "https://127.0.0.1:443",
         ],
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE"],

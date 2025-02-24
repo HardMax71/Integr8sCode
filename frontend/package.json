@@ -37,6 +37,7 @@
   },
   "devDependencies": {
     "express": "^4.21.1",
+    "http-proxy": "^1.18.1",
     "rollup-plugin-serve": "^1.1.1"
   }
 }

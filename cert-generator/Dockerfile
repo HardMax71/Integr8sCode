@@ -19,6 +19,9 @@ RUN apk add --no-cache wget ca-certificates openssl curl dos2unix && \
     wget -q "https://github.com/FiloSottile/mkcert/releases/download/v1.4.4/mkcert-v1.4.4-linux-${MKCERT_ARCH}" -O /usr/local/bin/mkcert && \
     chmod +x /usr/local/bin/mkcert
 
+# Create shared directory for root CA
+RUN mkdir -p /shared_ca
+
 # Copy and prepare setup script
 COPY setup-k8s.sh /setup-k8s.sh
 RUN dos2unix /setup-k8s.sh && chmod +x /setup-k8s.sh

@@ -1,13 +1,27 @@
 #!/bin/sh
 set -e
 
+# Set CAROOT to use the shared directory for root CA
+export CAROOT=/shared_ca
+
+# Check if a shared root CA already exists
+if [ -f "$CAROOT/rootCA.pem" ] && [ -f "$CAROOT/rootCA-key.pem" ]; then
+    echo "Using existing shared root CA from $CAROOT"
+else
+    echo "Creating new root CA in shared location $CAROOT"
+    # Generate a new root CA
+    mkcert -install
+    chmod 644 "$CAROOT/rootCA.pem" "$CAROOT/rootCA-key.pem"
+    echo "Root CA created in $CAROOT"
+fi
+
 # Generate certificates if they don't exist
 if [ ! -f /certs/server.crt ]; then
-    mkcert -install
+    echo "Generating certificates using shared root CA"
     mkcert -cert-file /certs/server.crt -key-file /certs/server.key localhost kubernetes.docker.internal 127.0.0.1 ::1
-    cp "$(mkcert -CAROOT)/rootCA.pem" /certs/rootCA.pem
+    cp "$CAROOT/rootCA.pem" /certs/rootCA.pem
     chmod 644 /certs/server.crt /certs/server.key /certs/rootCA.pem
-    echo "Certificates generated"
+    echo "Certificates generated using shared root CA"
 else
     echo "Certificates already exist"
 fi
@@ -80,4 +94,7 @@ EOF
     echo "Generated kubeconfig with k8s CA cert and token"
 fi
 
-tail -f /dev/null
+# Create a marker file to indicate completion
+echo "$(date)" > /certs/setup-complete
+
+echo "Setup completed successfully. Exiting."

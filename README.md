@@ -13,10 +13,8 @@ things safe and efficient. You'll get the results back in no time.
 
 <details>
 <summary><b>Full demo</b></summary>
- 
-> Video with extended functionality will be uploaded soon. For now, here is a short demo:
 
-https://github.com/user-attachments/assets/5501579f-1478-4374-a7d8-0d65c14a6c33
+https://github.com/user-attachments/assets/eb42c578-f540-43cc-aed4-39ef2777eb91
 
 </details>
 

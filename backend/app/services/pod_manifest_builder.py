@@ -1,5 +1,6 @@
-from typing import Dict, Any
 import textwrap
+from typing import Dict, Any
+
 
 class PodManifestBuilder:
     def __init__(
@@ -28,41 +29,61 @@ class PodManifestBuilder:
         # The wrapper runs the target script, calculates metrics,
         # and always exits with 0 so that the pod status is "Succeeded".
         # The actual exit code from the script is included in the metrics.
+        # Manual about clock used: https://docs.python.org/3/library/time.html#time.perf_counter
         wrapper_code = textwrap.dedent(f"""
-            import time, resource, subprocess, sys, json
-            start = time.time()
-            timeout = {self.pod_execution_timeout}
+            import time, subprocess, sys, json, os
+            
+            def read_cpu_usage():
+                with open('/sys/fs/cgroup/cpuacct/cpuacct.usage', 'r') as f:
+                    return int(f.read().strip())
+            
+            def read_memory_usage():
+                with open('/sys/fs/cgroup/memory/memory.usage_in_bytes', 'r') as f:
+                    return int(f.read().strip())
+            
             exit_code = 0
+            timeout = {self.pod_execution_timeout}
+            
+            # Measure only the subprocess execution.
             try:
-                result = subprocess.run(['python', '/scripts/script.py'],
-                                          timeout=timeout,
-                                          check=True,
-                                          capture_output=True,
-                                          text=True)
+                start_time = time.perf_counter()
+                start_cpu = read_cpu_usage()
+                
+                result = subprocess.run(
+                    ['python', '/scripts/script.py'],
+                    timeout=timeout,
+                    check=True,
+                    capture_output=True,
+                    text=True
+                )
+                
                 print(result.stdout, end='')
                 if result.stderr:
                     print(result.stderr, file=sys.stderr, end='')
-            except subprocess.TimeoutExpired:
-                exit_code = 124
-            except subprocess.CalledProcessError as e:
+            
+            except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as e:
+                # subprocess.TimeoutExpired doesn't have an attr "returncode -> returning 124
+                exit_code = getattr(e, "returncode", 124)
+                
                 if e.stdout:
                     print(e.stdout, end='')
                 if e.stderr:
                     print(e.stderr, file=sys.stderr, end='')
-                exit_code = e.returncode
-            end = time.time()
-            elapsed = end - start
-
-            usage = resource.getrusage(resource.RUSAGE_CHILDREN)
-            cpu_time_used = usage.ru_utime + usage.ru_stime
-            cpu_usage_m = (cpu_time_used / elapsed) * 1000 if elapsed > 0 else 0
-            memory_used_mi = usage.ru_maxrss / 1024.0
-
+            finally:
+                # Not the best idea to measure here cause prints also take place, but still working
+                end_time = time.perf_counter()
+                end_cpu = read_cpu_usage()
+            
+            elapsed = end_time - start_time
+            cpu_used_ns = end_cpu - start_cpu
+            cpu_usage_millicores = 0 if elapsed < 1e-9 else (cpu_used_ns / (elapsed * 1e9)) * 1000
+            memory_used_mi = read_memory_usage() / (1024 * 1024)
+            
             metrics = {{
                 "execution_id": "{self.execution_id}",
-                "execution_time": round(elapsed, 2),        # in seconds
-                "cpu_usage": round(cpu_usage_m, 2),         # in m
-                "memory_usage": round(memory_used_mi, 2),   # in Mi
+                "execution_time": round(elapsed, 6),
+                "cpu_usage": round(cpu_usage_millicores, 2),
+                "memory_usage": round(memory_used_mi, 2),
                 "exit_code": exit_code
             }}
             print("\\n###METRICS###")

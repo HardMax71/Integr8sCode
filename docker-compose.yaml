@@ -67,6 +67,7 @@ services:
     container_name: backend
     environment:
       - MONGODB_URL=mongodb://mongo:27017/integr8scode
+      - SERVER_HOST=0.0.0.0
     healthcheck:
       test: [ "CMD", "curl", "-k", "https://localhost/api/v1/health" ]
       interval: 10s

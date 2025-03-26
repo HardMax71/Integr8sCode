@@ -122,14 +122,18 @@ app = create_app()
 if __name__ == "__main__":
     import uvicorn
 
+    settings = get_settings()
+
     logger.info(
         "Starting uvicorn server",
-        extra={"host": "0.0.0.0", "port": 443, "ssl_enabled": True},
+        extra={"host": settings.SERVER_HOST,
+               "port": settings.SERVER_PORT,
+               "ssl_enabled": True},
     )
     uvicorn.run(
         app,
-        host="0.0.0.0",
-        port=443,
+        host=settings.SERVER_HOST,
+        port=settings.SERVER_PORT,
         ssl_keyfile="/app/certs/server.key",
         ssl_certfile="/app/certs/server.crt",
     )

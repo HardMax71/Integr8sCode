@@ -9,9 +9,12 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "default_secret_key"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    MONGODB_URL: str = "mongodb://localhost:27017"
+    MONGODB_URL: str = "mongodb://mongo:27017/integr8scode"
     KUBERNETES_CONFIG_PATH: str = "~/.kube/config"
     KUBERNETES_CA_CERTIFICATE_PATH: Optional[str] = None
+
+    SERVER_HOST: str = "localhost"
+    SERVER_PORT: int = 443
 
     # Settings for Kubernetes resource limits and requests
     K8S_POD_CPU_LIMIT: str = "100m"

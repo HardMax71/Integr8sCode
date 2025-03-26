@@ -1,14 +1,14 @@
 # tests/conftest.py
-import os
-import pytest
 import asyncio
-from typing import AsyncGenerator
+from asyncio import AbstractEventLoop
+from typing import AsyncGenerator, Generator
+
+import pytest
+from app.config import Settings
+from app.main import create_app
 from fastapi import FastAPI
 from httpx import AsyncClient
 from motor.motor_asyncio import AsyncIOMotorClient
-
-from app.main import create_app
-from app.config import Settings, get_settings
 
 
 def get_test_settings() -> Settings:
@@ -21,7 +21,7 @@ def get_test_settings() -> Settings:
 
 
 @pytest.fixture(scope="session")
-def event_loop():
+def event_loop() -> Generator[AbstractEventLoop, None, None]:
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
@@ -42,7 +42,7 @@ async def client(app: FastAPI) -> AsyncGenerator[AsyncClient, None]:
 @pytest.fixture(scope="function")
 async def db() -> AsyncGenerator:
     settings = get_test_settings()
-    client = AsyncIOMotorClient(settings.MONGODB_URL)
+    client: AsyncIOMotorClient = AsyncIOMotorClient(settings.MONGODB_URL)
     db = client[settings.PROJECT_NAME]
     yield db
     await client.drop_database(settings.PROJECT_NAME)

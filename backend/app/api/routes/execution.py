@@ -1,16 +1,18 @@
+from fastapi import APIRouter, Depends, HTTPException, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
 from app.core.exceptions import IntegrationException
+from app.core.logging import logger
+from app.core.metrics import ACTIVE_EXECUTIONS, EXECUTION_DURATION, SCRIPT_EXECUTIONS
 from app.schemas.execution import (
     ExecutionRequest,
     ExecutionResponse,
     ExecutionResult,
     K8SResourceLimits,
+    ResourceUsage,
 )
 from app.services.execution_service import ExecutionService, get_execution_service
-from fastapi import APIRouter, Depends, HTTPException, Request
-from slowapi import Limiter
-from slowapi.util import get_remote_address
-from app.core.logging import logger
-from app.core.metrics import SCRIPT_EXECUTIONS, EXECUTION_DURATION, ACTIVE_EXECUTIONS
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
@@ -19,10 +21,10 @@ limiter = Limiter(key_func=get_remote_address)
 @router.post("/execute", response_model=ExecutionResponse)
 @limiter.limit("20/minute")
 async def create_execution(
-    request: Request,
-    execution: ExecutionRequest,
-    execution_service: ExecutionService = Depends(get_execution_service),
-):
+        request: Request,
+        execution: ExecutionRequest,
+        execution_service: ExecutionService = Depends(get_execution_service),
+) -> ExecutionResponse:
     ACTIVE_EXECUTIONS.inc()
 
     logger.info(
@@ -36,13 +38,15 @@ async def create_execution(
     )
 
     try:
-        with EXECUTION_DURATION.labels(python_version=execution.python_version).time():
+        python_version = execution.python_version or "3.11"
+
+        with EXECUTION_DURATION.labels(python_version=python_version).time():
             result = await execution_service.execute_script(
-                execution.script, execution.python_version
+                execution.script, python_version
             )
 
         SCRIPT_EXECUTIONS.labels(
-            status="success", python_version=execution.python_version
+            status="success", python_version=python_version
         ).inc()
 
         logger.info(
@@ -53,7 +57,7 @@ async def create_execution(
 
     except IntegrationException as e:
         SCRIPT_EXECUTIONS.labels(
-            status="integration_error", python_version=execution.python_version
+            status="integration_error", python_version=execution.python_version or "3.11"
         ).inc()
 
         logger.error(
@@ -65,11 +69,11 @@ async def create_execution(
                 "python_version": execution.python_version,
             },
         )
-        raise HTTPException(status_code=e.status_code, detail=e.detail)
+        raise HTTPException(status_code=e.status_code, detail=e.detail) from e
 
     except Exception as e:
         SCRIPT_EXECUTIONS.labels(
-            status="error", python_version=execution.python_version
+            status="error", python_version=execution.python_version or "3.11"
         ).inc()
 
         logger.error(
@@ -80,7 +84,7 @@ async def create_execution(
                 "python_version": execution.python_version,
             },
         )
-        raise HTTPException(status_code=400, detail=f"Error during execution: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Error during execution: {str(e)}") from e
     finally:
         ACTIVE_EXECUTIONS.dec()
 
@@ -88,10 +92,10 @@ async def create_execution(
 @router.get("/result/{execution_id}", response_model=ExecutionResult)
 @limiter.limit("20/minute")
 async def get_result(
-    request: Request,
-    execution_id: str,
-    execution_service: ExecutionService = Depends(get_execution_service),
-):
+        request: Request,
+        execution_id: str,
+        execution_service: ExecutionService = Depends(get_execution_service),
+) -> ExecutionResult:
     logger.info(
         "Received execution result request",
         extra={
@@ -120,20 +124,25 @@ async def get_result(
         },
     )
 
+    # Convert dict to ResourceUsage if needed
+    resource_usage_obj = None
+    if result.resource_usage:
+        resource_usage_obj = ResourceUsage(**result.resource_usage)
+
     return ExecutionResult(
         execution_id=result.id,
         status=result.status,
         output=result.output,
         errors=result.errors,
         python_version=result.python_version,
-        resource_usage=result.resource_usage,
+        resource_usage=resource_usage_obj,
     )
 
 
 @router.get("/k8s-limits", response_model=K8SResourceLimits)
 async def get_k8s_resource_limits(
-    execution_service: ExecutionService = Depends(get_execution_service),
-):
+        execution_service: ExecutionService = Depends(get_execution_service),
+) -> K8SResourceLimits:
     logger.info("Retrieving K8s resource limits", extra={"endpoint": "/k8s-limits"})
 
     try:
@@ -150,4 +159,4 @@ async def get_k8s_resource_limits(
         )
         raise HTTPException(
             status_code=500, detail=f"An unexpected error occurred: {str(e)}"
-        )
+        ) from e

@@ -1,12 +1,6 @@
 from contextlib import asynccontextmanager
+from typing import AsyncGenerator
 
-from app.api.routes import execution, health, auth, saved_scripts
-from app.config import get_settings
-from app.core.exceptions import configure_exception_handlers
-from app.core.logging import logger
-from app.core.middleware import RequestSizeLimitMiddleware
-from app.db.mongodb import init_mongodb, close_mongo_connection
-from app.services.kubernetes_service import KubernetesServiceManager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -16,11 +10,19 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 
+from app.api.routes import auth, execution, health, saved_scripts
+from app.config import get_settings
+from app.core.exceptions import configure_exception_handlers
+from app.core.logging import logger
+from app.core.middleware import RequestSizeLimitMiddleware
+from app.db.mongodb import close_mongo_connection, init_mongodb
+from app.services.kubernetes_service import KubernetesServiceManager
+
 limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Startup
     settings = get_settings()
     logger.info(
@@ -34,7 +36,8 @@ async def lifespan(app: FastAPI):
     try:
         # Initialize MongoDB with retries
         app.state.mongodb_client = await init_mongodb()
-        app.state.db = app.state.mongodb_client[settings.PROJECT_NAME]
+        if app.state.mongodb_client is not None:
+            app.state.db = app.state.mongodb_client[settings.PROJECT_NAME]
         logger.info("MongoDB initialization completed")
 
         # Initialize K8s manager
@@ -54,7 +57,8 @@ async def lifespan(app: FastAPI):
             logger.info("All Kubernetes services shut down")
 
         # Then close MongoDB connection
-        await close_mongo_connection(app.state.mongodb_client)
+        if hasattr(app.state, "mongodb_client") and app.state.mongodb_client is not None:
+            await close_mongo_connection(app.state.mongodb_client)
     except Exception as e:
         logger.error("Error during application shutdown", extra={"error": str(e)})
 
@@ -71,7 +75,7 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestSizeLimitMiddleware)
 
     app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore
 
     app.add_middleware(
         CORSMiddleware,

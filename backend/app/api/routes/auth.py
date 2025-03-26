@@ -1,13 +1,16 @@
+from datetime import timedelta
+from typing import Dict, Union
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import OAuth2PasswordRequestForm
-from datetime import timedelta
-from app.core.security import security_service
-from app.config import get_settings
-from app.db.repositories.user_repository import UserRepository, get_user_repository
-from app.models.user import UserCreate, UserInDB
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+
+from app.config import get_settings
 from app.core.logging import logger
+from app.core.security import security_service
+from app.db.repositories.user_repository import UserRepository, get_user_repository
+from app.models.user import UserCreate, UserInDB
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
@@ -19,7 +22,7 @@ async def login(
     request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     user_repo: UserRepository = Depends(get_user_repository),
-):
+) -> Dict[str, str]:
     logger.info(
         "Login attempt",
         extra={
@@ -87,7 +90,7 @@ async def register(
     request: Request,
     user: UserCreate,
     user_repo: UserRepository = Depends(get_user_repository),
-):
+) -> UserInDB:
     logger.info(
         "Registration attempt",
         extra={
@@ -137,7 +140,7 @@ async def register(
                 "error_detail": str(e),
             },
         )
-        raise HTTPException(status_code=500, detail="Error creating user")
+        raise HTTPException(status_code=500, detail="Error creating user") from e
 
 
 @router.get("/verify-token")
@@ -145,7 +148,7 @@ async def register(
 async def verify_token(
     request: Request,
     current_user: UserInDB = Depends(security_service.get_current_user),
-):
+) -> Dict[str, Union[str, bool]]:
     logger.info(
         "Token verification attempt",
         extra={
@@ -181,4 +184,4 @@ async def verify_token(
             status_code=401,
             detail="Invalid token",
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from e

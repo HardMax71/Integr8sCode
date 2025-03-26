@@ -1,15 +1,20 @@
+from typing import Any, TypeVar
+
+from prometheus_client import Counter, Gauge, Histogram
+
 from app.config import get_settings
-from prometheus_client import Counter, Histogram, Gauge
 
 ALLOWED_STATUSES = ["success", "error", "timeout", "invalid_input"]
 
+T = TypeVar('T', bound='BoundedLabelsCounter')
+
 
 class BoundedLabelsCounter(Counter):
-    def labels(self, *args, **kwargs):
+    def labels(self, *args: Any, **kwargs: Any) -> 'BoundedLabelsCounter':
         # Validate labels before creating new time series
         if (
-            "python_version" in kwargs
-            and kwargs["python_version"] not in get_settings().SUPPORTED_PYTHON_VERSIONS
+                "python_version" in kwargs
+                and kwargs["python_version"] not in get_settings().SUPPORTED_PYTHON_VERSIONS
         ):
             kwargs["python_version"] = "unknown"
         if "status" in kwargs and kwargs["status"] not in ALLOWED_STATUSES:

@@ -3,6 +3,7 @@ from typing import Optional
 
 from app.core.logging import logger
 
+
 class CircuitBreaker:
     def __init__(self, failure_threshold: int = 5, reset_timeout: int = 60):
         self.failure_threshold = failure_threshold
@@ -11,14 +12,14 @@ class CircuitBreaker:
         self.last_failure_time: Optional[datetime] = None
         self.is_open = False
 
-    def record_failure(self):
+    def record_failure(self) -> None:
         self.failures += 1
-        self.last_failure_time = datetime.utcnow()
+        self.last_failure_time = datetime.now(timezone.utc)
         if self.failures >= self.failure_threshold:
             self.is_open = True
             logger.error(f"Circuit breaker opened after {self.failures} failures")
 
-    def record_success(self):
+    def record_success(self) -> None:
         self.failures = 0
         self.last_failure_time = None
         self.is_open = False

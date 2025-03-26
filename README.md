@@ -3,6 +3,15 @@
  <h1 align="center"><b>Integr8sCode</b></h1>
 </p>
 
+<p align="center">
+  <a href="https://github.com/yourusername/integr8scode/actions/workflows/python-checks.yml?query=workflow%3A%22Mypy+Type+Checking%22">
+    <img src="https://img.shields.io/github/actions/workflow/status/yourusername/integr8scode/python-checks.yml?branch=main&label=mypy&logo=python&logoColor=white" alt="Mypy Status" />
+  </a>
+  <a href="https://github.com/yourusername/integr8scode/actions/workflows/python-checks.yml?query=workflow%3A%22Ruff+Linting%22">
+    <img src="https://img.shields.io/github/actions/workflow/status/yourusername/integr8scode/python-checks.yml?branch=main&label=ruff&logo=python&logoColor=white" alt="Ruff Status" />
+  </a>
+</p>
+
 ---
 
 Welcome to **Integr8sCode**! This is a platform where you can run Python scripts online with ease. Just paste your

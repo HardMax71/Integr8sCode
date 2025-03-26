@@ -1,22 +1,20 @@
 import asyncio
+import json
 import logging
 import os
 import re
 import tempfile
-import json
-import subprocess
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Any, Set
+from typing import Any, Dict, Set
 
-from dateutil.parser import isoparse
+from fastapi import Depends, Request
+from kubernetes import client, config
+from kubernetes.client.rest import ApiException
 
 from app.config import get_settings
 from app.core.logging import logger
 from app.services.circuit_breaker import CircuitBreaker
 from app.services.pod_manifest_builder import PodManifestBuilder
-from fastapi import Depends, Request
-from kubernetes import client, config
-from kubernetes.client.rest import ApiException
 
 
 class KubernetesServiceError(Exception):
@@ -36,16 +34,17 @@ class KubernetesServiceManager:
     Sits at a higher level to manage multiple KubernetesService
     instances (like a registry).
     """
-    def __init__(self):
+
+    def __init__(self) -> None:
         self.services: Set["KubernetesService"] = set()
 
-    def register(self, service: "KubernetesService"):
+    def register(self, service: "KubernetesService") -> None:
         self.services.add(service)
 
-    def unregister(self, service: "KubernetesService"):
+    def unregister(self, service: "KubernetesService") -> None:
         self.services.discard(service)
 
-    async def shutdown_all(self):
+    async def shutdown_all(self) -> None:
         """Gracefully shut down all managed services."""
         for service in list(self.services):
             try:
@@ -82,7 +81,7 @@ class KubernetesService:
 
         self.manager.register(self)
 
-    def __del__(self):
+    def __del__(self) -> None:
         self.manager.unregister(self)
 
     async def check_health(self) -> bool:
@@ -102,7 +101,7 @@ class KubernetesService:
             self._last_health_check = datetime.now(timezone.utc)
             return False
 
-    async def graceful_shutdown(self):
+    async def graceful_shutdown(self) -> None:
         """
         Gracefully shuts down the service by cleaning up all active pods.
         Terminates early if we exceed the shutdown deadline.
@@ -124,7 +123,7 @@ class KubernetesService:
             self._setup_api_client()
             self._test_api_connection()
         except Exception as e:
-            raise KubernetesConfigError(f"Failed to initialize Kubernetes client: {str(e)}")
+            raise KubernetesConfigError(f"Failed to initialize Kubernetes client: {str(e)}") from e
 
     def _setup_kubernetes_config(self) -> None:
         logging.info(f"KUBERNETES_CONFIG_PATH: {self.settings.KUBERNETES_CONFIG_PATH}")
@@ -158,8 +157,8 @@ class KubernetesService:
             logging.info(f"Successfully connected to Kubernetes API. Server version: {version.git_version}")
         except ApiException as e:
             if e.status == 401:
-                raise KubernetesConfigError("Authentication failed. Please check your token.")
-            raise KubernetesConfigError(f"Failed to connect to Kubernetes API: {str(e)}")
+                raise KubernetesConfigError("Authentication failed. Please check your token.") from e
+            raise KubernetesConfigError(f"Failed to connect to Kubernetes API: {str(e)}") from e
 
     async def create_execution_pod(self, execution_id: str, script: str, python_version: str) -> None:
         """
@@ -203,7 +202,7 @@ class KubernetesService:
             self.circuit_breaker.record_success()
         except Exception as e:
             self.circuit_breaker.record_failure()
-            raise KubernetesPodError(f"Failed to create execution pod: {str(e)}")
+            raise KubernetesPodError(f"Failed to create execution pod: {str(e)}") from e
         finally:
             if temp_file_path and os.path.exists(temp_file_path):
                 os.unlink(temp_file_path)
@@ -217,7 +216,7 @@ class KubernetesService:
             pod = None
             for _ in range(self.POD_RETRY_ATTEMPTS):
                 pod = await asyncio.to_thread(self.v1.read_namespaced_pod, pod_name, self.NAMESPACE)
-                if pod.status.phase in self.POD_SUCCESS_STATES:
+                if pod and pod.status and pod.status.phase in self.POD_SUCCESS_STATES:
                     break
                 await asyncio.sleep(self.POD_RETRY_INTERVAL)
 
@@ -238,7 +237,9 @@ class KubernetesService:
             print(f"SCRIPT LOGS (raw): {full_logs}", flush=True)  # for debugging
 
             # Split out metrics and script output
-            script_output, resource_usage = self._extract_execution_metrics(full_logs, execution_id, pod.status.phase)
+            script_output, resource_usage = self._extract_execution_metrics(full_logs,
+                                                                            execution_id,
+                                                                            pod.status.phase)
 
             # Return the cleaned script output, pod status, and parsed metrics.
             return script_output, pod.status.phase, resource_usage
@@ -289,7 +290,7 @@ class KubernetesService:
                 body=config_map,
             )
         except ApiException as e:
-            raise KubernetesServiceError(f"Failed to create ConfigMap: {str(e)}")
+            raise KubernetesServiceError(f"Failed to create ConfigMap: {str(e)}") from e
 
     async def _create_namespaced_pod(self, pod_manifest: Dict[str, Any]) -> None:
         try:
@@ -299,7 +300,7 @@ class KubernetesService:
                 namespace=self.NAMESPACE,
             )
         except ApiException as e:
-            raise KubernetesPodError(f"Failed to create pod: {str(e)}")
+            raise KubernetesPodError(f"Failed to create pod: {str(e)}") from e
 
     async def _cleanup_resources(self, pod_name: str, config_map_name: str) -> None:
         try:
@@ -332,8 +333,10 @@ class KubernetesService:
 def get_k8s_manager(request: Request) -> KubernetesServiceManager:
     if not hasattr(request.app.state, "k8s_manager"):
         request.app.state.k8s_manager = KubernetesServiceManager()
-    return request.app.state.k8s_manager
+    return request.app.state.k8s_manager  # type: ignore
 
 
-def get_kubernetes_service(manager: KubernetesServiceManager = Depends(get_k8s_manager)) -> KubernetesService:
+def get_kubernetes_service(
+        manager: KubernetesServiceManager = Depends(get_k8s_manager)
+) -> KubernetesService:
     return KubernetesService(manager)

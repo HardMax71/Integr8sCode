@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Any, Dict
 
 # Different load test scenarios
 SCENARIOS: Dict[str, Dict[str, Any]] = {

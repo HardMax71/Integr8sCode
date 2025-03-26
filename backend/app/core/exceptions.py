@@ -8,11 +8,11 @@ class IntegrationException(Exception):
         self.detail = detail
 
 
-def configure_exception_handlers(app: FastAPI):
+def configure_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(IntegrationException)
     async def integration_exception_handler(
-        request: Request, exc: IntegrationException
-    ):
+            request: Request, exc: IntegrationException
+    ) -> JSONResponse:
         return JSONResponse(
             status_code=exc.status_code,
             content={"detail": exc.detail},

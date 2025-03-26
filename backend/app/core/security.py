@@ -1,18 +1,20 @@
 from datetime import datetime, timedelta
 from typing import Optional
+
+import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-import jwt
 from passlib.context import CryptContext
+
 from app.config import get_settings
-from app.models.user import UserInDB
 from app.db.repositories.user_repository import UserRepository, get_user_repository
+from app.models.user import UserInDB
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/login")
 
 
 class SecurityService:
-    def __init__(self):
+    def __init__(self) -> None:
         self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
         self.settings = get_settings()
 
@@ -24,7 +26,7 @@ class SecurityService:
 
     def create_access_token(
         self, data: dict, expires_delta: Optional[timedelta] = None
-    ):
+    ) -> str:
         to_encode = data.copy()
         if expires_delta:
             expire = datetime.utcnow() + expires_delta
@@ -53,8 +55,8 @@ class SecurityService:
             username: str = payload.get("sub")
             if username is None:
                 raise credentials_exception
-        except jwt.PyJWTError:
-            raise credentials_exception
+        except jwt.PyJWTError as e:
+            raise credentials_exception from e
         user = await user_repo.get_user(username)
         if user is None:
             raise credentials_exception

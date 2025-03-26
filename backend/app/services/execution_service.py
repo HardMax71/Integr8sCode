@@ -1,14 +1,17 @@
 from enum import Enum
 from time import time
-from typing import Optional
+from typing import Any, Dict, Optional
+
+from fastapi import Depends
+from kubernetes.client.rest import ApiException
 
 from app.config import get_settings
 from app.core.exceptions import IntegrationException
 from app.core.metrics import (
-    SCRIPT_EXECUTIONS,
-    EXECUTION_DURATION,
     ACTIVE_EXECUTIONS,
     ERROR_COUNTER,
+    EXECUTION_DURATION,
+    SCRIPT_EXECUTIONS,
 )
 from app.db.repositories.execution_repository import (
     ExecutionRepository,
@@ -16,8 +19,6 @@ from app.db.repositories.execution_repository import (
 )
 from app.models.execution import ExecutionCreate, ExecutionInDB, ExecutionUpdate
 from app.services.kubernetes_service import KubernetesService, get_kubernetes_service
-from fastapi import Depends
-from kubernetes.client.rest import ApiException
 
 
 class ExecutionStatus(str, Enum):
@@ -40,7 +41,7 @@ class ExecutionService:
         self.k8s_service = k8s_service
         self.settings = get_settings()
 
-    async def get_k8s_resource_limits(self):
+    async def get_k8s_resource_limits(self) -> Dict[str, Any]:
         return {
             "cpu_limit": self.settings.K8S_POD_CPU_LIMIT,
             "memory_limit": self.settings.K8S_POD_MEMORY_LIMIT,
@@ -68,7 +69,7 @@ class ExecutionService:
                     status=ExecutionStatus.FAILED, errors=error_message
                 ).dict(),
             )
-            raise IntegrationException(status_code=500, detail=error_message)
+            raise IntegrationException(status_code=500, detail=error_message) from e
 
     async def _get_k8s_execution_output(self, execution_id: str) -> tuple[
         Optional[str], Optional[str], Optional[str], Optional[dict]]:
@@ -110,6 +111,10 @@ class ExecutionService:
                 SCRIPT_EXECUTIONS.labels(
                     status="success", python_version=python_version
                 ).inc()
+
+                exec_result: Optional[ExecutionInDB] = await self.execution_repo.get_execution(execution_in_db.id)
+                if not exec_result:
+                    raise ValueError("Execution result is none")
             except Exception as e:
                 SCRIPT_EXECUTIONS.labels(
                     status="error", python_version=python_version
@@ -117,7 +122,7 @@ class ExecutionService:
                 ERROR_COUNTER.labels(error_type=type(e).__name__).inc()
                 raise
 
-            return await self.execution_repo.get_execution(execution_in_db.id)
+            return exec_result
         finally:
             EXECUTION_DURATION.labels(python_version=python_version).observe(
                 time() - start_time
@@ -162,6 +167,8 @@ class ExecutionService:
 
         await self.execution_repo.update_execution(execution_id, update_data)
         updated_execution = await self.execution_repo.get_execution(execution_id)
+        if not updated_execution:
+            raise IntegrationException(status_code=404, detail="Updated execution not found")
         return updated_execution
 
 

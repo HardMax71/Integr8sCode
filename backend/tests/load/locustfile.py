@@ -1,16 +1,16 @@
 import random
-from typing import Optional
+from typing import Optional, List
 
-from locust import HttpUser, task, between
+from locust import HttpUser, between, task
 
 
 class IntegrationTestUser(HttpUser):
     # Wait between 1 and 3 seconds between tasks
     wait_time = between(1, 3)
     token: Optional[str] = None
-    script_ids = []
+    script_ids: List[str] = []
 
-    def on_start(self):
+    def on_start(self) -> None:
         """Login and get token before starting tasks"""
         # Register a unique user
         username = f"loadtest_user_{random.randint(1000, 9999)}"
@@ -29,12 +29,12 @@ class IntegrationTestUser(HttpUser):
         self.headers = {"Authorization": f"Bearer {self.token}"}
 
     @task(1)
-    def health_check(self):
+    def health_check(self) -> None:
         """Test the health check endpoint"""
         self.client.get("/api/v1/health")
 
     @task(3)
-    def execute_script(self):
+    def execute_script(self) -> None:
         """Test script execution"""
         script = random.choice(
             [
@@ -61,12 +61,12 @@ class IntegrationTestUser(HttpUser):
             self.client.get(f"/api/v1/result/{execution_id}", headers=self.headers)
 
     @task(2)
-    def get_k8s_limits(self):
+    def get_k8s_limits(self) -> None:
         """Test K8S resource limits endpoint"""
         self.client.get("/api/v1/k8s-limits", headers=self.headers)
 
     @task(2)
-    def saved_scripts_workflow(self):
+    def saved_scripts_workflow(self) -> None:
         """Test saved scripts endpoints"""
         # Create script
         script_data = {
@@ -97,12 +97,12 @@ class IntegrationTestUser(HttpUser):
             )
 
     @task(1)
-    def list_scripts(self):
+    def list_scripts(self) -> None:
         """Test listing saved scripts"""
         self.client.get("/api/v1/scripts", headers=self.headers)
 
     @task(1)
-    def cleanup_scripts(self):
+    def cleanup_scripts(self) -> None:
         """Clean up created scripts"""
         if self.script_ids:
             script_id = self.script_ids.pop()
@@ -115,9 +115,9 @@ class ReadOnlyUser(HttpUser):
     wait_time = between(1, 2)
 
     @task(4)
-    def health_check(self):
+    def health_check(self) -> None:
         self.client.get("/api/v1/health")
 
     @task(1)
-    def get_k8s_limits(self):
+    def get_k8s_limits(self) -> None:
         self.client.get("/api/v1/k8s-limits")

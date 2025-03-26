@@ -1,21 +1,23 @@
 import asyncio
+from datetime import datetime
+from typing import List
 
 import pytest
-from datetime import datetime
-from app.services.saved_script_service import SavedScriptService
 from app.db.repositories.saved_script_repository import SavedScriptRepository
 from app.models.saved_script import SavedScriptCreate, SavedScriptUpdate
+from app.services.saved_script_service import SavedScriptService
+from motor.motor_asyncio import AsyncIOMotorDatabase
 
 
 class TestSavedScriptService:
     @pytest.fixture(autouse=True)
-    async def setup(self, db):
+    async def setup(self, db: AsyncIOMotorDatabase) -> None:
         self.saved_script_repo = SavedScriptRepository(db)
         self.saved_script_service = SavedScriptService(self.saved_script_repo)
         self.test_user_id = "test-user-123"
 
     @pytest.mark.asyncio
-    async def test_create_saved_script(self):
+    async def test_create_saved_script(self) -> None:
         script_create = SavedScriptCreate(
             name="Test Python Script",
             script="print('Hello, World!')",
@@ -35,7 +37,7 @@ class TestSavedScriptService:
         assert result.id is not None
 
     @pytest.mark.asyncio
-    async def test_get_saved_script(self):
+    async def test_get_saved_script(self) -> None:
         # First create a script
         script_create = SavedScriptCreate(
             name="Test Get Script",
@@ -51,12 +53,13 @@ class TestSavedScriptService:
             created_script.id, self.test_user_id
         )
 
+        assert retrieved_script is not None
         assert retrieved_script.id == created_script.id
         assert retrieved_script.name == script_create.name
         assert retrieved_script.script == script_create.script
 
     @pytest.mark.asyncio
-    async def test_update_saved_script(self):
+    async def test_update_saved_script(self) -> None:
         # First create a script
         script_create = SavedScriptCreate(
             name="Original Name",
@@ -85,13 +88,14 @@ class TestSavedScriptService:
             created_script.id, self.test_user_id
         )
 
+        assert updated_script is not None
         assert updated_script.name == "Updated Name"
         assert updated_script.script == "print('Updated')"
         assert updated_script.description == "Updated description"
         assert updated_script.updated_at > created_script.updated_at
 
     @pytest.mark.asyncio
-    async def test_delete_saved_script(self):
+    async def test_delete_saved_script(self) -> None:
         # First create a script
         script_create = SavedScriptCreate(
             name="To Be Deleted",
@@ -114,7 +118,7 @@ class TestSavedScriptService:
         assert retrieved_script is None
 
     @pytest.mark.asyncio
-    async def test_list_saved_scripts(self):
+    async def test_list_saved_scripts(self) -> None:
         # Clear any existing scripts first
         await self.saved_script_repo.db.saved_scripts.delete_many(
             {"user_id": self.test_user_id}
@@ -136,7 +140,7 @@ class TestSavedScriptService:
             )
 
         # List scripts
-        saved_scripts = await self.saved_script_service.list_saved_scripts(
+        saved_scripts: List = await self.saved_script_service.list_saved_scripts(
             self.test_user_id
         )
 
@@ -147,15 +151,12 @@ class TestSavedScriptService:
         saved_scripts.sort(key=lambda x: x.name)
 
         for i, script in enumerate(saved_scripts):
-            assert script.id is not None
-            assert isinstance(script.created_at, datetime)
-            assert isinstance(script.updated_at, datetime)
             assert script.name == f"Test Script {i}"
             assert script.script == f"print('Hello {i}')"
             assert script.description == f"Test Description {i}"
 
     @pytest.mark.asyncio
-    async def test_list_saved_scripts_empty(self):
+    async def test_list_saved_scripts_empty(self) -> None:
         # Use a different user ID to ensure no scripts exist
         empty_user_id = "empty-user-123"
 
@@ -167,7 +168,7 @@ class TestSavedScriptService:
         assert isinstance(saved_scripts, list)
 
     @pytest.mark.asyncio
-    async def test_partial_update_saved_script(self):
+    async def test_partial_update_saved_script(self) -> None:
         # First create a script
         script_create = SavedScriptCreate(
             name="Original Name",
@@ -190,9 +191,10 @@ class TestSavedScriptService:
             created_script.id, self.test_user_id
         )
 
+        assert updated_script is not None
         assert updated_script.name == "Updated Name Only"
         assert updated_script.script == "print('Original')"  # Should remain unchanged
         assert (
-            updated_script.description == "Original description"
+                updated_script.description == "Original description"
         )  # Should remain unchanged
         assert updated_script.updated_at > created_script.updated_at

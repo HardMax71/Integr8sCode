@@ -1,16 +1,17 @@
 from typing import List, Optional
 
-from app.api.dependencies import get_db_dependency
-from app.models.saved_script import SavedScriptInDB
 from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
+
+from app.api.dependencies import get_db_dependency
+from app.models.saved_script import SavedScriptInDB
 
 
 class SavedScriptRepository:
     def __init__(self, db: AsyncIOMotorDatabase):
         self.db = db
 
-    async def create_saved_script(self, saved_script: SavedScriptInDB):
+    async def create_saved_script(self, saved_script: SavedScriptInDB) -> str:
         saved_script_dict = saved_script.dict(by_alias=True)
         await self.db.saved_scripts.insert_one(saved_script_dict)
         return saved_script.id
@@ -27,12 +28,12 @@ class SavedScriptRepository:
 
     async def update_saved_script(
         self, script_id: str, user_id: str, update_data: dict
-    ):
+    ) -> None:
         await self.db.saved_scripts.update_one(
             {"_id": script_id, "user_id": user_id}, {"$set": update_data}
         )
 
-    async def delete_saved_script(self, script_id: str, user_id: str):
+    async def delete_saved_script(self, script_id: str, user_id: str) -> None:
         await self.db.saved_scripts.delete_one({"_id": script_id, "user_id": user_id})
 
     async def list_saved_scripts(self, user_id: str) -> List[SavedScriptInDB]:

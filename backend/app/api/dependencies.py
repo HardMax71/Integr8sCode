@@ -1,6 +1,7 @@
+from motor.motor_asyncio import AsyncIOMotorDatabase
+
 from app.config import Settings, get_settings
 from app.db.mongodb import get_database
-from motor.motor_asyncio import AsyncIOMotorDatabase
 
 
 def get_settings_dependency() -> Settings:

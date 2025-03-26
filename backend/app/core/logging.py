@@ -1,8 +1,9 @@
 import logging
+
 from pythonjsonlogger import jsonlogger
 
 
-def setup_logger():
+def setup_logger() -> logging.Logger:
     logger = logging.getLogger("integr8scode")
     logger.handlers.clear()
 

@@ -1,10 +1,11 @@
 # tests/load/run_load_tests.py
 import argparse
 import subprocess
+
 from config import SCENARIOS
 
 
-def run_load_test(scenario: str, host: str):
+def run_load_test(scenario: str, host: str) -> None:
     if scenario not in SCENARIOS:
         raise ValueError(f"Unknown scenario: {scenario}")
 

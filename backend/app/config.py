@@ -6,10 +6,10 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Integr8sCode"
     API_V1_STR: str = "/api/v1"
-    SECRET_KEY: str
+    SECRET_KEY: str = "default_secret_key"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    MONGODB_URL: str
+    MONGODB_URL: str = "mongodb://localhost:27017"
     KUBERNETES_CONFIG_PATH: str = "~/.kube/config"
     KUBERNETES_CA_CERTIFICATE_PATH: Optional[str] = None
 

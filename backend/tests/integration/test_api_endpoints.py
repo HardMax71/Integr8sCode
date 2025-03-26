@@ -1,12 +1,14 @@
 # tests/integration/test_api_endpoints.py
 import pytest
 from app.models.user import UserCreate
+from fastapi import FastAPI
 from httpx import AsyncClient
+from motor.motor_asyncio import AsyncIOMotorDatabase
 
 
 class TestAPIEndpoints:
     @pytest.fixture(autouse=True)
-    async def setup(self, app, client: AsyncClient, db):
+    async def setup(self, app: FastAPI, client: AsyncClient, db: AsyncIOMotorDatabase) -> None:
         self.app = app
         self.client = client
         self.db = db
@@ -16,7 +18,7 @@ class TestAPIEndpoints:
             username="testuser", email="test@example.com", password="testpass123"
         )
         # Register the user and get token
-        register_response = await self.client.post(
+        _ = await self.client.post(
             "/api/v1/register", json=test_user.dict()
         )
         login_response = await self.client.post(
@@ -27,13 +29,13 @@ class TestAPIEndpoints:
         self.headers = {"Authorization": f"Bearer {self.token}"}
 
     @pytest.mark.asyncio
-    async def test_health_check(self):
+    async def test_health_check(self) -> None:
         response = await self.client.get("/api/v1/health")
         assert response.status_code == 200
         assert response.json() == {"status": "healthy"}
 
     @pytest.mark.asyncio
-    async def test_execute_script_workflow(self):
+    async def test_execute_script_workflow(self) -> None:
         # Test script execution
         execution_request = {
             "script": "print('Hello, Integration Test!')",
@@ -58,7 +60,7 @@ class TestAPIEndpoints:
         assert "python_version" in result_data
 
     @pytest.mark.asyncio
-    async def test_k8s_resource_limits(self):
+    async def test_k8s_resource_limits(self) -> None:
         response = await self.client.get("/api/v1/k8s-limits", headers=self.headers)
         assert response.status_code == 200
         limits = response.json()
@@ -75,7 +77,7 @@ class TestAPIEndpoints:
         )
 
     @pytest.mark.asyncio
-    async def test_saved_scripts_crud(self):
+    async def test_saved_scripts_crud(self) -> None:
         # Create script
         script_data = {
             "name": "Test Script",
@@ -128,7 +130,7 @@ class TestAPIEndpoints:
         assert get_deleted.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_error_handling(self):
+    async def test_error_handling(self) -> None:
         # Test invalid script execution
         invalid_request = {"script": "invalid python code!!!", "python_version": "3.11"}
         response = await self.client.post(

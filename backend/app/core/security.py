@@ -19,10 +19,10 @@ class SecurityService:
         self.settings = get_settings()
 
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
-        return self.pwd_context.verify(plain_password, hashed_password)
+        return self.pwd_context.verify(plain_password, hashed_password)  # type: ignore
 
     def get_password_hash(self, password: str) -> str:
-        return self.pwd_context.hash(password)
+        return self.pwd_context.hash(password)  # type: ignore
 
     def create_access_token(
         self, data: dict, expires_delta: Optional[timedelta] = None

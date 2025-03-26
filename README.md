@@ -4,11 +4,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/yourusername/integr8scode/actions/workflows/python-checks.yml?query=workflow%3A%22Mypy+Type+Checking%22">
-    <img src="https://img.shields.io/github/actions/workflow/status/yourusername/integr8scode/python-checks.yml?branch=main&label=mypy&logo=python&logoColor=white" alt="Mypy Status" />
+  <a href="https://github.com/HardMax71/integr8scode/actions/workflows/backend-checks.yml?query=workflow%3A%22Mypy+Type+Checking%22">
+    <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/integr8scode/backend-checks.yml?branch=main&label=mypy&logo=python&logoColor=white" alt="Mypy Status" />
   </a>
-  <a href="https://github.com/yourusername/integr8scode/actions/workflows/python-checks.yml?query=workflow%3A%22Ruff+Linting%22">
-    <img src="https://img.shields.io/github/actions/workflow/status/yourusername/integr8scode/python-checks.yml?branch=main&label=ruff&logo=python&logoColor=white" alt="Ruff Status" />
+  <a href="https://github.com/HardMax71/integr8scode/actions/workflows/backend-checks.yml?query=workflow%3A%22Ruff+Linting%22">
+    <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/integr8scode/backend-checks.yml?branch=main&label=ruff&logo=python&logoColor=white" alt="Ruff Status" />
   </a>
 </p>
 

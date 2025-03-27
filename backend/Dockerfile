@@ -15,8 +15,8 @@ RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/s
     && chmod +x kubectl && mv kubectl /usr/local/bin/
 
 # Install Python dependencies.
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Also update setuptools to fix security vulnerabilities
+RUN pip install --no-cache-dir --upgrade setuptools>=70.0.0
 
 # Copy application files and configuration.
 COPY ./app /app/app

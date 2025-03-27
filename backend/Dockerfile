@@ -16,7 +16,9 @@ RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/s
 
 # Install Python dependencies.
 # Also update setuptools to fix security vulnerabilities
-RUN pip install --no-cache-dir --upgrade setuptools>=70.0.0
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip setuptools>=70.0.0 wheel && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy application files and configuration.
 COPY ./app /app/app

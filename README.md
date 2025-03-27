@@ -4,17 +4,17 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/HardMax71/integr8scode/actions/workflows/backend-checks.yml?query=workflow%3A%22Mypy+Type+Checking%22">
-    <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/integr8scode/backend-checks.yml?branch=main&label=mypy&logo=python&logoColor=white" alt="Mypy Status" />
+  <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/backend-checks.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/backend-checks.yml?branch=main&label=mypy&logo=python&logoColor=white" alt="Mypy Status" />
   </a>
-  <a href="https://github.com/HardMax71/integr8scode/actions/workflows/backend-checks.yml?query=workflow%3A%22Ruff+Linting%22">
-    <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/integr8scode/backend-checks.yml?branch=main&label=ruff&logo=python&logoColor=white" alt="Ruff Status" />
+  <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/backend-checks.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/backend-checks.yml?branch=main&label=ruff&logo=python&logoColor=white" alt="Ruff Status" />
   </a>
-  <a href="https://github.com/HardMax71/integr8scode/actions/workflows/backend-checks.yml?query=workflow%3A%22Security+Scanning%22">
-    <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/integr8scode/backend-checks.yml?branch=main&label=security&logo=shieldsdotio&logoColor=white" alt="Security Scan Status" />
+  <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/backend-checks.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/backend-checks.yml?branch=main&label=security&logo=shieldsdotio&logoColor=white" alt="Security Scan Status" />
   </a>
-  <a href="https://github.com/HardMax71/integr8scode/actions/workflows/backend-checks.yml?query=workflow%3A%22Docker+Build+%26+Scan%22">
-    <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/integr8scode/backend-checks.yml?branch=main&label=docker&logo=docker&logoColor=white" alt="Docker Scan Status" />
+  <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/backend-checks.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/backend-checks.yml?branch=main&label=docker&logo=docker&logoColor=white" alt="Docker Scan Status" />
   </a>
 </p>
 

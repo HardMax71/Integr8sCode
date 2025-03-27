@@ -1,6 +1,6 @@
 import textwrap
 from typing import Any, Dict
-import resource
+
 
 class PodManifestBuilder:
     def __init__(

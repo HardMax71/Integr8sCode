@@ -1,18 +1,26 @@
-<div class="spinner"></div>
+<div role="status" aria-label="Loading">
+  <div class="spinner"></div>
+</div>
 
 <style>
   .spinner {
-    width: 40px;
-    height: 40px;
-    border: 4px solid #dbdbdb;
-    border-top: 4px solid #3273dc;
+    width: 2rem; /* 32px */
+    height: 2rem; /* 32px */
+    border: 3px solid theme('colors.neutral.200');
+    border-top-color: theme('colors.primary.DEFAULT');
     border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin: 20px auto;
+    animation: spin 0.8s linear infinite;
+    margin: 1rem auto; /* Center it */
+  }
+
+  .dark .spinner {
+     border-color: theme('colors.neutral.700');
+     border-top-color: theme('colors.primary.light');
   }
 
   @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    to {
+      transform: rotate(360deg);
+    }
   }
 </style>

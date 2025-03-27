@@ -7,16 +7,19 @@
     import Header from "./components/Header.svelte";
     import Footer from "./components/Footer.svelte";
     import Notifications from "./components/Notifications.svelte";
+    import { theme } from './stores/theme.js';
+
+    $: themeValue = $theme;
 
     export let url = "";
 </script>
 
 <Router {url}>
-    <div class="app">
+    <div class="flex flex-col min-h-screen bg-bg-default dark:bg-dark-bg-default">
         <Header/>
-        <div class="content-wrapper">
+        <div class="flex-grow flex flex-col">
             <Notifications/>
-            <main>
+            <main class="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <Route path="/" component={Home}/>
                 <Route path="/editor" component={Editor}/>
                 <Route path="/login" component={Login}/>
@@ -28,38 +31,15 @@
 </Router>
 
 <style>
-    :global(body) {
-        font-family: 'Roboto', sans-serif;
-        background-color: #f5f5f5;
-        color: #333;
-        margin: 0;
-        padding: 0;
-    }
-
-    .app {
-        display: flex;
-        flex-direction: column;
-        min-height: 100vh;
-    }
-
-    .content-wrapper {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-    }
-
     main {
-        flex: 1;
-        padding: 2rem;
-        /*max-width: 1200px;*/
-        margin: 0 auto;
-        width: 100%;
-        box-sizing: border-box;
+        padding-top: 6rem;
+        padding-bottom: 2rem;
     }
-
-    @media (max-width: 768px) {
+     @media (max-width: 768px) {
         main {
-            padding: 1rem;
+            padding-top: 5rem;
+            padding-left: 1rem;
+            padding-right: 1rem;
         }
     }
 </style>

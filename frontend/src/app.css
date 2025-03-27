@@ -1,3 +1,144 @@
-@import 'tailwindcss/base';
-@import 'tailwindcss/components';
-@import 'tailwindcss/utilities';
+/* Import Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply font-sans antialiased text-fg-default bg-bg-default dark:text-dark-fg-default dark:bg-dark-bg-default transition-colors duration-200;
+    scroll-behavior: smooth;
+  }
+
+  /* Apply base form styles using the forms plugin classes */
+  [type='text'],
+  [type='email'],
+  [type='password'],
+  [type='number'],
+  [type='search'],
+  textarea,
+  select {
+    @apply form-input border-border-input dark:border-dark-border-input bg-bg-alt dark:bg-dark-bg-alt dark:text-dark-fg-default focus:border-primary dark:focus:border-primary focus:ring focus:ring-focus-ring dark:focus:ring-dark-focus-ring focus:ring-opacity-50 rounded-md shadow-sm text-sm;
+  }
+   [type='text']:disabled,
+   [type='email']:disabled,
+   [type='password']:disabled,
+   [type='number']:disabled,
+   [type='search']:disabled,
+   textarea:disabled,
+   select:disabled {
+     @apply bg-neutral-100 dark:bg-neutral-700 opacity-70 cursor-not-allowed;
+   }
+   select {
+     @apply form-select pr-10; /* Ensure space for dropdown arrow */
+   }
+   [type='checkbox'], [type='radio'] {
+     @apply form-checkbox rounded text-primary focus:ring-primary focus:ring-offset-0 focus:ring-2;
+   }
+
+   /* Default link styles */
+   a {
+     @apply text-primary hover:text-primary-dark dark:hover:text-primary-light transition-colors duration-150;
+   }
+
+   /* Custom Scrollbars */
+   ::-webkit-scrollbar {
+     width: 8px;
+     height: 8px;
+   }
+   ::-webkit-scrollbar-track {
+     @apply bg-neutral-200 dark:bg-neutral-700 rounded;
+   }
+   ::-webkit-scrollbar-thumb {
+     @apply bg-neutral-400 dark:bg-neutral-500 rounded;
+   }
+   ::-webkit-scrollbar-thumb:hover {
+     @apply bg-neutral-500 dark:bg-neutral-400;
+   }
+
+   /* CodeMirror Base Overrides */
+    .cm-editor {
+      @apply !font-mono text-sm border border-border-default dark:border-dark-border-default rounded-lg;
+      height: 100% !important; /* Force height */
+    }
+    .cm-scroller {
+      @apply !font-mono;
+    }
+    /* oneDark Theme specific overrides for better integration */
+    .cm-theme-onedark .cm-gutters {
+      @apply bg-bg-alt dark:bg-dark-bg-alt border-r border-border-default dark:border-dark-border-default text-fg-muted dark:text-dark-fg-muted;
+    }
+    .cm-theme-onedark .cm-activeLineGutter {
+       @apply bg-neutral-200 dark:bg-neutral-700;
+    }
+    .cm-theme-onedark {
+       @apply bg-bg-alt dark:bg-code-bg; /* Use code-bg for dark theme editor */
+    }
+    .cm-theme-onedark .cm-content {
+       @apply text-fg-default dark:text-dark-fg-default; /* Adjust base text color */
+    }
+    .cm-theme-onedark .cm-cursor {
+       @apply border-primary dark:border-primary-light; /* Make cursor more visible */
+    }
+    /* Selection background */
+     .cm-theme-onedark .cm-selectionBackground,
+     .cm-theme-onedark.cm-focused .cm-selectionBackground {
+        @apply bg-primary/20 dark:bg-primary/30;
+     }
+}
+
+@layer components {
+  /* Reusable Button Styles */
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-dark-bg-default transition-all duration-150 ease-in-out disabled:opacity-60 disabled:cursor-not-allowed;
+  }
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs rounded; /* Smaller padding/text/radius */
+  }
+  .btn-xs {
+    @apply px-2.5 py-1 text-xs rounded;
+  }
+  .btn-icon {
+    @apply !p-2; /* Specific padding for icon-only buttons */
+  }
+  .btn-primary {
+    @apply text-white bg-primary hover:bg-primary-dark focus:ring-primary;
+  }
+  .btn-secondary {
+     @apply text-white bg-secondary hover:bg-secondary-dark focus:ring-secondary;
+  }
+  .btn-secondary-outline {
+     @apply text-neutral-700 bg-white border border-neutral-300 hover:bg-neutral-50 focus:ring-primary dark:text-dark-fg-default dark:bg-dark-bg-alt dark:border-dark-border-input dark:hover:bg-neutral-700;
+  }
+  .btn-ghost {
+     @apply text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700 focus:ring-primary border-transparent bg-transparent shadow-none;
+  }
+  .btn-danger {
+     @apply text-white bg-red-600 hover:bg-red-700 focus:ring-red-500;
+  }
+  .btn-danger-outline {
+      @apply text-red-600 border border-red-300 hover:bg-red-50 focus:ring-red-500 dark:text-red-400 dark:border-red-500 dark:hover:bg-red-900/30;
+  }
+
+  /* Container Style */
+  .app-container {
+    @apply w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  /* Card Style */
+  .card {
+    @apply bg-bg-alt dark:bg-dark-bg-alt rounded-lg shadow-md overflow-hidden border border-border-default dark:border-dark-border-default;
+  }
+
+  /* Input Group Style (Example) */
+  .input-group {
+     @apply flex items-center;
+  }
+  .input-group > :not(:last-child) {
+     @apply rounded-r-none border-r-0;
+  }
+  .input-group > :not(:first-child) {
+     @apply rounded-l-none;
+  }
+}

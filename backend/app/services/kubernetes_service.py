@@ -7,14 +7,13 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Set
 
-from fastapi import Depends, Request
-from kubernetes import client, config
-from kubernetes.client.rest import ApiException
-
 from app.config import get_settings
 from app.core.logging import logger
 from app.services.circuit_breaker import CircuitBreaker
 from app.services.pod_manifest_builder import PodManifestBuilder
+from fastapi import Depends, Request
+from kubernetes import client, config
+from kubernetes.client.rest import ApiException
 
 
 class KubernetesServiceError(Exception):

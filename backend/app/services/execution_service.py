@@ -2,9 +2,6 @@ from enum import Enum
 from time import time
 from typing import Any, Dict, Optional
 
-from fastapi import Depends
-from kubernetes.client.rest import ApiException
-
 from app.config import get_settings
 from app.core.exceptions import IntegrationException
 from app.core.metrics import (
@@ -17,8 +14,10 @@ from app.db.repositories.execution_repository import (
     ExecutionRepository,
     get_execution_repository,
 )
-from app.models.execution import ExecutionCreate, ExecutionInDB, ExecutionUpdate
+from app.schemas.execution import ExecutionCreate, ExecutionInDB, ExecutionUpdate
 from app.services.kubernetes_service import KubernetesService, get_kubernetes_service
+from fastapi import Depends
+from kubernetes.client.rest import ApiException
 
 
 class ExecutionStatus(str, Enum):

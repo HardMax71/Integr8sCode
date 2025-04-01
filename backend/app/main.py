@@ -1,22 +1,20 @@
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
+from app.api.routes import auth, execution, health, saved_scripts
+from app.config import Settings, get_settings
+from app.core.exceptions import configure_exception_handlers
+from app.core.logging import logger
+from app.core.middleware import RequestSizeLimitMiddleware
+from app.db.mongodb import DatabaseManager
+from app.services.kubernetes_service import KubernetesServiceManager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
 from prometheus_fastapi_instrumentator import Instrumentator
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
-
-from app.api.routes import auth, execution, health, saved_scripts
-from app.config import get_settings
-from app.core.exceptions import configure_exception_handlers
-from app.core.logging import logger
-from app.core.middleware import RequestSizeLimitMiddleware
-from app.db.mongodb import close_mongo_connection, init_mongodb
-from app.services.kubernetes_service import KubernetesServiceManager
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
 
@@ -24,7 +22,7 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Startup
-    settings = get_settings()
+    settings: Settings = get_settings()
     logger.info(
         "Starting application",
         extra={
@@ -33,32 +31,38 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         },
     )
 
+    db_manager = DatabaseManager(settings)
     try:
-        # Initialize MongoDB with retries
-        app.state.mongodb_client = await init_mongodb()
-        if app.state.mongodb_client is not None:
-            app.state.db = app.state.mongodb_client[settings.PROJECT_NAME]
-        logger.info("MongoDB initialization completed")
+        await db_manager.connect_to_database()
+        app.state.db_manager = db_manager
+        logger.info("DatabaseManager initialized and connected.")
 
-        # Initialize K8s manager
-        app.state.k8s_manager = KubernetesServiceManager()
+        k8s_manager = KubernetesServiceManager()
+        app.state.k8s_manager = k8s_manager
         logger.info("Kubernetes service manager initialized")
+
+    except ConnectionError as e:
+        logger.critical(f"Failed to initialize DatabaseManager: {e}", extra={"error": str(e)})
+        raise RuntimeError("Application startup failed: Could not connect to database.") from e
     except Exception as e:
-        logger.critical("Failed to initialize MongoDB", extra={"error": str(e)})
+        logger.critical(f"Failed during application startup: {e}", extra={"error": str(e)})
+        if hasattr(app.state, 'db_manager') and app.state.db_manager:
+            logger.info("Attempting to close database connection after startup failure...")
+            await app.state.db_manager.close_database_connection()
         raise
 
     yield
 
     # Shutdown
     try:
-        # Shutdown all K8s services first
-        if hasattr(app.state, "k8s_manager"):
+        if hasattr(app.state, "k8s_manager") and app.state.k8s_manager:
             await app.state.k8s_manager.shutdown_all()
             logger.info("All Kubernetes services shut down")
 
-        # Then close MongoDB connection
-        if hasattr(app.state, "mongodb_client") and app.state.mongodb_client is not None:
-            await close_mongo_connection(app.state.mongodb_client)
+        if hasattr(app.state, "db_manager") and app.state.db_manager:
+            logger.info("Closing database connection via DatabaseManager...")
+            await app.state.db_manager.close_database_connection()
+
     except Exception as e:
         logger.error("Error during application shutdown", extra={"error": str(e)})
 
@@ -66,11 +70,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
-
-    if settings.TESTING:
-        logger.info("Running in test mode")
-        app.state.mongodb_client = AsyncIOMotorClient(settings.MONGODB_URL)
-        app.state.db = app.state.mongodb_client[settings.PROJECT_NAME + "_test"]
 
     app.add_middleware(RequestSizeLimitMiddleware)
 
@@ -113,6 +112,7 @@ def create_app() -> FastAPI:
 
     # Initialize Prometheus metrics
     Instrumentator().instrument(app).expose(app)
+    logger.info("Prometheus instrumentator configured")
 
     return app
 

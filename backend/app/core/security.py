@@ -1,14 +1,13 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import jwt
+from app.config import get_settings
+from app.db.repositories.user_repository import UserRepository, get_user_repository
+from app.schemas.user import UserInDB
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
-
-from app.config import get_settings
-from app.db.repositories.user_repository import UserRepository, get_user_repository
-from app.models.user import UserInDB
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/login")
 
@@ -25,13 +24,13 @@ class SecurityService:
         return self.pwd_context.hash(password)  # type: ignore
 
     def create_access_token(
-        self, data: dict, expires_delta: Optional[timedelta] = None
+            self, data: dict, expires_delta: Optional[timedelta] = None
     ) -> str:
         to_encode = data.copy()
         if expires_delta:
-            expire = datetime.utcnow() + expires_delta
+            expire = datetime.now(timezone.utc) + expires_delta
         else:
-            expire = datetime.utcnow() + timedelta(minutes=15)
+            expire = datetime.now(timezone.utc) + timedelta(minutes=15)
         to_encode.update({"exp": expire})
         encoded_jwt = jwt.encode(
             to_encode, self.settings.SECRET_KEY, algorithm=self.settings.ALGORITHM
@@ -39,9 +38,9 @@ class SecurityService:
         return encoded_jwt
 
     async def get_current_user(
-        self,
-        token: str = Depends(oauth2_scheme),
-        user_repo: UserRepository = Depends(get_user_repository),
+            self,
+            token: str = Depends(oauth2_scheme),
+            user_repo: UserRepository = Depends(get_user_repository),
     ) -> UserInDB:
         credentials_exception = HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

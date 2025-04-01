@@ -37,10 +37,10 @@
                         Tools & Info
                     </h3>
                     <ul class="space-y-3 text-sm">
-                        <li><a href="http://localhost:9090" target="_blank" rel="noopener noreferrer"
+                        <li><a href="http://localhost:9090/targets?search=" target="_blank" rel="noopener noreferrer"
                                class="text-fg-default dark:text-dark-fg-default hover:text-primary dark:hover:text-primary-light transition-colors duration-150">Prometheus</a>
                         </li>
-                        <li><a href="http://localhost:3000" target="_blank" rel="noopener noreferrer"
+                        <li><a href="http://localhost:3000/d/integr8scode/integr8scode-dashboard?orgId=1&from=now-15m&to=now&timezone=browser&refresh=5s" target="_blank" rel="noopener noreferrer"
                                class="text-fg-default dark:text-dark-fg-default hover:text-primary dark:hover:text-primary-light transition-colors duration-150">Grafana</a>
                         </li>
                     </ul>

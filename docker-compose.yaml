@@ -86,6 +86,7 @@ services:
         condition: service_healthy
     volumes:
       - ./frontend:/app
+      - /app/node_modules
       - ./frontend/certs:/app/certs
     ports:
       - "5001:5001"

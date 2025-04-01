@@ -21,9 +21,6 @@
 <a href="https://sonarcloud.io/dashboard?id=HardMax71_Integr8sCode">
     <img src="https://sonarcloud.io/api/project_badges/measure?project=HardMax71_Integr8sCode&metric=alert_status" alt="Quality Gate Status">
   </a>
-  <a href="https://sonarcloud.io/dashboard?id=HardMax71_Integr8sCode">
-    <img src="https://sonarcloud.io/api/project_badges/measure?project=HardMax71_Integr8sCode&metric=coverage" alt="Coverage">
-  </a>
    <a href="https://sonarcloud.io/dashboard?id=HardMax71_Integr8sCode">
     <img src="https://sonarcloud.io/api/project_badges/measure?project=HardMax71_Integr8sCode&metric=vulnerabilities" alt="Vulnerabilities">
   </a>

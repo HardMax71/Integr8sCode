@@ -8,6 +8,7 @@ import replace from '@rollup/plugin-replace';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import https from 'https';
+import path from 'path';
 
 dotenv.config();
 const production = !process.env.ROLLUP_WATCH;
@@ -90,7 +91,8 @@ export default {
                                 'cache-control': 'no-cache',
                                 pragma: 'no-cache'
                             },
-                            rejectUnauthorized: false
+                            rejectUnauthorized: true,
+                            ca: fs.readFileSync(path.resolve('./certs/rootCA.pem'), 'utf8')
                         };
 
                         try {

@@ -18,7 +18,7 @@ fi
 # Generate certificates if they don't exist
 if [ ! -f /certs/server.crt ]; then
     echo "Generating certificates using shared root CA"
-    mkcert -cert-file /certs/server.crt -key-file /certs/server.key localhost kubernetes.docker.internal 127.0.0.1 ::1
+    mkcert -cert-file /certs/server.crt -key-file /certs/server.key localhost kubernetes.docker.internal backend 127.0.0.1 ::1
     cp "$CAROOT/rootCA.pem" /certs/rootCA.pem
     chmod 644 /certs/server.crt /certs/server.key /certs/rootCA.pem
     echo "Certificates generated using shared root CA"

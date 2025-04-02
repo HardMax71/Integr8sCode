@@ -1,10 +1,9 @@
 from typing import Optional
 
+from app.api.dependencies import get_db_dependency
+from app.schemas.user import UserInDB
 from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
-
-from app.db.mongodb import get_database
-from app.models.user import UserInDB
 
 
 class UserRepository:
@@ -24,6 +23,6 @@ class UserRepository:
 
 
 def get_user_repository(
-    db: AsyncIOMotorDatabase = Depends(get_database),
+        db: AsyncIOMotorDatabase = Depends(get_db_dependency),
 ) -> UserRepository:
     return UserRepository(db)

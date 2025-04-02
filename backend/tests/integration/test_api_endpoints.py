@@ -1,6 +1,6 @@
 # tests/integration/test_api_endpoints.py
 import pytest
-from app.models.user import UserCreate
+from app.schemas.user import UserCreate
 from fastapi import FastAPI
 from httpx import AsyncClient
 from motor.motor_asyncio import AsyncIOMotorDatabase

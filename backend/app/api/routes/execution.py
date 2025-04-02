@@ -1,7 +1,3 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
-from slowapi import Limiter
-from slowapi.util import get_remote_address
-
 from app.core.exceptions import IntegrationException
 from app.core.logging import logger
 from app.core.metrics import ACTIVE_EXECUTIONS, EXECUTION_DURATION, SCRIPT_EXECUTIONS
@@ -13,6 +9,9 @@ from app.schemas.execution import (
     ResourceUsage,
 )
 from app.services.execution_service import ExecutionService, get_execution_service
+from fastapi import APIRouter, Depends, HTTPException, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)

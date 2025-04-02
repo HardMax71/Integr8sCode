@@ -17,6 +17,17 @@
     <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/backend-checks.yml?branch=main&label=docker&logo=docker&logoColor=white" alt="Docker Scan Status" />
   </a>
 </p>
+<p align="center">
+<a href="https://sonarcloud.io/dashboard?id=HardMax71_Integr8sCode">
+    <img src="https://sonarcloud.io/api/project_badges/measure?project=HardMax71_Integr8sCode&metric=alert_status" alt="Quality Gate Status">
+  </a>
+   <a href="https://sonarcloud.io/dashboard?id=HardMax71_Integr8sCode">
+    <img src="https://sonarcloud.io/api/project_badges/measure?project=HardMax71_Integr8sCode&metric=vulnerabilities" alt="Vulnerabilities">
+  </a>
+   <a href="https://sonarcloud.io/dashboard?id=HardMax71_Integr8sCode">
+    <img src="https://sonarcloud.io/api/project_badges/measure?project=HardMax71_Integr8sCode&metric=bugs" alt="Bugs">
+  </a>
+</p>
 
 ---
 

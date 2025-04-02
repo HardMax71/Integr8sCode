@@ -4,7 +4,7 @@ from typing import List
 
 import pytest
 from app.db.repositories.saved_script_repository import SavedScriptRepository
-from app.models.saved_script import SavedScriptCreate, SavedScriptUpdate
+from app.schemas.saved_script import SavedScriptCreate, SavedScriptUpdate
 from app.services.saved_script_service import SavedScriptService
 from motor.motor_asyncio import AsyncIOMotorDatabase
 

@@ -1,18 +1,16 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from slowapi import Limiter
-from slowapi.util import get_remote_address
-
 from app.core.logging import logger
 from app.core.security import security_service
-from app.models.saved_script import SavedScriptUpdate
-from app.models.user import UserInDB
-from app.schemas.saved_script import SavedScriptCreateRequest, SavedScriptResponse
+from app.schemas.saved_script import SavedScriptCreateRequest, SavedScriptResponse, SavedScriptUpdate
+from app.schemas.user import UserInDB
 from app.services.saved_script_service import (
     SavedScriptService,
     get_saved_script_service,
 )
+from fastapi import APIRouter, Depends, HTTPException, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)

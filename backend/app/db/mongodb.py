@@ -1,71 +1,81 @@
+# app/db/mongodb.py
 import asyncio
 from typing import Optional
 
+from app.config import Settings
+from app.core.logging import logger
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 
-from app.config import get_settings
-from app.core.logging import logger
 
+class DatabaseManager:
+    """Manages the MongoDB client and database connection."""
+    client: Optional[AsyncIOMotorClient] = None
+    db: Optional[AsyncIOMotorDatabase] = None
 
-async def init_mongodb(retries: int = 3, retry_delay: int = 5) -> Optional[AsyncIOMotorClient]:
-    settings = get_settings()
+    def __init__(self, settings: Settings):
+        self.settings = settings
+        self.db_name = settings.PROJECT_NAME + "_test" if settings.TESTING else settings.PROJECT_NAME
 
-    for attempt in range(retries):
-        try:
-            client: AsyncIOMotorClient = AsyncIOMotorClient(
-                settings.MONGODB_URL,
-                serverSelectionTimeoutMS=5000,
-                connectTimeoutMS=5000,
-                maxPoolSize=50,
-                retryWrites=True,
-                waitQueueTimeoutMS=2500,
-            )
-            # Test the connection
-            await client.admin.command("ping")
-            logger.info(
-                "Successfully connected to MongoDB", extra={"attempt": attempt + 1}
-            )
-            return client
-        except Exception as e:
-            if attempt == retries - 1:
-                logger.critical(
-                    "Failed to connect to MongoDB",
-                    extra={
-                        "attempt": attempt + 1,
-                        "max_retries": retries,
-                        "error": str(e),
-                    },
+    async def connect_to_database(self, retries: int = 5, retry_delay: int = 3) -> None:
+        logger.info("Initializing MongoDB connection...")
+        temp_client: Optional[AsyncIOMotorClient] = None
+        for attempt in range(retries):
+            try:
+                logger.info(f"Attempting MongoDB connection (Attempt {attempt + 1}/{retries})...")
+                temp_client = AsyncIOMotorClient(
+                    self.settings.MONGODB_URL,
+                    serverSelectionTimeoutMS=5000,
+                    connectTimeoutMS=5000,
+                    maxPoolSize=50,
+                    retryWrites=True,
+                    waitQueueTimeoutMS=2500,
+                    uuidRepresentation='standard'
                 )
-                raise
-            logger.warning(
-                "MongoDB connection attempt failed, retrying...",
-                extra={
-                    "attempt": attempt + 1,
-                    "retry_delay": retry_delay,
-                    "error": str(e),
-                },
-            )
-            await asyncio.sleep(retry_delay)
+                # Test the connection
+                await temp_client.admin.command("ping")
+                self.client = temp_client
+                self.db = self.client[self.db_name]
+                logger.info(
+                    f"Successfully connected to MongoDB and got DB handle '{self.db_name}'",
+                    extra={"attempt": attempt + 1}
+                )
+                return # Success
+            except Exception as e:
+                if temp_client:
+                     temp_client.close()
 
-    return None
+                if attempt == retries - 1:
+                    logger.critical(
+                        "Failed to connect to MongoDB after all retries.",
+                        extra={"attempt": attempt + 1, "max_retries": retries, "error": str(e)},
+                    )
+                    raise ConnectionError(f"Could not connect to MongoDB: {e}") from e
 
+                logger.warning(
+                    "MongoDB connection attempt failed, retrying...",
+                    extra={"attempt": attempt + 1, "retry_delay": retry_delay, "error": str(e)},
+                )
+                await asyncio.sleep(retry_delay)
+        # Should not be reached if retries > 0
+        raise ConnectionError("MongoDB initialization failed unexpectedly.")
 
-def get_database() -> AsyncIOMotorDatabase:
-    settings = get_settings()
-    client: AsyncIOMotorClient = AsyncIOMotorClient(
-        settings.MONGODB_URL,
-        serverSelectionTimeoutMS=5000,
-        connectTimeoutMS=5000,
-        maxPoolSize=50,
-        retryWrites=True,
-        waitQueueTimeoutMS=2500,
-    )
-    return client[settings.PROJECT_NAME]
+    async def close_database_connection(self) -> None:
+        """Closes the MongoDB connection."""
+        logger.info("Closing MongoDB connection...")
+        if self.client:
+            try:
+                self.client.close()
+                logger.info("MongoDB connection closed successfully.")
+                self.client = None
+                self.db = None
+            except Exception as e:
+                logger.error("Error closing MongoDB connection", extra={"error": str(e)})
+        else:
+            logger.info("MongoDB connection already closed or never initialized.")
 
-
-async def close_mongo_connection(client: AsyncIOMotorClient) -> None:
-    try:
-        client.close()
-        logger.info("MongoDB connection closed successfully")
-    except Exception as e:
-        logger.error("Error closing MongoDB connection", extra={"error": str(e)})
+    def get_database(self) -> AsyncIOMotorDatabase:
+        """Returns the database handle. Raises Exception if not connected."""
+        if self.db is None:
+             logger.error("Attempted to get database handle before connection was established.")
+             raise RuntimeError("Database is not connected.")
+        return self.db

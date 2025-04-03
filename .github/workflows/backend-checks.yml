@@ -105,14 +105,126 @@ jobs:
       - name: Setup Docker
         uses: docker/setup-buildx-action@v2
 
-      # Modify docker-compose.yml to not use Kubernetes in GitHub Actions environment
-      - name: Modify Docker Compose for CI
+      - name: Check repository structure
         run: |
-          # Create a modified version of docker-compose.yml for the CI environment
-          cp docker-compose.yml docker-compose.ci.yml
-          # Remove Kubernetes volume mounts from cert-generator services
-          sed -i 's/- ~\/.kube:\/root\/.kube//g' docker-compose.ci.yml
-          # Add --validate=false to cert-generator commands if needed
+          echo "Listing repository contents:"
+          ls -la
+          echo "Looking for docker-compose files:"
+          find . -name "docker-compose*.yml"
+
+      - name: Create CI docker-compose file
+        run: |
+          # Create a simplified docker-compose file for CI
+          cat > docker-compose.ci.yml << 'EOF'
+          services:
+            shared-ca:
+              image: alpine:latest
+              volumes:
+                - shared_ca:/shared_ca
+              command: sh -c "mkdir -p /shared_ca && chmod 777 /shared_ca && echo 'Shared CA directory ready' && sleep 2"
+              networks:
+                - app-network
+
+            cert-generator-backend:
+              build:
+                context: ./cert-generator
+                dockerfile: Dockerfile
+              volumes:
+                - ./backend/certs:/certs
+                - ./backend:/backend
+                # Removed K8s volume mounts
+                - shared_ca:/shared_ca
+              command: sh -c "mkcert -install && mkcert -cert-file /certs/server.crt -key-file /certs/server.key localhost kubernetes.docker.internal backend 127.0.0.1 ::1 && echo 'Certificates generated using shared root CA' && sleep 2"
+              restart: "no"
+              networks:
+                - app-network
+              depends_on:
+                shared-ca:
+                  condition: service_completed_successfully
+
+            cert-generator-frontend:
+              build:
+                context: ./cert-generator
+                dockerfile: Dockerfile
+              volumes:
+                - ./frontend/certs:/certs
+                # Removed K8s volume mounts
+                - shared_ca:/shared_ca
+              command: sh -c "mkcert -install && mkcert -cert-file /certs/server.crt -key-file /certs/server.key localhost kubernetes.docker.internal frontend 127.0.0.1 ::1 && echo 'Certificates generated using shared root CA' && sleep 2"
+              restart: "no"
+              networks:
+                - app-network
+              depends_on:
+                shared-ca:
+                  condition: service_completed_successfully
+
+            mongo:
+              image: mongo:4.4
+              ports:
+                - "27017:27017"
+              volumes:
+                - mongo_data:/data/db
+              networks:
+                - app-network
+              container_name: mongo
+
+            backend:
+              build:
+                context: ./backend
+                dockerfile: Dockerfile
+              depends_on:
+                cert-generator-backend:
+                  condition: service_completed_successfully
+                mongo:
+                  condition: service_started
+              volumes:
+                - ./backend:/app
+                - ./backend/certs:/app/certs
+              ports:
+                - "443:443"
+              networks:
+                - app-network
+              container_name: backend
+              environment:
+                - MONGODB_URL=mongodb://mongo:27017/integr8scode
+                - SERVER_HOST=0.0.0.0
+                - SKIP_K8S_VALIDATION=true
+              healthcheck:
+                test: [ "CMD", "curl", "-k", "https://localhost/api/v1/health" ]
+                interval: 10s
+                timeout: 5s
+                retries: 5
+
+            frontend:
+              container_name: frontend
+              build:
+                context: ./frontend
+                dockerfile: Dockerfile
+              depends_on:
+                cert-generator-frontend:
+                  condition: service_completed_successfully
+                backend:
+                  condition: service_healthy
+              volumes:
+                - ./frontend:/app
+                - /app/node_modules
+                - ./frontend/certs:/app/certs
+              ports:
+                - "5001:5001"
+              networks:
+                - app-network
+              environment:
+                - VITE_BACKEND_URL=https://backend:443
+
+          volumes:
+            mongo_data:
+            shared_ca:
+
+          networks:
+            app-network:
+              driver: bridge
+          EOF
+          echo "Created docker-compose.ci.yml"
           cat docker-compose.ci.yml
 
       - name: Setup Kubernetes (k3s)
@@ -130,10 +242,12 @@ jobs:
 
       - name: Start services with Docker Compose
         run: |
-          # Use the modified docker-compose file for CI
           docker compose -f docker-compose.ci.yml up -d
           echo "Waiting for services to start..."
           sleep 30
+
+      - name: Check running containers
+        run: docker ps -a
 
       - name: Wait for backend to be healthy
         run: |
@@ -202,7 +316,6 @@ jobs:
         if: always()
         run: |
           mkdir -p logs
-          # Use the modified docker-compose file for CI
           docker compose -f docker-compose.ci.yml logs > logs/docker-compose.log || echo "Could not collect docker-compose logs"
           docker compose -f docker-compose.ci.yml logs backend > logs/backend.log || echo "No backend logs available"
           docker compose -f docker-compose.ci.yml logs frontend > logs/frontend.log || echo "No frontend logs available"

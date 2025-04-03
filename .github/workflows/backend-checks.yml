@@ -93,3 +93,110 @@ jobs:
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
           timeout: '5m0s'
+
+  integration-test:
+    name: Integration Testing
+    runs-on: ubuntu-latest
+    needs: [ruff, mypy, security-scan, docker]
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Docker
+        uses: docker/setup-buildx-action@v2
+
+      - name: Setup Kubernetes (k3s)
+        run: |
+          curl -sfL https://get.k3s.io | sh -
+          mkdir -p ~/.kube
+          sudo k3s kubectl config view --raw > ~/.kube/config
+          chmod 600 ~/.kube/config
+          kubectl version
+          kubectl get nodes
+
+      - name: Start services with Docker Compose
+        run: |
+          docker-compose up -d
+          echo "Waiting for services to start..."
+          sleep 30
+
+      - name: Wait for backend to be healthy
+        run: |
+          echo "Waiting for backend to be healthy..."
+          timeout 300 bash -c 'until curl -k https://localhost:443/api/v1/health; do sleep 5; echo "Retrying..."; done'
+          echo "Backend is healthy!"
+
+      - name: Wait for frontend to be ready
+        run: |
+          echo "Waiting for frontend to be ready..."
+          timeout 120 bash -c 'until curl -k https://localhost:5001; do sleep 5; echo "Retrying..."; done'
+          echo "Frontend is ready!"
+
+      - name: Check Kubernetes setup
+        run: |
+          kubectl get pods
+          kubectl get services
+          kubectl top nodes || echo "Metrics server not available yet"
+
+      - name: Test K8s limits endpoint
+        run: |
+          curl -k https://localhost:443/api/v1/k8s-limits
+          echo "K8s limits endpoint test completed"
+
+      - name: Test Python script execution
+        run: |
+          # Test execution with Python 3.10
+          curl -k -X POST https://localhost:443/api/v1/execute \
+            -H "Content-Type: application/json" \
+            -d '{"script":"print(\"Hello from GitHub Actions!\")", "python_version":">=3.10"}' \
+            -o response.json
+          
+          cat response.json
+          execution_id=$(grep -o '"execution_id":"[^"]*' response.json | cut -d'"' -f4)
+          
+          # Wait for execution to complete
+          echo "Waiting for execution to complete..."
+          timeout 60 bash -c 'until curl -k https://localhost:443/api/v1/executions/'$execution_id' | grep -q "completed"; do sleep 2; done'
+          
+          # Check execution result
+          curl -k https://localhost:443/api/v1/executions/$execution_id > execution_result.json
+          cat execution_result.json
+          grep "Hello from GitHub Actions" execution_result.json
+
+      - name: Test Python version constraint
+        run: |
+          # Test with Python < 3.10 (should produce syntax error with match-case)
+          curl -k -X POST https://localhost:443/api/v1/execute \
+            -H "Content-Type: application/json" \
+            -d '{"script":"match 42:\n    case 42:\n        print(\"match-case works\")\n    case _:\n        print(\"no match\")", "python_version":"<3.10"}' \
+            -o response_syntax_error.json
+          
+          cat response_syntax_error.json
+          error_execution_id=$(grep -o '"execution_id":"[^"]*' response_syntax_error.json | cut -d'"' -f4)
+          
+          # Wait for execution to complete
+          echo "Waiting for syntax error execution to complete..."
+          timeout 60 bash -c 'until curl -k https://localhost:443/api/v1/executions/'$error_execution_id' | grep -q "completed"; do sleep 2; done'
+          
+          # Check execution result - should have SyntaxError
+          curl -k https://localhost:443/api/v1/executions/$error_execution_id > error_result.json
+          cat error_result.json
+          grep "SyntaxError" error_result.json
+
+      - name: Collect logs
+        if: always()
+        run: |
+          mkdir -p logs
+          docker-compose logs > logs/docker-compose.log
+          docker-compose logs backend > logs/backend.log
+          docker-compose logs frontend > logs/frontend.log
+          docker-compose logs mongo > logs/mongo.log
+          kubectl get pods -A > logs/k8s-pods.log
+          kubectl describe pods > logs/k8s-describe-pods.log || true
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: integration-test-logs
+          path: logs/

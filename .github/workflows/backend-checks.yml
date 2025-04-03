@@ -97,118 +97,231 @@ jobs:
   integration-test:
     name: Integration Testing
     runs-on: ubuntu-latest
-    needs: [ruff, mypy, security-scan, docker]
+    needs: [ ruff, mypy, security-scan, docker ] # Assuming these are defined elsewhere
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Docker
+      - name: Setup Docker Buildx # Renamed for clarity
         uses: docker/setup-buildx-action@v2
 
-      # Modify docker-compose.yml to not use Kubernetes in GitHub Actions environment
       - name: Modify Docker Compose for CI
         run: |
-          # Create a modified version of docker-compose.yml for the CI environment
           cp docker-compose.yml docker-compose.ci.yml
-          # Remove Kubernetes volume mounts from cert-generator services
-          sed -i 's/- ~\/.kube:\/root\/.kube//g' docker-compose.ci.yml
-          # Add --validate=false to cert-generator commands if needed
+          # Remove Kubernetes volume mounts from cert-generator services (redundant now, but safe)
+          sed -i '/~\/.kube:\/root\/.kube/d' docker-compose.ci.yml
+          echo "--- Modified docker-compose.ci.yml ---"
           cat docker-compose.ci.yml
+          echo "------------------------------------"
 
       - name: Setup Kubernetes (k3s)
         run: |
-          curl -sfL https://get.k3s.io | sh -
+          curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik" sh - # Disable traefik if not needed
+          sudo k3s kubectl config view --raw > kubeconfig_k3s.yml
           mkdir -p ~/.kube
-          sudo k3s kubectl config view --raw > ~/.kube/config
-          chmod 600 ~/.kube/config
+          cp kubeconfig_k3s.yml ~/.kube/config
+          chmod 600 ~/.kube/config kubeconfig_k3s.yml
           # Wait for k3s to be ready
-          echo "Waiting for Kubernetes to be ready..."
-          timeout 60 bash -c 'until kubectl get nodes; do sleep 2; echo "Waiting for Kubernetes..."; done'
-          # Display Kubernetes info
+          echo "Waiting for Kubernetes API server..."
+          timeout 90 bash -c 'until sudo k3s kubectl cluster-info; do sleep 5; echo "Waiting for Kubernetes API..."; done'
+          echo "Kubernetes cluster ready!"
           kubectl version
           kubectl get nodes
 
+      # --- NEW: K8s Setup & Kubeconfig Generation ---
+      - name: Create K8s Service Account and RBAC
+        run: |
+          kubectl create serviceaccount integr8scode-sa -n default --dry-run=client -o yml | kubectl apply -f -
+          kubectl apply -f - <<EOF
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: Role
+          metadata:
+            name: integr8scode-role
+            namespace: default
+          rules:
+          - apiGroups: [""]
+            resources: ["configmaps", "pods", "pods/log"]
+            verbs: ["create", "get", "list", "watch", "delete"]
+          EOF
+          kubectl apply -f - <<EOF
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: RoleBinding
+          metadata:
+            name: integr8scode-rolebinding
+            namespace: default
+          subjects:
+          - kind: ServiceAccount
+            name: integr8scode-sa
+            namespace: default
+          roleRef:
+            kind: Role
+            name: integr8scode-role
+            apiGroup: rbac.authorization.k8s.io
+          EOF
+          echo "Service Account and RBAC created."
+
+      - name: Generate Kubeconfig for Backend Service
+        run: |
+          echo "Generating token and kubeconfig..."
+          # Get K8s API server address (use host IP) and CA data from runner's config
+          K8S_SERVER_URL=$(kubectl config view -o jsonpath='{.clusters[0].cluster.server}')
+          K8S_CA_CERT_DATA=$(kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
+          TOKEN=$(kubectl create token integr8scode-sa -n default --duration=1h) # Use shorter duration
+
+          # Use host.docker.internal for server address inside container, or get host IP
+          # Using host.docker.internal is generally preferred if the Docker version supports it
+          # K8S_SERVER_FOR_CONTAINER="https://host.docker.internal:6443" # Requires Docker 18.03+
+          # Fallback: Get IP of docker0 bridge on the runner
+          RUNNER_DOCKER_IP=$(ip -4 addr show docker0 | grep -Po 'inet \K[\d.]+')
+          K8S_SERVER_FOR_CONTAINER="https://$RUNNER_DOCKER_IP:6443"
+          echo "Using K8s server URL for container: $K8S_SERVER_FOR_CONTAINER"
+
+          # Create the kubeconfig in the location the backend volume mount expects
+          mkdir -p ./backend # Ensure directory exists
+          cat > ./backend/kubeconfig.yml << EOF
+          apiVersion: v1
+          kind: Config
+          clusters:
+          - name: ci-k3s-cluster
+            cluster:
+              server: ${K8S_SERVER_FOR_CONTAINER}
+              certificate-authority-data: ${K8S_CA_CERT_DATA}
+          users:
+          - name: integr8scode-sa
+            user:
+              token: "${TOKEN}"
+          contexts:
+          - name: integr8scode-context
+            context:
+              cluster: ci-k3s-cluster
+              user: integr8scode-sa
+              namespace: default # Explicitly set namespace
+          current-context: integr8scode-context
+          EOF
+          echo "Generated ./backend/kubeconfig.yml"
+          ls -l ./backend/kubeconfig.yml
+          cat ./backend/kubeconfig.yml
+      # --- END NEW ---
+
       - name: Start services with Docker Compose
         run: |
-          # Use the modified docker-compose file for CI
-          docker compose -f docker-compose.ci.yml up -d
+          docker compose -f docker-compose.ci.yml up --build -d # Add --build to ensure changes are picked up
           echo "Waiting for services to start..."
-          sleep 30
+          sleep 20 # Allow some time for containers to initialize
 
+      - name: Check Docker Compose Status
+        run: |
+          echo "Docker Compose Status:"
+          docker compose -f docker-compose.ci.yml ps
+          echo "-------------------------"
+          echo "Backend container logs (initial):"
+          docker compose -f docker-compose.ci.yml logs backend || echo "No backend logs yet."
+          echo "-------------------------"
+
+      # Use more robust waits
       - name: Wait for backend to be healthy
         run: |
           echo "Waiting for backend to be healthy..."
-          timeout 300 bash -c 'until curl -k https://localhost:443/api/v1/health; do sleep 5; echo "Retrying..."; done'
+          timeout 300 bash -c 'until curl -ksfL https://localhost:443/api/v1/health -o /dev/null; do \
+            echo "Retrying backend health check (https://localhost:443/api/v1/health)..."; \
+            docker compose -f docker-compose.ci.yml ps backend; \
+            sleep 5; \
+          done'
           echo "Backend is healthy!"
 
       - name: Wait for frontend to be ready
         run: |
           echo "Waiting for frontend to be ready..."
-          timeout 120 bash -c 'until curl -k https://localhost:5001; do sleep 5; echo "Retrying..."; done'
+          timeout 120 bash -c 'until curl -ksfL https://localhost:5001 -o /dev/null; do \
+             echo "Retrying frontend check (https://localhost:5001)..."; \
+             docker compose -f docker-compose.ci.yml ps frontend; \
+             sleep 5; \
+          done'
           echo "Frontend is ready!"
 
-      - name: Check Kubernetes setup
+      # --- Add checks for K8s resource creation ---
+      - name: Check K8s setup status after startup
         run: |
-          kubectl get pods
-          kubectl get services
-          kubectl top nodes || echo "Metrics server not available yet"
+          echo "--- Kubernetes Pods ---"
+          kubectl get pods -A -o wide
+          echo "--- Kubernetes Services ---"
+          kubectl get services -A -o wide
+          echo "--- Kubernetes Service Accounts ---"
+          kubectl get sa -n default
+          echo "--- Kubernetes Roles ---"
+          kubectl get roles -n default
+          echo "--- Kubernetes RoleBindings ---"
+          kubectl get rolebindings -n default
+          # Add any other checks relevant to your backend's interaction
 
+      # Test K8s limits endpoint (Assuming this reads info via the SA)
       - name: Test K8s limits endpoint
         run: |
-          curl -k https://localhost:443/api/v1/k8s-limits
-          echo "K8s limits endpoint test completed"
+          echo "Testing /api/v1/k8s-limits endpoint..."
+          curl -ksfL https://localhost:443/api/v1/k8s-limits || (echo "K8s limits endpoint test FAILED"; exit 1)
+          echo # Newline for clarity
+          echo "K8s limits endpoint test completed successfully"
 
+      # Test Python script execution (Add failure checks)
       - name: Test Python script execution
         run: |
-          # Test execution with Python 3.10
-          curl -k -X POST https://localhost:443/api/v1/execute \
+          echo "Testing script execution..."
+          curl -ksfL -X POST https://localhost:443/api/v1/execute \
             -H "Content-Type: application/json" \
             -d '{"script":"print(\"Hello from GitHub Actions!\")", "python_version":">=3.10"}' \
-            -o response.json
+            -o response.json || (echo "POST /execute failed"; cat response.json; exit 1)
           
           cat response.json
           execution_id=$(grep -o '"execution_id":"[^"]*' response.json | cut -d'"' -f4)
+          if [ -z "$execution_id" ]; then echo "Failed to extract execution_id"; exit 1; fi
           
-          # Wait for execution to complete
-          echo "Waiting for execution to complete..."
-          timeout 60 bash -c 'until curl -k https://localhost:443/api/v1/executions/'$execution_id' | grep -q "completed"; do sleep 2; done'
+          echo "Waiting for execution $execution_id to complete..."
+          timeout 120 bash -c 'until curl -ksfL https://localhost:443/api/v1/executions/'$execution_id' | grep -q -E "(completed|error)"; do sleep 5; echo "Polling execution $execution_id..."; done'
           
-          # Check execution result
-          curl -k https://localhost:443/api/v1/executions/$execution_id > execution_result.json
+          echo "Checking execution result for $execution_id..."
+          curl -ksfL https://localhost:443/api/v1/executions/$execution_id > execution_result.json || (echo "Failed to get execution result"; cat execution_result.json; exit 1)
           cat execution_result.json
-          grep "Hello from GitHub Actions" execution_result.json
+          grep -q "Hello from GitHub Actions" execution_result.json || (echo "Execution output mismatch!"; exit 1)
+          grep -q '"status": "completed"' execution_result.json || (echo "Execution status not completed!"; exit 1)
+          echo "Python script execution test PASSED"
 
+      # Test Python version constraint (Add failure checks)
       - name: Test Python version constraint
         run: |
-          # Test with Python < 3.10 (should produce syntax error with match-case)
-          curl -k -X POST https://localhost:443/api/v1/execute \
+          echo "Testing version constraint (expecting SyntaxError)..."
+          curl -ksfL -X POST https://localhost:443/api/v1/execute \
             -H "Content-Type: application/json" \
             -d '{"script":"match 42:\n    case 42:\n        print(\"match-case works\")\n    case _:\n        print(\"no match\")", "python_version":"<3.10"}' \
-            -o response_syntax_error.json
+            -o response_syntax_error.json || (echo "POST /execute (syntax error test) failed"; cat response_syntax_error.json; exit 1)
           
           cat response_syntax_error.json
           error_execution_id=$(grep -o '"execution_id":"[^"]*' response_syntax_error.json | cut -d'"' -f4)
+          if [ -z "$error_execution_id" ]; then echo "Failed to extract error_execution_id"; exit 1; fi
           
-          # Wait for execution to complete
-          echo "Waiting for syntax error execution to complete..."
-          timeout 60 bash -c 'until curl -k https://localhost:443/api/v1/executions/'$error_execution_id' | grep -q "completed"; do sleep 2; done'
+          echo "Waiting for syntax error execution $error_execution_id to complete..."
+          timeout 120 bash -c 'until curl -ksfL https://localhost:443/api/v1/executions/'$error_execution_id' | grep -q -E "(completed|error)"; do sleep 5; echo "Polling execution $error_execution_id..."; done'
           
-          # Check execution result - should have SyntaxError
-          curl -k https://localhost:443/api/v1/executions/$error_execution_id > error_result.json
+          echo "Checking execution result for $error_execution_id..."
+          curl -ksfL https://localhost:443/api/v1/executions/$error_execution_id > error_result.json || (echo "Failed to get error execution result"; cat error_result.json; exit 1)
           cat error_result.json
-          grep "SyntaxError" error_result.json
+          grep -q "SyntaxError" error_result.json || (echo "Expected SyntaxError not found!"; exit 1)
+          grep -q '"status": "error"' error_result.json || (echo "Execution status not error!"; exit 1)
+          echo "Python version constraint test PASSED"
 
+      # Collect logs (No changes needed here, but ensure paths are correct)
       - name: Collect logs
         if: always()
         run: |
           mkdir -p logs
-          # Use the modified docker-compose file for CI
           docker compose -f docker-compose.ci.yml logs > logs/docker-compose.log || echo "Could not collect docker-compose logs"
           docker compose -f docker-compose.ci.yml logs backend > logs/backend.log || echo "No backend logs available"
           docker compose -f docker-compose.ci.yml logs frontend > logs/frontend.log || echo "No frontend logs available"
           docker compose -f docker-compose.ci.yml logs mongo > logs/mongo.log || echo "No mongo logs available"
-          kubectl get pods -A > logs/k8s-pods.log || echo "Could not get Kubernetes pods"
-          kubectl describe pods > logs/k8s-describe-pods.log || echo "Could not describe Kubernetes pods"
+          # Collect K8s logs too
+          kubectl get events --sort-by='.metadata.creationTimestamp' > logs/k8s-events.log || echo "Could not get K8s events"
+          kubectl get pods -A -o wide > logs/k8s-pods-final.log || echo "Could not get final K8s pods"
+          kubectl describe pods -A > logs/k8s-describe-pods-final.log || echo "Could not describe final K8s pods"
+          # Optionally get logs from specific pods if needed
 
       - name: Upload logs
         if: always()

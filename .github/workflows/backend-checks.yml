@@ -107,20 +107,20 @@ jobs:
 
       - name: Modify Docker Compose for CI
         run: |
-          cp docker-compose.yml docker-compose.ci.yml
+          cp docker-compose.yaml docker-compose.ci.yaml
           # Remove Kubernetes volume mounts from cert-generator services (redundant now, but safe)
-          sed -i '/~\/.kube:\/root\/.kube/d' docker-compose.ci.yml
-          echo "--- Modified docker-compose.ci.yml ---"
-          cat docker-compose.ci.yml
+          sed -i '/~\/.kube:\/root\/.kube/d' docker-compose.ci.yaml
+          echo "--- Modified docker-compose.ci.yaml ---"
+          cat docker-compose.ci.yaml
           echo "------------------------------------"
 
       - name: Setup Kubernetes (k3s)
         run: |
           curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik" sh - # Disable traefik if not needed
-          sudo k3s kubectl config view --raw > kubeconfig_k3s.yml
+          sudo k3s kubectl config view --raw > kubeconfig_k3s.yaml
           mkdir -p ~/.kube
-          cp kubeconfig_k3s.yml ~/.kube/config
-          chmod 600 ~/.kube/config kubeconfig_k3s.yml
+          cp kubeconfig_k3s.yaml ~/.kube/config
+          chmod 600 ~/.kube/config kubeconfig_k3s.yaml
           # Wait for k3s to be ready
           echo "Waiting for Kubernetes API server..."
           timeout 90 bash -c 'until sudo k3s kubectl cluster-info; do sleep 5; echo "Waiting for Kubernetes API..."; done'
@@ -131,7 +131,7 @@ jobs:
       # --- NEW: K8s Setup & Kubeconfig Generation ---
       - name: Create K8s Service Account and RBAC
         run: |
-          kubectl create serviceaccount integr8scode-sa -n default --dry-run=client -o yml | kubectl apply -f -
+          kubectl create serviceaccount integr8scode-sa -n default --dry-run=client -o yaml | kubectl apply -f -
           kubectl apply -f - <<EOF
           apiVersion: rbac.authorization.k8s.io/v1
           kind: Role
@@ -178,7 +178,7 @@ jobs:
 
           # Create the kubeconfig in the location the backend volume mount expects
           mkdir -p ./backend # Ensure directory exists
-          cat > ./backend/kubeconfig.yml << EOF
+          cat > ./backend/kubeconfig.yaml << EOF
           apiVersion: v1
           kind: Config
           clusters:
@@ -198,24 +198,24 @@ jobs:
               namespace: default # Explicitly set namespace
           current-context: integr8scode-context
           EOF
-          echo "Generated ./backend/kubeconfig.yml"
-          ls -l ./backend/kubeconfig.yml
-          cat ./backend/kubeconfig.yml
+          echo "Generated ./backend/kubeconfig.yaml"
+          ls -l ./backend/kubeconfig.yaml
+          cat ./backend/kubeconfig.yaml
       # --- END NEW ---
 
       - name: Start services with Docker Compose
         run: |
-          docker compose -f docker-compose.ci.yml up --build -d # Add --build to ensure changes are picked up
+          docker compose -f docker-compose.ci.yaml up --build -d # Add --build to ensure changes are picked up
           echo "Waiting for services to start..."
           sleep 20 # Allow some time for containers to initialize
 
       - name: Check Docker Compose Status
         run: |
           echo "Docker Compose Status:"
-          docker compose -f docker-compose.ci.yml ps
+          docker compose -f docker-compose.ci.yaml ps
           echo "-------------------------"
           echo "Backend container logs (initial):"
-          docker compose -f docker-compose.ci.yml logs backend || echo "No backend logs yet."
+          docker compose -f docker-compose.ci.yaml logs backend || echo "No backend logs yet."
           echo "-------------------------"
 
       # Use more robust waits
@@ -224,7 +224,7 @@ jobs:
           echo "Waiting for backend to be healthy..."
           timeout 300 bash -c 'until curl -ksfL https://localhost:443/api/v1/health -o /dev/null; do \
             echo "Retrying backend health check (https://localhost:443/api/v1/health)..."; \
-            docker compose -f docker-compose.ci.yml ps backend; \
+            docker compose -f docker-compose.ci.yaml ps backend; \
             sleep 5; \
           done'
           echo "Backend is healthy!"
@@ -234,7 +234,7 @@ jobs:
           echo "Waiting for frontend to be ready..."
           timeout 120 bash -c 'until curl -ksfL https://localhost:5001 -o /dev/null; do \
              echo "Retrying frontend check (https://localhost:5001)..."; \
-             docker compose -f docker-compose.ci.yml ps frontend; \
+             docker compose -f docker-compose.ci.yaml ps frontend; \
              sleep 5; \
           done'
           echo "Frontend is ready!"
@@ -313,10 +313,10 @@ jobs:
         if: always()
         run: |
           mkdir -p logs
-          docker compose -f docker-compose.ci.yml logs > logs/docker-compose.log || echo "Could not collect docker-compose logs"
-          docker compose -f docker-compose.ci.yml logs backend > logs/backend.log || echo "No backend logs available"
-          docker compose -f docker-compose.ci.yml logs frontend > logs/frontend.log || echo "No frontend logs available"
-          docker compose -f docker-compose.ci.yml logs mongo > logs/mongo.log || echo "No mongo logs available"
+          docker compose -f docker-compose.ci.yaml logs > logs/docker-compose.log || echo "Could not collect docker-compose logs"
+          docker compose -f docker-compose.ci.yaml logs backend > logs/backend.log || echo "No backend logs available"
+          docker compose -f docker-compose.ci.yaml logs frontend > logs/frontend.log || echo "No frontend logs available"
+          docker compose -f docker-compose.ci.yaml logs mongo > logs/mongo.log || echo "No mongo logs available"
           # Collect K8s logs too
           kubectl get events --sort-by='.metadata.creationTimestamp' > logs/k8s-events.log || echo "Could not get K8s events"
           kubectl get pods -A -o wide > logs/k8s-pods-final.log || echo "Could not get final K8s pods"

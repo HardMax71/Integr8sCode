@@ -137,6 +137,8 @@ services:
         condition: service_started
     networks:
       - app-network
+    environment:
+      - GF_LOG_LEVEL=warn
 
 volumes:
   mongo_data:

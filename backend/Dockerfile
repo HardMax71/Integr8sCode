@@ -31,9 +31,9 @@ RUN mkdir -p /app/certs
 # CMD
 CMD bash -c "\
   echo 'Waiting for certificates and kubeconfig...' && \
-  while [ ! -f /app/certs/rootCA.pem ] || [ ! -f /app/kubeconfig.yaml ] || [ ! -f /app/certs/server.key ] || [ ! -f /app/certs/server.crt ]; do sleep 1; done && \
+  while [ ! -f /app/certs/rootCA.pem ] || [ ! -f /app/kubeconfig.yml ] || [ ! -f /app/certs/server.key ] || [ ! -f /app/certs/server.crt ]; do sleep 1; done && \
   echo 'Certificates and kubeconfig found, installing CA...' && \
-  export KUBECONFIG=/app/kubeconfig.yaml && \
+  export KUBECONFIG=/app/kubeconfig.yml && \
   cp /app/certs/rootCA.pem /usr/local/share/ca-certificates/rootCA.crt && \
   update-ca-certificates && \
   echo 'Starting application...' && \

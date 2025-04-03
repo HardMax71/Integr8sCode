@@ -109,6 +109,15 @@ jobs:
         run: |
           cp docker-compose.yaml docker-compose.ci.yaml
           sed -i '/~\/.kube:\/root\/.kube/d' docker-compose.ci.yaml
+          awk '
+          /^[[:space:]]*backend:/ { in_backend_service = 1 }
+          in_backend_service && /^[[:space:]]*networks:/ {
+            print "    extra_hosts:"
+            print "      - \"host.docker.internal:host-gateway\""
+            in_backend_service = 0 # Stop adding once networks is found within backend
+          }
+          { print }
+          ' docker-compose.ci.yaml > temp_compose.yaml && mv temp_compose.yaml docker-compose.ci.yaml
           echo "--- Modified docker-compose.ci.yaml ---"
           cat docker-compose.ci.yaml
           echo "------------------------------------"

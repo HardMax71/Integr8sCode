@@ -105,10 +105,15 @@ jobs:
       - name: Setup Docker
         uses: docker/setup-buildx-action@v2
 
-      - name: Setup Docker Compose
+      # Modify docker-compose.yml to not use Kubernetes in GitHub Actions environment
+      - name: Modify Docker Compose for CI
         run: |
-          # Install Docker Compose if needed
-          docker compose version || pip install docker-compose
+          # Create a modified version of docker-compose.yml for the CI environment
+          cp docker-compose.yml docker-compose.ci.yml
+          # Remove Kubernetes volume mounts from cert-generator services
+          sed -i 's/- ~\/.kube:\/root\/.kube//g' docker-compose.ci.yml
+          # Add --validate=false to cert-generator commands if needed
+          cat docker-compose.ci.yml
 
       - name: Setup Kubernetes (k3s)
         run: |
@@ -116,12 +121,17 @@ jobs:
           mkdir -p ~/.kube
           sudo k3s kubectl config view --raw > ~/.kube/config
           chmod 600 ~/.kube/config
+          # Wait for k3s to be ready
+          echo "Waiting for Kubernetes to be ready..."
+          timeout 60 bash -c 'until kubectl get nodes; do sleep 2; echo "Waiting for Kubernetes..."; done'
+          # Display Kubernetes info
           kubectl version
           kubectl get nodes
 
       - name: Start services with Docker Compose
         run: |
-          docker compose up -d
+          # Use the modified docker-compose file for CI
+          docker compose -f docker-compose.ci.yml up -d
           echo "Waiting for services to start..."
           sleep 30
 
@@ -192,12 +202,13 @@ jobs:
         if: always()
         run: |
           mkdir -p logs
-          docker compose logs > logs/docker-compose.log
-          docker compose logs backend > logs/backend.log || echo "No backend logs available"
-          docker compose logs frontend > logs/frontend.log || echo "No frontend logs available"
-          docker compose logs mongo > logs/mongo.log || echo "No mongo logs available"
-          kubectl get pods -A > logs/k8s-pods.log
-          kubectl describe pods > logs/k8s-describe-pods.log || true
+          # Use the modified docker-compose file for CI
+          docker compose -f docker-compose.ci.yml logs > logs/docker-compose.log || echo "Could not collect docker-compose logs"
+          docker compose -f docker-compose.ci.yml logs backend > logs/backend.log || echo "No backend logs available"
+          docker compose -f docker-compose.ci.yml logs frontend > logs/frontend.log || echo "No frontend logs available"
+          docker compose -f docker-compose.ci.yml logs mongo > logs/mongo.log || echo "No mongo logs available"
+          kubectl get pods -A > logs/k8s-pods.log || echo "Could not get Kubernetes pods"
+          kubectl describe pods > logs/k8s-describe-pods.log || echo "Could not describe Kubernetes pods"
 
       - name: Upload logs
         if: always()

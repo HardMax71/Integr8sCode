@@ -97,18 +97,17 @@ jobs:
   integration-test:
     name: Integration Testing
     runs-on: ubuntu-latest
-    needs: [ ruff, mypy, security-scan, docker ] # Assuming these are defined elsewhere
+    needs: [ ruff, mypy, security-scan, docker ]
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Docker Buildx # Renamed for clarity
+      - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v2
 
       - name: Modify Docker Compose for CI
         run: |
           cp docker-compose.yaml docker-compose.ci.yaml
-          # Remove Kubernetes volume mounts from cert-generator services (redundant now, but safe)
           sed -i '/~\/.kube:\/root\/.kube/d' docker-compose.ci.yaml
           echo "--- Modified docker-compose.ci.yaml ---"
           cat docker-compose.ci.yaml
@@ -116,19 +115,17 @@ jobs:
 
       - name: Setup Kubernetes (k3s)
         run: |
-          curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik" sh - # Disable traefik if not needed
+          curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik" sh -
           sudo k3s kubectl config view --raw > kubeconfig_k3s.yaml
           mkdir -p ~/.kube
           cp kubeconfig_k3s.yaml ~/.kube/config
           chmod 600 ~/.kube/config kubeconfig_k3s.yaml
-          # Wait for k3s to be ready
           echo "Waiting for Kubernetes API server..."
           timeout 90 bash -c 'until sudo k3s kubectl cluster-info; do sleep 5; echo "Waiting for Kubernetes API..."; done'
           echo "Kubernetes cluster ready!"
           kubectl version
           kubectl get nodes
 
-      # --- NEW: K8s Setup & Kubeconfig Generation ---
       - name: Create K8s Service Account and RBAC
         run: |
           kubectl create serviceaccount integr8scode-sa -n default --dry-run=client -o yaml | kubectl apply -f -
@@ -163,21 +160,13 @@ jobs:
       - name: Generate Kubeconfig for Backend Service
         run: |
           echo "Generating token and kubeconfig..."
-          # Get K8s API server address (use host IP) and CA data from runner's config
-          K8S_SERVER_URL=$(kubectl config view -o jsonpath='{.clusters[0].cluster.server}')
           K8S_CA_CERT_DATA=$(kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
-          TOKEN=$(kubectl create token integr8scode-sa -n default --duration=1h) # Use shorter duration
-
-          # Use host.docker.internal for server address inside container, or get host IP
-          # Using host.docker.internal is generally preferred if the Docker version supports it
-          # K8S_SERVER_FOR_CONTAINER="https://host.docker.internal:6443" # Requires Docker 18.03+
-          # Fallback: Get IP of docker0 bridge on the runner
+          TOKEN=$(kubectl create token integr8scode-sa -n default --duration=1h)
           RUNNER_DOCKER_IP=$(ip -4 addr show docker0 | grep -Po 'inet \K[\d.]+')
           K8S_SERVER_FOR_CONTAINER="https://$RUNNER_DOCKER_IP:6443"
           echo "Using K8s server URL for container: $K8S_SERVER_FOR_CONTAINER"
 
-          # Create the kubeconfig in the location the backend volume mount expects
-          mkdir -p ./backend # Ensure directory exists
+          mkdir -p ./backend
           cat > ./backend/kubeconfig.yaml << EOF
           apiVersion: v1
           kind: Config
@@ -195,19 +184,18 @@ jobs:
             context:
               cluster: ci-k3s-cluster
               user: integr8scode-sa
-              namespace: default # Explicitly set namespace
+              namespace: default
           current-context: integr8scode-context
           EOF
           echo "Generated ./backend/kubeconfig.yaml"
           ls -l ./backend/kubeconfig.yaml
           cat ./backend/kubeconfig.yaml
-      # --- END NEW ---
 
       - name: Start services with Docker Compose
         run: |
-          docker compose -f docker-compose.ci.yaml up --build -d # Add --build to ensure changes are picked up
+          docker compose -f docker-compose.ci.yaml up --build -d
           echo "Waiting for services to start..."
-          sleep 20 # Allow some time for containers to initialize
+          sleep 20
 
       - name: Check Docker Compose Status
         run: |
@@ -218,7 +206,6 @@ jobs:
           docker compose -f docker-compose.ci.yaml logs backend || echo "No backend logs yet."
           echo "-------------------------"
 
-      # Use more robust waits
       - name: Wait for backend to be healthy
         run: |
           echo "Waiting for backend to be healthy..."
@@ -239,7 +226,6 @@ jobs:
           done'
           echo "Frontend is ready!"
 
-      # --- Add checks for K8s resource creation ---
       - name: Check K8s setup status after startup
         run: |
           echo "--- Kubernetes Pods ---"
@@ -252,17 +238,14 @@ jobs:
           kubectl get roles -n default
           echo "--- Kubernetes RoleBindings ---"
           kubectl get rolebindings -n default
-          # Add any other checks relevant to your backend's interaction
 
-      # Test K8s limits endpoint (Assuming this reads info via the SA)
       - name: Test K8s limits endpoint
         run: |
           echo "Testing /api/v1/k8s-limits endpoint..."
           curl -ksfL https://localhost:443/api/v1/k8s-limits || (echo "K8s limits endpoint test FAILED"; exit 1)
-          echo # Newline for clarity
+          echo
           echo "K8s limits endpoint test completed successfully"
 
-      # Test Python script execution (Add failure checks)
       - name: Test Python script execution
         run: |
           echo "Testing script execution..."
@@ -270,14 +253,14 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{"script":"print(\"Hello from GitHub Actions!\")", "python_version":">=3.10"}' \
             -o response.json || (echo "POST /execute failed"; cat response.json; exit 1)
-          
+
           cat response.json
           execution_id=$(grep -o '"execution_id":"[^"]*' response.json | cut -d'"' -f4)
           if [ -z "$execution_id" ]; then echo "Failed to extract execution_id"; exit 1; fi
-          
+
           echo "Waiting for execution $execution_id to complete..."
           timeout 120 bash -c 'until curl -ksfL https://localhost:443/api/v1/executions/'$execution_id' | grep -q -E "(completed|error)"; do sleep 5; echo "Polling execution $execution_id..."; done'
-          
+
           echo "Checking execution result for $execution_id..."
           curl -ksfL https://localhost:443/api/v1/executions/$execution_id > execution_result.json || (echo "Failed to get execution result"; cat execution_result.json; exit 1)
           cat execution_result.json
@@ -285,7 +268,6 @@ jobs:
           grep -q '"status": "completed"' execution_result.json || (echo "Execution status not completed!"; exit 1)
           echo "Python script execution test PASSED"
 
-      # Test Python version constraint (Add failure checks)
       - name: Test Python version constraint
         run: |
           echo "Testing version constraint (expecting SyntaxError)..."
@@ -293,14 +275,14 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{"script":"match 42:\n    case 42:\n        print(\"match-case works\")\n    case _:\n        print(\"no match\")", "python_version":"<3.10"}' \
             -o response_syntax_error.json || (echo "POST /execute (syntax error test) failed"; cat response_syntax_error.json; exit 1)
-          
+
           cat response_syntax_error.json
           error_execution_id=$(grep -o '"execution_id":"[^"]*' response_syntax_error.json | cut -d'"' -f4)
           if [ -z "$error_execution_id" ]; then echo "Failed to extract error_execution_id"; exit 1; fi
-          
+
           echo "Waiting for syntax error execution $error_execution_id to complete..."
           timeout 120 bash -c 'until curl -ksfL https://localhost:443/api/v1/executions/'$error_execution_id' | grep -q -E "(completed|error)"; do sleep 5; echo "Polling execution $error_execution_id..."; done'
-          
+
           echo "Checking execution result for $error_execution_id..."
           curl -ksfL https://localhost:443/api/v1/executions/$error_execution_id > error_result.json || (echo "Failed to get error execution result"; cat error_result.json; exit 1)
           cat error_result.json
@@ -308,7 +290,6 @@ jobs:
           grep -q '"status": "error"' error_result.json || (echo "Execution status not error!"; exit 1)
           echo "Python version constraint test PASSED"
 
-      # Collect logs (No changes needed here, but ensure paths are correct)
       - name: Collect logs
         if: always()
         run: |
@@ -317,11 +298,9 @@ jobs:
           docker compose -f docker-compose.ci.yaml logs backend > logs/backend.log || echo "No backend logs available"
           docker compose -f docker-compose.ci.yaml logs frontend > logs/frontend.log || echo "No frontend logs available"
           docker compose -f docker-compose.ci.yaml logs mongo > logs/mongo.log || echo "No mongo logs available"
-          # Collect K8s logs too
           kubectl get events --sort-by='.metadata.creationTimestamp' > logs/k8s-events.log || echo "Could not get K8s events"
           kubectl get pods -A -o wide > logs/k8s-pods-final.log || echo "Could not get final K8s pods"
           kubectl describe pods -A > logs/k8s-describe-pods-final.log || echo "Could not describe final K8s pods"
-          # Optionally get logs from specific pods if needed
 
       - name: Upload logs
         if: always()

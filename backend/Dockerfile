@@ -42,6 +42,6 @@ CMD bash -c "\
   update-ca-certificates && \
   export KUBECONFIG=/app/kubeconfig.yaml && \
   echo 'Kubeconfig set. Verifying kubectl connection...' && \
-  (kubectl version --short || echo 'kubectl check failed, proceeding anyway...') && \
+  (kubectl version --client || echo 'kubectl check failed, proceeding anyway...') && \
   echo 'Starting application...' && \
   uvicorn app.main:app --host 0.0.0.0 --port 443 --ssl-keyfile /app/certs/server.key --ssl-certfile /app/certs/server.crt"

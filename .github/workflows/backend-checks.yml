@@ -124,7 +124,7 @@ jobs:
 
       - name: Setup Kubernetes (k3s)
         run: |
-          curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik" sh -
+          curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik --tls-san host.docker.internal" sh -
           sudo k3s kubectl config view --raw > kubeconfig_k3s.yaml
           mkdir -p ~/.kube
           cp kubeconfig_k3s.yaml ~/.kube/config

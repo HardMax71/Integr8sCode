@@ -260,7 +260,7 @@ jobs:
           echo "Testing script execution..."
           curl -ksfL -X POST https://localhost:443/api/v1/execute \
             -H "Content-Type: application/json" \
-            -d '{"script":"print(\"Hello from GitHub Actions!\")", "python_version":">=3.10"}' \
+            -d '{"script":"print(\"Hello from GitHub Actions!\")", "python_version":"3.10"}' \
             -o response.json || (echo "POST /execute failed"; cat response.json; exit 1)
 
           cat response.json
@@ -282,7 +282,7 @@ jobs:
           echo "Testing version constraint (expecting SyntaxError)..."
           curl -ksfL -X POST https://localhost:443/api/v1/execute \
             -H "Content-Type: application/json" \
-            -d '{"script":"match 42:\n    case 42:\n        print(\"match-case works\")\n    case _:\n        print(\"no match\")", "python_version":"<3.10"}' \
+            -d '{"script":"match 42:\n    case 42:\n        print(\"match-case works\")\n    case _:\n        print(\"no match\")", "python_version":"3.9"}' \
             -o response_syntax_error.json || (echo "POST /execute (syntax error test) failed"; cat response_syntax_error.json; exit 1)
 
           cat response_syntax_error.json

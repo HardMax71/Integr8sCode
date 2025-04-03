@@ -163,7 +163,7 @@ jobs:
           K8S_CA_CERT_DATA=$(kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
           TOKEN=$(kubectl create token integr8scode-sa -n default --duration=1h)
           RUNNER_DOCKER_IP=$(ip -4 addr show docker0 | grep -Po 'inet \K[\d.]+')
-          K8S_SERVER_FOR_CONTAINER="https://$RUNNER_DOCKER_IP:6443"
+          K8S_SERVER_FOR_CONTAINER="https://host.docker.internal:6443"
           echo "Using K8s server URL for container: $K8S_SERVER_FOR_CONTAINER"
 
           mkdir -p ./backend

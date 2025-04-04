@@ -78,6 +78,12 @@ export default {
                     if (req.url.startsWith('/api')) {
                         console.log(`Proxying API request: ${req.method} ${req.url}`);
 
+                        const httpsAgent = new https.Agent({
+                            ca: fs.readFileSync(path.resolve('./certs/rootCA.pem')),
+                            // Keep verification enabled, but use proper agent
+                            rejectUnauthorized: true
+                        });
+
                         // Target backend options
                         const options = {
                             hostname: 'backend',
@@ -91,8 +97,7 @@ export default {
                                 'cache-control': 'no-cache',
                                 pragma: 'no-cache'
                             },
-                            rejectUnauthorized: true,
-                            ca: fs.readFileSync(path.resolve('./certs/rootCA.pem'), 'utf8')
+                            agent: httpsAgent
                         };
 
                         try {

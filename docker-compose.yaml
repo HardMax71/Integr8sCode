@@ -94,6 +94,7 @@ services:
       - app-network
     environment:
       - VITE_BACKEND_URL=https://backend:443
+      - NODE_EXTRA_CA_CERTS=/app/certs/rootCA.pem
 
   prometheus:
     container_name: prometheus

@@ -25,18 +25,32 @@ else
     echo "Certificates already exist"
 fi
 
-# Generate kubeconfig dynamically for backend container
-if [ -d /backend ]; then
-    echo "Generating kubeconfig for backend"
+# Skip Kubernetes setup if CI environment is detected or if kubeconfig already exists
+if [ "$CI" = "true" ] || [ -f /backend/kubeconfig.yaml ]; then
+    echo "CI environment detected or kubeconfig already exists. Skipping Kubernetes setup."
+else
+    # Generate kubeconfig dynamically for backend container
+    if [ -d /backend ]; then
+        echo "Generating kubeconfig for backend"
 
-    # Fetch Kubernetes CA Certificate dynamically
-    K8S_CA_CERT=$(kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
+        # Check if kubectl is properly configured
+        if ! kubectl config view > /dev/null 2>&1; then
+            echo "ERROR: kubectl is not configured properly. Exiting."
+            exit 1
+        fi
 
-    # Create service account for backend access
-    kubectl create serviceaccount integr8scode-sa -n default --dry-run=client -o yaml | kubectl apply -f -
+        # Fetch Kubernetes CA Certificate dynamically
+        K8S_CA_CERT=$(kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
+        if [ -z "$K8S_CA_CERT" ]; then
+            echo "ERROR: Failed to get Kubernetes CA certificate. Exiting."
+            exit 1
+        fi
 
-    # Apply RBAC role for service account
-    kubectl apply -f - <<EOF
+        # Create service account for backend access
+        kubectl create serviceaccount integr8scode-sa -n default --dry-run=client -o yaml | kubectl apply -f -
+
+        # Apply RBAC role for service account
+        kubectl apply -f - <<EOF
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -48,8 +62,8 @@ rules:
   verbs: ["create", "get", "list", "watch", "delete"]
 EOF
 
-    # Bind the role to service account
-    kubectl apply -f - <<EOF
+        # Bind the role to service account
+        kubectl apply -f - <<EOF
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
@@ -65,21 +79,30 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
 EOF
 
-    # Generate short-lived token for the service account
-    TOKEN=$(kubectl create token integr8scode-sa -n default --duration=24h)
+        # Generate short-lived token for the service account
+        TOKEN=$(kubectl create token integr8scode-sa -n default --duration=24h)
+        if [ -z "$TOKEN" ]; then
+            echo "ERROR: Failed to generate token. Exiting."
+            exit 1
+        fi
 
-    # Write Kubernetes CA cert to file
-    echo "$K8S_CA_CERT" | base64 -d > /certs/k8s-ca.pem
-    chmod 644 /certs/k8s-ca.pem
+        # Determine appropriate Kubernetes server URL
+        if [ -n "$KUBERNETES_SERVICE_HOST" ]; then
+            # Inside Kubernetes cluster
+            K8S_SERVER="https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT}"
+        else
+            # Local development
+            K8S_SERVER="https://kubernetes.docker.internal:6443"
+        fi
 
-    # Create kubeconfig
-    cat > /backend/kubeconfig.yaml <<EOF
+        # Create kubeconfig
+        cat > /backend/kubeconfig.yaml <<EOF
 apiVersion: v1
 kind: Config
 clusters:
 - name: docker-desktop
   cluster:
-    server: https://kubernetes.docker.internal:6443
+    server: ${K8S_SERVER}
     certificate-authority-data: ${K8S_CA_CERT}
 users:
 - name: integr8scode-sa
@@ -93,9 +116,9 @@ contexts:
 current-context: integr8scode
 EOF
 
-    chmod 644 /backend/kubeconfig.yaml
-
-    echo "kubeconfig.yaml successfully generated at /backend/kubeconfig.yaml"
+        chmod 644 /backend/kubeconfig.yaml
+        echo "kubeconfig.yaml successfully generated at /backend/kubeconfig.yaml"
+    fi
 fi
 
 # Marker file to indicate setup completion

@@ -26,4 +26,9 @@ RUN mkdir -p /shared_ca
 COPY setup-k8s.sh /setup-k8s.sh
 RUN dos2unix /setup-k8s.sh && chmod +x /setup-k8s.sh
 
-ENTRYPOINT ["/bin/sh", "-c", "/setup-k8s.sh"]
+# Add a health check script for CI debugging
+RUN echo '#!/bin/sh\necho "Cert Generator Health Check: OK"\n' > /health.sh && \
+    chmod +x /health.sh
+
+# By default, run the setup script but accept CI=true from environment
+ENTRYPOINT ["/bin/sh", "-c", "/setup-k8s.sh || { echo 'Certificate generation failed'; cat /certs/setup-complete 2>/dev/null || echo 'No setup-complete file'; exit 1; }"]

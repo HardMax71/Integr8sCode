@@ -2,9 +2,9 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install dependencies and openssl
+# Install dependencies with ca-certificates
 COPY package*.json ./
-RUN npm install && apk add --no-cache openssl
+RUN npm install && apk add --no-cache openssl ca-certificates
 
 # Copy the rest of your application
 COPY . .
@@ -22,6 +22,13 @@ CMD sh -c 'if [ ! -f /app/certs/server.crt ]; then \
                -out /app/certs/server.crt \
                -config /app/openssl.cnf \
              chmod 644 /app/certs/server.key /app/certs/server.crt; \
-           fi && npm run dev'
-
-
+           fi && \
+           if [ -f /app/certs/rootCA.pem ]; then \
+             echo "Installing root CA certificate..."; \
+             mkdir -p /usr/local/share/ca-certificates && \
+             cp /app/certs/rootCA.pem /usr/local/share/ca-certificates/rootCA.crt && \
+             update-ca-certificates && \
+             # Set NODE_EXTRA_CA_CERTS for Node.js to trust the CA \
+             export NODE_EXTRA_CA_CERTS=/app/certs/rootCA.pem; \
+           fi && \
+           npm run dev'

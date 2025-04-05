@@ -1,6 +1,5 @@
 import asyncio
 import json
-import logging
 import os
 import re
 import tempfile
@@ -8,11 +7,11 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Set
 
 from app.config import get_settings
-# Import logger correctly if it's defined in app.core.logging
-from app.core.logging import logger # Assuming logger is correctly defined here
+from app.core.logging import logger
 from app.services.circuit_breaker import CircuitBreaker
 from app.services.pod_manifest_builder import PodManifestBuilder
 from fastapi import Depends, Request
+
 # Import config as k8s_config and client as k8s_client for clarity
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
@@ -134,11 +133,11 @@ class KubernetesService:
             # Fallback to default path from settings (for local dev maybe)
             default_kube_path = os.path.expanduser(self.settings.KUBERNETES_CONFIG_PATH)
             if os.path.exists(default_kube_path):
-                 logger.info(f"Using default kubeconfig from {default_kube_path}")
-                 k8s_config.load_kube_config(config_file=default_kube_path)
+                logger.info(f"Using default kubeconfig from {default_kube_path}")
+                k8s_config.load_kube_config(config_file=default_kube_path)
             else:
-                 logger.error("No Kubernetes configuration found (in-cluster, CI path, or default path).")
-                 raise KubernetesConfigError("Could not find valid Kubernetes configuration.")
+                logger.error("No Kubernetes configuration found (in-cluster, CI path, or default path).")
+                raise KubernetesConfigError("Could not find valid Kubernetes configuration.")
         # Log the configured host after loading
         # Note: Accessing the default config requires care, get_default_copy is safer if needed
         try:
@@ -147,21 +146,20 @@ class KubernetesService:
         except Exception:
             logger.warning("Could not retrieve default configuration host for logging.")
 
-
     def _test_api_connection(self) -> None:
         try:
             # Use the instance variable version_api initialized earlier
             version = self.version_api.get_code()
             logger.info(f"Successfully connected to Kubernetes API. Server version: {version.git_version}")
         except ApiException as e:
-            logger.error(f"Kubernetes API connection test failed. Status: {e.status}, Reason: {e.reason}, Body: {e.body}")
+            logger.error(
+                f"Kubernetes API connection test failed. Status: {e.status}, Reason: {e.reason}, Body: {e.body}")
             if e.status == 401:
                 raise KubernetesConfigError("Authentication failed. Please check your token.") from e
             raise KubernetesConfigError(f"Failed to connect to Kubernetes API: {str(e)}") from e
-        except Exception as e: # Catch other errors like SSL handshake failures
+        except Exception as e:  # Catch other errors like SSL handshake failures
             logger.error(f"Unexpected error during Kubernetes API connection test: {str(e)}")
             raise KubernetesConfigError(f"Unexpected error connecting to Kubernetes API: {str(e)}") from e
-
 
     async def create_execution_pod(self, execution_id: str, script: str, python_version: str) -> None:
         if not self.circuit_breaker.should_allow_request():
@@ -170,8 +168,8 @@ class KubernetesService:
             raise KubernetesServiceError("Kubernetes service is unhealthy")
         # Ensure clients are initialized
         if not self.v1:
-             logger.error("Kubernetes CoreV1Api client is not initialized.")
-             raise KubernetesConfigError("Kubernetes client not initialized.")
+            logger.error("Kubernetes CoreV1Api client is not initialized.")
+            raise KubernetesConfigError("Kubernetes client not initialized.")
 
         temp_file_path = None
         config_map_name = f"script-{execution_id}"
@@ -217,8 +215,8 @@ class KubernetesService:
         config_map_name = f"script-{execution_id}"
         # Ensure clients are initialized
         if not self.v1:
-             logger.error("Kubernetes CoreV1Api client is not initialized.")
-             raise KubernetesConfigError("Kubernetes client not initialized.")
+            logger.error("Kubernetes CoreV1Api client is not initialized.")
+            raise KubernetesConfigError("Kubernetes client not initialized.")
 
         try:
             pod = None
@@ -229,16 +227,22 @@ class KubernetesService:
                     if pod and pod.status and pod.status.phase in self.POD_SUCCESS_STATES:
                         logger.info(f"Pod '{pod_name}' reached terminal phase: {pod.status.phase}")
                         break
-                    logger.debug(f"Pod '{pod_name}' status: {pod.status.phase if pod and pod.status else 'Unknown'}. Attempt {attempt + 1}/{self.POD_RETRY_ATTEMPTS}")
+                    logger.debug(
+                        f"Pod '{pod_name}' status: {pod.status.phase if pod and pod.status else 'Unknown'}. "
+                        f"Attempt {attempt + 1}/{self.POD_RETRY_ATTEMPTS}")
                 except ApiException as e:
                     if e.status == 404:
-                         logger.warning(f"Pod '{pod_name}' not found (yet?). Attempt {attempt + 1}/{self.POD_RETRY_ATTEMPTS}")
+                        logger.warning(
+                            f"Pod '{pod_name}' not found (yet?). Attempt {attempt + 1}/{self.POD_RETRY_ATTEMPTS}")
                     else:
-                         logger.error(f"API Error reading pod '{pod_name}': {e.status} {e.reason}. Attempt {attempt + 1}/{self.POD_RETRY_ATTEMPTS}")
-                         # Depending on the error, might want to break early or continue retrying
+                        logger.error(
+                            f"API Error reading pod '{pod_name}': {e.status} {e.reason}. "
+                            f"Attempt {attempt + 1}/{self.POD_RETRY_ATTEMPTS}")
+                        # Depending on the error, might want to break early or continue retrying
                 await asyncio.sleep(self.POD_RETRY_INTERVAL)
-            else: # Loop completed without break
-                logger.error(f"Timeout waiting for pod '{pod_name}' to complete after {self.POD_RETRY_ATTEMPTS} attempts.")
+            else:  # Loop completed without break
+                logger.error(
+                    f"Timeout waiting for pod '{pod_name}' to complete after {self.POD_RETRY_ATTEMPTS} attempts.")
                 # Attempt to read pod one last time to get phase if possible
                 try:
                     pod = await asyncio.to_thread(self.v1.read_namespaced_pod, pod_name, self.NAMESPACE)
@@ -246,7 +250,6 @@ class KubernetesService:
                 except Exception:
                     current_phase = "Unknown"
                 raise KubernetesPodError(f"Timeout waiting for pod to complete. Last known phase: {current_phase}")
-
 
             logger.info(f"Retrieving logs for pod '{pod_name}'...")
             try:
@@ -258,13 +261,13 @@ class KubernetesService:
                 )
                 logger.debug(f"Raw logs retrieved for pod '{pod_name}'. Length: {len(full_logs)}")
             except ApiException as e:
-                 logger.warning(f"Could not retrieve logs for pod '{pod_name}': {e.status} {e.reason}")
-                 full_logs = f"Error retrieving logs: {e.status} {e.reason}"
+                logger.warning(f"Could not retrieve logs for pod '{pod_name}': {e.status} {e.reason}")
+                full_logs = f"Error retrieving logs: {e.status} {e.reason}"
 
-
+            pod_status_phase_name: str = pod.status.phase if pod and pod.status else "Unknown"
             script_output, resource_usage = self._extract_execution_metrics(full_logs,
                                                                             execution_id,
-                                                                            pod.status.phase if pod and pod.status else "Unknown")
+                                                                            pod_status_phase_name)
 
             return script_output, pod.status.phase if pod and pod.status else "Unknown", resource_usage
 
@@ -280,21 +283,24 @@ class KubernetesService:
             "execution_time": 0.0,
             "cpu_usage": 0.0,
             "memory_usage": 0.0,
-            "exit_code": 0 if pod_phase == "Succeeded" else 1, # Best guess if metrics missing
+            "exit_code": 0 if pod_phase == "Succeeded" else 1,  # Best guess if metrics missing
             "status": pod_phase
         }
         try:
             pattern = r"###METRICS###\s*(\{.*?\})"
-            match = re.search(pattern, logs, re.DOTALL | re.MULTILINE) # Ensure MULTILINE for ^$ if needed, DOTALL for . across lines
+            match = re.search(pattern, logs,
+                              re.DOTALL | re.MULTILINE)  # Ensure MULTILINE for ^$ if needed, DOTALL for . across lines
             if match:
                 metrics_json = match.group(1).strip()
                 logger.debug(f"Found metrics JSON for {execution_id}: {metrics_json}")
                 metrics = json.loads(metrics_json)
                 # Determine status based on exit code primarily
-                exit_code = metrics.get("exit_code", 1 if pod_phase != "Succeeded" else 0) # Default to error if exit code missing & pod failed
-                computed_status = "completed" if exit_code == 0 else "error" # Use 'error' status for non-zero exit
+                # Default to error if exit code missing & pod failed
+                exit_code = metrics.get("exit_code",
+                                        1 if pod_phase != "Succeeded" else 0)
+                computed_status = "completed" if exit_code == 0 else "error"  # Use 'error' status for non-zero exit
                 metrics["status"] = computed_status
-                metrics["pod_phase"] = pod_phase # Add original pod phase for info
+                metrics["pod_phase"] = pod_phase  # Add original pod phase for info
                 output = re.sub(pattern, "", logs, flags=re.DOTALL | re.MULTILINE).strip()
                 logger.info(f"Metrics successfully extracted for {execution_id}")
                 return output, metrics
@@ -302,18 +308,21 @@ class KubernetesService:
                 logger.warning(f"Metrics marker not found in logs for {execution_id}. Pod phase: {pod_phase}")
                 # Base status on pod phase if metrics missing
                 default_metrics["status"] = "completed" if pod_phase == "Succeeded" else "error"
-                return logs.strip(), default_metrics # Return all logs as output if no marker
+                return logs.strip(), default_metrics  # Return all logs as output if no marker
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to decode metrics JSON for {execution_id}: {str(e)}. Raw JSON attempted: '{match.group(1).strip() if match else 'N/A'}'")
-            default_metrics["status"] = "error" # Mark as error if JSON parsing fails
+            logger.error(
+                f"Failed to decode metrics JSON for {execution_id}: {str(e)}. "
+                f"Raw JSON attempted: '{match.group(1).strip() if match else 'N/A'}'")
+            default_metrics["status"] = "error"  # Mark as error if JSON parsing fails
             return logs.strip(), default_metrics
         except Exception as e:
             logger.error(f"Unexpected error parsing metrics for {execution_id}: {str(e)}")
-            default_metrics["status"] = "error" # Mark as error on unexpected failures
+            default_metrics["status"] = "error"  # Mark as error on unexpected failures
             return logs.strip(), default_metrics
 
     async def _create_config_map(self, config_map: k8s_client.V1ConfigMap) -> None:
-        if not self.v1: raise KubernetesConfigError("Kubernetes client not initialized.")
+        if not self.v1:
+            raise KubernetesConfigError("Kubernetes client not initialized.")
         try:
             await asyncio.to_thread(
                 self.v1.create_namespaced_config_map,
@@ -326,7 +335,8 @@ class KubernetesService:
             raise KubernetesServiceError(f"Failed to create ConfigMap: {str(e)}") from e
 
     async def _create_namespaced_pod(self, pod_manifest: Dict[str, Any]) -> None:
-        if not self.v1: raise KubernetesConfigError("Kubernetes client not initialized.")
+        if not self.v1:
+            raise KubernetesConfigError("Kubernetes client not initialized.")
         pod_name = pod_manifest.get("metadata", {}).get("name", "unknown-pod")
         try:
             await asyncio.to_thread(
@@ -341,20 +351,20 @@ class KubernetesService:
 
     async def _cleanup_resources(self, pod_name: str, config_map_name: str) -> None:
         if not self.v1:
-             logger.error("Cannot cleanup resources, Kubernetes client not initialized.")
-             return
+            logger.error("Cannot cleanup resources, Kubernetes client not initialized.")
+            return
         # Cleanup Pod
         try:
             await asyncio.to_thread(
                 self.v1.delete_namespaced_pod,
                 name=pod_name,
                 namespace=self.NAMESPACE,
-                grace_period_seconds=5, # Reduce grace period for faster cleanup
-                propagation_policy='Background' # Start deletion quickly
+                grace_period_seconds=5,  # Reduce grace period for faster cleanup
+                propagation_policy='Background'  # Start deletion quickly
             )
             logger.info(f"Deletion request sent for pod '{pod_name}'")
         except ApiException as e:
-            if e.status != 404: # Ignore if already deleted
+            if e.status != 404:  # Ignore if already deleted
                 logger.error(f"Failed to delete pod '{pod_name}': {e.status} {e.reason}")
             else:
                 logger.info(f"Pod '{pod_name}' already deleted or not found.")
@@ -368,11 +378,10 @@ class KubernetesService:
             )
             logger.info(f"Deletion request sent for config map '{config_map_name}'")
         except ApiException as e:
-            if e.status != 404: # Ignore if already deleted
+            if e.status != 404:  # Ignore if already deleted
                 logger.error(f"Failed to delete config map '{config_map_name}': {e.status} {e.reason}")
             else:
-                 logger.info(f"ConfigMap '{config_map_name}' already deleted or not found.")
-
+                logger.info(f"ConfigMap '{config_map_name}' already deleted or not found.")
 
     async def _cleanup_pod_resources(self, pod_name: str) -> None:
         if not pod_name.startswith("execution-"):
@@ -387,7 +396,7 @@ def get_k8s_manager(request: Request) -> KubernetesServiceManager:
     if not hasattr(request.app.state, "k8s_manager"):
         logger.info("Creating new KubernetesServiceManager instance.")
         request.app.state.k8s_manager = KubernetesServiceManager()
-    return request.app.state.k8s_manager # type: ignore
+    return request.app.state.k8s_manager  # type: ignore
 
 
 def get_kubernetes_service(

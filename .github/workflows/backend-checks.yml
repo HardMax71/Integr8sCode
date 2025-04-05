@@ -264,7 +264,7 @@ jobs:
           curl -ksfL https://localhost:443/api/v1/result/$execution_id > execution_result.json || (echo "Failed to get execution result"; cat execution_result.json; exit 1)
           cat execution_result.json
           grep -q "Hello from GitHub Actions" execution_result.json || (echo "Execution output mismatch!"; exit 1)
-          grep -q '"status": "completed"' execution_result.json || (echo "Execution status not completed!"; exit 1)
+          grep -q '"status":"completed"' execution_result.json || (echo "Execution status not completed!"; exit 1)
           echo "Python script execution test PASSED"
 
       - name: Test Python version constraint
@@ -286,7 +286,7 @@ jobs:
           curl -ksfL https://localhost:443/api/v1/result/$error_execution_id > error_result.json || (echo "Failed to get error execution result"; cat error_result.json; exit 1)
           cat error_result.json
           grep -q "SyntaxError" error_result.json || (echo "Expected SyntaxError not found!"; exit 1)
-          grep -q '"status": "error"' error_result.json || (echo "Execution status not error!"; exit 1)
+          grep -q '"status":"error"' error_result.json || (echo "Execution status not error!"; exit 1)
           echo "Python version constraint test PASSED"
 
       - name: Collect logs

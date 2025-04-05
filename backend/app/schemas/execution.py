@@ -27,8 +27,8 @@ class ExecutionInDB(ExecutionBase):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     resource_usage: Optional[Dict] = None
 
-    @computed_field
     @property
+    @computed_field
     def id(self) -> str:
         return self.execution_id
 

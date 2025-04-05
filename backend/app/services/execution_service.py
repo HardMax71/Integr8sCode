@@ -79,7 +79,8 @@ class ExecutionService:
         try:
             output, phase, resource_usage = await self.k8s_service.get_pod_logs(execution_id_str)  # Pass string ID
             logger.info(
-                f"Retrieved K8s results for {execution_id_str}. Phase: {phase}. Resource usage found: {resource_usage is not None}")
+                f"Retrieved K8s results for {execution_id_str}. Phase: {phase}. "
+                f"Resource usage found: {resource_usage is not None}")
             return output, None, phase, resource_usage
         except KubernetesPodError as e:
             logger.error(f"Error retrieving pod results for {execution_id_str}: {str(e)}")
@@ -145,7 +146,8 @@ class ExecutionService:
                 raise
             else:
                 raise IntegrationException(status_code=500,
-                                           detail=f"Internal server error during script execution request: {str(e)}") from e
+                                           detail=f"Internal server error during "
+                                                  f"script execution request: {str(e)}") from e
 
         finally:
             EXECUTION_DURATION.labels(python_version=python_version).observe(
@@ -180,7 +182,8 @@ class ExecutionService:
                 SCRIPT_EXECUTIONS.labels(status="error", python_version=execution.python_version).inc()
                 ERROR_COUNTER.labels(error_type="KubernetesPodFailed").inc()
                 logger.warning(
-                    f"Execution {execution_id} failed or errored based on K8s pod phase: {final_phase}. Error msg: {error_msg}")
+                    f"Execution {execution_id} failed or errored based on K8s pod phase: {final_phase}. "
+                    f"Error msg: {error_msg}")
 
             update_data["status"] = final_status
             update_data["output"] = output if output is not None else execution.output
@@ -211,7 +214,8 @@ class ExecutionService:
             return updated_execution
         else:
             logger.info(
-                f"No final K8s status found for execution {execution_id}, returning current DB status: {execution.status}")
+                f"No final K8s status found for execution {execution_id}, "
+                f"returning current DB status: {execution.status}")
             return execution
 
 

@@ -16,7 +16,7 @@ class ExecutionRepository:
     async def create_execution(self, execution: ExecutionInDB) -> str:
         execution_dict = execution.dict(by_alias=True)
         await self.collection.insert_one(execution_dict)
-        return execution.id
+        return str(execution.id)
 
     async def get_execution(self, execution_id: str) -> Optional[ExecutionInDB]:
         try:

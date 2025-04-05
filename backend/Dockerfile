@@ -2,13 +2,8 @@ FROM python:3.9
 WORKDIR /app
 
 # Install required packages including util-linux for shell commands.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    iputils-ping \
-    curl \
-    openssl \
-    util-linux \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get upgrade -y liblzma-dev liblzma5 xz-utils && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install kubectl.
 RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" \

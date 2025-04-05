@@ -9,26 +9,21 @@ RUN npm install && apk add --no-cache openssl ca-certificates
 # Copy the rest of your application
 COPY . .
 
-# Copy the OpenSSL config file
 COPY openssl.cnf /app/openssl.cnf
 
 EXPOSE 5001
 
-CMD sh -c 'if [ ! -f /app/certs/server.crt ]; then \
-             echo "Certificate not found, generating one..."; \
-             mkdir -p /app/certs && \
-             openssl req -x509 -nodes -days 365 -newkey rsa:4096 \
-               -keyout /app/certs/server.key \
-               -out /app/certs/server.crt \
-               -config /app/openssl.cnf \
-             chmod 644 /app/certs/server.key /app/certs/server.crt; \
-           fi && \
-           if [ -f /app/certs/rootCA.pem ]; then \
-             echo "Installing root CA certificate..."; \
-             mkdir -p /usr/local/share/ca-certificates && \
-             cp /app/certs/rootCA.pem /usr/local/share/ca-certificates/rootCA.crt && \
-             update-ca-certificates && \
-             # Set NODE_EXTRA_CA_CERTS for Node.js to trust the CA \
-             export NODE_EXTRA_CA_CERTS=/app/certs/rootCA.pem; \
-           fi && \
-           npm run dev'
+CMD sh -c ' \
+    echo "Checking for shared CA certificate at /shared_ca/rootCA.pem..."; \
+    if [ -f /shared_ca/rootCA.pem ]; then \
+      echo "Shared root CA certificate found, installing to system trust store..."; \
+      cp /shared_ca/rootCA.pem /usr/local/share/ca-certificates/customRootCA.crt && \
+      update-ca-certificates; \
+      echo "System CA store updated."; \
+    else \
+      echo "WARNING: Shared root CA certificate not found at /shared_ca/rootCA.pem. System trust store not updated by Dockerfile CMD."; \
+    fi; \
+    echo "Starting development server..."; \
+    # Rely on docker-compose environment for NODE_EXTRA_CA_CERTS \
+    npm run dev \
+'

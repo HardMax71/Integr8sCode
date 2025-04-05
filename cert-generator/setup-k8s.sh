@@ -1,10 +1,12 @@
 #!/bin/sh
 set -e
 
-# Set CAROOT to use the shared directory for root CA
-export CAROOT=/shared_ca
+export CAROOT=${SHARED_CA_DIR:-/shared_ca}
+BACKEND_CERT_DIR=${BACKEND_CERT_DIR:-/backend-certs}
+FRONTEND_CERT_DIR=${FRONTEND_CERT_DIR:-/frontend-certs}
 
-# Check if a shared root CA already exists
+mkdir -p "$BACKEND_CERT_DIR" "$FRONTEND_CERT_DIR" "$CAROOT"
+
 if [ -f "$CAROOT/rootCA.pem" ] && [ -f "$CAROOT/rootCA-key.pem" ]; then
     echo "Using existing shared root CA from $CAROOT"
 else
@@ -14,42 +16,41 @@ else
     echo "Root CA created in $CAROOT"
 fi
 
-# Generate certificates if they don't exist
-if [ ! -f /certs/server.crt ]; then
-    echo "Generating certificates using shared root CA"
-    mkcert -cert-file /certs/server.crt -key-file /certs/server.key localhost kubernetes.docker.internal backend 127.0.0.1 ::1
-    cp "$CAROOT/rootCA.pem" /certs/rootCA.pem
-    chmod 644 /certs/server.crt /certs/server.key /certs/rootCA.pem
-    echo "Certificates generated using shared root CA"
+if [ ! -f "$BACKEND_CERT_DIR/server.crt" ]; then
+    echo "Generating backend certificates using shared root CA into $BACKEND_CERT_DIR"
+    mkcert -cert-file "$BACKEND_CERT_DIR/server.crt" -key-file "$BACKEND_CERT_DIR/server.key" localhost kubernetes.docker.internal backend 127.0.0.1 ::1
+    cp "$CAROOT/rootCA.pem" "$BACKEND_CERT_DIR/rootCA.pem"
+    chmod 644 "$BACKEND_CERT_DIR/server.crt" "$BACKEND_CERT_DIR/server.key" "$BACKEND_CERT_DIR/rootCA.pem"
+    echo "Backend certificates generated using shared root CA"
 else
-    echo "Certificates already exist"
+    echo "Backend certificates already exist in $BACKEND_CERT_DIR"
 fi
 
-# Skip Kubernetes setup if CI environment is detected or if kubeconfig already exists
+if [ ! -f "$FRONTEND_CERT_DIR/server.crt" ]; then
+    echo "Generating frontend certificates using shared root CA into $FRONTEND_CERT_DIR"
+    mkcert -cert-file "$FRONTEND_CERT_DIR/server.crt" -key-file "$FRONTEND_CERT_DIR/server.key" localhost kubernetes.docker.internal frontend 127.0.0.1 ::1
+    cp "$CAROOT/rootCA.pem" "$FRONTEND_CERT_DIR/rootCA.pem"
+    chmod 644 "$FRONTEND_CERT_DIR/server.crt" "$FRONTEND_CERT_DIR/server.key" "$FRONTEND_CERT_DIR/rootCA.pem"
+    echo "Frontend certificates generated using shared root CA"
+else
+    echo "Frontend certificates already exist in $FRONTEND_CERT_DIR"
+fi
+
 if [ "$CI" = "true" ] || [ -f /backend/kubeconfig.yaml ]; then
     echo "CI environment detected or kubeconfig already exists. Skipping Kubernetes setup."
 else
-    # Generate kubeconfig dynamically for backend container
     if [ -d /backend ]; then
         echo "Generating kubeconfig for backend"
-
-        # Check if kubectl is properly configured
         if ! kubectl config view > /dev/null 2>&1; then
             echo "ERROR: kubectl is not configured properly. Exiting."
             exit 1
         fi
-
-        # Fetch Kubernetes CA Certificate dynamically
         K8S_CA_CERT=$(kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
         if [ -z "$K8S_CA_CERT" ]; then
             echo "ERROR: Failed to get Kubernetes CA certificate. Exiting."
             exit 1
         fi
-
-        # Create service account for backend access
         kubectl create serviceaccount integr8scode-sa -n default --dry-run=client -o yaml | kubectl apply -f -
-
-        # Apply RBAC role for service account
         kubectl apply -f - <<EOF
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -61,8 +62,6 @@ rules:
   resources: ["configmaps", "pods", "pods/log"]
   verbs: ["create", "get", "list", "watch", "delete"]
 EOF
-
-        # Bind the role to service account
         kubectl apply -f - <<EOF
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -78,24 +77,16 @@ roleRef:
   name: integr8scode-role
   apiGroup: rbac.authorization.k8s.io
 EOF
-
-        # Generate short-lived token for the service account
         TOKEN=$(kubectl create token integr8scode-sa -n default --duration=24h)
         if [ -z "$TOKEN" ]; then
             echo "ERROR: Failed to generate token. Exiting."
             exit 1
         fi
-
-        # Determine appropriate Kubernetes server URL
         if [ -n "$KUBERNETES_SERVICE_HOST" ]; then
-            # Inside Kubernetes cluster
             K8S_SERVER="https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT}"
         else
-            # Local development
             K8S_SERVER="https://kubernetes.docker.internal:6443"
         fi
-
-        # Create kubeconfig
         cat > /backend/kubeconfig.yaml <<EOF
 apiVersion: v1
 kind: Config
@@ -115,14 +106,12 @@ contexts:
     user: integr8scode-sa
 current-context: integr8scode
 EOF
-
         chmod 644 /backend/kubeconfig.yaml
         echo "kubeconfig.yaml successfully generated at /backend/kubeconfig.yaml"
     fi
 fi
 
-# Marker file to indicate setup completion
-echo "$(date)" > /certs/setup-complete
+echo "$(date)" > "$BACKEND_CERT_DIR/setup-complete"
+echo "$(date)" > "$FRONTEND_CERT_DIR/setup-complete"
 
-# Final log
 echo "Setup completed successfully. Exiting."

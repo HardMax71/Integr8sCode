@@ -28,7 +28,7 @@ async def client() -> AsyncGenerator[httpx.AsyncClient, None]:
 
 @pytest.fixture(scope="function")
 async def db() -> AsyncGenerator[AsyncIOMotorDatabase, None]:
-    settings = Settings(_env_file='.env.test', _env_file_encoding='utf-8')
+    settings = Settings(_env_file='/tests/.env.test', _env_file_encoding='utf-8')
     if not settings.MONGODB_URL or not settings.PROJECT_NAME:
         pytest.fail("MONGODB_URL or PROJECT_NAME not configured for testing")
 

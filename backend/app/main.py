@@ -16,8 +16,6 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 
-limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -72,6 +70,13 @@ def create_app() -> FastAPI:
     app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
 
     app.add_middleware(RequestSizeLimitMiddleware)
+
+    if settings.TESTING:
+        limiter = Limiter(key_func=get_remote_address, enabled=False)
+        logger.info("Rate limiting DISABLED for TESTING environment.")
+    else:
+        limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
+        logger.info(f"Rate limiting ENABLED with limits: {limiter._default_limits}")
 
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore

@@ -109,6 +109,7 @@ jobs:
           yq eval 'del(.services.cert-generator.volumes[] | select(test("^\.?~/\.kube")))' -i docker-compose.ci.yaml
           yq eval '.services.cert-generator.environment += ["CI=true"]' -i docker-compose.ci.yaml
           yq eval '.services.backend.extra_hosts += ["host.docker.internal:host-gateway"]' -i docker-compose.ci.yaml
+          yq eval '.services.backend.environment += ["TESTING=true"]' -i docker-compose.ci.yaml
           echo "--- Modified docker-compose.ci.yaml ---"
           cat docker-compose.ci.yaml
           echo "------------------------------------"

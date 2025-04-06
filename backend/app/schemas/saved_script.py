@@ -30,7 +30,6 @@ class SavedScriptUpdate(BaseModel):
     name: Optional[str] = None
     script: Optional[str] = None
     description: Optional[str] = None
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class SavedScriptCreateRequest(SavedScriptBase):

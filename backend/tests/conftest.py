@@ -8,6 +8,7 @@ from app.config import Settings
 from app.main import create_app
 from fastapi import FastAPI
 from httpx import AsyncClient
+import httpx
 from motor.motor_asyncio import AsyncIOMotorClient
 
 
@@ -28,15 +29,21 @@ def event_loop() -> Generator[AbstractEventLoop, None, None]:
 
 
 @pytest.fixture(scope="session")
-async def app() -> AsyncGenerator[FastAPI, None]:
-    app = create_app()
-    yield app
+async def client() -> AsyncGenerator[httpx.AsyncClient, None]:
+    backend_service_url = "https://localhost:443"
 
+    async with AsyncClient(
+        base_url=backend_service_url,
+        verify=False
+    ) as async_client:
+        try:
+             response = await async_client.get("/api/v1/health", timeout=15)
+             response.raise_for_status() # Raise exception for non-2xx status
+             print(f"Initial health check to {backend_service_url} successful.")
+        except (httpx.RequestError, httpx.HTTPStatusError) as e:
+             pytest.fail(f"Failed initial connection to backend service at {backend_service_url}: {e}", pytrace=False)
 
-@pytest.fixture(scope="session")
-async def client(app: FastAPI) -> AsyncGenerator[AsyncClient, None]:
-    async with AsyncClient(app=app, base_url="http://test") as client:
-        yield client
+        yield async_client
 
 
 @pytest.fixture(scope="function")

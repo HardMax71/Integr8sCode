@@ -37,6 +37,12 @@ services:
     networks:
       - app-network
     container_name: mongo
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongo --quiet
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   backend:
     build:
@@ -46,7 +52,7 @@ services:
       cert-generator:
         condition: service_completed_successfully
       mongo:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - ./backend:/app
       - ./backend/certs:/app/certs:ro

@@ -1,5 +1,5 @@
 # tests/conftest.py
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
 
 import httpx
 import pytest
@@ -32,7 +32,7 @@ async def db() -> AsyncGenerator[AsyncIOMotorDatabase, None]:
     if not settings.MONGODB_URL or not settings.PROJECT_NAME:
         pytest.fail("MONGODB_URL or PROJECT_NAME not configured for testing")
 
-    db_client: AsyncIOMotorClient = None
+    db_client: Optional[AsyncIOMotorClient] = None
     try:
         db_client = AsyncIOMotorClient(
             settings.MONGODB_URL,

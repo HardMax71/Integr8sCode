@@ -7,7 +7,7 @@ import pytest
 from app.config import Settings
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 
-ENV_FILE_PATH = pathlib.Path(__file__).parent.parent / '.env.test'
+ENV_FILE_PATH = pathlib.Path(__file__).parent / '.env.test'
 
 @pytest.fixture(scope="function")
 async def client() -> AsyncGenerator[httpx.AsyncClient, None]:

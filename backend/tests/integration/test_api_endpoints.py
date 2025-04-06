@@ -1,31 +1,33 @@
 # tests/integration/test_api_endpoints.py
 import pytest
 from app.schemas.user import UserCreate
-from fastapi import FastAPI
 from httpx import AsyncClient
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 
 class TestAPIEndpoints:
     @pytest.fixture(autouse=True)
-    async def setup(self, app: FastAPI, client: AsyncClient, db: AsyncIOMotorDatabase) -> None:
-        self.app = app
+    async def setup(self, client: AsyncClient, db: AsyncIOMotorDatabase) -> None:
         self.client = client
         self.db = db
 
         # Create a test user
         test_user = UserCreate(
-            username="testuser", email="test@example.com", password="testpass123"
+            username="testuser_integ", email="testuser_integ@example.com", password="testpass123"
         )
         # Register the user and get token
         _ = await self.client.post(
-            "/api/v1/register", json=test_user.dict()
+            "/api/v1/register", json=test_user.model_dump()
         )
         login_response = await self.client.post(
             "/api/v1/login",
             data={"username": test_user.username, "password": test_user.password},
         )
-        self.token = login_response.json()["access_token"]
+        assert login_response.status_code == 200, f"Login failed: {login_response.text}"
+
+        login_data = login_response.json()
+        assert "access_token" in login_data, "access_token missing from login response"
+        self.token = login_data["access_token"]
         self.headers = {"Authorization": f"Bearer {self.token}"}
 
     @pytest.mark.asyncio

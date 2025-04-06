@@ -49,7 +49,7 @@ async def client() -> AsyncGenerator[httpx.AsyncClient, None]:
 @pytest.fixture(scope="function")
 async def db() -> AsyncGenerator:
     settings = get_test_settings()
-    client: AsyncIOMotorClient = AsyncIOMotorClient(settings.MONGODB_URL)
+    client: AsyncIOMotorClient = AsyncIOMotorClient(settings.MONGODB_URL, tz_aware=True)
     db = client[settings.PROJECT_NAME]
     yield db
     await client.drop_database(settings.PROJECT_NAME)

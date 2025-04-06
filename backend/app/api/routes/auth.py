@@ -83,7 +83,7 @@ async def login(
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-@router.post("/register", response_model=UserInDB)
+@router.post("/register", response_model=UserResponse)
 @limiter.limit("20/minute")
 async def register(
         request: Request,

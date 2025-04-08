@@ -24,3 +24,15 @@ class UserInDB(UserBase):
     class Config:
         populate_by_name = True
         arbitrary_types_allowed = True
+
+
+class UserResponse(BaseModel):
+    id: str
+    username: str
+    email: EmailStr
+    role: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True

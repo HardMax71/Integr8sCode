@@ -16,19 +16,21 @@
   <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/backend-checks.yml">
     <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/backend-checks.yml?branch=main&label=docker&logo=docker&logoColor=white" alt="Docker Scan Status" />
   </a>
+  <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/backend-checks.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/backend-checks.yml?branch=main&label=tests&logo=pytest" alt="Tests Status" />
+  </a>
 </p>
 <p align="center">
-<a href="https://sonarcloud.io/dashboard?id=HardMax71_Integr8sCode">
+  <a href="https://sonarcloud.io/dashboard?id=HardMax71_Integr8sCode">
     <img src="https://sonarcloud.io/api/project_badges/measure?project=HardMax71_Integr8sCode&metric=alert_status" alt="Quality Gate Status">
   </a>
-   <a href="https://sonarcloud.io/dashboard?id=HardMax71_Integr8sCode">
+  <a href="https://sonarcloud.io/dashboard?id=HardMax71_Integr8sCode">
     <img src="https://sonarcloud.io/api/project_badges/measure?project=HardMax71_Integr8sCode&metric=vulnerabilities" alt="Vulnerabilities">
   </a>
-   <a href="https://sonarcloud.io/dashboard?id=HardMax71_Integr8sCode">
+  <a href="https://sonarcloud.io/dashboard?id=HardMax71_Integr8sCode">
     <img src="https://sonarcloud.io/api/project_badges/measure?project=HardMax71_Integr8sCode&metric=bugs" alt="Bugs">
   </a>
 </p>
-
 ---
 
 Welcome to **Integr8sCode**! This is a platform where you can run Python scripts online with ease. Just paste your

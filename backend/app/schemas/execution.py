@@ -1,8 +1,12 @@
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
+from uuid import uuid4
 
-from bson import ObjectId
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
+
+
+def generate_execution_id() -> str:
+    return str(uuid4().hex)
 
 
 class ExecutionBase(BaseModel):
@@ -18,14 +22,18 @@ class ExecutionCreate(ExecutionBase):
 
 
 class ExecutionInDB(ExecutionBase):
-    id: str = Field(default_factory=lambda: str(ObjectId()), alias="_id")
+    execution_id: str = Field(default_factory=generate_execution_id, alias='id')
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     resource_usage: Optional[Dict] = None
 
+    @computed_field
+    def id(self) -> str:
+        return self.execution_id
+
     class Config:
         populate_by_name = True
-        arbitrary_types_allowed = True
+        allow_population_by_field_name = True
 
 
 class ExecutionUpdate(BaseModel):
@@ -57,6 +65,9 @@ class ExecutionRequest(BaseModel):
 class ExecutionResponse(BaseModel):
     execution_id: str
     status: str
+
+    class Config:
+        from_attributes = True
 
 
 class ExecutionResult(BaseModel):

@@ -29,7 +29,8 @@ class DatabaseManager:
                     maxPoolSize=50,
                     retryWrites=True,
                     waitQueueTimeoutMS=2500,
-                    uuidRepresentation='standard'
+                    uuidRepresentation='standard',
+                    tz_aware=True
                 )
                 # Test the connection
                 await temp_client.admin.command("ping")

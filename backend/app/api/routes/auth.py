@@ -5,7 +5,7 @@ from app.config import get_settings
 from app.core.logging import logger
 from app.core.security import security_service
 from app.db.repositories.user_repository import UserRepository, get_user_repository
-from app.schemas.user import UserCreate, UserInDB
+from app.schemas.user import UserCreate, UserInDB, UserResponse
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from slowapi import Limiter
@@ -16,7 +16,6 @@ limiter = Limiter(key_func=get_remote_address)
 
 
 @router.post("/login")
-@limiter.limit("20/minute")
 async def login(
         request: Request,
         form_data: OAuth2PasswordRequestForm = Depends(),
@@ -83,13 +82,12 @@ async def login(
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-@router.post("/register", response_model=UserInDB)
-@limiter.limit("20/minute")
+@router.post("/register", response_model=UserResponse)
 async def register(
         request: Request,
         user: UserCreate,
         user_repo: UserRepository = Depends(get_user_repository),
-) -> UserInDB:
+) -> UserResponse:
     logger.info(
         "Registration attempt",
         extra={
@@ -126,7 +124,7 @@ async def register(
             },
         )
 
-        return created_user
+        return UserResponse.model_validate(created_user)
 
     except Exception as e:
         logger.error(
@@ -143,7 +141,6 @@ async def register(
 
 
 @router.get("/verify-token")
-@limiter.limit("20/minute")
 async def verify_token(
         request: Request,
         current_user: UserInDB = Depends(security_service.get_current_user),

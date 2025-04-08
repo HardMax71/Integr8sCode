@@ -16,9 +16,6 @@
   <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/backend-checks.yml">
     <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/backend-checks.yml?branch=main&label=docker&logo=docker&logoColor=white" alt="Docker Scan Status" />
   </a>
-  <a href="https://codecov.io/gh/HardMax71/Integr8sCode">
-    <img src="https://codecov.io/gh/HardMax71/Integr8sCode/branch/main/graph/badge.svg" alt="Code Coverage" />
-  </a>
   <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/backend-tests.yml">
     <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/backend-tests.yml?branch=main&label=tests&logo=pytest" alt="Tests Status" />
   </a>

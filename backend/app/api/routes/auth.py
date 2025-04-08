@@ -16,7 +16,6 @@ limiter = Limiter(key_func=get_remote_address)
 
 
 @router.post("/login")
-@limiter.limit("20/minute")
 async def login(
         request: Request,
         form_data: OAuth2PasswordRequestForm = Depends(),
@@ -84,7 +83,6 @@ async def login(
 
 
 @router.post("/register", response_model=UserResponse)
-@limiter.limit("20/minute")
 async def register(
         request: Request,
         user: UserCreate,
@@ -143,7 +141,6 @@ async def register(
 
 
 @router.get("/verify-token")
-@limiter.limit("20/minute")
 async def verify_token(
         request: Request,
         current_user: UserInDB = Depends(security_service.get_current_user),

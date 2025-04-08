@@ -1,27 +1,27 @@
 <script>
-    import { onMount, onDestroy } from "svelte";
-    import { fade, fly, slide } from "svelte/transition";
-    import { get, writable } from "svelte/store";
+    import {onDestroy, onMount} from "svelte";
+    import {fade, fly, slide} from "svelte/transition";
+    import {get, writable} from "svelte/store";
     import axios from "axios";
-    import { authToken, logout as authLogout } from "../stores/auth.js";
-    import { addNotification } from "../stores/notifications.js";
+    import {authToken, logout as authLogout} from "../stores/auth.js";
+    import {addNotification} from "../stores/notifications.js";
     import Spinner from "../components/Spinner.svelte";
-    import { navigate } from "svelte-routing";
-    import { EditorState, Compartment } from "@codemirror/state";
-    import { EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightActiveLine } from "@codemirror/view";
-    import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
-    import { python } from "@codemirror/lang-python";
-    import { oneDark } from "@codemirror/theme-one-dark";
-    import { bracketMatching } from "@codemirror/language";
-    import { autocompletion, completionKeymap } from "@codemirror/autocomplete";
-    import { theme as appTheme } from "../stores/theme.js";
+    import {navigate} from "svelte-routing";
+    import {Compartment, EditorState} from "@codemirror/state";
+    import {EditorView, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers} from "@codemirror/view";
+    import {defaultKeymap, history, historyKeymap, indentWithTab} from "@codemirror/commands";
+    import {python} from "@codemirror/lang-python";
+    import {oneDark} from "@codemirror/theme-one-dark";
+    import {bracketMatching} from "@codemirror/language";
+    import {autocompletion, completionKeymap} from "@codemirror/autocomplete";
+    import {theme as appTheme} from "../stores/theme.js";
 
     let themeCompartment = new Compartment();
 
     function createPersistentStore(key, startValue) {
         if (typeof localStorage === 'undefined') {
             const store = writable(startValue);
-            return { subscribe: store.subscribe, set: store.set };
+            return {subscribe: store.subscribe, set: store.set};
         }
         const storedValue = localStorage.getItem(key);
         const store = writable(storedValue ? JSON.parse(storedValue) : startValue);
@@ -148,27 +148,27 @@
     }
 
     function initializeEditor(currentTheme) {
-         if (!editorContainer || editorView) return;
+        if (!editorContainer || editorView) return;
 
-         const initialThemeExtension = currentTheme === 'dark' ? oneDark : [];
+        const initialThemeExtension = currentTheme === 'dark' ? oneDark : [];
 
-         try {
-             const startState = EditorState.create({
+        try {
+            const startState = EditorState.create({
                 doc: get(script),
                 extensions: [
                     ...getStaticExtensions(),
                     themeCompartment.of(initialThemeExtension)
                 ],
-             });
+            });
 
-             editorView = new EditorView({
+            editorView = new EditorView({
                 state: startState,
                 parent: editorContainer,
-             });
-         } catch (e) {
-             console.error("Failed to initialize CodeMirror:", e);
-             addNotification("Failed to load code editor.", "error");
-         }
+            });
+        } catch (e) {
+            console.error("Failed to initialize CodeMirror:", e);
+            addNotification("Failed to load code editor.", "error");
+        }
     }
 
     async function executeScript() {
@@ -177,46 +177,65 @@
         result = null;
         const scriptValue = get(script);
         const pythonVersionValue = get(pythonVersion);
+        let executionId = null;
+
         try {
             const executeResponse = await axios.post(`/api/v1/execute`, {
                 script: scriptValue,
                 python_version: pythonVersionValue
             });
-            const executionId = executeResponse.data.execution_id;
-            result = { status: 'running', execution_id: executionId };
+            executionId = executeResponse.data.execution_id;
+            result = {status: 'running', execution_id: executionId};
 
             const pollInterval = 1000;
-            const maxAttempts = (k8sLimits?.execution_timeout || 5) + 5;
+            const maxAttempts = (k8sLimits?.execution_timeout || 5) + 10;
             let attempts = 0;
 
             while (attempts < maxAttempts && (result?.status === 'queued' || result?.status === 'running')) {
                 await new Promise(resolve => setTimeout(resolve, pollInterval));
                 attempts++;
                 try {
-                     const resultResponse = await axios.get(`/api/v1/result/${executionId}`);
-                     result = resultResponse.data;
-                     if (result.status === 'completed' || result.status === 'failed') {
-                         break;
-                     }
+                    const resultResponse = await axios.get(`/api/v1/result/${executionId}`);
+                    result = resultResponse.data;
+
+                    if (result.status === 'completed' || result.status === 'error') {
+                        break;
+                    }
                 } catch (pollError) {
                     console.error("Polling error:", pollError);
                     if (pollError.response?.status === 404) {
-                        apiError = `Execution ID ${executionId} not found.`;
-                        result = { status: 'failed', errors: apiError, execution_id: executionId };
+                        apiError = `Execution ID ${executionId} not found. It might have expired or never existed.`;
+                        result = {status: 'error', errors: apiError, execution_id: executionId};
+                        addNotification(apiError, "error");
+                        break;
+                    } else if (pollError.response) {
+                        apiError = `Error polling for results (Status ${pollError.response.status}).`;
+                        result = {status: 'error', errors: apiError, execution_id: executionId};
+                        addNotification(apiError, "warning");
+
+                    } else {
+                        apiError = 'Network error while polling for results.';
+                        result = {status: 'error', errors: apiError, execution_id: executionId};
+                        addNotification(apiError, "warning");
+                    }
+
+                    if (result.status === 'error') {
                         break;
                     }
+                    break;
                 }
             }
 
-            if (result?.status !== 'completed' && result?.status !== 'failed') {
-                 result = { status: 'failed', errors: 'Execution timed out.', execution_id: executionId };
-                 addNotification('Script execution timed out.', 'warning');
+            if (result?.status !== 'completed' && result?.status !== 'error') {
+                const timeoutMessage = `Execution timed out after ${attempts} seconds waiting for a final status.`;
+                result = {status: 'error', errors: timeoutMessage, execution_id: executionId};
+                addNotification(timeoutMessage, 'warning');
             }
 
         } catch (err) {
-            apiError = err.response?.data?.detail || "Error executing script.";
+            apiError = err.response?.data?.detail || "Error initiating script execution.";
             addNotification(apiError, "error");
-            result = { status: 'failed', errors: apiError };
+            result = {status: 'error', errors: apiError, execution_id: executionId};
             console.error("Error executing script:", err.response || err);
         } finally {
             executing = false;
@@ -228,7 +247,7 @@
         const authTokenValue = get(authToken);
         try {
             const response = await axios.get(`/api/v1/scripts`, {
-                headers: { Authorization: `Bearer ${authTokenValue}` },
+                headers: {Authorization: `Bearer ${authTokenValue}`},
             });
             savedScripts = response.data || [];
         } catch (err) {
@@ -486,30 +505,31 @@
                                    class:bg-green-50={result.status === 'completed'}
                                    class:text-green-700={result.status === 'completed'}
                                    class:ring-green-600={result.status === 'completed'}
-                            class:dark:bg-green-950={result.status === 'completed'}
-                            class:dark:text-green-300={result.status === 'completed'}
-                            class:dark:ring-green-500={result.status === 'completed'}
+                                   class:dark:bg-green-950={result.status === 'completed'}
+                                   class:dark:text-green-300={result.status === 'completed'}
+                                   class:dark:ring-green-500={result.status === 'completed'}
 
-                            class:bg-red-50={result.status === 'failed'} class:text-red-700={result.status === 'failed'}
-                            class:ring-red-600={result.status === 'failed'}
-                            class:dark:bg-red-950={result.status === 'failed'}
-                            class:dark:text-red-300={result.status === 'failed'}
-                            class:dark:ring-red-500={result.status === 'failed'}
+                                   class:bg-red-50={result.status === 'failed'}
+                                   class:text-red-700={result.status === 'failed'}
+                                   class:ring-red-600={result.status === 'failed'}
+                                   class:dark:bg-red-950={result.status === 'failed'}
+                                   class:dark:text-red-300={result.status === 'failed'}
+                                   class:dark:ring-red-500={result.status === 'failed'}
 
-                            class:bg-blue-50={result.status === 'running'}
-                            class:text-blue-700={result.status === 'running'}
-                            class:ring-blue-600={result.status === 'running'}
-                            class:dark:bg-blue-950={result.status === 'running'}
-                            class:dark:text-blue-300={result.status === 'running'}
-                            class:dark:ring-blue-500={result.status === 'running'}
+                                   class:bg-blue-50={result.status === 'running'}
+                                   class:text-blue-700={result.status === 'running'}
+                                   class:ring-blue-600={result.status === 'running'}
+                                   class:dark:bg-blue-950={result.status === 'running'}
+                                   class:dark:text-blue-300={result.status === 'running'}
+                                   class:dark:ring-blue-500={result.status === 'running'}
 
-                            class:bg-yellow-50={result.status === 'queued'}
-                            class:text-yellow-700={result.status === 'queued'}
-                            class:ring-yellow-600={result.status === 'queued'}
-                            class:dark:bg-yellow-950={result.status === 'queued'}
-                            class:dark:text-yellow-300={result.status === 'queued'}
-                            class:dark:ring-yellow-500={result.status === 'queued'}
-                            >Status: {result.status}</span>
+                                   class:bg-yellow-50={result.status === 'queued'}
+                                   class:text-yellow-700={result.status === 'queued'}
+                                   class:ring-yellow-600={result.status === 'queued'}
+                                   class:dark:bg-yellow-950={result.status === 'queued'}
+                                   class:dark:text-yellow-300={result.status === 'queued'}
+                                   class:dark:ring-yellow-500={result.status === 'queued'}
+                             >Status: {result.status}</span>
 
                             {#if result.execution_id}
                                 <span class="text-fg-muted dark:text-dark-fg-muted">ID:
@@ -675,15 +695,6 @@
         --cm-active-gutter-background: theme('colors.neutral.100');
     }
 
-    .dark {
-        --cm-background: theme('colors.code-bg');
-        --cm-foreground: theme('colors.dark-fg-default');
-        --cm-gutter-background: theme('colors.dark-bg-alt');
-        --cm-gutter-foreground: theme('colors.neutral.600');
-        --cm-gutter-border: theme('colors.dark-border-default');
-        --cm-active-gutter-background: theme('colors.neutral.700');
-    }
-
     .editor-grid-container {
         display: grid;
         grid-template-columns: minmax(0, 1fr);
@@ -746,10 +757,6 @@
     .output-content, .output-pre, .custom-scrollbar {
         scrollbar-width: thin;
         scrollbar-color: theme('colors.neutral.400') theme('colors.neutral.200');
-    }
-
-    .dark .output-content, .dark .output-pre, .dark .custom-scrollbar {
-        scrollbar-color: theme('colors.neutral.500') theme('colors.neutral.700');
     }
 
     .output-pre {

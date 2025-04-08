@@ -14,7 +14,6 @@ async def client() -> AsyncGenerator[httpx.AsyncClient, None]:
     backend_service_url = "https://localhost:443"
     async with httpx.AsyncClient(
             base_url=backend_service_url,
-            verify=False,
             timeout=30.0
     ) as async_client:
         try:

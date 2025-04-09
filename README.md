@@ -128,18 +128,14 @@ cause `match-case` was introduced first in `Python 3.10`.
 
 ## Architecture Overview
 
+
+<img src="./files_for_readme/system_diagram.png">
+
 The platform is built on three main pillars:
 
 - **Frontend**: A sleek Svelte app that users interact with.
 - **Backend**: Powered by FastAPI, Python, and MongoDB to handle all the heavy lifting.
 - **Kubernetes Cluster**: Each script runs in its own pod, ensuring isolation and resource control.
-
-<details>
-<summary>Components diagram</summary>
-
-<img src="./files_for_readme/components-diagram.png">
-
-</details>
 
 <details>
 <summary>Backend Details</summary>
@@ -234,46 +230,16 @@ To access:
 ## Testing Strategy
 
 <details>
-<summary>Unit Tests</summary>
-
-**Repository Tests**: Testing individual database operations
-
-- Located in `tests/unit/test_repositories/`
-- Testing CRUD operations for each model
-- Using real MongoDB test instance
-- Ensuring data integrity and constraints
-- Running with pytest-asyncio for async operations
-
-**Service Tests**: Testing business logic and service layer
-
-- Located in `tests/unit/test_services/`
-- Testing service methods independently
-- Using actual repositories with test database
-- Ensuring proper error handling
-- Verifying state changes and data transformations
-
-</details>
-
-<details>
 <summary>Integration Tests</summary>
 
 **API Endpoint Tests**: Testing complete HTTP workflows
 
-- Located in `tests/integration/test_api_endpoints.py`
+- Located in `tests/integration/`
 - Testing all REST endpoints
 - Using FastAPI TestClient
 - Verifying response codes and payloads
 - Testing authentication and authorization
 - Ensuring proper error responses
-
-**Kubernetes Integration Tests**: Testing pod execution
-
-- Located in `tests/integration/test_k8s_integration.py`
-- Testing script execution in pods
-- Verifying resource limits and constraints
-- Testing cleanup and error scenarios
-- Using test Kubernetes cluster
-
 </details>
 
 <details>
@@ -311,17 +277,6 @@ Main results:
 - `conftest.py` for shared fixtures
 - Docker compose for test dependencies
 
-**Test Database**:
-
-- Separate MongoDB instance for testing
-- Fresh database for each test run
-- Automated cleanup after tests
-
-**Test Coverage**:
-
-- `pytest-cov` for coverage reporting
-- 92% coverage of core functionality
-- Coverage reports in HTML and XML
 
 </details>
 

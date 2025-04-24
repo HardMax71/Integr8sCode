@@ -11,7 +11,6 @@ from app.core.logging import logger
 from app.services.circuit_breaker import CircuitBreaker
 from app.services.pod_manifest_builder import PodManifestBuilder
 from fastapi import Depends, Request
-
 # Import config as k8s_config and client as k8s_client for clarity
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
@@ -28,6 +27,9 @@ class KubernetesPodError(KubernetesServiceError):
 
 class KubernetesConfigError(KubernetesServiceError):
     pass
+
+
+_K8S_CLIENT_NOT_INITIALIZED_MSG: str = "Kubernetes client not initialized."
 
 
 class KubernetesServiceManager:
@@ -169,7 +171,7 @@ class KubernetesService:
         # Ensure clients are initialized
         if not self.v1:
             logger.error("Kubernetes CoreV1Api client is not initialized.")
-            raise KubernetesConfigError("Kubernetes client not initialized.")
+            raise KubernetesConfigError(_K8S_CLIENT_NOT_INITIALIZED_MSG)
 
         temp_file_path = None
         config_map_name = f"script-{execution_id}"
@@ -216,7 +218,7 @@ class KubernetesService:
         # Ensure clients are initialized
         if not self.v1:
             logger.error("Kubernetes CoreV1Api client is not initialized.")
-            raise KubernetesConfigError("Kubernetes client not initialized.")
+            raise KubernetesConfigError(_K8S_CLIENT_NOT_INITIALIZED_MSG)
 
         try:
             pod = None
@@ -322,7 +324,7 @@ class KubernetesService:
 
     async def _create_config_map(self, config_map: k8s_client.V1ConfigMap) -> None:
         if not self.v1:
-            raise KubernetesConfigError("Kubernetes client not initialized.")
+            raise KubernetesConfigError(_K8S_CLIENT_NOT_INITIALIZED_MSG)
         try:
             await asyncio.to_thread(
                 self.v1.create_namespaced_config_map,
@@ -336,7 +338,7 @@ class KubernetesService:
 
     async def _create_namespaced_pod(self, pod_manifest: Dict[str, Any]) -> None:
         if not self.v1:
-            raise KubernetesConfigError("Kubernetes client not initialized.")
+            raise KubernetesConfigError(_K8S_CLIENT_NOT_INITIALIZED_MSG)
         pod_name = pod_manifest.get("metadata", {}).get("name", "unknown-pod")
         try:
             await asyncio.to_thread(

@@ -35,7 +35,7 @@ async def db() -> AsyncGenerator[AsyncIOMotorDatabase, None]:
         cwd_env_path = pathlib.Path('.env.test').resolve()
         print(f"DEBUG: Also checking relative to CWD: {cwd_env_path}")
         if cwd_env_path.is_file():
-             print(f"DEBUG: Found .env.test relative to CWD. Using that.")
+             print("DEBUG: Found .env.test relative to CWD. Using that.")
              settings_env_file = cwd_env_path
         else:
              pytest.fail(f".env.test file not found at expected locations: {ENV_FILE_PATH} or {cwd_env_path}")

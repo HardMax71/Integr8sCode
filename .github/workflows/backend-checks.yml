@@ -39,6 +39,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install mypy
           pip install -r backend/requirements.txt
+          pip install -r backend/requirements-dev.txt
       - name: Run mypy
         run: mypy --config-file backend/pyproject.toml backend/
 
@@ -241,14 +242,18 @@ jobs:
           echo "--- Kubernetes RoleBindings ---"
           kubectl get rolebindings -n default
 
-      # Run pytest tests instead of manual curl tests
-      - name: Install Python and pytest dependencies
+      - name: Set up Python for Tests
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install Python test dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y python3 python3-pip
           cd backend
           pip3 install -r requirements.txt
-          pip3 install pytest pytest-asyncio pytest-cov
+          pip3 install -r requirements-dev.txt
 
       - name: Run backend tests with coverage
         run: |

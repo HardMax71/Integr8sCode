@@ -132,8 +132,8 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./backend/grafana/grafana.ini:/etc/grafana/grafana.ini
-      - ./backend/grafana/provisioning:/etc/grafana/provisioning
+      - ./backend/grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+      - ./backend/grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana_data:/var/lib/grafana
     depends_on:
       prometheus:

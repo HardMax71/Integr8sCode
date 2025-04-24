@@ -1,0 +1,9 @@
+apiVersion: 1
+contactPoints:
+  - orgId: 1
+    name: grafana-internal-am
+    receivers:
+      - uid: internal-am
+        type: prometheus-alertmanager
+        settings:
+          url: http://localhost:9093

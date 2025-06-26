@@ -53,31 +53,30 @@ class ExecutionService:
 
     async def _start_k8s_execution(
             self, execution_id_str: str, script: str, python_version: str
-    ) -> None:  # Accept string ID
+    ) -> None:
         try:
             await self.k8s_service.create_execution_pod(
-                execution_id=execution_id_str, script=script, python_version=python_version  # Pass string ID
+                execution_id=execution_id_str, script=script, python_version=python_version
             )
             await self.execution_repo.update_execution(
                 execution_id_str, ExecutionUpdate(status=ExecutionStatus.RUNNING).model_dump(exclude_unset=True)
-                # Update using string ID
             )
             logger.info(f"K8s pod creation requested for execution {execution_id_str}, status set to RUNNING.")
         except Exception as e:
             error_message = f"Failed to request K8s pod creation: {str(e)}"
             logger.error(error_message, exc_info=True)
             await self.execution_repo.update_execution(
-                execution_id_str,  # Update using string ID
+                execution_id_str,
                 ExecutionUpdate(
                     status=ExecutionStatus.ERROR, errors=error_message
                 ).model_dump(exclude_unset=True),
             )
             raise IntegrationException(status_code=500, detail=error_message) from e
 
-    async def _get_k8s_execution_output(self, execution_id_str: str) -> tuple[  # Accept string ID
+    async def _get_k8s_execution_output(self, execution_id_str: str) -> tuple[
         Optional[str], Optional[str], Optional[str], Optional[dict]]:
         try:
-            output, phase, resource_usage = await self.k8s_service.get_pod_logs(execution_id_str)  # Pass string ID
+            output, phase, resource_usage = await self.k8s_service.get_pod_logs(execution_id_str)
             logger.info(
                 f"Retrieved K8s results for {execution_id_str}. Phase: {phase}. "
                 f"Resource usage found: {resource_usage is not None}")
@@ -94,9 +93,49 @@ class ExecutionService:
             logger.error(error_msg, exc_info=True)
             return None, error_msg, ExecutionStatus.ERROR, None
 
+    async def _try_finalize_execution(self, execution: ExecutionInDB) -> Optional[ExecutionInDB]:
+        """
+        Checks K8s for a final status. If found, updates the database and
+        returns the updated execution object. Otherwise, returns None.
+        """
+        output, _, final_phase, resources = await self._get_k8s_execution_output(execution.id)
+
+        update_data = {}
+        if resources:
+            if resources.get("exit_code") == 0:
+                update_data = {"status": ExecutionStatus.COMPLETED, "output": output or "", "errors": None,
+                               "resource_usage": resources}
+            else:
+                error_details = output or f"Script failed with exit code {resources.get('exit_code')}."
+                update_data = {"status": ExecutionStatus.ERROR, "output": "", "errors": error_details,
+                               "resource_usage": resources}
+
+        elif final_phase in ["Failed", "Error", "DeadlineExceeded"]:
+            error_details = output or f"Pod failed with phase '{final_phase}' and no metrics were found."
+            update_data = {"status": ExecutionStatus.ERROR, "output": "", "errors": error_details}
+
+        if not update_data:
+            return None
+
+        logger.info(f"Finalizing execution {execution.id} with status: {update_data['status']}")
+        update_payload = ExecutionUpdate(**update_data).model_dump(exclude_unset=True)
+        await self.execution_repo.update_execution(execution.id, update_payload)
+
+        updated_execution = await self.execution_repo.get_execution(execution.id)
+        if not updated_execution:
+            logger.error(f"FATAL: Failed to reload execution record {execution.id} after final update.")
+            raise IntegrationException(status_code=500, detail="Failed to retrieve execution after update.")
+
+        status_label = "success" if updated_execution.status == ExecutionStatus.COMPLETED else "error"
+        SCRIPT_EXECUTIONS.labels(status=status_label, python_version=updated_execution.python_version).inc()
+        if status_label == "error":
+            ERROR_COUNTER.labels(error_type="ScriptExecutionError").inc()
+
+        return updated_execution
+
     async def execute_script(
             self, script: str, python_version: str = "3.11"
-    ) -> ExecutionInDB:  # Return the DB object with ObjectId
+    ) -> ExecutionInDB:
         ACTIVE_EXECUTIONS.inc()
         start_time = time()
         inserted_oid = None
@@ -118,24 +157,16 @@ class ExecutionService:
             await self._start_k8s_execution(
                 execution_id_str, script, python_version
             )
-
-            SCRIPT_EXECUTIONS.labels(
-                status="initiated", python_version=python_version
-            ).inc()
-
+            SCRIPT_EXECUTIONS.labels(status="initiated", python_version=python_version).inc()
             await asyncio.sleep(0.1)
 
             final_execution_state = await self.execution_repo.get_execution(execution_id_str)
             if not final_execution_state:
-                logger.error(f"Failed to reload execution record {execution_id_str} after creation.")
                 raise IntegrationException(status_code=500, detail="Failed to retrieve execution record after creation")
-            return final_execution_state  # Return ExecutionInDB instance (id is ObjectId)
+            return final_execution_state
 
         except Exception as e:
             logger.error(f"Error during script execution request: {str(e)}", exc_info=True)
-            SCRIPT_EXECUTIONS.labels(
-                status="error", python_version=python_version
-            ).inc()
             ERROR_COUNTER.labels(error_type=type(e).__name__).inc()
             if inserted_oid:
                 await self.execution_repo.update_execution(
@@ -146,77 +177,24 @@ class ExecutionService:
                 raise
             else:
                 raise IntegrationException(status_code=500,
-                                           detail=f"Internal server error during "
-                                                  f"script execution request: {str(e)}") from e
-
+                                           detail=f"Internal server error during script execution request: "
+                                                  f"{str(e)}") from e
         finally:
-            EXECUTION_DURATION.labels(python_version=python_version).observe(
-                time() - start_time
-            )
+            EXECUTION_DURATION.labels(python_version=python_version).observe(time() - start_time)
             ACTIVE_EXECUTIONS.dec()
 
-    async def get_execution_result(self, execution_id: str) -> ExecutionInDB:  # Return the DB object with ObjectId
+    async def get_execution_result(self, execution_id: str) -> ExecutionInDB:
         execution = await self.execution_repo.get_execution(execution_id)
         if not execution:
-            logger.warning(f"Execution record not found in DB for ID: {execution_id}")
-            ERROR_COUNTER.labels(error_type="ExecutionNotFound").inc()
             raise IntegrationException(status_code=404, detail="Execution not found")
 
-        if execution.status in [ExecutionStatus.COMPLETED, ExecutionStatus.ERROR]:
-            logger.info(f"Returning final state ({execution.status}) for execution {execution_id} from DB.")
-            return execution
+        if execution.status in [ExecutionStatus.QUEUED, ExecutionStatus.RUNNING]:
+            logger.info(f"Execution {execution_id} is in-progress. Checking K8s for final status...")
+            finalized_execution = await self._try_finalize_execution(execution)
+            return finalized_execution or execution
 
-        logger.info(f"Execution {execution_id} has status {execution.status}, checking K8s for updates.")
-        output, error_msg, final_phase, resource_usage = await self._get_k8s_execution_output(execution_id)
-
-        update_data: Dict[str, Any] = {}
-        final_status = execution.status
-
-        if final_phase:
-            if final_phase == "Succeeded":
-                final_status = ExecutionStatus.COMPLETED
-                SCRIPT_EXECUTIONS.labels(status="success", python_version=execution.python_version).inc()
-                logger.info(f"Execution {execution_id} completed successfully based on K8s pod phase.")
-            else:
-                final_status = ExecutionStatus.ERROR
-                SCRIPT_EXECUTIONS.labels(status="error", python_version=execution.python_version).inc()
-                ERROR_COUNTER.labels(error_type="KubernetesPodFailed").inc()
-                logger.warning(
-                    f"Execution {execution_id} failed or errored based on K8s pod phase: {final_phase}. "
-                    f"Error msg: {error_msg}")
-
-            update_data["status"] = final_status
-            update_data["output"] = output if output is not None else execution.output
-            update_data["errors"] = error_msg if error_msg else execution.errors
-
-            if resource_usage:
-                update_data["resource_usage"] = resource_usage
-                if resource_usage.get("exit_code", 0) != 0:
-                    final_status = ExecutionStatus.ERROR
-                    update_data["status"] = final_status
-                    if not update_data.get("errors"):
-                        update_data["errors"] = f"Script exited with code {resource_usage['exit_code']}"
-            elif final_status == ExecutionStatus.ERROR and not update_data.get("errors"):
-                update_data["errors"] = f"Pod phase was {final_phase} but failed to retrieve detailed logs or metrics."
-
-        if final_phase:
-            logger.info(f"Updating execution {execution_id} in DB with final status: {final_status}")
-            update_payload = ExecutionUpdate(**update_data).model_dump(exclude_unset=True)
-            await self.execution_repo.update_execution(execution_id, update_payload)
-            updated_execution = await self.execution_repo.get_execution(execution_id)
-            if not updated_execution:
-                logger.error(f"Failed to reload execution record {execution_id} after final update.")
-                execution.status = final_status
-                execution.output = update_data.get("output", execution.output)
-                execution.errors = update_data.get("errors", execution.errors)
-                execution.resource_usage = update_data.get("resource_usage", execution.resource_usage)
-                return execution
-            return updated_execution
-        else:
-            logger.info(
-                f"No final K8s status found for execution {execution_id}, "
-                f"returning current DB status: {execution.status}")
-            return execution
+        logger.info(f"Returning final state ({execution.status}) for execution {execution_id} from DB.")
+        return execution
 
 
 def get_execution_service(

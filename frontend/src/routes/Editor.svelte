@@ -12,6 +12,7 @@
     import {defaultKeymap, history, historyKeymap, indentWithTab} from "@codemirror/commands";
     import {python} from "@codemirror/lang-python";
     import {oneDark} from "@codemirror/theme-one-dark";
+import {githubLight} from "@uiw/codemirror-theme-github";
     import {bracketMatching} from "@codemirror/language";
     import {autocompletion, completionKeymap} from "@codemirror/autocomplete";
     import {theme as appTheme} from "../stores/theme.js";
@@ -65,6 +66,8 @@
     const saveIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>`;
     const listIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>`;
     const trashIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>`;
+    const idIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>`;
+    const copyIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>`;
 
     let unsubscribeAuth;
     let unsubscribeTheme;
@@ -101,7 +104,7 @@
 
         unsubscribeTheme = appTheme.subscribe(currentTheme => {
             if (editorView) {
-                const newThemeExtension = currentTheme === 'dark' ? oneDark : [];
+                const newThemeExtension = currentTheme === 'dark' ? oneDark : githubLight;
                 editorView.dispatch({
                     effects: themeCompartment.reconfigure(newThemeExtension)
                 });
@@ -150,7 +153,7 @@
     function initializeEditor(currentTheme) {
         if (!editorContainer || editorView) return;
 
-        const initialThemeExtension = currentTheme === 'dark' ? oneDark : [];
+        const initialThemeExtension = currentTheme === 'dark' ? oneDark : githubLight;
 
         try {
             const startState = EditorState.create({
@@ -430,6 +433,36 @@
             loadSavedScripts();
         }
     }
+
+    async function copyExecutionId(executionId) {
+        try {
+            await navigator.clipboard.writeText(executionId);
+            addNotification("Execution ID copied to clipboard", "success");
+        } catch (err) {
+            console.error("Failed to copy execution ID:", err);
+            addNotification("Failed to copy execution ID", "error");
+        }
+    }
+
+    async function copyOutput(output) {
+        try {
+            await navigator.clipboard.writeText(output);
+            addNotification("Output copied to clipboard", "success");
+        } catch (err) {
+            console.error("Failed to copy output:", err);
+            addNotification("Failed to copy output", "error");
+        }
+    }
+
+    async function copyErrors(errors) {
+        try {
+            await navigator.clipboard.writeText(errors);
+            addNotification("Error text copied to clipboard", "success");
+        } catch (err) {
+            console.error("Failed to copy errors:", err);
+            addNotification("Failed to copy errors", "error");
+        }
+    }
 </script>
 
 <input type="file" accept=".py,text/x-python" bind:this={fileInput} class="hidden"/>
@@ -500,41 +533,50 @@
                     </div>
                 {:else if result}
                     <div class="space-y-5 animate-flyIn">
-                        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                             <span class="inline-flex items-center rounded-md px-2 py-1 font-medium ring-1 ring-inset whitespace-nowrap"
-                                   class:bg-green-50={result.status === 'completed'}
-                                   class:text-green-700={result.status === 'completed'}
-                                   class:ring-green-600={result.status === 'completed'}
-                                   class:dark:bg-green-950={result.status === 'completed'}
-                                   class:dark:text-green-300={result.status === 'completed'}
-                                   class:dark:ring-green-500={result.status === 'completed'}
+                        <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs">
+                            <span class="inline-flex items-center rounded-md px-2 py-1 font-medium ring-1 ring-inset whitespace-nowrap"
+                                  class:bg-green-50={result.status === 'completed'}
+                                  class:text-green-700={result.status === 'completed'}
+                                  class:ring-green-600={result.status === 'completed'}
+                                  class:dark:bg-green-950={result.status === 'completed'}
+                                  class:dark:text-green-300={result.status === 'completed'}
+                                  class:dark:ring-green-500={result.status === 'completed'}
 
-                                   class:bg-red-50={result.status === 'failed'}
-                                   class:text-red-700={result.status === 'failed'}
-                                   class:ring-red-600={result.status === 'failed'}
-                                   class:dark:bg-red-950={result.status === 'failed'}
-                                   class:dark:text-red-300={result.status === 'failed'}
-                                   class:dark:ring-red-500={result.status === 'failed'}
+                                  class:bg-red-50={result.status === 'error' || result.status === 'failed'}
+                                  class:text-red-700={result.status === 'error' || result.status === 'failed'}
+                                  class:ring-red-600={result.status === 'error' || result.status === 'failed'}
+                                  class:dark:bg-red-950={result.status === 'error' || result.status === 'failed'}
+                                  class:dark:text-red-300={result.status === 'error' || result.status === 'failed'}
+                                  class:dark:ring-red-500={result.status === 'error' || result.status === 'failed'}
 
-                                   class:bg-blue-50={result.status === 'running'}
-                                   class:text-blue-700={result.status === 'running'}
-                                   class:ring-blue-600={result.status === 'running'}
-                                   class:dark:bg-blue-950={result.status === 'running'}
-                                   class:dark:text-blue-300={result.status === 'running'}
-                                   class:dark:ring-blue-500={result.status === 'running'}
+                                  class:bg-blue-50={result.status === 'running'}
+                                  class:text-blue-700={result.status === 'running'}
+                                  class:ring-blue-600={result.status === 'running'}
+                                  class:dark:bg-blue-950={result.status === 'running'}
+                                  class:dark:text-blue-300={result.status === 'running'}
+                                  class:dark:ring-blue-500={result.status === 'running'}
 
-                                   class:bg-yellow-50={result.status === 'queued'}
-                                   class:text-yellow-700={result.status === 'queued'}
-                                   class:ring-yellow-600={result.status === 'queued'}
-                                   class:dark:bg-yellow-950={result.status === 'queued'}
-                                   class:dark:text-yellow-300={result.status === 'queued'}
-                                   class:dark:ring-yellow-500={result.status === 'queued'}
-                             >Status: {result.status}</span>
+                                  class:bg-yellow-50={result.status === 'queued'}
+                                  class:text-yellow-700={result.status === 'queued'}
+                                  class:ring-yellow-600={result.status === 'queued'}
+                                  class:dark:bg-yellow-950={result.status === 'queued'}
+                                  class:dark:text-yellow-300={result.status === 'queued'}
+                                  class:dark:ring-yellow-500={result.status === 'queued'}
+                            >Status: {result.status}</span>
 
                             {#if result.execution_id}
-                                <span class="text-fg-muted dark:text-dark-fg-muted">ID:
-                                    <code class="ml-1 bg-neutral-100 dark:bg-neutral-700 px-1.5 py-0.5 rounded font-mono text-fg-default dark:text-dark-fg-default">{result.execution_id}</code>
-                                </span>
+                                <div class="relative group">
+                                    <button class="inline-flex items-center p-1.5 rounded-md text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors duration-150 cursor-pointer"
+                                            title="Click to copy execution ID"
+                                            on:click={() => copyExecutionId(result.execution_id)}>
+                                        {@html idIcon}
+                                    </button>
+                                    <div class="absolute top-8 right-0 z-10 px-2 py-1 text-xs bg-neutral-800 dark:bg-neutral-200 text-white dark:text-neutral-800 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap">
+                                        Execution ID:
+                                        <br>{result.execution_id}
+                                        <br><span class="text-xs opacity-75">Click to copy</span>
+                                    </div>
+                                </div>
                             {/if}
                         </div>
 
@@ -542,15 +584,41 @@
                             <div class="output-section">
                                 <h4 class="text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1 uppercase tracking-wider">
                                     Output:</h4>
-                                <pre class="output-pre custom-scrollbar">{result.output || ''}</pre>
+                                <div class="relative">
+                                    <pre class="output-pre custom-scrollbar">{result.output || ''}</pre>
+                                    <div class="absolute bottom-2 right-2 group">
+                                        <button class="inline-flex items-center p-1.5 rounded-md text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
+                                                title="Copy output to clipboard"
+                                                on:click={() => copyOutput(result.output)}>
+                                            {@html copyIcon}
+                                        </button>
+                                        <div class="absolute bottom-8 right-0 z-10 px-2 py-1 text-xs bg-neutral-800 dark:bg-neutral-200 text-white dark:text-neutral-800 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap">
+                                            Copy output
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         {/if}
 
                         {#if result.errors}
-                            <div class="p-3 rounded-md bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800">
+                            <div class="error-section">
                                 <h4 class="text-xs font-medium text-red-700 dark:text-red-300 mb-1 uppercase tracking-wider">
                                     Errors:</h4>
-                                <pre class="text-xs text-red-600 dark:text-red-300 whitespace-pre-wrap break-words font-mono bg-transparent p-0">{result.errors}</pre>
+                                <div class="relative">
+                                    <div class="p-3 rounded-md bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800">
+                                        <pre class="text-xs text-red-600 dark:text-red-300 whitespace-pre-wrap break-words font-mono bg-transparent p-0 pr-8">{result.errors}</pre>
+                                    </div>
+                                    <div class="absolute bottom-2 right-2 group">
+                                        <button class="inline-flex items-center p-1.5 rounded-md text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 hover:bg-red-100 dark:hover:bg-red-900 transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
+                                                title="Copy error text to clipboard"
+                                                on:click={() => copyErrors(result.errors)}>
+                                            {@html copyIcon}
+                                        </button>
+                                        <div class="absolute bottom-8 right-0 z-10 px-2 py-1 text-xs bg-neutral-800 dark:bg-neutral-200 text-white dark:text-neutral-800 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap">
+                                            Copy errors
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         {/if}
 
@@ -558,17 +626,19 @@
                             <div class="p-3 rounded-md bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 text-xs space-y-1">
                                 <h4 class="text-xs font-medium text-blue-700 dark:text-blue-300 mb-2 uppercase tracking-wider">
                                     Resource Usage:</h4>
-                                <div class="grid grid-cols-3 gap-x-3 gap-y-1 tabular-nums">
-                                    <p><strong class="text-fg-muted dark:text-dark-fg-muted font-normal">CPU:</strong>
-                                        <span class="text-fg-default dark:text-dark-fg-default font-medium">{result.resource_usage.cpu_usage ?? 'N/A'}
-                                            m</span></p>
-                                    <p><strong
-                                            class="text-fg-muted dark:text-dark-fg-muted font-normal">Memory:</strong>
-                                        <span class="text-fg-default dark:text-dark-fg-default font-medium">{result.resource_usage.memory_usage ?? 'N/A'}
-                                            Mi</span></p>
-                                    <p><strong class="text-fg-muted dark:text-dark-fg-muted font-normal">Time:</strong>
-                                        <span class="text-fg-default dark:text-dark-fg-default font-medium">{result.resource_usage.execution_time ?? 'N/A'}
-                                            s</span></p>
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-3 gap-y-1">
+                                    <div class="flex flex-col">
+                                        <span class="text-fg-muted dark:text-dark-fg-muted font-normal">CPU:</span>
+                                        <span class="text-fg-default dark:text-dark-fg-default font-medium">{result.resource_usage.cpu_usage ?? 'N/A'} m</span>
+                                    </div>
+                                    <div class="flex flex-col">
+                                        <span class="text-fg-muted dark:text-dark-fg-muted font-normal">Memory:</span>
+                                        <span class="text-fg-default dark:text-dark-fg-default font-medium">{result.resource_usage.memory_usage ?? 'N/A'} Mi</span>
+                                    </div>
+                                    <div class="flex flex-col">
+                                        <span class="text-fg-muted dark:text-dark-fg-muted font-normal">Time:</span>
+                                        <span class="text-fg-default dark:text-dark-fg-default font-medium">{result.resource_usage.execution_time ?? 'N/A'} s</span>
+                                    </div>
                                 </div>
                             </div>
                         {/if}
@@ -585,7 +655,7 @@
     <div class="editor-controls">
         <div class="flex flex-col space-y-3">
             <div class="flex items-center space-x-2 flex-wrap gap-y-2">
-                <select bind:value={$pythonVersion} class="form-select select-sm flex-shrink-0 w-auto !py-1.5">
+                <select bind:value={$pythonVersion} class="form-select select-sm flex-shrink-0 w-auto !py-1.5 border-border-input dark:border-dark-border-input bg-bg-alt dark:bg-dark-bg-alt dark:text-dark-fg-default focus:border-primary dark:focus:border-primary focus:ring focus:ring-focus-ring dark:focus:ring-dark-focus-ring focus:ring-opacity-50 shadow-sm transition-colors duration-150">
                     {#each supportedPythonVersions as version}
                         <option value={version}>Python {version}</option>
                     {/each}
@@ -715,7 +785,7 @@
         grid-row: 3 / 4;
         min-height: 0;
     }
-
+    
     .editor-main-output {
         grid-row: 4 / 5;
         min-height: 0;
@@ -761,6 +831,17 @@
 
     .output-pre {
         @apply bg-bg-default dark:bg-dark-bg-default p-3 rounded border border-border-default dark:border-dark-border-default text-xs font-mono whitespace-pre-wrap break-words max-h-[40vh] overflow-auto;
+        padding-right: 3rem; /* Space for copy button */
+    }
+
+    .output-section .relative {
+        overflow: visible; /* Ensure copy button is visible */
+    }
+
+    /* Ensure copy buttons are above scrollbars */
+    .output-section .group,
+    .relative .group {
+        z-index: 10;
     }
 
     .select-sm {

@@ -141,8 +141,8 @@ class KubernetesService:
             else:
                 logger.error("No Kubernetes configuration found (in-cluster, CI path, or default path).")
                 raise KubernetesConfigError("Could not find valid Kubernetes configuration.")
+
         # Log the configured host after loading
-        # Note: Accessing the default config requires care, get_default_copy is safer if needed
         try:
             default_config = k8s_client.Configuration.get_default_copy()
             logger.info(f"Kubernetes client configured for host: {default_config.host}")

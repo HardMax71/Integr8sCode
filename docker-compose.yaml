@@ -65,13 +65,14 @@ services:
     environment:
       - MONGODB_URL=mongodb://mongo:27017/integr8scode
       - SERVER_HOST=0.0.0.0
-      - SSL_CERT_FILE=/app/certs/server.crt
-      - SSL_KEY_FILE=/app/certs/server.key
+#      - SSL_CERT_FILE=/app/certs/server.crt
+#      - SSL_KEY_FILE=/app/certs/server.key
     healthcheck:
-      test: ["CMD", "curl", "--cacert", "/shared_ca/rootCA.pem", "https://localhost/api/v1/health"]
+      test: [ "CMD", "curl", "-k", "https://localhost/api/v1/health" ]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 5s
 
   frontend:
     container_name: frontend
@@ -94,9 +95,9 @@ services:
       - app-network
     environment:
       - VITE_BACKEND_URL=https://backend:443
-      - NODE_EXTRA_CA_CERTS=/shared_ca/rootCA.pem
-      - SSL_CERT_FILE=/app/certs/server.crt
-      - SSL_KEY_FILE=/app/certs/server.key
+      - NODE_EXTRA_CA_CERTS=/shared_ca/mkcert-ca.pem
+#      - SSL_CERT_FILE=/app/certs/server.crt
+#      - SSL_KEY_FILE=/app/certs/server.key
 
   prometheus:
     container_name: prometheus

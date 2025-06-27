@@ -71,7 +71,7 @@ def create_app() -> FastAPI:
 
     app.add_middleware(RequestSizeLimitMiddleware)
 
-    active_limits = ["10000/minute"] if settings.TESTING else ["10000/minute"]
+    active_limits = ["10000/minute"] if settings.TESTING else ["100/minute"]
     limiter = Limiter(key_func=get_remote_address, default_limits=active_limits)
     logger.info(f"RATE LIMITING [TESTING={settings.TESTING}] enabled with limits: {active_limits}")
 

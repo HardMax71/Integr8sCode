@@ -99,12 +99,6 @@ jobs:
           sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq
           sudo chmod +x /usr/local/bin/yq
 
-      - name: Modify Docker Compose for CI
-        run: |
-          cp docker-compose.yaml docker-compose.ci.yaml
-          yq eval '.services.backend.extra_hosts += ["host.docker.internal:host-gateway"]' -i docker-compose.ci.yaml
-          yq eval '.services.backend.environment += ["TESTING=true"]' -i docker-compose.ci.yaml
-
       - name: Setup Kubernetes (k3s) and Kubeconfig
         run: |
           curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik --tls-san host.docker.internal" sh -
@@ -115,16 +109,46 @@ jobs:
           kubectl version
           kubectl get nodes
 
-      - name: Start services with Docker Compose
+      - name: Modify Docker Compose for CI
         run: |
-          docker compose -f docker-compose.ci.yaml up --build -d --remove-orphans
-          sleep 45
+          cp docker-compose.yaml docker-compose.ci.yaml
+          # For the backend service
+          yq eval '.services.backend.extra_hosts += ["host.docker.internal:host-gateway"]' -i docker-compose.ci.yaml
+          yq eval '.services.backend.environment += ["TESTING=true"]' -i docker-compose.ci.yaml
 
-      - name: Check Docker Compose Status
+          # For the cert-generator service
+          yq eval '.services.cert-generator.extra_hosts += ["host.docker.internal:host-gateway"]' -i docker-compose.ci.yaml
+          yq eval '.services.cert-generator.environment += ["CI=true"]' -i docker-compose.ci.yaml
+          yq eval '.services.cert-generator.volumes += ["$HOME/.kube/config:/root/.kube/config:ro"]' -i docker-compose.ci.yaml
+
+          echo "--- Modified docker-compose.ci.yaml ---"
+          cat docker-compose.ci.yaml
+          echo "------------------------------------"
+
+      - name: Start services and check status
         run: |
-          docker compose -f docker-compose.ci.yaml ps
-          docker compose -f docker-compose.ci.yaml logs cert-generator
-          docker compose -f docker-compose.ci.yaml logs backend
+            echo "Attempting to start services..."
+            # Try to start services. If the command fails...
+            docker compose -f docker-compose.ci.yaml up --build -d --remove-orphans || \
+            (
+              # ...then execute this block of code.
+              echo "::error::Docker Compose failed to start. Dumping all logs..."
+              docker compose -f docker-compose.ci.yaml logs
+              exit 1 # Ensure the job fails
+            )
+            
+            echo "Services started. Waiting for stabilization..."
+            sleep 45
+            
+            echo "Final status of all containers:"
+            docker compose -f docker-compose.ci.yaml ps
+            
+            # Explicitly check for containers that have exited
+            if docker compose -f docker-compose.ci.yaml ps | grep -q 'Exit'; then
+              echo "::error::One or more containers have exited unexpectedly. See logs above."
+              docker compose -f docker-compose.ci.yaml logs --no-color
+              exit 1
+            fi
 
       - name: Wait for backend to be healthy
         run: |

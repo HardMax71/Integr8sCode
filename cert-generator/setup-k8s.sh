@@ -1,9 +1,48 @@
 #!/bin/sh
 set -e
 
+# Define a writable directory for our patched config
+WRITABLE_KUBECONFIG_DIR="/tmp/kube"
+mkdir -p "$WRITABLE_KUBECONFIG_DIR"
+
+# --- CI-Specific Kubeconfig Patching ---
+echo "--- Cert-Generator Debug Info ---"
+echo "CI environment variable is: [${CI}]"
+echo "Checking for original kubeconfig at /root/.kube/config..."
+if [ -f /root/.kube/config ]; then
+  ls -l /root/.kube/config
+else
+  echo "Original kubeconfig not found."
+fi
+echo "--- End Debug Info ---"
+
+if [ "$CI" = "true" ] && [ -f /root/.kube/config ]; then
+  echo "CI environment detected. Creating a patched kubeconfig..."
+  # Read from the read-only original and write the patched version to our new file
+  sed 's|server: https://127.0.0.1:6443|server: https://host.docker.internal:6443|g' /root/.kube/config > "${WRITABLE_KUBECONFIG_DIR}/config"
+
+  # Point the KUBECONFIG variable to our new, writable, and patched file
+  export KUBECONFIG="${WRITABLE_KUBECONFIG_DIR}/config"
+
+  echo "Kubeconfig patched and new config is at ${KUBECONFIG}."
+  echo "--- Patched Kubeconfig Contents ---"
+  cat "${KUBECONFIG}"
+  echo "--- End Patched Kubeconfig ---"
+else
+  echo "Not a CI environment or required conditions not met, proceeding with default setup."
+  # If not in CI, we still want kubectl to work if a default config is mounted
+  if [ -f /root/.kube/config ]; then
+    export KUBECONFIG=/root/.kube/config
+  fi
+fi
+# --- End of CI Patching ---
+
+# From this point on, all `kubectl` commands will automatically use the correct config
+# because the KUBECONFIG environment variable is set.
+
 # --- Configuration ---
 BACKEND_CERT_DIR=${BACKEND_CERT_DIR:-/backend-certs}
-FRONTEND_CERT_DIR=${FRONTEND_CERT_DIR:-/frontend-certs} # We still need this directory
+FRONTEND_CERT_DIR=${FRONTEND_CERT_DIR:-/frontend-certs}
 
 mkdir -p "$BACKEND_CERT_DIR" "$FRONTEND_CERT_DIR"
 

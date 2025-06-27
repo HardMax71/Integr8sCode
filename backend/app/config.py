@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     MONGODB_URL: str = "mongodb://mongo:27017/integr8scode"
     KUBERNETES_CONFIG_PATH: str = "~/.kube/config"
     KUBERNETES_CA_CERTIFICATE_PATH: Optional[str] = None
+    RATE_LIMITS: str = "100/minute"
 
     SERVER_HOST: str = "localhost"
     SERVER_PORT: int = 443

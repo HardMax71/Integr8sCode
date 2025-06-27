@@ -71,9 +71,8 @@ def create_app() -> FastAPI:
 
     app.add_middleware(RequestSizeLimitMiddleware)
 
-    active_limits = ["10000/minute"] if settings.TESTING else ["100/minute"]
-    limiter = Limiter(key_func=get_remote_address, default_limits=active_limits)
-    logger.info(f"RATE LIMITING [TESTING={settings.TESTING}] enabled with limits: {active_limits}")
+    limiter = Limiter(key_func=get_remote_address, default_limits=[settings.RATE_LIMITS])
+    logger.info(f"RATE LIMITING [TESTING={settings.TESTING}] enabled with limits: {settings.RATE_LIMITS}")
 
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore

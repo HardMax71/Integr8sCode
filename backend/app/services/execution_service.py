@@ -73,25 +73,33 @@ class ExecutionService:
             )
             raise IntegrationException(status_code=500, detail=error_message) from e
 
-    async def _get_k8s_execution_output(self, execution_id_str: str) -> tuple[
-        Optional[str], Optional[str], Optional[str], Optional[dict]]:
+    async def _get_k8s_execution_output(
+            self,
+            execution_id_str: str
+    ) -> tuple[Optional[str], Optional[str], Optional[str], Optional[dict]]:
+        output: Optional[str] = None
+        error_msg: Optional[str] = None
+        # assume error unless the try succeeds
+        phase: Optional[str] = ExecutionStatus.ERROR
+        resource_usage: Optional[dict] = None
+
         try:
             output, phase, resource_usage = await self.k8s_service.get_pod_logs(execution_id_str)
             logger.info(
-                f"Retrieved K8s results for {execution_id_str}. Phase: {phase}. "
-                f"Resource usage found: {resource_usage is not None}")
-            return output, None, phase, resource_usage
+                f"Retrieved K8s results for {execution_id_str}. "
+                f"Phase: {phase}. Resource usage found: {resource_usage is not None}"
+            )
         except KubernetesPodError as e:
-            logger.error(f"Error retrieving pod results for {execution_id_str}: {str(e)}")
-            return None, str(e), ExecutionStatus.ERROR, None
+            error_msg = str(e)
+            logger.error(f"Error retrieving pod results for {execution_id_str}: {error_msg}")
         except ApiException as e:
             error_msg = f"Kubernetes API error for {execution_id_str}: {e.status} {e.reason}"
-            logger.error(error_msg)
-            return None, error_msg, ExecutionStatus.ERROR, None
-        except Exception as e:
-            error_msg = f"Unexpected error retrieving K8s results for {execution_id_str}: {str(e)}"
             logger.error(error_msg, exc_info=True)
-            return None, error_msg, ExecutionStatus.ERROR, None
+        except Exception as e:
+            error_msg = f"Unexpected error retrieving K8s results for {execution_id_str}: {e}"
+            logger.error(error_msg, exc_info=True)
+
+        return output, error_msg, phase, resource_usage
 
     async def _try_finalize_execution(self, execution: ExecutionInDB) -> Optional[ExecutionInDB]:
         """

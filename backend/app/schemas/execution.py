@@ -33,7 +33,6 @@ class ExecutionInDB(ExecutionBase):
 
     class Config:
         populate_by_name = True
-        allow_population_by_field_name = True
 
 
 class ExecutionUpdate(BaseModel):

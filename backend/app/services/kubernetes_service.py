@@ -2,7 +2,6 @@ import asyncio
 import json
 import os
 import re
-import tempfile
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Set
 
@@ -10,7 +9,6 @@ from app.config import get_settings
 from app.core.logging import logger
 from app.services.circuit_breaker import CircuitBreaker
 from app.services.pod_manifest_builder import PodManifestBuilder
-
 # Import config as k8s_config and client as k8s_client for clarity
 from fastapi import Depends, Request
 from kubernetes import client as k8s_client
@@ -44,7 +42,7 @@ class KubernetesServiceManager:
         self.services.discard(service)
 
     async def shutdown_all(self) -> None:
-        for service in list(self.services):
+        for service in self.services:
             try:
                 await service.graceful_shutdown()
             except Exception as e:
@@ -96,7 +94,7 @@ class KubernetesService:
 
     async def graceful_shutdown(self) -> None:
         shutdown_deadline = datetime.now(timezone.utc) + timedelta(seconds=self.SHUTDOWN_TIMEOUT)
-        for pod_name in list(self._active_pods.keys()):
+        for pod_name in self._active_pods.keys():
             if datetime.now(timezone.utc) > shutdown_deadline:
                 logger.warning("Shutdown timeout reached, forcing pod termination")
                 break
@@ -174,19 +172,17 @@ class KubernetesService:
             logger.error("Kubernetes CoreV1Api client is not initialized.")
             raise KubernetesConfigError(_K8S_CLIENT_NOT_INITIALIZED_MSG)
 
-        temp_file_path = None
         config_map_name = f"script-{execution_id}"
+        pod_name = f"execution-{execution_id}"
+
         try:
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as temp_file:
-                temp_file.write(script)
-                temp_file_path = temp_file.name
-            with open(temp_file_path, "r") as f:
-                script_content = f.read()
+            # The script content is already in memory, so no file operations are needed.
             config_map = k8s_client.V1ConfigMap(
                 metadata=k8s_client.V1ObjectMeta(name=config_map_name),
-                data={"script.py": script_content},
+                data={"script.py": script},
             )
             await self._create_config_map(config_map)
+
             builder = PodManifestBuilder(
                 python_version=python_version,
                 execution_id=execution_id,
@@ -200,18 +196,17 @@ class KubernetesService:
             )
             pod_manifest = builder.build()
             await self._create_namespaced_pod(pod_manifest)
+
             self._active_pods[execution_id] = datetime.now(timezone.utc)
-            logger.info(f"Successfully created pod '{pod_manifest['metadata']['name']}' and associated config map.")
+            logger.info(f"Successfully created pod '{pod_name}' and associated config map.")
             self.circuit_breaker.record_success()
+
         except Exception as e:
             logger.error(f"Failed to create execution pod '{execution_id}': {str(e)}")
             self.circuit_breaker.record_failure()
-            # Attempt cleanup if pod creation failed after config map creation
-            await self._cleanup_resources(f"execution-{execution_id}", config_map_name)
+            # Attempt cleanup since the config map might have been created before pod creation failed.
+            await self._cleanup_resources(pod_name, config_map_name)
             raise KubernetesPodError(f"Failed to create execution pod: {str(e)}") from e
-        finally:
-            if temp_file_path and os.path.exists(temp_file_path):
-                os.unlink(temp_file_path)
 
     async def get_pod_logs(self, execution_id: str) -> tuple[str, str, dict]:
         pod_name = f"execution-{execution_id}"

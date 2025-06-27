@@ -72,6 +72,24 @@ import {githubLight} from "@uiw/codemirror-theme-github";
     let unsubscribeAuth;
     let unsubscribeTheme;
 
+    $: {
+        if (typeof window !== 'undefined') { // Ensure this runs only in the browser
+            const currentId = get(currentScriptId);
+            const currentName = get(scriptName);
+
+            if (currentId && savedScripts && savedScripts.length > 0) {
+                const associatedSavedScript = savedScripts.find(s => s.id === currentId);
+
+                // If the name in the input box has been changed and no longer matches
+                // the name of the script we have loaded, clear the ID.
+                if (associatedSavedScript && associatedSavedScript.name !== currentName) {
+                    currentScriptId.set(null);
+                    addNotification('Script name changed. Next save will create a new script.', 'info');
+                }
+            }
+        }
+    }
+
     onMount(async () => {
         unsubscribeAuth = authToken.subscribe(token => {
             const wasAuthenticated = isAuthenticated;
@@ -509,7 +527,7 @@ import {githubLight} from "@uiw/codemirror-theme-github";
         {/if}
     </header>
 
-    <div class="editor-main-code rounded-lg overflow-hidden shadow-md border border-border-default dark:border-dark-border-default">
+    <div class="editor-main-code rounded-lg overflow-auto shadow-md border border-border-default dark:border-dark-border-default">
         <div bind:this={editorContainer} class="editor-wrapper h-full w-full">
             {#if !editorView}
                 <div class="flex items-center justify-center h-full p-4 text-center text-fg-muted dark:text-dark-fg-muted">

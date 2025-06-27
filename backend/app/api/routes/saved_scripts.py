@@ -19,7 +19,7 @@ USER_NOT_FOUND: str = "User not found"
 SCRIPT_NOT_FOUND: str = "Script not found"
 
 
-async def get_validated_user(
+def get_validated_user(
         current_user: UserInDB = Depends(security_service.get_current_user),
 ) -> UserInDB:
     if not current_user.id:

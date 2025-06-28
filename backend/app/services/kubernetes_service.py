@@ -122,25 +122,19 @@ class KubernetesService:
             k8s_config.load_incluster_config()
         else:
             default_kube_path = os.path.expanduser(self.settings.KUBERNETES_CONFIG_PATH)
-            if os.path.exists(default_kube_path):
-                logger.info(f"Using default kubeconfig from {default_kube_path}")
-                k8s_config.load_kube_config(config_file=default_kube_path)
-            else:
+            if not os.path.exists(default_kube_path):
                 raise KubernetesConfigError("Could not find valid Kubernetes configuration.")
 
-        try:
-            default_config = k8s_client.Configuration.get_default_copy()
-            logger.info(f"Kubernetes client configured for host: {default_config.host}")
-        except Exception:
-            logger.warning("Could not retrieve default configuration host for logging.")
+            logger.info(f"Using default kubeconfig from {default_kube_path}")
+            k8s_config.load_kube_config(config_file=default_kube_path)
+
+        default_config = k8s_client.Configuration.get_default_copy()
+        logger.info(f"Kubernetes client configured for host: {default_config.host}")
 
     def _test_api_connection(self) -> None:
         try:
             version = self.version_api.get_code()
             logger.info(f"Successfully connected to Kubernetes API. Server version: {version.git_version}")
-        except ApiException as e:
-            logger.error(f"K8s API connection test failed. Status: {e.status}, Reason: {e.reason}")
-            raise KubernetesConfigError(f"Failed to connect to Kubernetes API: {str(e)}") from e
         except Exception as e:
             logger.error(f"Unexpected error during K8s API connection test: {str(e)}")
             raise KubernetesConfigError(f"Unexpected error connecting to Kubernetes API: {str(e)}") from e
@@ -253,35 +247,6 @@ class KubernetesService:
             await asyncio.sleep(self.POD_RETRY_INTERVAL)
         raise KubernetesPodError(f"Timeout waiting for pod '{pod_name}' to complete.")
 
-    def _extract_pod_metrics(self, pod: k8s_client.V1Pod, execution_id: str) -> dict:
-        """Extract basic metrics from pod status"""
-        metrics = {
-            "exit_code": 1,  # Default to error
-            "execution_time": None,
-            "pod_phase": pod.status.phase if pod and pod.status else "Unknown"
-        }
-
-        if not pod or not pod.status or not pod.status.container_statuses:
-            return metrics
-
-        container_status = pod.status.container_statuses[0]
-        if container_status.state.terminated:
-            terminated = container_status.state.terminated
-            metrics["exit_code"] = terminated.exit_code or 0
-
-            # Calculate execution time from container timestamps
-            if terminated.finished_at and terminated.started_at:
-                execution_time = (terminated.finished_at - terminated.started_at).total_seconds()
-                metrics["execution_time"] = round(execution_time, 6)
-            else:
-                # Fallback to our tracked start time
-                start_time = self._active_pods.get(execution_id)
-                if start_time:
-                    execution_time = (datetime.now(timezone.utc) - start_time).total_seconds()
-                    metrics["execution_time"] = round(execution_time, 6)
-
-        return metrics
-
     async def _get_container_logs(self, pod_name: str, container_name: str) -> str:
         try:
             return await asyncio.to_thread(
@@ -338,7 +303,7 @@ class KubernetesService:
 def get_k8s_manager(request: Request) -> KubernetesServiceManager:
     if not hasattr(request.app.state, "k8s_manager"):
         request.app.state.k8s_manager = KubernetesServiceManager()
-    return request.app.state.k8s_manager
+    return request.app.state.k8s_manager  # type: ignore
 
 
 def get_kubernetes_service(
@@ -348,4 +313,4 @@ def get_kubernetes_service(
     if not hasattr(request.app.state, "k8s_service"):
         logger.info("Creating new KubernetesService singleton instance.")
         request.app.state.k8s_service = KubernetesService(manager)
-    return request.app.state.k8s_service
+    return request.app.state.k8s_service  # type: ignore

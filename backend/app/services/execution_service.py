@@ -197,16 +197,15 @@ class ExecutionService:
             )
             execution_to_insert = ExecutionInDB(**execution_create.model_dump())
             inserted_oid = await self.execution_repo.create_execution(execution_to_insert)
-            execution_id_str = str(inserted_oid)
-            logger.info(f"Created execution record {execution_id_str} with status QUEUED.")
+            logger.info(f"Created execution record {inserted_oid} with status QUEUED.")
 
             await self._start_k8s_execution(
-                execution_id_str, script, python_version
+                inserted_oid, script, python_version
             )
             SCRIPT_EXECUTIONS.labels(status="initiated", python_version=python_version).inc()
             await asyncio.sleep(0.1)
 
-            final_execution_state = await self.execution_repo.get_execution(execution_id_str)
+            final_execution_state = await self.execution_repo.get_execution(inserted_oid)
             if not final_execution_state:
                 raise IntegrationException(status_code=500, detail="Failed to retrieve execution record after creation")
             return final_execution_state
@@ -219,10 +218,7 @@ class ExecutionService:
                     str(inserted_oid),
                     ExecutionUpdate(status=ExecutionStatus.ERROR, errors=str(e)).model_dump(exclude_unset=True)
                 )
-            if isinstance(e, IntegrationException):
-                raise
-            else:
-                raise IntegrationException(status_code=500,
+            raise IntegrationException(status_code=500,
                                            detail=f"Internal server error during script execution request: "
                                                   f"{str(e)}") from e
         finally:

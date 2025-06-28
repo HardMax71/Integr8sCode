@@ -6,7 +6,7 @@ import sys
 import time
 
 
-def main():
+def main() -> None:
     if len(sys.argv) < 2:
         print("Usage: entrypoint.py <command_to_run...>", file=sys.stderr)
         sys.exit(1)

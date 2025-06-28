@@ -85,7 +85,7 @@ metadata:
   name: integr8scode-role
 rules:
 - apiGroups: ["", "metrics.k8s.io"]
-  resources: ["configmaps", "pods", "pods/log", "nodes", "services"]
+  resources: ["configmaps", "pods", "pods/log", "pods/exec", "nodes", "services"]
   verbs: ["create", "get", "list", "watch", "delete"]
 EOF
     kubectl apply -f - <<EOF

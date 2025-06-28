@@ -55,11 +55,23 @@ class ExecutionService:
             self, execution_id_str: str, script: str, python_version: str
     ) -> None:
         try:
+            # Python-specific configuration
+            image = f"python:{python_version}-slim"
+            command = ["python", "/scripts/script.py"]
+            config_map_data = {
+                "script.py": script
+            }
+
             await self.k8s_service.create_execution_pod(
-                execution_id=execution_id_str, script=script, python_version=python_version
+                execution_id=execution_id_str,
+                image=image,
+                command=command,
+                config_map_data=config_map_data
             )
+
             await self.execution_repo.update_execution(
-                execution_id_str, ExecutionUpdate(status=ExecutionStatus.RUNNING).model_dump(exclude_unset=True)
+                execution_id_str,
+                ExecutionUpdate(status=ExecutionStatus.RUNNING).model_dump(exclude_unset=True)
             )
             logger.info(f"K8s pod creation requested for execution {execution_id_str}, status set to RUNNING.")
         except Exception as e:
@@ -109,18 +121,44 @@ class ExecutionService:
         output, _, final_phase, resources = await self._get_k8s_execution_output(execution.id)
 
         update_data = {}
-        if resources:
-            if resources.get("exit_code") == 0:
-                update_data = {"status": ExecutionStatus.COMPLETED, "output": output or "", "errors": None,
-                               "resource_usage": resources}
-            else:
-                error_details = output or f"Script failed with exit code {resources.get('exit_code')}."
-                update_data = {"status": ExecutionStatus.ERROR, "output": "", "errors": error_details,
-                               "resource_usage": resources}
 
-        elif final_phase in ["Failed", "Error", "DeadlineExceeded"]:
-            error_details = output or f"Pod failed with phase '{final_phase}' and no metrics were found."
-            update_data = {"status": ExecutionStatus.ERROR, "output": "", "errors": error_details}
+        # Now we only have basic metrics from K8s
+        if resources:
+            exit_code = resources.get("exit_code", 1)
+
+            if exit_code == 0:
+                update_data = {
+                    "status": ExecutionStatus.COMPLETED,
+                    "output": output or "",
+                    "errors": None,
+                    "resource_usage": resources  # Only has exit_code, execution_time, pod_phase
+                }
+            else:
+                # Script failed - output contains stderr/stdout
+                error_details = output or f"Script failed with exit code {exit_code}"
+                update_data = {
+                    "status": ExecutionStatus.ERROR,
+                    "output": "",
+                    "errors": error_details,
+                    "resource_usage": resources
+                }
+        else:
+            # No metrics at all - use pod phase
+            if final_phase == "Succeeded":
+                update_data = {
+                    "status": ExecutionStatus.COMPLETED,
+                    "output": output or "",
+                    "errors": None,
+                    "resource_usage": {"pod_phase": final_phase}
+                }
+            else:
+                error_details = output or f"Pod failed with phase '{final_phase}'"
+                update_data = {
+                    "status": ExecutionStatus.ERROR,
+                    "output": "",
+                    "errors": error_details,
+                    "resource_usage": {"pod_phase": final_phase}
+                }
 
         if not update_data:
             return None

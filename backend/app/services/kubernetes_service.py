@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Set
 
 from app.config import get_settings
@@ -155,9 +156,8 @@ class KubernetesService:
         pod_name = f"execution-{execution_id}"
 
         try:
-            entrypoint_script_path = "app/scripts/entrypoint.py"
-            with open(entrypoint_script_path, "r") as f:
-                entrypoint_code = f.read()
+            entrypoint_script_path = Path("app/scripts/entrypoint.py")
+            entrypoint_code = await asyncio.to_thread(entrypoint_script_path.read_text)
 
             config_map_data["entrypoint.py"] = entrypoint_code
 

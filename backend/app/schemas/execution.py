@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, computed_field
@@ -59,8 +59,8 @@ class ExecutionRequest(BaseModel):
     script: str
     lang: str = Field(
         default="python", description="Language name"
-    ),
-    lang_version: Optional[str] = Field(
+    )
+    lang_version: str = Field(
         default="3.11", description="Language version to use for execution"
     )
 

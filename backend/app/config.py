@@ -1,5 +1,7 @@
 from typing import Optional
 
+from app.runtime_registry import SUPPORTED_RUNTIMES as RUNTIME_MATRIX
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
@@ -24,9 +26,9 @@ class Settings(BaseSettings):
     K8S_POD_MEMORY_REQUEST: str = "128Mi"
     K8S_POD_EXECUTION_TIMEOUT: int = 5  # in seconds
 
-    SUPPORTED_RUNTIMES: dict[str, list[str]] = {
-        "python": ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
-    }
+    SUPPORTED_RUNTIMES: dict[str, list[str]] = Field(
+        default_factory=lambda: RUNTIME_MATRIX
+    )
 
     PROMETHEUS_URL: str = "http://prometheus:9090"
 

@@ -1,6 +1,5 @@
 from typing import Any, TypeVar
 
-from app.config import get_settings
 from prometheus_client import Counter, Gauge, Histogram
 
 ALLOWED_STATUSES = ["success", "error", "timeout", "invalid_input"]

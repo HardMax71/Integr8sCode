@@ -16,6 +16,7 @@ from app.db.repositories.execution_repository import (
     ExecutionRepository,
     get_execution_repository,
 )
+from app.runtime_registry import RUNTIME_REGISTRY
 from app.schemas.execution import ExecutionCreate, ExecutionInDB, ExecutionUpdate
 from app.services.kubernetes_service import (
     KubernetesPodError,
@@ -52,26 +53,19 @@ class ExecutionService:
         }
 
     async def _start_k8s_execution(
-            self, execution_id_str: str,
+            self,
+            execution_id_str: str,
             script: str,
             lang: str,
             lang_version: str
     ) -> None:
         try:
-            # Python-specific configuration
-            image = f"{lang}:{lang_version}-slim"
-
-            # TODO: decouple from file format smh
-            command = ["python", "/scripts/script.py"]
-            config_map_data = {
-                "script.py": script
-            }
-
+            runtime_cfg = RUNTIME_REGISTRY[lang][lang_version]
             await self.k8s_service.create_execution_pod(
                 execution_id=execution_id_str,
-                image=image,
-                command=command,
-                config_map_data=config_map_data
+                image=runtime_cfg.image,
+                command=runtime_cfg.command,
+                config_map_data={runtime_cfg.file_name: script},
             )
 
             await self.execution_repo.update_execution(

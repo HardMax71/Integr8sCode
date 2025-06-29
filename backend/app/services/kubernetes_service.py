@@ -51,7 +51,7 @@ class KubernetesServiceManager:
 
 class KubernetesService:
     NAMESPACE = "default"
-    POD_RETRY_ATTEMPTS = 60
+    POD_RETRY_ATTEMPTS = 15
     POD_RETRY_INTERVAL = 1
     POD_SUCCESS_STATES = {"Succeeded", "Failed"}
     SHUTDOWN_TIMEOUT = 30

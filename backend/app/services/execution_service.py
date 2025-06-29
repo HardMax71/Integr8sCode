@@ -140,7 +140,7 @@ class ExecutionService:
             # average CPU in millicores: (CPU-seconds / wall-seconds) × 1000
             cpu_millicores = (cpu_s / wall_s * 1000) if wall_s else 0.0
 
-            # VmHWM is k *ibi*bytes → MiB = KiB / 1024
+            # VmHWM is k*ibi*bytes → MiB = KiB / 1024
             peak_kib = float(res_usage.get("peak_memory_kb", 0) or 0)
             peak_mib = peak_kib / 1024.0
 
@@ -152,21 +152,12 @@ class ExecutionService:
 
             final_resource_usage["pod_phase"] = final_phase
 
-            if exit_code == 0:
-                update_data = {
-                    "status": ExecutionStatus.COMPLETED,
-                    "output": metrics.get("stdout", ""),
-                    "errors": None,
-                    "resource_usage": final_resource_usage,
-                }
-            else:
-                error_details = metrics.get("stderr") or f"Script failed with exit code {exit_code}."
-                update_data = {
-                    "status": ExecutionStatus.ERROR,
-                    "output": metrics.get("stdout", ""),
-                    "errors": error_details,
-                    "resource_usage": final_resource_usage,
-                }
+            update_data = {
+                "status": ExecutionStatus.COMPLETED if exit_code == 0 else ExecutionStatus.ERROR,
+                "output": metrics.get("stdout", ""),
+                "errors": metrics.get("stderr", ""),
+                "resource_usage": final_resource_usage,
+            }
 
         logger.info(f"Finalizing execution {execution.id} with status: {update_data.get('status', 'unknown')}")
         update_payload = ExecutionUpdate(**update_data).model_dump(exclude_unset=True)

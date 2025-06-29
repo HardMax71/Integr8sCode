@@ -585,7 +585,7 @@ import {githubLight} from "@uiw/codemirror-theme-github";
                             {#if result.execution_id}
                                 <div class="relative group">
                                     <button class="inline-flex items-center p-1.5 rounded-md text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors duration-150 cursor-pointer"
-                                            title="Click to copy execution ID"
+                                            aria-label="Click to copy execution ID"
                                             on:click={() => copyExecutionId(result.execution_id)}>
                                         {@html idIcon}
                                     </button>
@@ -606,7 +606,7 @@ import {githubLight} from "@uiw/codemirror-theme-github";
                                     <pre class="output-pre custom-scrollbar">{result.output || ''}</pre>
                                     <div class="absolute bottom-2 right-2 group">
                                         <button class="inline-flex items-center p-1.5 rounded-md text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
-                                                title="Copy output to clipboard"
+                                                aria-label="Copy output to clipboard"
                                                 on:click={() => copyOutput(result.output)}>
                                             {@html copyIcon}
                                         </button>
@@ -628,7 +628,7 @@ import {githubLight} from "@uiw/codemirror-theme-github";
                                     </div>
                                     <div class="absolute bottom-2 right-2 group">
                                         <button class="inline-flex items-center p-1.5 rounded-md text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 hover:bg-red-100 dark:hover:bg-red-900 transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
-                                                title="Copy error text to clipboard"
+                                                aria-label="Copy error text to clipboard"
                                                 on:click={() => copyErrors(result.errors)}>
                                             {@html copyIcon}
                                         </button>

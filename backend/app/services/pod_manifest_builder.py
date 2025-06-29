@@ -43,6 +43,7 @@ class PodManifestBuilder:
                     {
                         "name": "script-runner",
                         "image": self.image,
+                        "imagePullPolicy": "IfNotPresent",  # Only if not available locally
                         "command": self.command,
                         "args": [],
                         "resources": {

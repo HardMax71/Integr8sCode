@@ -114,56 +114,61 @@ class ExecutionService:
         return output, error_msg, phase, resource_usage
 
     async def _try_finalize_execution(self, execution: ExecutionInDB) -> Optional[ExecutionInDB]:
-        """
-        Checks K8s for a final status. If found, updates the database and
-        returns the updated execution object. Otherwise, returns None.
-        """
-        output, _, final_phase, resources = await self._get_k8s_execution_output(execution.id)
+        try:
+            metrics, final_phase = await self.k8s_service.get_pod_logs(execution.id)
+        except KubernetesPodError as e:
+            logger.error(f"K8s pod error finalizing execution {execution.id}: {e}")
+            update_data = {"status": ExecutionStatus.ERROR, "errors": str(e), "resource_usage": {"pod_phase": "Error"}}
+        except Exception as e:
+            logger.error(f"Unexpected error finalizing execution {execution.id}: {e}", exc_info=True)
+            update_data = {"status": ExecutionStatus.ERROR, "errors": f"Unexpected infrastructure error: {e}",
+                           "resource_usage": {"pod_phase": "Error"}}
+        else:
+            logger.info(f"Successfully parsed metrics from pod: {metrics}")
 
-        update_data = {}
+            exit_code = metrics.get("exit_code")
+            res_usage = metrics.get("resource_usage")
 
-        # Now we only have basic metrics from K8s
-        if resources:
-            exit_code = resources.get("exit_code", 1)
+            if not res_usage:
+                return None  # waiting for results
+
+            wall_s = res_usage.get("execution_time_wall_seconds") or 0
+            jiffies = float(res_usage.get("cpu_time_jiffies", 0) or 0)
+            hertz = float(res_usage.get("clk_tck_hertz", 100) or 100)
+            cpu_s = jiffies / hertz if hertz > 0 else 0.0  # total CPU-time
+
+            # average CPU in millicores: (CPU-seconds / wall-seconds) × 1000
+            cpu_millicores = (cpu_s / wall_s * 1000) if wall_s else 0.0
+
+            # VmHWM is k *ibi*bytes → MiB = KiB / 1024
+            peak_kib = float(res_usage.get("peak_memory_kb", 0) or 0)
+            peak_mib = peak_kib / 1024.0
+
+            final_resource_usage = {
+                "execution_time": round(wall_s, 6),
+                "cpu_usage": round(cpu_millicores, 2),
+                "memory_usage": round(peak_mib, 2),
+            }
+
+            final_resource_usage["pod_phase"] = final_phase
 
             if exit_code == 0:
                 update_data = {
                     "status": ExecutionStatus.COMPLETED,
-                    "output": output or "",
+                    "output": metrics.get("stdout", ""),
                     "errors": None,
-                    "resource_usage": resources  # Only has exit_code, execution_time, pod_phase
+                    "resource_usage": final_resource_usage,
                 }
             else:
-                # Script failed - output contains stderr/stdout
-                error_details = output or f"Script failed with exit code {exit_code}"
+                error_details = metrics.get("stderr") or f"Script failed with exit code {exit_code}."
                 update_data = {
                     "status": ExecutionStatus.ERROR,
-                    "output": "",
+                    "output": metrics.get("stdout", ""),
                     "errors": error_details,
-                    "resource_usage": resources
-                }
-        else:
-            # No metrics at all - use pod phase
-            if final_phase == "Succeeded":
-                update_data = {
-                    "status": ExecutionStatus.COMPLETED,
-                    "output": output or "",
-                    "errors": None,
-                    "resource_usage": {"pod_phase": final_phase}
-                }
-            else:
-                error_details = output or f"Pod failed with phase '{final_phase}'"
-                update_data = {
-                    "status": ExecutionStatus.ERROR,
-                    "output": "",
-                    "errors": error_details,
-                    "resource_usage": {"pod_phase": final_phase}
+                    "resource_usage": final_resource_usage,
                 }
 
-        if not update_data:
-            return None
-
-        logger.info(f"Finalizing execution {execution.id} with status: {update_data['status']}")
+        logger.info(f"Finalizing execution {execution.id} with status: {update_data.get('status', 'unknown')}")
         update_payload = ExecutionUpdate(**update_data).model_dump(exclude_unset=True)
         await self.execution_repo.update_execution(execution.id, update_payload)
 
@@ -219,8 +224,8 @@ class ExecutionService:
                     ExecutionUpdate(status=ExecutionStatus.ERROR, errors=str(e)).model_dump(exclude_unset=True)
                 )
             raise IntegrationException(status_code=500,
-                                           detail=f"Internal server error during script execution request: "
-                                                  f"{str(e)}") from e
+                                       detail=f"Internal server error during script execution request: "
+                                              f"{str(e)}") from e
         finally:
             EXECUTION_DURATION.labels(python_version=python_version).observe(time() - start_time)
             ACTIVE_EXECUTIONS.dec()

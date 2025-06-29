@@ -44,6 +44,7 @@ class PodManifestBuilder:
                         "name": "script-runner",
                         "image": self.image,
                         "command": self.command,
+                        "args": [],
                         "resources": {
                             "limits": {"cpu": self.pod_cpu_limit, "memory": self.pod_memory_limit},
                             "requests": {"cpu": self.pod_cpu_request, "memory": self.pod_memory_request},

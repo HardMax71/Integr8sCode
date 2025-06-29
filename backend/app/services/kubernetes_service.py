@@ -1,5 +1,5 @@
+import ast
 import asyncio
-import json
 import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -97,7 +97,11 @@ class KubernetesService:
                 logger.warning("Shutdown timeout reached, forcing pod termination")
                 break
             try:
-                await self._cleanup_pod_resources(pod_name)
+                if not pod_name.startswith("execution-"):
+                    return
+                execution_id = pod_name[len("execution-"):]
+                config_map_name = f"script-{execution_id}"
+                await self._cleanup_resources(pod_name, config_map_name)
             except Exception as e:
                 logger.error(f"Error during pod cleanup on shutdown: {str(e)}")
 
@@ -156,10 +160,10 @@ class KubernetesService:
         pod_name = f"execution-{execution_id}"
 
         try:
-            entrypoint_script_path = Path("app/scripts/entrypoint.py")
+            entrypoint_script_path = Path("app/scripts/entrypoint.sh")
             entrypoint_code = await asyncio.to_thread(entrypoint_script_path.read_text)
 
-            config_map_data["entrypoint.py"] = entrypoint_code
+            config_map_data["entrypoint.sh"] = entrypoint_code
 
             config_map_body = k8s_client.V1ConfigMap(
                 metadata=k8s_client.V1ObjectMeta(name=config_map_name),
@@ -167,7 +171,7 @@ class KubernetesService:
             )
             await self._create_config_map(config_map_body)
 
-            final_pod_command = ["/scripts/entrypoint.py"] + command
+            final_pod_command = ["/bin/sh", "/scripts/entrypoint.sh", *command]
 
             builder = PodManifestBuilder(
                 execution_id=execution_id,
@@ -193,43 +197,33 @@ class KubernetesService:
             await self._cleanup_resources(pod_name, config_map_name)
             raise KubernetesPodError(f"Failed to create execution pod: {str(e)}") from e
 
-    async def get_pod_logs(self, execution_id: str) -> tuple[str, str, dict]:
-        # This method reverts to the simple version that parses the clean log output
+    async def get_pod_logs(self, execution_id: str) -> tuple[dict, str]:
         pod_name = f"execution-{execution_id}"
         config_map_name = f"script-{execution_id}"
-
         try:
             pod = await self._wait_for_pod_completion(pod_name)
             pod_phase = pod.status.phase if pod and pod.status else "Unknown"
             full_logs = await self._get_container_logs(pod_name, "script-runner")
+            logger.info(f"Raw logs from pod {pod_name}:\n---\n{full_logs}\n---")
 
-            # The simple, reliable parser for the ###METRICS### block
-            output, metrics = self._extract_execution_metrics(full_logs)
-
-            final_exit_code = metrics.get("exit_code", 1)
-            metrics["pod_phase"] = pod_phase
-            metrics["status"] = "completed" if final_exit_code == 0 else "error"
-
-            return output, pod_phase, metrics
+            try:
+                # https://stackoverflow.com/questions/15197673/using-pythons-eval-vs-ast-literal-eval
+                metrics = ast.literal_eval(full_logs)
+                return metrics, pod_phase
+            except (ValueError, SyntaxError, TypeError) as e:
+                logger.error(f"FAILED TO PARSE LOGS FROM POD {pod_name} as a Python literal: {e}")
+                error_payload = {
+                    "exit_code": -1,
+                    "stdout": "",
+                    "stderr": f"Internal execution error: Pod logs were not valid JSON. "
+                              f"Pod phase: {pod_phase}.\nRaw Logs:\n{full_logs}",
+                    "resource_usage": None,
+                }
+                return error_payload, pod_phase
         finally:
             logger.info(f"Initiating cleanup for execution '{execution_id}'...")
             await self._cleanup_resources(pod_name, config_map_name)
             self._active_pods.pop(execution_id, None)
-
-    def _extract_execution_metrics(self, logs: str) -> tuple[str, dict]:
-        # This is the simple parser for the entrypoint.py output
-        split_marker = "\n###METRICS###\n"
-        if split_marker in logs:
-            output, metrics_json = logs.rsplit(split_marker, 1)
-            try:
-                metrics_data = json.loads(metrics_json)
-                return output.strip(), metrics_data
-            except json.JSONDecodeError:
-                logger.error(f"Failed to decode metrics JSON: {metrics_json}")
-                return logs.strip(), {"error": "Failed to decode metrics JSON.", "exit_code": 1}
-
-        logger.warning("Metrics marker not found in logs.")
-        return logs.strip(), {"error": "Metrics marker not found in logs.", "exit_code": 1}
 
     async def _wait_for_pod_completion(self, pod_name: str) -> k8s_client.V1Pod:
         logger.info(f"Waiting for pod '{pod_name}' to complete...")
@@ -291,13 +285,6 @@ class KubernetesService:
             logger.info(f"Deletion request sent for config map '{config_map_name}'")
         except ApiException as e:
             logger.error(f"Failed to delete config map '{config_map_name}': {e.reason}")
-
-    async def _cleanup_pod_resources(self, pod_name: str) -> None:
-        if not pod_name.startswith("execution-"):
-            return
-        execution_id = pod_name[len("execution-"):]
-        config_map_name = f"script-{execution_id}"
-        await self._cleanup_resources(pod_name, config_map_name)
 
 
 def get_k8s_manager(request: Request) -> KubernetesServiceManager:

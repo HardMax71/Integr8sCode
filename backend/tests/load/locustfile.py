@@ -47,7 +47,8 @@ class IntegrationTestUser(HttpUser):
 
         execution_data = {
             "script": script,
-            "python_version": random.choice(["3.9", "3.10", "3.11"]),
+            "lang": "python",
+            "lang_version": random.choice(["3.9", "3.10", "3.11"]),
         }
 
         # Execute script

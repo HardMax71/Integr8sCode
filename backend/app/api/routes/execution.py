@@ -29,23 +29,26 @@ async def create_execution(
     logger.info(
         "Received script execution request",
         extra={
-            "python_version": execution.python_version,
+            "lang": execution.lang,
+            "lang_version": execution.lang_version,
             "script_length": len(execution.script),
             "client_ip": get_remote_address(request),
             "endpoint": "/execute",
         },
     )
 
-    try:
-        python_version = execution.python_version or "3.11"
+    lang_and_version: str = execution.lang + "-" + execution.lang_version
 
-        with EXECUTION_DURATION.labels(python_version=python_version).time():
+    try:
+        with EXECUTION_DURATION.labels(lang_and_version=lang_and_version).time():
             result = await execution_service.execute_script(
-                execution.script, python_version
+                script=execution.script,
+                lang=execution.lang,
+                lang_version=execution.lang_version
             )
 
         SCRIPT_EXECUTIONS.labels(
-            status="success", python_version=python_version
+            status="success", lang_and_version=lang_and_version
         ).inc()
 
         logger.info(
@@ -56,7 +59,7 @@ async def create_execution(
 
     except IntegrationException as e:
         SCRIPT_EXECUTIONS.labels(
-            status="integration_error", python_version=execution.python_version or "3.11"
+            status="integration_error", lang_and_version=lang_and_version
         ).inc()
 
         logger.error(
@@ -65,14 +68,14 @@ async def create_execution(
                 "error_type": "IntegrationException",
                 "status_code": e.status_code,
                 "error_detail": e.detail,
-                "python_version": execution.python_version,
+                "lang_and_version": lang_and_version,
             },
         )
         raise HTTPException(status_code=e.status_code, detail=e.detail) from e
 
     except Exception as e:
         SCRIPT_EXECUTIONS.labels(
-            status="error", python_version=execution.python_version or "3.11"
+            status="error", lang_and_version=lang_and_version
         ).inc()
 
         logger.error(
@@ -80,7 +83,7 @@ async def create_execution(
             extra={
                 "error_type": type(e).__name__,
                 "error_detail": str(e),
-                "python_version": execution.python_version,
+                "lang_and_version": lang_and_version,
             },
         )
         raise HTTPException(status_code=400, detail=f"Error during execution: {str(e)}") from e
@@ -117,7 +120,8 @@ async def get_result(
         extra={
             "execution_id": result.id,
             "status": result.status,
-            "python_version": result.python_version,
+            "lang": result.lang,
+            "lang_version": result.lang_version,
             "has_errors": bool(result.errors),
             "resource_usage": result.resource_usage,
         },
@@ -133,7 +137,8 @@ async def get_result(
         status=result.status,
         output=result.output,
         errors=result.errors,
-        python_version=result.python_version,
+        lang=result.lang,
+        lang_version=result.lang_version,
         resource_usage=resource_usage_obj,
     )
 

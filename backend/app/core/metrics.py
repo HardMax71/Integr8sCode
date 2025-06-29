@@ -11,11 +11,6 @@ T = TypeVar('T', bound='BoundedLabelsCounter')
 class BoundedLabelsCounter(Counter):
     def labels(self, *args: Any, **kwargs: Any) -> 'BoundedLabelsCounter':
         # Validate labels before creating new time series
-        if (
-                "python_version" in kwargs
-                and kwargs["python_version"] not in get_settings().SUPPORTED_PYTHON_VERSIONS
-        ):
-            kwargs["python_version"] = "unknown"
         if "status" in kwargs and kwargs["status"] not in ALLOWED_STATUSES:
             kwargs["status"] = "unknown"
         return super().labels(*args, **kwargs)
@@ -25,13 +20,13 @@ class BoundedLabelsCounter(Counter):
 SCRIPT_EXECUTIONS = BoundedLabelsCounter(
     "script_executions_total",
     "Total number of script executions",
-    ["status", "python_version"],
+    ["status", "lang_and_version"],
 )
 
 EXECUTION_DURATION = Histogram(
     "script_execution_duration_seconds",
     "Time spent executing scripts",
-    ["python_version"],
+    ["lang_and_version"],
     buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0],  # Define specific buckets
 )
 
@@ -41,7 +36,7 @@ ACTIVE_EXECUTIONS = Gauge(
 
 # Resource usage metrics
 MEMORY_USAGE = Gauge(
-    "script_memory_usage_bytes", "Memory usage per script execution", ["python_version"]
+    "script_memory_usage_bytes", "Memory usage per script execution", ["lang_and_version"]
 )
 
 ERROR_COUNTER = Counter(

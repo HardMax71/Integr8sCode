@@ -48,15 +48,20 @@ class ExecutionService:
             "cpu_request": self.settings.K8S_POD_CPU_REQUEST,
             "memory_request": self.settings.K8S_POD_MEMORY_REQUEST,
             "execution_timeout": self.settings.K8S_POD_EXECUTION_TIMEOUT,
-            "supported_python_versions": self.settings.SUPPORTED_PYTHON_VERSIONS,
+            "supported_runtimes": self.settings.SUPPORTED_RUNTIMES,
         }
 
     async def _start_k8s_execution(
-            self, execution_id_str: str, script: str, python_version: str
+            self, execution_id_str: str,
+            script: str,
+            lang: str,
+            lang_version: str
     ) -> None:
         try:
             # Python-specific configuration
-            image = f"python:{python_version}-slim"
+            image = f"{lang}:{lang_version}-slim"
+
+            # TODO: decouple from file format smh
             command = ["python", "/scripts/script.py"]
             config_map_data = {
                 "script.py": script
@@ -169,26 +174,33 @@ class ExecutionService:
             raise IntegrationException(status_code=500, detail="Failed to retrieve execution after update.")
 
         status_label = "success" if updated_execution.status == ExecutionStatus.COMPLETED else "error"
-        SCRIPT_EXECUTIONS.labels(status=status_label, python_version=updated_execution.python_version).inc()
+        SCRIPT_EXECUTIONS.labels(status=status_label,
+                                 lang_and_version=execution.lang + "-" + execution.lang_version).inc()
         if status_label == "error":
             ERROR_COUNTER.labels(error_type="ScriptExecutionError").inc()
 
         return updated_execution
 
     async def execute_script(
-            self, script: str, python_version: str = "3.11"
+            self, script: str,
+            lang: str = "python",
+            lang_version: str = "3.11"
     ) -> ExecutionInDB:
         ACTIVE_EXECUTIONS.inc()
         start_time = time()
         inserted_oid = None
 
         try:
-            if python_version not in self.settings.SUPPORTED_PYTHON_VERSIONS:
-                raise IntegrationException(status_code=400, detail=f"Unsupported Python version: {python_version}")
+            if lang not in self.settings.SUPPORTED_RUNTIMES.keys():
+                raise IntegrationException(status_code=400, detail=f"Language '{lang}' not supported.")
+
+            if lang_version not in self.settings.SUPPORTED_RUNTIMES[lang]:
+                raise IntegrationException(status_code=400, detail=f"Language version '{lang_version}' not supported.")
 
             execution_create = ExecutionCreate(
                 script=script,
-                python_version=python_version,
+                lang=lang,
+                lang_version=lang_version,
                 status=ExecutionStatus.QUEUED,
             )
             execution_to_insert = ExecutionInDB(**execution_create.model_dump())
@@ -196,9 +208,10 @@ class ExecutionService:
             logger.info(f"Created execution record {inserted_oid} with status QUEUED.")
 
             await self._start_k8s_execution(
-                inserted_oid, script, python_version
+                execution_id_str=inserted_oid, script=script,
+                lang=lang, lang_version=lang_version
             )
-            SCRIPT_EXECUTIONS.labels(status="initiated", python_version=python_version).inc()
+            SCRIPT_EXECUTIONS.labels(status="initiated", lang_and_version=lang + "-" + lang_version).inc()
             await asyncio.sleep(0.1)
 
             final_execution_state = await self.execution_repo.get_execution(inserted_oid)
@@ -218,7 +231,7 @@ class ExecutionService:
                                        detail=f"Internal server error during script execution request: "
                                               f"{str(e)}") from e
         finally:
-            EXECUTION_DURATION.labels(python_version=python_version).observe(time() - start_time)
+            EXECUTION_DURATION.labels(lang_and_version=lang + "-" + lang_version).observe(time() - start_time)
             ACTIVE_EXECUTIONS.dec()
 
     async def get_execution_result(self, execution_id: str) -> ExecutionInDB:

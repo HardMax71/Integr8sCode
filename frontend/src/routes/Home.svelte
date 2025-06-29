@@ -8,7 +8,7 @@
   const clockIcon = `<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
 
   const features = [
-    { icon: boltIcon, title: "Instant Execution", content: "Run Python scripts online effortlessly in isolated Kubernetes pods with near-native speed." },
+    { icon: boltIcon, title: "Instant Execution", content: "Run code online effortlessly in isolated Kubernetes pods with near-native speed." },
     { icon: shieldCheckIcon, title: "Secure & Efficient", content: "Strict resource limits (CPU, Memory, Time) and network restrictions ensure safe code execution." },
     { icon: clockIcon, title: "Real-time Results", content: "Get immediate feedback with live execution status updates and detailed output upon completion." }
   ];

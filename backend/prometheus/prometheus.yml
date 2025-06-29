@@ -10,8 +10,8 @@ scrape_configs:
     static_configs:
       - targets: ['backend:443']
     metric_relabel_configs:
-      - source_labels: [ python_version ]
-        regex: '3\.(7|8|9|10|11|12)'
+      - source_labels: [ lang_and_version ]
+        regex: '(.+)-(.+)'
         action: keep
       - source_labels: [ status ]
         regex: '(success|error|timeout|invalid_input|unknown)'

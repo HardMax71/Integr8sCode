@@ -14,7 +14,7 @@
                     Integr8sCode
                 </h2>
                 <p class="text-base text-fg-muted dark:text-dark-fg-muted">
-                    Run Python scripts online with ease and security, powered by Kubernetes.
+                    Run code online with ease and security, powered by Kubernetes.
                 </p>
             </div>
 

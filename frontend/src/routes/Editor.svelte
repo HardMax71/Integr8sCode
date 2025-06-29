@@ -12,7 +12,7 @@
     import {defaultKeymap, history, historyKeymap, indentWithTab} from "@codemirror/commands";
     import {python} from "@codemirror/lang-python";
     import {oneDark} from "@codemirror/theme-one-dark";
-import {githubLight} from "@uiw/codemirror-theme-github";
+    import {githubLight} from "@uiw/codemirror-theme-github";
     import {bracketMatching} from "@codemirror/language";
     import {autocompletion, completionKeymap} from "@codemirror/autocomplete";
     import {theme as appTheme} from "../stores/theme.js";
@@ -38,8 +38,14 @@ import {githubLight} from "@uiw/codemirror-theme-github";
     let editorView = null;
     let editorContainer;
     let k8sLimits = null;
-    let pythonVersion = writable("3.9");
-    let supportedPythonVersions = [];
+
+    // Updated state for language and version selection
+    let selectedLang = writable("python");
+    let selectedVersion = writable("3.11");
+    let supportedRuntimes = {};
+    let showLangOptions = false;
+    let hoveredLang = null;
+
     let showLimits = false;
     let showOptions = false;
     let showSavedScripts = false;
@@ -107,15 +113,27 @@ import {githubLight} from "@uiw/codemirror-theme-github";
         try {
             const limitsResponse = await axios.get(`/api/v1/k8s-limits`);
             k8sLimits = limitsResponse.data;
-            supportedPythonVersions = k8sLimits?.supported_python_versions || ["3.9", "3.10", "3.11"];
-            if (!supportedPythonVersions.includes(get(pythonVersion))) {
-                pythonVersion.set(supportedPythonVersions[0] || "3.9");
+            supportedRuntimes = k8sLimits?.supported_runtimes || {"python": ["3.9", "3.10", "3.11"]};
+
+            const currentLang = get(selectedLang);
+            const currentVersion = get(selectedVersion);
+            // Validate current selection
+            if (!supportedRuntimes[currentLang] || !supportedRuntimes[currentLang].includes(currentVersion)) {
+                // If invalid, reset to the first available option
+                const firstLang = Object.keys(supportedRuntimes)[0];
+                if (firstLang) {
+                    const firstVersion = supportedRuntimes[firstLang][0];
+                    selectedLang.set(firstLang);
+                    if (firstVersion) {
+                        selectedVersion.set(firstVersion);
+                    }
+                }
             }
         } catch (err) {
             apiError = "Failed to fetch resource limits.";
             addNotification(apiError, "error");
             console.error("Error fetching K8s limits:", err);
-            supportedPythonVersions = ["3.9", "3.10", "3.11"];
+            supportedRuntimes = {"python": ["3.9", "3.10", "3.11"]};
         }
 
         initializeEditor(get(appTheme));
@@ -197,13 +215,15 @@ import {githubLight} from "@uiw/codemirror-theme-github";
         apiError = null;
         result = null;
         const scriptValue = get(script);
-        const pythonVersionValue = get(pythonVersion);
+        const langValue = get(selectedLang);
+        const versionValue = get(selectedVersion);
         let executionId = null;
 
         try {
             const executeResponse = await axios.post(`/api/v1/execute`, {
                 script: scriptValue,
-                python_version: pythonVersionValue
+                lang: langValue,
+                lang_version: versionValue
             });
             executionId = executeResponse.data.execution_id;
             result = {status: 'running', execution_id: executionId};
@@ -488,7 +508,7 @@ import {githubLight} from "@uiw/codemirror-theme-github";
 <div class="editor-grid-container space-y-4 md:space-y-0 md:gap-6" in:fade={{ duration: 300 }}>
     <header class="editor-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h2 class="text-xl sm:text-2xl font-semibold text-fg-default dark:text-dark-fg-default whitespace-nowrap">
-            Python Code Editor
+            Code Editor
         </h2>
         {#if k8sLimits}
             <div class="relative flex-shrink-0">
@@ -663,7 +683,7 @@ import {githubLight} from "@uiw/codemirror-theme-github";
                     </div>
                 {:else}
                     <div class="flex items-center justify-center h-full text-center text-fg-muted dark:text-dark-fg-muted italic p-4">
-                        Write some Python code and click "Run Script" to see the output.
+                        Write some code and click "Run Script" to see the output.
                     </div>
                 {/if}
             </div>
@@ -673,12 +693,58 @@ import {githubLight} from "@uiw/codemirror-theme-github";
     <div class="editor-controls">
         <div class="flex flex-col space-y-3">
             <div class="flex items-center space-x-2 flex-wrap gap-y-2">
-                <select bind:value={$pythonVersion} class="form-select select-sm flex-shrink-0 w-auto !py-1.5 border-border-input dark:border-dark-border-input bg-bg-alt dark:bg-dark-bg-alt dark:text-dark-fg-default focus:border-primary dark:focus:border-primary focus:ring focus:ring-focus-ring dark:focus:ring-dark-focus-ring focus:ring-opacity-50 shadow-sm transition-colors duration-150">
-                    {#each supportedPythonVersions as version}
-                        <option value={version}>Python {version}</option>
-                    {/each}
-                </select>
-                <button class="btn btn-primary flex-grow sm:flex-grow-0 min-w-[130px]" on:click={executeScript}
+                <!-- Language Selector Dropdown -->
+                <div class="relative">
+                    <button on:click={() => showLangOptions = !showLangOptions}
+                            class="btn btn-secondary-outline btn-sm w-36 flex items-center justify-between text-left">
+                        <span class="capitalize truncate">{$selectedLang} {$selectedVersion}</span>
+                        <svg class="w-5 h-5 ml-2 flex-shrink-0 text-fg-muted dark:text-dark-fg-muted transform transition-transform" class:-rotate-180={showLangOptions} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </button>
+
+                    {#if showLangOptions}
+                        <div transition:fly={{ y: -5, duration: 150 }}
+                             class="absolute bottom-full mb-2 w-36 bg-bg-alt dark:bg-dark-bg-alt rounded-lg shadow-xl ring-1 ring-black ring-opacity-5 dark:ring-white dark:ring-opacity-10 z-30">
+                            <ul class="py-1" on:mouseleave={() => hoveredLang = null}>
+                                {#each Object.entries(supportedRuntimes) as [lang, versions] (lang)}
+                                    <li class="relative" on:mouseenter={() => hoveredLang = lang}>
+                                        <div class="flex justify-between items-center w-full px-3 py-2 text-sm text-fg-default dark:text-dark-fg-default">
+                                            <span class="capitalize font-medium">{lang}</span>
+                                            <svg class="w-4 h-4 text-fg-muted dark:text-dark-fg-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                                        </div>
+
+                                        {#if hoveredLang === lang && versions.length > 0}
+                                            <div class="absolute left-full top-0 -mt-1 ml-1 w-20 bg-bg-alt dark:bg-dark-bg-alt rounded-lg shadow-lg ring-1 ring-black ring-opacity-5 dark:ring-white dark:ring-opacity-10 z-40"
+                                                 transition:fly={{ x: 5, duration: 100 }}>
+                                                <ul class="py-1 max-h-60 overflow-y-auto custom-scrollbar">
+                                                    {#each versions as version (version)}
+                                                        <li>
+                                                            <button on:click={() => { selectedLang.set(lang); selectedVersion.set(version); showLangOptions = false; hoveredLang = null; }}
+                                                                    class="w-full text-left px-3 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700/60 transition-colors duration-100"
+                                                                    class:text-primary={lang === $selectedLang && version === $selectedVersion}
+                                                                    class:dark:text-primary-light={lang === $selectedLang && version === $selectedVersion}
+                                                                    class:font-semibold={lang === $selectedLang && version === $selectedVersion}
+                                                                    class:text-fg-default={lang !== $selectedLang || version !== $selectedVersion}
+                                                                    class:dark:text-dark-fg-default={lang !== $selectedLang || version !== $selectedVersion}
+                                                            >
+                                                                {version}
+                                                            </button>
+                                                        </li>
+                                                    {/each}
+                                                </ul>
+                                            </div>
+                                        {/if}
+                                    </li>
+                                {/each}
+                                {#if Object.keys(supportedRuntimes).length === 0}
+                                    <li class="px-3 py-2 text-sm text-fg-muted dark:text-dark-fg-muted italic">No runtimes available</li>
+                                {/if}
+                            </ul>
+                        </div>
+                    {/if}
+                </div>
+                <button class="btn btn-primary btn-sm flex-grow sm:flex-grow-0 min-w-[130px]" on:click={executeScript}
                         disabled={executing}>
                     {@html playIcon}
                     <span class="ml-1.5">{executing ? "Executing..." : "Run Script"}</span>
@@ -803,7 +869,7 @@ import {githubLight} from "@uiw/codemirror-theme-github";
         grid-row: 3 / 4;
         min-height: 0;
     }
-    
+
     .editor-main-output {
         grid-row: 4 / 5;
         min-height: 0;

@@ -67,7 +67,7 @@
           "editorMode": "code",
           "expr": "floor(increase(script_executions_total[5m]))",
           "instant": false,
-          "legendFormat": "{{python_version}} {{status}}",
+          "legendFormat": "{{lang_and_version}} {{status}}",
           "range": true,
           "refId": "A"
         }

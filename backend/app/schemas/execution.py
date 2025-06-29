@@ -14,7 +14,8 @@ class ExecutionBase(BaseModel):
     status: str = "queued"
     output: Optional[str] = None
     errors: Optional[str] = None
-    python_version: str = "3.11"
+    lang: str = "python"
+    lang_version: str = "3.11"
 
 
 class ExecutionCreate(ExecutionBase):
@@ -56,8 +57,11 @@ class ResourceUsage(BaseModel):
 
 class ExecutionRequest(BaseModel):
     script: str
-    python_version: Optional[str] = Field(
-        default="3.11", description="Python version to use for execution"
+    lang: str = Field(
+        default="python", description="Language name"
+    ),
+    lang_version: Optional[str] = Field(
+        default="3.11", description="Language version to use for execution"
     )
 
 
@@ -74,7 +78,8 @@ class ExecutionResult(BaseModel):
     status: str
     output: Optional[str] = None
     errors: Optional[str] = None
-    python_version: str
+    lang: str
+    lang_version: str
     resource_usage: Optional[ResourceUsage] = None
 
     class Config:
@@ -87,4 +92,4 @@ class K8SResourceLimits(BaseModel):
     cpu_request: str
     memory_request: str
     execution_timeout: int
-    supported_python_versions: List[str]
+    supported_runtimes: dict[str, list[str]]

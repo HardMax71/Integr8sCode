@@ -50,7 +50,8 @@ class TestExecutionAPI:
         script_content = "import time\nimport sys\nprint('Hello from integration test')\nsys.stdout.flush()\ntime.sleep(1)\nprint('Execution complete')"
         execution_request = {
             "script": script_content,
-            "python_version": "3.11",  # Ensure this version is supported by your setup
+            "lang": "python",
+            "lang_version": "3.11",
         }
 
         # 1. Execute Script
@@ -87,7 +88,7 @@ class TestExecutionAPI:
         assert "Hello from integration test" in result_data.get("output", "")
         assert "Execution complete" in result_data.get("output", "")
         assert result_data.get("errors") is None or result_data.get("errors") == ""
-        assert result_data.get("python_version") == execution_request["python_version"]
+        assert result_data.get("lang_version") == execution_request["lang_version"]
 
     @pytest.mark.asyncio
     async def test_execute_script_with_error(self) -> None:
@@ -137,9 +138,9 @@ class TestExecutionAPI:
         assert response.status_code == 200
         limits = response.json()
         expected_keys = ["cpu_limit", "memory_limit", "cpu_request", "memory_request", "execution_timeout",
-                         "supported_python_versions"]
+                         "supported_runtimes"]
         assert all(key in limits for key in expected_keys)
-        assert isinstance(limits["supported_python_versions"], list)
+        assert isinstance(limits["supported_runtimes"], dict)
 
     @pytest.mark.asyncio
     async def test_execute_endpoint_without_auth(self) -> None:

@@ -1,0 +1,20 @@
+groups:
+  - name: integr8scode_alerts
+    rules:
+      - alert: HighScriptErrorRate
+        expr: rate(script_executions_total{status="error"}[5m]) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High script error rate detected
+          description: "The rate of script execution errors is above 20% in the last 5 minutes"
+
+      - alert: HighActiveScripts
+        expr: active_executions > 5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: High number of active scripts
+          description: "More than 5 scripts are running simultaneously"

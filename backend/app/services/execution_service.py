@@ -10,6 +10,7 @@ from app.core.metrics import (
     ACTIVE_EXECUTIONS,
     ERROR_COUNTER,
     EXECUTION_DURATION,
+    MEMORY_USAGE,
     SCRIPT_EXECUTIONS,
 )
 from app.db.repositories.execution_repository import (
@@ -143,6 +144,9 @@ class ExecutionService:
             peak_kib = float(res_usage.get("peak_memory_kb", 0) or 0)
             peak_mib = peak_kib / 1024.0
 
+            MEMORY_USAGE.labels(lang_and_version=execution.lang + "-" + execution.lang_version).set(
+                peak_mib * 1024 * 1024)
+
             final_resource_usage = {
                 "execution_time": round(wall_s, 6),
                 "cpu_usage": round(cpu_millicores, 2),
@@ -150,9 +154,12 @@ class ExecutionService:
             }
 
             final_resource_usage["pod_phase"] = final_phase
+            status: ExecutionStatus = ExecutionStatus.COMPLETED if exit_code == 0 else ExecutionStatus.ERROR
+            if status == ExecutionStatus.ERROR:
+                ERROR_COUNTER.labels(error_type="NonZeroExitCode").inc()
 
             update_data = {
-                "status": ExecutionStatus.COMPLETED if exit_code == 0 else ExecutionStatus.ERROR,
+                "status": status,
                 "output": metrics.get("stdout", ""),
                 "errors": metrics.get("stderr", ""),
                 "resource_usage": final_resource_usage,

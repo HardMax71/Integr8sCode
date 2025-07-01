@@ -35,7 +35,7 @@ ACTIVE_EXECUTIONS = Gauge(
 
 # Resource usage metrics
 MEMORY_USAGE = Gauge(
-    "script_memory_usage_bytes", "Memory usage per script execution", ["lang_and_version"]
+    "script_memory_usage_mib", "Memory usage (MiB) per script execution", ["lang_and_version"]
 )
 
 ERROR_COUNTER = Counter(

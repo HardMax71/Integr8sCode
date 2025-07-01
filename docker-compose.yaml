@@ -16,7 +16,7 @@ services:
       - ./frontend/certs:/frontend-certs
       - ~/.kube:/root/.kube
       - shared_ca:/shared_ca
-      - ./backend:/backend # For kubeconfig generation if needed
+      - ./backend:/backend
     environment:
        - SHARED_CA_DIR=/shared_ca
        - BACKEND_CERT_DIR=/backend-certs
@@ -65,8 +65,6 @@ services:
     environment:
       - MONGODB_URL=mongodb://mongo:27017/integr8scode
       - SERVER_HOST=0.0.0.0
-#      - SSL_CERT_FILE=/app/certs/server.crt
-#      - SSL_KEY_FILE=/app/certs/server.key
     healthcheck:
       test: [ "CMD", "curl", "-k", "https://localhost/api/v1/health" ]
       interval: 10s
@@ -96,8 +94,6 @@ services:
     environment:
       - VITE_BACKEND_URL=https://backend:443
       - NODE_EXTRA_CA_CERTS=/shared_ca/mkcert-ca.pem
-#      - SSL_CERT_FILE=/app/certs/server.crt
-#      - SSL_KEY_FILE=/app/certs/server.key
 
   prometheus:
     container_name: prometheus
@@ -125,6 +121,19 @@ services:
         reservations:
           memory: 1G
           cpus: '0.5'
+
+  alertmanager:
+    container_name: alertmanager
+    image: prom/alertmanager:v0.25.0
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./backend/alertmanager:/etc/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    networks:
+      - app-network
 
   grafana:
     container_name: grafana

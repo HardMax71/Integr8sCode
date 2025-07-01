@@ -123,7 +123,7 @@ class TestExecutionAPI:
         assert "Start" in result_data.get("output", "")
         assert "End" not in result_data.get("output", "")
         assert result_data.get("errors") is not None
-        assert "Script failed with exit code 1" in result_data["errors"]
+        assert "ZeroDivisionError" in result_data["errors"]
 
     @pytest.mark.asyncio
     async def test_get_nonexistent_result(self) -> None:

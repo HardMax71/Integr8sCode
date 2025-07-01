@@ -120,7 +120,7 @@ class TestExecutionAPI:
         # 3. Assert Final Result indicates failure
         assert final_status == "error", f"Expected status 'error', got '{final_status}'"
         assert result_data is not None
-        assert "Start" in result_data.get("errors", "")
+        assert "Start" in result_data.get("output", "")
         assert "End" not in result_data.get("output", "")
         assert result_data.get("errors") is not None
         assert "Script failed with exit code 1" in result_data["errors"]

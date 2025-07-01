@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -65,10 +66,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             task = app.state.daemonset_task
             if not task.done():
                 task.cancel()
-                try:
+                with contextlib.suppress(asyncio.CancelledError):
                     await task
-                except asyncio.CancelledError:
-                    logger.info("Image pre-puller daemonset task cancelled successfully.")
+                logger.info("Image pre-puller daemonset task cancelled successfully.")
 
         if hasattr(app.state, "k8s_manager") and app.state.k8s_manager:
             await app.state.k8s_manager.shutdown_all()

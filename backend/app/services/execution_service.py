@@ -212,7 +212,6 @@ class ExecutionService:
                 execution_id_str=inserted_oid, script=script,
                 lang=lang, lang_version=lang_version
             )
-            SCRIPT_EXECUTIONS.labels(status="initiated", lang_and_version=lang + "-" + lang_version).inc()
             await asyncio.sleep(0.1)
 
             final_execution_state = await self.execution_repo.get_execution(inserted_oid)

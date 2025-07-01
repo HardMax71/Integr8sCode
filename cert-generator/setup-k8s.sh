@@ -87,6 +87,9 @@ rules:
 - apiGroups: ["", "metrics.k8s.io"]
   resources: ["configmaps", "pods", "pods/log", "pods/exec", "nodes", "services"]
   verbs: ["create", "get", "list", "watch", "delete"]
+- apiGroups: ["apps"]
+  resources: ["daemonsets"]
+  verbs: ["get", "list", "watch", "create", "delete", "replace"]
 EOF
     kubectl apply -f - <<EOF
 apiVersion: rbac.authorization.k8s.io/v1

@@ -38,7 +38,7 @@ LANGUAGE_SPECS: Dict[str, dict] = {
         "versions": ["1.20", "1.21", "1.22"],
         "image_tpl": "golang:{version}-alpine",
         "file_ext": "go",
-        "interpreter": ["bash", "-c", "go run /scripts/main.go"],
+        "interpreter": ["sh", "-c", "go run /scripts/main.go"],
     },
 }
 

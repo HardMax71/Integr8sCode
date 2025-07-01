@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -7,7 +8,7 @@ from app.core.exceptions import configure_exception_handlers
 from app.core.logging import logger
 from app.core.middleware import RequestSizeLimitMiddleware
 from app.db.mongodb import DatabaseManager
-from app.services.kubernetes_service import KubernetesServiceManager
+from app.services.kubernetes_service import KubernetesService, KubernetesServiceManager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
@@ -39,6 +40,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         app.state.k8s_manager = k8s_manager
         logger.info("Kubernetes service manager initialized")
 
+        k8s_service = KubernetesService(k8s_manager)
+        app.state.k8s_service = k8s_service
+        logger.info("KubernetesService singleton instance created.")
+
+        daemonset_task = asyncio.create_task(k8s_service.ensure_image_pre_puller_daemonset())
+        app.state.daemonset_task = daemonset_task
+        logger.info("Kubernetes image pre-puller daemonset task scheduled.")
     except ConnectionError as e:
         logger.critical(f"Failed to initialize DatabaseManager: {e}", extra={"error": str(e)})
         raise RuntimeError("Application startup failed: Could not connect to database.") from e
@@ -53,6 +61,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Shutdown
     try:
+        if hasattr(app.state, "daemonset_task") and app.state.daemonset_task:
+            task = app.state.daemonset_task
+            if not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    logger.info("Image pre-puller daemonset task cancelled successfully.")
+
         if hasattr(app.state, "k8s_manager") and app.state.k8s_manager:
             await app.state.k8s_manager.shutdown_all()
             logger.info("All Kubernetes services shut down")

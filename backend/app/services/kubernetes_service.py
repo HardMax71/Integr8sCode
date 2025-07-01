@@ -3,10 +3,11 @@ import asyncio
 import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List, Optional, Set
 
 from app.config import get_settings
 from app.core.logging import logger
+from app.runtime_registry import RUNTIME_REGISTRY
 from app.services.circuit_breaker import CircuitBreaker
 from app.services.pod_manifest_builder import PodManifestBuilder
 from fastapi import Depends, Request
@@ -58,9 +59,16 @@ class KubernetesService:
     HEALTH_CHECK_INTERVAL = 60
     CONTAINER_KUBECONFIG_PATH = "/app/kubeconfig.yaml"
 
+    v1: Optional[k8s_client.CoreV1Api]
+    apps_v1: Optional[k8s_client.AppsV1Api]
+    version_api: Optional[k8s_client.VersionApi]
+
     def __init__(self, manager: KubernetesServiceManager):
         self.settings = get_settings()
         self.manager = manager
+        self.v1 = None
+        self.apps_v1 = None
+        self.version_api = None
         self._initialize_kubernetes_client()
 
         self.circuit_breaker = CircuitBreaker()
@@ -74,6 +82,10 @@ class KubernetesService:
         self.manager.unregister(self)
 
     async def check_health(self) -> bool:
+        if not self.version_api:
+            logger.warning("Kubernetes client not available for health check.")
+            self._is_healthy = False
+            return False
         try:
             if (datetime.now(timezone.utc) - self._last_health_check).seconds < self.HEALTH_CHECK_INTERVAL:
                 return self._is_healthy
@@ -91,7 +103,6 @@ class KubernetesService:
 
     async def graceful_shutdown(self) -> None:
         shutdown_deadline = datetime.now(timezone.utc) + timedelta(seconds=self.SHUTDOWN_TIMEOUT)
-        # Make a copy of keys to avoid modification during iteration issues
         for pod_name in list(self._active_pods.keys()):
             if datetime.now(timezone.utc) > shutdown_deadline:
                 logger.warning("Shutdown timeout reached, forcing pod termination")
@@ -109,12 +120,14 @@ class KubernetesService:
         try:
             self._setup_kubernetes_config()
             self.v1 = k8s_client.CoreV1Api()
+            self.apps_v1 = k8s_client.AppsV1Api()
             self.version_api = k8s_client.VersionApi()
             self._test_api_connection()
             logger.info("Kubernetes client initialized successfully.")
         except Exception as e:
             logger.error(f"Failed to initialize Kubernetes client: {str(e)}")
             self.v1 = None
+            self.apps_v1 = None
             self.version_api = None
             raise KubernetesConfigError(f"Failed to initialize Kubernetes client: {str(e)}") from e
 
@@ -137,6 +150,8 @@ class KubernetesService:
         logger.info(f"Kubernetes client configured for host: {default_config.host}")
 
     def _test_api_connection(self) -> None:
+        if not self.version_api:
+            raise KubernetesConfigError("VersionAPI client not initialized.")
         try:
             version = self.version_api.get_code()
             logger.info(f"Successfully connected to Kubernetes API. Server version: {version.git_version}")
@@ -183,6 +198,7 @@ class KubernetesService:
                 pod_memory_limit=self.settings.K8S_POD_MEMORY_LIMIT,
                 pod_memory_request=self.settings.K8S_POD_MEMORY_REQUEST,
                 pod_execution_timeout=self.settings.K8S_POD_EXECUTION_TIMEOUT,
+                priority_class_name=self.settings.K8S_POD_PRIORITY_CLASS_NAME,
             )
             pod_manifest = builder.build()
             await self._create_namespaced_pod(pod_manifest)
@@ -207,7 +223,6 @@ class KubernetesService:
             logger.info(f"Raw logs from pod {pod_name}:\n---\n{full_logs}\n---")
 
             try:
-                # https://stackoverflow.com/questions/15197673/using-pythons-eval-vs-ast-literal-eval
                 metrics = ast.literal_eval(full_logs)
                 return metrics, pod_phase
             except (ValueError, SyntaxError, TypeError) as e:
@@ -226,6 +241,8 @@ class KubernetesService:
             self._active_pods.pop(execution_id, None)
 
     async def _wait_for_pod_completion(self, pod_name: str) -> k8s_client.V1Pod:
+        if not self.v1:
+            raise KubernetesServiceError(_K8S_CLIENT_NOT_INITIALIZED_MSG)
         logger.info(f"Waiting for pod '{pod_name}' to complete...")
         for _ in range(self.POD_RETRY_ATTEMPTS):
             try:
@@ -242,6 +259,8 @@ class KubernetesService:
         raise KubernetesPodError(f"Timeout waiting for pod '{pod_name}' to complete.")
 
     async def _get_container_logs(self, pod_name: str, container_name: str) -> str:
+        if not self.v1:
+            return f"Error: {_K8S_CLIENT_NOT_INITIALIZED_MSG}"
         try:
             return await asyncio.to_thread(
                 self.v1.read_namespaced_pod_log,
@@ -254,6 +273,8 @@ class KubernetesService:
             return f"Error retrieving logs: {e.reason}"
 
     async def _create_config_map(self, config_map: k8s_client.V1ConfigMap) -> None:
+        if not self.v1:
+            raise KubernetesServiceError(_K8S_CLIENT_NOT_INITIALIZED_MSG)
         try:
             await asyncio.to_thread(self.v1.create_namespaced_config_map, namespace=self.NAMESPACE, body=config_map)
             logger.info(f"ConfigMap '{config_map.metadata.name}' created successfully.")
@@ -262,6 +283,8 @@ class KubernetesService:
             raise KubernetesServiceError(f"Failed to create ConfigMap: {str(e)}") from e
 
     async def _create_namespaced_pod(self, pod_manifest: Dict[str, Any]) -> None:
+        if not self.v1:
+            raise KubernetesPodError(_K8S_CLIENT_NOT_INITIALIZED_MSG)
         pod_name = pod_manifest.get("metadata", {}).get("name", "unknown-pod")
         try:
             await asyncio.to_thread(self.v1.create_namespaced_pod, body=pod_manifest, namespace=self.NAMESPACE)
@@ -285,6 +308,80 @@ class KubernetesService:
             logger.info(f"Deletion request sent for config map '{config_map_name}'")
         except ApiException as e:
             logger.error(f"Failed to delete config map '{config_map_name}': {e.reason}")
+
+    # DaemonSet: https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/
+    async def ensure_image_pre_puller_daemonset(self) -> None:
+        if not self.apps_v1:
+            logger.warning("Kubernetes AppsV1Api client not initialized. Skipping DaemonSet creation.")
+            return
+
+        daemonset_name = "runtime-image-pre-puller"
+        namespace = self.NAMESPACE
+        await asyncio.sleep(5)
+
+        try:
+            init_containers = []
+            all_images = {
+                config.image
+                for lang in RUNTIME_REGISTRY.values()
+                for config in lang.values()
+            }
+
+            for i, image_ref in enumerate(sorted(list(all_images))):
+                sanitized_image_ref = image_ref.split('/')[-1].replace(':', '-').replace('.', '-').replace('_', '-')
+                logger.info(f"DAEMONSET: before: {image_ref} -> {sanitized_image_ref}")
+                container_name = f"pull-{i}-{sanitized_image_ref}"
+                init_containers.append({
+                    "name": container_name,
+                    "image": image_ref,
+                    "command": ["/bin/sh", "-c", f'echo "Image {image_ref} pulled."'],
+                    "imagePullPolicy": "Always",
+                })
+
+            manifest: Dict[str, Any] = {
+                "apiVersion": "apps/v1",
+                "kind": "DaemonSet",
+                "metadata": {"name": daemonset_name, "namespace": namespace},
+                "spec": {
+                    "selector": {"matchLabels": {"name": daemonset_name}},
+                    "template": {
+                        "metadata": {"labels": {"name": daemonset_name}},
+                        "spec": {
+                            "initContainers": init_containers,
+                            "containers": [{
+                                "name": "pause",
+                                "image": "registry.k8s.io/pause:3.9"
+                            }],
+                            "tolerations": [{"operator": "Exists"}]
+                        }
+                    },
+                    "updateStrategy": {"type": "RollingUpdate"}
+                }
+            }
+
+            try:
+                await asyncio.to_thread(self.apps_v1.read_namespaced_daemon_set, name=daemonset_name,
+                                        namespace=namespace)
+                logger.info(f"DaemonSet '{daemonset_name}' exists. Replacing to ensure it is up-to-date.")
+                await asyncio.to_thread(
+                    self.apps_v1.replace_namespaced_daemon_set,
+                    name=daemonset_name, namespace=namespace, body=manifest
+                )
+                logger.info(f"DaemonSet '{daemonset_name}' replaced successfully.")
+            except ApiException as e:
+                if e.status == 404:
+                    logger.info(f"DaemonSet '{daemonset_name}' not found. Creating...")
+                    await asyncio.to_thread(
+                        self.apps_v1.create_namespaced_daemon_set, namespace=namespace, body=manifest
+                    )
+                    logger.info(f"DaemonSet '{daemonset_name}' created successfully.")
+                else:
+                    raise
+
+        except ApiException as e:
+            logger.error(f"K8s API error applying DaemonSet '{daemonset_name}': {e.reason}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Unexpected error applying image-puller DaemonSet: {e}", exc_info=True)
 
 
 def get_k8s_manager(request: Request) -> KubernetesServiceManager:

@@ -53,13 +53,50 @@ class ExecutionService:
             "supported_runtimes": self.settings.SUPPORTED_RUNTIMES,
         }
 
-    async def _start_k8s_execution(
+    async def _mark_running_when_scheduled(
             self,
-            execution_id_str: str,
-            script: str,
-            lang: str,
-            lang_version: str
+            pod_name: str,
+            execution_id: str,
     ) -> None:
+        """
+        Poll the K8s API until the Pod is actually Running, then mark the DB
+        row as RUNNING.  Stops polling after ~3 s to avoid useless work.
+        """
+        try:
+            for _ in range(30):  # 30 × 0.1 s ≈ 3 s
+                pod = await asyncio.to_thread(
+                    self.k8s_service.v1.read_namespaced_pod,
+                    name=pod_name,
+                    namespace=self.k8s_service.NAMESPACE,
+                )
+                if pod.status.phase == "Running":
+                    await self.execution_repo.update_execution(
+                        execution_id,
+                        ExecutionUpdate(status=ExecutionStatus.RUNNING)
+                        .model_dump(exclude_unset=True),
+                    )
+                    return
+                await asyncio.sleep(0.1)
+        except Exception as exc:
+            logger.warning(
+                f"Background poller for {execution_id} stopped "
+                f"before RUNNING phase: {exc}"
+            )
+
+    async def _start_k8s_execution(
+        self,
+        execution_id_str: str,
+        script: str,
+        lang: str,
+        lang_version: str,
+    ) -> None:
+        """
+        1. Ask KubernetesService to create the Pod.
+        2. Fire-and-forget a poller that sets status=RUNNING exactly when
+           the Pod becomes Running (not sooner).
+        """
+        pod_name = f"execution-{execution_id_str}"
+
         try:
             runtime_cfg = RUNTIME_REGISTRY[lang][lang_version]
             await self.k8s_service.create_execution_pod(
@@ -69,18 +106,24 @@ class ExecutionService:
                 config_map_data={runtime_cfg.file_name: script},
             )
 
-            await self.execution_repo.update_execution(
-                execution_id_str,
-                ExecutionUpdate(status=ExecutionStatus.RUNNING).model_dump(exclude_unset=True)
+            # Start background poller ⤵ — we do **not** await it here
+            asyncio.create_task(
+                self._mark_running_when_scheduled(pod_name, execution_id_str)
             )
-            logger.info(f"K8s pod creation requested for execution {execution_id_str}, status set to RUNNING.")
+
+            logger.info(
+                "K8s pod creation requested; waiting for Running phase",
+                extra={"execution_id": execution_id_str},
+            )
+
         except Exception as e:
             error_message = f"Failed to request K8s pod creation: {str(e)}"
             logger.error(error_message, exc_info=True)
             await self.execution_repo.update_execution(
                 execution_id_str,
                 ExecutionUpdate(
-                    status=ExecutionStatus.ERROR, errors=error_message
+                    status=ExecutionStatus.ERROR,
+                    errors=error_message,
                 ).model_dump(exclude_unset=True),
             )
             raise IntegrationException(status_code=500, detail=error_message) from e

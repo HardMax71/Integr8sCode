@@ -2,7 +2,6 @@
  <img src="./files_for_readme/logo.png" alt="Integr8sCode Logo" width="200" height="200">
  <h1 align="center"><b>Integr8sCode</b></h1>
 </p>
-
 <p align="center">
   <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/ruff.yml">
     <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/ruff.yml?branch=main&label=ruff&logo=python&logoColor=white" alt="Ruff Status" />
@@ -31,7 +30,6 @@
     <img src="https://sonarcloud.io/api/project_badges/measure?project=HardMax71_Integr8sCode&metric=bugs" alt="Bugs">
   </a>
 </p>
----
 
 Welcome to **Integr8sCode**! This is a platform where you can run Python scripts online with ease. Just paste your
 script, and the platform run it in an isolated environment within its own Kubernetes pod, complete with resource limits

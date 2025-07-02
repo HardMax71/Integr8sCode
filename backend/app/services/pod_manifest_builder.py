@@ -30,50 +30,59 @@ class PodManifestBuilder:
 
     def build(self) -> Dict[str, Any]:
         spec: Dict[str, Any] = {
+            "initContainers": [
+                {
+                    "name": "copy-script",
+                    "image": "busybox:1.36",          # tiny & always available
+                    "command": ["/bin/sh", "-c",
+                                "cp /cfg/* /scripts/ && chmod 555 /scripts/*"],
+                    "volumeMounts": [
+                        {"name": "script-config", "mountPath": "/cfg", "readOnly": True},
+                        {"name": "script-volume",  "mountPath": "/scripts"}
+                    ]
+                }
+            ],
             "containers": [
                 {
                     "name": "script-runner",
                     "image": self.image,
                     "imagePullPolicy": "IfNotPresent",
                     "command": self.command,
-                    "args": [],
                     "resources": {
-                        "limits": {"cpu": self.pod_cpu_limit, "memory": self.pod_memory_limit},
-                        "requests": {"cpu": self.pod_cpu_request, "memory": self.pod_memory_request},
+                        "limits":   {"cpu": self.pod_cpu_limit,
+                                     "memory": self.pod_memory_limit},
+                        "requests": {"cpu": self.pod_cpu_request,
+                                     "memory": self.pod_memory_request},
                     },
                     "volumeMounts": [
-                        {"name": "script-volume", "mountPath": "/scripts"},
+                        {"name": "script-volume",   "mountPath": "/scripts", "readOnly": True},
+                        {"name": "entrypoint-vol",  "mountPath": "/entry",   "readOnly": True},
                     ],
+                    "terminationMessagePolicy": "FallbackToLogsOnError",
                 }
             ],
             "volumes": [
-                {
-                    "name": "script-volume",
-                    "configMap": {
-                        "name": self.config_map_name,
-                        "defaultMode": 0o755
-                    }
-                },
+                {"name": "script-volume",   "emptyDir": {}},
+                {"name": "script-config",   "configMap": {"name": self.config_map_name}},
+                {"name": "entrypoint-vol",  "configMap": {"name": self.config_map_name}},
             ],
             "restartPolicy": "Never",
-            "activeDeadlineSeconds": self.pod_execution_timeout + 5,
+            "activeDeadlineSeconds": self.pod_execution_timeout + 1,
         }
 
         if self.priority_class_name:
             spec["priorityClassName"] = self.priority_class_name
 
-        pod_manifest: Dict[str, Any] = {
+        return {
             "apiVersion": "v1",
             "kind": "Pod",
             "metadata": {
                 "name": f"execution-{self.execution_id}",
                 "namespace": self.namespace,
-                "labels": {
-                    "app": "script-execution",
-                    "execution-id": self.execution_id,
-                },
+                "labels": {"app": "script-execution",
+                           "execution-id": self.execution_id},
             },
             "spec": spec,
         }
 
-        return pod_manifest
+

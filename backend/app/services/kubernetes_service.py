@@ -186,7 +186,7 @@ class KubernetesService:
             )
             await self._create_config_map(config_map_body)
 
-            final_pod_command = ["/bin/sh", "/scripts/entrypoint.sh", *command]
+            final_pod_command = ["/bin/sh", "/entry/entrypoint.sh", *command]
 
             builder = PodManifestBuilder(
                 execution_id=execution_id,

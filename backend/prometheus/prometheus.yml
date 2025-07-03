@@ -1,6 +1,6 @@
 global:
-  scrape_interval: 15s
-  evaluation_interval: 15s
+  scrape_interval: 3s
+  evaluation_interval: 3s
 
 rule_files:
   - "alert_rules.yml"
@@ -20,10 +20,10 @@ scrape_configs:
       - targets: ['backend:443']
     metric_relabel_configs:
       - source_labels: [ lang_and_version ]
-        regex: '(.+)-(.+)'
+        regex: '^(|.+-.+)$'
         action: keep
       - source_labels: [ status ]
-        regex: '(success|error|timeout|invalid_input|unknown)'
+        regex: '^(success|error|timeout|invalid_input|unknown)?$'
         action: keep
 
   - job_name: 'prometheus'

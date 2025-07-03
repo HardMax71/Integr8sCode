@@ -65,7 +65,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
-          "expr": "rate(script_executions_total[5m])",
+          "expr": "increase(script_executions_total[5m])",
           "instant": false,
           "legendFormat": "{{lang_and_version}} {{status}}",
           "range": true,

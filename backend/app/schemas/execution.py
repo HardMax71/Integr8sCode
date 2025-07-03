@@ -86,10 +86,14 @@ class ExecutionResult(BaseModel):
         from_attributes = True
 
 
-class K8SResourceLimits(BaseModel):
+class ResourceLimits(BaseModel):
     cpu_limit: str
     memory_limit: str
     cpu_request: str
     memory_request: str
     execution_timeout: int
     supported_runtimes: dict[str, list[str]]
+
+
+class ExampleScripts(BaseModel):
+    scripts: Dict[str, str]  # lang: str with script

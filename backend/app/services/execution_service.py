@@ -53,6 +53,11 @@ class ExecutionService:
             "supported_runtimes": self.settings.SUPPORTED_RUNTIMES,
         }
 
+    # for whatever reason mypy is dumb and can't defer type of EXAMPLE_SCRIPTS
+    # -> ignoring type
+    async def get_example_scripts(self) -> Dict[str, str]:
+        return self.settings.EXAMPLE_SCRIPTS  # type: ignore
+
     async def _mark_running_when_scheduled(
             self,
             pod_name: str,

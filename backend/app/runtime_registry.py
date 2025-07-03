@@ -4,8 +4,8 @@ from typing import Dict, List, NamedTuple
 
 
 class RuntimeConfig(NamedTuple):
-    image: str          # Full Docker image reference
-    file_name: str      # Name that will be mounted under /scripts/
+    image: str  # Full Docker image reference
+    file_name: str  # Name that will be mounted under /scripts/
     command: List[str]  # Entrypoint executed inside the container
 
 
@@ -38,9 +38,104 @@ LANGUAGE_SPECS: Dict[str, dict] = {
         "versions": ["1.20", "1.21", "1.22"],
         "image_tpl": "golang:{version}-alpine",
         "file_ext": "go",
-        "interpreter": ["sh", "-c", "go run /scripts/main.go"],
+        "interpreter": ["go", "run"],
     },
 }
+
+EXAMPLE_SCRIPTS: Dict[str, str] = {
+    "python": """
+# This f-string formatting works on all supported Python versions (3.7+)
+py_version = "3.x"
+print(f"Hello from a Python {py_version} script!")
+
+# The following block uses Structural Pattern Matching,
+# which was introduced in Python 3.10.
+# THIS WILL CAUSE A SYNTAX ERROR ON VERSIONS < 3.10.
+
+lang_code = 1
+match lang_code:
+    case 1:
+        print("Structural Pattern Matching is available on this version (Python 3.10+).")
+    case _:
+        print("Default case.")
+""",
+    "node": """
+// This works on all supported Node versions (18+)
+console.log(`Hello from Node.js ${process.version}!`);
+
+// The Promise.withResolvers() static method was introduced in Node.js 22.
+// This will throw a TypeError on versions < 22.
+if (typeof Promise.withResolvers === 'function') {
+  const { promise, resolve } = Promise.withResolvers();
+  console.log("Promise.withResolvers() is supported (Node.js 22+).");
+  resolve('Success');
+  promise.then(msg => console.log(`Resolved with: ${msg}`));
+} else {
+  console.log("Promise.withResolvers() is not supported on this version.");
+}
+""",
+    "ruby": """
+# This works on all supported Ruby versions (3.1+)
+puts "Hello from Ruby #{RUBY_VERSION}!"
+
+# The Data class for immutable value objects was introduced in Ruby 3.2.
+# This will cause an error on Ruby 3.1.
+begin
+  # This line will fail on Ruby < 3.2
+  Point = Data.define(:x, :y)
+  p = Point.new(1, 2)
+  puts "Data objects are supported (Ruby 3.2+). Created point: #{p.inspect}"
+rescue NameError
+  puts "Data objects are not supported on this version."
+end
+""",
+    "bash": """
+# This works on any modern Bash version
+echo "Hello from Bash version $BASH_VERSION"
+
+# BASH_VERSINFO is an array holding version details.
+# We can check the major and minor version numbers.
+echo "Bash major version: ${BASH_VERSINFO[0]}"
+echo "Bash minor version: ${BASH_VERSINFO[1]}"
+
+# The ${var@U} expansion for uppercasing was added in Bash 5.2
+if [[ "${BASH_VERSINFO[0]}" -ge 5 && "${BASH_VERSINFO[1]}" -ge 2 ]]; then
+    my_var="hello"
+    echo "Testing variable expansion (Bash 5.2+ feature)..."
+    echo "Original: $my_var, Uppercased: ${my_var@U}"
+else
+    echo "The '${var@U}' expansion is not available in this Bash version."
+fi
+""",
+    "go": """
+package main
+
+import (
+    "fmt"
+    "runtime"
+)
+
+// This function uses generics, available since Go 1.18,
+// so it will work on all supported versions (1.20+).
+func Print[T any](s T) {
+    fmt.Println(s)
+}
+
+func main() {
+    Print(fmt.Sprintf("Hello from Go version %s!", runtime.Version()))
+
+    // The built-in 'clear' function for maps and slices
+    // was introduced in Go 1.21.
+    // THIS WILL FAIL TO COMPILE on Go 1.20.
+    myMap := make(map[string]int)
+    myMap["a"] = 1
+    Print(fmt.Sprintf("Map before clear: %v", myMap))
+    clear(myMap) // This line will fail on Go < 1.21
+    Print(fmt.Sprintf("Map after 'clear' (Go 1.21+ feature): length is %d", len(myMap)))
+}
+""",
+}
+
 
 def _make_runtime_configs() -> Dict[str, Dict[str, RuntimeConfig]]:
     registry: Dict[str, Dict[str, RuntimeConfig]] = {}

@@ -38,6 +38,7 @@
     let editorView = null;
     let editorContainer;
     let k8sLimits = null;
+    let exampleScripts = {};
 
     // Updated state for language and version selection
     let selectedLang = writable("python");
@@ -74,6 +75,7 @@
     const trashIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>`;
     const idIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>`;
     const copyIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>`;
+    const exampleIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>`;
 
     let unsubscribeAuth;
     let unsubscribeTheme;
@@ -134,6 +136,14 @@
             addNotification(apiError, "error");
             console.error("Error fetching K8s limits:", err);
             supportedRuntimes = {"python": ["3.9", "3.10", "3.11"]};
+        }
+
+        try {
+            const examplesResponse = await axios.get('/api/v1/example-scripts');
+            exampleScripts = examplesResponse.data.scripts || {};
+        } catch (err) {
+            console.error("Error fetching example scripts:", err);
+            addNotification("Could not load example scripts.", "warning");
         }
 
         initializeEditor(get(appTheme));
@@ -472,6 +482,34 @@
         }
     }
 
+    function loadExampleScript() {
+        if (!editorView) return;
+        const lang = get(selectedLang);
+        const example = exampleScripts[lang];
+
+        if (example) {
+            const lines = example.split('\n');
+            const firstLine = lines.find(line => line.trim().length > 0);
+            const indentation = firstLine ? firstLine.match(/^\s*/)[0] : '';
+            const cleanedScript = lines.map(line => line.startsWith(indentation) ? line.substring(indentation.length) : line).join('\n').trim();
+
+            script.set(cleanedScript);
+            editorView.dispatch({
+                changes: {
+                    from: 0,
+                    to: editorView.state.doc.length,
+                    insert: cleanedScript,
+                },
+                selection: {anchor: 0}
+            });
+            addNotification(`Loaded example script for ${lang}.`, "info");
+            result = null;
+            apiError = null;
+        } else {
+            addNotification(`No example script available for ${lang}.`, "warning");
+        }
+    }
+
     async function copyExecutionId(executionId) {
         try {
             await navigator.clipboard.writeText(executionId);
@@ -547,12 +585,37 @@
         {/if}
     </header>
 
-    <div class="editor-main-code rounded-lg overflow-auto shadow-md border border-border-default dark:border-dark-border-default">
-        <div bind:this={editorContainer} class="editor-wrapper h-full w-full">
+    <div class="editor-main-code flex flex-col rounded-lg overflow-hidden shadow-md border border-border-default dark:border-dark-border-default">
+        <div class="editor-toolbar flex items-center justify-between px-3 py-1 bg-bg-default dark:bg-dark-bg-default border-b border-border-default dark:border-dark-border-default flex-shrink-0">
+            <div>
+                <label for="scriptNameInput" class="sr-only">Script Name</label>
+                <input id="scriptNameInput" type="text" class="form-input-bare"
+                       placeholder="Unnamed Script" bind:value={$scriptName}/>
+            </div>
+            <div class="flex items-center space-x-2">
+                 <button class="btn btn-secondary-outline btn-sm inline-flex items-center space-x-1.5"
+                        on:click={loadExampleScript} title="Load an example script for the selected language">
+                    {@html exampleIcon}
+                    <span class="hidden sm:inline">Example</span>
+                </button>
+            </div>
+        </div>
+        <div bind:this={editorContainer} class="editor-wrapper h-full w-full relative">
             {#if !editorView}
                 <div class="flex items-center justify-center h-full p-4 text-center text-fg-muted dark:text-dark-fg-muted">
                     <Spinner/>
                     <span class="ml-2">Loading Editor...</span>
+                </div>
+            {:else if get(script).trim() === ''}
+                <div class="absolute inset-0 flex flex-col items-center justify-center p-4 text-center">
+                    <h3 class="text-lg font-semibold text-fg-default dark:text-dark-fg-default">Editor is Empty</h3>
+                    <p class="text-sm text-fg-muted dark:text-dark-fg-muted mt-1 mb-4">
+                        Start typing, upload a file, or use an example to begin.
+                    </p>
+                    <button class="btn btn-primary inline-flex items-center space-x-2" on:click={loadExampleScript}>
+                        {@html exampleIcon}
+                        <span>Start with an Example</span>
+                    </button>
                 </div>
             {/if}
         </div>
@@ -761,18 +824,21 @@
             </div>
 
             {#if showOptions}
-                <div class="p-4 bg-bg-alt dark:bg-dark-bg-alt border border-border-default dark:border-dark-border-default rounded-lg space-y-4"
+                <div class="p-4 bg-bg-alt dark:bg-dark-bg-alt border border-border-default dark:border-dark-border-default rounded-lg flex space-x-4"
                      transition:slide={{ duration: 300, easing: (t) => 1 - Math.pow(1 - t, 3) }}>
-                    <div>
-                        <h4 class="text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-2 uppercase tracking-wider">
-                            File Actions</h4>
-                        <div class="grid grid-cols-3 gap-2">
+
+                    <!-- Left Column: File Actions -->
+                    <div class="w-1/2 space-y-3">
+                        <h4 class="text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider">
+                            File Actions
+                        </h4>
+                        <div class="flex flex-col space-y-2">
                             <button class="btn btn-secondary-outline btn-sm inline-flex items-center justify-center space-x-1.5"
                                     on:click={newScript} title="Start a new script">
                                 {@html newFileIcon}<span>New</span>
                             </button>
                             <button class="btn btn-secondary-outline btn-sm inline-flex items-center justify-center space-x-1.5"
-                                    on:click={() => fileInput.click()} title="Upload a .py file">
+                                    on:click={() => fileInput.click()} title="Upload a file">
                                 {@html uploadIcon}<span>Upload</span>
                             </button>
                             <button class="btn btn-secondary-outline btn-sm inline-flex items-center justify-center space-x-1.5"
@@ -782,19 +848,21 @@
                         </div>
                     </div>
 
-                    {#if isAuthenticated}
-                        <div class="pt-4 border-t border-border-default dark:border-dark-border-default">
-                            <h4 class="text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-2 uppercase tracking-wider">
-                                Saved Scripts</h4>
+                    <!-- Divider -->
+                    <div class="border-l border-border-default dark:border-dark-border-default"></div>
+
+                    <!-- Right Column: Saved Scripts -->
+                    <div class="w-1/2 space-y-3">
+                        {#if isAuthenticated}
+                            <h4 class="text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider">
+                                Saved Scripts
+                            </h4>
                             <div class="flex items-stretch space-x-2">
-                                <label for="scriptNameInput" class="sr-only">Script Name</label>
-                                <input id="scriptNameInput" type="text" class="form-input input-sm flex-grow min-w-0"
-                                       placeholder="Script Name (e.g., my_script.py)" bind:value={$scriptName}/>
                                 <button class="btn btn-primary btn-sm flex-shrink-0 inline-flex items-center"
                                         on:click={saveScript} title="Save current script">
-                                    {@html saveIcon}<span class="ml-1.5 hidden sm:inline">Save</span>
+                                    {@html saveIcon}
                                 </button>
-                                <button class="btn btn-secondary-outline btn-sm btn-icon flex-shrink-0"
+                                <button class="btn btn-secondary-outline btn-sm btn-icon flex-grow"
                                         on:click={toggleSavedScripts}
                                         aria-expanded={showSavedScripts}
                                         title={showSavedScripts ? "Hide Saved Scripts" : "Show Saved Scripts"}>
@@ -803,7 +871,7 @@
                                 </button>
                             </div>
                             {#if showSavedScripts}
-                                <div class="mt-3 max-h-48 overflow-y-auto border border-border-default dark:border-dark-border-default rounded-md bg-bg-default dark:bg-dark-bg-default shadow-inner custom-scrollbar"
+                                <div class="mt-2 max-h-48 overflow-y-auto border border-border-default dark:border-dark-border-default rounded-md bg-bg-default dark:bg-dark-bg-default shadow-inner custom-scrollbar"
                                      transition:slide={{ duration: 200 }}>
                                     {#if savedScripts.length > 0}
                                         <ul class="divide-y divide-border-default dark:divide-dark-border-default">
@@ -825,12 +893,21 @@
                                         </ul>
                                     {:else}
                                         <p class="p-4 text-xs text-fg-muted dark:text-dark-fg-muted italic text-center">
-                                            You have no saved scripts.</p>
+                                            No saved scripts yet.</p>
                                     {/if}
                                 </div>
                             {/if}
-                        </div>
-                    {/if}
+                        {:else}
+                             <div class="flex flex-col items-center justify-center h-full text-center">
+                                 <h4 class="text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider mb-2">
+                                     Saved Scripts
+                                 </h4>
+                                <p class="text-xs text-fg-muted dark:text-dark-fg-muted">
+                                    <a href="/login" class="link">Log in</a> to save and manage your scripts.
+                                </p>
+                            </div>
+                        {/if}
+                    </div>
                 </div>
             {/if}
         </div>
@@ -874,6 +951,10 @@
         grid-row: 4 / 5;
         min-height: 0;
         display: flex;
+    }
+
+    .form-input-bare {
+        @apply bg-transparent border-0 focus:ring-0 w-full text-sm font-medium text-fg-default dark:text-dark-fg-default placeholder-fg-muted dark:placeholder-dark-fg-muted;
     }
 
     @media (min-width: 768px) {

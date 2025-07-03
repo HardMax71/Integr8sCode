@@ -1,5 +1,6 @@
 from typing import Optional
 
+from app.runtime_registry import EXAMPLE_SCRIPTS as EXEC_EXAMPLE_SCRIPTS
 from app.runtime_registry import SUPPORTED_RUNTIMES as RUNTIME_MATRIX
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -29,6 +30,10 @@ class Settings(BaseSettings):
 
     SUPPORTED_RUNTIMES: dict[str, list[str]] = Field(
         default_factory=lambda: RUNTIME_MATRIX
+    )
+
+    EXAMPLE_SCRIPTS: dict[str, str] = Field(
+        default_factory=lambda: EXEC_EXAMPLE_SCRIPTS
     )
 
     PROMETHEUS_URL: str = "http://prometheus:9090"

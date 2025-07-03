@@ -2,10 +2,11 @@ from app.core.exceptions import IntegrationException
 from app.core.logging import logger
 from app.core.metrics import ACTIVE_EXECUTIONS, EXECUTION_DURATION, SCRIPT_EXECUTIONS
 from app.schemas.execution import (
+    ExampleScripts,
     ExecutionRequest,
     ExecutionResponse,
     ExecutionResult,
-    K8SResourceLimits,
+    ResourceLimits,
     ResourceUsage,
 )
 from app.services.execution_service import ExecutionService, get_execution_service
@@ -143,10 +144,20 @@ async def get_result(
     )
 
 
-@router.get("/k8s-limits", response_model=K8SResourceLimits)
+@router.get("/example-scripts", response_model=ExampleScripts)
+async def get_example_scripts(
+        execution_service: ExecutionService = Depends(get_execution_service),
+) -> ExampleScripts:
+    logger.info("Received example scripts request")
+    scripts = await execution_service.get_example_scripts()
+    logger.info("Example scripts retrieved successfully")
+    return ExampleScripts(scripts=scripts)
+
+
+@router.get("/k8s-limits", response_model=ResourceLimits)
 async def get_k8s_resource_limits(
         execution_service: ExecutionService = Depends(get_execution_service),
-) -> K8SResourceLimits:
+) -> ResourceLimits:
     logger.info("Retrieving K8s resource limits", extra={"endpoint": "/k8s-limits"})
 
     try:
@@ -154,7 +165,7 @@ async def get_k8s_resource_limits(
         logger.info(
             "K8s resource limits retrieved successfully", extra={"limits": limits}
         )
-        return K8SResourceLimits(**limits)
+        return ResourceLimits(**limits)
 
     except Exception as e:
         logger.error(

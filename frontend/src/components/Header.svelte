@@ -107,7 +107,7 @@
             <Link to="/login" on:click={closeMenu} class="btn btn-secondary-outline btn-sm">
               Login
             </Link>
-            <Link to="/register" on:click={closeMenu} class="btn btn-primary btn-sm">
+            <Link to="/register" on:click={closeMenu} class="btn btn-primary btn-sm hover:text-white">
               Register
             </Link>
           {/if}

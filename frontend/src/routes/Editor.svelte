@@ -1009,14 +1009,6 @@
         z-index: 10;
     }
 
-    .select-sm {
-        @apply !text-xs !py-1.5 pl-2 pr-8;
-    }
-
-    .input-sm {
-        @apply !text-xs !py-1.5 px-2;
-    }
-
     .editor-controls .btn {
         @apply flex-shrink-0;
     }

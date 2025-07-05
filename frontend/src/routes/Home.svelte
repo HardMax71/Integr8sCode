@@ -121,12 +121,12 @@
     /* Feature card enhancements */
     .feature-card {
         position: relative;
-        background: theme('colors.bg.alt');
+        background: theme('colors.bg-alt');
         backdrop-filter: blur(10px);
     }
 
     .dark .feature-card {
-        background: theme('colors.dark.bg.alt');
+        background: theme('colors.dark-bg-alt');
     }
 
     .feature-card::before {

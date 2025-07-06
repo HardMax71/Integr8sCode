@@ -9,6 +9,7 @@ from app.config import get_settings
 from app.core.logging import logger
 from app.runtime_registry import RUNTIME_REGISTRY
 from app.services.circuit_breaker import CircuitBreaker
+from app.services.network_policy import NetworkPolicyBuilder
 from app.services.pod_manifest_builder import PodManifestBuilder
 from fastapi import Depends, Request
 from kubernetes import client as k8s_client
@@ -61,6 +62,7 @@ class KubernetesService:
 
     v1: Optional[k8s_client.CoreV1Api]
     apps_v1: Optional[k8s_client.AppsV1Api]
+    networking_v1: Optional[k8s_client.NetworkingV1Api]
     version_api: Optional[k8s_client.VersionApi]
 
     def __init__(self, manager: KubernetesServiceManager):
@@ -68,6 +70,7 @@ class KubernetesService:
         self.manager = manager
         self.v1 = None
         self.apps_v1 = None
+        self.networking_v1 = None
         self.version_api = None
         self._initialize_kubernetes_client()
 
@@ -112,7 +115,7 @@ class KubernetesService:
                     return
                 execution_id = pod_name[len("execution-"):]
                 config_map_name = f"script-{execution_id}"
-                await self._cleanup_resources(pod_name, config_map_name)
+                await self._cleanup_resources(pod_name, config_map_name, execution_id)
             except Exception as e:
                 logger.error(f"Error during pod cleanup on shutdown: {str(e)}")
 
@@ -121,6 +124,7 @@ class KubernetesService:
             self._setup_kubernetes_config()
             self.v1 = k8s_client.CoreV1Api()
             self.apps_v1 = k8s_client.AppsV1Api()
+            self.networking_v1 = k8s_client.NetworkingV1Api()
             self.version_api = k8s_client.VersionApi()
             self._test_api_connection()
             logger.info("Kubernetes client initialized successfully.")
@@ -128,6 +132,7 @@ class KubernetesService:
             logger.error(f"Failed to initialize Kubernetes client: {str(e)}")
             self.v1 = None
             self.apps_v1 = None
+            self.networking_v1 = None
             self.version_api = None
             raise KubernetesConfigError(f"Failed to initialize Kubernetes client: {str(e)}") from e
 
@@ -203,6 +208,10 @@ class KubernetesService:
             pod_manifest = builder.build()
             await self._create_namespaced_pod(pod_manifest)
 
+            policy_builder = NetworkPolicyBuilder(execution_id, self.NAMESPACE)
+            policy_manifest = policy_builder.build()
+            await self._create_network_policy(policy_manifest)
+
             self._active_pods[execution_id] = datetime.now(timezone.utc)
             logger.info(f"Successfully created pod '{pod_name}' with image '{image}'")
             self.circuit_breaker.record_success()
@@ -210,7 +219,7 @@ class KubernetesService:
         except Exception as e:
             logger.error(f"Failed to create execution pod '{execution_id}': {str(e)}", exc_info=True)
             self.circuit_breaker.record_failure()
-            await self._cleanup_resources(pod_name, config_map_name)
+            await self._cleanup_resources(pod_name, config_map_name, execution_id)
             raise KubernetesPodError(f"Failed to create execution pod: {str(e)}") from e
 
     async def get_pod_logs(self, execution_id: str) -> tuple[dict, str]:
@@ -237,7 +246,7 @@ class KubernetesService:
                 return error_payload, pod_phase
         finally:
             logger.info(f"Initiating cleanup for execution '{execution_id}'...")
-            await self._cleanup_resources(pod_name, config_map_name)
+            await self._cleanup_resources(pod_name, config_map_name, execution_id)
             self._active_pods.pop(execution_id, None)
 
     async def _wait_for_pod_completion(self, pod_name: str) -> k8s_client.V1Pod:
@@ -293,7 +302,7 @@ class KubernetesService:
             logger.error(f"Failed to create pod '{pod_name}': {e.status} {e.reason}")
             raise KubernetesPodError(f"Failed to create pod: {str(e)}") from e
 
-    async def _cleanup_resources(self, pod_name: str, config_map_name: str) -> None:
+    async def _cleanup_resources(self, pod_name: str, config_map_name: str, execution_id: Optional[str] = None) -> None:
         if not self.v1:
             return
         try:
@@ -308,6 +317,38 @@ class KubernetesService:
             logger.info(f"Deletion request sent for config map '{config_map_name}'")
         except ApiException as e:
             logger.error(f"Failed to delete config map '{config_map_name}': {e.reason}")
+
+        if execution_id:
+            policy_name = f"deny-external-{execution_id}"
+            await self._delete_network_policy(policy_name)
+
+    async def _create_network_policy(self, policy_manifest: Dict[str, Any]) -> None:
+        if not self.networking_v1:
+            raise KubernetesServiceError("NetworkingV1Api client not initialized.")
+        policy_name = policy_manifest.get("metadata", {}).get("name", "unknown-policy")
+        try:
+            await asyncio.to_thread(
+                self.networking_v1.create_namespaced_network_policy,
+                body=policy_manifest,
+                namespace=self.NAMESPACE
+            )
+            logger.info(f"NetworkPolicy '{policy_name}' created successfully.")
+        except ApiException as e:
+            logger.error(f"Failed to create NetworkPolicy '{policy_name}': {e.status} {e.reason}")
+            raise KubernetesServiceError(f"Failed to create NetworkPolicy: {str(e)}") from e
+
+    async def _delete_network_policy(self, policy_name: str) -> None:
+        if not self.networking_v1:
+            return
+        try:
+            await asyncio.to_thread(
+                self.networking_v1.delete_namespaced_network_policy,
+                name=policy_name,
+                namespace=self.NAMESPACE
+            )
+            logger.info(f"Deletion request sent for NetworkPolicy '{policy_name}'")
+        except ApiException as e:
+            logger.error(f"Failed to delete NetworkPolicy '{policy_name}': {e.reason}")
 
     # DaemonSet: https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/
     async def ensure_image_pre_puller_daemonset(self) -> None:

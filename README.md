@@ -195,7 +195,7 @@ Svelte app includes:
 > [!TIP]
 > By limiting resources, we ensure fair usage and prevent any single script from hogging the system.
 
-- **CPU & Memory Limits**: Each pod has caps to prevent overuse (128 Mi for RAM and 100m for CPU).
+- **CPU & Memory Limits**: Each pod has caps to prevent overuse (128 Mi for RAM and 1000m for CPU).
 - **Timeouts**: Scripts can't run forever—they'll stop after a set time (default: 5s).
 - **Disk Space**: Limited to prevent excessive storage use.
 

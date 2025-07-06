@@ -57,17 +57,38 @@ class PodManifestBuilder:
                     "volumeMounts": [
                         {"name": "script-volume",   "mountPath": "/scripts", "readOnly": True},
                         {"name": "entrypoint-vol",  "mountPath": "/entry",   "readOnly": True},
+                        {"name": "writable-tmp",    "mountPath": "/tmp"}
                     ],
                     "terminationMessagePolicy": "FallbackToLogsOnError",
+                    "securityContext": {
+                        "readOnlyRootFilesystem": True,
+                        "allowPrivilegeEscalation": False,
+                        "runAsNonRoot": True,
+                        "runAsUser": 1000,
+                        "runAsGroup": 1000,
+                        "capabilities": {
+                            "drop": ["ALL"]
+                        }
+                    }
                 }
             ],
             "volumes": [
                 {"name": "script-volume",   "emptyDir": {}},
                 {"name": "script-config",   "configMap": {"name": self.config_map_name}},
                 {"name": "entrypoint-vol",  "configMap": {"name": self.config_map_name}},
+                {"name": "writable-tmp",    "emptyDir": {}}
             ],
             "restartPolicy": "Never",
             "activeDeadlineSeconds": self.pod_execution_timeout + 1,
+            "hostNetwork": False,
+            "hostPID": False,
+            "hostIPC": False,
+            "dnsPolicy": "None",
+            "dnsConfig": {
+                "nameservers": ["127.0.0.1"],
+                "searches": [],
+                "options": []
+            },
         }
 
         if self.priority_class_name:

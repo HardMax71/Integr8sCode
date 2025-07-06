@@ -188,6 +188,19 @@
             ]),
             python(),
             EditorView.lineWrapping,
+            EditorView.theme({
+                "&": {
+                    height: "100%",
+                    maxHeight: "100%"
+                },
+                ".cm-content": {
+                    minHeight: "100%"
+                },
+                ".cm-scroller": {
+                    overflow: "auto",
+                    maxHeight: "100%"
+                }
+            }),
             EditorView.updateListener.of(update => {
                 if (update.docChanged) {
                     script.set(update.state.doc.toString());
@@ -945,6 +958,33 @@
     .editor-main-code {
         grid-row: 3 / 4;
         min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .editor-wrapper {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: hidden;
+        position: relative;
+    }
+
+    /* Ensure CodeMirror fills the wrapper */
+    .editor-wrapper :global(.cm-editor) {
+        height: 100% !important;
+        max-height: 100% !important;
+    }
+
+    .editor-wrapper :global(.cm-scroller) {
+        overflow: auto !important;
+    }
+
+    .editor-toolbar {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background-color: inherit;
     }
 
     .editor-main-output {

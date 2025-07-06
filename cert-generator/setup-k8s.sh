@@ -89,7 +89,10 @@ rules:
   verbs: ["create", "get", "list", "watch", "delete"]
 - apiGroups: ["apps"]
   resources: ["daemonsets"]
-  verbs: ["get", "list", "watch", "create", "delete", "replace"]
+  verbs: ["get", "list", "watch", "create", "delete", "replace", "update"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["networkpolicies"]
+  verbs: ["get", "list", "watch", "create", "delete"]
 EOF
     kubectl apply -f - <<EOF
 apiVersion: rbac.authorization.k8s.io/v1

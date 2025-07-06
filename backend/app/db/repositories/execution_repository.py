@@ -26,7 +26,7 @@ class ExecutionRepository:
                 return ExecutionInDB.model_validate(document)
             return None
         except Exception as e:
-            logger.error(f"Database error fetching execution {execution_id}: {e}", exc_info=True)
+            logger.error(f"Database error fetching execution {execution_id}: {type(e).__name__}", exc_info=True)
             return None
 
     async def update_execution(self, execution_id: str, update_data: dict) -> bool:
@@ -39,7 +39,7 @@ class ExecutionRepository:
             )
             return result.matched_count > 0
         except Exception as e:
-            logger.error(f"Database error updating execution {execution_id}: {e}", exc_info=True)
+            logger.error(f"Database error updating execution {execution_id}: {type(e).__name__}", exc_info=True)
             return False
 
 

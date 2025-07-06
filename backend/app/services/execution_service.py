@@ -122,16 +122,15 @@ class ExecutionService:
             )
 
         except Exception as e:
-            error_message = f"Failed to request K8s pod creation: {str(e)}"
-            logger.error(error_message, exc_info=True)
+            logger.error(f"Failed to request K8s pod creation: {str(e)}", exc_info=True)
             await self.execution_repo.update_execution(
                 execution_id_str,
                 ExecutionUpdate(
                     status=ExecutionStatus.ERROR,
-                    errors=error_message,
+                    errors="Container creation failed",
                 ).model_dump(exclude_unset=True),
             )
-            raise IntegrationException(status_code=500, detail=error_message) from e
+            raise IntegrationException(status_code=500, detail="Container creation failed") from e
 
     async def _get_k8s_execution_output(
             self,
@@ -165,11 +164,12 @@ class ExecutionService:
         try:
             metrics, final_phase = await self.k8s_service.get_pod_logs(execution.id)
         except KubernetesPodError as e:
-            logger.error(f"K8s pod error finalizing execution {execution.id}: {e}")
-            update_data = {"status": ExecutionStatus.ERROR, "errors": str(e), "resource_usage": {"pod_phase": "Error"}}
+            logger.error(f"K8s pod error finalizing execution {execution.id}: {e}", exc_info=True)
+            update_data = {"status": ExecutionStatus.ERROR, "errors": "Execution container error",
+                           "resource_usage": {"pod_phase": "Error"}}
         except Exception as e:
             logger.error(f"Unexpected error finalizing execution {execution.id}: {e}", exc_info=True)
-            update_data = {"status": ExecutionStatus.ERROR, "errors": f"Unexpected infrastructure error: {e}",
+            update_data = {"status": ExecutionStatus.ERROR, "errors": "Internal execution error",
                            "resource_usage": {"pod_phase": "Error"}}
         else:
             logger.info(f"Successfully parsed metrics from pod: {metrics}")
@@ -273,11 +273,11 @@ class ExecutionService:
             if inserted_oid:
                 await self.execution_repo.update_execution(
                     str(inserted_oid),
-                    ExecutionUpdate(status=ExecutionStatus.ERROR, errors=str(e)).model_dump(exclude_unset=True)
+                    ExecutionUpdate(status=ExecutionStatus.ERROR,
+                                    errors="Script execution failed").model_dump(exclude_unset=True)
                 )
             raise IntegrationException(status_code=500,
-                                       detail=f"Internal server error during script execution request: "
-                                              f"{str(e)}") from e
+                                       detail="Script execution failed") from e
         finally:
             EXECUTION_DURATION.labels(lang_and_version=lang + "-" + lang_version).observe(time() - start_time)
             ACTIVE_EXECUTIONS.dec()

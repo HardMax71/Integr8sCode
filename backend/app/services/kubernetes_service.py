@@ -235,12 +235,13 @@ class KubernetesService:
                 metrics = ast.literal_eval(full_logs)
                 return metrics, pod_phase
             except (ValueError, SyntaxError, TypeError) as e:
-                logger.error(f"FAILED TO PARSE LOGS FROM POD {pod_name} as a Python literal: {e}")
+                logger.error(f"FAILED TO PARSE LOGS FROM POD {pod_name} as a Python literal: {e}"
+                             f"Internal execution error: Pod logs were not valid JSON. "
+                             f"Pod phase: {pod_phase}.\nRaw Logs:\n{full_logs}")
                 error_payload = {
                     "exit_code": -1,
                     "stdout": "",
-                    "stderr": f"Internal execution error: Pod logs were not valid JSON. "
-                              f"Pod phase: {pod_phase}.\nRaw Logs:\n{full_logs}",
+                    "stderr": "Container execution failed - invalid output format",
                     "resource_usage": None,
                 }
                 return error_payload, pod_phase

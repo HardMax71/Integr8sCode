@@ -87,7 +87,8 @@ async def create_execution(
                 "lang_and_version": lang_and_version,
             },
         )
-        raise HTTPException(status_code=400, detail=f"Error during execution: {str(e)}") from e
+        raise HTTPException(status_code=500,
+                            detail="Internal server error during script execution") from e
     finally:
         ACTIVE_EXECUTIONS.dec()
 
@@ -170,8 +171,9 @@ async def get_k8s_resource_limits(
     except Exception as e:
         logger.error(
             "Failed to retrieve K8s resource limits",
-            extra={"error_type": type(e).__name__, "error_detail": str(e)},
+            extra={"error_type": type(e).__name__,
+                   "error_detail": str(e)},
         )
         raise HTTPException(
-            status_code=500, detail=f"An unexpected error occurred: {str(e)}"
+            status_code=500, detail="Failed to retrieve resource limits"
         ) from e

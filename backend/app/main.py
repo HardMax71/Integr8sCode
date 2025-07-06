@@ -152,6 +152,6 @@ if __name__ == "__main__":
         app,
         host=settings.SERVER_HOST,
         port=settings.SERVER_PORT,
-        ssl_keyfile="/app/certs/server.key",
-        ssl_certfile="/app/certs/server.crt",
+        ssl_keyfile=settings.SSL_KEYFILE,
+        ssl_certfile=settings.SSL_CERTFILE,
     )

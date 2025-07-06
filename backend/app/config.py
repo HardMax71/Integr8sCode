@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     KUBERNETES_CA_CERTIFICATE_PATH: Optional[str] = None
     RATE_LIMITS: str = "100/minute"
 
+    SSL_KEYFILE: str = "/app/certs/server.key"
+    SSL_CERTFILE: str = "/app/certs/server.crt"
+
     SERVER_HOST: str = "localhost"
     SERVER_PORT: int = 443
 

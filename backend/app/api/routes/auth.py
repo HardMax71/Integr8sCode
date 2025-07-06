@@ -6,7 +6,7 @@ from app.core.logging import logger
 from app.core.security import security_service
 from app.db.repositories.user_repository import UserRepository, get_user_repository
 from app.schemas.user import UserCreate, UserInDB, UserResponse
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -18,6 +18,7 @@ limiter = Limiter(key_func=get_remote_address)
 @router.post("/login")
 async def login(
         request: Request,
+        response: Response,
         form_data: OAuth2PasswordRequestForm = Depends(),
         user_repo: UserRepository = Depends(get_user_repository),
 ) -> Dict[str, str]:
@@ -79,7 +80,18 @@ async def login(
         },
     )
 
-    return {"access_token": access_token, "token_type": "bearer"}
+    # Set httpOnly cookie for secure token storage
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # Convert to seconds
+        httponly=True,
+        secure=True,  # HTTPS only
+        samesite="strict",  # CSRF protection
+        path="/",
+    )
+
+    return {"message": "Login successful", "username": user.username}
 
 
 @router.post("/register", response_model=UserResponse)
@@ -181,3 +193,37 @@ async def verify_token(
             detail="Invalid token",
             headers={"WWW-Authenticate": "Bearer"},
         ) from e
+
+
+@router.post("/logout")
+async def logout(
+        request: Request,
+        response: Response,
+) -> Dict[str, str]:
+    logger.info(
+        "Logout attempt",
+        extra={
+            "client_ip": get_remote_address(request),
+            "endpoint": "/logout",
+            "user_agent": request.headers.get("user-agent"),
+        },
+    )
+
+    # Clear the httpOnly cookie
+    response.delete_cookie(
+        key="access_token",
+        path="/",
+        secure=True,
+        httponly=True,
+        samesite="strict",
+    )
+
+    logger.info(
+        "Logout successful",
+        extra={
+            "client_ip": get_remote_address(request),
+            "user_agent": request.headers.get("user-agent"),
+        },
+    )
+
+    return {"message": "Logout successful"}

@@ -5,11 +5,22 @@ import jwt
 from app.config import get_settings
 from app.db.repositories.user_repository import UserRepository, get_user_repository
 from app.schemas.user import UserInDB
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/login")
+
+
+def get_token_from_cookie(request: Request) -> str:
+    token = request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication token not found",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return token
 
 
 class SecurityService:
@@ -39,7 +50,7 @@ class SecurityService:
 
     async def get_current_user(
             self,
-            token: str = Depends(oauth2_scheme),
+            token: str = Depends(get_token_from_cookie),
             user_repo: UserRepository = Depends(get_user_repository),
     ) -> UserInDB:
         credentials_exception = HTTPException(

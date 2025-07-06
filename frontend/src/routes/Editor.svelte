@@ -3,7 +3,7 @@
     import {fade, fly, slide} from "svelte/transition";
     import {get, writable} from "svelte/store";
     import axios from "axios";
-    import {authToken, logout as authLogout} from "../stores/auth.js";
+    import {isAuthenticated, logout as authLogout, verifyAuth} from "../stores/auth.js";
     import {addNotification} from "../stores/notifications.js";
     import Spinner from "../components/Spinner.svelte";
     import {navigate} from "svelte-routing";
@@ -78,7 +78,7 @@
     let showOptions = false;
     let showSavedScripts = false;
 
-    let isAuthenticated = false;
+    let authenticated = false;
     let savedScripts = [];
     let scriptName = createPersistentStore("scriptName", "");
     let currentScriptId = createPersistentStore("currentScriptId", null);
@@ -126,12 +126,15 @@
     }
 
     onMount(async () => {
-        unsubscribeAuth = authToken.subscribe(token => {
-            const wasAuthenticated = isAuthenticated;
-            isAuthenticated = !!token;
-            if (!wasAuthenticated && isAuthenticated && editorView) {
+        // Verify authentication status on startup
+        await verifyAuth();
+        
+        unsubscribeAuth = isAuthenticated.subscribe(authStatus => {
+            const wasAuthenticated = authenticated;
+            authenticated = authStatus;
+            if (!wasAuthenticated && authenticated && editorView) {
                 loadSavedScripts();
-            } else if (wasAuthenticated && !isAuthenticated) {
+            } else if (wasAuthenticated && !authenticated) {
                 savedScripts = [];
                 showSavedScripts = false;
                 currentScriptId.set(null);
@@ -184,7 +187,7 @@
             }
         });
 
-        if (isAuthenticated) {
+        if (authenticated) {
             await loadSavedScripts();
         }
     });
@@ -334,11 +337,10 @@
     }
 
     async function loadSavedScripts() {
-        if (!isAuthenticated) return;
-        const authTokenValue = get(authToken);
+        if (!authenticated) return;
         try {
             const response = await axios.get(`/api/v1/scripts`, {
-                headers: {Authorization: `Bearer ${authTokenValue}`},
+                withCredentials: true, // Use cookies for authentication
             });
             savedScripts = response.data || [];
         } catch (err) {
@@ -371,7 +373,7 @@
     }
 
     async function saveScript() {
-        if (!isAuthenticated) {
+        if (!authenticated) {
             addNotification("Please log in to save scripts.", "warning");
             return;
         }
@@ -381,7 +383,6 @@
             return;
         }
         const scriptValue = get(script);
-        const authTokenValue = get(authToken);
         const currentIdValue = get(currentScriptId);
         let operation = currentIdValue ? 'update' : 'create';
 
@@ -391,14 +392,14 @@
                 response = await axios.put(
                     `/api/v1/scripts/${currentIdValue}`,
                     {name: nameValue, script: scriptValue},
-                    {headers: {Authorization: `Bearer ${authTokenValue}`}}
+                    {withCredentials: true}
                 );
                 addNotification("Script updated successfully.", "success");
             } else {
                 response = await axios.post(
                     `/api/v1/scripts`,
                     {name: nameValue, script: scriptValue},
-                    {headers: {Authorization: `Bearer ${authTokenValue}`}}
+                    {withCredentials: true}
                 );
                 currentScriptId.set(response.data.id);
                 addNotification("Script saved successfully.", "success");
@@ -414,7 +415,7 @@
     }
 
     async function deleteScript(scriptIdToDelete) {
-        if (!isAuthenticated) return;
+        if (!authenticated) return;
         const scriptToDelete = savedScripts.find(s => s.id === scriptIdToDelete);
         const confirmMessage = scriptToDelete
             ? `Are you sure you want to delete "${scriptToDelete.name}"?`
@@ -422,10 +423,9 @@
 
         if (!confirm(confirmMessage)) return;
 
-        const authTokenValue = get(authToken);
         try {
             await axios.delete(`/api/v1/scripts/${scriptIdToDelete}`, {
-                headers: {Authorization: `Bearer ${authTokenValue}`},
+                withCredentials: true,
             });
             addNotification("Script deleted successfully.", "success");
             if (get(currentScriptId) === scriptIdToDelete) {
@@ -517,7 +517,7 @@
 
     function toggleSavedScripts() {
         showSavedScripts = !showSavedScripts;
-        if (showSavedScripts && isAuthenticated) {
+        if (showSavedScripts && authenticated) {
             loadSavedScripts();
         }
     }
@@ -893,7 +893,7 @@
 
                     <!-- Right Column: Saved Scripts -->
                     <div class="w-1/2 space-y-3">
-                        {#if isAuthenticated}
+                        {#if authenticated}
                             <h4 class="text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider">
                                 Saved Scripts
                             </h4>

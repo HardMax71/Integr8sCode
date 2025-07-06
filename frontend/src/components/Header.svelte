@@ -1,6 +1,6 @@
 <script>
   import { Link, navigate } from "svelte-routing";
-  import { authToken, username, logout as authLogout } from "../stores/auth.js";
+  import { isAuthenticated, username, logout as authLogout } from "../stores/auth.js";
   import { theme, toggleTheme } from "../stores/theme.js";
   import { fade } from 'svelte/transition';
   import { onMount, onDestroy } from 'svelte';
@@ -49,8 +49,8 @@
     isMenuActive = false;
   }
 
-  function handleLogout() {
-    authLogout();
+  async function handleLogout() {
+    await authLogout();
     closeMenu();
     navigate('/login');
   }
@@ -98,7 +98,7 @@
         </button>
 
         <div class="hidden lg:flex items-center space-x-3">
-          {#if $authToken}
+          {#if $isAuthenticated}
             <span class="text-sm text-fg-muted dark:text-dark-fg-muted hidden xl:inline">Welcome, <span class="font-medium text-fg-default dark:text-dark-fg-default">{$username}!</span></span>
             <button on:click={handleLogout} class="btn btn-secondary-outline btn-sm">
               Logout
@@ -128,7 +128,7 @@
       <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
 
         <div class="pt-3 mt-2 border-t border-border-default dark:border-dark-border-default">
-          {#if $authToken}
+          {#if $isAuthenticated}
             <div class="px-3 py-2">
                <div class="text-sm font-medium text-fg-default dark:text-dark-fg-default">{$username}</div>
                <div class="text-xs text-fg-muted dark:text-dark-fg-muted">Logged in</div>

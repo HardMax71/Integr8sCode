@@ -9,6 +9,7 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import https from 'https';
 import path from 'path';
+import json from '@rollup/plugin-json';
 
 dotenv.config();
 const production = !process.env.ROLLUP_WATCH;
@@ -127,6 +128,7 @@ export default {
             extract: 'bundle.css',
             minimize: production,
         }),
+        json(),
         resolve({
             browser: true,
             dedupe: ['svelte']

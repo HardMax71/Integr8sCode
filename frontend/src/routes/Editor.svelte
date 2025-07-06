@@ -16,8 +16,35 @@
     import {bracketMatching} from "@codemirror/language";
     import {autocompletion, completionKeymap} from "@codemirror/autocomplete";
     import {theme as appTheme} from "../stores/theme.js";
+    import AnsiToHtml from 'ansi-to-html';
 
     let themeCompartment = new Compartment();
+
+    const ansiConverter = new AnsiToHtml({
+        fg: '#000',
+        bg: '#FFF',
+        newline: true,
+        escapeXML: true,
+        stream: false,
+        colors: {
+            0: '#000',
+            1: '#C00',
+            2: '#0C0',
+            3: '#C50',
+            4: '#00C',
+            5: '#C0C',
+            6: '#0CC',
+            7: '#CCC',
+            8: '#555',
+            9: '#F55',
+            10: '#5F5',
+            11: '#FF5',
+            12: '#55F',
+            13: '#F5F',
+            14: '#5FF',
+            15: '#FFF'
+        }
+    });
 
     function createPersistentStore(key, startValue) {
         if (typeof localStorage === 'undefined') {
@@ -699,7 +726,7 @@
                                 <h4 class="text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1 uppercase tracking-wider">
                                     Output:</h4>
                                 <div class="relative">
-                                    <pre class="output-pre custom-scrollbar">{result.output || ''}</pre>
+                                    <pre class="output-pre custom-scrollbar">{@html ansiConverter.toHtml(result.output || '')}</pre>
                                     <div class="absolute bottom-2 right-2 group">
                                         <button class="inline-flex items-center p-1.5 rounded-md text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
                                                 aria-label="Copy output to clipboard"
@@ -720,7 +747,7 @@
                                     Errors:</h4>
                                 <div class="relative">
                                     <div class="p-3 rounded-md bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800">
-                                        <pre class="text-xs text-red-600 dark:text-red-300 whitespace-pre-wrap break-words font-mono bg-transparent p-0 pr-8">{result.errors}</pre>
+                                        <pre class="text-xs text-red-600 dark:text-red-300 whitespace-pre-wrap break-words font-mono bg-transparent p-0 pr-8">{@html ansiConverter.toHtml(result.errors || '')}</pre>
                                     </div>
                                     <div class="absolute bottom-2 right-2 group">
                                         <button class="inline-flex items-center p-1.5 rounded-md text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 hover:bg-red-100 dark:hover:bg-red-900 transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"

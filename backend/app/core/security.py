@@ -7,7 +7,6 @@ from app.db.repositories.user_repository import UserRepository, get_user_reposit
 from app.schemas.user import UserInDB
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
-from itsdangerous import URLSafeTimedSerializer
 from passlib.context import CryptContext
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/login")
@@ -112,15 +111,14 @@ def validate_csrf_token(request: Request) -> str:
 
     # Get CSRF token from header and cookie
     header_token = request.headers.get("X-CSRF-Token")
-    cookie_token = request.cookies.get("csrf_token")
-    
+    cookie_token = request.cookies.get("csrf_token", "")
+
     if not header_token:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="CSRF token missing"
         )
 
-    # Validate using double-submit cookie pattern
     if not security_service.validate_csrf_token(header_token, cookie_token):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

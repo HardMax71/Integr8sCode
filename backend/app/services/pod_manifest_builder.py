@@ -48,6 +48,9 @@ class PodManifestBuilder:
                     "image": self.image,
                     "imagePullPolicy": "IfNotPresent",
                     "command": self.command,
+                    "env": [
+                        {"name": "TMPDIR", "value": "/writeable"}
+                    ],
                     "resources": {
                         "limits":   {"cpu": self.pod_cpu_limit,
                                      "memory": self.pod_memory_limit},
@@ -57,7 +60,7 @@ class PodManifestBuilder:
                     "volumeMounts": [
                         {"name": "script-volume",   "mountPath": "/scripts", "readOnly": True},
                         {"name": "entrypoint-vol",  "mountPath": "/entry",   "readOnly": True},
-                        {"name": "writable-tmp",    "mountPath": "/tmp"}
+                        {"name": "writable-tmp",    "mountPath": "/writeable"}
                     ],
                     "terminationMessagePolicy": "FallbackToLogsOnError",
                     "securityContext": {

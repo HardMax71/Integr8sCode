@@ -7,7 +7,7 @@ from app.db.repositories.user_repository import UserRepository, get_user_reposit
 from app.schemas.user import UserInDB
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
-from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+from itsdangerous import URLSafeTimedSerializer
 from passlib.context import CryptContext
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/login")
@@ -28,10 +28,6 @@ class SecurityService:
     def __init__(self) -> None:
         self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
         self.settings = get_settings()
-        self.csrf_serializer = URLSafeTimedSerializer(
-            secret_key=self.settings.SECRET_KEY,
-            salt="csrf-token"
-        )
 
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         return self.pwd_context.verify(plain_password, hashed_password)  # type: ignore
@@ -77,39 +73,25 @@ class SecurityService:
             raise credentials_exception
         return user
 
-    def generate_csrf_token(self, session_id: str) -> str:
-        """Generate a CSRF token for the given session"""
-        data = {
-            "session_id": session_id,
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        return self.csrf_serializer.dumps(data)
+    def generate_csrf_token(self) -> str:
+        """Generate a CSRF token using secure random"""
+        import secrets
+        return secrets.token_urlsafe(32)
 
-    def validate_csrf_token(self, token: str, session_id: str) -> bool:
-        """Validate a CSRF token"""
-        try:
-            data = self.csrf_serializer.loads(token, max_age=3600)  # 1 hour
-            return bool(data.get("session_id") == session_id)
-        except (BadSignature, SignatureExpired):
+    def validate_csrf_token(self, header_token: str, cookie_token: str) -> bool:
+        """Validate CSRF token using double-submit cookie pattern"""
+        if not header_token or not cookie_token:
             return False
-
-    def get_session_id_from_request(self, request: Request) -> str:
-        """Get session ID from request (using access token as session identifier)"""
-        token = request.cookies.get("access_token")
-        if token:
-            return token[:32]  # Use first 32 chars as session ID
-
-        # Fallback to client fingerprint
-        client_ip = request.client.host if request.client else "unknown"
-        user_agent = request.headers.get("user-agent", "unknown")
-        return f"{client_ip}:{user_agent}"[:32]
+        # Constant-time comparison to prevent timing attacks
+        import hmac
+        return hmac.compare_digest(header_token, cookie_token)
 
 
 security_service = SecurityService()
 
 
 def validate_csrf_token(request: Request) -> str:
-    """FastAPI dependency to validate CSRF token"""
+    """FastAPI dependency to validate CSRF token using double-submit cookie pattern"""
     # Skip CSRF validation for safe methods
     if request.method in ["GET", "HEAD", "OPTIONS"]:
         return "skip"
@@ -128,20 +110,21 @@ def validate_csrf_token(request: Request) -> str:
         # If not authenticated, skip CSRF validation (auth will be handled by other dependencies)
         return "skip"
 
-    # Get CSRF token from request
-    csrf_token = request.headers.get("X-CSRF-Token")
-    if not csrf_token:
+    # Get CSRF token from header and cookie
+    header_token = request.headers.get("X-CSRF-Token")
+    cookie_token = request.cookies.get("csrf_token")
+    
+    if not header_token:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="CSRF token missing"
         )
 
-    # Validate CSRF token
-    session_id = security_service.get_session_id_from_request(request)
-    if not security_service.validate_csrf_token(csrf_token, session_id):
+    # Validate using double-submit cookie pattern
+    if not security_service.validate_csrf_token(header_token, cookie_token):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="CSRF token invalid"
         )
 
-    return csrf_token
+    return header_token

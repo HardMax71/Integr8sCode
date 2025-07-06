@@ -81,8 +81,7 @@ async def login(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
 
-    session_id = security_service.get_session_id_from_request(request)
-    csrf_token = security_service.generate_csrf_token(session_id)
+    csrf_token = security_service.generate_csrf_token()
 
     # Set httpOnly cookie for secure token storage
     response.set_cookie(
@@ -92,6 +91,17 @@ async def login(
         httponly=True,
         secure=True,  # HTTPS only
         samesite="strict",  # CSRF protection
+        path="/",
+    )
+
+    # Set CSRF token cookie (readable by JavaScript for header inclusion)
+    response.set_cookie(
+        key="csrf_token",
+        value=csrf_token,
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        httponly=False,  # JavaScript needs to read this
+        secure=True,
+        samesite="strict",
         path="/",
     )
 
@@ -180,9 +190,8 @@ async def verify_token(
                 "user_agent": request.headers.get("user-agent"),
             },
         )
-        # Generate fresh CSRF token for authenticated session
-        session_id = security_service.get_session_id_from_request(request)
-        csrf_token = security_service.generate_csrf_token(session_id)
+        # Return existing CSRF token from cookie
+        csrf_token = request.cookies.get("csrf_token", "")
 
         return {"valid": True, "username": current_user.username, "csrf_token": csrf_token}
 
@@ -223,6 +232,15 @@ async def logout(
         path="/",
         secure=True,
         httponly=True,
+        samesite="strict",
+    )
+
+    # Clear the CSRF cookie
+    response.delete_cookie(
+        key="csrf_token",
+        path="/",
+        secure=True,
+        httponly=False,
         samesite="strict",
     )
 

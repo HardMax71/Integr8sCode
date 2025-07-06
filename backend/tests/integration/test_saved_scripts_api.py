@@ -35,9 +35,10 @@ class TestSavedScriptsAPI:
         if login_response.status_code != 200:
             pytest.fail(f"Scripts setup: Login failed: {login_response.status_code} {login_response.text}")
         login_data = login_response.json()
-        assert "access_token" in login_data
-        self.token = login_data["access_token"]
-        self.headers = {"Authorization": f"Bearer {self.token}"}
+        assert "csrf_token" in login_data
+        assert "message" in login_data
+        self.csrf_token = login_data["csrf_token"]
+        self.headers = {"X-CSRF-Token": self.csrf_token}
 
     @pytest.mark.asyncio
     async def test_saved_scripts_crud_workflow(self) -> None:
@@ -132,11 +133,12 @@ class TestSavedScriptsAPI:
     async def test_scripts_endpoints_without_auth(self) -> None:
         """Test accessing scripts endpoints without authentication."""
         script_data = {"name": "No Auth", "script": "print('no')"}
-        response_post = await self.client.post("/api/v1/scripts", json=script_data)
-        response_get_list = await self.client.get("/api/v1/scripts")
-        response_get_one = await self.client.get("/api/v1/scripts/some-id")
-        response_put = await self.client.put("/api/v1/scripts/some-id", json=script_data)
-        response_delete = await self.client.delete("/api/v1/scripts/some-id")
+        # Use empty cookies to simulate no authentication
+        response_post = await self.client.post("/api/v1/scripts", json=script_data, cookies={})
+        response_get_list = await self.client.get("/api/v1/scripts", cookies={})
+        response_get_one = await self.client.get("/api/v1/scripts/some-id", cookies={})
+        response_put = await self.client.put("/api/v1/scripts/some-id", json=script_data, cookies={})
+        response_delete = await self.client.delete("/api/v1/scripts/some-id", cookies={})
 
         assert response_post.status_code == 401
         assert response_get_list.status_code == 401

@@ -37,9 +37,10 @@ class TestAuthAPI:
             pytest.fail(f"Auth setup: Login failed: {login_response.status_code} {login_response.text}")
 
         login_data = login_response.json()
-        assert "access_token" in login_data
-        self.token = login_data["access_token"]
-        self.headers = {"Authorization": f"Bearer {self.token}"}
+        assert "csrf_token" in login_data
+        assert "message" in login_data
+        self.csrf_token = login_data["csrf_token"]
+        self.headers = {"X-CSRF-Token": self.csrf_token}
 
     @pytest.mark.asyncio
     async def test_login_success(self) -> None:
@@ -49,7 +50,10 @@ class TestAuthAPI:
             data={"username": self.test_username, "password": self.test_password},
         )
         assert login_response.status_code == 200
-        assert "access_token" in login_response.json()
+        data = login_response.json()
+        assert "csrf_token" in data
+        assert "message" in data
+        assert data["message"] == "Login successful"
 
     @pytest.mark.asyncio
     async def test_login_wrong_password(self) -> None:
@@ -103,20 +107,22 @@ class TestAuthAPI:
     @pytest.mark.asyncio
     async def test_verify_token_valid(self) -> None:
         """Verify a valid token (using token from setup)."""
-        response = await self.client.get("/api/v1/verify-token", headers=self.headers)
+        response = await self.client.get("/api/v1/verify-token")
         assert response.status_code == 200
         data = response.json()
-        assert data == {"valid": True, "username": self.test_username}
+        assert data["valid"] == True
+        assert data["username"] == self.test_username
+        assert "csrf_token" in data
 
     @pytest.mark.asyncio
     async def test_verify_token_invalid_token(self) -> None:
         """Verify an invalid/malformed token fails."""
-        invalid_headers = {"Authorization": "Bearer invalidtoken"}
-        response = await self.client.get("/api/v1/verify-token", headers=invalid_headers)
+        # Clear cookies to simulate invalid token
+        response = await self.client.get("/api/v1/verify-token", cookies={})
         assert response.status_code == 401
 
     @pytest.mark.asyncio
     async def test_verify_token_no_token(self) -> None:
         """Verify request fails without token."""
-        response = await self.client.get("/api/v1/verify-token")  # No headers
+        response = await self.client.get("/api/v1/verify-token", cookies={})  # No cookies
         assert response.status_code == 401

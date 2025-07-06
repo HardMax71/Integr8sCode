@@ -40,9 +40,10 @@ class TestExecutionAPI:
         if login_response.status_code != 200:
             pytest.fail(f"Exec setup: Login failed: {login_response.status_code} {login_response.text}")
         login_data = login_response.json()
-        assert "access_token" in login_data
-        self.token = login_data["access_token"]
-        self.headers = {"Authorization": f"Bearer {self.token}"}
+        assert "csrf_token" in login_data
+        assert "message" in login_data
+        self.csrf_token = login_data["csrf_token"]
+        self.headers = {"X-CSRF-Token": self.csrf_token}
 
     @pytest.mark.asyncio
     async def test_execute_script_success_workflow(self) -> None:
@@ -146,7 +147,7 @@ class TestExecutionAPI:
     async def test_execute_endpoint_without_auth(self) -> None:
         """Test accessing execute endpoint without authentication (should succeed)."""
         execution_request = {"script": "print('no auth test should pass')"}
-        response = await self.client.post("/api/v1/execute", json=execution_request)  # No headers
+        response = await self.client.post("/api/v1/execute", json=execution_request, cookies={})  # No cookies
         # Expect 200 OK because the endpoint is public
         assert response.status_code == 200
         assert "execution_id" in response.json()
@@ -155,6 +156,6 @@ class TestExecutionAPI:
     @pytest.mark.asyncio
     async def test_result_endpoint_without_auth(self) -> None:
         non_existent_id = "nonexistent-public-id-999"
-        response = await self.client.get(f"/api/v1/result/{non_existent_id}")  # No headers
+        response = await self.client.get(f"/api/v1/result/{non_existent_id}", cookies={})  # No cookies
         # Expect 404 Not Found because the ID doesn't exist, *not* 401 because the endpoint is public
         assert response.status_code == 404

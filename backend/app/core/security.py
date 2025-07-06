@@ -7,8 +7,8 @@ from app.db.repositories.user_repository import UserRepository, get_user_reposit
 from app.schemas.user import UserInDB
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from passlib.context import CryptContext
-from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/login")
 
@@ -89,7 +89,7 @@ class SecurityService:
         """Validate a CSRF token"""
         try:
             data = self.csrf_serializer.loads(token, max_age=3600)  # 1 hour
-            return data.get("session_id") == session_id
+            return bool(data.get("session_id") == session_id)
         except (BadSignature, SignatureExpired):
             return False
 
@@ -98,7 +98,7 @@ class SecurityService:
         token = request.cookies.get("access_token")
         if token:
             return token[:32]  # Use first 32 chars as session ID
-        
+
         # Fallback to client fingerprint
         client_ip = request.client.host if request.client else "unknown"
         user_agent = request.headers.get("user-agent", "unknown")
@@ -113,21 +113,21 @@ def validate_csrf_token(request: Request) -> str:
     # Skip CSRF validation for safe methods
     if request.method in ["GET", "HEAD", "OPTIONS"]:
         return "skip"
-    
+
     # Skip CSRF validation for auth endpoints
     if request.url.path in ["/api/v1/login", "/api/v1/register", "/api/v1/logout"]:
         return "skip"
-    
+
     # Skip CSRF validation for non-API endpoints
     if not request.url.path.startswith("/api/"):
         return "skip"
-    
+
     # Check if user is authenticated first (has access_token cookie)
     access_token = request.cookies.get("access_token")
     if not access_token:
         # If not authenticated, skip CSRF validation (auth will be handled by other dependencies)
         return "skip"
-    
+
     # Get CSRF token from request
     csrf_token = request.headers.get("X-CSRF-Token")
     if not csrf_token:
@@ -135,7 +135,7 @@ def validate_csrf_token(request: Request) -> str:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="CSRF token missing"
         )
-    
+
     # Validate CSRF token
     session_id = security_service.get_session_id_from_request(request)
     if not security_service.validate_csrf_token(csrf_token, session_id):
@@ -143,5 +143,5 @@ def validate_csrf_token(request: Request) -> str:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="CSRF token invalid"
         )
-    
+
     return csrf_token

@@ -94,7 +94,7 @@ async def login(
     # Generate CSRF token for the session
     session_id = security_service.get_session_id_from_request(request)
     csrf_token = security_service.generate_csrf_token(session_id)
-    
+
     return {"message": "Login successful", "username": user.username, "csrf_token": csrf_token}
 
 
@@ -183,7 +183,7 @@ async def verify_token(
         # Generate fresh CSRF token for authenticated session
         session_id = security_service.get_session_id_from_request(request)
         csrf_token = security_service.generate_csrf_token(session_id)
-        
+
         return {"valid": True, "username": current_user.username, "csrf_token": csrf_token}
 
     except Exception as e:

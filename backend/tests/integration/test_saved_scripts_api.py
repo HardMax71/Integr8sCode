@@ -1,5 +1,5 @@
 import time
-
+import httpx
 import pytest
 from app.schemas.user import UserCreate
 from httpx import AsyncClient
@@ -132,13 +132,17 @@ class TestSavedScriptsAPI:
     @pytest.mark.asyncio
     async def test_scripts_endpoints_without_auth(self) -> None:
         """Test accessing scripts endpoints without authentication."""
-        script_data = {"name": "No Auth", "script": "print('no')"}
-        # Use empty cookies to simulate no authentication
-        response_post = await self.client.post("/api/v1/scripts", json=script_data, cookies={})
-        response_get_list = await self.client.get("/api/v1/scripts", cookies={})
-        response_get_one = await self.client.get("/api/v1/scripts/some-id", cookies={})
-        response_put = await self.client.put("/api/v1/scripts/some-id", json=script_data, cookies={})
-        response_delete = await self.client.delete("/api/v1/scripts/some-id", cookies={})
+        async with httpx.AsyncClient(
+            base_url="https://localhost:443",
+            verify=False,
+            timeout=30.0
+        ) as new_client:
+            script_data = {"name": "No Auth", "script": "print('no')"}
+            response_post = await new_client.post("/api/v1/scripts", json=script_data)
+            response_get_list = await new_client.get("/api/v1/scripts")
+            response_get_one = await new_client.get("/api/v1/scripts/some-id")
+            response_put = await new_client.put("/api/v1/scripts/some-id", json=script_data)
+            response_delete = await new_client.delete("/api/v1/scripts/some-id")
 
         assert response_post.status_code == 401
         assert response_get_list.status_code == 401

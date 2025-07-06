@@ -65,10 +65,6 @@ async def login(
         )
 
     settings = get_settings()
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = security_service.create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
-    )
 
     logger.info(
         "Login successful",
@@ -80,6 +76,14 @@ async def login(
         },
     )
 
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = security_service.create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
+    )
+
+    session_id = security_service.get_session_id_from_request(request)
+    csrf_token = security_service.generate_csrf_token(session_id)
+
     # Set httpOnly cookie for secure token storage
     response.set_cookie(
         key="access_token",
@@ -90,10 +94,6 @@ async def login(
         samesite="strict",  # CSRF protection
         path="/",
     )
-
-    # Generate CSRF token for the session
-    session_id = security_service.get_session_id_from_request(request)
-    csrf_token = security_service.generate_csrf_token(session_id)
 
     return {"message": "Login successful", "username": user.username, "csrf_token": csrf_token}
 

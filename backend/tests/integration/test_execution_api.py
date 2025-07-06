@@ -1,12 +1,11 @@
 import asyncio
 import time
-
+import httpx
 import pytest
 from app.schemas.user import UserCreate
 from httpx import AsyncClient, HTTPStatusError
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-# Define polling parameters
 POLL_INTERVAL = 2  # seconds
 EXECUTION_TIMEOUT = 120  # seconds
 
@@ -146,16 +145,28 @@ class TestExecutionAPI:
     @pytest.mark.asyncio
     async def test_execute_endpoint_without_auth(self) -> None:
         """Test accessing execute endpoint without authentication (should succeed)."""
-        execution_request = {"script": "print('no auth test should pass')"}
-        response = await self.client.post("/api/v1/execute", json=execution_request, cookies={})  # No cookies
-        # Expect 200 OK because the endpoint is public
-        assert response.status_code == 200
-        assert "execution_id" in response.json()
-        assert "status" in response.json()
+        async with httpx.AsyncClient(
+            base_url="https://localhost:443",
+            verify=False,
+            timeout=30.0
+        ) as new_client:
+            execution_request = {"script": "print('no auth test should pass')"}
+            response = await new_client.post("/api/v1/execute", json=execution_request)
+            # Expect 200 OK because the endpoint is public
+            assert response.status_code == 200
+            assert "execution_id" in response.json()
+            assert "status" in response.json()
 
     @pytest.mark.asyncio
     async def test_result_endpoint_without_auth(self) -> None:
-        non_existent_id = "nonexistent-public-id-999"
-        response = await self.client.get(f"/api/v1/result/{non_existent_id}", cookies={})  # No cookies
-        # Expect 404 Not Found because the ID doesn't exist, *not* 401 because the endpoint is public
-        assert response.status_code == 404
+        # Create a new client without cookies to simulate no auth
+        import httpx
+        async with httpx.AsyncClient(
+            base_url="https://localhost:443",
+            verify=False,
+            timeout=30.0
+        ) as new_client:
+            non_existent_id = "nonexistent-public-id-999"
+            response = await new_client.get(f"/api/v1/result/{non_existent_id}")
+            # Expect 404 Not Found because the ID doesn't exist, *not* 401 because the endpoint is public
+            assert response.status_code == 404

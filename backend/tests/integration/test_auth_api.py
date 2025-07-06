@@ -1,5 +1,5 @@
 import time
-
+import httpx
 import pytest
 from app.schemas.user import UserCreate
 from httpx import AsyncClient
@@ -117,12 +117,21 @@ class TestAuthAPI:
     @pytest.mark.asyncio
     async def test_verify_token_invalid_token(self) -> None:
         """Verify an invalid/malformed token fails."""
-        # Clear cookies to simulate invalid token
-        response = await self.client.get("/api/v1/verify-token", cookies={})
-        assert response.status_code == 401
+        async with httpx.AsyncClient(
+            base_url="https://localhost:443",
+            verify=False,
+            timeout=30.0
+        ) as new_client:
+            response = await new_client.get("/api/v1/verify-token")
+            assert response.status_code == 401
 
     @pytest.mark.asyncio
     async def test_verify_token_no_token(self) -> None:
         """Verify request fails without token."""
-        response = await self.client.get("/api/v1/verify-token", cookies={})  # No cookies
-        assert response.status_code == 401
+        async with httpx.AsyncClient(
+            base_url="https://localhost:443",
+            verify=False,
+            timeout=30.0
+        ) as new_client:
+            response = await new_client.get("/api/v1/verify-token")
+            assert response.status_code == 401

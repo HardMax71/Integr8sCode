@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Set
 
 from app.config import get_settings
 from app.core.logging import logger
+from app.core.metrics import NETWORK_POLICY_VIOLATIONS, SECURITY_EVENTS
 from app.runtime_registry import RUNTIME_REGISTRY
 from app.services.circuit_breaker import CircuitBreaker
 from app.services.network_policy import NetworkPolicyBuilder
@@ -214,6 +215,10 @@ class KubernetesService:
 
             self._active_pods[execution_id] = datetime.now(timezone.utc)
             logger.info(f"Successfully created pod '{pod_name}' with image '{image}'")
+
+            # Track security event - pod creation with restricted security context
+            SECURITY_EVENTS.labels(event_type="SecurePodCreated").inc()
+
             self.circuit_breaker.record_success()
 
         except Exception as e:
@@ -334,8 +339,15 @@ class KubernetesService:
                 namespace=self.NAMESPACE
             )
             logger.info(f"NetworkPolicy '{policy_name}' created successfully.")
+
+            # Track security event - network policy creation
+            SECURITY_EVENTS.labels(event_type="NetworkPolicyCreated").inc()
         except ApiException as e:
             logger.error(f"Failed to create NetworkPolicy '{policy_name}': {e.status} {e.reason}")
+
+            # Track network policy creation failure
+            NETWORK_POLICY_VIOLATIONS.labels(policy_name=policy_name).inc()
+
             raise KubernetesServiceError(f"Failed to create NetworkPolicy: {str(e)}") from e
 
     async def _delete_network_policy(self, policy_name: str) -> None:

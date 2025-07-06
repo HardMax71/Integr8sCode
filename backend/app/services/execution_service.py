@@ -8,9 +8,14 @@ from app.core.exceptions import IntegrationException
 from app.core.logging import logger
 from app.core.metrics import (
     ACTIVE_EXECUTIONS,
+    CPU_UTILIZATION,
     ERROR_COUNTER,
     EXECUTION_DURATION,
     MEMORY_USAGE,
+    MEMORY_UTILIZATION_PERCENT,
+    POD_CREATION_FAILURES,
+    QUEUE_DEPTH,
+    QUEUE_WAIT_TIME,
     SCRIPT_EXECUTIONS,
 )
 from app.db.repositories.execution_repository import (
@@ -25,7 +30,6 @@ from app.services.kubernetes_service import (
     get_kubernetes_service,
 )
 from fastapi import Depends
-from kubernetes.client.rest import ApiException
 
 
 class ExecutionStatus(str, Enum):
@@ -53,8 +57,6 @@ class ExecutionService:
             "supported_runtimes": self.settings.SUPPORTED_RUNTIMES,
         }
 
-    # for whatever reason mypy is dumb and can't defer type of EXAMPLE_SCRIPTS
-    # -> ignoring type
     async def get_example_scripts(self) -> Dict[str, str]:
         return self.settings.EXAMPLE_SCRIPTS  # type: ignore
 
@@ -89,11 +91,11 @@ class ExecutionService:
             )
 
     async def _start_k8s_execution(
-        self,
-        execution_id_str: str,
-        script: str,
-        lang: str,
-        lang_version: str,
+            self,
+            execution_id_str: str,
+            script: str,
+            lang: str,
+            lang_version: str,
     ) -> None:
         """
         1. Ask KubernetesService to create the Pod.
@@ -111,7 +113,6 @@ class ExecutionService:
                 config_map_data={runtime_cfg.file_name: script},
             )
 
-            # Start background poller ⤵ — we do **not** await it here
             asyncio.create_task(
                 self._mark_running_when_scheduled(pod_name, execution_id_str)
             )
@@ -123,6 +124,9 @@ class ExecutionService:
 
         except Exception as e:
             logger.error(f"Failed to request K8s pod creation: {str(e)}", exc_info=True)
+
+            POD_CREATION_FAILURES.labels(failure_reason=type(e).__name__).inc()
+
             await self.execution_repo.update_execution(
                 execution_id_str,
                 ExecutionUpdate(
@@ -131,34 +135,6 @@ class ExecutionService:
                 ).model_dump(exclude_unset=True),
             )
             raise IntegrationException(status_code=500, detail="Container creation failed") from e
-
-    async def _get_k8s_execution_output(
-            self,
-            execution_id_str: str
-    ) -> tuple[Optional[str], Optional[str], Optional[str], Optional[dict]]:
-        output: Optional[str] = None
-        error_msg: Optional[str] = None
-        # assume error unless the try succeeds
-        phase: Optional[str] = ExecutionStatus.ERROR
-        resource_usage: Optional[dict] = None
-
-        try:
-            output, phase, resource_usage = await self.k8s_service.get_pod_logs(execution_id_str)
-            logger.info(
-                f"Retrieved K8s results for {execution_id_str}. "
-                f"Phase: {phase}. Resource usage found: {resource_usage is not None}"
-            )
-        except KubernetesPodError as e:
-            error_msg = str(e)
-            logger.error(f"Error retrieving pod results for {execution_id_str}: {error_msg}")
-        except ApiException as e:
-            error_msg = f"Kubernetes API error for {execution_id_str}: {e.status} {e.reason}"
-            logger.error(error_msg, exc_info=True)
-        except Exception as e:
-            error_msg = f"Unexpected error retrieving K8s results for {execution_id_str}: {e}"
-            logger.error(error_msg, exc_info=True)
-
-        return output, error_msg, phase, resource_usage
 
     async def _try_finalize_execution(self, execution: ExecutionInDB) -> Optional[ExecutionInDB]:
         try:
@@ -175,33 +151,35 @@ class ExecutionService:
             logger.info(f"Successfully parsed metrics from pod: {metrics}")
 
             exit_code = metrics.get("exit_code")
-            res_usage = metrics.get("resource_usage")
+            res_usage = metrics.get("resource_usage", {})
 
-            if not res_usage:
-                return None  # waiting for results
-
-            wall_s = res_usage.get("execution_time_wall_seconds") or 0
+            wall_s = res_usage.get("execution_time_wall_seconds") or 0.0
             jiffies = float(res_usage.get("cpu_time_jiffies", 0) or 0)
             hertz = float(res_usage.get("clk_tck_hertz", 100) or 100)
-            cpu_s = jiffies / hertz if hertz > 0 else 0.0  # total CPU-time
+            cpu_s = jiffies / hertz if hertz > 0 else 0.0
 
-            # average CPU in millicores: (CPU-seconds / wall-seconds) × 1000
             cpu_millicores = (cpu_s / wall_s * 1000) if wall_s else 0.0
-
-            # VmHWM is k*ibi*bytes → MiB = KiB / 1024
             peak_kib = float(res_usage.get("peak_memory_kb", 0) or 0)
             peak_mib = peak_kib / 1024.0
 
-            MEMORY_USAGE.labels(lang_and_version=execution.lang + "-" + execution.lang_version).set(
-                peak_mib * 1024 * 1024)
+            lang_and_version: str = f"{execution.lang}-{execution.lang_version}"
+
+            EXECUTION_DURATION.labels(lang_and_version=lang_and_version).observe(wall_s)
+            MEMORY_USAGE.labels(lang_and_version=lang_and_version).set(peak_mib * 1024 * 1024)
+            CPU_UTILIZATION.labels(lang_and_version=lang_and_version).set(cpu_millicores)
+
+            # in settings, pod limit is a string of type <digits><2 letters for unit>
+            memory_limit_mib = float(self.settings.K8S_POD_MEMORY_LIMIT[:-2])
+            mem_util_pct = (peak_mib / memory_limit_mib) * 100
+            MEMORY_UTILIZATION_PERCENT.labels(lang_and_version=lang_and_version).set(mem_util_pct)
 
             final_resource_usage = {
                 "execution_time": round(wall_s, 6),
                 "cpu_usage": round(cpu_millicores, 2),
                 "memory_usage": round(peak_mib, 2),
+                "pod_phase": final_phase,
             }
 
-            final_resource_usage["pod_phase"] = final_phase
             status: ExecutionStatus = ExecutionStatus.COMPLETED if exit_code == 0 else ExecutionStatus.ERROR
             if status == ExecutionStatus.ERROR:
                 ERROR_COUNTER.labels(error_type="NonZeroExitCode").inc()
@@ -223,8 +201,8 @@ class ExecutionService:
             raise IntegrationException(status_code=500, detail="Failed to retrieve execution after update.")
 
         status_label = "success" if updated_execution.status == ExecutionStatus.COMPLETED else "error"
-        SCRIPT_EXECUTIONS.labels(status=status_label,
-                                 lang_and_version=execution.lang + "-" + execution.lang_version).inc()
+        lang_version_label = f"{updated_execution.lang}-{updated_execution.lang_version}"
+        SCRIPT_EXECUTIONS.labels(status=status_label, lang_and_version=lang_version_label).inc()
         if status_label == "error":
             ERROR_COUNTER.labels(error_type="ScriptExecutionError").inc()
 
@@ -236,33 +214,37 @@ class ExecutionService:
             lang_version: str = "3.11"
     ) -> ExecutionInDB:
         ACTIVE_EXECUTIONS.inc()
-        start_time = time()
+        QUEUE_DEPTH.inc()
         inserted_oid = None
+        lang_and_version = f"{lang}-{lang_version}"
+
+        start_time = time()
 
         try:
-            if lang not in self.settings.SUPPORTED_RUNTIMES.keys():
+            if lang not in self.settings.SUPPORTED_RUNTIMES:
                 raise IntegrationException(status_code=400, detail=f"Language '{lang}' not supported.")
 
             if lang_version not in self.settings.SUPPORTED_RUNTIMES[lang]:
                 raise IntegrationException(status_code=400, detail=f"Language version '{lang_version}' not supported.")
 
             execution_create = ExecutionCreate(
-                script=script,
-                lang=lang,
-                lang_version=lang_version,
-                status=ExecutionStatus.QUEUED,
+                script=script, lang=lang, lang_version=lang_version, status=ExecutionStatus.QUEUED
             )
             execution_to_insert = ExecutionInDB(**execution_create.model_dump())
             inserted_oid = await self.execution_repo.create_execution(execution_to_insert)
             logger.info(f"Created execution record {inserted_oid} with status QUEUED.")
 
             await self._start_k8s_execution(
-                execution_id_str=inserted_oid, script=script,
-                lang=lang, lang_version=lang_version
+                execution_id_str=str(inserted_oid), script=script, lang=lang, lang_version=lang_version
             )
+
+            queue_wait_duration = time() - start_time
+            QUEUE_WAIT_TIME.labels(lang_and_version=lang_and_version).observe(queue_wait_duration)
+
+            # Allow a brief moment for the background poller to potentially catch the Running state
             await asyncio.sleep(0.1)
 
-            final_execution_state = await self.execution_repo.get_execution(inserted_oid)
+            final_execution_state = await self.execution_repo.get_execution(str(inserted_oid))
             if not final_execution_state:
                 raise IntegrationException(status_code=500, detail="Failed to retrieve execution record after creation")
             return final_execution_state
@@ -273,14 +255,16 @@ class ExecutionService:
             if inserted_oid:
                 await self.execution_repo.update_execution(
                     str(inserted_oid),
-                    ExecutionUpdate(status=ExecutionStatus.ERROR,
-                                    errors="Script execution failed").model_dump(exclude_unset=True)
+                    ExecutionUpdate(status=ExecutionStatus.ERROR, errors="Script execution failed").model_dump(
+                        exclude_unset=True)
                 )
-            raise IntegrationException(status_code=500,
-                                       detail="Script execution failed") from e
+            raise IntegrationException(status_code=500, detail="Script execution failed") from e
         finally:
-            EXECUTION_DURATION.labels(lang_and_version=lang + "-" + lang_version).observe(time() - start_time)
+            # These metrics track the overall API call, not just script runtime
             ACTIVE_EXECUTIONS.dec()
+            # QUEUE_DEPTH is decremented here to ensure it's always called once,
+            # avoiding the previous double-decrement bug.
+            QUEUE_DEPTH.dec()
 
     async def get_execution_result(self, execution_id: str) -> ExecutionInDB:
         execution = await self.execution_repo.get_execution(execution_id)

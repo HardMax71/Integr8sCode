@@ -1,7 +1,7 @@
 from typing import List
 
 from app.core.logging import logger
-from app.core.security import security_service
+from app.core.security import security_service, validate_csrf_token
 from app.schemas.saved_script import SavedScriptCreateRequest, SavedScriptResponse, SavedScriptUpdate
 from app.schemas.user import UserInDB
 from app.services.saved_script_service import (
@@ -49,6 +49,7 @@ async def create_saved_script(
         saved_script: SavedScriptCreateRequest,
         current_user: UserInDB = Depends(security_service.get_current_user),
         saved_script_service: SavedScriptService = Depends(get_saved_script_service),
+        csrf_token: str = Depends(validate_csrf_token),
 ) -> SavedScriptResponse:
     logger.info(
         "Creating new saved script",
@@ -158,6 +159,7 @@ async def update_saved_script(
         script_in_db: SavedScriptResponse = Depends(get_script_or_404),
         current_user: UserInDB = Depends(get_validated_user),
         saved_script_service: SavedScriptService = Depends(get_saved_script_service),
+        csrf_token: str = Depends(validate_csrf_token),
 ) -> SavedScriptResponse:
     logger.info(
         "Updating saved script",
@@ -210,6 +212,7 @@ async def delete_saved_script(
         script_in_db: SavedScriptResponse = Depends(get_script_or_404),
         current_user: UserInDB = Depends(get_validated_user),
         saved_script_service: SavedScriptService = Depends(get_saved_script_service),
+        csrf_token: str = Depends(validate_csrf_token),
 ) -> None:
     logger.info(
         "Deleting saved script",

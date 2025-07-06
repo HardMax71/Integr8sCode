@@ -1,6 +1,7 @@
 from app.core.exceptions import IntegrationException
 from app.core.logging import logger
 from app.core.metrics import ACTIVE_EXECUTIONS, EXECUTION_DURATION, SCRIPT_EXECUTIONS
+from app.core.security import validate_csrf_token
 from app.schemas.execution import (
     ExampleScripts,
     ExecutionRequest,

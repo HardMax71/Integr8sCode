@@ -112,6 +112,7 @@ def create_app() -> FastAPI:
             "Accept",
             "Origin",
             "X-Requested-With",
+            "X-CSRF-Token",
         ],
         expose_headers=["Content-Length", "Content-Range"],
     )

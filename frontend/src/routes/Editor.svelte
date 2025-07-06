@@ -3,7 +3,8 @@
     import {fade, fly, slide} from "svelte/transition";
     import {get, writable} from "svelte/store";
     import axios from "axios";
-    import {isAuthenticated, logout as authLogout, verifyAuth} from "../stores/auth.js";
+    import {isAuthenticated, logout as authLogout, verifyAuth, csrfToken} from "../stores/auth.js";
+    import {apiCall, fetchWithRetry} from "../lib/api.js";
     import {addNotification} from "../stores/notifications.js";
     import Spinner from "../components/Spinner.svelte";
     import {navigate} from "svelte-routing";
@@ -273,12 +274,22 @@
         let executionId = null;
 
         try {
-            const executeResponse = await axios.post(`/api/v1/execute`, {
-                script: scriptValue,
-                lang: langValue,
-                lang_version: versionValue
+            const executeResponse = await fetchWithRetry(`/api/v1/execute`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    script: scriptValue,
+                    lang: langValue,
+                    lang_version: versionValue
+                })
+            }, {
+                numOfAttempts: 3,
+                maxDelay: 5000
             });
-            executionId = executeResponse.data.execution_id;
+            const executeData = await executeResponse.json();
+            executionId = executeData.execution_id;
             result = {status: 'running', execution_id: executionId};
 
             const pollInterval = 1000;
@@ -289,8 +300,13 @@
                 await new Promise(resolve => setTimeout(resolve, pollInterval));
                 attempts++;
                 try {
-                    const resultResponse = await axios.get(`/api/v1/result/${executionId}`);
-                    result = resultResponse.data;
+                    const resultResponse = await fetchWithRetry(`/api/v1/result/${executionId}`, {
+                        method: 'GET'
+                    }, {
+                        numOfAttempts: 2,
+                        maxDelay: 3000
+                    });
+                    result = await resultResponse.json();
 
                     if (result.status === 'completed' || result.status === 'error') {
                         break;
@@ -339,10 +355,13 @@
     async function loadSavedScripts() {
         if (!authenticated) return;
         try {
-            const response = await axios.get(`/api/v1/scripts`, {
-                withCredentials: true, // Use cookies for authentication
+            const data = await apiCall(`/api/v1/scripts`, {
+                method: 'GET'
+            }, {
+                numOfAttempts: 3,
+                maxDelay: 5000
             });
-            savedScripts = response.data || [];
+            savedScripts = data || [];
         } catch (err) {
             console.error("Error loading saved scripts:", err);
             addNotification("Failed to load saved scripts. You might need to log in again.", "error");
@@ -387,21 +406,31 @@
         let operation = currentIdValue ? 'update' : 'create';
 
         try {
-            let response;
+            let data;
             if (operation === 'update') {
-                response = await axios.put(
-                    `/api/v1/scripts/${currentIdValue}`,
-                    {name: nameValue, script: scriptValue},
-                    {withCredentials: true}
-                );
+                await apiCall(`/api/v1/scripts/${currentIdValue}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({name: nameValue, script: scriptValue})
+                }, {
+                    numOfAttempts: 3,
+                    maxDelay: 5000
+                });
                 addNotification("Script updated successfully.", "success");
             } else {
-                response = await axios.post(
-                    `/api/v1/scripts`,
-                    {name: nameValue, script: scriptValue},
-                    {withCredentials: true}
-                );
-                currentScriptId.set(response.data.id);
+                data = await apiCall(`/api/v1/scripts`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({name: nameValue, script: scriptValue})
+                }, {
+                    numOfAttempts: 3,
+                    maxDelay: 5000
+                });
+                currentScriptId.set(data.id);
                 addNotification("Script saved successfully.", "success");
             }
             await loadSavedScripts();
@@ -424,8 +453,11 @@
         if (!confirm(confirmMessage)) return;
 
         try {
-            await axios.delete(`/api/v1/scripts/${scriptIdToDelete}`, {
-                withCredentials: true,
+            await apiCall(`/api/v1/scripts/${scriptIdToDelete}`, {
+                method: 'DELETE'
+            }, {
+                numOfAttempts: 3,
+                maxDelay: 5000
             });
             addNotification("Script deleted successfully.", "success");
             if (get(currentScriptId) === scriptIdToDelete) {

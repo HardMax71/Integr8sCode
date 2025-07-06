@@ -91,7 +91,11 @@ async def login(
         path="/",
     )
 
-    return {"message": "Login successful", "username": user.username}
+    # Generate CSRF token for the session
+    session_id = security_service.get_session_id_from_request(request)
+    csrf_token = security_service.generate_csrf_token(session_id)
+    
+    return {"message": "Login successful", "username": user.username, "csrf_token": csrf_token}
 
 
 @router.post("/register", response_model=UserResponse)
@@ -176,7 +180,11 @@ async def verify_token(
                 "user_agent": request.headers.get("user-agent"),
             },
         )
-        return {"valid": True, "username": current_user.username}
+        # Generate fresh CSRF token for authenticated session
+        session_id = security_service.get_session_id_from_request(request)
+        csrf_token = security_service.generate_csrf_token(session_id)
+        
+        return {"valid": True, "username": current_user.username, "csrf_token": csrf_token}
 
     except Exception as e:
         logger.error(

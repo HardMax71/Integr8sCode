@@ -1,10 +1,18 @@
 import pathlib
+import ssl
 from typing import AsyncGenerator, Optional
 
 import httpx
 import pytest
 from app.config import Settings
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+
+
+def create_test_ssl_context() -> ssl.SSLContext:
+    context = ssl.create_default_context()
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    return context
 
 ENV_FILE_PATH = pathlib.Path(__file__).parent / '.env.test'
 
@@ -13,7 +21,7 @@ async def client() -> AsyncGenerator[httpx.AsyncClient, None]:
     backend_service_url = "https://localhost:443"
     async with httpx.AsyncClient(
             base_url=backend_service_url,
-            verify=False,
+            verify=create_test_ssl_context(),
             timeout=30.0
     ) as async_client:
         try:

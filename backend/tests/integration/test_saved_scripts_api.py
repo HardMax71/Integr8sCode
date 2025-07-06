@@ -4,6 +4,7 @@ import pytest
 from app.schemas.user import UserCreate
 from httpx import AsyncClient
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from tests.conftest import create_test_ssl_context
 
 
 @pytest.mark.integration
@@ -134,7 +135,7 @@ class TestSavedScriptsAPI:
         """Test accessing scripts endpoints without authentication."""
         async with httpx.AsyncClient(
             base_url="https://localhost:443",
-            verify=False,
+            verify=create_test_ssl_context(),
             timeout=30.0
         ) as new_client:
             script_data = {"name": "No Auth", "script": "print('no')"}

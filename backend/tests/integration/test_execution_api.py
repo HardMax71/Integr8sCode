@@ -5,6 +5,7 @@ import pytest
 from app.schemas.user import UserCreate
 from httpx import AsyncClient, HTTPStatusError
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from tests.conftest import create_test_ssl_context
 
 POLL_INTERVAL = 2  # seconds
 EXECUTION_TIMEOUT = 120  # seconds
@@ -147,7 +148,7 @@ class TestExecutionAPI:
         """Test accessing execute endpoint without authentication (should succeed)."""
         async with httpx.AsyncClient(
             base_url="https://localhost:443",
-            verify=False,
+            verify=create_test_ssl_context(),
             timeout=30.0
         ) as new_client:
             execution_request = {"script": "print('no auth test should pass')"}
@@ -163,7 +164,7 @@ class TestExecutionAPI:
         import httpx
         async with httpx.AsyncClient(
             base_url="https://localhost:443",
-            verify=False,
+            verify=create_test_ssl_context(),
             timeout=30.0
         ) as new_client:
             non_existent_id = "nonexistent-public-id-999"

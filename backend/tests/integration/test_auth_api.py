@@ -4,6 +4,7 @@ import pytest
 from app.schemas.user import UserCreate
 from httpx import AsyncClient
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from tests.conftest import create_test_ssl_context
 
 
 @pytest.mark.integration
@@ -119,7 +120,7 @@ class TestAuthAPI:
         """Verify an invalid/malformed token fails."""
         async with httpx.AsyncClient(
             base_url="https://localhost:443",
-            verify=False,
+            verify=create_test_ssl_context(),
             timeout=30.0
         ) as new_client:
             response = await new_client.get("/api/v1/verify-token")
@@ -130,7 +131,7 @@ class TestAuthAPI:
         """Verify request fails without token."""
         async with httpx.AsyncClient(
             base_url="https://localhost:443",
-            verify=False,
+            verify=create_test_ssl_context(),
             timeout=30.0
         ) as new_client:
             response = await new_client.get("/api/v1/verify-token")

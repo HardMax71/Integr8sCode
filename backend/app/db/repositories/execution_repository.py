@@ -14,7 +14,7 @@ class ExecutionRepository:
         self.collection: AsyncIOMotorCollection = self.db.get_collection("executions")
 
     async def create_execution(self, execution: ExecutionInDB) -> str:
-        execution_dict = execution.dict(by_alias=True)
+        execution_dict = execution.model_dump(by_alias=True)
         await self.collection.insert_one(execution_dict)
         return str(execution.id)
 

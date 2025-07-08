@@ -8,6 +8,8 @@ from pydantic import BaseModel, Field
 class SavedScriptBase(BaseModel):
     name: str
     script: str
+    lang: str = "python"
+    lang_version: str = "3.11"
     description: Optional[str] = None
 
 
@@ -29,6 +31,8 @@ class SavedScriptInDB(SavedScriptBase):
 class SavedScriptUpdate(BaseModel):
     name: Optional[str] = None
     script: Optional[str] = None
+    lang: Optional[str] = None
+    lang_version: Optional[str] = None
     description: Optional[str] = None
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -41,6 +45,8 @@ class SavedScriptResponse(BaseModel):
     id: str
     name: str
     script: str
+    lang: str
+    lang_version: str
     description: Optional[str] = None
     created_at: datetime
     updated_at: datetime

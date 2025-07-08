@@ -11,7 +11,7 @@ class SavedScriptRepository:
         self.db = db
 
     async def create_saved_script(self, saved_script: SavedScriptInDB) -> str:
-        saved_script_dict = saved_script.dict(by_alias=True)
+        saved_script_dict = saved_script.model_dump(by_alias=True)
         await self.db.saved_scripts.insert_one(saved_script_dict)
         return str(saved_script.id)
 

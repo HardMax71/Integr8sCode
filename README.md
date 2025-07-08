@@ -18,6 +18,9 @@
   <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/tests.yml">
     <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/tests.yml?branch=main&label=tests&logo=pytest" alt="Tests Status" />
   </a>
+  <a href="https://codecov.io/gh/HardMax71/Integr8sCode">
+    <img src="https://img.shields.io/codecov/c/github/HardMax71/Integr8sCode?flag=backend&label=backend%20coverage&logo=codecov" alt="Backend Coverage" />
+  </a>
 </p>
 <p align="center">
   <a href="https://sonarcloud.io/dashboard?id=HardMax71_Integr8sCode">

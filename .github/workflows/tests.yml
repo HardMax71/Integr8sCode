@@ -115,6 +115,14 @@ jobs:
           cd backend
           python -m pytest tests/integration -v --cov=app --cov-report=xml --cov-report=term
 
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: backend/coverage.xml
+          flags: backend
+          name: backend-coverage
+          fail_ci_if_error: false
+
       - name: Collect logs
         if: always()
         run: |

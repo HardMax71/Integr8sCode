@@ -376,6 +376,15 @@
         script.set(scriptData.script);
         scriptName.set(scriptData.name);
         currentScriptId.set(scriptData.id);
+        
+        // Set language and version if available in the saved script
+        if (scriptData.lang) {
+            selectedLang.set(scriptData.lang);
+        }
+        if (scriptData.lang_version) {
+            selectedVersion.set(scriptData.lang_version);
+        }
+        
         editorView.dispatch({
             changes: {
                 from: 0,
@@ -402,30 +411,72 @@
             return;
         }
         const scriptValue = get(script);
+        const langValue = get(selectedLang);
+        const versionValue = get(selectedVersion);
         const currentIdValue = get(currentScriptId);
         let operation = currentIdValue ? 'update' : 'create';
 
         try {
             let data;
             if (operation === 'update') {
-                await apiCall(`/api/v1/scripts/${currentIdValue}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({name: nameValue, script: scriptValue})
-                }, {
-                    numOfAttempts: 3,
-                    maxDelay: 5000
-                });
-                addNotification("Script updated successfully.", "success");
+                try {
+                    await apiCall(`/api/v1/scripts/${currentIdValue}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            name: nameValue, 
+                            script: scriptValue,
+                            lang: langValue,
+                            lang_version: versionValue
+                        })
+                    }, {
+                        numOfAttempts: 3,
+                        maxDelay: 5000
+                    });
+                    addNotification("Script updated successfully.", "success");
+                } catch (updateErr) {
+                    // If update fails with 404, the script doesn't exist anymore
+                    // Clear the currentScriptId and fallback to create operation
+                    if (updateErr.response?.status === 404) {
+                        console.log('Script not found, falling back to create operation');
+                        currentScriptId.set(null);
+                        operation = 'create';
+                        
+                        data = await apiCall(`/api/v1/scripts`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                name: nameValue, 
+                                script: scriptValue,
+                                lang: langValue,
+                                lang_version: versionValue
+                            })
+                        }, {
+                            numOfAttempts: 3,
+                            maxDelay: 5000
+                        });
+                        currentScriptId.set(data.id);
+                        addNotification("Script saved successfully.", "success");
+                    } else {
+                        throw updateErr;
+                    }
+                }
             } else {
                 data = await apiCall(`/api/v1/scripts`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({name: nameValue, script: scriptValue})
+                    body: JSON.stringify({
+                        name: nameValue, 
+                        script: scriptValue,
+                        lang: langValue,
+                        lang_version: versionValue
+                    })
                 }, {
                     numOfAttempts: 3,
                     maxDelay: 5000
@@ -949,10 +1000,15 @@
                                         <ul class="divide-y divide-border-default dark:divide-dark-border-default">
                                             {#each savedScripts as savedItem (savedItem.id)}
                                                 <li class="flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-700/50 text-sm group transition-colors duration-100">
-                                                    <button class="flex-grow text-left px-3 py-2 text-fg-default dark:text-dark-fg-default hover:text-primary dark:hover:text-primary-light truncate font-medium"
+                                                    <button class="flex-grow text-left px-3 py-2 text-fg-default dark:text-dark-fg-default hover:text-primary dark:hover:text-primary-light font-medium min-w-0"
                                                             on:click={() => loadScript(savedItem)}
-                                                            title={`Load ${savedItem.name}`}>
-                                                        {savedItem.name}
+                                                            title={`Load ${savedItem.name} (${savedItem.lang || 'python'} ${savedItem.lang_version || '3.11'})`}>
+                                                        <div class="flex flex-col min-w-0">
+                                                            <span class="truncate">{savedItem.name}</span>
+                                                            <span class="text-xs text-fg-muted dark:text-dark-fg-muted font-normal capitalize">
+                                                                {savedItem.lang || 'python'} {savedItem.lang_version || '3.11'}
+                                                            </span>
+                                                        </div>
                                                     </button>
                                                     <button class="p-2 text-neutral-400 dark:text-neutral-500 hover:text-red-500 dark:hover:text-red-400 flex-shrink-0 opacity-60 group-hover:opacity-100 transition-opacity duration-150 mr-1"
                                                             on:click|stopPropagation={() => deleteScript(savedItem.id)}

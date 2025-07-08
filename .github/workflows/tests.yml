@@ -116,11 +116,13 @@ jobs:
           python -m pytest tests/integration -v --cov=app --cov-report=xml --cov-report=term
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           file: backend/coverage.xml
           flags: backend
           name: backend-coverage
+          slug: HardMax71/Integr8sCode
           fail_ci_if_error: false
 
       - name: Collect logs

@@ -40,12 +40,8 @@ to keep
 things safe and efficient. You'll get the results back in no time.
 
 
-<details>
-<summary><b>Full demo</b></summary>
-
-https://github.com/user-attachments/assets/b7a0efb3-c7a5-4fee-a24f-a31bb26a7977
-
-</details>
+> [!NOTE]
+> A deployed and working version of Integr8sCode is available at https://app.integr8scode.cc/ .
 
 <details>
 <summary>How to deploy</summary>

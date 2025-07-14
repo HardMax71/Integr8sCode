@@ -395,12 +395,12 @@ class TestExecutionServiceFullCoverage:
 
         mock_k8s_service.create_execution_pod = AsyncMock()
 
-        with patch('asyncio.create_task') as mock_create_task:
-            mock_create_task.return_value = AsyncMock()
+        with patch.object(execution_service, '_mark_running_when_scheduled') as mock_mark_running:
+            mock_mark_running.return_value = AsyncMock()
             await execution_service._start_k8s_execution(execution_id, script, lang, lang_version)
 
         mock_k8s_service.create_execution_pod.assert_called_once()
-        mock_create_task.assert_called_once()
+        mock_mark_running.assert_called_once()
 
     @pytest.mark.asyncio
     @patch('app.services.execution_service.RUNTIME_REGISTRY')

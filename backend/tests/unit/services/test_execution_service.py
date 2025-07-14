@@ -396,6 +396,7 @@ class TestExecutionServiceFullCoverage:
         mock_k8s_service.create_execution_pod = AsyncMock()
 
         with patch('asyncio.create_task') as mock_create_task:
+            mock_create_task.return_value = AsyncMock()
             await execution_service._start_k8s_execution(execution_id, script, lang, lang_version)
 
         mock_k8s_service.create_execution_pod.assert_called_once()

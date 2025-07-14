@@ -113,9 +113,10 @@ class ExecutionService:
                 config_map_data={runtime_cfg.file_name: script},
             )
 
-            asyncio.create_task(
+            marked_execution = asyncio.create_task(
                 self._mark_running_when_scheduled(pod_name, execution_id_str)
             )
+            await marked_execution
 
             logger.info(
                 "K8s pod creation requested; waiting for Running phase",

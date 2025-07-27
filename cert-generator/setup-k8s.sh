@@ -16,53 +16,13 @@ else
 fi
 echo "--- End Debug Info ---"
 
-# Function to detect the correct host IP for k3s access from Docker
-detect_docker_host_ip() {
-  # First check if K3S_HOST_IP environment variable is explicitly set
-  if [ -n "$K3S_HOST_IP" ]; then
-    echo "$K3S_HOST_IP"
-    return
-  fi
-  
-  # Try host.docker.internal first (works on Docker Desktop for Mac/Windows)
-  if getent hosts host.docker.internal > /dev/null 2>&1; then
-    echo "host.docker.internal"
-    return
-  fi
-  
-  # If host.docker.internal doesn't work, try to ping it to see if it resolves
-  if ping -c 1 host.docker.internal > /dev/null 2>&1; then
-    echo "host.docker.internal"
-    return
-  fi
-  
-  # Check if we're using host networking (no .dockerenv means host network)
-  if [ ! -f /.dockerenv ]; then
-    echo "127.0.0.1"
-    return
-  fi
-  
-  # Fall back to Docker bridge gateway (typically Linux)
-  echo "172.17.0.1"
-}
-
 if [ "$CI" = "true" ] && [ -f /root/.kube/config ]; then
   echo "CI environment detected. Creating a patched kubeconfig..."
   # Read from the read-only original and write the patched version to our new file
   sed 's|server: https://127.0.0.1:6443|server: https://host.docker.internal:6443|g' /root/.kube/config > "${WRITABLE_KUBECONFIG_DIR}/config"
-elif [ -f /root/.kube/config ] && grep -q "server:" /root/.kube/config; then
-  echo "Detected kubeconfig with k3s/k8s. Patching for Docker access..."
-  # For non-CI environments, we need to ensure k3s is accessible from within Docker
-  # Try to detect if we're in Docker and k3s is on the host
-  if [ -f /.dockerenv ]; then
-    # We're in a Docker container - need to patch the config
-    DOCKER_HOST_IP=$(detect_docker_host_ip)
-    echo "Detected Docker host IP: ${DOCKER_HOST_IP}"
-    
-    sed "s|server: https://[^:]*:6443|server: https://${DOCKER_HOST_IP}:6443|g" /root/.kube/config > "${WRITABLE_KUBECONFIG_DIR}/config"
-    echo "Patched kubeconfig to use ${DOCKER_HOST_IP} for k3s access from Docker"
-    export KUBECONFIG="${WRITABLE_KUBECONFIG_DIR}/config"
-  fi
+
+  # Point the KUBECONFIG variable to our new, writable, and patched file
+  export KUBECONFIG="${WRITABLE_KUBECONFIG_DIR}/config"
 
   echo "Kubeconfig patched and new config is at ${KUBECONFIG}."
   echo "--- Patched Kubeconfig Contents ---"
@@ -112,38 +72,6 @@ echo "Self-signed certificate created and copied."
 # --- Generate Kubeconfig ---
 if [ -d /backend ]; then
     echo "Ensuring kubeconfig is up to date"
-    
-    # In CI without a real K8s cluster, create a dummy kubeconfig
-    if [ "$CI" = "true" ] && ! kubectl cluster-info > /dev/null 2>&1; then
-        echo "CI detected without K8s cluster - creating dummy kubeconfig for testing"
-        cat > /backend/kubeconfig.yaml <<EOF
-apiVersion: v1
-kind: Config
-clusters:
-- name: docker-desktop
-  cluster:
-    server: https://127.0.0.1:6443
-    certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUJkekNDQVIyZ0F3SUJBZ0lCQURBS0JnZ3Foa2pPUFFRREFqQWpNU0V3SHdZRFZRUUREQmhyTTNNdGMyVnkKZG1WeUxXTmhRREUyTnpjeU5UazVPVGN3SGhjTk1qSXhNakU1TVRVMU9UTTNXaGNOTXpJeE1qRTJNVFUxT1RNMwpXakFqTVNFd0h3WURWUVFEREJock0zTXRjMlZ5ZG1WeUxXTmhRREUyTnpjeU5UazVPVGN3V1RBVEJnY3Foa2pPClBRSUJCZ2dxaGtqT1BRTUJCd05DQUFSVnNKeWlqc3hJOGl6cGFQRVlIcEo0WGdFTG9xbVlLMXkwSytNMWlTMUwKa1d2d2JkcGZ0MXAwUFRLMTU0K2xia0JnbHVBdG9vSFJJUTg4MjZpcENLMDhvMEl3UURBT0JnTlZIUThCQWY4RQpCQU1DQXFRd0R3WURWUjBUQVFIL0JBVXdBd0VCL3pBZEJnTlZIUTRFRmdRVTlXRUpWNGcvWGh5YkpBWUhIQXVOCldJNnYvNll3Q2dZSUtvWkl6ajBFQXdJRFNBQXdSUUloQU1wNFRtakg5NWRYQnBGNmtCcFdKaWsxT3BYV0tMNzYKaHJKdVFYRXJJOGZlQWlBWk8rL2NsVklrd0Yvb0VuSEhZeHJCRGxHQzR2ekxIa2k2SFMvMUFCWkV3Zz09Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K
-users:
-- name: integr8scode-sa
-  user:
-    token: "dummy-token-for-ci-testing"
-contexts:
-- name: integr8scode
-  context:
-    cluster: docker-desktop
-    user: integr8scode-sa
-current-context: integr8scode
-EOF
-        chmod 644 /backend/kubeconfig.yaml
-        echo "Dummy kubeconfig.yaml created for CI testing."
-        echo "Setup completed successfully."
-
-# Create a setup-complete file to indicate success
-touch /backend/setup-complete || true
-        exit 0
-    fi
-    
     if ! kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' > /dev/null 2>&1; then
         echo "ERROR: kubectl is not configured to connect to a cluster."
         exit 1
@@ -187,15 +115,13 @@ roleRef:
 EOF
     TOKEN=$(kubectl create token integr8scode-sa -n default --duration=24h)
     K8S_SERVER=$(kubectl config view --raw -o jsonpath='{.clusters[0].cluster.server}')
-    # When running in Docker, need to use appropriate host IP
-    if [ -f /.dockerenv ]; then
-        DOCKER_HOST_IP=$(detect_docker_host_ip)
-        K8S_SERVER=$(echo "$K8S_SERVER" | sed "s|https://[^:]*:|https://${DOCKER_HOST_IP}:|")
-        echo "Running in Docker, using ${DOCKER_HOST_IP} for k3s server"
-    else
-        # Otherwise use localhost
-        K8S_SERVER=$(echo "$K8S_SERVER" | sed 's|https://[^:]*:|https://127.0.0.1:|')
+    
+    # In CI, ensure the generated kubeconfig also uses host.docker.internal
+    if [ "$CI" = "true" ]; then
+        K8S_SERVER=$(echo "$K8S_SERVER" | sed 's|https://127.0.0.1:|https://host.docker.internal:|')
+        echo "CI: Patched K8S_SERVER to ${K8S_SERVER}"
     fi
+    
     cat > /backend/kubeconfig.yaml <<EOF
 apiVersion: v1
 kind: Config

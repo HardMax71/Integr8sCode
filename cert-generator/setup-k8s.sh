@@ -112,6 +112,38 @@ echo "Self-signed certificate created and copied."
 # --- Generate Kubeconfig ---
 if [ -d /backend ]; then
     echo "Ensuring kubeconfig is up to date"
+    
+    # In CI without a real K8s cluster, create a dummy kubeconfig
+    if [ "$CI" = "true" ] && ! kubectl cluster-info > /dev/null 2>&1; then
+        echo "CI detected without K8s cluster - creating dummy kubeconfig for testing"
+        cat > /backend/kubeconfig.yaml <<EOF
+apiVersion: v1
+kind: Config
+clusters:
+- name: docker-desktop
+  cluster:
+    server: https://127.0.0.1:6443
+    certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUJkekNDQVIyZ0F3SUJBZ0lCQURBS0JnZ3Foa2pPUFFRREFqQWpNU0V3SHdZRFZRUUREQmhyTTNNdGMyVnkKZG1WeUxXTmhRREUyTnpjeU5UazVPVGN3SGhjTk1qSXhNakU1TVRVMU9UTTNXaGNOTXpJeE1qRTJNVFUxT1RNMwpXakFqTVNFd0h3WURWUVFEREJock0zTXRjMlZ5ZG1WeUxXTmhRREUyTnpjeU5UazVPVGN3V1RBVEJnY3Foa2pPClBRSUJCZ2dxaGtqT1BRTUJCd05DQUFSVnNKeWlqc3hJOGl6cGFQRVlIcEo0WGdFTG9xbVlLMXkwSytNMWlTMUwKa1d2d2JkcGZ0MXAwUFRLMTU0K2xia0JnbHVBdG9vSFJJUTg4MjZpcENLMDhvMEl3UURBT0JnTlZIUThCQWY4RQpCQU1DQXFRd0R3WURWUjBUQVFIL0JBVXdBd0VCL3pBZEJnTlZIUTRFRmdRVTlXRUpWNGcvWGh5YkpBWUhIQXVOCldJNnYvNll3Q2dZSUtvWkl6ajBFQXdJRFNBQXdSUUloQU1wNFRtakg5NWRYQnBGNmtCcFdKaWsxT3BYV0tMNzYKaHJKdVFYRXJJOGZlQWlBWk8rL2NsVklrd0Yvb0VuSEhZeHJCRGxHQzR2ekxIa2k2SFMvMUFCWkV3Zz09Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K
+users:
+- name: integr8scode-sa
+  user:
+    token: "dummy-token-for-ci-testing"
+contexts:
+- name: integr8scode
+  context:
+    cluster: docker-desktop
+    user: integr8scode-sa
+current-context: integr8scode
+EOF
+        chmod 644 /backend/kubeconfig.yaml
+        echo "Dummy kubeconfig.yaml created for CI testing."
+        echo "Setup completed successfully."
+
+# Create a setup-complete file to indicate success
+touch /backend/setup-complete || true
+        exit 0
+    fi
+    
     if ! kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' > /dev/null 2>&1; then
         echo "ERROR: kubectl is not configured to connect to a cluster."
         exit 1
@@ -188,3 +220,6 @@ EOF
 fi
 
 echo "Setup completed successfully."
+
+# Create a setup-complete file to indicate success
+touch /backend/setup-complete || true

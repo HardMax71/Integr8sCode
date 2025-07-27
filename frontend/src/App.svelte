@@ -1,9 +1,9 @@
 <script>
     import { Route, Router } from "svelte-routing";
     import Home from "./routes/Home.svelte";
-    import Editor from "./routes/Editor.svelte";
     import Login from "./routes/Login.svelte";
     import Register from "./routes/Register.svelte";
+    import Editor from "./routes/Editor.svelte";
     import Header from "./components/Header.svelte";
     import Footer from "./components/Footer.svelte";
     import Notifications from "./components/Notifications.svelte";
@@ -42,4 +42,5 @@
             padding-right: 1rem;
         }
     }
+
 </style>

@@ -1,5 +1,5 @@
 <p align="center">
- <img src="./files_for_readme/logo.png" alt="Integr8sCode Logo" width="200" height="200">
+ <img src="./files_for_readme/logo.png" alt="Integr8sCode Logo" width="250" height="250">
  <h1 align="center"><b>Integr8sCode</b></h1>
 </p>
 <p align="center">

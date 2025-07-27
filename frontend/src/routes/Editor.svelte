@@ -18,6 +18,7 @@
     import {autocompletion, completionKeymap} from "@codemirror/autocomplete";
     import {theme as appTheme} from "../stores/theme.js";
     import AnsiToHtml from 'ansi-to-html';
+    import { updateMetaTags, pageMeta } from '../utils/meta.js';
 
     let themeCompartment = new Compartment();
 
@@ -127,6 +128,9 @@
     }
 
     onMount(async () => {
+        // Set meta tags
+        updateMetaTags(pageMeta.editor.title, pageMeta.editor.description);
+        
         // Verify authentication status on startup
         await verifyAuth();
         
@@ -680,8 +684,8 @@
                     {#if showLimits} {@html chevronUpIcon} {:else} {@html chevronDownIcon} {/if}
                 </button>
                 {#if showLimits}
-                    <div class="absolute right-0 mt-2 w-64 sm:w-72 bg-bg-alt dark:bg-dark-bg-alt rounded-lg shadow-xl ring-1 ring-black ring-opacity-5 dark:ring-white dark:ring-opacity-10 p-5 z-20 border border-border-default dark:border-dark-border-default"
-                         transition:fly={{ y: -10, duration: 200 }}>
+                    <div class="absolute right-0 top-full mt-2 w-64 sm:w-72 bg-bg-alt dark:bg-dark-bg-alt rounded-lg shadow-xl ring-1 ring-black ring-opacity-5 dark:ring-white dark:ring-opacity-10 p-5 z-30 border border-border-default dark:border-dark-border-default"
+                         transition:fly={{ y: 10, duration: 200 }}>
                         <div class="space-y-4">
                             <div class="flex items-center justify-between text-sm">
                                 <span class="text-fg-muted dark:text-dark-fg-muted inline-flex items-center"><span
@@ -753,12 +757,12 @@
                 {#if executing}
                     <div class="flex flex-col items-center justify-center h-full text-center p-4 animate-fadeIn">
                         <Spinner/>
-                        <p class="mt-3 text-sm font-medium text-primary dark:text-primary-light">Executing script...</p>
+                        <p class="mt-3 text-sm font-medium text-primary-dark dark:text-primary-light">Executing script...</p>
                     </div>
                 {:else if result}
                     <div class="space-y-5 animate-flyIn">
                         <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs">
-                            <span class="inline-flex items-center rounded-md px-2 py-1 font-medium ring-1 ring-inset whitespace-nowrap"
+                            <span class="inline-flex items-center rounded-lg px-2 py-1 font-medium ring-1 ring-inset whitespace-nowrap"
                                   class:bg-green-50={result.status === 'completed'}
                                   class:text-green-700={result.status === 'completed'}
                                   class:ring-green-600={result.status === 'completed'}
@@ -790,7 +794,7 @@
 
                             {#if result.execution_id}
                                 <div class="relative group">
-                                    <button class="inline-flex items-center p-1.5 rounded-md text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors duration-150 cursor-pointer"
+                                    <button class="inline-flex items-center p-1.5 rounded-lg text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors duration-150 cursor-pointer"
                                             aria-label="Click to copy execution ID"
                                             on:click={() => copyExecutionId(result.execution_id)}>
                                         {@html idIcon}
@@ -811,7 +815,7 @@
                                 <div class="relative">
                                     <pre class="output-pre custom-scrollbar">{@html ansiConverter.toHtml(result.output || '')}</pre>
                                     <div class="absolute bottom-2 right-2 group">
-                                        <button class="inline-flex items-center p-1.5 rounded-md text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
+                                        <button class="inline-flex items-center p-1.5 rounded-lg text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
                                                 aria-label="Copy output to clipboard"
                                                 on:click={() => copyOutput(result.output)}>
                                             {@html copyIcon}
@@ -829,11 +833,11 @@
                                 <h4 class="text-xs font-medium text-red-700 dark:text-red-300 mb-1 uppercase tracking-wider">
                                     Errors:</h4>
                                 <div class="relative">
-                                    <div class="p-3 rounded-md bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800">
+                                    <div class="p-3 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800">
                                         <pre class="text-xs text-red-600 dark:text-red-300 whitespace-pre-wrap break-words font-mono bg-transparent p-0 pr-8">{@html ansiConverter.toHtml(result.errors || '')}</pre>
                                     </div>
                                     <div class="absolute bottom-2 right-2 group">
-                                        <button class="inline-flex items-center p-1.5 rounded-md text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 hover:bg-red-100 dark:hover:bg-red-900 transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
+                                        <button class="inline-flex items-center p-1.5 rounded-lg text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 hover:bg-red-100 dark:hover:bg-red-900 transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
                                                 aria-label="Copy error text to clipboard"
                                                 on:click={() => copyErrors(result.errors)}>
                                             {@html copyIcon}
@@ -847,7 +851,7 @@
                         {/if}
 
                         {#if result.resource_usage}
-                            <div class="p-3 rounded-md bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 text-xs space-y-1">
+                            <div class="p-3 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 text-xs space-y-1">
                                 <h4 class="text-xs font-medium text-blue-700 dark:text-blue-300 mb-2 uppercase tracking-wider">
                                     Resource Usage:</h4>
                                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-3 gap-y-1">
@@ -994,7 +998,7 @@
                                 </button>
                             </div>
                             {#if showSavedScripts}
-                                <div class="mt-2 max-h-48 overflow-y-auto border border-border-default dark:border-dark-border-default rounded-md bg-bg-default dark:bg-dark-bg-default shadow-inner custom-scrollbar"
+                                <div class="mt-2 max-h-48 overflow-y-auto border border-border-default dark:border-dark-border-default rounded-lg bg-bg-default dark:bg-dark-bg-default shadow-inner custom-scrollbar"
                                      transition:slide={{ duration: 200 }}>
                                     {#if savedScripts.length > 0}
                                         <ul class="divide-y divide-border-default dark:divide-dark-border-default">
@@ -1057,13 +1061,20 @@
     .editor-grid-container {
         display: grid;
         grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: auto auto minmax(300px, 50vh) minmax(200px, 30vh) auto;
+        grid-template-rows: auto auto minmax(300px, 1fr) minmax(200px, 1fr) auto;
         gap: 1rem;
         width: 100%;
+        position: relative;
+        min-height: calc(100vh - 8rem);
+        max-height: calc(100vh - 8rem);
     }
 
     .editor-header {
         grid-row: 1 / 2;
+        margin-bottom: 0;
+        transition: margin-bottom 0.3s ease;
+        position: relative;
+        z-index: 10;
     }
 
     .editor-controls {
@@ -1098,7 +1109,7 @@
     .editor-toolbar {
         position: sticky;
         top: 0;
-        z-index: 10;
+        z-index: 5;
         background-color: inherit;
     }
 
@@ -1115,8 +1126,10 @@
     @media (min-width: 768px) {
         .editor-grid-container {
             grid-template-columns: minmax(0, 1.85fr) minmax(0, 1fr);
-            grid-template-rows: auto minmax(400px, 65vh) auto;
-            gap: 1.5rem;
+            grid-template-rows: auto minmax(400px, 1fr) auto;
+            gap: 1rem;
+            min-height: calc(100vh - 8rem);
+            max-height: calc(100vh - 8rem);
         }
 
         .editor-header {

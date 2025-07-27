@@ -3,6 +3,8 @@
     import { addNotification } from "../stores/notifications.js";
     import { fade, fly } from "svelte/transition";
     import axios from "axios";
+    import { onMount } from 'svelte';
+    import { updateMetaTags, pageMeta } from '../utils/meta.js';
     // import { backendUrl } from "../config.js"; // Use relative path for proxy
 
     let username = "";
@@ -11,6 +13,10 @@
     let confirmPassword = "";
     let loading = false;
     let error = null;
+    
+    onMount(() => {
+        updateMetaTags(pageMeta.register.title, pageMeta.register.description);
+    });
 
     async function handleRegister() {
         if (password !== confirmPassword) {
@@ -48,7 +54,7 @@
         Create a new account
       </h2>
       <p class="mt-2 text-sm text-fg-muted dark:text-dark-fg-muted">
-        Or <Link to="/login" class="font-medium text-primary hover:text-primary-dark dark:hover:text-primary-light">sign in to your existing account</Link>
+        Or <Link to="/login" class="font-medium text-primary-dark hover:text-primary dark:text-primary-light dark:hover:text-primary">sign in to your existing account</Link>
       </p>
     </div>
 

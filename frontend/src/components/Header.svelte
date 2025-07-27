@@ -13,7 +13,7 @@
   const moonIcon = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>`;
   const menuIcon = `<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>`;
   const closeIcon = `<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>`;
-  const logoIcon = `<svg class="h-8 w-8 text-primary group-hover:text-primary-light transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>`;
+  let logoImgClass = "h-8 max-h-8 w-auto transition-all duration-200 group-hover:scale-110";
   const loginIcon = `<svg class="w-5 h-5 mr-2 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"></path></svg>`;
   const registerIcon = `<svg class="w-5 h-5 mr-2 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path></svg>`;
   const logoutIcon = `<svg class="w-5 h-5 mr-2 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>`;
@@ -73,16 +73,14 @@
 <header class="fixed top-0 left-0 right-0 bg-bg-alt/80 dark:bg-dark-bg-alt/80 backdrop-blur-md border-b border-border-default dark:border-dark-border-default shadow-sm z-50 transition-colors duration-300 h-16">
   <div class="app-container h-full">
     <nav class="flex items-center justify-between h-full">
-      {#if logoIcon}
-        <div class="flex items-center flex-shrink-0">
-          <Link to="/" on:click={closeMenu} class="flex items-center space-x-2 group">
-            {@html logoIcon}
-            <span class="font-semibold text-xl tracking-tight text-fg-default dark:text-dark-fg-default group-hover:text-primary dark:group-hover:text-primary-light transition-colors duration-200">
+      <div class="flex items-center flex-shrink-0">
+        <Link to="/" on:click={closeMenu} class="flex items-center space-x-2 group">
+          <img src="/favicon.png" alt="Integr8sCode Logo" class={logoImgClass} />
+          <span class="font-semibold text-xl tracking-tight text-fg-default dark:text-dark-fg-default group-hover:text-primary dark:group-hover:text-primary-light transition-colors duration-200">
             Integr8sCode
           </span>
-          </Link>
-        </div>
-      {/if}
+        </Link>
+      </div>
 
       <div class="hidden lg:flex items-center space-x-6 flex-grow justify-center">
          <div></div>

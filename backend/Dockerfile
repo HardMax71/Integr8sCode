@@ -5,9 +5,9 @@ WORKDIR /app
 RUN apt-get update && apt-get upgrade -y liblzma-dev liblzma5 xz-utils && \
     rm -rf /var/lib/apt/lists/*
 
-# Install kubectl
-RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" \
-    && chmod +x kubectl && mv kubectl /usr/local/bin/
+# Install kubectl (lightweight)
+RUN wget -q "https://dl.k8s.io/release/v1.28.0/bin/linux/amd64/kubectl" -O /usr/local/bin/kubectl && \
+    chmod +x /usr/local/bin/kubectl
 
 # Install Python dependencies
 COPY requirements.txt .

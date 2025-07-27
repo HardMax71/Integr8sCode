@@ -4,11 +4,17 @@
   import { addNotification } from "../stores/notifications.js";
   import { fade, fly } from "svelte/transition";
   import Spinner from '../components/Spinner.svelte'; // Assuming Spinner component exists
+  import { onMount } from 'svelte';
+  import { updateMetaTags, pageMeta } from '../utils/meta.js';
 
   let username = "";
   let password = "";
   let loading = false;
   let error = null;
+  
+  onMount(() => {
+    updateMetaTags(pageMeta.login.title, pageMeta.login.description);
+  });
 
   async function handleLogin() {
     loading = true;
@@ -33,7 +39,7 @@
         Sign in to your account
       </h2>
       <p class="mt-2 text-sm text-fg-muted dark:text-dark-fg-muted">
-        Or <Link to="/register" class="font-medium text-primary hover:text-primary-dark dark:hover:text-primary-light">create a new account</Link>
+        Or <Link to="/register" class="font-medium text-primary-dark hover:text-primary dark:text-primary-light dark:hover:text-primary">create a new account</Link>
       </p>
     </div>
 

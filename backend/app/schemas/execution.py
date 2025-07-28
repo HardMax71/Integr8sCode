@@ -10,7 +10,7 @@ def generate_execution_id() -> str:
 
 
 class ExecutionBase(BaseModel):
-    script: str
+    script: str = Field(..., max_length=50000, description="Script content (max 50,000 characters)")
     status: str = "queued"
     output: Optional[str] = None
     errors: Optional[str] = None
@@ -56,7 +56,7 @@ class ResourceUsage(BaseModel):
 
 
 class ExecutionRequest(BaseModel):
-    script: str
+    script: str = Field(..., max_length=50000, description="Script content (max 50,000 characters)")
     lang: str = Field(
         default="python", description="Language name"
     )

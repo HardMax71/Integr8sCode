@@ -15,6 +15,7 @@ from app.services.pod_manifest_builder import PodManifestBuilder
 from fastapi import Depends, Request
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
+from kubernetes import watch
 from kubernetes.client.rest import ApiException
 
 
@@ -258,20 +259,27 @@ class KubernetesService:
     async def _wait_for_pod_completion(self, pod_name: str) -> k8s_client.V1Pod:
         if not self.v1:
             raise KubernetesServiceError(_K8S_CLIENT_NOT_INITIALIZED_MSG)
-        logger.info(f"Waiting for pod '{pod_name}' to complete...")
-        for _ in range(self.POD_RETRY_ATTEMPTS):
-            try:
-                pod = await asyncio.to_thread(self.v1.read_namespaced_pod, pod_name, self.NAMESPACE)
-                if pod.status and pod.status.phase in self.POD_SUCCESS_STATES:
-                    logger.info(f"Pod '{pod_name}' reached terminal phase: {pod.status.phase}")
-                    return pod
-            except ApiException as e:
-                if e.status == 404:
-                    logger.warning(f"Pod '{pod_name}' not found, retrying...")
-                else:
-                    logger.error(f"API Error while waiting for pod '{pod_name}': {e.reason}")
-            await asyncio.sleep(self.POD_RETRY_INTERVAL)
-        raise KubernetesPodError(f"Timeout waiting for pod '{pod_name}' to complete.")
+            
+        w = watch.Watch()
+        return await asyncio.to_thread(self._watch_pod, w, pod_name)
+    
+    def _watch_pod(self, w: watch.Watch, pod_name: str) -> k8s_client.V1Pod:
+        for event in w.stream(
+            self.v1.list_namespaced_pod,
+            namespace=self.NAMESPACE,
+            field_selector=f"metadata.name={pod_name}",
+            timeout_seconds=300
+        ):
+            pod = event['object']
+            
+            if event['type'] == 'DELETED':
+                raise KubernetesPodError(f"Pod '{pod_name}' was deleted")
+                
+            if pod.status and pod.status.phase in self.POD_SUCCESS_STATES:
+                logger.info(f"Pod '{pod_name}' completed: {pod.status.phase}")
+                return pod
+                
+        raise KubernetesPodError(f"Pod '{pod_name}' watch timeout")
 
     async def _get_container_logs(self, pod_name: str, container_name: str) -> str:
         if not self.v1:

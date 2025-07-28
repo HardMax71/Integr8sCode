@@ -38,6 +38,12 @@ jobs:
           # For the backend service
           yq eval '.services.backend.extra_hosts += ["host.docker.internal:host-gateway"]' -i docker-compose.ci.yaml
           yq eval '.services.backend.environment += ["TESTING=true"]' -i docker-compose.ci.yaml
+          yq eval '.services.backend.environment += ["MONGO_ROOT_USER=testroot"]' -i docker-compose.ci.yaml
+          yq eval '.services.backend.environment += ["MONGO_ROOT_PASSWORD=testpassword"]' -i docker-compose.ci.yaml
+          
+          # For the mongo service
+          yq eval '.services.mongo.environment += ["MONGO_ROOT_USER=testroot"]' -i docker-compose.ci.yaml
+          yq eval '.services.mongo.environment += ["MONGO_ROOT_PASSWORD=testpassword"]' -i docker-compose.ci.yaml
 
           # For the cert-generator service
           yq eval '.services.cert-generator.extra_hosts += ["host.docker.internal:host-gateway"]' -i docker-compose.ci.yaml

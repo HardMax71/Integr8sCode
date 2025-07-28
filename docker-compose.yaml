@@ -32,13 +32,17 @@ services:
     image: mongo:4.4
     ports:
       - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-rootpassword}
+      MONGO_INITDB_DATABASE: integr8scode
     volumes:
       - mongo_data:/data/db
     networks:
       - app-network
     container_name: mongo
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongo --quiet
+      test: echo 'db.runCommand("ping").ok' | mongo localhost/integr8scode -u ${MONGO_ROOT_USER:-root} -p ${MONGO_ROOT_PASSWORD:-rootpassword} --authenticationDatabase admin --quiet
       interval: 10s
       timeout: 10s
       retries: 5
@@ -63,7 +67,7 @@ services:
       - app-network
     container_name: backend
     environment:
-      - MONGODB_URL=mongodb://mongo:27017/integr8scode
+      - MONGODB_URL=mongodb://${MONGO_ROOT_USER:-root}:${MONGO_ROOT_PASSWORD:-rootpassword}@mongo:27017/integr8scode?authSource=admin
       - SERVER_HOST=0.0.0.0
     healthcheck:
       test: [ "CMD", "curl", "-k", "https://localhost/api/v1/health" ]

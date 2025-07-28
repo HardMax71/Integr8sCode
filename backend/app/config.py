@@ -10,9 +10,8 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "integr8scode"
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str = Field(
-        ...,
         min_length=32,
-        regex="^(?!your_secret_key_here$|default_secret_key$).*$"
+        pattern="^(?!your_secret_key_here$|default_secret_key$).*$"
     )
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30

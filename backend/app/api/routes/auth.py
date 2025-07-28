@@ -16,6 +16,7 @@ limiter = Limiter(key_func=get_remote_address)
 
 
 @router.post("/login")
+@limiter.limit("10/minute")
 async def login(
         request: Request,
         response: Response,
@@ -109,6 +110,7 @@ async def login(
 
 
 @router.post("/register", response_model=UserResponse)
+@limiter.limit("5/minute")
 async def register(
         request: Request,
         user: UserCreate,
@@ -167,6 +169,7 @@ async def register(
 
 
 @router.get("/verify-token")
+@limiter.limit("30/minute")
 async def verify_token(
         request: Request,
         current_user: UserInDB = Depends(security_service.get_current_user),
@@ -213,6 +216,7 @@ async def verify_token(
 
 
 @router.post("/logout")
+@limiter.limit("10/minute")
 async def logout(
         request: Request,
         response: Response,

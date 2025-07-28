@@ -24,4 +24,6 @@ jobs:
           pip install -r backend/requirements.txt
           pip install -r backend/requirements-dev.txt
       - name: Run mypy
+        env:
+          SECRET_KEY: thisisatestkeyforthirtytwocharactersminimum
         run: mypy --config-file backend/pyproject.toml backend/

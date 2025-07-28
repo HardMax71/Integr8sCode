@@ -9,7 +9,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     PROJECT_NAME: str = "integr8scode"
     API_V1_STR: str = "/api/v1"
-    SECRET_KEY: str = Field(default=None, env="JWT_SECRET_KEY")
+    SECRET_KEY: str = Field(default=None)
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     MONGODB_URL: str = "mongodb://mongo:27017/integr8scode"
@@ -47,11 +47,11 @@ class Settings(BaseSettings):
     @classmethod
     def validate_secret_key(cls, v: Optional[str]) -> str:
         if not v:
-            raise ValueError("JWT_SECRET_KEY environment variable must be set")
+            raise ValueError("SECRET_KEY environment variable must be set")
         if len(v) < 32:
-            raise ValueError("JWT_SECRET_KEY must be at least 32 characters long")
+            raise ValueError("SECRET_KEY must be at least 32 characters long")
         if v == "your_secret_key_here" or v == "default_secret_key":
-            raise ValueError("JWT_SECRET_KEY must not use default placeholder values")
+            raise ValueError("SECRET_KEY must not use default placeholder values")
         return v
 
     class Config:

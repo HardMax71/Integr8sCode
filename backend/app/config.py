@@ -45,13 +45,21 @@ class Settings(BaseSettings):
 
     @field_validator("SECRET_KEY")
     @classmethod
-    def validate_secret_key(cls, v: Optional[str]) -> str:
+    def validate_secret_key(cls, v: Optional[str], info) -> str:
         if not v:
             raise ValueError("SECRET_KEY environment variable must be set")
         if len(v) < 32:
             raise ValueError("SECRET_KEY must be at least 32 characters long")
+        
+        # Check if we're in testing mode
+        testing = info.data.get('TESTING', False)
+        
+        # Allow CHANGE_ME prefix only in development/testing
         if v == "your_secret_key_here" or v == "default_secret_key":
             raise ValueError("SECRET_KEY must not use default placeholder values")
+        if v.startswith("CHANGE_ME") and not testing:
+            raise ValueError("SECRET_KEY must not use default placeholder values (CHANGE_ME detected)")
+        
         return v
 
     class Config:

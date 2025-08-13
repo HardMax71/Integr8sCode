@@ -2,7 +2,7 @@
     import { navigate, Link } from "svelte-routing";
     import { addNotification } from "../stores/notifications.js";
     import { fade, fly } from "svelte/transition";
-    import axios from "axios";
+    import { api } from "../lib/api.js";
     import { onMount } from 'svelte';
     import { updateMetaTags, pageMeta } from '../utils/meta.js';
     // import { backendUrl } from "../config.js"; // Use relative path for proxy
@@ -24,8 +24,8 @@
             addNotification(error, "error");
             return;
         }
-        if (password.length < 6) { // Example validation
-            error = "Password must be at least 6 characters long.";
+        if (password.length < 8) { // Backend requires min 8 characters
+            error = "Password must be at least 8 characters long.";
             addNotification(error, "warning");
             return;
         }
@@ -33,14 +33,14 @@
         loading = true;
         error = null;
         try {
-            // Adjust URL if needed, assuming proxy handles '/api/v1/*'
-            await axios.post(`/api/v1/register`, { username, email, password });
+            // Use api module instead of axios for consistency
+            await api.post(`/api/v1/auth/register`, { username, email, password });
             addNotification("Registration successful! Please log in.", "success");
             navigate("/login"); // Redirect to login page
         } catch (err) {
-            error = err.response?.data?.detail || "Registration failed. Please try again.";
+            error = err.response?.data?.detail || err.message || "Registration failed. Please try again.";
             addNotification(error, "error");
-            console.error("Registration error:", err.response || err);
+            console.error("Registration error:", err);
         } finally {
             loading = false;
         }
@@ -59,36 +59,36 @@
     </div>
 
     <form class="mt-8 space-y-6 bg-bg-alt dark:bg-dark-bg-alt p-8 rounded-lg shadow-md border border-border-default dark:border-dark-border-default" on:submit|preventDefault={handleRegister}>
-      <div class="rounded-md shadow-sm space-y-4">
+      {#if error}
+        <p class="mt-0 text-sm text-red-600 dark:text-red-400 text-center" in:fly={{y: -10, duration: 200}}>{error}</p>
+      {/if}
+
+      <div class="space-y-2">
         <div>
           <label for="username" class="sr-only">Username</label>
           <input bind:value={username} id="username" name="username" type="text" required
-                 class="appearance-none relative block w-full px-3 py-2 border placeholder-fg-subtle dark:placeholder-dark-fg-subtle text-fg-default dark:text-dark-fg-default rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm"
+                 class="form-input-standard"
                  placeholder="Username">
         </div>
          <div>
           <label for="email" class="sr-only">Email address</label>
           <input bind:value={email} id="email" name="email" type="email" autocomplete="email" required
-                 class="appearance-none relative block w-full px-3 py-2 border placeholder-fg-subtle dark:placeholder-dark-fg-subtle text-fg-default dark:text-dark-fg-default rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm"
+                 class="form-input-standard"
                  placeholder="Email address">
         </div>
         <div>
           <label for="password" class="sr-only">Password</label>
           <input bind:value={password} id="password" name="password" type="password" autocomplete="new-password" required
-                 class="appearance-none relative block w-full px-3 py-2 border placeholder-fg-subtle dark:placeholder-dark-fg-subtle text-fg-default dark:text-dark-fg-default rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm"
-                 placeholder="Password (min. 6 characters)">
+                 class="form-input-standard"
+                 placeholder="Password (min. 8 characters)">
         </div>
          <div>
           <label for="confirm-password" class="sr-only">Confirm Password</label>
           <input bind:value={confirmPassword} id="confirm-password" name="confirm-password" type="password" autocomplete="new-password" required
-                 class="appearance-none relative block w-full px-3 py-2 border placeholder-fg-subtle dark:placeholder-dark-fg-subtle text-fg-default dark:text-dark-fg-default rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm"
+                 class="form-input-standard"
                  placeholder="Confirm Password">
         </div>
       </div>
-
-       {#if error}
-        <p class="text-sm text-red-600 dark:text-red-400 text-center" in:fly={{y: -10, duration: 200}}>{error}</p>
-      {/if}
 
       <div>
         <button type="submit" disabled={loading}

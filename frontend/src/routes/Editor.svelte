@@ -8,7 +8,7 @@
     import {addNotification} from "../stores/notifications.js";
     import Spinner from "../components/Spinner.svelte";
     import {navigate} from "svelte-routing";
-    import {Compartment, EditorState} from "@codemirror/state";
+    import {Compartment, EditorState, StateEffect} from "@codemirror/state";
     import {EditorView, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers} from "@codemirror/view";
     import {defaultKeymap, history, historyKeymap, indentWithTab} from "@codemirror/commands";
     import {python} from "@codemirror/lang-python";
@@ -20,8 +20,31 @@
     import AnsiToHtml from 'ansi-to-html';
     import DOMPurify from 'dompurify';
     import { updateMetaTags, pageMeta } from '../utils/meta.js';
+    import { getCachedSettings, settingsCache } from '../lib/settings-cache.js';
+    import { loadUserSettings, saveEditorSettings } from '../lib/user-settings.js';
 
     let themeCompartment = new Compartment();
+    let fontSizeCompartment = new Compartment();
+    let tabSizeCompartment = new Compartment();
+    let lineNumbersCompartment = new Compartment();
+    let lineWrappingCompartment = new Compartment();
+    
+    // Default editor settings
+    let editorSettings = {
+        theme: 'auto',  // Default to following app theme
+        font_size: 14,
+        tab_size: 4,
+        use_tabs: false,
+        word_wrap: true,
+        show_line_numbers: true,
+    };
+    
+    // Editor theme mapping
+    const editorThemes = {
+        'one-dark': oneDark,
+        'github': githubLight,
+        'auto': null  // Will be determined by app theme
+    };
 
     const ansiConverter = new AnsiToHtml({
         fg: '#000',
@@ -62,7 +85,18 @@
             return {subscribe: store.subscribe, set: store.set};
         }
         const storedValue = localStorage.getItem(key);
-        const store = writable(storedValue ? JSON.parse(storedValue) : startValue);
+        let parsedValue = startValue;
+        
+        if (storedValue) {
+            try {
+                parsedValue = JSON.parse(storedValue);
+            } catch (e) {
+                console.warn(`Failed to parse localStorage value for ${key}, using default:`, e);
+                localStorage.removeItem(key); // Clear corrupted value
+            }
+        }
+        
+        const store = writable(parsedValue);
         store.subscribe(value => {
             localStorage.setItem(key, JSON.stringify(value));
         });
@@ -95,6 +129,9 @@
 
     let fileInput;
     let apiError = null;
+    let unsubscribeAuth;
+    let unsubscribeTheme;
+    let unsubscribeSettings;
 
     const resourceIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l4-4z"></path></svg>`;
     const chevronDownIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
@@ -106,16 +143,13 @@
     const settingsIcon = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>`;
     const newFileIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>`;
     const uploadIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>`;
-    const exportIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>`;
+    const exportIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>`;
     const saveIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>`;
     const listIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>`;
     const trashIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>`;
     const idIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>`;
     const copyIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>`;
     const exampleIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>`;
-
-    let unsubscribeAuth;
-    let unsubscribeTheme;
 
     $: {
         if (typeof window !== 'undefined') { // Ensure this runs only in the browser
@@ -142,11 +176,66 @@
         // Verify authentication status on startup
         await verifyAuth();
         
-        unsubscribeAuth = isAuthenticated.subscribe(authStatus => {
+        // Load user settings if authenticated
+        if (authenticated) {
+            const userSettings = await loadUserSettings();
+            if (userSettings && userSettings.editor) {
+                editorSettings = { ...editorSettings, ...userSettings.editor };
+                // Migrate one-dark to auto for better theme following
+                if (editorSettings.theme === 'one-dark') {
+                    console.log('Migrating one-dark theme to auto');
+                    editorSettings.theme = 'auto';
+                }
+                // If user has 'github' theme saved but app is in dark mode, switch to auto
+                const currentAppTheme = get(appTheme);
+                if (editorSettings.theme === 'github' && currentAppTheme === 'dark') {
+                    console.log('User has light theme saved but app is dark - switching to auto');
+                    editorSettings.theme = 'auto';
+                }
+            }
+        }
+        
+        // Subscribe to settings cache updates
+        unsubscribeSettings = settingsCache.subscribe(cached => {
+            if (cached && cached.editor) {
+                editorSettings = { ...editorSettings, ...cached.editor };
+                // Migrate one-dark to auto for better theme following
+                if (editorSettings.theme === 'one-dark') {
+                    console.log('Migrating cached one-dark theme to auto');
+                    editorSettings.theme = 'auto';
+                }
+                // If user has 'github' theme saved but app is in dark mode, switch to auto
+                const currentAppTheme = get(appTheme);
+                if (editorSettings.theme === 'github' && currentAppTheme === 'dark') {
+                    console.log('Cached settings have light theme but app is dark - switching to auto');
+                    editorSettings.theme = 'auto';
+                }
+                applyEditorSettings();
+            }
+        });
+        
+        unsubscribeAuth = isAuthenticated.subscribe(async authStatus => {
             const wasAuthenticated = authenticated;
             authenticated = authStatus;
             if (!wasAuthenticated && authenticated && editorView) {
                 loadSavedScripts();
+                // Load user settings when authenticated
+                const userSettings = await loadUserSettings();
+                if (userSettings && userSettings.editor) {
+                    editorSettings = { ...editorSettings, ...userSettings.editor };
+                    // Migrate one-dark to auto for better theme following
+                    if (editorSettings.theme === 'one-dark') {
+                        console.log('Migrating auth-loaded one-dark theme to auto');
+                        editorSettings.theme = 'auto';
+                    }
+                    // If user has 'github' theme saved but app is in dark mode, switch to auto
+                    const currentAppTheme = get(appTheme);
+                    if (editorSettings.theme === 'github' && currentAppTheme === 'dark') {
+                        console.log('Auth loaded settings have light theme but app is dark - switching to auto');
+                        editorSettings.theme = 'auto';
+                    }
+                    applyEditorSettings();
+                }
             } else if (wasAuthenticated && !authenticated) {
                 savedScripts = [];
                 showSavedScripts = false;
@@ -189,14 +278,16 @@
             addNotification("Could not load example scripts.", "warning");
         }
 
-        initializeEditor(get(appTheme));
+        // Delay initialization to ensure DOM is ready
+        setTimeout(() => {
+            initializeEditor(get(appTheme));
+        }, 100);
 
         unsubscribeTheme = appTheme.subscribe(currentTheme => {
+            // Update editor theme when app theme changes
             if (editorView) {
-                const newThemeExtension = currentTheme === 'dark' ? oneDark : githubLight;
-                editorView.dispatch({
-                    effects: themeCompartment.reconfigure(newThemeExtension)
-                });
+                // Just apply settings - the logic is already in applyEditorSettings
+                applyEditorSettings();
             }
         });
 
@@ -212,17 +303,19 @@
         }
         if (unsubscribeAuth) unsubscribeAuth();
         if (unsubscribeTheme) unsubscribeTheme();
+        if (unsubscribeSettings) unsubscribeSettings();
     });
 
     function getStaticExtensions() {
         return [
-            lineNumbers(),
+            lineNumbersCompartment.of(editorSettings.show_line_numbers ? lineNumbers() : []),
             highlightActiveLineGutter(),
             highlightActiveLine(),
             history(),
             bracketMatching(),
             autocompletion(),
             EditorState.allowMultipleSelections.of(true),
+            tabSizeCompartment.of(EditorState.tabSize.of(editorSettings.tab_size)),
             keymap.of([
                 ...defaultKeymap,
                 ...historyKeymap,
@@ -230,7 +323,12 @@
                 indentWithTab
             ]),
             python(),
-            EditorView.lineWrapping,
+            lineWrappingCompartment.of(editorSettings.word_wrap ? EditorView.lineWrapping : []),
+            fontSizeCompartment.of(EditorView.theme({
+                ".cm-content": {
+                    fontSize: `${editorSettings.font_size}px`
+                }
+            })),
             EditorView.theme({
                 "&": {
                     height: "100%",
@@ -252,10 +350,61 @@
         ];
     }
 
+    function applyEditorSettings() {
+        if (!editorView) return;
+        
+        // Apply theme
+        let newTheme;
+        if (editorSettings.theme === 'auto' || !editorThemes[editorSettings.theme]) {
+            // Use app theme
+            const currentAppTheme = get(appTheme);
+            newTheme = currentAppTheme === 'dark' ? oneDark : githubLight;
+            console.log('Applying auto theme:', currentAppTheme, '-> editor theme:', newTheme === oneDark ? 'one-dark' : 'github');
+        } else {
+            newTheme = editorThemes[editorSettings.theme];
+            console.log('Applying fixed theme:', editorSettings.theme);
+        }
+        
+        editorView.dispatch({
+            effects: themeCompartment.reconfigure(newTheme)
+        });
+        
+        // Apply font size
+        editorView.dispatch({
+            effects: fontSizeCompartment.reconfigure(EditorView.theme({
+                ".cm-content": {
+                    fontSize: `${editorSettings.font_size}px`
+                }
+            }))
+        });
+        
+        // Apply tab size
+        editorView.dispatch({
+            effects: tabSizeCompartment.reconfigure(EditorState.tabSize.of(editorSettings.tab_size))
+        });
+        
+        // Apply line numbers
+        editorView.dispatch({
+            effects: lineNumbersCompartment.reconfigure(editorSettings.show_line_numbers ? lineNumbers() : [])
+        });
+        
+        // Apply line wrapping
+        editorView.dispatch({
+            effects: lineWrappingCompartment.reconfigure(editorSettings.word_wrap ? EditorView.lineWrapping : [])
+        });
+    }
+    
     function initializeEditor(currentTheme) {
         if (!editorContainer || editorView) return;
 
-        const initialThemeExtension = currentTheme === 'dark' ? oneDark : githubLight;
+        let initialThemeExtension;
+        if (editorSettings.theme === 'auto' || !editorThemes[editorSettings.theme]) {
+            initialThemeExtension = currentTheme === 'dark' ? oneDark : githubLight;
+            console.log('Initializing editor with auto theme:', currentTheme, '-> editor theme:', initialThemeExtension === oneDark ? 'one-dark' : 'github');
+        } else {
+            initialThemeExtension = editorThemes[editorSettings.theme];
+            console.log('Initializing editor with fixed theme:', editorSettings.theme);
+        }
 
         try {
             const startState = EditorState.create({
@@ -373,7 +522,11 @@
                 numOfAttempts: 3,
                 maxDelay: 5000
             });
-            savedScripts = data || [];
+            // Ensure each script has a unique ID
+            savedScripts = (data || []).map((script, index) => ({
+                ...script,
+                id: script.id || script._id || `temp_${index}_${Date.now()}`
+            }));
         } catch (err) {
             console.error("Error loading saved scripts:", err);
             addNotification("Failed to load saved scripts. You might need to log in again.", "error");
@@ -967,16 +1120,22 @@
                         <h4 class="text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider">
                             File Actions
                         </h4>
-                        <div class="flex flex-col space-y-2">
-                            <button class="btn btn-secondary-outline btn-sm inline-flex items-center justify-center space-x-1.5"
+                        <div class="grid grid-cols-2 gap-2">
+                            <button class="btn btn-secondary-outline btn-sm inline-flex items-center justify-center space-x-1"
                                     on:click={newScript} title="Start a new script">
                                 {@html newFileIcon}<span>New</span>
                             </button>
-                            <button class="btn btn-secondary-outline btn-sm inline-flex items-center justify-center space-x-1.5"
+                            <button class="btn btn-secondary-outline btn-sm inline-flex items-center justify-center space-x-1"
                                     on:click={() => fileInput.click()} title="Upload a file">
                                 {@html uploadIcon}<span>Upload</span>
                             </button>
-                            <button class="btn btn-secondary-outline btn-sm inline-flex items-center justify-center space-x-1.5"
+                            {#if authenticated}
+                                <button class="btn btn-primary btn-sm inline-flex items-center justify-center space-x-1"
+                                        on:click={saveScript} title="Save current script">
+                                    {@html saveIcon}<span>Save</span>
+                                </button>
+                            {/if}
+                            <button class="btn btn-secondary-outline btn-sm inline-flex items-center justify-center space-x-1"
                                     on:click={exportScript} title="Download current script">
                                 {@html exportIcon}<span>Export</span>
                             </button>
@@ -992,47 +1151,45 @@
                             <h4 class="text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider">
                                 Saved Scripts
                             </h4>
-                            <div class="flex items-stretch space-x-2">
-                                <button class="btn btn-primary btn-sm flex-shrink-0 inline-flex items-center"
-                                        on:click={saveScript} title="Save current script">
-                                    {@html saveIcon}
-                                </button>
-                                <button class="btn btn-secondary-outline btn-sm btn-icon flex-grow"
+                            <div>
+                                <button class="btn btn-secondary-outline btn-sm w-full inline-flex items-center justify-center space-x-1.5"
                                         on:click={toggleSavedScripts}
                                         aria-expanded={showSavedScripts}
                                         title={showSavedScripts ? "Hide Saved Scripts" : "Show Saved Scripts"}>
-                                    <span class="sr-only">Toggle Saved Scripts List</span>
                                     {@html listIcon}
+                                    <span>{showSavedScripts ? "Hide" : "Show"} Saved Scripts</span>
                                 </button>
                             </div>
                             {#if showSavedScripts}
-                                <div class="mt-2 max-h-48 overflow-y-auto border border-border-default dark:border-dark-border-default rounded-lg bg-bg-default dark:bg-dark-bg-default shadow-inner custom-scrollbar"
+                                <div class="mt-2"
                                      transition:slide={{ duration: 200 }}>
                                     {#if savedScripts.length > 0}
-                                        <ul class="divide-y divide-border-default dark:divide-dark-border-default">
-                                            {#each savedScripts as savedItem (savedItem.id)}
-                                                <li class="flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-700/50 text-sm group transition-colors duration-100">
-                                                    <button class="flex-grow text-left px-3 py-2 text-fg-default dark:text-dark-fg-default hover:text-primary dark:hover:text-primary-light font-medium min-w-0"
-                                                            on:click={() => loadScript(savedItem)}
-                                                            title={`Load ${savedItem.name} (${savedItem.lang || 'python'} ${savedItem.lang_version || '3.11'})`}>
-                                                        <div class="flex flex-col min-w-0">
-                                                            <span class="truncate">{savedItem.name}</span>
-                                                            <span class="text-xs text-fg-muted dark:text-dark-fg-muted font-normal capitalize">
-                                                                {savedItem.lang || 'python'} {savedItem.lang_version || '3.11'}
-                                                            </span>
-                                                        </div>
-                                                    </button>
-                                                    <button class="p-2 text-neutral-400 dark:text-neutral-500 hover:text-red-500 dark:hover:text-red-400 flex-shrink-0 opacity-60 group-hover:opacity-100 transition-opacity duration-150 mr-1"
-                                                            on:click|stopPropagation={() => deleteScript(savedItem.id)}
-                                                            title={`Delete ${savedItem.name}`}>
-                                                        <span class="sr-only">Delete</span>
-                                                        {@html trashIcon}
-                                                    </button>
-                                                </li>
-                                            {/each}
-                                        </ul>
+                                        <div class="saved-scripts-container border border-border-default dark:border-dark-border-default rounded-lg bg-bg-default dark:bg-dark-bg-default shadow-inner">
+                                            <ul class="divide-y divide-border-default dark:divide-dark-border-default">
+                                                {#each savedScripts as savedItem, index (savedItem.id || index)}
+                                                    <li class="flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-700/50 text-sm group transition-colors duration-100">
+                                                        <button class="flex-grow text-left px-3 py-2 text-fg-default dark:text-dark-fg-default hover:text-primary dark:hover:text-primary-light font-medium min-w-0"
+                                                                on:click={() => loadScript(savedItem)}
+                                                                title={`Load ${savedItem.name} (${savedItem.lang || 'python'} ${savedItem.lang_version || '3.11'})`}>
+                                                            <div class="flex flex-col min-w-0">
+                                                                <span class="truncate">{savedItem.name}</span>
+                                                                <span class="text-xs text-fg-muted dark:text-dark-fg-muted font-normal capitalize">
+                                                                    {savedItem.lang || 'python'} {savedItem.lang_version || '3.11'}
+                                                                </span>
+                                                            </div>
+                                                        </button>
+                                                        <button class="p-2 text-neutral-400 dark:text-neutral-500 hover:text-red-500 dark:hover:text-red-400 flex-shrink-0 opacity-60 group-hover:opacity-100 transition-opacity duration-150 mr-1"
+                                                                on:click|stopPropagation={() => deleteScript(savedItem.id)}
+                                                                title={`Delete ${savedItem.name}`}>
+                                                            <span class="sr-only">Delete</span>
+                                                            {@html trashIcon}
+                                                        </button>
+                                                    </li>
+                                                {/each}
+                                            </ul>
+                                        </div>
                                     {:else}
-                                        <p class="p-4 text-xs text-fg-muted dark:text-dark-fg-muted italic text-center">
+                                        <p class="p-4 text-xs text-fg-muted dark:text-dark-fg-muted italic text-center border border-border-default dark:border-dark-border-default rounded-lg">
                                             No saved scripts yet.</p>
                                     {/if}
                                 </div>
@@ -1075,6 +1232,7 @@
         position: relative;
         min-height: calc(100vh - 8rem);
         max-height: calc(100vh - 8rem);
+        padding: 0;
     }
 
     .editor-header {
@@ -1229,6 +1387,33 @@
     .output-content::-webkit-scrollbar-thumb:hover,
     .output-pre::-webkit-scrollbar-thumb:hover,
     .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        @apply bg-neutral-400 dark:bg-neutral-500;
+    }
+
+    /* Saved scripts container with max 3 items visible */
+    .saved-scripts-container {
+        max-height: calc(3 * 3.5rem); /* 3 items * height of each item */
+        overflow-y: auto;
+    }
+    
+    .saved-scripts-container li {
+        min-height: 3.5rem; /* Fixed height for each item */
+    }
+    
+    /* Show scrollbar only when needed */
+    .saved-scripts-container::-webkit-scrollbar {
+        width: 6px;
+    }
+    
+    .saved-scripts-container::-webkit-scrollbar-track {
+        @apply bg-neutral-100 dark:bg-neutral-800 rounded;
+    }
+    
+    .saved-scripts-container::-webkit-scrollbar-thumb {
+        @apply bg-neutral-300 dark:bg-neutral-600 rounded;
+    }
+    
+    .saved-scripts-container::-webkit-scrollbar-thumb:hover {
         @apply bg-neutral-400 dark:bg-neutral-500;
     }
 

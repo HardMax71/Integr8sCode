@@ -1,17 +1,18 @@
 from datetime import timedelta
 from typing import Dict, Union
 
-from app.config import get_settings
-from app.core.logging import logger
-from app.core.security import security_service
-from app.db.repositories.user_repository import UserRepository, get_user_repository
-from app.schemas.user import UserCreate, UserInDB, UserResponse
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-router = APIRouter()
+from app.config import get_settings
+from app.core.logging import logger
+from app.core.security import security_service
+from app.db.repositories.user_repository import UserRepository, get_user_repository
+from app.schemas_pydantic.user import UserCreate, UserInDB, UserResponse
+
+router = APIRouter(prefix="/auth", tags=["authentication"])
 limiter = Limiter(key_func=get_remote_address)
 
 
@@ -106,7 +107,14 @@ async def login(
         path="/",
     )
 
-    return {"message": "Login successful", "username": user.username, "csrf_token": csrf_token}
+    return {
+        "message": "Login successful",
+        "username": user.username,
+        "user_id": user.user_id,
+        "role": user.role,
+        "email": user.email,
+        "csrf_token": csrf_token
+    }
 
 
 @router.post("/register", response_model=UserResponse)
@@ -140,7 +148,10 @@ async def register(
 
     try:
         hashed_password = security_service.get_password_hash(user.password)
-        db_user = UserInDB(**user.dict(), hashed_password=hashed_password)
+        db_user = UserInDB(
+            **user.model_dump(),
+            hashed_password=hashed_password
+        )
         created_user = await user_repo.create_user(db_user)
 
         logger.info(
@@ -152,11 +163,11 @@ async def register(
             },
         )
 
-        return UserResponse.model_validate(created_user)
+        return UserResponse.model_validate(created_user.model_dump())
 
     except Exception as e:
         logger.error(
-            "Registration failed - database error",
+            f"Registration failed - database error: {str(e)}",
             extra={
                 "username": user.username,
                 "client_ip": get_remote_address(request),
@@ -164,6 +175,7 @@ async def register(
                 "error_type": type(e).__name__,
                 "error_detail": str(e),
             },
+            exc_info=True
         )
         raise HTTPException(status_code=500, detail="Error creating user") from e
 
@@ -196,7 +208,14 @@ async def verify_token(
         # Return existing CSRF token from cookie
         csrf_token = request.cookies.get("csrf_token", "")
 
-        return {"valid": True, "username": current_user.username, "csrf_token": csrf_token}
+        return {
+            "valid": True,
+            "username": current_user.username,
+            "user_id": current_user.user_id,
+            "role": current_user.role,
+            "email": current_user.email,
+            "csrf_token": csrf_token
+        }
 
     except Exception as e:
         logger.error(
@@ -213,6 +232,25 @@ async def verify_token(
             detail="Invalid token",
             headers={"WWW-Authenticate": "Bearer"},
         ) from e
+
+
+@router.get("/me", response_model=UserResponse)
+@limiter.limit("30/minute")
+async def get_current_user_info(
+        request: Request,
+        current_user: UserInDB = Depends(security_service.get_current_user),
+) -> UserResponse:
+    logger.info(
+        "Get current user info",
+        extra={
+            "username": current_user.username,
+            "client_ip": get_remote_address(request),
+            "endpoint": "/me",
+            "user_agent": request.headers.get("user-agent"),
+        },
+    )
+
+    return UserResponse.model_validate(current_user.model_dump())
 
 
 @router.post("/logout")
@@ -234,18 +272,12 @@ async def logout(
     response.delete_cookie(
         key="access_token",
         path="/",
-        secure=True,
-        httponly=True,
-        samesite="strict",
     )
 
     # Clear the CSRF cookie
     response.delete_cookie(
         key="csrf_token",
         path="/",
-        secure=True,
-        httponly=False,
-        samesite="strict",
     )
 
     logger.info(

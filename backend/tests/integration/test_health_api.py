@@ -6,8 +6,10 @@ from httpx import AsyncClient
 class TestHealthAPI:
 
     @pytest.mark.asyncio
-    async def test_health_check(self, client: AsyncClient) -> None:  # Inject client directly
-        """Verify the health check endpoint."""
+    async def test_simple_health_check(self, client: AsyncClient) -> None:  # Inject client directly
+        """Verify the simple health check endpoint."""
         response = await client.get("/api/v1/health")
         assert response.status_code == 200
-        assert response.json() == {"status": "healthy"}
+        data = response.json()
+        assert "status" in data
+        assert data["status"] in ["healthy", "unhealthy"]

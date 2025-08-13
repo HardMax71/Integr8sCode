@@ -1,25 +1,26 @@
-from typing import List, Optional
-
-from app.api.dependencies import get_db_dependency
-from app.schemas.saved_script import SavedScriptInDB
 from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
+
+from app.api.dependencies import get_db_dependency
+from app.schemas_pydantic.saved_script import SavedScriptInDB
 
 
 class SavedScriptRepository:
     def __init__(self, db: AsyncIOMotorDatabase):
         self.db = db
 
-    async def create_saved_script(self, saved_script: SavedScriptInDB) -> str:
+    async def create_saved_script(self, saved_script: SavedScriptInDB) -> SavedScriptInDB:
         saved_script_dict = saved_script.model_dump(by_alias=True)
+        # Convert UUID to string for MongoDB storage
+        saved_script_dict['script_id'] = str(saved_script.script_id)
         await self.db.saved_scripts.insert_one(saved_script_dict)
-        return str(saved_script.id)
+        return saved_script
 
     async def get_saved_script(
             self, script_id: str, user_id: str
-    ) -> Optional[SavedScriptInDB]:
+    ) -> SavedScriptInDB | None:
         saved_script = await self.db.saved_scripts.find_one(
-            {"_id": script_id, "user_id": user_id}
+            {"script_id": str(script_id), "user_id": user_id}
         )
         if saved_script:
             return SavedScriptInDB(**saved_script)
@@ -29,15 +30,15 @@ class SavedScriptRepository:
             self, script_id: str, user_id: str, update_data: dict
     ) -> None:
         await self.db.saved_scripts.update_one(
-            {"_id": script_id, "user_id": user_id}, {"$set": update_data}
+            {"script_id": str(script_id), "user_id": user_id}, {"$set": update_data}
         )
 
     async def delete_saved_script(self, script_id: str, user_id: str) -> None:
-        await self.db.saved_scripts.delete_one({"_id": script_id, "user_id": user_id})
+        await self.db.saved_scripts.delete_one({"script_id": str(script_id), "user_id": user_id})
 
-    async def list_saved_scripts(self, user_id: str) -> List[SavedScriptInDB]:
+    async def list_saved_scripts(self, user_id: str) -> list[SavedScriptInDB]:
         cursor = self.db.saved_scripts.find({"user_id": user_id})
-        scripts: List[SavedScriptInDB] = []
+        scripts: list[SavedScriptInDB] = []
         async for script in cursor:
             scripts.append(SavedScriptInDB(**script))
         return scripts

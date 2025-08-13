@@ -11,8 +11,8 @@ from app.api.routes.saved_scripts import (
     get_validated_user,
     get_script_or_404,
 )
-from app.schemas.saved_script import SavedScriptCreateRequest, SavedScriptResponse, SavedScriptInDB
-from app.schemas.user import UserInDB
+from app.schemas_pydantic.saved_script import SavedScriptCreateRequest, SavedScriptResponse, SavedScriptInDB
+from app.schemas_pydantic.user import UserInDB
 from app.services.saved_script_service import SavedScriptService
 from bson import ObjectId
 from fastapi import HTTPException, Request

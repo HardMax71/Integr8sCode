@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from app.api.routes.auth import login, register, verify_token, logout
-from app.schemas.user import UserCreate
+from app.schemas_pydantic.user import UserCreate
 from fastapi import HTTPException, Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
 

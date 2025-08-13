@@ -1,20 +1,25 @@
-# app/db/mongodb.py
 import asyncio
 from typing import Optional
 
+from fastapi import Request
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+
 from app.config import Settings
 from app.core.logging import logger
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+
+__all__ = ["DatabaseManager", "get_database_manager", "get_database", "AsyncIOMotorDatabase"]
 
 
 class DatabaseManager:
     """Manages the MongoDB client and database connection."""
-    client: Optional[AsyncIOMotorClient] = None
-    db: Optional[AsyncIOMotorDatabase] = None
+    client: Optional[AsyncIOMotorClient]
+    db: Optional[AsyncIOMotorDatabase]
 
     def __init__(self, settings: Settings):
         self.settings = settings
         self.db_name = settings.PROJECT_NAME + "_test" if settings.TESTING else settings.PROJECT_NAME
+        self.client = None
+        self.db = None
 
     async def connect_to_database(self, retries: int = 5, retry_delay: int = 3) -> None:
         logger.info("Initializing MongoDB connection...")
@@ -40,10 +45,10 @@ class DatabaseManager:
                     f"Successfully connected to MongoDB and got DB handle '{self.db_name}'",
                     extra={"attempt": attempt + 1}
                 )
-                return # Success
+                return  # Success
             except Exception as e:
                 if temp_client:
-                     temp_client.close()
+                    temp_client.close()
 
                 if attempt == retries - 1:
                     logger.critical(
@@ -77,6 +82,18 @@ class DatabaseManager:
     def get_database(self) -> AsyncIOMotorDatabase:
         """Returns the database handle. Raises Exception if not connected."""
         if self.db is None:
-             logger.error("Attempted to get database handle before connection was established.")
-             raise RuntimeError("Database is not connected.")
+            logger.error("Attempted to get database handle before connection was established.")
+            raise RuntimeError("Database is not connected.")
         return self.db
+
+
+def get_database_manager(request: Request) -> DatabaseManager:
+    """FastAPI dependency to get the database manager from app state"""
+    manager: DatabaseManager = request.app.state.db_manager
+    return manager
+
+
+def get_database(request: Request) -> AsyncIOMotorDatabase:
+    """FastAPI dependency to get the database from app state"""
+    db_manager: DatabaseManager = request.app.state.db_manager
+    return db_manager.get_database()

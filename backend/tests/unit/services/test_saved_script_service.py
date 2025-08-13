@@ -4,7 +4,7 @@ from collections.abc import AsyncGenerator
 import pytest
 from app.core.security import security_service
 from app.db.repositories.saved_script_repository import get_saved_script_repository
-from app.schemas.saved_script import SavedScriptCreate
+from app.schemas_pydantic.saved_script import SavedScriptCreate
 from app.services.saved_script_service import SavedScriptService
 
 

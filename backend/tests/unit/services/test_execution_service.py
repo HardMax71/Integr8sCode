@@ -2,16 +2,19 @@ import asyncio
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 from unittest.mock import Mock, patch, AsyncMock
+from uuid import UUID, uuid4
 
 import pytest
+from bson import ObjectId
+
 from app.config import get_settings
 from app.core.exceptions import IntegrationException
 from app.db.repositories.execution_repository import get_execution_repository
-from app.schemas.execution import ExecutionInDB
-from app.services.execution_service import ExecutionService, ExecutionStatus, get_execution_service
+from app.events.core.producer import UnifiedProducer
+from app.events.store.event_store import EventStore
+from app.schemas_pydantic.execution import ExecutionInDB, ExecutionStatus
+from app.services.execution_service import ExecutionService, get_execution_service
 from app.services.kubernetes_service import KubernetesPodError
-from bson import ObjectId
-from tests.unit.services.mock_kubernetes_service import get_mock_kubernetes_service
 
 
 class TestExecutionService:
@@ -20,13 +23,31 @@ class TestExecutionService:
     async def setup(self, db: AsyncGenerator) -> None:
         self.settings = get_settings()
         self.execution_repo = get_execution_repository(db)
-        self.k8s_service = get_mock_kubernetes_service()
-        self.service = ExecutionService(self.execution_repo, self.k8s_service)
+
+        # Mock Kafka producer
+        self.mock_producer = AsyncMock(spec=UnifiedProducer)
+        self.mock_producer.send_event = AsyncMock(return_value=True)
+        self.mock_producer.send_raw_event = AsyncMock(return_value=True)
+
+        # Mock event store
+        self.mock_event_store = AsyncMock(spec=EventStore)
+        self.mock_event_store.store_event = AsyncMock(return_value=True)
+        self.mock_event_store.get_events_by_execution = AsyncMock(return_value=[])
+
+        # Create service with mocked dependencies
+        self.service = ExecutionService(
+            execution_repo=self.execution_repo,
+            producer=self.mock_producer,
+            event_store=self.mock_event_store,
+            settings=self.settings
+        )
+        self.service._initialized = True
 
     def test_execution_service_initialization(self) -> None:
         assert self.service is not None
         assert hasattr(self.service, 'execution_repo')
-        assert hasattr(self.service, 'k8s_service')
+        assert hasattr(self.service, 'producer')
+        assert hasattr(self.service, 'event_store')
 
     @pytest.mark.asyncio
     async def test_get_k8s_resource_limits(self) -> None:
@@ -72,13 +93,13 @@ class TestExecutionService:
         )
 
         assert result is not None
-        assert hasattr(result, 'id')
+        assert hasattr(result, 'execution_id')
         assert hasattr(result, 'status')
         assert result.status in ['queued', 'running']
 
-        execution_id = result.id
-        assert isinstance(execution_id, str)
-        assert len(execution_id) > 0
+        execution_id = result.execution_id
+        assert isinstance(execution_id, UUID)
+        assert execution_id is not None
 
     @pytest.mark.asyncio
     async def test_execute_script_unsupported_language(self) -> None:
@@ -110,7 +131,7 @@ class TestExecutionService:
             lang="python",
             lang_version="3.11"
         )
-        execution_id = result.id
+        execution_id = result.execution_id
 
         # Wait a bit for execution to start
         await asyncio.sleep(2)
@@ -127,7 +148,7 @@ class TestExecutionService:
     @pytest.mark.asyncio
     async def test_get_execution_result_nonexistent(self) -> None:
         with pytest.raises(IntegrationException) as exc_info:
-            await self.service.get_execution_result("nonexistent_id_12345")
+            await self.service.get_execution_result(uuid4())
 
         assert exc_info.value.status_code == 404
         assert "not found" in str(exc_info.value.detail).lower()
@@ -139,7 +160,7 @@ class TestExecutionService:
             lang="python",
             lang_version="3.11"
         )
-        execution_id = result.id
+        execution_id = result.execution_id
 
         # Wait for execution to complete
         await asyncio.sleep(5)
@@ -167,7 +188,7 @@ class TestExecutionService:
         )
 
         assert result is not None
-        assert hasattr(result, 'id')
+        assert hasattr(result, 'execution_id')
         assert hasattr(result, 'status')
 
     @pytest.mark.asyncio
@@ -178,7 +199,7 @@ class TestExecutionService:
             lang="python",
             lang_version="3.11"
         )
-        execution_id = result.id
+        execution_id = result.execution_id
 
         # Wait for execution to complete
         max_wait = 30  # 30 seconds max wait
@@ -235,7 +256,7 @@ class TestExecutionService:
 
         for result in results:
             assert result is not None
-            assert hasattr(result, 'id')
+            assert hasattr(result, 'execution_id')
             assert hasattr(result, 'status')
             execution_ids.append(result.id)
 
@@ -250,7 +271,7 @@ class TestExecutionService:
             lang="python",
             lang_version="3.11"
         )
-        execution_id = result.id
+        execution_id = result.execution_id
 
         # Check status immediately (mock service may complete quickly)
         immediate_result = await self.service.get_execution_result(execution_id)
@@ -307,7 +328,7 @@ class TestExecutionServiceFullCoverage:
     @pytest.fixture
     def mock_execution(self) -> ExecutionInDB:
         return ExecutionInDB(
-            id=str(ObjectId()),
+            id=ObjectId(),
             script="print('hello')",
             lang="python",
             lang_version="3.11",

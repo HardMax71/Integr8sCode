@@ -7,6 +7,7 @@ from app.config import get_settings
 from app.main import create_app, lifespan
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from starlette.routing import Route
 
 
 class TestCreateApp:
@@ -183,8 +184,8 @@ class TestMainComponents:
     def test_app_routes_registered(self) -> None:
         app = create_app()
 
-        # Get all route paths
-        route_paths = [route.path for route in app.routes]
+        # Get all route paths - filter for Route instances which have path attribute
+        route_paths = [route.path for route in app.routes if isinstance(route, Route)]
 
         # Should have API v1 routes
         api_routes = [path for path in route_paths if path.startswith("/api/v1/")]
@@ -321,7 +322,7 @@ class TestMainComponents:
         app = create_app()
 
         # Check if static files are configured
-        route_paths = [route.path for route in app.routes]
+        route_paths = [route.path for route in app.routes if isinstance(route, Route)]
 
         # App should handle various route types
         assert len(route_paths) > 0

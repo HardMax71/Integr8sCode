@@ -5,6 +5,37 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer utilities {
+  /* Animation utilities for consistent transitions */
+  .animate-fadeIn {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+  
+  .animate-flyIn {
+    animation: flyIn 0.3s ease-out;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  
+  @keyframes flyIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
 @layer base {
   body {
     @apply font-sans antialiased text-fg-default bg-bg-default dark:text-dark-fg-default dark:bg-dark-bg-default transition-colors duration-200;
@@ -131,7 +162,7 @@
     @apply bg-bg-alt dark:bg-dark-bg-alt rounded-lg shadow-md overflow-hidden border border-border-default dark:border-dark-border-default;
   }
 
-  /* Input Group Style (Example) */
+  /* Input Group Style */
   .input-group {
      @apply flex items-center;
   }
@@ -140,5 +171,179 @@
   }
   .input-group > :not(:first-child) {
      @apply rounded-l-none;
+  }
+  
+  /* Stacked Input Group (for login/register forms) */
+  .input-group-stacked {
+    @apply rounded-md shadow-sm -space-y-px;
+  }
+  
+  .input-group-stacked > div:first-child input {
+    @apply rounded-t-md rounded-b-none;
+  }
+  
+  .input-group-stacked > div:last-child input {
+    @apply rounded-b-md rounded-t-none;
+  }
+  
+  .input-group-stacked > div:not(:first-child):not(:last-child) input {
+    @apply rounded-none;
+  }
+  
+  .input-group-stacked input {
+    @apply appearance-none relative block w-full px-3 py-2 border 
+           border-neutral-300 dark:border-dark-border-input
+           placeholder-fg-subtle dark:placeholder-dark-fg-subtle 
+           text-fg-default dark:text-dark-fg-default 
+           focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm;
+  }
+  
+  /* Form Control Styles */
+  .form-control {
+    @apply space-y-1;
+  }
+  
+  .form-control label {
+    @apply block text-sm font-medium text-fg-default dark:text-dark-fg-default;
+  }
+  
+  /* Multi-select styles */
+  .form-select-standard[multiple] {
+    @apply overflow-y-auto;
+  }
+  
+  .form-select-standard[multiple] option {
+    @apply px-2 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-700;
+  }
+  
+  .form-select-standard[multiple] option:checked {
+    @apply bg-primary/20 dark:bg-primary/30 font-medium;
+  }
+  
+  /* Standard Input Styles */
+  .form-input-standard {
+    @apply w-full px-3 py-1.5 text-sm border border-neutral-300 dark:border-dark-border-input 
+           bg-white dark:bg-dark-bg-alt text-fg-default dark:text-dark-fg-default 
+           rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary 
+           hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors;
+  }
+  
+  .form-input-standard:disabled {
+    @apply bg-neutral-100 dark:bg-neutral-700 opacity-70 cursor-not-allowed hover:bg-neutral-100 dark:hover:bg-neutral-700;
+  }
+  
+  /* Number Input with Spinner Controls */
+  .form-input-number {
+    @apply form-input-standard;
+  }
+  
+  /* Textarea Styles */
+  .form-textarea {
+    @apply form-input-standard resize-y min-h-[80px];
+  }
+  
+  /* Select/Dropdown Styles */
+  .form-select-standard {
+    @apply form-input-standard pr-10 cursor-pointer;
+  }
+  
+  /* Custom Dropdown Button */
+  .form-dropdown-button {
+    @apply w-full flex items-center justify-between text-left
+           px-3 py-1.5 text-sm border border-neutral-300 dark:border-dark-border-input 
+           bg-white dark:bg-dark-bg-alt text-fg-default dark:text-dark-fg-default 
+           rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary 
+           hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors cursor-pointer;
+  }
+  
+  .form-dropdown-button svg {
+    @apply w-5 h-5 ml-2 flex-shrink-0 text-fg-muted dark:text-dark-fg-muted transform transition-transform;
+  }
+  
+  .form-dropdown-button[aria-expanded="true"] svg {
+    @apply -rotate-180;
+  }
+  
+  /* Dropdown Menu */
+  .form-dropdown-menu {
+    @apply absolute top-full mt-1 w-full bg-bg-alt dark:bg-dark-bg-alt 
+           rounded-lg shadow-xl ring-1 ring-black ring-opacity-5 
+           dark:ring-white dark:ring-opacity-10 z-30;
+  }
+  
+  .form-dropdown-menu ul {
+    @apply py-1;
+  }
+  
+  .form-dropdown-menu li button {
+    @apply w-full text-left px-3 py-2 text-sm hover:bg-neutral-100 
+           dark:hover:bg-neutral-700/60 transition-colors duration-100
+           text-fg-default dark:text-dark-fg-default;
+  }
+  
+  .form-dropdown-menu li button.selected {
+    @apply text-primary dark:text-primary-light font-semibold;
+  }
+  
+  /* Checkbox and Radio Styles */
+  .form-checkbox-standard,
+  .form-radio-standard {
+    @apply form-checkbox rounded text-primary focus:ring-primary focus:ring-2;
+  }
+  
+  .form-radio-standard {
+    @apply rounded-full;
+  }
+  
+  /* Toggle/Switch Style */
+  .form-toggle {
+    @apply relative inline-flex h-6 w-11 items-center rounded-full transition-colors
+           focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2
+           dark:focus:ring-offset-dark-bg-default cursor-pointer;
+  }
+  
+  .form-toggle.checked {
+    @apply bg-primary;
+  }
+  
+  .form-toggle:not(.checked) {
+    @apply bg-neutral-200 dark:bg-neutral-600;
+  }
+  
+  .form-toggle-handle {
+    @apply inline-block h-5 w-5 transform rounded-full bg-white transition-transform shadow-sm;
+  }
+  
+  .form-toggle.checked .form-toggle-handle {
+    @apply translate-x-5;
+  }
+  
+  .form-toggle:not(.checked) .form-toggle-handle {
+    @apply translate-x-0;
+  }
+  
+  /* Date Input Styles */
+  .form-input-date {
+    @apply form-input-standard;
+  }
+  
+  /* Error State Styles */
+  .form-input-error {
+    @apply border-red-500 dark:border-red-400 focus:ring-red-500 focus:border-red-500;
+  }
+  
+  .form-error-message {
+    @apply text-sm text-red-600 dark:text-red-400 mt-1;
+  }
+  
+  /* Helper Text */
+  .form-helper-text {
+    @apply text-sm text-fg-muted dark:text-dark-fg-muted mt-1;
+  }
+  
+  /* Label with Required Indicator */
+  .form-label-required::after {
+    content: " *";
+    @apply text-red-500;
   }
 }

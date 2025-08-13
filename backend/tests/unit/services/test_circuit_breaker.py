@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from app.services.circuit_breaker import CircuitBreaker
+from app.events.kafka.cb.manager import CircuitBreaker
 
 
 class TestCircuitBreaker:

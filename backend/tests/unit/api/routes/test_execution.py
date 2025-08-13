@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from app.api.routes.execution import create_execution, get_result, get_example_scripts, get_k8s_resource_limits
 from app.core.exceptions import IntegrationException
-from app.schemas.execution import ExecutionRequest
+from app.schemas_pydantic.execution import ExecutionRequest
 from fastapi import HTTPException, Request
 
 

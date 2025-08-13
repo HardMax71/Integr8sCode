@@ -71,11 +71,15 @@ echo "Self-signed certificate created and copied."
 
 # --- Generate Kubeconfig ---
 if [ -d /backend ]; then
-    echo "Ensuring kubeconfig is up to date"
-    if ! kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' > /dev/null 2>&1; then
-        echo "ERROR: kubectl is not configured to connect to a cluster."
-        exit 1
-    fi
+    echo "Checking if Kubernetes is available..."
+    
+    # Try to connect to Kubernetes, but don't fail if it's not available
+    if kubectl version >/dev/null 2>&1; then
+        echo "Kubernetes cluster detected. Setting up kubeconfig..."
+        if ! kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' > /dev/null 2>&1; then
+            echo "ERROR: kubectl is not configured to connect to a cluster."
+            exit 1
+        fi
     K8S_CA_CERT_B64=$(kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
     kubectl apply -f - <<EOF
 apiVersion: v1
@@ -84,15 +88,46 @@ metadata:
   name: integr8scode-sa
   namespace: default
 EOF
+    # Create namespace if it doesn't exist
+    kubectl create namespace integr8scode --dry-run=client -o yaml | kubectl apply -f -
+    
+    # Create ClusterRole for namespace listing
+    kubectl apply -f - <<EOF
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: integr8scode-namespace-reader
+rules:
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get", "list"]
+EOF
+    # Create ClusterRoleBinding
+    kubectl apply -f - <<EOF
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: integr8scode-namespace-reader-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: integr8scode-namespace-reader
+subjects:
+- kind: ServiceAccount
+  name: integr8scode-sa
+  namespace: default
+EOF
+    # Create Role for namespace-specific permissions
     kubectl apply -f - <<EOF
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: integr8scode-role
+  namespace: integr8scode
 rules:
 - apiGroups: ["", "metrics.k8s.io"]
   resources: ["configmaps", "pods", "pods/log", "pods/exec", "nodes", "services"]
-  verbs: ["create", "get", "list", "watch", "delete"]
+  verbs: ["create", "get", "list", "watch", "delete", "patch", "update"]
 - apiGroups: ["apps"]
   resources: ["daemonsets"]
   verbs: ["get", "list", "watch", "create", "delete", "replace", "update"]
@@ -105,9 +140,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: integr8scode-rolebinding
+  namespace: integr8scode
 subjects:
 - kind: ServiceAccount
   name: integr8scode-sa
+  namespace: default
 roleRef:
   kind: Role
   name: integr8scode-role
@@ -120,6 +157,13 @@ EOF
     if [ "$CI" = "true" ]; then
         K8S_SERVER=$(echo "$K8S_SERVER" | sed 's|https://127.0.0.1:|https://host.docker.internal:|')
         echo "CI: Patched K8S_SERVER to ${K8S_SERVER}"
+    fi
+    
+    # For Docker environments, use the Docker host IP
+    if [ "$USE_DOCKER_HOST" = "true" ]; then
+        # Replace any local addresses with Docker host IP
+        K8S_SERVER="https://172.17.0.1:6443"
+        echo "Docker: Set K8S_SERVER to ${K8S_SERVER}"
     fi
     
     cat > /backend/kubeconfig.yaml <<EOF
@@ -143,6 +187,7 @@ current-context: integr8scode
 EOF
     chmod 644 /backend/kubeconfig.yaml
     echo "kubeconfig.yaml successfully generated."
+    fi
 fi
 
 echo "Setup completed successfully."

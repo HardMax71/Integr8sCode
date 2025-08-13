@@ -1,16 +1,16 @@
 from datetime import datetime, timezone
-from typing import List, Optional
+
+from fastapi import Depends
 
 from app.db.repositories.saved_script_repository import (
     SavedScriptRepository,
     get_saved_script_repository,
 )
-from app.schemas.saved_script import (
+from app.schemas_pydantic.saved_script import (
     SavedScriptCreate,
     SavedScriptInDB,
     SavedScriptUpdate,
 )
-from fastapi import Depends
 
 
 class SavedScriptService:
@@ -23,10 +23,10 @@ class SavedScriptService:
         saved_script_in_db = SavedScriptInDB(
             **saved_script_create.model_dump(), user_id=user_id
         )
-        await self.saved_script_repo.create_saved_script(saved_script_in_db)
-        return saved_script_in_db
+        created_script = await self.saved_script_repo.create_saved_script(saved_script_in_db)
+        return created_script
 
-    async def get_saved_script(self, script_id: str, user_id: str) -> Optional[SavedScriptInDB]:
+    async def get_saved_script(self, script_id: str, user_id: str) -> SavedScriptInDB | None:
         return await self.saved_script_repo.get_saved_script(script_id, user_id)
 
     async def update_saved_script(
@@ -41,8 +41,8 @@ class SavedScriptService:
     async def delete_saved_script(self, script_id: str, user_id: str) -> None:
         await self.saved_script_repo.delete_saved_script(script_id, user_id)
 
-    async def list_saved_scripts(self, user_id: str) -> List[SavedScriptInDB]:
-        return await self.saved_script_repo.list_saved_scripts(user_id)  # type: ignore
+    async def list_saved_scripts(self, user_id: str) -> list[SavedScriptInDB]:
+        return await self.saved_script_repo.list_saved_scripts(user_id)
 
 
 def get_saved_script_service(

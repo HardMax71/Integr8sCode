@@ -2,12 +2,13 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import jwt
-from app.config import get_settings
-from app.db.repositories.user_repository import UserRepository, get_user_repository
-from app.schemas.user import UserInDB
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
+
+from app.config import get_settings
+from app.db.repositories.user_repository import UserRepository, get_user_repository
+from app.schemas_pydantic.user import UserInDB
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/login")
 
@@ -71,6 +72,23 @@ class SecurityService:
         if user is None:
             raise credentials_exception
         return user
+
+    async def get_current_admin_user(
+            self,
+            token: str = Depends(get_token_from_cookie),
+            user_repo: UserRepository = Depends(get_user_repository),
+    ) -> UserInDB:
+        """Ensure current user has admin role"""
+        # First get the current user
+        current_user = await self.get_current_user(token, user_repo)
+
+        # Then check if they have admin role
+        if current_user.role != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not enough permissions",
+            )
+        return current_user
 
     def generate_csrf_token(self) -> str:
         """Generate a CSRF token using secure random"""

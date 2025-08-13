@@ -1,13 +1,13 @@
-from typing import Callable, Awaitable, Union, Any, Optional
 from unittest.mock import Mock
 
 import pytest
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+
 from app.core.exceptions import (
     IntegrationException,
     configure_exception_handlers
 )
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
 
 
 class TestIntegrationException:

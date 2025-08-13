@@ -37,17 +37,22 @@ function startServer() {
 
     const proxyAgent = new https.Agent({
         ca: fs.readFileSync(caPath),
+        rejectUnauthorized: false  // Accept self-signed certificates in development
     });
 
     server = https.createServer(httpsOptions, (req, res) => {
         // Proxy API requests
         if (req.url.startsWith('/api')) {
+            // Forward the original host header and cookies
+            const proxyHeaders = { ...req.headers };
+            proxyHeaders.host = req.headers.host || 'localhost:5001';
+            
             const options = {
                 hostname: 'backend',
                 port: 443,
                 path: req.url,
                 method: req.method,
-                headers: req.headers,
+                headers: proxyHeaders,
                 agent: proxyAgent // Use our special agent that trusts our CA
             };
 

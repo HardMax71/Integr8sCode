@@ -11,7 +11,7 @@ from app.core.security import (
     security_service
 )
 from app.db.repositories.user_repository import get_user_repository
-from app.schemas.user import UserInDB
+from app.schemas_pydantic.user import UserInDB
 from fastapi import HTTPException
 
 

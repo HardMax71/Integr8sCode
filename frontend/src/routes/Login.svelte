@@ -6,6 +6,7 @@
   import Spinner from '../components/Spinner.svelte'; // Assuming Spinner component exists
   import { onMount } from 'svelte';
   import { updateMetaTags, pageMeta } from '../utils/meta.js';
+  import { loadUserSettings } from '../lib/user-settings.js';
 
   let username = "";
   let password = "";
@@ -14,6 +15,13 @@
   
   onMount(() => {
     updateMetaTags(pageMeta.login.title, pageMeta.login.description);
+    
+    // Check for authentication message from redirect
+    const authMessage = sessionStorage.getItem('authMessage');
+    if (authMessage) {
+      addNotification(authMessage, "info");
+      sessionStorage.removeItem('authMessage');
+    }
   });
 
   async function handleLogin() {
@@ -21,8 +29,20 @@
     error = null; // Clear previous error
     try {
       await login(username, password);
+      
+      // Load and apply user settings (theme, etc)
+      await loadUserSettings();
+      
       addNotification("Login successful! Welcome back.", "success");
-      navigate("/editor"); // Redirect to editor on successful login
+      
+      // Check if there's a saved redirect path
+      const redirectPath = sessionStorage.getItem('redirectAfterLogin');
+      if (redirectPath) {
+        sessionStorage.removeItem('redirectAfterLogin');
+        navigate(redirectPath);
+      } else {
+        navigate("/editor"); // Default redirect to editor
+      }
     } catch (err) {
       error = err.message || "Login failed. Please check your credentials.";
       addNotification(error, "error");
@@ -44,25 +64,24 @@
     </div>
 
     <form class="mt-8 space-y-6 bg-bg-alt dark:bg-dark-bg-alt p-8 rounded-lg shadow-md border border-border-default dark:border-dark-border-default" on:submit|preventDefault={handleLogin}>
-      <input type="hidden" name="remember" value="true">
-      <div class="rounded-md shadow-sm -space-y-px">
+      <input type="hidden" name="remember" value="true" hidden>
+
+      {#if error}
+        <p class="mt-0 text-sm text-red-600 dark:text-red-400 text-center" in:fly={{y: -10, duration: 200}}>{error}</p>
+      {/if}
+
+      <div class="space-y-2">
         <div>
           <label for="username" class="sr-only">Username</label>
-          <input bind:value={username} id="username" name="username" type="text" autocomplete="username" required
-                 class="appearance-none rounded-none relative block w-full px-3 py-2 border placeholder-fg-subtle dark:placeholder-dark-fg-subtle text-fg-default dark:text-dark-fg-default rounded-t-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm"
+          <input class="form-input-standard" bind:value={username} id="username" name="username" type="text" autocomplete="username" required
                  placeholder="Username">
         </div>
         <div>
           <label for="password" class="sr-only">Password</label>
-          <input bind:value={password} id="password" name="password" type="password" autocomplete="current-password" required
-                 class="appearance-none rounded-none relative block w-full px-3 py-2 border placeholder-fg-subtle dark:placeholder-dark-fg-subtle text-fg-default dark:text-dark-fg-default rounded-b-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm"
+          <input class="form-input-standard" bind:value={password} id="password" name="password" type="password" autocomplete="current-password" required
                  placeholder="Password">
         </div>
       </div>
-
-      {#if error}
-        <p class="text-sm text-red-600 dark:text-red-400 text-center" in:fly={{y: -10, duration: 200}}>{error}</p>
-      {/if}
 
       <div>
         <button type="submit" disabled={loading}

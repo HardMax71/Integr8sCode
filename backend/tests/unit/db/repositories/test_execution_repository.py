@@ -6,7 +6,7 @@ from app.db.repositories.execution_repository import (
     ExecutionRepository,
     get_execution_repository
 )
-from app.schemas.execution import ExecutionInDB
+from app.schemas_pydantic.execution import ExecutionInDB
 from motor.motor_asyncio import AsyncIOMotorDatabase, AsyncIOMotorCollection
 
 

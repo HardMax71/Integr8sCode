@@ -8,7 +8,7 @@ from app.db.repositories.user_repository import (
     UserRepository,
     get_user_repository
 )
-from app.schemas.user import UserInDB
+from app.schemas_pydantic.user import UserInDB
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 

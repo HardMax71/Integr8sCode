@@ -1,7 +1,7 @@
 import time
 import httpx
 import pytest
-from app.schemas.user import UserCreate
+from app.schemas_pydantic.user import UserCreate
 from httpx import AsyncClient
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from tests.conftest import create_test_ssl_context

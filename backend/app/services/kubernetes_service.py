@@ -1,22 +1,25 @@
-import ast
 import asyncio
+import json
 import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
-from app.config import get_settings
-from app.core.logging import logger
-from app.core.metrics import NETWORK_POLICY_VIOLATIONS, SECURITY_EVENTS
-from app.runtime_registry import RUNTIME_REGISTRY
-from app.services.circuit_breaker import CircuitBreaker
-from app.services.network_policy import NetworkPolicyBuilder
-from app.services.pod_manifest_builder import PodManifestBuilder
 from fastapi import Depends, Request
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
 from kubernetes import watch
 from kubernetes.client.rest import ApiException
+
+from app.config import get_settings
+from app.core.logging import logger
+from app.core.metrics import NETWORK_POLICY_VIOLATIONS, POD_EVENT_PUBLISHED, SECURITY_EVENTS
+from app.events.kafka.cb import CircuitBreaker, CircuitBreakerType
+from app.runtime_registry import RUNTIME_REGISTRY
+from app.schemas_avro.event_schemas import EventType
+from app.services.kafka_event_service import KafkaEventService
+from app.services.network_policy import NetworkPolicyBuilder
+from app.services.pod_manifest_builder import PodManifestBuilder
 
 
 class KubernetesServiceError(Exception):
@@ -54,7 +57,7 @@ class KubernetesServiceManager:
 
 
 class KubernetesService:
-    NAMESPACE = "default"
+    NAMESPACE = "integr8scode"
     POD_RETRY_ATTEMPTS = 15
     POD_RETRY_INTERVAL = 1
     POD_SUCCESS_STATES = {"Succeeded", "Failed"}
@@ -70,18 +73,25 @@ class KubernetesService:
     def __init__(self, manager: KubernetesServiceManager):
         self.settings = get_settings()
         self.manager = manager
+        self.event_service: Optional[KafkaEventService] = None
         self.v1 = None
         self.apps_v1 = None
         self.networking_v1 = None
         self.version_api = None
         self._initialize_kubernetes_client()
 
-        self.circuit_breaker = CircuitBreaker()
+        self.circuit_breaker = CircuitBreaker(service_name="kubernetes", breaker_type=CircuitBreakerType.GENERAL)
         self._active_pods: Dict[str, datetime] = {}
         self._is_healthy = True
         self._last_health_check = datetime.now(timezone.utc)
+        self._pending_pod_events: List[Dict[str, Any]] = []
 
         self.manager.register(self)
+
+    def set_event_service(self, event_service: KafkaEventService) -> None:
+        """Set the event service for publishing pod events"""
+        self.event_service = event_service
+        logger.info("Event service configured for KubernetesService")
 
     def __del__(self) -> None:
         self.manager.unregister(self)
@@ -96,13 +106,13 @@ class KubernetesService:
                 return self._is_healthy
             await asyncio.to_thread(self.version_api.get_code)
             self._is_healthy = True
-            self.circuit_breaker.record_success()
+            await self.circuit_breaker.record_success()
             self._last_health_check = datetime.now(timezone.utc)
             return True
         except Exception as e:
             logger.error(f"Kubernetes health check failed: {str(e)}")
             self._is_healthy = False
-            self.circuit_breaker.record_failure()
+            await self.circuit_breaker.record_failure()
             self._last_health_check = datetime.now(timezone.utc)
             return False
 
@@ -173,7 +183,7 @@ class KubernetesService:
             command: List[str],
             config_map_data: Dict[str, str]
     ) -> None:
-        if not self.circuit_breaker.should_allow_request():
+        if self.circuit_breaker.is_open:
             raise KubernetesServiceError("Service circuit breaker is open")
         if not await self.check_health():
             raise KubernetesServiceError("Kubernetes service is unhealthy")
@@ -220,11 +230,24 @@ class KubernetesService:
             # Track security event - pod creation with restricted security context
             SECURITY_EVENTS.labels(event_type="SecurePodCreated").inc()
 
-            self.circuit_breaker.record_success()
+            # Publish pod created event
+            if self.event_service:
+                await self.event_service.publish_pod_event(
+                    event_type=EventType.POD_CREATED.value,
+                    pod_name=pod_name,
+                    execution_id=execution_id,
+                    namespace=self.NAMESPACE,
+                    metadata={
+                        "image": image,
+                        "config_map_name": config_map_name
+                    }
+                )
+
+            await self.circuit_breaker.record_success()
 
         except Exception as e:
             logger.error(f"Failed to create execution pod '{execution_id}': {str(e)}", exc_info=True)
-            self.circuit_breaker.record_failure()
+            await self.circuit_breaker.record_failure()
             await self._cleanup_resources(pod_name, config_map_name, execution_id)
             raise KubernetesPodError(f"Failed to create execution pod: {str(e)}") from e
 
@@ -234,14 +257,26 @@ class KubernetesService:
         try:
             pod = await self._wait_for_pod_completion(pod_name)
             pod_phase = pod.status.phase if pod and pod.status else "Unknown"
-            full_logs = await self._get_container_logs(pod_name, "script-runner")
+
+            # Publish pod completed event
+            if self.event_service:
+                await self.event_service.publish_pod_event(
+                    event_type="pod.completed",
+                    pod_name=pod_name,
+                    execution_id=execution_id,
+                    namespace=self.NAMESPACE,
+                    status=pod_phase
+                )
+
+            full_logs = await self._get_container_logs(pod_name, "executor")
             logger.info(f"Raw logs from pod {pod_name}:\n---\n{full_logs}\n---")
 
             try:
-                metrics = ast.literal_eval(full_logs)
+                # Parse the JSON output from the entrypoint script
+                metrics = json.loads(full_logs.strip())
                 return metrics, pod_phase
-            except (ValueError, SyntaxError, TypeError) as e:
-                logger.error(f"FAILED TO PARSE LOGS FROM POD {pod_name} as a Python literal: {e}"
+            except json.JSONDecodeError as e:
+                logger.error(f"FAILED TO PARSE LOGS FROM POD {pod_name} as JSON: {e}"
                              f"Internal execution error: Pod logs were not valid JSON. "
                              f"Pod phase: {pod_phase}.\nRaw Logs:\n{full_logs}")
                 error_payload = {
@@ -259,27 +294,139 @@ class KubernetesService:
     async def _wait_for_pod_completion(self, pod_name: str) -> k8s_client.V1Pod:
         if not self.v1:
             raise KubernetesServiceError(_K8S_CLIENT_NOT_INITIALIZED_MSG)
-            
+
         w = watch.Watch()
-        return await asyncio.to_thread(self._watch_pod, w, pod_name)
-    
+
+        # Clear any pending events
+        self._pending_pod_events = []
+
+        # Run the watch in a thread
+        pod = await asyncio.to_thread(self._watch_pod, w, pod_name)
+
+        # Publish all pending pod events
+        if self._pending_pod_events and self.event_service:
+            for event in self._pending_pod_events:
+                await self._publish_pod_event(**event)
+            self._pending_pod_events = []
+
+        return pod
+
     def _watch_pod(self, w: watch.Watch, pod_name: str) -> k8s_client.V1Pod:
+        execution_id = pod_name[len("execution-"):] if pod_name.startswith("execution-") else None
+
+        # Initialize list to store all pod events
+        if not hasattr(self, '_pending_pod_events'):
+            self._pending_pod_events = []
+
+        if not self.v1:
+            logger.error("Kubernetes client not initialized")
+            return
+        
         for event in w.stream(
-            self.v1.list_namespaced_pod,
-            namespace=self.NAMESPACE,
-            field_selector=f"metadata.name={pod_name}",
-            timeout_seconds=300
+                self.v1.list_namespaced_pod,
+                namespace=self.NAMESPACE,
+                field_selector=f"metadata.name={pod_name}",
+                timeout_seconds=300
         ):
             pod = event['object']
-            
-            if event['type'] == 'DELETED':
+            event_type = event['type']
+
+            # Store all pod events to be published later (since we're in a sync context)
+            if self.event_service and execution_id:
+                self._pending_pod_events.append({
+                    "event_type": event_type,
+                    "pod": pod,
+                    "pod_name": pod_name,
+                    "execution_id": execution_id
+                })
+
+            if event_type == 'DELETED':
                 raise KubernetesPodError(f"Pod '{pod_name}' was deleted")
-                
+
             if pod.status and pod.status.phase in self.POD_SUCCESS_STATES:
                 logger.info(f"Pod '{pod_name}' completed: {pod.status.phase}")
                 return pod
-                
+
         raise KubernetesPodError(f"Pod '{pod_name}' watch timeout")
+
+    async def _publish_pod_event(
+            self,
+            event_type: str,
+            pod: k8s_client.V1Pod,
+            pod_name: str,
+            execution_id: str
+    ) -> None:
+        """Publish pod events to event service"""
+        try:
+            # Map Kubernetes event types to our event types
+            event_type_map = {
+                "ADDED": EventType.POD_CREATED.value,
+                "MODIFIED": "pod.updated",
+                "DELETED": EventType.POD_DELETED.value
+            }
+
+            our_event_type = event_type_map.get(event_type, f"pod.{event_type.lower()}")
+
+            # Extract pod status information
+            pod_status: dict[str, Any] = {
+                "phase": pod.status.phase if pod.status else None,
+                "reason": pod.status.reason if pod.status else None,
+                "message": pod.status.message if pod.status else None,
+                "conditions": [],
+                "container_statuses": []
+            }
+
+            if pod.status and pod.status.conditions:
+                pod_status["conditions"] = [
+                    {
+                        "type": condition.type,
+                        "status": condition.status,
+                        "reason": condition.reason,
+                        "message": condition.message
+                    }
+                    for condition in pod.status.conditions
+                ]
+
+            if pod.status and pod.status.container_statuses:
+                pod_status["container_statuses"] = [
+                    {
+                        "name": cs.name,
+                        "ready": cs.ready,
+                        "restart_count": cs.restart_count,
+                        "state": {
+                            "running": cs.state.running is not None if cs.state else False,
+                            "terminated": cs.state.terminated is not None if cs.state else False,
+                            "waiting": cs.state.waiting is not None if cs.state else False
+                        }
+                    }
+                    for cs in pod.status.container_statuses
+                ]
+
+            creation_timestamp = pod.metadata.creation_timestamp.isoformat() \
+                if pod.metadata and pod.metadata.creation_timestamp else None
+            if self.event_service:
+                await self.event_service.publish_pod_event(
+                    event_type=our_event_type,
+                    pod_name=pod_name,
+                    execution_id=execution_id,
+                    namespace=self.NAMESPACE,
+                    status=pod.status.phase if pod.status else None,
+                    metadata={
+                        "phase": pod.status.phase if pod.status else None,
+                        "pod_status": pod_status,
+                        "labels": pod.metadata.labels if pod.metadata else {},
+                        "creation_timestamp": creation_timestamp
+                    }
+                )
+
+            # Track pod event metrics
+            POD_EVENT_PUBLISHED.labels(
+                event_type=our_event_type,
+                phase=pod.status.phase if pod.status else "unknown"
+            ).inc()
+
+        except Exception as e:
+            logger.error(f"Failed to publish pod event: {e}", exc_info=True)
 
     async def _get_container_logs(self, pod_name: str, container_name: str) -> str:
         if not self.v1:
@@ -322,6 +469,16 @@ class KubernetesService:
         try:
             await asyncio.to_thread(self.v1.delete_namespaced_pod, name=pod_name, namespace=self.NAMESPACE)
             logger.info(f"Deletion request sent for pod '{pod_name}'")
+
+            # Publish pod cleanup event
+            if self.event_service and execution_id:
+                await self.event_service.publish_pod_event(
+                    event_type="pod.cleanup",
+                    pod_name=pod_name,
+                    execution_id=execution_id,
+                    namespace=self.NAMESPACE,
+                    metadata={"action": "delete_requested"}
+                )
         except ApiException as e:
             logger.error(f"Failed to send deletion request for pod '{pod_name}': {e.reason}")
 

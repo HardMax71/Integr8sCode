@@ -1,9 +1,9 @@
 import asyncio
-from typing import Any, Dict, List, Optional
 
 from app.core.logging import logger
 from app.events.core.consumer import ConsumerConfig, UnifiedConsumer
 from app.events.core.consumer_group_names import GroupId
+from app.events.schema.schema_registry import SchemaRegistryManager
 from app.schemas_avro.event_schemas import (
     BaseEvent,
     ExecutionCompletedEvent,
@@ -18,15 +18,19 @@ from app.schemas_avro.event_schemas import (
     PodTerminatedEvent,
     ResultStoredEvent,
 )
-from app.websocket.connection_manager import get_connection_manager
+from app.websocket.connection_manager import ConnectionManager
 
 
 class WebSocketEventHandler:
 
-    def __init__(self) -> None:
-        self.consumer: Optional[UnifiedConsumer] = None
+    def __init__(self,
+                 schema_registry_manager: SchemaRegistryManager | None = None,
+                 connection_manager: ConnectionManager | None = None) -> None:
+        self.consumer: UnifiedConsumer | None = None
         self._running = False
-        self._tasks: List[asyncio.Task] = []
+        self._tasks: list[asyncio.Task] = []
+        self.schema_registry_manager = schema_registry_manager
+        self.connection_manager = connection_manager
 
     async def start(self) -> None:
         """Start consuming events from Kafka"""
@@ -44,7 +48,7 @@ class WebSocketEventHandler:
             ],
         )
 
-        self.consumer = UnifiedConsumer(consumer_config)
+        self.consumer = UnifiedConsumer(consumer_config, self.schema_registry_manager)
         self.consumer.register_handler("*", self._handle_event)
 
         await self.consumer.start()
@@ -74,7 +78,7 @@ class WebSocketEventHandler:
 
         logger.info("WebSocket event handler stopped")
 
-    async def _handle_event(self, event: BaseEvent | dict[str, Any], record: Any) -> None:
+    async def _handle_event(self, event: BaseEvent | dict[str, object], record: object) -> None:
         """Handle incoming Kafka events."""
         try:
             # Only process BaseEvent instances
@@ -90,7 +94,11 @@ class WebSocketEventHandler:
             message = self._create_websocket_message(event)
 
             # Broadcast to subscribers
-            sent_count = await get_connection_manager().broadcast_to_execution(
+            if not self.connection_manager:
+                logger.warning("Connection manager not available, skipping broadcast")
+                return
+                
+            sent_count = await self.connection_manager.broadcast_to_execution(
                 execution_id,
                 message
             )
@@ -113,21 +121,18 @@ class WebSocketEventHandler:
 
     def _extract_execution_id(self, event: BaseEvent) -> str | None:
         """Extract execution ID from event."""
-        # All execution/pod/result events have execution_id field
         execution_id = getattr(event, "execution_id", None)
         return str(execution_id) if execution_id else None
 
-    def _create_websocket_message(self, event: BaseEvent) -> Dict[str, Any]:
+    def _create_websocket_message(self, event: BaseEvent) -> dict[str, object]:
         """Create WebSocket message from Kafka event"""
-        # Base message structure
-        message = {
+        message: dict[str, object] = {
             "type": str(event.event_type),
             "timestamp": event.timestamp.isoformat(),
             "event_id": str(event.event_id),
             "data": {},
         }
 
-        # Add event-specific data
         if isinstance(event, ExecutionRequestedEvent):
             message["data"] = {
                 "execution_id": str(event.execution_id),
@@ -162,20 +167,17 @@ class WebSocketEventHandler:
             message["data"] = {
                 "pod_name": event.pod_name,
                 "namespace": event.namespace,
-                # PodCreatedEvent only has pod_name and namespace
             }
 
         elif isinstance(event, PodScheduledEvent):
             message["data"] = {
                 "pod_name": event.pod_name,
                 "node_name": event.node_name,
-                # PodScheduledEvent only has pod_name and node_name
             }
 
         elif isinstance(event, PodRunningEvent):
             message["data"] = {
                 "pod_name": event.pod_name,
-                # PodRunningEvent only has container_statuses
                 "container_count": len(event.container_statuses),
             }
 
@@ -194,7 +196,6 @@ class WebSocketEventHandler:
                 "storage_type": str(event.storage_type),
             }
 
-        # All BaseEvents have metadata
         message["metadata"] = {
             "service_name": event.metadata.service_name,
             "service_version": event.metadata.service_version,
@@ -207,11 +208,11 @@ class WebSocketEventHandler:
         """Periodically cleanup stale connections"""
         while self._running:
             try:
-                # Wait 5 minutes between cleanups
                 await asyncio.sleep(300)
-
-                # Cleanup stale connections (no ping in 5 minutes)
-                cleaned = await get_connection_manager().cleanup_stale_connections(300)
+                if self.connection_manager:
+                    cleaned = await self.connection_manager.cleanup_stale_connections(300)
+                else:
+                    cleaned = 0
 
                 if cleaned > 0:
                     logger.info(f"Cleaned up {cleaned} stale WebSocket connections")
@@ -221,12 +222,10 @@ class WebSocketEventHandler:
             except Exception as e:
                 logger.error(f"Error in periodic cleanup: {e}")
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, object]:
         """Check health of WebSocket event handler"""
         try:
-            # Get connection manager stats
-            connection_manager = get_connection_manager()
-            active_connections = connection_manager.get_connection_count()
+            active_connections = self.connection_manager.get_connection_count() if self.connection_manager else 0
 
             return {
                 "healthy": True,
@@ -240,17 +239,3 @@ class WebSocketEventHandler:
                 "healthy": False,
                 "error": str(e)
             }
-
-
-class WebSocketEventHandlerSingleton:
-    _instance: Optional[WebSocketEventHandler] = None
-
-    @classmethod
-    def get_instance(cls) -> WebSocketEventHandler:
-        if cls._instance is None:
-            cls._instance = WebSocketEventHandler()
-        return cls._instance
-
-
-def get_websocket_event_handler() -> WebSocketEventHandler:
-    return WebSocketEventHandlerSingleton.get_instance()

@@ -1,10 +1,10 @@
 from unittest.mock import Mock, patch
 
 import pytest
-from app.api.dependencies import get_settings_dependency, get_db_dependency
-from app.config import Settings
-from app.db.mongodb import DatabaseManager
-from fastapi import HTTPException, Request
+
+from app.config import Settings, get_settings
+from app.core.database_context import DatabaseProvider
+from app.core.service_dependencies import DatabaseManager, get_database, get_database_manager
 
 
 class TestDependenciesFullCoverage:
@@ -14,44 +14,36 @@ class TestDependenciesFullCoverage:
             mock_settings = Mock(spec=Settings)
             mock_get_settings.return_value = mock_settings
 
-            result = get_settings_dependency()
+            result = get_settings()
 
             assert result == mock_settings
             mock_get_settings.assert_called_once()
 
-    def test_get_db_dependency_success(self) -> None:
-        mock_request = Mock(spec=Request)
-        mock_db_manager = Mock(spec=DatabaseManager)
+    @pytest.mark.asyncio
+    async def test_get_database_dependency_success(self) -> None:
+        mock_provider = Mock(spec=DatabaseProvider)
         mock_database = Mock()
+        mock_provider.database = mock_database
 
-        mock_request.app.state.db_manager = mock_db_manager
-        mock_db_manager.get_database.return_value = mock_database
-
-        result = get_db_dependency(mock_request)
+        result = await get_database(mock_provider)
 
         assert result == mock_database
-        mock_db_manager.get_database.assert_called_once()
 
-    def test_get_db_dependency_attribute_error(self) -> None:
-        mock_request = Mock(spec=Request)
-        # Remove db_manager from app.state to trigger AttributeError
-        del mock_request.app.state.db_manager
-
-        with pytest.raises(HTTPException) as exc_info:
-            get_db_dependency(mock_request)
-
-        assert exc_info.value.status_code == 500
-        assert "Database service not available" in exc_info.value.detail
-
-    def test_get_db_dependency_runtime_error(self) -> None:
-        mock_request = Mock(spec=Request)
+    @pytest.mark.asyncio
+    async def test_get_database_manager_dependency_success(self) -> None:
+        mock_provider = Mock(spec=DatabaseProvider)
         mock_db_manager = Mock(spec=DatabaseManager)
 
-        mock_request.app.state.db_manager = mock_db_manager
-        mock_db_manager.get_database.side_effect = RuntimeError("Database connection failed")
+        with patch('app.core.service_dependencies.DatabaseManager.from_provider', return_value=mock_db_manager):
+            result = await get_database_manager(mock_provider)
 
-        with pytest.raises(HTTPException) as exc_info:
-            get_db_dependency(mock_request)
+        assert result == mock_db_manager
 
-        assert exc_info.value.status_code == 500
-        assert "Database connection issue" in exc_info.value.detail
+    @pytest.mark.asyncio
+    async def test_get_database_with_provider_error(self) -> None:
+        mock_provider = Mock(spec=DatabaseProvider)
+        mock_provider.database = None
+
+        result = await get_database(mock_provider)
+
+        assert result is None

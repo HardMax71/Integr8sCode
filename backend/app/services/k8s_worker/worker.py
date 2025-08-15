@@ -10,17 +10,20 @@ from typing import Any, Dict, Optional, Set
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
 from kubernetes.client.rest import ApiException
+from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import get_settings
 from app.core.logging import logger
 from app.core.metrics import Counter, Gauge, Histogram
 from app.events.core.consumer import ConsumerConfig, UnifiedConsumer
-from app.events.core.producer import UnifiedProducer, get_producer
-from app.events.store.event_store import get_event_store
+from app.events.core.producer import UnifiedProducer, create_unified_producer
+from app.events.schema.schema_registry import SchemaRegistryManager
+from app.events.store.event_store import EventStore
 from app.schemas_avro.event_schemas import (
     EventType,
     ExecutionErrorType,
     ExecutionFailedEvent,
+    ExecutionRequestedEvent,
     ExecutionStartedEvent,
     PodCreatedEvent,
 )
@@ -41,12 +44,23 @@ class KubernetesWorker:
     5. Publishes PodCreated events
     """
 
-    def __init__(self, config: Optional[K8sWorkerConfig] = None):
+    def __init__(self,
+                 config: Optional[K8sWorkerConfig] = None,
+                 database: Optional[AsyncIOMotorDatabase] = None,
+                 producer: Optional[UnifiedProducer] = None,
+                 schema_registry_manager: Optional[SchemaRegistryManager] = None,
+                 event_store: Optional['EventStore'] = None):
         self.config = config or K8sWorkerConfig()
         settings = get_settings()
 
         # Kafka configuration
         self.kafka_servers = self.config.kafka_bootstrap_servers or settings.KAFKA_BOOTSTRAP_SERVERS
+
+        # Database
+        self._db: Optional[AsyncIOMotorDatabase] = database
+        
+        # Event store
+        self._event_store = event_store
 
         # Kubernetes clients
         self.v1: Optional[k8s_client.CoreV1Api] = None
@@ -55,12 +69,14 @@ class KubernetesWorker:
         # Components
         self.pod_builder = EventDrivenPodBuilder(namespace=self.config.namespace)
         self.consumer: Optional[IdempotentConsumerWrapper] = None
-        self.producer: Optional[UnifiedProducer] = None
+        self.producer: Optional[UnifiedProducer] = producer
+        self._producer_provided = producer is not None
 
         # State tracking
         self._running = False
         self._active_creations: Set[str] = set()
         self._creation_semaphore = asyncio.Semaphore(self.config.max_concurrent_pods)
+        self._schema_registry_manager = schema_registry_manager
 
         # Metrics
         self.pods_created = Counter(
@@ -96,12 +112,22 @@ class KubernetesWorker:
             return
 
         logger.info("Starting KubernetesWorker service...")
+        logger.info("DEBUG: About to initialize Kubernetes client")
 
         # Initialize Kubernetes client
         self._initialize_kubernetes_client()
+        logger.info("DEBUG: Kubernetes client initialized")
 
-        # Get producer
-        self.producer = await get_producer()
+        # Create producer if not provided
+        logger.info(f"Producer exists: {self.producer is not None}, "
+                    f"Schema registry: {self._schema_registry_manager is not None}")
+        if not self.producer:
+            logger.info("Creating new producer with schema registry manager")
+            self.producer = create_unified_producer(schema_registry_manager=self._schema_registry_manager)
+            await self.producer.start()
+            logger.info("Producer created and started")
+        else:
+            logger.info("Using existing producer")
 
         # Create consumer
         consumer_config = ConsumerConfig(
@@ -111,11 +137,24 @@ class KubernetesWorker:
             enable_auto_commit=False
         )
 
-        consumer = UnifiedConsumer(consumer_config)
+        consumer = UnifiedConsumer(consumer_config, self._schema_registry_manager)
 
+        # Create idempotency manager
+        from app.services.idempotency.idempotency_manager import IdempotencyConfig, IdempotencyManager
+        idempotency_config = IdempotencyConfig(
+            default_ttl_seconds=3600,
+            processing_timeout_seconds=300
+        )
+        if self._db is None:
+            raise RuntimeError("Database not provided to KubernetesWorker")
+        
+        idempotency_manager = IdempotencyManager(idempotency_config, self._db)
+        await idempotency_manager.initialize()
+        
         # Wrap with idempotency
         self.consumer = IdempotentConsumerWrapper(
             consumer=consumer,
+            idempotency_manager=idempotency_manager,
             default_key_strategy="event_based",
             default_ttl_seconds=3600,  # 1 hour
             enable_for_all_handlers=False
@@ -124,8 +163,8 @@ class KubernetesWorker:
         # Subscribe handler with idempotency
         # Use execution_id as idempotency key to prevent duplicate pod creation
         self.consumer.subscribe_idempotent_handler(
-            str(EventType.EXECUTION_STARTED),
-            self._handle_execution_started,
+            str(EventType.EXECUTION_REQUESTED),
+            self._handle_execution_requested,
             key_strategy="custom",
             custom_key_func=lambda e: f"pod_creation:{e.execution_id if hasattr(e, 'execution_id') else 'unknown'}",
             ttl_seconds=3600,
@@ -161,6 +200,10 @@ class KubernetesWorker:
         # Stop consumer
         if self.consumer:
             await self.consumer.stop()
+
+        # Stop producer if we created it
+        if self.producer and not self._producer_provided:
+            await self.producer.stop()
 
         logger.info("KubernetesWorker service stopped")
 
@@ -204,12 +247,12 @@ class KubernetesWorker:
             logger.error(f"Failed to initialize Kubernetes client: {e}")
             raise
 
-    async def _handle_execution_started(
+    async def _handle_execution_requested(
             self,
-            event: ExecutionStartedEvent,
+            event: ExecutionRequestedEvent,
             record: Any
     ) -> None:
-        """Handle execution started event by creating pod"""
+        """Handle execution requested event by creating pod"""
         execution_id = event.execution_id
 
         # Check if already processing
@@ -220,7 +263,7 @@ class KubernetesWorker:
         # Create pod asynchronously
         asyncio.create_task(self._create_pod_for_execution(event))
 
-    async def _create_pod_for_execution(self, event: ExecutionStartedEvent) -> None:
+    async def _create_pod_for_execution(self, event: ExecutionRequestedEvent) -> None:
         """Create pod for execution"""
         async with self._creation_semaphore:
             execution_id = event.execution_id
@@ -230,32 +273,14 @@ class KubernetesWorker:
             start_time = time.time()
 
             try:
-                # Get execution requested event from event store
-                event_store = get_event_store()
-                if not event_store:
-                    raise ValueError("Event store not available")
+                # We now have the ExecutionRequestedEvent directly
+                requested_event = event
 
-                requested_events = await event_store.get_execution_events(
-                    execution_id,
-                    [EventType.EXECUTION_REQUESTED]
-                )
-
-                if not requested_events or len(requested_events) == 0:
-                    raise ValueError(f"ExecutionRequestedEvent not found for execution {execution_id}")
-
-                requested_event = requested_events[0]
-
-                # Extract script content and runtime info
-                if hasattr(requested_event, 'payload') and isinstance(requested_event.payload, dict):
-                    script_content = requested_event.payload.get('script')
-                    runtime_image = requested_event.payload.get('runtime_image')
-                    language = requested_event.payload.get('language')
-                    timeout_seconds = requested_event.payload.get('timeout_seconds')
-                else:
-                    script_content = getattr(requested_event, 'script', None)
-                    runtime_image = getattr(requested_event, 'runtime_image', None)
-                    language = getattr(requested_event, 'language', None)
-                    timeout_seconds = getattr(requested_event, 'timeout_seconds', None)
+                # Extract script content and runtime info directly from the event
+                script_content = requested_event.script
+                runtime_image = requested_event.runtime_image
+                language = requested_event.language
+                timeout_seconds = requested_event.timeout_seconds
 
                 if not script_content:
                     raise ValueError(f"Script content not found for execution {execution_id}")
@@ -308,11 +333,14 @@ class KubernetesWorker:
                 if self.config.enable_network_policies:
                     network_policy = self.pod_builder.build_network_policy(
                         execution_id=execution_id,
-                        pod_name=event.pod_name,
+                        pod_name=pod.metadata.name,
                         allow_egress=True
                     )
                     await self._create_network_policy(network_policy)
 
+                # Publish ExecutionStartedEvent now that pod is created
+                await self._publish_execution_started(execution_event=event, pod=pod)
+                
                 # Publish PodCreated event
                 await self._publish_pod_created(event, pod)
 
@@ -322,7 +350,7 @@ class KubernetesWorker:
                 self.pods_created.labels(status="success", language=language).inc()
 
                 logger.info(
-                    f"Successfully created pod {event.pod_name} for execution {execution_id}. "
+                    f"Successfully created pod {pod.metadata.name} for execution {execution_id}. "
                     f"Duration: {duration:.2f}s"
                 )
 
@@ -344,14 +372,13 @@ class KubernetesWorker:
 
     async def _get_script_content(self, execution_id: str) -> Optional[str]:
         """Get script content from event store"""
-        event_store = get_event_store()
-        if not event_store:
+        if not self._event_store:
             logger.error("Event store not available")
             return None
 
         # Get execution requested event
         try:
-            events = await event_store.get_execution_events(
+            events = await self._event_store.get_execution_events(
                 execution_id,
                 [EventType.EXECUTION_REQUESTED]
             )
@@ -450,9 +477,27 @@ exec "$@"
                 # Don't fail pod creation if network policy fails
                 logger.error(f"Failed to create NetworkPolicy: {e}")
 
+    async def _publish_execution_started(
+            self,
+            execution_event: ExecutionRequestedEvent,
+            pod: k8s_client.V1Pod
+    ) -> None:
+        """Publish execution started event"""
+        event = ExecutionStartedEvent(
+            execution_id=execution_event.execution_id,
+            pod_name=pod.metadata.name,
+            node_name=pod.spec.node_name,
+            container_id=None,  # Will be set when container actually starts
+            metadata=execution_event.metadata
+        )
+        if not self.producer:
+            logger.error("Producer not initialized")
+            return
+        await self.producer.send_event(event, EventType.EXECUTION_STARTED)
+        
     async def _publish_pod_created(
             self,
-            execution_event: ExecutionStartedEvent,
+            execution_event: ExecutionRequestedEvent,
             pod: k8s_client.V1Pod
     ) -> None:
         """Publish pod created event"""
@@ -470,7 +515,7 @@ exec "$@"
 
     async def _publish_pod_creation_failed(
             self,
-            execution_event: ExecutionStartedEvent,
+            execution_event: ExecutionRequestedEvent,
             error: str
     ) -> None:
         """Publish pod creation failed event"""
@@ -516,39 +561,67 @@ exec "$@"
 
 async def run_kubernetes_worker() -> None:
     """Run the Kubernetes worker service"""
+    from motor.motor_asyncio import AsyncIOMotorClient
+
     from app.config import get_settings
-    from app.db.mongodb import DatabaseManager
-    from app.events.store.event_store import EventStore, set_event_store
-    from app.services.idempotency.idempotency_manager import IdempotencyManagerSingleton
+    from app.events.store.event_store import create_event_store
+    from app.services.idempotency import create_idempotency_manager
 
-    # Initialize database and idempotency manager
-    logger.info("Initializing database connection...")
-    settings = get_settings()
-    db_manager = DatabaseManager(settings)
-    await db_manager.connect_to_database()
-
-    logger.info("Initializing idempotency manager...")
-    await IdempotencyManagerSingleton.get_instance(db_manager)
-
-    logger.info("Initializing event store...")
-    if db_manager.db is None:
-        raise RuntimeError("Database connection not established")
-    event_store = EventStore(db_manager.db)
-    await event_store.initialize()
-    set_event_store(event_store)
-
-    config = K8sWorkerConfig()
-    worker = KubernetesWorker(config)
-
-    # Setup signal handlers
-    def signal_handler(sig: int, frame: Any) -> None:
-        logger.info(f"Received signal {sig}, initiating shutdown...")
-        asyncio.create_task(worker.stop())
-
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
+    # Initialize variables
+    db_client = None
+    idempotency_manager = None
+    worker = None
 
     try:
+        # Initialize database and idempotency manager
+        logger.info("Initializing database connection...")
+        settings = get_settings()
+        db_client = AsyncIOMotorClient(
+            settings.MONGODB_URL,
+            tz_aware=True,
+            serverSelectionTimeoutMS=5000
+        )
+        db_name = settings.PROJECT_NAME + "_test" if settings.TESTING else settings.PROJECT_NAME
+        if db_client:
+            database = db_client[db_name]
+
+            # Verify connection
+            await db_client.admin.command("ping")
+        else:
+            raise RuntimeError("Failed to create database client")
+        logger.info(f"Connected to database: {db_name}")
+
+        logger.info("Initializing idempotency manager...")
+        idempotency_manager = create_idempotency_manager(database)
+        await idempotency_manager.initialize()
+
+        logger.info("Initializing event store...")
+        event_store = create_event_store(database)
+        await event_store.initialize()
+
+        # Initialize schema registry manager
+        logger.info("Initializing schema registry...")
+        from app.events.schema.schema_registry import create_schema_registry_manager, initialize_event_schemas
+        schema_registry_manager = create_schema_registry_manager()
+        await initialize_event_schemas(schema_registry_manager)
+
+        config = K8sWorkerConfig()
+        worker = KubernetesWorker(
+            config=config,
+            database=database,
+            schema_registry_manager=schema_registry_manager,
+            event_store=event_store
+        )
+
+        # Setup signal handlers
+        def signal_handler(sig: int, frame: Any) -> None:
+            logger.info(f"Received signal {sig}, initiating shutdown...")
+            if worker:
+                asyncio.create_task(worker.stop())
+
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+
         await worker.start()
 
         # Keep running until stopped
@@ -562,9 +635,12 @@ async def run_kubernetes_worker() -> None:
     except Exception as e:
         logger.error(f"Kubernetes worker error: {e}", exc_info=True)
     finally:
-        await worker.stop()
-        await IdempotencyManagerSingleton.close_instance()
-        await db_manager.close_database_connection()
+        if worker:
+            await worker.stop()
+        if idempotency_manager:
+            await idempotency_manager.close()
+        if db_client:
+            db_client.close()
 
 
 if __name__ == "__main__":

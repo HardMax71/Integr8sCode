@@ -1,8 +1,11 @@
 import contextvars
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
+
+from app.config import get_settings
 
 correlation_id_context: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
     'correlation_id',
@@ -32,12 +35,39 @@ class CorrelationFilter(logging.Filter):
 
 
 class JSONFormatter(logging.Formatter):
+    def _sanitize_sensitive_data(self, data: str) -> str:
+        """Remove or mask sensitive information from log data."""
+        # Mask API keys, tokens, and similar sensitive data
+        patterns = [
+            # API keys and tokens
+            (r'(["\']?(?:api[_-]?)?(?:key|token|secret|password|passwd|pwd)["\']?\s*[:=]\s*["\']?)([^"\']+)(["\']?)',
+             r'\1***REDACTED***\3'),
+            # Bearer tokens
+            (r'(Bearer\s+)([A-Za-z0-9\-_]+)', r'\1***REDACTED***'),
+            # JWT tokens
+            (r'(eyJ[A-Za-z0-9\-_]+\.eyJ[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+)', r'***JWT_REDACTED***'),
+            # MongoDB URLs with credentials
+            (r'(mongodb(?:\+srv)?://[^:]+:)([^@]+)(@)', r'\1***REDACTED***\3'),
+            # Generic URLs with credentials
+            (r'(https?://[^:]+:)([^@]+)(@)', r'\1***REDACTED***\3'),
+            # Email addresses (optional - uncomment if needed)
+            # (r'([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})', r'***EMAIL_REDACTED***'),
+        ]
+        
+        for pattern, replacement in patterns:
+            data = re.sub(pattern, replacement, data, flags=re.IGNORECASE)
+        
+        return data
+
     def format(self, record: logging.LogRecord) -> str:
+        # Sanitize the message
+        message = self._sanitize_sensitive_data(record.getMessage())
+        
         log_data = {
-            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "level": record.levelname,
             "logger": record.name,
-            "message": record.getMessage(),
+            "message": message,
         }
 
         if hasattr(record, 'correlation_id'):
@@ -53,10 +83,12 @@ class JSONFormatter(logging.Formatter):
             log_data['client_host'] = record.client_host
 
         if record.exc_info:
-            log_data['exc_info'] = self.formatException(record.exc_info)
+            exc_text = self.formatException(record.exc_info)
+            log_data['exc_info'] = self._sanitize_sensitive_data(exc_text)
 
         if hasattr(record, 'stack_info') and record.stack_info:
-            log_data['stack_info'] = self.formatStack(record.stack_info)
+            stack_text = self.formatStack(record.stack_info)
+            log_data['stack_info'] = self._sanitize_sensitive_data(stack_text)
 
         return json.dumps(log_data, ensure_ascii=False)
 
@@ -74,7 +106,12 @@ def setup_logger() -> logging.Logger:
     console_handler.addFilter(correlation_filter)
 
     logger.addHandler(console_handler)
-    logger.setLevel(logging.DEBUG)
+    
+    # Get log level from configuration
+    settings = get_settings()
+    log_level_name = settings.LOG_LEVEL.upper()
+    log_level = getattr(logging, log_level_name, logging.INFO)
+    logger.setLevel(log_level)
 
     return logger
 

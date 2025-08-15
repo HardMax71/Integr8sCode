@@ -1,8 +1,7 @@
 """SSE Connection Manager for handling Server-Sent Events connections."""
 import asyncio
 from datetime import datetime, timezone
-from threading import Lock
-from typing import Any, ClassVar, Dict, Optional
+from typing import Any, Dict, Optional
 
 from fastapi import HTTPException
 
@@ -10,45 +9,27 @@ from app.config import get_settings
 from app.core.logging import logger
 from app.core.metrics import SSE_ACTIVE_CONNECTIONS, SSE_CONNECTION_DURATION
 from app.events.core.consumer import ConsumerConfig, UnifiedConsumer
-from app.services.sse_shutdown_manager import get_sse_shutdown_manager
+from app.events.schema.schema_registry import SchemaRegistryManager
+from app.services.sse_shutdown_manager import SSEShutdownManager
 
 
 class SSEConnectionManager:
-    """Manages SSE connections and Kafka consumers for execution events.
-    
-    Implemented as a thread-safe singleton without using global variables.
-    """
+    """Manages SSE connections and Kafka consumers for execution events."""
 
-    _instance: ClassVar[Optional['SSEConnectionManager']] = None
-    _lock: ClassVar[Lock] = Lock()
-
-    def __new__(cls) -> 'SSEConnectionManager':
-        """Create or return the singleton instance."""
-        if cls._instance is None:
-            with cls._lock:
-                # Double-check pattern
-                if cls._instance is None:
-                    instance = super().__new__(cls)
-                    cls._instance = instance
-        return cls._instance
-
-    def __init__(self) -> None:
-        """Initialize the SSE connection manager.
-        
-        This method is idempotent - it only initializes once.
-        """
-        # Check if already initialized
-        if hasattr(self, '_initialized'):
-            return
-
+    def __init__(
+        self,
+        schema_registry_manager: SchemaRegistryManager | None = None,
+        shutdown_manager: SSEShutdownManager | None = None
+    ) -> None:
+        """Initialize the SSE connection manager."""
         self.active_connections: Dict[str, Dict[str, Any]] = {}
         self._connection_id_counter: int = 0
         self._async_lock: asyncio.Lock = asyncio.Lock()
         self.settings = get_settings()
         self.max_connections_per_user: int = 5
-        self._shutdown_manager = get_sse_shutdown_manager()
+        self._shutdown_manager = shutdown_manager
         self._consumers: Dict[str, UnifiedConsumer] = {}
-        self._initialized = True
+        self._schema_registry_manager = schema_registry_manager
 
     async def add_connection(
         self,
@@ -159,7 +140,7 @@ class SSEConnectionManager:
                 auto_offset_reset='earliest',
                 max_poll_interval_ms=300000,
             )
-            consumer = UnifiedConsumer(config)
+            consumer = UnifiedConsumer(config, self._schema_registry_manager)
 
             await consumer.start()
             self._consumers[execution_id] = consumer
@@ -207,10 +188,20 @@ class SSEConnectionManager:
         }
 
 
-def get_sse_connection_manager() -> SSEConnectionManager:
-    """Get the SSE connection manager singleton instance.
-
+def create_sse_connection_manager(
+    schema_registry_manager: SchemaRegistryManager | None = None,
+    shutdown_manager: SSEShutdownManager | None = None
+) -> SSEConnectionManager:
+    """Factory function to create an SSE connection manager.
+    
+    Args:
+        schema_registry_manager: Optional schema registry manager
+        shutdown_manager: Optional SSE shutdown manager
+        
     Returns:
-        SSEConnectionManager instance
+        A new SSE connection manager instance
     """
-    return SSEConnectionManager()
+    return SSEConnectionManager(
+        schema_registry_manager=schema_registry_manager,
+        shutdown_manager=shutdown_manager
+    )

@@ -4,7 +4,7 @@ import os
 from dataclasses import dataclass, field
 from typing import Optional
 
-from app.schemas_avro.event_schemas import EventType, get_topic_for_event
+from app.schemas_avro.event_schemas import KafkaTopic
 
 
 @dataclass
@@ -14,7 +14,7 @@ class K8sWorkerConfig:
     # Kafka settings
     kafka_bootstrap_servers: Optional[str] = None
     consumer_group: str = "kubernetes-worker"
-    topics: list[str] = field(default_factory=lambda: [get_topic_for_event(EventType.EXECUTION_STARTED).value])
+    topics: list[str] = field(default_factory=lambda: [KafkaTopic.EXECUTION_TASKS])
 
     # Kubernetes settings
     namespace: str = os.environ.get("K8S_NAMESPACE", "integr8scode")

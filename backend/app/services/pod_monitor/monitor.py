@@ -21,7 +21,7 @@ from kubernetes.client.rest import ApiException
 from app.config import get_settings
 from app.core.logging import logger
 from app.core.metrics import Counter, Gauge, Histogram
-from app.events.core.producer import UnifiedProducer, get_producer
+from app.events.core.producer import UnifiedProducer
 from app.schemas_avro.event_schemas import BaseEvent
 from app.services.pod_monitor.config import PodMonitorConfig
 from app.services.pod_monitor.event_mapper import PodEventMapper
@@ -186,7 +186,7 @@ class PodMonitor:
     maps Kubernetes events to application events, and publishes them to Kafka.
     """
     
-    def __init__(self, config: PodMonitorConfig | None = None) -> None:
+    def __init__(self, config: PodMonitorConfig | None = None, producer: UnifiedProducer | None = None) -> None:
         """Initialize the pod monitor."""
         self.config = config or PodMonitorConfig()
         settings = get_settings()
@@ -203,6 +203,7 @@ class PodMonitor:
         
         # Components
         self._event_mapper = PodEventMapper()
+        self._unified_producer = producer
         self._producer: EventPublisher | None = None
         
         # State
@@ -233,8 +234,9 @@ class PodMonitor:
         
         # Initialize components
         self._initialize_kubernetes_client()
-        unified_producer = await get_producer()
-        self._producer = UnifiedProducerAdapter(unified_producer)
+        if not self._unified_producer:
+            raise RuntimeError("UnifiedProducer not provided to PodMonitor")
+        self._producer = UnifiedProducerAdapter(self._unified_producer)
         
         # Start monitoring
         self._state = MonitorState.RUNNING
@@ -666,8 +668,19 @@ async def create_pod_monitor(
 
 async def run_pod_monitor() -> None:
     """Run the pod monitor service."""
+    from app.events.core.producer import create_unified_producer
+    from app.events.schema.schema_registry import create_schema_registry_manager, initialize_event_schemas
+    
+    # Initialize schema registry
+    schema_registry_manager = create_schema_registry_manager()
+    await initialize_event_schemas(schema_registry_manager)
+    
+    # Create producer
+    producer = create_unified_producer(schema_registry_manager=schema_registry_manager)
+    await producer.start()
+    
     config = PodMonitorConfig()
-    monitor = PodMonitor(config)
+    monitor = PodMonitor(config, producer=producer)
     
     # Setup signal handlers
     loop = asyncio.get_running_loop()
@@ -676,6 +689,7 @@ async def run_pod_monitor() -> None:
         """Shutdown handler."""
         logger.info("Initiating graceful shutdown...")
         await monitor.stop()
+        await producer.stop()
     
     # Register signal handlers
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -696,6 +710,7 @@ async def run_pod_monitor() -> None:
         logger.error(f"Pod monitor error: {e}", exc_info=True)
     finally:
         await monitor.stop()
+        await producer.stop()
 
 
 if __name__ == "__main__":

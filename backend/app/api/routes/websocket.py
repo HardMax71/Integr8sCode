@@ -1,49 +1,32 @@
 import json
-from typing import Optional
+from enum import IntEnum
 
-from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
 from app.core.logging import logger
-from app.db.mongodb import DatabaseManager, get_database_manager
-from app.db.repositories.execution_repository import get_execution_repository
-from app.db.repositories.websocket_repository import WebSocketRepository
+from app.core.service_dependencies import WebSocketRepositoryDep
 from app.schemas_pydantic.websocket import WebSocketErrorCode
-from app.websocket.auth import WebSocketAuth
-from app.websocket.connection_manager import WebSocketConnection, get_connection_manager
+from app.websocket.connection_manager import WebSocketConnection
+
+
+class WebSocketState(IntEnum):
+    """WebSocket connection states based on the WebSocket protocol."""
+    CONNECTING = 0
+    CONNECTED = 1
+    CLOSING = 2
+    CLOSED = 3
+
 
 router = APIRouter()
-
-
-async def get_websocket_repository(
-        db_manager: DatabaseManager = Depends(get_database_manager)
-) -> WebSocketRepository:
-    """Get WebSocket repository.
-    
-    Args:
-        db_manager: Database manager instance
-        
-    Returns:
-        WebSocketRepository instance
-    """
-    connection_manager = get_connection_manager()
-    websocket_auth = WebSocketAuth(db_manager)
-    execution_repository = get_execution_repository()
-
-    return WebSocketRepository(
-        db_manager=db_manager,
-        connection_manager=connection_manager,
-        websocket_auth=websocket_auth,
-        execution_repository=execution_repository
-    )
 
 
 @router.websocket("/ws/executions")
 async def websocket_endpoint(
         websocket: WebSocket,
-        token: Optional[str] = Query(None),
-        client_id: Optional[str] = Query(None),
-        repository: WebSocketRepository = Depends(get_websocket_repository)
+        repository: WebSocketRepositoryDep,
+        token: str | None = Query(None),
+        client_id: str | None = Query(None),
 ) -> None:
     """WebSocket endpoint for execution updates.
     
@@ -53,7 +36,7 @@ async def websocket_endpoint(
         client_id: Optional client ID
         repository: WebSocket repository
     """
-    connection: Optional[WebSocketConnection] = None
+    connection: WebSocketConnection | None = None
 
     try:
         # Authenticate connection
@@ -61,7 +44,8 @@ async def websocket_endpoint(
             user_info = await repository.authenticate_connection(websocket, token)
         except Exception as e:
             logger.error(f"WebSocket authentication failed: {e}")
-            if websocket.client_state.value < 2:
+            # Only close the WebSocket if it's still open
+            if websocket.client_state.value <= WebSocketState.CONNECTED:
                 await websocket.close(code=4001, reason="Authentication failed")
             return
 
@@ -195,6 +179,11 @@ def get_demo_html() -> str:
                 }
                 
                 const token = document.getElementById('token').value;
+                if (!token) {
+                    addMessage('Please enter an authentication token', 'error');
+                    return;
+                }
+                
                 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
                 const host = window.location.host;
                 const encodedToken = encodeURIComponent(token);

@@ -108,8 +108,6 @@ async def kafka_admin():
     await admin.close()
 
 
-
-
 @pytest.fixture(scope="function")
 def mock_settings(monkeypatch):
     """Mock settings for tests"""
@@ -129,19 +127,13 @@ def mock_settings(monkeypatch):
 
 
 @pytest.fixture(scope="function")
-async def test_user():
+async def test_user(db: AsyncIOMotorDatabase):
     """Create test user for authenticated endpoints"""
     from app.schemas_pydantic.user import UserCreate
     from app.db.repositories.user_repository import UserRepository
-    from app.db.mongodb import DatabaseManager
-    from app.config import get_settings
     from passlib.context import CryptContext
 
-    settings = get_settings()
-    db_manager = DatabaseManager(settings)
-    await db_manager.connect_to_database()
-
-    user_repo = UserRepository(db_manager.db)
+    user_repo = UserRepository(db)
     pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
     test_user_data = UserCreate(
@@ -153,7 +145,7 @@ async def test_user():
     # Hash the password before creating the user
     hashed_password = pwd_context.hash(test_user_data.password)
 
-    user = await  user_repo.create_user(UserInDB(
+    user = await user_repo.create_user(UserInDB(
         username=test_user_data.username,
         email=test_user_data.email,
         role=UserRole.USER,
@@ -164,8 +156,7 @@ async def test_user():
     yield user
 
     # Cleanup
-    await db_manager.db.users.delete_one({"user_id": user.user_id})
-    await db_manager.close_database_connection()
+    await db.users.delete_one({"user_id": user.user_id})
 
 
 @pytest.fixture(scope="function")
@@ -176,7 +167,7 @@ async def auth_headers(test_user):
 
     settings = get_settings()
     security_service = SecurityService()
-    
+
     token = security_service.create_access_token(data={"sub": test_user.username})
 
     return {"Authorization": f"Bearer {token}"}

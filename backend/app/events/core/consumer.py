@@ -64,7 +64,7 @@ from app.events.kafka.metrics.metrics import (
     KAFKA_CONSUMER_LAG,
     KAFKA_CONSUMER_OFFSET,
 )
-from app.events.schema.schema_registry import get_schema_registry
+from app.events.schema.schema_registry import SchemaRegistryManager
 from app.events.schema.serialization import EventSerializer
 from app.schemas_avro.event_schemas import BaseEvent
 
@@ -168,12 +168,12 @@ class UnifiedConsumer:
     to provide a robust, feature-rich consumer for event-driven architectures.
     """
 
-    def __init__(self, config: ConsumerConfig) -> None:
+    def __init__(self, config: ConsumerConfig, schema_registry_manager: SchemaRegistryManager | None = None) -> None:
         self.config = config
         self.consumer: AIOKafkaConsumer | None = None
         self.dlq_producer: AIOKafkaProducer | None = None
-        self._schema_registry_manager = get_schema_registry()
-        self.serializer = EventSerializer()
+        self._schema_registry_manager = schema_registry_manager
+        self.serializer = EventSerializer(schema_registry_manager)
 
         # State management
         self._running = False
@@ -568,11 +568,11 @@ class UnifiedConsumer:
 
             self.metrics.messages_failed += 1
 
-            event_type = event.event_type if event else "unknown"
+            event_type_str = event.event_type if event else "unknown"
 
             EVENTS_PROCESSING_FAILED.labels(
                 topic=record.topic,
-                event_type=event_type,
+                event_type=event_type_str,
                 consumer_group=self.config.group_id,
                 error_type=type(e).__name__
             ).inc()
@@ -748,7 +748,7 @@ class UnifiedConsumer:
             self,
             error: Exception,
             record: ConsumerRecord,
-            event: BaseEvent | dict[str, Any] | None
+            event: BaseEvent | None
     ) -> None:
         """Handle processing error for a message."""
         for handler in self._error_handlers:

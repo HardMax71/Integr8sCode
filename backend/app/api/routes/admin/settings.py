@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.dependencies import require_admin
 from app.core.logging import logger
-from app.db.repositories.admin.admin_settings_repository import AdminSettingsRepository, get_admin_settings_repository
+from app.core.service_dependencies import AdminSettingsRepositoryDep
 from app.domain.admin.settings_models import SystemSettings as DomainSystemSettings
 from app.schemas_pydantic.admin_settings import SystemSettings
 from app.schemas_pydantic.user import UserResponse
@@ -12,8 +12,8 @@ router = APIRouter(prefix="/admin/settings", tags=["admin", "settings"])
 
 @router.get("/", response_model=SystemSettings)
 async def get_system_settings(
+        repository: AdminSettingsRepositoryDep,
         current_user: UserResponse = Depends(require_admin),
-        repository: AdminSettingsRepository = Depends(get_admin_settings_repository),
 ) -> SystemSettings:
     logger.info(
         "Admin retrieving system settings",
@@ -33,8 +33,8 @@ async def get_system_settings(
 @router.put("/", response_model=SystemSettings)
 async def update_system_settings(
         settings: SystemSettings,
+        repository: AdminSettingsRepositoryDep,
         current_user: UserResponse = Depends(require_admin),
-        repository: AdminSettingsRepository = Depends(get_admin_settings_repository),
 ) -> SystemSettings:
     logger.info(
         "Admin updating system settings",
@@ -65,8 +65,8 @@ async def update_system_settings(
 
 @router.post("/reset", response_model=SystemSettings)
 async def reset_system_settings(
+        repository: AdminSettingsRepositoryDep,
         current_user: UserResponse = Depends(require_admin),
-        repository: AdminSettingsRepository = Depends(get_admin_settings_repository),
 ) -> SystemSettings:
     logger.info(
         "Admin resetting system settings to defaults",

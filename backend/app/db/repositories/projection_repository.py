@@ -1,13 +1,12 @@
 import json
 from datetime import datetime
 from enum import StrEnum
-from typing import Any, Dict, List, Never, Optional, Set
+from typing import Any, NoReturn, cast
 
-from fastapi import BackgroundTasks, HTTPException, Request
+from fastapi import BackgroundTasks, HTTPException
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.core.logging import logger
-from app.db.mongodb import DatabaseManager
 from app.schemas_pydantic.projections import (
     ErrorAnalysisResponse,
     ExecutionSummaryResponse,
@@ -15,7 +14,7 @@ from app.schemas_pydantic.projections import (
     ProjectionQueryResponse,
     ProjectionStatus,
 )
-from app.services.event_projections import EventProjectionManager, EventProjectionService
+from app.services.event_projections import EventProjectionService
 
 # Python 3.12 type aliases
 type ProjectionName = str
@@ -26,9 +25,9 @@ type Version = str
 type ErrorType = str
 type Month = str
 type DateString = str
-type FilterDict = Dict[str, Any]
-type ResultDict = Dict[str, Any]
-type SortDict = Dict[str, int]
+type FilterDict = dict[str, object]
+type ResultDict = dict[str, object]
+type SortDict = dict[str, int]
 
 
 # Enums
@@ -60,29 +59,28 @@ MAX_SAMPLE_ERRORS = 5
 TOP_ERRORS_LIMIT = 10
 
 
-class ProjectionsRepository:
+class ProjectionRepository:
     """Repository for managing event projections data"""
 
-    def __init__(self, db_manager: DatabaseManager, projection_manager: EventProjectionManager) -> None:
-        self.db_manager = db_manager
-        db = db_manager.db
-        if db is None:
-            raise RuntimeError("Database not initialized")
-        self.db: AsyncIOMotorDatabase = db
-        self.projection_manager = projection_manager
-        self._projection_service: Optional[EventProjectionService] = None
+    def __init__(self, database: AsyncIOMotorDatabase) -> None:
+        self.db: AsyncIOMotorDatabase = database
+        self._projection_service: EventProjectionService | None = None
+
+    def set_projection_service(self, service: EventProjectionService) -> None:
+        """Set the projection service"""
+        self._projection_service = service
 
     async def get_projection_service(self) -> EventProjectionService:
-        """Get or initialize projection service"""
+        """Get projection service"""
         if not self._projection_service:
-            self._projection_service = await self.projection_manager.get_service(self.db_manager)
+            raise RuntimeError("Projection service not initialized")
         return self._projection_service
 
     @staticmethod
     def _build_date_filter(
-            start_date: Optional[DateString] = None,
-            end_date: Optional[DateString] = None
-    ) -> Optional[FilterDict]:
+            start_date: DateString | None = None,
+            end_date: DateString | None = None
+    ) -> FilterDict | None:
         """Build date filter for MongoDB queries."""
         if not start_date and not end_date:
             return None
@@ -95,7 +93,7 @@ class ProjectionsRepository:
         return date_filter
 
     @staticmethod
-    def _handle_error(error: Exception, operation: str) -> Never:
+    def _handle_error(error: Exception, operation: str) -> NoReturn:
         """Handle errors consistently across all methods."""
         logger.error(f"Error {operation}: {error}")
         raise HTTPException(
@@ -103,7 +101,7 @@ class ProjectionsRepository:
             detail=f"Failed to {operation}"
         ) from error
 
-    async def list_projections(self) -> List[ProjectionStatus]:
+    async def list_projections(self) -> list[ProjectionStatus]:
         """Get status of all projections"""
         try:
             projection_service = await self.get_projection_service()
@@ -120,19 +118,17 @@ class ProjectionsRepository:
 
         except Exception as e:
             self._handle_error(e, "list projections")
-            # This line is never reached due to Never return type, but mypy needs it
-            raise
 
     async def manage_projection_action(
             self,
             action: str,
-            projection_names: List[ProjectionName],
-            background_tasks: Optional[BackgroundTasks] = None
+            projection_names: list[ProjectionName],
+            background_tasks: BackgroundTasks | None = None
     ) -> ResultDict:
         """Execute management action on projections"""
         try:
             projection_service = await self.get_projection_service()
-            results: Dict[ProjectionName, str] = {}
+            results: dict[ProjectionName, str] = {}
 
             # Validate action
             try:
@@ -170,7 +166,6 @@ class ProjectionsRepository:
 
         except Exception as e:
             self._handle_error(e, "manage projections")
-            raise
 
     async def query_projection(
             self,
@@ -178,7 +173,7 @@ class ProjectionsRepository:
             filters: FilterDict,
             limit: int,
             skip: int,
-            sort: Optional[SortDict] = None
+            sort: SortDict | None = None
     ) -> ProjectionQueryResponse:
         """Query projection data"""
         try:
@@ -215,13 +210,12 @@ class ProjectionsRepository:
             raise
         except Exception as e:
             self._handle_error(e, "query projection")
-            raise
 
     async def get_execution_summary(
             self,
             user_id: UserId,
-            start_date: Optional[DateString] = None,
-            end_date: Optional[DateString] = None
+            start_date: DateString | None = None,
+            end_date: DateString | None = None
     ) -> ExecutionSummaryResponse:
         """Get execution summary for a user"""
         try:
@@ -249,7 +243,7 @@ class ProjectionsRepository:
             totals = {key: sum(func(s) for s in summaries) for key, func in aggregations.items()}
             avg_duration = totals["total_duration"] / totals["duration_count"] if totals["duration_count"] > 0 else 0
 
-            languages: Set[Language] = set()
+            languages: set[Language] = set()
             for s in summaries:
                 if langs := s.get("languages"):
                     languages.update(langs)
@@ -277,13 +271,12 @@ class ProjectionsRepository:
 
         except Exception as e:
             self._handle_error(e, "get execution summary")
-            raise
 
     async def get_error_analysis(
             self,
-            language: Optional[Language] = None,
-            start_date: Optional[DateString] = None,
-            end_date: Optional[DateString] = None,
+            language: Language | None = None,
+            start_date: DateString | None = None,
+            end_date: DateString | None = None,
             limit: int = DEFAULT_ERROR_ANALYSIS_LIMIT
     ) -> ErrorAnalysisResponse:
         """Get error analysis data"""
@@ -303,7 +296,7 @@ class ProjectionsRepository:
             errors = await cursor.to_list(None)
 
             # Aggregate error summary
-            error_summary: Dict[ErrorType, Dict[str, Any]] = {}
+            error_summary: dict[ErrorType, dict[str, object]] = {}
             for error in errors:
                 error_type: ErrorType = error["_id"]["error_type"]
                 if error_type not in error_summary:
@@ -314,19 +307,20 @@ class ProjectionsRepository:
                     }
 
                 error_summary[error_type]["total_occurrences"] += error.get("count", 0)
-                error_summary[error_type]["languages"].add(error["_id"]["language"])
+                languages_set = cast(set[str], error_summary[error_type]["languages"])
+                languages_set.add(error["_id"]["language"])
 
                 if samples := error.get("sample_errors"):
-                    error_summary[error_type]["sample_errors"].extend(samples[:2])
+                    sample_errors_list = cast(list[Any], error_summary[error_type]["sample_errors"])
+                    sample_errors_list.extend(samples[:2])
 
             # Format the summary
             for error_type in error_summary:
                 error_summary[error_type]["languages"] = sorted(
-                    list(error_summary[error_type]["languages"])
+                    list(cast(set[str], error_summary[error_type]["languages"]))
                 )
-                error_summary[error_type]["sample_errors"] = (
-                    error_summary[error_type]["sample_errors"][:MAX_SAMPLE_ERRORS]
-                )
+                sample_errors = cast(list[Any], error_summary[error_type]["sample_errors"])
+                error_summary[error_type]["sample_errors"] = sample_errors[:MAX_SAMPLE_ERRORS]
 
             return ErrorAnalysisResponse(
                 period={
@@ -342,9 +336,8 @@ class ProjectionsRepository:
 
         except Exception as e:
             self._handle_error(e, "get error analysis")
-            raise
 
-    async def get_language_usage(self, month: Optional[Month] = None) -> LanguageUsageResponse:
+    async def get_language_usage(self, month: Month | None = None) -> LanguageUsageResponse:
         """Get language usage statistics"""
         try:
             await self.get_projection_service()
@@ -358,7 +351,7 @@ class ProjectionsRepository:
             usage_data = await cursor.to_list(None)
 
             # Aggregate language data
-            language_summary: Dict[Language, Dict[str, Any]] = {}
+            language_summary: dict[Language, dict[str, object]] = {}
             for item in usage_data:
                 lang: Language = item["_id"]["language"]
                 version: Version = item["_id"]["version"]
@@ -372,31 +365,34 @@ class ProjectionsRepository:
                     }
 
                 language_summary[lang]["total_usage"] += item.get("usage_count", 0)
-                language_summary[lang]["versions"][version] = item.get("usage_count", 0)
+                versions_dict = cast(dict[str, int], language_summary[lang]["versions"])
+                versions_dict[version] = item.get("usage_count", 0)
 
                 if users := item.get("users"):
-                    language_summary[lang]["unique_users"].update(users)
+                    unique_users_set = cast(set[str], language_summary[lang]["unique_users"])
+                    unique_users_set.update(users)
 
-                last_used: Optional[datetime] = item.get("last_used")
+                last_used: datetime | None = item.get("last_used")
+                existing_last_used = cast(datetime | None, language_summary[lang]["last_used"])
                 if last_used and (
-                        not language_summary[lang]["last_used"] or
-                        last_used > language_summary[lang]["last_used"]
+                        not existing_last_used or
+                        last_used > existing_last_used
                 ):
                     language_summary[lang]["last_used"] = last_used
 
             # Format the summary
-            formatted_summary: Dict[Language, Dict[str, Any]] = {}
+            formatted_summary: dict[Language, dict[str, object]] = {}
             for lang, data in language_summary.items():
                 formatted_summary[lang] = {
                     "total_usage": data["total_usage"],
                     "versions": data["versions"],
-                    "unique_users": len(data["unique_users"]),
-                    "last_used": data["last_used"].isoformat() if data["last_used"] else None
+                    "unique_users": len(cast(set[str], data["unique_users"])),
+                    "last_used": cast(datetime, data["last_used"]).isoformat() if data["last_used"] else None
                 }
 
             sorted_languages = sorted(
                 formatted_summary.items(),
-                key=lambda x: x[1]["total_usage"],
+                key=lambda x: cast(int, x[1]["total_usage"]),
                 reverse=True
             )
 
@@ -408,11 +404,3 @@ class ProjectionsRepository:
 
         except Exception as e:
             self._handle_error(e, "get language usage")
-            raise
-
-
-def get_projections_repository(request: Request) -> ProjectionsRepository:
-    """FastAPI dependency to get projections repository"""
-    db_manager: DatabaseManager = request.app.state.db_manager
-    projection_manager: EventProjectionManager = request.app.state.projection_manager
-    return ProjectionsRepository(db_manager, projection_manager)

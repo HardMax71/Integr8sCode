@@ -3,7 +3,7 @@ import hashlib
 import json
 from datetime import datetime, timedelta, timezone
 from enum import StrEnum
-from typing import Any, Dict, Mapping, Optional, Sequence, Set
+from typing import cast
 
 from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
 from pydantic import BaseModel
@@ -11,7 +11,6 @@ from pymongo import ASCENDING, IndexModel
 from pymongo.errors import DuplicateKeyError
 
 from app.core.logging import logger
-from app.db.mongodb import DatabaseManager
 from app.schemas_avro.event_schemas import BaseEvent
 from app.services.idempotency.metrics import (
     IDEMPOTENCY_CACHE_HITS,
@@ -30,12 +29,12 @@ class IdempotencyStatus(StrEnum):
 
 class IdempotencyResult(BaseModel):
     is_duplicate: bool
-    status: Optional[IdempotencyStatus] = None
-    result: Optional[Any] = None
-    error: Optional[str] = None
-    created_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
-    processing_duration_ms: Optional[int] = None
+    status: IdempotencyStatus | None = None
+    result: object | None = None
+    error: str | None = None
+    created_at: datetime | None = None
+    completed_at: datetime | None = None
+    processing_duration_ms: int | None = None
 
 
 class IdempotencyConfig(BaseModel):
@@ -54,9 +53,8 @@ class IdempotencyKeyStrategy:
         return f"{event.event_type}:{event.event_id}"
 
     @staticmethod
-    def content_hash(event: BaseEvent, fields: Optional[Set[str]] = None) -> str:
+    def content_hash(event: BaseEvent, fields: set[str] | None = None) -> str:
         event_dict = event.model_dump()
-
         event_dict.pop("event_id", None)
         event_dict.pop("timestamp", None)
         event_dict.pop("metadata", None)
@@ -73,29 +71,23 @@ class IdempotencyKeyStrategy:
 
 
 class IdempotencyManager:
-    def __init__(self, config: IdempotencyConfig, db_manager: DatabaseManager) -> None:
+    def __init__(self, config: IdempotencyConfig, database: AsyncIOMotorDatabase) -> None:
         self.config = config
-        self.db_manager = db_manager
-        self._db: Optional[AsyncIOMotorDatabase] = None
-        self._collection: Optional[AsyncIOMotorCollection] = None
+        self.database = database
+        self._collection: AsyncIOMotorCollection | None = None
         self._initialized = False
-        self._lock_registry: Dict[str, asyncio.Lock] = {}
-        self._stats_update_task: Optional[asyncio.Task[None]] = None
+        self._lock_registry: dict[str, asyncio.Lock] = {}
+        self._stats_update_task: asyncio.Task[None] | None = None
 
     async def initialize(self) -> None:
         if self._initialized:
             return
-
         try:
-            self._db = self.db_manager.get_database()
-            self._collection = self._db[self.config.collection_name]
+            self._collection = self.database[self.config.collection_name]
 
             indexes = [
                 IndexModel([("key", ASCENDING)], unique=True),
-                IndexModel(
-                    [("created_at", ASCENDING)],
-                    expireAfterSeconds=self.config.default_ttl_seconds
-                ),
+                IndexModel([("created_at", ASCENDING)], expireAfterSeconds=self.config.default_ttl_seconds),
                 IndexModel([("status", ASCENDING)]),
                 IndexModel([("event_type", ASCENDING)])
             ]
@@ -118,7 +110,6 @@ class IdempotencyManager:
                 await self._stats_update_task
             except asyncio.CancelledError:
                 pass
-
         self._initialized = False
         logger.info("Closed idempotency manager")
 
@@ -126,8 +117,8 @@ class IdempotencyManager:
             self,
             event: BaseEvent,
             key_strategy: str,
-            custom_key: Optional[str] = None,
-            fields: Optional[Set[str]] = None
+            custom_key: str | None = None,
+            fields: set[str] | None = None
     ) -> str:
         if key_strategy == "event_based":
             key = IdempotencyKeyStrategy.event_based(event)
@@ -137,16 +128,15 @@ class IdempotencyManager:
             key = IdempotencyKeyStrategy.custom(event, custom_key)
         else:
             raise ValueError(f"Invalid key strategy: {key_strategy}")
-
         return f"{self.config.key_prefix}:{key}"
 
     async def check_and_reserve(
             self,
             event: BaseEvent,
             key_strategy: str = "event_based",
-            custom_key: Optional[str] = None,
-            ttl_seconds: Optional[int] = None,
-            fields: Optional[Set[str]] = None
+            custom_key: str | None = None,
+            ttl_seconds: int | None = None,
+            fields: set[str] | None = None
     ) -> IdempotencyResult:
         if not self._initialized:
             await self.initialize()
@@ -157,22 +147,13 @@ class IdempotencyManager:
         try:
             if self._collection is None:
                 raise ValueError("Collection not initialized")
-                
+
             existing = await self._collection.find_one({"key": full_key})
-
             if existing:
-                IDEMPOTENCY_CACHE_HITS.labels(
-                    event_type=event.event_type,
-                    operation="check_and_reserve"
-                ).inc()
-
+                IDEMPOTENCY_CACHE_HITS.labels(event_type=event.event_type, operation="check_and_reserve").inc()
                 return await self._handle_existing_key(existing, full_key, event.event_type)
 
-            IDEMPOTENCY_CACHE_MISSES.labels(
-                event_type=event.event_type,
-                operation="check_and_reserve"
-            ).inc()
-
+            IDEMPOTENCY_CACHE_MISSES.labels(event_type=event.event_type, operation="check_and_reserve").inc()
             return await self._create_new_key(full_key, event, ttl, key_strategy, custom_key, ttl_seconds, fields)
 
         except Exception as e:
@@ -181,7 +162,7 @@ class IdempotencyManager:
 
     async def _handle_existing_key(
             self,
-            existing: Dict[str, Any],
+            existing: dict[str, object],
             full_key: str,
             event_type: str
     ) -> IdempotencyResult:
@@ -189,50 +170,37 @@ class IdempotencyManager:
             return await self._handle_processing_key(existing, full_key, event_type)
 
         IDEMPOTENCY_DUPLICATES_BLOCKED.labels(event_type=event_type).inc()
-
         return IdempotencyResult(
             is_duplicate=True,
-            status=existing["status"],
+            status=cast(IdempotencyStatus, existing["status"]),
             result=existing.get("result"),
-            error=existing.get("error"),
-            created_at=existing["created_at"],
-            completed_at=existing.get("completed_at"),
-            processing_duration_ms=existing.get("processing_duration_ms")
+            error=cast(str | None, existing.get("error")),
+            created_at=cast(datetime, existing["created_at"]),
+            completed_at=cast(datetime | None, existing.get("completed_at")),
+            processing_duration_ms=cast(int | None, existing.get("processing_duration_ms"))
         )
 
     async def _handle_processing_key(
             self,
-            existing: Dict[str, Any],
+            existing: dict[str, object],
             full_key: str,
             event_type: str
     ) -> IdempotencyResult:
-        created_at = self._ensure_timezone_aware(existing["created_at"])
+        created_at = self._ensure_timezone_aware(cast(datetime, existing["created_at"]))
         now = datetime.now(timezone.utc)
 
         if now - created_at > timedelta(seconds=self.config.processing_timeout_seconds):
             logger.warning(f"Idempotency key {full_key} processing timeout, allowing retry")
             if self._collection is None:
                 raise ValueError("Collection not initialized")
-                
             await self._collection.update_one(
                 {"key": full_key},
-                {"$set": {
-                    "created_at": now,
-                    "status": IdempotencyStatus.PROCESSING
-                }}
+                {"$set": {"created_at": now, "status": IdempotencyStatus.PROCESSING}}
             )
-            return IdempotencyResult(
-                is_duplicate=False,
-                status=IdempotencyStatus.PROCESSING,
-                created_at=now
-            )
+            return IdempotencyResult(is_duplicate=False, status=IdempotencyStatus.PROCESSING, created_at=now)
 
         IDEMPOTENCY_DUPLICATES_BLOCKED.labels(event_type=event_type).inc()
-        return IdempotencyResult(
-            is_duplicate=True,
-            status=IdempotencyStatus.PROCESSING,
-            created_at=created_at
-        )
+        return IdempotencyResult(is_duplicate=True, status=IdempotencyStatus.PROCESSING, created_at=created_at)
 
     async def _create_new_key(
             self,
@@ -240,9 +208,9 @@ class IdempotencyManager:
             event: BaseEvent,
             ttl: int,
             key_strategy: str,
-            custom_key: Optional[str],
-            ttl_seconds: Optional[int],
-            fields: Optional[Set[str]]
+            custom_key: str | None,
+            ttl_seconds: int | None,
+            fields: set[str] | None
     ) -> IdempotencyResult:
         created_at = datetime.now(timezone.utc)
         doc = {
@@ -253,17 +221,11 @@ class IdempotencyManager:
             "created_at": created_at,
             "ttl_seconds": ttl
         }
-
         try:
             if self._collection is None:
                 raise ValueError("Collection not initialized")
-                
             await self._collection.insert_one(doc)
-            return IdempotencyResult(
-                is_duplicate=False,
-                status=IdempotencyStatus.PROCESSING,
-                created_at=created_at
-            )
+            return IdempotencyResult(is_duplicate=False, status=IdempotencyStatus.PROCESSING, created_at=created_at)
         except DuplicateKeyError:
             return await self.check_and_reserve(event, key_strategy, custom_key, ttl_seconds, fields)
 
@@ -275,12 +237,12 @@ class IdempotencyManager:
     async def _update_key_status(
             self,
             full_key: str,
-            existing: Dict[str, Any],
+            existing: dict[str, object],
             status: IdempotencyStatus,
-            result: Optional[Any] = None,
-            error: Optional[str] = None
+            result: object | None = None,
+            error: str | None = None
     ) -> bool:
-        created_at = self._ensure_timezone_aware(existing["created_at"])
+        created_at = self._ensure_timezone_aware(cast(datetime, existing["created_at"]))
         completed_at = datetime.now(timezone.utc)
         duration_ms = int((completed_at - created_at).total_seconds() * 1000)
 
@@ -291,10 +253,8 @@ class IdempotencyManager:
                 "processing_duration_ms": duration_ms
             }
         }
-
         if error:
             update_doc["$set"]["error"] = error
-
         if result is not None and self.config.enable_result_caching:
             result_json = json.dumps(result) if not isinstance(result, str) else result
             if len(result_json.encode()) <= self.config.max_result_size_bytes:
@@ -302,41 +262,32 @@ class IdempotencyManager:
             else:
                 logger.warning(f"Result too large to cache for key {full_key}")
 
-        if not self._collection:
+        if self._collection is None:
             raise ValueError("Collection not initialized")
-            
+
         update_result = await self._collection.update_one({"key": full_key}, update_doc)
         return update_result.modified_count > 0
 
     async def mark_completed(
             self,
             event: BaseEvent,
-            result: Optional[Any] = None,
+            result: object | None = None,
             key_strategy: str = "event_based",
-            custom_key: Optional[str] = None,
-            fields: Optional[Set[str]] = None
+            custom_key: str | None = None,
+            fields: set[str] | None = None
     ) -> bool:
         if not self._initialized:
             await self.initialize()
 
         full_key = self._generate_key(event, key_strategy, custom_key, fields)
-
         try:
             if self._collection is None:
                 raise ValueError("Collection not initialized")
-                
             existing = await self._collection.find_one({"key": full_key})
             if not existing:
                 logger.warning(f"Idempotency key {full_key} not found when marking completed")
                 return False
-
-            return await self._update_key_status(
-                full_key,
-                existing,
-                IdempotencyStatus.COMPLETED,
-                result=result
-            )
-
+            return await self._update_key_status(full_key, existing, IdempotencyStatus.COMPLETED, result=result)
         except Exception as e:
             logger.error(f"Failed to mark idempotency key completed: {e}")
             return False
@@ -346,30 +297,21 @@ class IdempotencyManager:
             event: BaseEvent,
             error: str,
             key_strategy: str = "event_based",
-            custom_key: Optional[str] = None,
-            fields: Optional[Set[str]] = None
+            custom_key: str | None = None,
+            fields: set[str] | None = None
     ) -> bool:
         if not self._initialized:
             await self.initialize()
 
         full_key = self._generate_key(event, key_strategy, custom_key, fields)
-
         try:
             if self._collection is None:
                 raise ValueError("Collection not initialized")
-                
             existing = await self._collection.find_one({"key": full_key})
             if not existing:
                 logger.warning(f"Idempotency key {full_key} not found when marking failed")
                 return False
-
-            return await self._update_key_status(
-                full_key,
-                existing,
-                IdempotencyStatus.FAILED,
-                error=error
-            )
-
+            return await self._update_key_status(full_key, existing, IdempotencyStatus.FAILED, error=error)
         except Exception as e:
             logger.error(f"Failed to mark idempotency key failed: {e}")
             return False
@@ -378,46 +320,36 @@ class IdempotencyManager:
             self,
             event: BaseEvent,
             key_strategy: str = "event_based",
-            custom_key: Optional[str] = None,
-            fields: Optional[Set[str]] = None
+            custom_key: str | None = None,
+            fields: set[str] | None = None
     ) -> bool:
         if not self._initialized:
             await self.initialize()
-
         full_key = self._generate_key(event, key_strategy, custom_key, fields)
-
         try:
             if self._collection is None:
                 raise ValueError("Collection not initialized")
-                
             result = await self._collection.delete_one({"key": full_key})
             return result.deleted_count > 0
         except Exception as e:
             logger.error(f"Failed to remove idempotency key: {e}")
             return False
 
-    async def get_stats(self) -> Dict[str, Any]:
+    async def get_stats(self) -> dict[str, object]:
         if not self._initialized:
             return {}
-
         try:
-            pipeline: Sequence[Mapping[str, Any]] = [
+            pipeline: list[dict[str, object]] = [
                 {"$match": {"key": {"$regex": f"^{self.config.key_prefix}:"}}},
-                {"$group": {
-                    "_id": "$status",
-                    "count": {"$sum": 1}
-                }}
+                {"$group": {"_id": "$status", "count": {"$sum": 1}}}
             ]
-
             status_counts = {
                 IdempotencyStatus.PROCESSING: 0,
                 IdempotencyStatus.COMPLETED: 0,
                 IdempotencyStatus.FAILED: 0
             }
-
             if self._collection is None:
                 raise ValueError("Collection not initialized")
-                
             async for doc in self._collection.aggregate(pipeline):
                 if doc["_id"] in status_counts:
                     status_counts[doc["_id"]] = doc["count"]
@@ -431,33 +363,23 @@ class IdempotencyManager:
             logger.error(f"Failed to get idempotency stats: {e}")
             return {}
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, object]:
         try:
             if self._collection is None:
                 raise ValueError("Collection not initialized")
-                
             await self._collection.find_one({}, {"_id": 1})
             stats = await self.get_stats()
-
-            return {
-                "healthy": True,
-                "stats": stats
-            }
+            return {"healthy": True, "stats": stats}
         except Exception as e:
             logger.error(f"Idempotency health check failed: {e}")
-            return {
-                "healthy": False,
-                "error": str(e)
-            }
+            return {"healthy": False, "error": str(e)}
 
     async def _update_stats_loop(self) -> None:
         while True:
             try:
                 stats = await self.get_stats()
-                IDEMPOTENCY_KEYS_ACTIVE.labels(
-                    prefix=self.config.key_prefix
-                ).set(stats.get("total_keys", 0))
-
+                total_keys = stats.get("total_keys", 0)
+                IDEMPOTENCY_KEYS_ACTIVE.labels(prefix=self.config.key_prefix).set(float(cast(int, total_keys)))
                 await asyncio.sleep(60)
             except asyncio.CancelledError:
                 break
@@ -466,32 +388,10 @@ class IdempotencyManager:
                 await asyncio.sleep(300)
 
 
-class IdempotencyManagerSingleton:
-    _instance: Optional[IdempotencyManager] = None
-
-    @classmethod
-    async def get_instance(
-            cls,
-            db_manager: Optional[DatabaseManager] = None
-    ) -> IdempotencyManager:
-        if cls._instance is None:
-            if db_manager is None:
-                raise ValueError("db_manager must be provided for first initialization")
-            config = IdempotencyConfig()
-            cls._instance = IdempotencyManager(config, db_manager)
-            await cls._instance.initialize()
-        return cls._instance
-
-    @classmethod
-    async def close_instance(cls) -> None:
-        if cls._instance:
-            await cls._instance.close()
-            cls._instance = None
-
-
-def get_idempotency_manager() -> Optional[IdempotencyManager]:
-    return IdempotencyManagerSingleton._instance
-
-
-async def close_idempotency_manager() -> None:
-    await IdempotencyManagerSingleton.close_instance()
+def create_idempotency_manager(
+        database: AsyncIOMotorDatabase,
+        config: IdempotencyConfig | None = None
+) -> IdempotencyManager:
+    if config is None:
+        config = IdempotencyConfig()
+    return IdempotencyManager(config, database)

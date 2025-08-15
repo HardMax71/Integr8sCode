@@ -1,10 +1,8 @@
-from typing import Optional
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.dependencies import require_admin
 from app.core.logging import logger
-from app.db.repositories.admin.admin_users_repository import AdminUsersRepository, get_admin_users_repository
+from app.core.service_dependencies import AdminUserRepositoryDep
 from app.domain.admin.user_models import (
     PasswordReset,
     UserRole,
@@ -25,12 +23,12 @@ router = APIRouter(prefix="/admin/users", tags=["admin", "users"])
 
 @router.get("/", response_model=UserListResponse)
 async def list_users(
+        user_repo: AdminUserRepositoryDep,
         limit: int = Query(default=100, le=1000),
         offset: int = Query(default=0, ge=0),
-        search: Optional[str] = None,
-        role: Optional[str] = None,
+        search: str | None = None,
+        role: str | None = None,
         current_user: UserResponse = Depends(require_admin),
-        user_repo: AdminUsersRepository = Depends(get_admin_users_repository),
 ) -> UserListResponse:
     logger.info(
         "Admin listing users",
@@ -72,8 +70,8 @@ async def list_users(
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
         user_id: str,
+        user_repo: AdminUserRepositoryDep,
         current_user: UserResponse = Depends(require_admin),
-        user_repo: AdminUsersRepository = Depends(get_admin_users_repository),
 ) -> UserResponse:
     logger.info(
         "Admin getting user details",
@@ -101,8 +99,8 @@ async def get_user(
 async def update_user(
         user_id: str,
         user_update: UserUpdate,
+        user_repo: AdminUserRepositoryDep,
         current_user: UserResponse = Depends(require_admin),
-        user_repo: AdminUsersRepository = Depends(get_admin_users_repository),
 ) -> UserResponse:
     logger.info(
         "Admin updating user",
@@ -145,8 +143,8 @@ async def update_user(
 @router.delete("/{user_id}", response_model=MessageResponse)
 async def delete_user(
         user_id: str,
+        user_repo: AdminUserRepositoryDep,
         current_user: UserResponse = Depends(require_admin),
-        user_repo: AdminUsersRepository = Depends(get_admin_users_repository),
 ) -> MessageResponse:
     logger.info(
         "Admin deleting user",
@@ -184,8 +182,8 @@ async def delete_user(
 async def reset_user_password(
         user_id: str,
         password_request: PasswordResetRequest,
+        user_repo: AdminUserRepositoryDep,
         current_user: UserResponse = Depends(require_admin),
-        user_repo: AdminUsersRepository = Depends(get_admin_users_repository),
 ) -> MessageResponse:
     logger.info(
         "Admin resetting user password",

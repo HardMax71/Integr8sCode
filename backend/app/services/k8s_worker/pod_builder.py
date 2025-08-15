@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional
 from kubernetes import client as k8s_client
 
 from app.runtime_registry import LANGUAGE_SPECS
-from app.schemas_avro.event_schemas import ExecutionStartedEvent
+from app.schemas_avro.event_schemas import ExecutionRequestedEvent
 
 
 class EventDrivenPodBuilder:
@@ -14,14 +14,14 @@ class EventDrivenPodBuilder:
 
     def build_pod_manifest(
             self,
-            event: ExecutionStartedEvent,
+            event: ExecutionRequestedEvent,
             script_content: str,
             config: Dict[str, Any]
     ) -> k8s_client.V1Pod:
-        """Build pod manifest from execution started event"""
+        """Build pod manifest from execution requested event"""
 
         execution_id = str(event.execution_id)
-        pod_name = event.pod_name
+        pod_name = f"exec-{execution_id}"
         # Get container image from config (passed from k8s worker)
         container_image = config.get("container_image")
         if not container_image:

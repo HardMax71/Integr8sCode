@@ -2,7 +2,6 @@ from datetime import datetime
 from typing import Any, Dict, List
 
 from app.core.logging import logger
-from app.db.mongodb import DatabaseManager
 from app.schemas_pydantic.user import User
 from app.schemas_pydantic.user_settings import (
     EditorSettings,
@@ -19,11 +18,9 @@ from app.services.user_settings_service import UserSettingsService
 class UserSettingsRepository:
     def __init__(
             self,
-            db_manager: DatabaseManager,
             event_service: KafkaEventService,
             settings_service: UserSettingsService
     ):
-        self.db_manager = db_manager
         self.event_service = event_service
         self.settings_service = settings_service
 

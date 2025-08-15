@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from app.core.health_checker import HealthCheck, HealthCheckConfig, HealthCheckResult, HealthCheckType, HealthStatus
 from app.core.logging import logger
-from app.dlq.manager import get_dlq_manager
+from app.dlq.manager import DLQManager
 
 
 class DLQHealthCheck(HealthCheck):
@@ -12,6 +12,7 @@ class DLQHealthCheck(HealthCheck):
 
     def __init__(
         self,
+        dlq_manager: DLQManager | None = None,
         warning_threshold: int = 100,
         critical_threshold: int = 1000,
         max_age_hours: int = 24,
@@ -26,6 +27,7 @@ class DLQHealthCheck(HealthCheck):
             ),
             critical=False
         )
+        self.dlq_manager = dlq_manager
         self.warning_threshold = warning_threshold
         self.critical_threshold = critical_threshold
         self.max_age_hours = max_age_hours
@@ -33,8 +35,14 @@ class DLQHealthCheck(HealthCheck):
     async def check(self) -> HealthCheckResult:
         """Check DLQ health"""
         try:
-            dlq_manager = await get_dlq_manager()
-            stats = await dlq_manager.get_dlq_stats()
+            if not self.dlq_manager:
+                return HealthCheckResult(
+                    name=self.name,
+                    status=HealthStatus.UNHEALTHY,
+                    message="DLQ manager not initialized"
+                )
+            
+            stats = await self.dlq_manager.get_dlq_stats()
 
             # Calculate total messages
             status_counts = stats.get("by_status", {})
@@ -107,7 +115,7 @@ class DLQHealthCheck(HealthCheck):
 class DLQProcessingHealthCheck(HealthCheck):
     """Health check for DLQ processing"""
 
-    def __init__(self) -> None:
+    def __init__(self, dlq_manager: DLQManager | None = None) -> None:
         super().__init__(
             name="dlq_processing",
             check_type=HealthCheckType.LIVENESS,
@@ -117,14 +125,20 @@ class DLQProcessingHealthCheck(HealthCheck):
             ),
             critical=False
         )
+        self.dlq_manager = dlq_manager
 
     async def check(self) -> HealthCheckResult:
         """Check if DLQ processing is working"""
         try:
-            dlq_manager = await get_dlq_manager()
+            if not self.dlq_manager:
+                return HealthCheckResult(
+                    name=self.name,
+                    status=HealthStatus.UNHEALTHY,
+                    message="DLQ manager not initialized"
+                )
 
             # Check if manager is running
-            if not dlq_manager._running:
+            if not self.dlq_manager._running:
                 return HealthCheckResult(
                     name=self.name,
                     status=HealthStatus.UNHEALTHY,
@@ -135,31 +149,31 @@ class DLQProcessingHealthCheck(HealthCheck):
             tasks_healthy = True
             task_status = {}
 
-            if dlq_manager._process_task:
-                task_status["process_task"] = not dlq_manager._process_task.done()
-                if dlq_manager._process_task.done():
+            if self.dlq_manager._process_task:
+                task_status["process_task"] = not self.dlq_manager._process_task.done()
+                if self.dlq_manager._process_task.done():
                     tasks_healthy = False
 
-            if dlq_manager._monitor_task:
-                task_status["monitor_task"] = not dlq_manager._monitor_task.done()
-                if dlq_manager._monitor_task.done():
+            if self.dlq_manager._monitor_task:
+                task_status["monitor_task"] = not self.dlq_manager._monitor_task.done()
+                if self.dlq_manager._monitor_task.done():
                     tasks_healthy = False
 
             # Check Kafka connections
             kafka_healthy = True
             kafka_status = {}
 
-            if dlq_manager.consumer:
+            if self.dlq_manager.consumer:
                 try:
                     # Simple check - get partitions
-                    partitions = dlq_manager.consumer.partitions_for_topic(dlq_manager.dlq_topic)
+                    partitions = self.dlq_manager.consumer.partitions_for_topic(self.dlq_manager.dlq_topic)
                     kafka_status["consumer"] = "connected"
                     kafka_status["partitions"] = str(len(partitions) if partitions else 0)
                 except Exception as e:
                     kafka_healthy = False
                     kafka_status["consumer"] = f"error: {str(e)}"
 
-            if dlq_manager.producer:
+            if self.dlq_manager.producer:
                 kafka_status["producer"] = "connected"
 
             # Determine overall status
@@ -180,7 +194,7 @@ class DLQProcessingHealthCheck(HealthCheck):
                 details={
                     "tasks": task_status,
                     "kafka": kafka_status,
-                    "dlq_topic": dlq_manager.dlq_topic
+                    "dlq_topic": self.dlq_manager.dlq_topic
                 }
             )
 

@@ -4,15 +4,16 @@ from unittest.mock import Mock
 
 import jwt
 import pytest
+from fastapi import HTTPException
+
 from app.core.security import (
     SecurityService,
     get_token_from_cookie,
     validate_csrf_token,
     security_service
 )
-from app.db.repositories.user_repository import get_user_repository
+from app.core.service_dependencies import get_user_repository
 from app.schemas_pydantic.user import UserInDB
-from fastapi import HTTPException
 
 
 class TestSecurityService:
@@ -172,7 +173,8 @@ class TestValidateCSRFToken:
             ({}, {}, 403, "CSRF token missing"),
             ({"csrf_token": "cookie-token"}, {"X-CSRF-Token": "different-header-token"}, 403, "CSRF token invalid"),
             (
-            {"csrf_token": "matching-csrf-token"}, {"X-CSRF-Token": "matching-csrf-token"}, None, "matching-csrf-token")
+                {"csrf_token": "matching-csrf-token"}, {"X-CSRF-Token": "matching-csrf-token"}, None,
+                "matching-csrf-token")
         ]
 
         for extra_cookies, headers, expected_status, expected_result in validation_cases:

@@ -13,26 +13,31 @@ import time
 from collections.abc import Coroutine
 from typing import Any, TypeAlias
 
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+
 from app.config import get_settings
 from app.core.logging import logger
 from app.core.metrics import Counter, Gauge, Histogram
-from app.db.mongodb import DatabaseManager
 from app.events.core.consumer import ConsumerConfig, UnifiedConsumer
-from app.events.core.producer import UnifiedProducer, get_producer
-from app.events.store.event_store import get_event_store
+from app.events.core.producer import UnifiedProducer, create_unified_producer
+from app.events.schema.schema_registry import (
+    SchemaRegistryManager,
+    create_schema_registry_manager,
+    initialize_event_schemas,
+)
+from app.events.store.event_store import EventStore, create_event_store
 from app.schemas_avro.event_schemas import (
     BaseEvent,
     EventType,
     ExecutionErrorType,
     ExecutionFailedEvent,
     ExecutionRequestedEvent,
-    ExecutionStartedEvent,
     get_topic_for_event,
 )
 from app.services.coordinator.queue_manager import QueueManager, QueuePriority
 from app.services.coordinator.rate_limiter import RateLimitConfig, RateLimiter
 from app.services.coordinator.resource_manager import ResourceAllocation, ResourceManager
-from app.services.idempotency.idempotency_manager import IdempotencyManagerSingleton
+from app.services.idempotency import create_idempotency_manager
 from app.services.idempotency.middleware import IdempotentConsumerWrapper
 
 EventHandler: TypeAlias = Coroutine[Any, Any, None]
@@ -57,6 +62,9 @@ class ExecutionCoordinator:
             consumer_group: str = "execution-coordinator",
             max_concurrent_scheduling: int = 10,
             scheduling_interval_seconds: float = 0.5,
+            producer: UnifiedProducer | None = None,
+            schema_registry_manager: SchemaRegistryManager | None = None,
+            event_store: EventStore | None = None,
     ):
         settings = get_settings()
 
@@ -91,10 +99,13 @@ class ExecutionCoordinator:
         # Kafka components
         self.consumer: UnifiedConsumer | None = None
         self.idempotent_consumer: IdempotentConsumerWrapper | None = None
-        self.producer: UnifiedProducer | None = None
+        self.producer: UnifiedProducer | None = producer
+        self._producer_provided = producer is not None
 
         # Database
-        self.db_manager: DatabaseManager | None = None
+        self.db_client: AsyncIOMotorClient | None = None
+        self.database: AsyncIOMotorDatabase | None = None
+        self._event_store = event_store
 
         # Scheduling
         self.max_concurrent_scheduling = max_concurrent_scheduling
@@ -106,6 +117,7 @@ class ExecutionCoordinator:
         self._scheduling_task: asyncio.Task | None = None
         self._active_executions: set[str] = set()
         self._execution_resources: ExecutionMap = {}
+        self._schema_registry_manager = schema_registry_manager
 
         # Metrics
         self.executions_scheduled = Counter(
@@ -142,14 +154,26 @@ class ExecutionCoordinator:
 
         # Initialize database connection
         settings = get_settings()
-        self.db_manager = DatabaseManager(settings)
-        await self.db_manager.connect_to_database()
+        self.db_client = AsyncIOMotorClient(
+            settings.MONGODB_URL,
+            tz_aware=True,
+            serverSelectionTimeoutMS=5000
+        )
+        db_name = settings.PROJECT_NAME + "_test" if settings.TESTING else settings.PROJECT_NAME
+        self.database = self.db_client[db_name]
+
+        # Verify connection
+        await self.db_client.admin.command("ping")
+        logger.info(f"Connected to database: {db_name}")
 
         # Initialize idempotency manager
-        await IdempotencyManagerSingleton.get_instance(self.db_manager)
+        self.idempotency_manager = create_idempotency_manager(self.database)
+        await self.idempotency_manager.initialize()
 
-        # Get producer
-        self.producer = await get_producer()
+        # Create producer if not provided
+        if not self.producer:
+            self.producer = create_unified_producer()
+            await self.producer.start()
 
         # Create consumer
         config = ConsumerConfig(
@@ -165,11 +189,12 @@ class ExecutionCoordinator:
             max_poll_interval_ms=300000  # 5 minutes
         )
 
-        self.consumer = UnifiedConsumer(config)
+        self.consumer = UnifiedConsumer(config, self._schema_registry_manager)
 
         # Create idempotent consumer wrapper
         self.idempotent_consumer = IdempotentConsumerWrapper(
             consumer=self.consumer,
+            idempotency_manager=self.idempotency_manager,
             default_key_strategy="event_based",
             default_ttl_seconds=3600,
             enable_for_all_handlers=False  # We'll register handlers individually
@@ -239,9 +264,17 @@ class ExecutionCoordinator:
 
         await self.queue_manager.stop()
 
+        # Close idempotency manager
+        if hasattr(self, 'idempotency_manager') and self.idempotency_manager:
+            await self.idempotency_manager.close()
+        
+        # Stop producer if we created it
+        if self.producer and not self._producer_provided:
+            await self.producer.stop()
+        
         # Close database connection
-        if self.db_manager:
-            await self.db_manager.close_database_connection()
+        if self.db_client:
+            self.db_client.close()
 
         logger.info(
             f"ExecutionCoordinator service stopped. "
@@ -359,9 +392,8 @@ class ExecutionCoordinator:
         recoverable = getattr(event, 'recoverable', False)
         if recoverable and execution_id not in self._active_executions:
             # Get original event from event store if available
-            event_store = get_event_store()
-            if event_store:
-                events = await event_store.get_execution_events(
+            if self._event_store:
+                events = await self._event_store.get_execution_events(
                     execution_id,
                     [EventType.EXECUTION_REQUESTED]
                 )
@@ -485,29 +517,22 @@ class ExecutionCoordinator:
             request: ExecutionRequestedEvent,
             allocation: ResourceAllocation
     ) -> None:
-        """Publish execution started event for workers"""
-        logger.info(f"Publishing ExecutionStartedEvent for {request.execution_id}")
+        """Forward execution request to k8s-worker via EXECUTION_TASKS topic"""
+        logger.info(f"Forwarding ExecutionRequestedEvent to k8s-worker for {request.execution_id}")
 
-        # ExecutionStartedEvent requires: execution_id, pod_name, and metadata
-        event = ExecutionStartedEvent(
-            execution_id=request.execution_id,
-            pod_name=f"exec-{request.execution_id}",
-            node_name=None,  # Will be set by Kubernetes
-            container_id=None,  # Will be set when container starts
-            metadata=request.metadata
-        )
-
-        # Send to worker queue
-        logger.info(f"Sending event to execution.started topic for {request.execution_id}")
+        # Forward the original request to the k8s-worker via EXECUTION_TASKS topic
+        logger.info(f"Sending event to execution_tasks topic for {request.execution_id}")
         if not self.producer:
             logger.error("Producer not initialized")
             return
+        
+        from app.schemas_avro.event_schemas import KafkaTopic
         await self.producer.send_event(
-            event=event,
-            topic=get_topic_for_event(EventType.EXECUTION_STARTED).value,
+            event=request,
+            topic=KafkaTopic.EXECUTION_TASKS,
             key=str(request.execution_id)
         )
-        logger.info(f"ExecutionStartedEvent published successfully for {request.execution_id}")
+        logger.info(f"ExecutionRequestedEvent forwarded successfully to k8s-worker for {request.execution_id}")
 
     async def _publish_rate_limit_exceeded(
             self,
@@ -601,7 +626,39 @@ class ExecutionCoordinator:
 
 async def run_coordinator() -> None:
     """Run the execution coordinator service"""
-    coordinator = ExecutionCoordinator()
+    # Initialize schema registry
+    logger.info("Initializing schema registry for coordinator...")
+    schema_registry_manager = create_schema_registry_manager()
+    await initialize_event_schemas(schema_registry_manager)
+    
+    # Initialize producer
+    logger.info("Initializing Kafka producer for coordinator...")
+    producer = create_unified_producer(schema_registry_manager=schema_registry_manager)
+    await producer.start()
+    
+    # Initialize database and event store
+    settings = get_settings()
+    db_client: AsyncIOMotorClient = AsyncIOMotorClient(
+        settings.MONGODB_URL,
+        tz_aware=True,
+        serverSelectionTimeoutMS=5000
+    )
+    db_name = settings.PROJECT_NAME + "_test" if settings.TESTING else settings.PROJECT_NAME
+    database = db_client[db_name]
+    
+    # Initialize event store
+    logger.info("Initializing event store for coordinator...")
+    event_store = create_event_store(
+        db=database,
+        ttl_days=90
+    )
+    await event_store.initialize()
+    
+    coordinator = ExecutionCoordinator(
+        producer=producer,
+        schema_registry_manager=schema_registry_manager,
+        event_store=event_store
+    )
 
     # Setup signal handlers
     def signal_handler(sig: int, frame: Any) -> None:
@@ -626,6 +683,8 @@ async def run_coordinator() -> None:
         logger.error(f"Coordinator error: {e}", exc_info=True)
     finally:
         await coordinator.stop()
+        await producer.stop()
+        db_client.close()
 
 
 if __name__ == "__main__":

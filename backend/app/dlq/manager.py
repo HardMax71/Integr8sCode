@@ -3,16 +3,15 @@
 import asyncio
 import json
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence
+from typing import Any, Callable, Mapping, Optional, Sequence
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
-from motor.motor_asyncio import AsyncIOMotorCollection
+from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
 from pymongo import ASCENDING, DESCENDING, IndexModel
 
 from app.config import get_settings
 from app.core.logging import logger
 from app.core.metrics import Counter, Gauge, Histogram
-from app.db.mongodb import DatabaseManager
 from app.domain.dlq.dlq_models import (
     DLQFields,
     DLQMessage,
@@ -122,12 +121,12 @@ class DLQManager:
 
     def __init__(
             self,
-            db_manager: Optional[DatabaseManager] = None,
+            database: Optional[AsyncIOMotorDatabase] = None,
             dlq_topic: str = "dead-letter-queue",
             retry_topic_suffix: str = "-retry",
             default_retry_policy: Optional[RetryPolicy] = None,
     ):
-        self.db_manager = db_manager
+        self.database = database
         self.dlq_topic = dlq_topic
         self.retry_topic_suffix = retry_topic_suffix
         self.default_retry_policy = default_retry_policy or RetryPolicy(
@@ -144,13 +143,13 @@ class DLQManager:
         self._monitor_task: Optional[asyncio.Task] = None
 
         # Topic-specific retry policies
-        self._retry_policies: Dict[str, RetryPolicy] = {}
+        self._retry_policies: dict[str, RetryPolicy] = {}
 
         # Message filters
-        self._filters: List[Callable[[DLQMessage], bool]] = []
+        self._filters: list[Callable[[DLQMessage], bool]] = []
 
         # Retry callbacks
-        self._callbacks: Dict[str, List[Callable]] = {
+        self._callbacks: dict[str, list[Callable]] = {
             "before_retry": [],
             "after_retry": [],
             "on_discard": [],
@@ -184,10 +183,9 @@ class DLQManager:
         await self.producer.start()
 
         # Initialize MongoDB collection
-        if not self.db_manager:
-            raise RuntimeError("DatabaseManager not provided to DLQManager")
-        db = self.db_manager.get_database()
-        self.dlq_collection = db.dlq_messages
+        if self.database is None:
+            raise RuntimeError("Database not provided to DLQManager")
+        self.dlq_collection = self.database.dlq_messages
 
         # Create indexes
         await self._create_indexes()
@@ -612,7 +610,7 @@ class DLQManager:
         await self._retry_message(message)
         return True
 
-    async def get_dlq_stats(self) -> Dict[str, Any]:
+    async def get_dlq_stats(self) -> dict[str, Any]:
         """Get DLQ statistics"""
         if self.dlq_collection is None:
             return {}
@@ -661,37 +659,26 @@ class DLQManager:
         }
 
 
-class DLQManagerSingleton:
-    """Singleton wrapper for DLQManager"""
-    _instance: Optional[DLQManager] = None
-    _db_manager: Optional[DatabaseManager] = None
-
-    @classmethod
-    def set_database_manager(cls, db_manager: DatabaseManager) -> None:
-        """Set the database manager for the singleton"""
-        cls._db_manager = db_manager
-
-    @classmethod
-    async def get_instance(cls) -> DLQManager:
-        if cls._instance is None:
-            if cls._db_manager is None:
-                raise RuntimeError("DatabaseManager not set for DLQManagerSingleton")
-            cls._instance = DLQManager(db_manager=cls._db_manager)
-            await cls._instance.start()
-        return cls._instance
-
-    @classmethod
-    async def close_instance(cls) -> None:
-        if cls._instance:
-            await cls._instance.stop()
-            cls._instance = None
-
-
-async def get_dlq_manager() -> DLQManager:
-    """Get DLQ manager instance"""
-    return await DLQManagerSingleton.get_instance()
-
-
-async def close_dlq_manager() -> None:
-    """Close DLQ manager"""
-    await DLQManagerSingleton.close_instance()
+def create_dlq_manager(
+    database: AsyncIOMotorDatabase,
+    dlq_topic: str = "dead-letter-queue",
+    retry_topic_suffix: str = "-retry",
+    default_retry_policy: Optional[RetryPolicy] = None,
+) -> DLQManager:
+    """Factory function to create a DLQ manager.
+    
+    Args:
+        database: MongoDB database instance
+        dlq_topic: Kafka topic for dead letter queue
+        retry_topic_suffix: Suffix for retry topics
+        default_retry_policy: Default retry policy for messages
+        
+    Returns:
+        A new DLQ manager instance
+    """
+    return DLQManager(
+        database=database,
+        dlq_topic=dlq_topic,
+        retry_topic_suffix=retry_topic_suffix,
+        default_retry_policy=default_retry_policy,
+    )

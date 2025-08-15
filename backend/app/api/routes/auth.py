@@ -6,10 +6,11 @@ from fastapi.security import OAuth2PasswordRequestForm
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from app.api.dependencies import get_current_user
 from app.config import get_settings
 from app.core.logging import logger
 from app.core.security import security_service
-from app.db.repositories.user_repository import UserRepository, get_user_repository
+from app.core.service_dependencies import UserRepositoryDep
 from app.schemas_pydantic.user import UserCreate, UserInDB, UserResponse
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
@@ -21,8 +22,8 @@ limiter = Limiter(key_func=get_remote_address)
 async def login(
         request: Request,
         response: Response,
+        user_repo: UserRepositoryDep,
         form_data: OAuth2PasswordRequestForm = Depends(),
-        user_repo: UserRepository = Depends(get_user_repository),
 ) -> Dict[str, str]:
     logger.info(
         "Login attempt",
@@ -122,7 +123,7 @@ async def login(
 async def register(
         request: Request,
         user: UserCreate,
-        user_repo: UserRepository = Depends(get_user_repository),
+        user_repo: UserRepositoryDep,
 ) -> UserResponse:
     logger.info(
         "Registration attempt",
@@ -184,7 +185,7 @@ async def register(
 @limiter.limit("30/minute")
 async def verify_token(
         request: Request,
-        current_user: UserInDB = Depends(security_service.get_current_user),
+        current_user: UserResponse = Depends(get_current_user),
 ) -> Dict[str, Union[str, bool]]:
     logger.info(
         "Token verification attempt",
@@ -238,7 +239,7 @@ async def verify_token(
 @limiter.limit("30/minute")
 async def get_current_user_info(
         request: Request,
-        current_user: UserInDB = Depends(security_service.get_current_user),
+        current_user: UserResponse = Depends(get_current_user),
 ) -> UserResponse:
     logger.info(
         "Get current user info",
@@ -250,7 +251,7 @@ async def get_current_user_info(
         },
     )
 
-    return UserResponse.model_validate(current_user.model_dump())
+    return current_user
 
 
 @router.post("/logout")

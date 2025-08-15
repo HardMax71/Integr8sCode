@@ -11,7 +11,6 @@ from pymongo import ASCENDING, DESCENDING, IndexModel, UpdateOne
 
 from app.core.logging import logger
 from app.core.metrics import EVENT_PROJECTION_UPDATES
-from app.db.mongodb import DatabaseManager
 from app.schemas_avro.event_schemas import EventType
 
 
@@ -50,12 +49,8 @@ class ProjectionDefinition:
 class EventProjectionService:
     """Manages event projections for query optimization"""
 
-    def __init__(self, db_manager: DatabaseManager) -> None:
-        self.db_manager = db_manager
-        db = db_manager.db
-        if db is None:
-            raise ValueError("Database not initialized")
-        self.db: AsyncIOMotorDatabase = db
+    def __init__(self, database: AsyncIOMotorDatabase) -> None:
+        self.db: AsyncIOMotorDatabase = database
         self.projections: Dict[str, ProjectionDefinition] = {}
         self.projection_tasks: Dict[str, asyncio.Task] = {}
         self._initialized = False
@@ -752,23 +747,3 @@ class EventProjectionService:
 
         self.projection_tasks.clear()
         logger.info("Event projection service shut down")
-
-
-class EventProjectionManager:
-    """Manages the lifecycle of EventProjectionService instance"""
-
-    def __init__(self) -> None:
-        self._service: Optional[EventProjectionService] = None
-
-    async def get_service(self, db_manager: DatabaseManager) -> EventProjectionService:
-        """Get or create projection service instance"""
-        if self._service is None:
-            self._service = EventProjectionService(db_manager)
-            await self._service.initialize()
-        return self._service
-
-    async def shutdown(self) -> None:
-        """Shutdown the projection service"""
-        if self._service:
-            await self._service.shutdown()
-            self._service = None

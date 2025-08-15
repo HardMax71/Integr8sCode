@@ -5,42 +5,48 @@ import contextlib
 import json
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from datetime import datetime, timezone
-from typing import Any
+
+from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.core.logging import logger
 from app.core.metrics import SSE_MESSAGES_SENT
-from app.db.mongodb import DatabaseManager
 from app.events.core.consumer import UnifiedConsumer
 from app.schemas_avro.event_schemas import BaseEvent, EventType
 from app.schemas_pydantic.sse import SSEHealthResponse
-from app.services.sse_connection_manager import get_sse_connection_manager
+from app.services.sse_connection_manager import SSEConnectionManager
 from app.services.sse_shutdown_manager import SSEShutdownManager
 
-type SSEEvent = dict[str, Any]
-type EventData = dict[str, Any]
+type SSEEvent = dict[str, object]
+type EventData = dict[str, object]
 type DisconnectCheck = Callable[[], Awaitable[bool]]
-type MessageProcessor = Callable[[str | None, dict, Any], Awaitable[None]]
+type MessageProcessor = Callable[[str | None, dict, object], Awaitable[None]]
 
 
 class SSERepository:
     """Repository for handling SSE operations and event streaming."""
 
-    def __init__(self, db_manager: DatabaseManager) -> None:
-        self.db_manager = db_manager
-        self.connection_manager = get_sse_connection_manager()
+    def __init__(self, database: AsyncIOMotorDatabase, connection_manager: SSEConnectionManager | None = None) -> None:
+        self.database = database
+        self.connection_manager = connection_manager
 
     async def create_kafka_event_stream(
             self,
             execution_id: str,
             user_id: str,
             connection_id: str,
-            shutdown_manager: SSEShutdownManager
+            shutdown_manager: SSEShutdownManager,
+            connection_manager: SSEConnectionManager | None = None
     ) -> AsyncGenerator[SSEEvent, None]:
         """Create a Kafka event stream for execution monitoring."""
+        # Use provided connection manager or fallback to instance one
+        conn_mgr = connection_manager or self.connection_manager
+        if not conn_mgr:
+            raise RuntimeError("No connection manager available")
+            
         heartbeat_task: asyncio.Task[None] | None = None
         try:
-            await self.connection_manager.add_connection(execution_id, user_id, connection_id)
-            consumer = await self.connection_manager.get_or_create_consumer(execution_id)
+            await conn_mgr.add_connection(execution_id, user_id, connection_id)
+            consumer = await conn_mgr.get_or_create_consumer(execution_id)
 
             heartbeat_task = asyncio.create_task(
                 self._heartbeat_generator(execution_id, shutdown_manager, interval=10)
@@ -66,7 +72,7 @@ class SSERepository:
                 with contextlib.suppress(asyncio.CancelledError):
                     await heartbeat_task
 
-            await self.connection_manager.remove_connection(execution_id, connection_id)
+            await conn_mgr.remove_connection(execution_id, connection_id)
             logger.info(f"SSE connection closed: execution_id={execution_id}")
 
     async def create_notification_stream(
@@ -102,14 +108,7 @@ class SSERepository:
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
-        db = self.db_manager.db
-        if not db:
-            yield self._format_event("error", {
-                "error": "Database not available",
-                "execution_id": execution_id,
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            })
-            return
+        db = self.database
 
         previous_status: str | None = None
         terminal_states = {"completed", "error", "failed"}
@@ -162,7 +161,7 @@ class SSERepository:
             shutdown_manager: SSEShutdownManager
     ) -> SSEHealthResponse:
         """Get SSE service health status."""
-        connection_info = self.connection_manager.get_active_connections_info()
+        connection_info = self.connection_manager.get_active_connections_info() if self.connection_manager else {}
 
         return SSEHealthResponse(
             status="draining" if shutdown_manager.is_shutting_down() else "healthy",
@@ -190,9 +189,7 @@ class SSERepository:
             execution_id: str
     ) -> EventData | None:
         """Fetch current execution status from database."""
-        db = self.db_manager.db
-        if not db:
-            return None
+        db = self.database
 
         execution = await db.executions.find_one({"execution_id": execution_id})
 
@@ -218,7 +215,7 @@ class SSERepository:
             str(EventType.EXECUTION_TIMEOUT)
         }
 
-        async def message_handler(event: BaseEvent | dict[str, Any], record: Any) -> Any:
+        async def message_handler(event: BaseEvent | dict[str, object], record: object) -> None:
             # Handle both BaseEvent and dict formats
             if isinstance(event, dict):
                 value = event
@@ -241,7 +238,8 @@ class SSERepository:
             while not shutdown_manager.is_shutting_down():
                 try:
                     event_data = await asyncio.wait_for(event_queue.get(), timeout=1.0)
-                    event_type = event_data.get('event_type', 'unknown')
+                    event_type_obj = event_data.get('event_type', 'unknown')
+                    event_type = str(event_type_obj)
 
                     yield self._format_event(event_type, {
                         "event_id": event_data.get('event_id'),

@@ -2,8 +2,9 @@ import asyncio
 from collections.abc import AsyncGenerator
 
 import pytest
+
 from app.core.security import security_service
-from app.db.repositories.saved_script_repository import get_saved_script_repository
+from app.core.service_dependencies import get_saved_script_repository
 from app.schemas_pydantic.saved_script import SavedScriptCreate
 from app.services.saved_script_service import SavedScriptService
 
@@ -265,7 +266,6 @@ class TestSavedScriptService:
         assert len(set(script_ids)) == 3
 
     def test_saved_script_service_can_be_instantiated(self, db: AsyncGenerator) -> None:
-        from app.db.repositories.saved_script_repository import get_saved_script_repository
 
         saved_script_repo = get_saved_script_repository(db)
         service = SavedScriptService(saved_script_repo)

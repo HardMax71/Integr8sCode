@@ -110,7 +110,12 @@ class PodEventMapper:
         )
 
         # Collect events from mappers
-        events = []
+        events: list[BaseEvent] = []
+
+        # Check for timeout first - if pod timed out, only return timeout event
+        if timeout_event := self._check_timeout(ctx):
+            events.append(timeout_event)
+            return events  # Don't process other events if timed out
 
         # Phase-based mappers
         for mapper in self._phase_mappers.get(phase, []):
@@ -121,10 +126,6 @@ class PodEventMapper:
         for mapper in self._event_type_mappers.get(event_type, []):
             if event := mapper(ctx):
                 events.append(event)
-
-        # Always check for timeout
-        if timeout_event := self._check_timeout(ctx):
-            events.append(timeout_event)
 
         return events
 
@@ -231,6 +232,17 @@ class PodEventMapper:
         # Check if container actually succeeded despite pod failure
         if self._all_containers_succeeded(ctx.pod):
             return self._map_completed(ctx)
+        
+        # Also check if pod failed due to deadline but container completed
+        if ctx.pod.status and ctx.pod.status.reason == "DeadlineExceeded":
+            # Check if any container completed successfully
+            for status in (ctx.pod.status.container_statuses or []):
+                if (status.state and
+                    status.state.terminated and
+                    status.state.terminated.exit_code == 0 and
+                    status.state.terminated.reason == "Completed"):
+                    # Container completed successfully, treat as completion not failure
+                    return self._map_completed(ctx)
 
         return self._map_failed(ctx)
 
@@ -266,13 +278,24 @@ class PodEventMapper:
 
     def _check_timeout(self, ctx: PodContext) -> ExecutionTimeoutEvent | None:
         """Check if pod exceeded active deadline"""
-        # Check pod status
+        # First check if the container actually completed successfully
+        if ctx.pod.status and ctx.pod.status.container_statuses:
+            # Check if any container completed successfully (exit code 0)
+            for status in ctx.pod.status.container_statuses:
+                if (status.state and
+                    status.state.terminated and
+                    status.state.terminated.exit_code == 0 and
+                    status.state.terminated.reason == "Completed"):
+                    # Container completed successfully, not a real timeout
+                    return None
+        
+        # Check pod status for timeout
         is_timeout = (
                 ctx.pod.status and
                 ctx.pod.status.reason == "DeadlineExceeded"
         )
 
-        # Check container status
+        # Check container status for timeout
         if not is_timeout and ctx.pod.status and ctx.pod.status.container_statuses:
             is_timeout = any(
                 status.state and

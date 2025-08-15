@@ -1,7 +1,6 @@
 from typing import Dict, Any, Tuple
 
 from app.core.logging import logger
-from app.services.kubernetes_service import KubernetesServiceManager
 
 
 class MockPodStatus:
@@ -22,8 +21,7 @@ class MockV1Api:
 class MockKubernetesService:
     NAMESPACE = "default"
 
-    def __init__(self, manager: KubernetesServiceManager):
-        self.manager = manager
+    def __init__(self):
         self.settings = None
         self._is_healthy = True
         self._active_pods: Dict[str, Any] = {}
@@ -70,5 +68,4 @@ class MockKubernetesService:
 
 
 def get_mock_kubernetes_service() -> MockKubernetesService:
-    manager = KubernetesServiceManager()
-    return MockKubernetesService(manager)
+    return MockKubernetesService()

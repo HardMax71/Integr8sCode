@@ -33,10 +33,10 @@ class SSEShutdownManager:
     """
 
     def __init__(
-        self,
-        drain_timeout: float = 30.0,
-        notification_timeout: float = 5.0,
-        force_close_timeout: float = 10.0
+            self,
+            drain_timeout: float = 30.0,
+            notification_timeout: float = 5.0,
+            force_close_timeout: float = 10.0
     ):
         self.drain_timeout = drain_timeout
         self.notification_timeout = notification_timeout
@@ -66,10 +66,10 @@ class SSEShutdownManager:
         )
 
     async def register_connection(
-        self,
-        execution_id: str,
-        connection_id: str,
-        generator: Any
+            self,
+            execution_id: str,
+            connection_id: str,
+            generator: Any
     ) -> bool:
         """
         Register a new SSE connection.
@@ -354,28 +354,23 @@ class SSEShutdownManager:
             await asyncio.sleep(0.1)
 
 
-class SSEShutdownManagerSingleton:
-    """Singleton wrapper for SSEShutdownManager"""
-    _instance: Optional[SSEShutdownManager] = None
-
-    @classmethod
-    def get_instance(cls) -> SSEShutdownManager:
-        if cls._instance is None:
-            cls._instance = SSEShutdownManager()
-        return cls._instance
-
-    @classmethod
-    async def reset_instance(cls) -> None:
-        if cls._instance and cls._instance.is_shutting_down():
-            await cls._instance.wait_for_shutdown()
-        cls._instance = None
-
-
-def get_sse_shutdown_manager() -> SSEShutdownManager:
-    """Get SSE shutdown manager instance"""
-    return SSEShutdownManagerSingleton.get_instance()
-
-
-async def reset_sse_shutdown_manager() -> None:
-    """Reset SSE shutdown manager (for testing)"""
-    await SSEShutdownManagerSingleton.reset_instance()
+def create_sse_shutdown_manager(
+        drain_timeout: float = 30.0,
+        notification_timeout: float = 5.0,
+        force_close_timeout: float = 10.0
+) -> SSEShutdownManager:
+    """Factory function to create an SSE shutdown manager.
+    
+    Args:
+        drain_timeout: Time to wait for connections to close gracefully
+        notification_timeout: Time to wait for shutdown notifications to be sent
+        force_close_timeout: Time before force closing connections
+        
+    Returns:
+        A new SSE shutdown manager instance
+    """
+    return SSEShutdownManager(
+        drain_timeout=drain_timeout,
+        notification_timeout=notification_timeout,
+        force_close_timeout=force_close_timeout
+    )

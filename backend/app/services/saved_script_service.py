@@ -1,11 +1,6 @@
 from datetime import datetime, timezone
 
-from fastapi import Depends
-
-from app.db.repositories.saved_script_repository import (
-    SavedScriptRepository,
-    get_saved_script_repository,
-)
+from app.db.repositories import SavedScriptRepository
 from app.schemas_pydantic.saved_script import (
     SavedScriptCreate,
     SavedScriptInDB,
@@ -43,9 +38,3 @@ class SavedScriptService:
 
     async def list_saved_scripts(self, user_id: str) -> list[SavedScriptInDB]:
         return await self.saved_script_repo.list_saved_scripts(user_id)
-
-
-def get_saved_script_service(
-        saved_script_repo: SavedScriptRepository = Depends(get_saved_script_repository),
-) -> SavedScriptService:
-    return SavedScriptService(saved_script_repo)

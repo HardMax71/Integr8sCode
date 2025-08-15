@@ -1,6 +1,6 @@
 import asyncio
 from datetime import datetime, timezone
-from typing import Any, Callable, ClassVar, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
 from pymongo import ASCENDING, DESCENDING, IndexModel
@@ -15,6 +15,7 @@ from app.events.core.metrics import (
     QUERY_DURATION,
     STORE_DURATION,
 )
+from app.events.schema.schema_registry import SchemaRegistryManager
 from app.schemas_avro.event_schemas import BaseEvent, EventType, KafkaTopic, deserialize_event
 
 
@@ -654,7 +655,8 @@ class EventStoreConsumer:
             topics: List[KafkaTopic],
             group_id: str = GroupId.EVENT_STORE_CONSUMER,
             batch_size: int = 100,
-            batch_timeout_seconds: float = 5.0
+            batch_timeout_seconds: float = 5.0,
+            schema_registry_manager: Optional[SchemaRegistryManager] = None
     ):
         self.event_store = event_store
         self.topics = topics
@@ -662,6 +664,7 @@ class EventStoreConsumer:
         self.batch_size = batch_size
         self.batch_timeout = batch_timeout_seconds
         self.consumer: Optional[UnifiedConsumer] = None
+        self.schema_registry_manager = schema_registry_manager
         self._batch_buffer: List[BaseEvent] = []
         self._batch_lock = asyncio.Lock()
         self._last_batch_time = asyncio.get_event_loop().time()
@@ -684,7 +687,7 @@ class EventStoreConsumer:
             max_poll_records=self.batch_size
         )
 
-        self.consumer = UnifiedConsumer(config)
+        self.consumer = UnifiedConsumer(config, self.schema_registry_manager)
 
         # Register handlers
         self.consumer.register_handler("*", self._handle_event)
@@ -734,6 +737,7 @@ class EventStoreConsumer:
             # Check if batch is full
             if len(self._batch_buffer) >= self.batch_size:
                 await self._flush_batch()
+            return None
 
     async def _handle_error(self, error: Exception, record: Any = None, event: Any = None) -> None:
         """Handle processing errors"""
@@ -781,58 +785,57 @@ class EventStoreConsumer:
                 await self.consumer._commit_offsets()
 
 
-class EventStoreSingleton:
-    """Singleton wrapper for EventStore and EventStoreConsumer"""
-    _event_store: ClassVar[Optional[EventStore]] = None
-    _event_store_consumer: ClassVar[Optional[EventStoreConsumer]] = None
-
-    @classmethod
-    def get_event_store(cls) -> Optional[EventStore]:
-        return cls._event_store
-
-    @classmethod
-    def set_event_store(cls, store: EventStore) -> None:
-        cls._event_store = store
-
-    @classmethod
-    async def start_consumer(cls, db: AsyncIOMotorDatabase,
-                             topics: List[KafkaTopic],
-                             ttl_days: int = 90) -> EventStoreConsumer:
-        cls._event_store = EventStore(db, ttl_days=ttl_days)
-        cls._event_store_consumer = EventStoreConsumer(
-            cls._event_store,
-            topics,
-            group_id=GroupId.EVENT_STORE_CONSUMER
-        )
-        await cls._event_store_consumer.start()
-        return cls._event_store_consumer
-
-    @classmethod
-    async def stop_consumer(cls) -> None:
-        if cls._event_store_consumer:
-            await cls._event_store_consumer.stop()
-            cls._event_store_consumer = None
-
-
-def get_event_store() -> Optional[EventStore]:
-    """Get event store instance"""
-    return EventStoreSingleton.get_event_store()
-
-
-def set_event_store(store: EventStore) -> None:
-    """Set event store instance"""
-    EventStoreSingleton.set_event_store(store)
-
-
-async def start_event_store_consumer(
+def create_event_store(
         db: AsyncIOMotorDatabase,
+        collection_name: str = "events",
+        ttl_days: int = 90,
+        batch_size: int = 100
+) -> EventStore:
+    """Factory function to create an EventStore instance.
+    
+    Args:
+        db: MongoDB database instance
+        collection_name: Name of the collection to store events
+        ttl_days: Time-to-live for events in days
+        batch_size: Batch size for bulk operations
+        
+    Returns:
+        A new EventStore instance
+    """
+    return EventStore(
+        db=db,
+        collection_name=collection_name,
+        ttl_days=ttl_days,
+        batch_size=batch_size
+    )
+
+
+def create_event_store_consumer(
+        event_store: EventStore,
         topics: List[KafkaTopic],
-        ttl_days: int = 90
+        group_id: str = GroupId.EVENT_STORE_CONSUMER,
+        batch_size: int = 100,
+        batch_timeout_seconds: float = 5.0,
+        schema_registry_manager: Optional[SchemaRegistryManager] = None
 ) -> EventStoreConsumer:
-    """Start event store consumer"""
-    return await EventStoreSingleton.start_consumer(db, topics, ttl_days)
-
-
-async def stop_event_store_consumer() -> None:
-    """Stop event store consumer"""
-    await EventStoreSingleton.stop_consumer()
+    """Factory function to create an EventStoreConsumer instance.
+    
+    Args:
+        event_store: EventStore instance for storing events
+        topics: List of Kafka topics to consume from
+        group_id: Kafka consumer group ID
+        batch_size: Batch size for processing
+        batch_timeout_seconds: Timeout for batch processing
+        schema_registry_manager: Optional schema registry manager
+        
+    Returns:
+        A new EventStoreConsumer instance
+    """
+    return EventStoreConsumer(
+        event_store=event_store,
+        topics=topics,
+        group_id=group_id,
+        batch_size=batch_size,
+        batch_timeout_seconds=batch_timeout_seconds,
+        schema_registry_manager=schema_registry_manager
+    )

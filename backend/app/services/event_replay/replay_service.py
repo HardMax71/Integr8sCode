@@ -10,9 +10,8 @@ from pydantic import BaseModel, Field
 
 from app.core.logging import logger
 from app.core.tracing import SpanKind, trace_span
-from app.db.mongodb import DatabaseManager
-from app.events.core.producer import UnifiedProducer, get_producer
-from app.events.store.event_store import EventStore, get_event_store
+from app.events.core.producer import UnifiedProducer
+from app.events.store.event_store import EventStore
 from app.schemas_avro.event_schemas import BaseEvent, EventType, build_event_type_mapping
 from app.services.event_replay.metrics import (
     ACTIVE_REPLAYS,
@@ -147,33 +146,25 @@ class EventReplayService:
         EventType.POD_FAILED: "pod-events",
     }
 
-    def __init__(self, db_manager: Optional[DatabaseManager] = None) -> None:
-        self.db_manager = db_manager
+    def __init__(
+        self,
+        database: AsyncIOMotorDatabase,
+        producer: UnifiedProducer,
+        event_store: EventStore
+    ) -> None:
         self._sessions: Dict[str, ReplaySession] = {}
         self._active_tasks: Dict[str, asyncio.Task] = {}
-        self._producer: Optional[UnifiedProducer] = None
-        self._event_store: Optional[EventStore] = None
-        self._db: Optional[AsyncIOMotorDatabase] = None
+        self._producer = producer
+        self._event_store = event_store
+        self._db = database
         self._callbacks: Dict[ReplayTarget, Callable] = {}
         self._file_locks: Dict[str, asyncio.Lock] = {}
-        self._initialized = False
-
-    async def initialize(self) -> None:
-        if self._initialized:
-            return
-
-        self._producer = await get_producer()
-        self._event_store = get_event_store()
-
-        if not self.db_manager:
-            raise RuntimeError("DatabaseManager not provided to EventReplayService")
-
-        self._db = self.db_manager.get_database()
-        await self._create_indexes()
         self._initialize_event_type_mapping()
-
-        self._initialized = True
         logger.info("Event replay service initialized")
+
+    async def initialize_indexes(self) -> None:
+        """Initialize database indexes - should be called during startup"""
+        await self._create_indexes()
 
     async def _create_indexes(self) -> None:
         if self._db is None:
@@ -614,25 +605,3 @@ class EventReplayService:
 
         logger.info(f"Cleaned up {removed} old replay sessions")
         return removed
-
-
-class EventReplayServiceSingleton:
-    _instance: Optional[EventReplayService] = None
-    _db_manager: Optional[DatabaseManager] = None
-
-    @classmethod
-    def set_database_manager(cls, db_manager: DatabaseManager) -> None:
-        cls._db_manager = db_manager
-
-    @classmethod
-    async def get_instance(cls) -> EventReplayService:
-        if cls._instance is None:
-            if cls._db_manager is None:
-                raise RuntimeError("DatabaseManager not set for EventReplayServiceSingleton")
-            cls._instance = EventReplayService(db_manager=cls._db_manager)
-            await cls._instance.initialize()
-        return cls._instance
-
-
-async def get_replay_service() -> EventReplayService:
-    return await EventReplayServiceSingleton.get_instance()

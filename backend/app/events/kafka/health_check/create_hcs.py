@@ -1,4 +1,4 @@
-from typing import List, Set
+from typing import Any, List, Optional, Set
 
 from app.config import get_settings
 from app.core.health_checker import HealthCheck
@@ -11,7 +11,7 @@ from app.events.kafka.health_check.schema_registry_healthcheck import KafkaSchem
 from app.events.kafka.health_check.topics_healthcheck import KafkaTopicsHealthCheck
 
 
-async def create_kafka_health_checks() -> List[HealthCheck]:
+async def create_kafka_health_checks(kafka_producer: Optional[Any] = None) -> List[HealthCheck]:
     """Create all Kafka health checks"""
     settings = get_settings()
 
@@ -30,7 +30,7 @@ async def create_kafka_health_checks() -> List[HealthCheck]:
         ),
 
         # Producer health
-        KafkaProducerHealthCheck(),
+        KafkaProducerHealthCheck(producer=kafka_producer),
 
         # Circuit breakers
         KafkaCircuitBreakerHealthCheck()

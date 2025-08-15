@@ -1,9 +1,9 @@
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies import require_admin
-from app.db.repositories.replay_repository import ReplayRepository, get_replay_repository
+from app.core.service_dependencies import ReplayRepositoryDep
 from app.schemas_pydantic.replay import (
     CleanupResponse,
     ReplayRequest,
@@ -18,8 +18,8 @@ router = APIRouter(prefix="/replay", tags=["Event Replay"])
 @router.post("/sessions", response_model=ReplayResponse)
 async def create_replay_session(
         request: ReplayRequest,
+        repository: ReplayRepositoryDep,
         current_user: dict = Depends(require_admin),
-        repository: ReplayRepository = Depends(get_replay_repository)
 ) -> ReplayResponse:
     """Create a new replay session"""
     return await repository.create_session(
@@ -44,8 +44,8 @@ async def create_replay_session(
 @router.post("/sessions/{session_id}/start", response_model=ReplayResponse)
 async def start_replay_session(
         session_id: str,
-        current_user: dict = Depends(require_admin),
-        repository: ReplayRepository = Depends(get_replay_repository)
+        repository: ReplayRepositoryDep,
+        current_user: dict = Depends(require_admin)
 ) -> ReplayResponse:
     """Start a replay session"""
     return await repository.start_session(session_id)
@@ -54,8 +54,8 @@ async def start_replay_session(
 @router.post("/sessions/{session_id}/pause", response_model=ReplayResponse)
 async def pause_replay_session(
         session_id: str,
-        current_user: dict = Depends(require_admin),
-        repository: ReplayRepository = Depends(get_replay_repository)
+        repository: ReplayRepositoryDep,
+        current_user: dict = Depends(require_admin)
 ) -> ReplayResponse:
     """Pause a running replay session"""
     return await repository.pause_session(session_id)
@@ -64,8 +64,8 @@ async def pause_replay_session(
 @router.post("/sessions/{session_id}/resume", response_model=ReplayResponse)
 async def resume_replay_session(
         session_id: str,
-        current_user: dict = Depends(require_admin),
-        repository: ReplayRepository = Depends(get_replay_repository)
+        repository: ReplayRepositoryDep,
+        current_user: dict = Depends(require_admin)
 ) -> ReplayResponse:
     """Resume a paused replay session"""
     return await repository.resume_session(session_id)
@@ -74,29 +74,29 @@ async def resume_replay_session(
 @router.post("/sessions/{session_id}/cancel", response_model=ReplayResponse)
 async def cancel_replay_session(
         session_id: str,
-        current_user: dict = Depends(require_admin),
-        repository: ReplayRepository = Depends(get_replay_repository)
+        repository: ReplayRepositoryDep,
+        current_user: dict = Depends(require_admin)
 ) -> ReplayResponse:
     """Cancel a replay session"""
     return await repository.cancel_session(session_id)
 
 
-@router.get("/sessions", response_model=List[SessionSummary])
+@router.get("/sessions", response_model=list[SessionSummary])
 async def list_replay_sessions(
+        repository: ReplayRepositoryDep,
         status: Optional[ReplayStatus] = Query(None),
         limit: int = Query(100, ge=1, le=1000),
-        current_user: dict = Depends(require_admin),
-        repository: ReplayRepository = Depends(get_replay_repository)
-) -> List[SessionSummary]:
-    """List replay sessions with optional filtering"""
+        current_user: dict = Depends(require_admin)
+) -> list[SessionSummary]:
+    """list replay sessions with optional filtering"""
     return repository.list_sessions(status=status, limit=limit)
 
 
 @router.get("/sessions/{session_id}", response_model=ReplaySession)
 async def get_replay_session(
         session_id: str,
-        current_user: dict = Depends(require_admin),
-        repository: ReplayRepository = Depends(get_replay_repository)
+        repository: ReplayRepositoryDep,
+        current_user: dict = Depends(require_admin)
 ) -> ReplaySession:
     """Get details of a specific replay session"""
     return repository.get_session(session_id)
@@ -104,9 +104,9 @@ async def get_replay_session(
 
 @router.post("/cleanup", response_model=CleanupResponse)
 async def cleanup_old_sessions(
+        repository: ReplayRepositoryDep,
         older_than_hours: int = Query(24, ge=1),
-        current_user: dict = Depends(require_admin),
-        repository: ReplayRepository = Depends(get_replay_repository)
+        current_user: dict = Depends(require_admin)
 ) -> CleanupResponse:
     """Clean up old replay sessions"""
     return await repository.cleanup_old_sessions(older_than_hours)

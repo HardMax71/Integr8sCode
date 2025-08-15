@@ -1,12 +1,9 @@
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends
 
 from app.api.dependencies import require_admin
-from app.db.repositories.projections_repository import (
-    ProjectionsRepository,
-    get_projections_repository,
-)
+from app.core.service_dependencies import ProjectionRepositoryDep
 from app.schemas_pydantic.projections import (
     ErrorAnalysisResponse,
     ExecutionSummaryResponse,
@@ -21,11 +18,11 @@ from app.schemas_pydantic.user import UserResponse
 router = APIRouter(prefix="/projections", tags=["projections"])
 
 
-@router.get("/", response_model=List[ProjectionStatus])
+@router.get("/", response_model=list[ProjectionStatus])
 async def list_projections(
-        current_user: UserResponse = Depends(require_admin),
-        repository: ProjectionsRepository = Depends(get_projections_repository)
-) -> List[ProjectionStatus]:
+        repository: ProjectionRepositoryDep,
+        current_user: UserResponse = Depends(require_admin)
+) -> list[ProjectionStatus]:
     """List all projections and their status"""
     return await repository.list_projections()
 
@@ -34,9 +31,9 @@ async def list_projections(
 async def manage_projections(
         request: ProjectionActionRequest,
         background_tasks: BackgroundTasks,
-        current_user: UserResponse = Depends(require_admin),
-        repository: ProjectionsRepository = Depends(get_projections_repository)
-) -> Dict[str, Any]:
+        repository: ProjectionRepositoryDep,
+        current_user: UserResponse = Depends(require_admin)
+) -> dict[str, Any]:
     """Manage projection actions (start, stop, rebuild)"""
     return await repository.manage_projection_action(
         action=request.action,
@@ -48,8 +45,8 @@ async def manage_projections(
 @router.post("/query", response_model=ProjectionQueryResponse)
 async def query_projection(
         request: ProjectionQueryRequest,
-        current_user: UserResponse = Depends(require_admin),
-        repository: ProjectionsRepository = Depends(get_projections_repository)
+        repository: ProjectionRepositoryDep,
+        current_user: UserResponse = Depends(require_admin)
 ) -> ProjectionQueryResponse:
     """Query projection data"""
     return await repository.query_projection(
@@ -64,10 +61,10 @@ async def query_projection(
 @router.get("/execution-summary/{user_id}", response_model=ExecutionSummaryResponse)
 async def get_execution_summary(
         user_id: str,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        current_user: UserResponse = Depends(require_admin),
-        repository: ProjectionsRepository = Depends(get_projections_repository)
+        repository: ProjectionRepositoryDep,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        current_user: UserResponse = Depends(require_admin)
 ) -> ExecutionSummaryResponse:
     """Get execution summary for a user"""
     return await repository.get_execution_summary(
@@ -79,12 +76,12 @@ async def get_execution_summary(
 
 @router.get("/error-analysis", response_model=ErrorAnalysisResponse)
 async def get_error_analysis(
-        language: Optional[str] = None,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
+        repository: ProjectionRepositoryDep,
+        language: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
         limit: int = 50,
-        current_user: UserResponse = Depends(require_admin),
-        repository: ProjectionsRepository = Depends(get_projections_repository)
+        current_user: UserResponse = Depends(require_admin)
 ) -> ErrorAnalysisResponse:
     """Get error analysis from projections"""
     return await repository.get_error_analysis(
@@ -97,9 +94,9 @@ async def get_error_analysis(
 
 @router.get("/language-usage", response_model=LanguageUsageResponse)
 async def get_language_usage(
-        month: Optional[str] = None,
-        current_user: UserResponse = Depends(require_admin),
-        repository: ProjectionsRepository = Depends(get_projections_repository)
+        repository: ProjectionRepositoryDep,
+        month: str | None = None,
+        current_user: UserResponse = Depends(require_admin)
 ) -> LanguageUsageResponse:
     """Get language usage statistics"""
     return await repository.get_language_usage(month=month)

@@ -23,6 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.config import get_settings
 from app.core.logging import logger
 from app.events.core.consumer import ConsumerConfig, UnifiedConsumer
+from app.events.schema.schema_registry import SchemaRegistryManager
 from app.schemas_avro.event_schemas import BaseEvent
 
 # Type aliases for handlers
@@ -986,7 +987,8 @@ class ConsumerGroup:
             group_id: str,
             topics: list[str],
             num_consumers: int = 1,
-            config_template: ConsumerConfig | None = None
+            config_template: ConsumerConfig | None = None,
+            schema_registry_manager: SchemaRegistryManager | None = None
     ) -> None:
         self.group_id = group_id
         self.topics = topics
@@ -994,6 +996,7 @@ class ConsumerGroup:
         self.config_template = config_template or ConsumerConfig()
         self.consumers: list[UnifiedConsumer] = []
         self._lock = asyncio.Lock()
+        self._schema_registry_manager = schema_registry_manager
 
     async def start(self) -> None:
         """Start all consumers in the group."""
@@ -1015,7 +1018,7 @@ class ConsumerGroup:
                 object.__setattr__(config, "group_id", self.group_id)
                 object.__setattr__(config, "topics", self.topics)
 
-                consumer = UnifiedConsumer(config)
+                consumer = UnifiedConsumer(config, self._schema_registry_manager)
                 self.consumers.append(consumer)
                 tasks.append(consumer.start())
 
@@ -1054,7 +1057,7 @@ class ConsumerGroup:
                     object.__setattr__(config, "group_id", self.group_id)
                     object.__setattr__(config, "topics", self.topics)
 
-                    consumer = UnifiedConsumer(config)
+                    consumer = UnifiedConsumer(config, self._schema_registry_manager)
                     self.consumers.append(consumer)
                     tasks.append(consumer.start())
 

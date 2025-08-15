@@ -5,9 +5,9 @@ from typing import Any, Dict
 
 from app.config import get_settings
 from app.core.logging import logger
-from app.db.mongodb import DatabaseManager
 from app.db.repositories.event_repository import EventRepository
 from app.schemas_avro.event_schemas import EventType
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 
 # Define projections
 PROJECTIONS = [
@@ -192,10 +192,10 @@ PROJECTIONS = [
 ]
 
 
-async def create_projection(db_manager: DatabaseManager, projection: Dict[str, Any]) -> None:
+async def create_projection(database: AsyncIOMotorDatabase, projection: Dict[str, Any]) -> None:
     """Create a single projection"""
     try:
-        event_repo = EventRepository(db_manager)
+        event_repo = EventRepository(database)
 
         logger.info(f"Creating projection: {projection['name']}")
 
@@ -206,10 +206,7 @@ async def create_projection(db_manager: DatabaseManager, projection: Dict[str, A
         )
 
         # Create indexes on output collection
-        db = db_manager.db
-        if db is None:
-            raise RuntimeError("Database not initialized")
-        output_coll = db[projection["output_collection"]]
+        output_coll = database[projection["output_collection"]]
 
         if projection["name"] == "execution_summary":
             await output_coll.create_index([("user_id", 1)])
@@ -232,42 +229,50 @@ async def create_projection(db_manager: DatabaseManager, projection: Dict[str, A
         raise
 
 
-async def refresh_projections(db_manager: DatabaseManager) -> None:
+async def refresh_projections(database: AsyncIOMotorDatabase) -> None:
     """Refresh all projections"""
     for projection in PROJECTIONS:
-        await create_projection(db_manager, projection)
+        await create_projection(database, projection)
 
 
-async def setup_projection_refresh_job(db_manager: DatabaseManager) -> None:
+async def setup_projection_refresh_job(database: AsyncIOMotorDatabase) -> None:
     """Setup a scheduled job to refresh projections"""
     # This would typically be done with a task scheduler like Celery or APScheduler
     # For now, we'll just create the projections once
-    await refresh_projections(db_manager)
+    await refresh_projections(database)
 
 
 async def main() -> None:
     """Main migration function"""
     settings = get_settings()
-    db_manager = DatabaseManager(settings)
+    
+    db_client: AsyncIOMotorClient = AsyncIOMotorClient(
+        settings.MONGODB_URL,
+        tz_aware=True,
+        serverSelectionTimeoutMS=5000
+    )
+    db_name = settings.PROJECT_NAME + "_test" if settings.TESTING else settings.PROJECT_NAME
+    database = db_client[db_name]
 
     try:
-        await db_manager.connect_to_database()
-        logger.info("Connected to database")
+        # Verify connection
+        await db_client.admin.command("ping")
+        logger.info(f"Connected to database: {db_name}")
 
         # Initialize event repository to create indexes
-        event_repo = EventRepository(db_manager)
+        event_repo = EventRepository(database)
         await event_repo.initialize()
         logger.info("Event collection initialized")
 
         # Create projections
-        await refresh_projections(db_manager)
+        await refresh_projections(database)
         logger.info("All projections created successfully")
 
     except Exception as e:
         logger.error(f"Migration failed: {e}")
         raise
     finally:
-        await db_manager.close_database_connection()
+        db_client.close()
         logger.info("Database connection closed")
 
 

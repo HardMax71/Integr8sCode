@@ -3,9 +3,8 @@ import json
 import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
-from fastapi import Depends, Request
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
 from kubernetes import watch
@@ -37,25 +36,6 @@ class KubernetesConfigError(KubernetesServiceError):
 _K8S_CLIENT_NOT_INITIALIZED_MSG: str = "Kubernetes client not initialized."
 
 
-class KubernetesServiceManager:
-    def __init__(self) -> None:
-        self.services: Set["KubernetesService"] = set()
-
-    def register(self, service: "KubernetesService") -> None:
-        self.services.add(service)
-
-    def unregister(self, service: "KubernetesService") -> None:
-        self.services.discard(service)
-
-    async def shutdown_all(self) -> None:
-        for service in self.services:
-            try:
-                await service.graceful_shutdown()
-            except Exception as e:
-                logger.error(f"Error shutting down K8s service: {str(e)}")
-            self.services.discard(service)
-
-
 class KubernetesService:
     NAMESPACE = "integr8scode"
     POD_RETRY_ATTEMPTS = 15
@@ -70,9 +50,8 @@ class KubernetesService:
     networking_v1: Optional[k8s_client.NetworkingV1Api]
     version_api: Optional[k8s_client.VersionApi]
 
-    def __init__(self, manager: KubernetesServiceManager):
+    def __init__(self) -> None:
         self.settings = get_settings()
-        self.manager = manager
         self.event_service: Optional[KafkaEventService] = None
         self.v1 = None
         self.apps_v1 = None
@@ -86,15 +65,13 @@ class KubernetesService:
         self._last_health_check = datetime.now(timezone.utc)
         self._pending_pod_events: List[Dict[str, Any]] = []
 
-        self.manager.register(self)
-
     def set_event_service(self, event_service: KafkaEventService) -> None:
         """Set the event service for publishing pod events"""
         self.event_service = event_service
         logger.info("Event service configured for KubernetesService")
 
     def __del__(self) -> None:
-        self.manager.unregister(self)
+        pass  # Cleanup handled by FastAPI dependency injection
 
     async def check_health(self) -> bool:
         if not self.version_api:
@@ -233,7 +210,7 @@ class KubernetesService:
             # Publish pod created event
             if self.event_service:
                 await self.event_service.publish_pod_event(
-                    event_type=EventType.POD_CREATED.value,
+                    event_type=str(EventType.POD_CREATED),
                     pod_name=pod_name,
                     execution_id=execution_id,
                     namespace=self.NAMESPACE,
@@ -311,7 +288,7 @@ class KubernetesService:
 
         return pod
 
-    def _watch_pod(self, w: watch.Watch, pod_name: str) -> k8s_client.V1Pod:
+    def _watch_pod(self, w: watch.Watch, pod_name: str) -> k8s_client.V1Pod | None:
         execution_id = pod_name[len("execution-"):] if pod_name.startswith("execution-") else None
 
         # Initialize list to store all pod events
@@ -320,8 +297,8 @@ class KubernetesService:
 
         if not self.v1:
             logger.error("Kubernetes client not initialized")
-            return
-        
+            return None
+
         for event in w.stream(
                 self.v1.list_namespaced_pod,
                 namespace=self.NAMESPACE,
@@ -601,19 +578,3 @@ class KubernetesService:
             logger.error(f"K8s API error applying DaemonSet '{daemonset_name}': {e.reason}", exc_info=True)
         except Exception as e:
             logger.error(f"Unexpected error applying image-puller DaemonSet: {e}", exc_info=True)
-
-
-def get_k8s_manager(request: Request) -> KubernetesServiceManager:
-    if not hasattr(request.app.state, "k8s_manager"):
-        request.app.state.k8s_manager = KubernetesServiceManager()
-    return request.app.state.k8s_manager  # type: ignore
-
-
-def get_kubernetes_service(
-        request: Request,
-        manager: KubernetesServiceManager = Depends(get_k8s_manager)
-) -> KubernetesService:
-    if not hasattr(request.app.state, "k8s_service"):
-        logger.info("Creating new KubernetesService singleton instance.")
-        request.app.state.k8s_service = KubernetesService(manager)
-    return request.app.state.k8s_service  # type: ignore

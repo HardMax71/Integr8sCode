@@ -14,7 +14,7 @@ from time import time
 from typing import Any, TypeAlias
 from uuid import UUID, uuid4
 
-from fastapi import Depends, Request
+from fastapi import Request
 
 from app.config import Settings, get_settings
 from app.core.correlation import CorrelationContext
@@ -26,12 +26,9 @@ from app.core.metrics import (
     QUEUE_DEPTH,
     QUEUE_WAIT_TIME,
 )
-from app.db.repositories.execution_repository import (
-    ExecutionRepository,
-    get_execution_repository,
-)
-from app.events.core.producer import UnifiedProducer, get_producer
-from app.events.store.event_store import EventStore, get_event_store
+from app.db.repositories.execution_repository import ExecutionRepository
+from app.events.core.producer import UnifiedProducer
+from app.events.store.event_store import EventStore
 from app.runtime_registry import RUNTIME_REGISTRY, RuntimeConfig
 from app.schemas_avro.event_schemas import (
     BaseEvent,
@@ -119,9 +116,9 @@ class ExecutionService:
                 return
 
             if not self.producer:
-                self.producer = await get_producer()
+                raise RuntimeError("Producer not provided to ExecutionService. Use dependency injection.")
             if not self.event_store:
-                self.event_store = get_event_store()
+                raise RuntimeError("Event store not provided to ExecutionService. Use dependency injection.")
             self._initialized = True
 
     async def get_k8s_resource_limits(self) -> dict[str, Any]:
@@ -401,7 +398,7 @@ class ExecutionService:
             # Publish event to Kafka
             if not self.producer:
                 raise EventPublishError("Producer not available")
-            
+
             try:
                 # Get the correct Kafka topic for the event type
                 topic = get_topic_for_event(EventType.EXECUTION_REQUESTED)
@@ -870,25 +867,3 @@ class ExecutionService:
                 stats["average_duration_ms"] = total_duration / successful
 
         return stats
-
-
-# Dependency injection functions
-async def get_execution_service(
-        request: Request,
-        execution_repo: ExecutionRepository = Depends(get_execution_repository),
-) -> ExecutionService:
-    """
-    FastAPI dependency for getting execution service instance.
-    
-    This ensures proper initialization of the service with all required dependencies.
-    """
-    producer = await get_producer()
-    event_store = get_event_store()
-    settings = get_settings()
-
-    return ExecutionService(
-        execution_repo=execution_repo,
-        producer=producer,
-        event_store=event_store,
-        settings=settings,
-    )

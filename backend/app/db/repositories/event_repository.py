@@ -1,15 +1,13 @@
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Any, AsyncIterator, Dict, List, Mapping, Optional
+from typing import AsyncIterator, Mapping
 
-from fastapi import Depends
-from motor.motor_asyncio import AsyncIOMotorCollection
+from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
 from pymongo import ASCENDING, DESCENDING, IndexModel
 from pymongo.errors import DuplicateKeyError
 
 from app.core.logging import logger
 from app.core.metrics import MONGODB_EVENT_OPERATIONS, MONGODB_EVENT_QUERY_DURATION
-from app.db.mongodb import DatabaseManager, get_database_manager
 from app.domain.events import (
     ArchivedEvent,
     Event,
@@ -20,23 +18,21 @@ from app.domain.events import (
     EventReplayInfo,
     EventStatistics,
 )
+from app.schemas_pydantic.user import UserRole
 
 
 class EventRepository:
     """Repository for event store operations."""
 
-    def __init__(self, db_manager: DatabaseManager) -> None:
-        self.db_manager = db_manager
-        self._collection: Optional[AsyncIOMotorCollection] = None
+    def __init__(self, database: AsyncIOMotorDatabase) -> None:
+        self.database = database
+        self._collection: AsyncIOMotorCollection | None = None
         self._initialized = False
 
     @property
     def collection(self) -> AsyncIOMotorCollection:
         if self._collection is None:
-            db = self.db_manager.db
-            if db is None:
-                raise RuntimeError("Database not initialized")
-            self._collection = db.events
+            self._collection = self.database.events
         return self._collection
 
     async def initialize(self) -> None:
@@ -79,10 +75,7 @@ class EventRepository:
 
     async def _set_collection_options(self) -> None:
         try:
-            db = self.db_manager.db
-            if db is None:
-                raise RuntimeError("Database not initialized")
-            await db.command({
+            await self.database.command({
                 "collMod": "events",
                 "validator": {
                     "$jsonSchema": {
@@ -179,7 +172,7 @@ class EventRepository:
             logger.error(f"Failed to store event: {e}")
             raise
 
-    async def store_events_batch(self, events: List[Event]) -> List[str]:
+    async def store_events_batch(self, events: list[Event]) -> list[str]:
         """
         Store multiple events in a batch
         
@@ -216,7 +209,7 @@ class EventRepository:
                     continue
             return stored_ids
 
-    async def get_event(self, event_id: str) -> Optional[Event]:
+    async def get_event(self, event_id: str) -> Event | None:
         start_time = time.time()
 
         try:
@@ -233,15 +226,15 @@ class EventRepository:
     async def get_events_by_type(
             self,
             event_type: str,
-            start_time: Optional[datetime] = None,
-            end_time: Optional[datetime] = None,
+            start_time: datetime | None = None,
+            end_time: datetime | None = None,
             limit: int = 100,
             skip: int = 0
-    ) -> List[Event]:
-        query: Dict[str, Any] = {str(EventFields.EVENT_TYPE): event_type}
+    ) -> list[Event]:
+        query: dict[str, object] = {str(EventFields.EVENT_TYPE): event_type}
 
         if start_time or end_time:
-            time_query: Dict[str, Any] = {}
+            time_query: dict[str, object] = {}
             if start_time:
                 time_query["$gte"] = start_time
             if end_time:
@@ -255,13 +248,13 @@ class EventRepository:
     async def get_events_by_aggregate(
             self,
             aggregate_id: str,
-            event_types: Optional[List[str]] = None,
+            event_types: list[str] | None = None,
             limit: int = 100
-    ) -> List[Event]:
+    ) -> list[Event]:
         start_time = time.time()
 
         try:
-            query: Dict[str, Any] = {str(EventFields.AGGREGATE_ID): aggregate_id}
+            query: dict[str, object] = {str(EventFields.AGGREGATE_ID): aggregate_id}
 
             if event_types:
                 query[str(EventFields.EVENT_TYPE)] = {"$in": event_types}
@@ -282,7 +275,7 @@ class EventRepository:
             self,
             correlation_id: str,
             limit: int = 100
-    ) -> List[Event]:
+    ) -> list[Event]:
         cursor = (self.collection.find({str(EventFields.CORRELATION_ID): correlation_id})
                   .sort(str(EventFields.TIMESTAMP), ASCENDING).limit(limit))
         docs = await cursor.to_list(length=limit)
@@ -291,19 +284,19 @@ class EventRepository:
     async def get_events_by_user(
             self,
             user_id: str,
-            event_types: Optional[List[str]] = None,
-            start_time: Optional[datetime] = None,
-            end_time: Optional[datetime] = None,
+            event_types: list[str] | None = None,
+            start_time: datetime | None = None,
+            end_time: datetime | None = None,
             limit: int = 100,
             skip: int = 0
-    ) -> List[Event]:
-        query: Dict[str, Any] = {str(EventFields.METADATA_USER_ID): user_id}
+    ) -> list[Event]:
+        query: dict[str, object] = {str(EventFields.METADATA_USER_ID): user_id}
 
         if event_types:
             query[str(EventFields.EVENT_TYPE)] = {"$in": event_types}
 
         if start_time or end_time:
-            time_query: Dict[str, Any] = {}
+            time_query: dict[str, object] = {}
             if start_time:
                 time_query["$gte"] = start_time
             if end_time:
@@ -318,7 +311,7 @@ class EventRepository:
             self,
             execution_id: str,
             limit: int = 100
-    ) -> List[Event]:
+    ) -> list[Event]:
         query = {
             "$or": [
                 {EventFields.PAYLOAD_EXECUTION_ID: execution_id},
@@ -333,11 +326,11 @@ class EventRepository:
     async def search_events(
             self,
             text_query: str,
-            filters: Optional[Dict[str, Any]] = None,
+            filters: dict[str, object] | None = None,
             limit: int = 100,
             skip: int = 0
-    ) -> List[Event]:
-        query = {"$text": {"$search": text_query}}
+    ) -> list[Event]:
+        query: dict[str, object] = {"$text": {"$search": text_query}}
 
         if filters:
             query.update(filters)
@@ -348,10 +341,10 @@ class EventRepository:
 
     async def get_event_statistics(
             self,
-            start_time: Optional[datetime] = None,
-            end_time: Optional[datetime] = None
+            start_time: datetime | None = None,
+            end_time: datetime | None = None
     ) -> EventStatistics:
-        pipeline: List[Mapping[str, Any]] = []
+        pipeline: list[Mapping[str, object]] = []
 
         if start_time or end_time:
             match_stage = {}
@@ -413,9 +406,9 @@ class EventRepository:
 
     async def stream_events(
             self,
-            filters: Optional[Dict[str, Any]] = None,
-            start_after: Optional[Dict[str, Any]] = None
-    ) -> AsyncIterator[Dict[str, Any]]:
+            filters: dict[str, object] | None = None,
+            start_after: dict[str, object] | None = None
+    ) -> AsyncIterator[dict[str, object]]:
         """
         Stream events using change streams for real-time updates
         
@@ -423,7 +416,7 @@ class EventRepository:
             filters: Optional filters for events
             start_after: Resume token for continuing from previous position
         """
-        pipeline: List[Mapping[str, Any]] = []
+        pipeline: list[Mapping[str, object]] = []
         if filters:
             pipeline.append({"$match": filters})
 
@@ -439,7 +432,7 @@ class EventRepository:
     async def cleanup_old_events(
             self,
             older_than_days: int = 30,
-            event_types: Optional[List[str]] = None,
+            event_types: list[str] | None = None,
             dry_run: bool = False
     ) -> int:
         """
@@ -455,7 +448,7 @@ class EventRepository:
         """
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=older_than_days)
 
-        query: dict[str, Any] = {str(EventFields.TIMESTAMP): {"$lt": cutoff_date}}
+        query: dict[str, object] = {str(EventFields.TIMESTAMP): {"$lt": cutoff_date}}
         if event_types:
             query[str(EventFields.EVENT_TYPE)] = {"$in": event_types}
 
@@ -471,7 +464,7 @@ class EventRepository:
     async def create_event_projection(
             self,
             name: str,
-            pipeline: List[Dict[str, Any]],
+            pipeline: list[dict[str, object]],
             output_collection: str
     ) -> None:
         """
@@ -487,10 +480,7 @@ class EventRepository:
 
             await self.collection.aggregate(pipeline).to_list(length=None)
 
-            db = self.db_manager.db
-            if db is None:
-                raise RuntimeError("Database not initialized")
-            output_coll = db[output_collection]
+            output_coll = self.database[output_collection]
             await output_coll.create_index([("_id", ASCENDING)])
 
             logger.info(f"Created event projection '{name}' in collection '{output_collection}'")
@@ -505,7 +495,7 @@ class EventRepository:
             user_id: str,
             user_role: str,
             include_system_events: bool = False
-    ) -> Optional[List[Event]]:
+    ) -> list[Event] | None:
         """Get execution events with user access check"""
         events = await self.get_events_by_aggregate(aggregate_id=execution_id, limit=1000)
 
@@ -514,7 +504,7 @@ class EventRepository:
 
         # Check access - if first event belongs to different user, require admin role
         first_event_user = events[0].metadata.user_id
-        if first_event_user and first_event_user != user_id and user_role != "admin":
+        if first_event_user and first_event_user != user_id and user_role != UserRole.ADMIN:
             return None  # Signal access denied
 
         # Filter out system events if requested
@@ -529,15 +519,15 @@ class EventRepository:
     async def get_user_events_paginated(
             self,
             user_id: str,
-            event_types: Optional[List[str]] = None,
-            start_time: Optional[datetime] = None,
-            end_time: Optional[datetime] = None,
+            event_types: list[str] | None = None,
+            start_time: datetime | None = None,
+            end_time: datetime | None = None,
             limit: int = 100,
             skip: int = 0,
             sort_order: str = "desc"
     ) -> EventListResult:
         """Get paginated user events with count"""
-        query: Dict[str, Any] = {str(EventFields.METADATA_USER_ID): user_id}
+        query: dict[str, object] = {str(EventFields.METADATA_USER_ID): user_id}
 
         if event_types:
             query[str(EventFields.EVENT_TYPE)] = {"$in": event_types}
@@ -574,16 +564,16 @@ class EventRepository:
             user_id: str,
             user_role: str,
             filters: EventFilter
-    ) -> Optional[EventListResult]:
+    ) -> EventListResult | None:
         """Advanced event query with filters"""
-        query: Dict[str, Any] = {}
+        query: dict[str, object] = {}
 
         # User access control
         if filters.user_id:
-            if filters.user_id != user_id and user_role != "admin":
+            if filters.user_id != user_id and user_role != UserRole.ADMIN:
                 return None  # Signal unauthorized
             query[EventFields.METADATA_USER_ID] = filters.user_id
-        elif user_role != "admin":
+        elif user_role != UserRole.ADMIN:
             query[str(EventFields.METADATA_USER_ID)] = user_id
 
         # Apply filters using EventFilter's to_query method
@@ -618,12 +608,12 @@ class EventRepository:
             user_role: str,
             include_all_users: bool = False,
             limit: int = 100
-    ) -> List[Event]:
+    ) -> list[Event]:
         """Get events by correlation ID with access control"""
         events = await self.get_events_by_correlation(correlation_id=correlation_id, limit=limit)
 
         # Filter by user access unless admin and include_all_users is True
-        if not include_all_users or user_role != "admin":
+        if not include_all_users or user_role != UserRole.ADMIN:
             events = [
                 event for event in events
                 if event.metadata.user_id == user_id
@@ -635,14 +625,14 @@ class EventRepository:
             self,
             user_id: str,
             user_role: str,
-            start_time: Optional[datetime] = None,
-            end_time: Optional[datetime] = None,
+            start_time: datetime | None = None,
+            end_time: datetime | None = None,
             include_all_users: bool = False
     ) -> EventStatistics:
         """Get event statistics with access control"""
-        query: Dict[str, Any] = {}
+        query: dict[str, object] = {}
         if start_time or end_time:
-            time_filter: Dict[str, Any] = {}
+            time_filter: dict[str, object] = {}
             if start_time:
                 time_filter["$gte"] = start_time
             if end_time:
@@ -650,13 +640,13 @@ class EventRepository:
             query[str(EventFields.TIMESTAMP)] = time_filter
 
         # Filter by user unless admin and include_all_users is True
-        if not include_all_users or user_role != "admin":
+        if not include_all_users or user_role != UserRole.ADMIN:
             query[str(EventFields.METADATA_USER_ID)] = user_id
 
         total_events = await self.collection.count_documents(query)
 
         # Events by type
-        events_by_type_pipeline: List[Mapping[str, Any]] = [
+        events_by_type_pipeline: list[Mapping[str, object]] = [
             {"$match": query},
             {"$group": {"_id": f"${str(EventFields.EVENT_TYPE)}", "count": {"$sum": 1}}},
             {"$sort": {"count": -1}}
@@ -667,7 +657,7 @@ class EventRepository:
             events_by_type[doc["_id"]] = doc["count"]
 
         # Events by service
-        events_by_service_pipeline: List[Mapping[str, Any]] = [
+        events_by_service_pipeline: list[Mapping[str, object]] = [
             {"$match": query},
             {"$group": {"_id": f"${str(EventFields.METADATA_SERVICE_NAME)}", "count": {"$sum": 1}}},
             {"$sort": {"count": -1}}
@@ -679,7 +669,7 @@ class EventRepository:
                 events_by_service[doc["_id"]] = doc["count"]
 
         # Events by hour
-        events_by_hour_pipeline: List[Mapping[str, Any]] = [
+        events_by_hour_pipeline: list[Mapping[str, object]] = [
             {"$match": query},
             {
                 "$group": {
@@ -718,7 +708,7 @@ class EventRepository:
             event_id: str,
             user_id: str,
             user_role: str
-    ) -> Optional[Event]:
+    ) -> Event | None:
         """Get event with access check"""
         event = await self.get_event(event_id)
 
@@ -727,7 +717,7 @@ class EventRepository:
 
         # Check access
         event_user_id = event.metadata.user_id
-        if event_user_id and event_user_id != user_id and user_role != "admin":
+        if event_user_id and event_user_id != user_id and user_role != UserRole.ADMIN:
             return None  # Signal access denied
 
         return event
@@ -736,7 +726,7 @@ class EventRepository:
             self,
             user_id: str,
             user_role: str,
-            pipeline: List[Dict[str, Any]],
+            pipeline: list[dict[str, object]],
             limit: int = 100
     ) -> EventAggregationResult:
         """Run aggregation pipeline with access control"""
@@ -746,7 +736,7 @@ class EventRepository:
         has_match = "$match" in first_stage
 
         # Add user filter for non-admins
-        if user_role != "admin":
+        if user_role != UserRole.ADMIN:
             user_filter = {EventFields.METADATA_USER_ID: user_id}
             if has_match:
                 first_stage["$match"] = {
@@ -773,16 +763,16 @@ class EventRepository:
             self,
             user_id: str,
             user_role: str
-    ) -> List[str]:
+    ) -> list[str]:
         """Get list of event types for user"""
-        pipeline: List[Mapping[str, Any]] = [
+        pipeline: list[Mapping[str, object]] = [
             {"$match": {str(EventFields.METADATA_USER_ID): user_id}},
             {"$group": {"_id": f"${str(EventFields.EVENT_TYPE)}"}},
             {"$sort": {"_id": 1}}
         ]
 
         # Admin can see all event types
-        if user_role == "admin":
+        if user_role == UserRole.ADMIN:
             pipeline[0] = {"$match": {}}
 
         event_types = []
@@ -796,7 +786,7 @@ class EventRepository:
             event_id: str,
             deleted_by: str,
             deletion_reason: str = "Admin deletion via API"
-    ) -> Optional[ArchivedEvent]:
+    ) -> ArchivedEvent | None:
         """Delete event and archive it"""
         event = await self.get_event(event_id)
 
@@ -823,10 +813,7 @@ class EventRepository:
         )
 
         # Archive the event
-        db = self.db_manager.db
-        if db is None:
-            raise RuntimeError("Database not initialized")
-        archive_collection = db["events_archive"]
+        archive_collection = self.database["events_archive"]
         await archive_collection.insert_one(archived_event.to_dict())
 
         # Delete from main collection
@@ -841,7 +828,7 @@ class EventRepository:
             self,
             aggregate_id: str,
             limit: int = 10000
-    ) -> List[Event]:
+    ) -> list[Event]:
         """Get all events for an aggregate for replay purposes"""
         events = await self.get_events_by_aggregate(
             aggregate_id=aggregate_id,
@@ -856,7 +843,7 @@ class EventRepository:
     async def get_aggregate_replay_info(
             self,
             aggregate_id: str
-    ) -> Optional[EventReplayInfo]:
+    ) -> EventReplayInfo | None:
         """Get aggregate events and prepare replay information"""
         events = await self.get_aggregate_events_for_replay(aggregate_id)
 
@@ -872,7 +859,3 @@ class EventRepository:
                 "end": max(e.timestamp for e in events)
             }
         )
-
-
-def get_event_repository(db_manager: DatabaseManager = Depends(get_database_manager)) -> EventRepository:
-    return EventRepository(db_manager)

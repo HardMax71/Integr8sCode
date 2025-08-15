@@ -4,9 +4,9 @@ from datetime import datetime, timezone
 
 import pytest
 from app.core.security import security_service
+from app.core.service_dependencies import get_user_repository
 from app.db.repositories.user_repository import (
-    UserRepository,
-    get_user_repository
+    UserRepository
 )
 from app.schemas_pydantic.user import UserInDB
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -168,7 +168,6 @@ class TestGetUserRepository:
         assert result.db is None
 
     def test_get_user_repository_integration(self, db: AsyncGenerator) -> None:
-        from app.db.repositories.user_repository import get_user_repository
 
         # Test dependency injection pattern
         result = get_user_repository(db)

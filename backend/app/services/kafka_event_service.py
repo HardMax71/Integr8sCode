@@ -11,12 +11,11 @@ from app.config import get_settings
 from app.core.correlation import CorrelationContext
 from app.core.logging import logger
 from app.core.metrics import EVENT_PROCESSING_DURATION, EVENT_PUBLISHED
-from app.db.mongodb import DatabaseManager
-from app.db.repositories.event_repository import EventRepository, get_event_repository
+from app.db.repositories.event_repository import EventRepository
 from app.domain.events import Event
 from app.domain.events import EventMetadata as DomainEventMetadata
 from app.events.core.mapping import get_topic_name
-from app.events.core.producer import UnifiedProducer, get_producer
+from app.events.core.producer import UnifiedProducer
 from app.schemas_pydantic.events import EventMetadata
 from app.schemas_pydantic.user import User
 
@@ -29,7 +28,7 @@ class KafkaEventService:
     def __init__(
             self,
             event_repository: EventRepository,
-            kafka_producer: Optional[UnifiedProducer] = None
+            kafka_producer: UnifiedProducer
     ):
         self.event_repository = event_repository
         self.kafka_producer = kafka_producer
@@ -40,11 +39,6 @@ class KafkaEventService:
         """Initialize event service"""
         if not self._initialized:
             await self.event_repository.initialize()
-
-            # Initialize Kafka producer if not provided
-            if not self.kafka_producer:
-                self.kafka_producer = await get_producer()
-
             self._initialized = True
             logger.info("Kafka event service initialized")
 
@@ -342,39 +336,3 @@ class KafkaEventService:
         """Close event service resources"""
         if self.kafka_producer:
             await self.kafka_producer.stop()
-
-
-class KafkaEventServiceManager:
-    """Manages Kafka event service lifecycle"""
-
-    def __init__(self) -> None:
-        self._service: Optional[KafkaEventService] = None
-
-    async def get_service(
-            self,
-            db_manager: DatabaseManager,
-            kafka_producer: Optional[UnifiedProducer] = None
-    ) -> KafkaEventService:
-        """Get or create event service instance"""
-        if self._service is None:
-            event_repository = get_event_repository(db_manager)
-            self._service = KafkaEventService(event_repository, kafka_producer)
-            await self._service.initialize()
-        return self._service
-
-    async def close(self) -> None:
-        """Close event service"""
-        if self._service:
-            await self._service.close()
-            self._service = None
-
-
-async def get_event_service(request: Request) -> KafkaEventService:
-    """FastAPI dependency to get event service"""
-    if hasattr(request.app.state, "event_service_manager"):
-        manager: KafkaEventServiceManager = request.app.state.event_service_manager
-        db_manager = request.app.state.db_manager
-        return await manager.get_service(db_manager)
-
-    # Fallback for testing
-    raise RuntimeError("Event service not initialized")

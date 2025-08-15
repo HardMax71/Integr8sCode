@@ -1,20 +1,18 @@
-"""Run Event Replay CLI as a standalone service"""
-
 import asyncio
 import logging
 
 from app.config import get_settings
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
-from app.db.mongodb import DatabaseManager
-from app.services.event_replay import get_replay_service
-from app.services.event_replay.replay_service import EventReplayServiceSingleton
+from app.events.core.producer import create_unified_producer
+from app.events.store.event_store import create_event_store
+from app.services.event_replay.replay_service import EventReplayService
+from motor.motor_asyncio import AsyncIOMotorClient
 
 
-async def cleanup_task(interval_hours: int = 6) -> None:
+async def cleanup_task(replay_service: EventReplayService, interval_hours: int = 6) -> None:
     """Periodically clean up old replay sessions"""
     logger = logging.getLogger(__name__)
-    replay_service = await get_replay_service()
 
     while True:
         try:
@@ -32,17 +30,38 @@ async def run_replay_service() -> None:
     # Get settings
     settings = get_settings()
 
-    # Create and set database manager
-    db_manager = DatabaseManager(settings)
-    await db_manager.connect_to_database()
-    EventReplayServiceSingleton.set_database_manager(db_manager)
+    # Create database connection
+    db_client: AsyncIOMotorClient = AsyncIOMotorClient(
+        settings.MONGODB_URL,
+        tz_aware=True,
+        serverSelectionTimeoutMS=5000
+    )
+    db_name = settings.PROJECT_NAME + "_test" if settings.TESTING else settings.PROJECT_NAME
+    database = db_client[db_name]
 
-    # Initialize replay service
-    _ = await get_replay_service()
+    # Verify connection
+    await db_client.admin.command("ping")
+    logger.info(f"Connected to database: {db_name}")
+
+    # Initialize services
+    producer = create_unified_producer()
+    await producer.start()
+    
+    # Create event store
+    event_store = create_event_store(database)
+    await event_store.initialize()
+    
+    # Create replay service
+    replay_service = EventReplayService(
+        database=database,
+        producer=producer,
+        event_store=event_store
+    )
+    await replay_service.initialize_indexes()
     logger.info("Event replay service initialized")
 
     # Start cleanup task
-    cleanup = asyncio.create_task(cleanup_task())
+    cleanup = asyncio.create_task(cleanup_task(replay_service))
 
     try:
         # Keep service running
@@ -55,7 +74,8 @@ async def run_replay_service() -> None:
         except asyncio.CancelledError:
             pass
     finally:
-        await db_manager.close_database_connection()
+        await producer.stop()
+        db_client.close()
 
 
 def main() -> None:

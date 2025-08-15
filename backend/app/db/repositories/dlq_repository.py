@@ -1,11 +1,10 @@
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Mapping
 
-from fastapi import Request
 from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
 
 from app.core.logging import logger
-from app.db.mongodb import DatabaseManager
+from app.dlq.manager import DLQManager
 from app.domain.dlq.dlq_models import (
     DLQAgeStats,
     DLQBatchRetryResult,
@@ -32,7 +31,7 @@ class DLQRepository:
         """Get DLQ statistics."""
         try:
             # Get counts by status
-            status_pipeline: List[Mapping[str, Any]] = [
+            status_pipeline: list[Mapping[str, object]] = [
                 {"$group": {
                     "_id": f"${DLQFields.STATUS}",
                     "count": {"$sum": 1}
@@ -42,11 +41,11 @@ class DLQRepository:
             status_results = []
             async for doc in self.dlq_collection.aggregate(status_pipeline):
                 status_results.append(doc)
-            
+
             by_status = DLQStatsByStatus.from_aggregation(status_results)
 
             # Get counts by topic
-            topic_pipeline: List[Mapping[str, Any]] = [
+            topic_pipeline: list[Mapping[str, object]] = [
                 {"$group": {
                     "_id": f"${DLQFields.ORIGINAL_TOPIC}",
                     "count": {"$sum": 1},
@@ -65,7 +64,7 @@ class DLQRepository:
                 ))
 
             # Get counts by event type
-            event_type_pipeline: List[Mapping[str, Any]] = [
+            event_type_pipeline: list[Mapping[str, object]] = [
                 {"$group": {
                     "_id": f"${DLQFields.EVENT_TYPE}",
                     "count": {"$sum": 1}
@@ -83,7 +82,7 @@ class DLQRepository:
                     ))
 
             # Get age statistics
-            age_pipeline: List[Mapping[str, Any]] = [
+            age_pipeline: list[Mapping[str, object]] = [
                 {"$project": {
                     "age_seconds": {
                         "$divide": [
@@ -117,9 +116,9 @@ class DLQRepository:
 
     async def get_messages(
             self,
-            status: Optional[str] = None,
-            topic: Optional[str] = None,
-            event_type: Optional[str] = None,
+            status: str | None = None,
+            topic: str | None = None,
+            event_type: str | None = None,
             limit: int = 50,
             offset: int = 0
     ) -> DLQMessageListResult:
@@ -131,7 +130,7 @@ class DLQRepository:
                 topic=topic,
                 event_type=event_type
             )
-            
+
             query = filter.to_query()
             total_count = await self.dlq_collection.count_documents(query)
 
@@ -154,7 +153,7 @@ class DLQRepository:
             logger.error(f"Error getting DLQ messages: {e}")
             raise
 
-    async def get_message_by_id(self, event_id: str) -> Optional[DLQMessage]:
+    async def get_message_by_id(self, event_id: str) -> DLQMessage | None:
         """Get DLQ message by event ID."""
         try:
             doc = await self.dlq_collection.find_one({DLQFields.EVENT_ID: event_id})
@@ -168,7 +167,7 @@ class DLQRepository:
             logger.error(f"Error getting DLQ message {event_id}: {e}")
             raise
 
-    async def get_message_for_retry(self, event_id: str) -> Optional[DLQMessage]:
+    async def get_message_for_retry(self, event_id: str) -> DLQMessage | None:
         """Get DLQ message for retry operation."""
         try:
             doc = await self.dlq_collection.find_one({DLQFields.EVENT_ID: event_id})
@@ -182,10 +181,10 @@ class DLQRepository:
             logger.error(f"Error getting message for retry {event_id}: {e}")
             raise
 
-    async def get_topics_summary(self) -> List[DLQTopicSummary]:
+    async def get_topics_summary(self) -> list[DLQTopicSummary]:
         """Get summary of all topics in DLQ."""
         try:
-            pipeline: List[Mapping[str, Any]] = [
+            pipeline: list[Mapping[str, object]] = [
                 {"$group": {
                     "_id": f"${DLQFields.ORIGINAL_TOPIC}",
                     "count": {"$sum": 1},
@@ -200,7 +199,7 @@ class DLQRepository:
 
             topics = []
             async for result in self.dlq_collection.aggregate(pipeline):
-                status_counts: Dict[str, int] = {}
+                status_counts: dict[str, int] = {}
                 for status in result["statuses"]:
                     status_counts[status] = status_counts.get(status, 0) + 1
 
@@ -261,7 +260,7 @@ class DLQRepository:
             logger.error(f"Error marking message as discarded {event_id}: {e}")
             raise
 
-    async def retry_messages_batch(self, event_ids: List[str], dlq_manager: Any) -> DLQBatchRetryResult:
+    async def retry_messages_batch(self, event_ids: list[str], dlq_manager: DLQManager) -> DLQBatchRetryResult:
         """Retry a batch of DLQ messages."""
         details = []
         successful = 0
@@ -315,8 +314,3 @@ class DLQRepository:
             failed=failed,
             details=details
         )
-
-
-def get_dlq_repository(request: Request) -> DLQRepository:
-    db_manager: DatabaseManager = request.app.state.db_manager
-    return DLQRepository(db_manager.get_database())

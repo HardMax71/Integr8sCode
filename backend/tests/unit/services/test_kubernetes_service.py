@@ -1,17 +1,16 @@
+import asyncio
 from datetime import datetime, timezone, timedelta
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from kubernetes.client.rest import ApiException
+
 from app.services.kubernetes_service import (
     KubernetesService,
-    KubernetesServiceManager,
     KubernetesServiceError,
     KubernetesPodError,
-    KubernetesConfigError,
-    get_k8s_manager,
-    get_kubernetes_service
+    KubernetesConfigError
 )
-from kubernetes.client.rest import ApiException
 from tests.unit.services.mock_kubernetes_service import get_mock_kubernetes_service
 
 
@@ -38,139 +37,17 @@ class TestKubernetesExceptions:
         assert str(error) == "Config error"
 
 
-class TestKubernetesServiceManager:
-    def test_manager_initialization(self) -> None:
-        manager = KubernetesServiceManager()
-
-        assert manager is not None
-        assert isinstance(manager, KubernetesServiceManager)
-
-    def test_manager_singleton_behavior(self) -> None:
-        manager1 = KubernetesServiceManager()
-        manager2 = KubernetesServiceManager()
-
-        assert manager1 is not manager2
-        assert isinstance(manager1, KubernetesServiceManager)
-        assert isinstance(manager2, KubernetesServiceManager)
-
-    def test_manager_register_service(self) -> None:
-        manager = KubernetesServiceManager()
-        service = get_mock_kubernetes_service()
-
-        # This should not raise an error
-        manager.register(service)
-
-        # Check service is registered
-        assert len(manager.services) >= 1
-
-    def test_manager_service_operations(self) -> None:
-        manager = KubernetesServiceManager()
-
-        # Should have services attribute
-        assert hasattr(manager, 'services')
-        assert isinstance(manager.services, set)
-
-    @pytest.mark.asyncio
-    async def test_shutdown_all_with_services(self) -> None:
-        manager = KubernetesServiceManager()
-
-        # Create mock services
-        service1 = Mock()
-        service1.graceful_shutdown = AsyncMock()
-        service2 = Mock()
-        service2.graceful_shutdown = AsyncMock()
-
-        # Add services to manager
-        manager.services = {service1, service2}
-
-        # Mock the shutdown_all method
-        async def mock_shutdown_all() -> None:
-            for service in list(manager.services):
-                await service.graceful_shutdown()
-                manager.services.discard(service)
-
-        manager.shutdown_all = mock_shutdown_all
-
-        # Test shutdown
-        await manager.shutdown_all()
-
-        # Verify services were shut down
-        service1.graceful_shutdown.assert_called_once()
-        service2.graceful_shutdown.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_shutdown_all_with_exception(self) -> None:
-        manager = KubernetesServiceManager()
-
-        # Create mock service that raises exception
-        service = Mock()
-        service.graceful_shutdown = AsyncMock(side_effect=Exception("Shutdown failed"))
-
-        # Add service to manager
-        manager.services = {service}
-
-        # Mock the shutdown_all method to handle exceptions
-        async def mock_shutdown_all() -> None:
-            for service in list(manager.services):
-                try:
-                    await service.graceful_shutdown()
-                except Exception:
-                    pass  # Log error but continue
-                manager.services.discard(service)
-
-        manager.shutdown_all = mock_shutdown_all
-
-        # Test shutdown - should not raise exception
-        await manager.shutdown_all()
-
-        # Verify service shutdown was attempted
-        service.graceful_shutdown.assert_called_once()
-
-    def test_unregister_service(self) -> None:
-        manager = KubernetesServiceManager()
-        service = Mock()
-
-        # Add service then unregister
-        manager.services.add(service)
-        assert service in manager.services
-
-        manager.unregister(service)
-        assert service not in manager.services
-
-    def test_unregister_nonexistent_service(self) -> None:
-        manager = KubernetesServiceManager()
-        service = Mock()
-
-        # Should not raise exception
-        manager.unregister(service)
-        assert service not in manager.services
-
-    @pytest.mark.asyncio
-    async def test_shutdown_all_with_error(self) -> None:
-        manager = KubernetesServiceManager()
-
-        mock_service = Mock()
-        mock_service.graceful_shutdown = AsyncMock(side_effect=Exception("Shutdown error"))
-        manager.register(mock_service)
-
-        # Should not raise error despite service shutdown failure
-        try:
-            await manager.shutdown_all()
-        except RuntimeError:
-            # This catches the "Set changed size during iteration" error
-            # which is expected due to the implementation bug
-            pass
+# Removed TestKubernetesServiceManager class as KubernetesServiceManager no longer exists
 
 
 class TestKubernetesServiceBasic:
     @pytest.fixture(autouse=True)
     async def setup(self) -> None:
-        self.manager = KubernetesServiceManager()
         self.service = get_mock_kubernetes_service()
 
     def test_kubernetes_service_initialization(self) -> None:
         assert self.service is not None
-        assert hasattr(self.service, 'manager')
+        # manager attribute no longer exists
         assert hasattr(self.service, '_is_healthy')
 
     @pytest.mark.asyncio
@@ -207,7 +84,6 @@ class TestKubernetesServiceBasic:
 
         # Should have required configuration for mock service
         assert hasattr(service, 'NAMESPACE')
-        assert hasattr(service, 'manager')
 
         # Configuration should be reasonable
         assert isinstance(service.NAMESPACE, str)
@@ -225,7 +101,6 @@ class TestKubernetesServiceBasic:
         service = self.service
 
         # Mock service should have basic attributes
-        assert hasattr(service, 'manager')
         assert hasattr(service, 'NAMESPACE')
         assert hasattr(service, '_is_healthy')
         assert hasattr(service, '_active_pods')
@@ -250,14 +125,10 @@ class TestKubernetesServiceDependency:
     def test_dependency_integration(self) -> None:
         """Test service integrates properly with dependency system."""
         service = get_mock_kubernetes_service()
-        manager = KubernetesServiceManager()
 
-        # Manager should start empty
-        assert len(manager.services) == 0
-
-        # Should be able to register service
-        manager.register(service)
-        assert len(manager.services) == 1
+        # Service should be properly initialized
+        assert service is not None
+        assert hasattr(service, 'create_execution_pod')
 
 
 class TestKubernetesServiceConfiguration:
@@ -268,10 +139,9 @@ class TestKubernetesServiceConfiguration:
                                                           mock_k8s_config: Mock) -> None:
         """Test using container kubeconfig path"""
         mock_exists.side_effect = lambda path: path == "/app/kubeconfig.yaml"
-        manager = KubernetesServiceManager()
 
         with patch.object(KubernetesService, '_test_api_connection'):
-            service = KubernetesService(manager)
+            service = KubernetesService()
             mock_k8s_config.load_kube_config.assert_called_with(config_file="/app/kubeconfig.yaml")
 
     @patch('app.services.kubernetes_service.k8s_config')
@@ -279,10 +149,9 @@ class TestKubernetesServiceConfiguration:
     def test_setup_kubernetes_config_incluster(self, mock_exists: Mock,
                                                mock_k8s_config: Mock) -> None:
         mock_exists.side_effect = lambda path: path == "/var/run/secrets/kubernetes.io/serviceaccount"
-        manager = KubernetesServiceManager()
 
         with patch.object(KubernetesService, '_test_api_connection'):
-            service = KubernetesService(manager)
+            service = KubernetesService()
             mock_k8s_config.load_incluster_config.assert_called_once()
 
     @patch('app.services.kubernetes_service.get_settings')
@@ -295,10 +164,8 @@ class TestKubernetesServiceConfiguration:
         mock_get_settings.return_value = mock_settings
         mock_exists.return_value = False
 
-        manager = KubernetesServiceManager()
-
         with pytest.raises(KubernetesConfigError, match="Could not find valid Kubernetes configuration"):
-            KubernetesService(manager)
+            KubernetesService()
 
     @patch('app.services.kubernetes_service.get_settings')
     @patch('app.services.kubernetes_service.k8s_config')
@@ -315,10 +182,8 @@ class TestKubernetesServiceConfiguration:
         mock_expanduser.return_value = "/home/user/.kube/config"
         mock_exists.side_effect = lambda path: path == "/home/user/.kube/config"
 
-        manager = KubernetesServiceManager()
-
         with patch.object(KubernetesService, '_test_api_connection'):
-            service = KubernetesService(manager)
+            service = KubernetesService()
             mock_k8s_config.load_kube_config.assert_called_with(config_file="/home/user/.kube/config")
 
     def test_test_api_connection_no_version_api(self) -> None:
@@ -341,11 +206,9 @@ class TestKubernetesServiceConfiguration:
 class TestKubernetesServiceHealthChecks:
     @pytest.mark.asyncio
     async def test_check_health_no_version_api(self) -> None:
-        manager = KubernetesServiceManager()
-
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                service = KubernetesService(manager)
+                service = KubernetesService()
                 service.version_api = None
 
                 result = await service.check_health()
@@ -354,11 +217,9 @@ class TestKubernetesServiceHealthChecks:
 
     @pytest.mark.asyncio
     async def test_check_health_within_interval(self) -> None:
-        manager = KubernetesServiceManager()
-
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                service = KubernetesService(manager)
+                service = KubernetesService()
                 service.version_api = Mock()
                 service._is_healthy = True
                 service._last_health_check = datetime.now(timezone.utc)
@@ -368,11 +229,9 @@ class TestKubernetesServiceHealthChecks:
 
     @pytest.mark.asyncio
     async def test_check_health_failure(self) -> None:
-        manager = KubernetesServiceManager()
-
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                service = KubernetesService(manager)
+                service = KubernetesService()
                 mock_version_api = AsyncMock()
                 mock_version_api.get_code.side_effect = Exception("API Error")
                 service.version_api = mock_version_api
@@ -387,11 +246,9 @@ class TestKubernetesServiceHealthChecks:
 class TestKubernetesServiceShutdown:
     @pytest.mark.asyncio
     async def test_graceful_shutdown_timeout(self) -> None:
-        manager = KubernetesServiceManager()
-
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                service = KubernetesService(manager)
+                service = KubernetesService()
                 service.SHUTDOWN_TIMEOUT = 0  # Force immediate timeout
                 service._active_pods = {"execution-test": datetime.now(timezone.utc)}
 
@@ -400,11 +257,9 @@ class TestKubernetesServiceShutdown:
 
     @pytest.mark.asyncio
     async def test_graceful_shutdown_non_execution_pod(self) -> None:
-        manager = KubernetesServiceManager()
-
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                service = KubernetesService(manager)
+                service = KubernetesService()
                 service._active_pods = {"other-pod": datetime.now(timezone.utc)}
 
                 await service.graceful_shutdown()
@@ -412,11 +267,9 @@ class TestKubernetesServiceShutdown:
 
     @pytest.mark.asyncio
     async def test_graceful_shutdown_cleanup_error(self) -> None:
-        manager = KubernetesServiceManager()
-
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                service = KubernetesService(manager)
+                service = KubernetesService()
                 service._active_pods = {"execution-test": datetime.now(timezone.utc)}
 
                 with patch.object(service, '_cleanup_resources', side_effect=Exception("Cleanup failed")):
@@ -427,11 +280,9 @@ class TestKubernetesServiceShutdown:
 class TestKubernetesServicePodOperations:
     @pytest.mark.asyncio
     async def test_create_execution_pod_circuit_breaker_open(self) -> None:
-        manager = KubernetesServiceManager()
-
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                service = KubernetesService(manager)
+                service = KubernetesService()
                 service.circuit_breaker.should_allow_request = Mock(return_value=False)
 
                 with pytest.raises(KubernetesServiceError, match="Service circuit breaker is open"):
@@ -439,11 +290,9 @@ class TestKubernetesServicePodOperations:
 
     @pytest.mark.asyncio
     async def test_create_execution_pod_unhealthy_service(self) -> None:
-        manager = KubernetesServiceManager()
-
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                service = KubernetesService(manager)
+                service = KubernetesService()
                 service.circuit_breaker.should_allow_request = Mock(return_value=True)
                 service.check_health = AsyncMock(return_value=False)
 
@@ -452,11 +301,9 @@ class TestKubernetesServicePodOperations:
 
     @pytest.mark.asyncio
     async def test_create_execution_pod_creation_failure(self) -> None:
-        manager = KubernetesServiceManager()
-
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                service = KubernetesService(manager)
+                service = KubernetesService()
                 service.circuit_breaker.should_allow_request = Mock(return_value=True)
                 service.check_health = AsyncMock(return_value=True)
 
@@ -467,11 +314,9 @@ class TestKubernetesServicePodOperations:
 
     @pytest.mark.asyncio
     async def test_wait_for_pod_completion_no_v1(self) -> None:
-        manager = KubernetesServiceManager()
-
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                service = KubernetesService(manager)
+                service = KubernetesService()
                 service.v1 = None
 
                 with pytest.raises(KubernetesServiceError, match="Kubernetes client not initialized"):
@@ -479,11 +324,9 @@ class TestKubernetesServicePodOperations:
 
     @pytest.mark.asyncio
     async def test_wait_for_pod_completion_timeout(self) -> None:
-        manager = KubernetesServiceManager()
-
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                service = KubernetesService(manager)
+                service = KubernetesService()
                 service.POD_RETRY_ATTEMPTS = 1
                 mock_v1 = Mock()
                 service.v1 = mock_v1
@@ -498,11 +341,9 @@ class TestKubernetesServicePodOperations:
 
     @pytest.mark.asyncio
     async def test_wait_for_pod_completion_api_exception_not_found(self) -> None:
-        manager = KubernetesServiceManager()
-
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                service = KubernetesService(manager)
+                service = KubernetesService()
                 service.POD_RETRY_ATTEMPTS = 1
                 mock_v1 = Mock()
                 service.v1 = mock_v1
@@ -515,11 +356,9 @@ class TestKubernetesServicePodOperations:
 
     @pytest.mark.asyncio
     async def test_wait_for_pod_completion_api_exception_other(self) -> None:
-        manager = KubernetesServiceManager()
-
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                service = KubernetesService(manager)
+                service = KubernetesService()
                 service.POD_RETRY_ATTEMPTS = 1
                 mock_v1 = Mock()
                 service.v1 = mock_v1
@@ -534,11 +373,9 @@ class TestKubernetesServicePodOperations:
 class TestKubernetesServiceLogging:
     @pytest.mark.asyncio
     async def test_get_container_logs_no_v1(self) -> None:
-        manager = KubernetesServiceManager()
-
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                service = KubernetesService(manager)
+                service = KubernetesService()
                 service.v1 = None
 
                 result = await service._get_container_logs("test-pod", "container")
@@ -546,11 +383,9 @@ class TestKubernetesServiceLogging:
 
     @pytest.mark.asyncio
     async def test_get_container_logs_api_exception(self) -> None:
-        manager = KubernetesServiceManager()
-
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                service = KubernetesService(manager)
+                service = KubernetesService()
                 mock_v1 = Mock()
                 service.v1 = mock_v1
 
@@ -564,11 +399,9 @@ class TestKubernetesServiceLogging:
 class TestKubernetesServiceConfigMaps:
     @pytest.mark.asyncio
     async def test_create_config_map_no_v1(self) -> None:
-        manager = KubernetesServiceManager()
-
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                service = KubernetesService(manager)
+                service = KubernetesService()
                 service.v1 = None
 
                 mock_config_map = Mock()
@@ -579,11 +412,9 @@ class TestKubernetesServiceConfigMaps:
 
     @pytest.mark.asyncio
     async def test_create_config_map_api_exception(self) -> None:
-        manager = KubernetesServiceManager()
-
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                service = KubernetesService(manager)
+                service = KubernetesService()
                 mock_v1 = Mock()
                 service.v1 = mock_v1
 
@@ -600,11 +431,9 @@ class TestKubernetesServiceConfigMaps:
 class TestKubernetesServicePodCreation:
     @pytest.mark.asyncio
     async def test_create_namespaced_pod_no_v1(self) -> None:
-        manager = KubernetesServiceManager()
-
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                service = KubernetesService(manager)
+                service = KubernetesService()
                 service.v1 = None
 
                 pod_manifest = {"metadata": {"name": "test-pod"}}
@@ -614,11 +443,9 @@ class TestKubernetesServicePodCreation:
 
     @pytest.mark.asyncio
     async def test_create_namespaced_pod_api_exception(self) -> None:
-        manager = KubernetesServiceManager()
-
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                service = KubernetesService(manager)
+                service = KubernetesService()
                 mock_v1 = Mock()
                 service.v1 = mock_v1
 
@@ -633,11 +460,9 @@ class TestKubernetesServicePodCreation:
 class TestKubernetesServiceCleanup:
     @pytest.mark.asyncio
     async def test_cleanup_resources_no_v1(self) -> None:
-        manager = KubernetesServiceManager()
-
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                service = KubernetesService(manager)
+                service = KubernetesService()
                 service.v1 = None
 
                 # Should not raise error when v1 is None
@@ -645,11 +470,9 @@ class TestKubernetesServiceCleanup:
 
     @pytest.mark.asyncio
     async def test_cleanup_resources_api_exceptions(self) -> None:
-        manager = KubernetesServiceManager()
-
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                service = KubernetesService(manager)
+                service = KubernetesService()
                 mock_v1 = Mock()
                 service.v1 = mock_v1
 
@@ -664,11 +487,9 @@ class TestKubernetesServiceCleanup:
 class TestKubernetesServiceNetworkPolicies:
     @pytest.mark.asyncio
     async def test_create_network_policy_no_networking_v1(self) -> None:
-        manager = KubernetesServiceManager()
-
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                service = KubernetesService(manager)
+                service = KubernetesService()
                 service.networking_v1 = None
 
                 policy_manifest = {"metadata": {"name": "test-policy"}}
@@ -678,11 +499,9 @@ class TestKubernetesServiceNetworkPolicies:
 
     @pytest.mark.asyncio
     async def test_create_network_policy_api_exception(self) -> None:
-        manager = KubernetesServiceManager()
-
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                service = KubernetesService(manager)
+                service = KubernetesService()
                 mock_networking_v1 = Mock()
                 service.networking_v1 = mock_networking_v1
 
@@ -695,11 +514,9 @@ class TestKubernetesServiceNetworkPolicies:
 
     @pytest.mark.asyncio
     async def test_delete_network_policy_no_networking_v1(self) -> None:
-        manager = KubernetesServiceManager()
-
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                service = KubernetesService(manager)
+                service = KubernetesService()
                 service.networking_v1 = None
 
                 # Should not raise error when networking_v1 is None
@@ -707,11 +524,9 @@ class TestKubernetesServiceNetworkPolicies:
 
     @pytest.mark.asyncio
     async def test_delete_network_policy_api_exception(self) -> None:
-        manager = KubernetesServiceManager()
-
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                service = KubernetesService(manager)
+                service = KubernetesService()
                 mock_networking_v1 = Mock()
                 service.networking_v1 = mock_networking_v1
 
@@ -725,11 +540,9 @@ class TestKubernetesServiceNetworkPolicies:
 class TestKubernetesServiceDaemonSets:
     @pytest.mark.asyncio
     async def test_ensure_image_pre_puller_daemonset_no_apps_v1(self) -> None:
-        manager = KubernetesServiceManager()
-
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                service = KubernetesService(manager)
+                service = KubernetesService()
                 service.apps_v1 = None
 
                 # Should not raise error when apps_v1 is None
@@ -737,11 +550,9 @@ class TestKubernetesServiceDaemonSets:
 
     @pytest.mark.asyncio
     async def test_ensure_image_pre_puller_daemonset_exists_replace(self) -> None:
-        manager = KubernetesServiceManager()
-
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                service = KubernetesService(manager)
+                service = KubernetesService()
                 mock_apps_v1 = Mock()
                 service.apps_v1 = mock_apps_v1
 
@@ -755,11 +566,9 @@ class TestKubernetesServiceDaemonSets:
 
     @pytest.mark.asyncio
     async def test_ensure_image_pre_puller_daemonset_not_found_create(self) -> None:
-        manager = KubernetesServiceManager()
-
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                service = KubernetesService(manager)
+                service = KubernetesService()
                 mock_apps_v1 = Mock()
                 service.apps_v1 = mock_apps_v1
 
@@ -775,11 +584,9 @@ class TestKubernetesServiceDaemonSets:
 
     @pytest.mark.asyncio
     async def test_ensure_image_pre_puller_daemonset_api_error(self) -> None:
-        manager = KubernetesServiceManager()
-
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                service = KubernetesService(manager)
+                service = KubernetesService()
                 mock_apps_v1 = Mock()
                 service.apps_v1 = mock_apps_v1
 
@@ -793,11 +600,9 @@ class TestKubernetesServiceDaemonSets:
 
     @pytest.mark.asyncio
     async def test_ensure_image_pre_puller_daemonset_general_error(self) -> None:
-        manager = KubernetesServiceManager()
-
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                service = KubernetesService(manager)
+                service = KubernetesService()
                 mock_apps_v1 = Mock()
                 service.apps_v1 = mock_apps_v1
 
@@ -809,43 +614,18 @@ class TestKubernetesServiceDaemonSets:
 
 
 class TestKubernetesDependencyFunctions:
-    def test_get_k8s_manager_creates_new(self) -> None:
-        mock_request = Mock()
-        # Simulate no existing k8s_manager by not setting it
-        mock_request.app.state = Mock(spec=[])  # Empty spec means no attributes
+    def test_get_kubernetes_service(self) -> None:
+        """Test that get_kubernetes_service returns a KubernetesService instance"""
+        from app.core.service_dependencies import get_kubernetes_service
+        from app.services.kafka_event_service import KafkaEventService
 
-        result = get_k8s_manager(mock_request)
-        assert hasattr(mock_request.app.state, 'k8s_manager')
-        assert result is mock_request.app.state.k8s_manager
-
-    def test_get_k8s_manager_returns_existing(self) -> None:
-        mock_request = Mock()
-        existing_manager = KubernetesServiceManager()
-        mock_request.app.state.k8s_manager = existing_manager
-
-        result = get_k8s_manager(mock_request)
-        assert result is existing_manager
-
-    def test_get_kubernetes_service_creates_new(self) -> None:
-        mock_request = Mock()
-        # Simulate no existing k8s_service by not setting it
-        mock_request.app.state = Mock(spec=[])  # Empty spec means no attributes
-        mock_manager = KubernetesServiceManager()
+        mock_event_service = Mock(spec=KafkaEventService)
 
         with patch('app.services.kubernetes_service.get_settings'):
             with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                result = get_kubernetes_service(mock_request, mock_manager)
-                assert hasattr(mock_request.app.state, 'k8s_service')
-                assert result is mock_request.app.state.k8s_service
+                result = asyncio.run(get_kubernetes_service(mock_event_service))
 
-    def test_get_kubernetes_service_returns_existing(self) -> None:
-        mock_request = Mock()
-        mock_manager = KubernetesServiceManager()
-
-        with patch('app.services.kubernetes_service.get_settings'):
-            with patch.object(KubernetesService, '_initialize_kubernetes_client'):
-                existing_service = KubernetesService(mock_manager)
-                mock_request.app.state.k8s_service = existing_service
-
-                result = get_kubernetes_service(mock_request, mock_manager)
-                assert result is existing_service
+                assert isinstance(result, KubernetesService)
+                assert hasattr(result, 'set_event_service')
+                # Verify event service was set
+                assert result._event_service == mock_event_service

@@ -90,12 +90,13 @@ class CorrelationMiddleware(BaseHTTPMiddleware):
         CorrelationContext.set_request_metadata(metadata)
 
         # Process request
-        response = await call_next(request)
+        try:
+            response = await call_next(request)
 
-        # Add correlation ID to response headers
-        response.headers[self.CORRELATION_HEADER] = correlation_id
+            # Add correlation ID to response headers
+            response.headers[self.CORRELATION_HEADER] = correlation_id
 
-        # Clear context after request
-        CorrelationContext.clear()
-
-        return response
+            return response
+        finally:
+            # Clear context after request
+            CorrelationContext.clear()

@@ -1,11 +1,10 @@
 import json
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
 
 from fastapi import WebSocket
+from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.core.logging import logger
-from app.db.mongodb import DatabaseManager
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.schemas_pydantic.websocket import (
     AuthMessage,
@@ -26,12 +25,12 @@ from app.websocket.connection_manager import ConnectionManager, WebSocketConnect
 class WebSocketRepository:
     def __init__(
             self,
-            db_manager: DatabaseManager,
+            database: AsyncIOMotorDatabase,
             connection_manager: ConnectionManager,
             websocket_auth: WebSocketAuth,
             execution_repository: ExecutionRepository
     ):
-        self.db_manager = db_manager
+        self.database = database
         self.connection_manager = connection_manager
         self.websocket_auth = websocket_auth
         self.execution_repository = execution_repository
@@ -39,7 +38,7 @@ class WebSocketRepository:
     async def authenticate_connection(
             self,
             websocket: WebSocket,
-            token: Optional[str]
+            token: str | None
     ) -> WebSocketAuthResponse:
         try:
             user_info = await self.websocket_auth.authenticate_websocket(websocket, token)
@@ -65,7 +64,7 @@ class WebSocketRepository:
     async def create_connection(
             self,
             websocket: WebSocket,
-            client_id: Optional[str],
+            client_id: str | None,
             user_id: str
     ) -> WebSocketConnection:
         return await self.connection_manager.connect(
@@ -91,7 +90,7 @@ class WebSocketRepository:
             connection: WebSocketConnection,
             error: str,
             code: WebSocketErrorCode,
-            execution_id: Optional[str] = None
+            execution_id: str | None = None
     ) -> None:
         message = ErrorMessage(
             error=error,
@@ -107,7 +106,7 @@ class WebSocketRepository:
             self,
             connection: WebSocketConnection,
             execution_id: str,
-            user_info: Dict[str, Any]
+            user_info: dict[str, object]
     ) -> bool:
         # Validate subscription request
         can_subscribe = await self.websocket_auth.validate_subscription_request(
@@ -210,8 +209,8 @@ class WebSocketRepository:
     async def process_message(
             self,
             connection: WebSocketConnection,
-            message: Dict[str, Any],
-            user_info: Dict[str, Any]
+            message: dict[str, object],
+            user_info: dict[str, object]
     ) -> None:
         """Process incoming WebSocket message.
         
@@ -226,28 +225,28 @@ class WebSocketRepository:
             await self.handle_ping(connection.client_id)
 
         elif msg_type == WebSocketMessageType.SUBSCRIBE:
-            execution_id = message.get("execution_id")
-            if not execution_id:
+            execution_id_obj = message.get("execution_id")
+            if not execution_id_obj or not isinstance(execution_id_obj, str):
                 await self.send_error(
                     connection,
-                    "Missing execution_id",
+                    "Missing or invalid execution_id",
                     WebSocketErrorCode.MISSING_EXECUTION_ID
                 )
                 return
 
-            await self.handle_subscribe(connection, execution_id, user_info)
+            await self.handle_subscribe(connection, execution_id_obj, user_info)
 
         elif msg_type == WebSocketMessageType.UNSUBSCRIBE:
-            execution_id = message.get("execution_id")
-            if not execution_id:
+            unsubscribe_execution_id = message.get("execution_id")
+            if not unsubscribe_execution_id or not isinstance(unsubscribe_execution_id, str):
                 await self.send_error(
                     connection,
-                    "Missing execution_id",
+                    "Missing or invalid execution_id",
                     WebSocketErrorCode.MISSING_EXECUTION_ID
                 )
                 return
 
-            await self.handle_unsubscribe(connection, execution_id)
+            await self.handle_unsubscribe(connection, unsubscribe_execution_id)
 
         elif msg_type == WebSocketMessageType.LIST_SUBSCRIPTIONS:
             await self.handle_list_subscriptions(connection)
@@ -267,7 +266,7 @@ class WebSocketRepository:
         """
         await self.connection_manager.disconnect(client_id)
 
-    def parse_json_message(self, raw_message: str) -> Optional[Dict[str, Any]]:
+    def parse_json_message(self, raw_message: str) -> dict[str, object] | None:
         """Parse JSON message.
         
         Args:
@@ -277,7 +276,7 @@ class WebSocketRepository:
             Parsed message or None if invalid
         """
         try:
-            result: Dict[str, Any] = json.loads(raw_message)
+            result: dict[str, object] = json.loads(raw_message)
             return result
         except json.JSONDecodeError:
             return None

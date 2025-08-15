@@ -1,6 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Generic, Optional, TypeVar
+from typing import Any, Generic, Optional, TypeVar
 
 from app.schemas_avro.event_schemas import BaseEvent
 
@@ -15,7 +15,7 @@ class SagaContext:
     def __init__(self, saga_id: str, execution_id: str):
         self.saga_id = saga_id
         self.execution_id = execution_id
-        self.data: Dict[str, Any] = {}
+        self.data: dict[str, Any] = {}
         self.events: list[BaseEvent] = []
         self.compensations: list[CompensationStep] = []
         self.current_step: Optional[str] = None

@@ -1,10 +1,7 @@
 from datetime import datetime, timezone
-from typing import Optional
 
-from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
 
-from app.api.dependencies import get_db_dependency
 from app.core.logging import logger
 from app.schemas_pydantic.execution import ExecutionInDB
 
@@ -15,11 +12,16 @@ class ExecutionRepository:
         self.collection: AsyncIOMotorCollection = self.db.get_collection("executions")
 
     async def create_execution(self, execution: ExecutionInDB) -> ExecutionInDB:
-        execution_dict = execution.model_dump()
-        await self.collection.insert_one(execution_dict)
-        return execution
+        try:
+            execution_dict = execution.model_dump()
+            await self.collection.insert_one(execution_dict)
+            return execution
+        except Exception as e:
+            logger.error(f"Database error creating execution {execution.execution_id}: {type(e).__name__}",
+                         exc_info=True)
+            raise
 
-    async def get_execution(self, execution_id: str) -> Optional[ExecutionInDB]:
+    async def get_execution(self, execution_id: str) -> ExecutionInDB | None:
         try:
             document = await self.collection.find_one({"execution_id": execution_id})
             logger.info(f"Retrieved execution {execution_id}, retrieved document: {document}")
@@ -79,9 +81,3 @@ class ExecutionRepository:
         except Exception as e:
             logger.error(f"Database error deleting execution {execution_id}: {type(e).__name__}", exc_info=True)
             return False
-
-
-def get_execution_repository(
-        db: AsyncIOMotorDatabase = Depends(get_db_dependency),
-) -> ExecutionRepository:
-    return ExecutionRepository(db)

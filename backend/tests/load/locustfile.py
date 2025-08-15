@@ -15,6 +15,11 @@ class IntegrationTestUser(HttpUser):
     token: Optional[str] = None
     script_ids: List[str] = []
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Disable SSL verification for self-signed certificates
+        self.client.verify = False
+
     def on_start(self) -> None:
         """Login and get token before starting tasks"""
         # Register a unique user
@@ -120,6 +125,11 @@ class ReadOnlyUser(HttpUser):
 
     wait_time = between(1, 2)
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Disable SSL verification for self-signed certificates
+        self.client.verify = False
+
     @task(4)
     def health_check(self) -> None:
         self.client.get("/api/v1/health")
@@ -135,7 +145,13 @@ class EventStreamUser(HttpUser):
     wait_time = between(5, 10)
     token: Optional[str] = None
     execution_ids: List[str] = []
+
     active_streams: Dict[str, Any] = {}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Disable SSL verification for self-signed certificates
+        self.client.verify = False
 
     def on_start(self) -> None:
         """Login and get token before starting tasks"""
@@ -371,7 +387,13 @@ class ConcurrentEventStreamUser(HttpUser):
     wait_time = between(10, 20)
     token: Optional[str] = None
     max_concurrent_streams = 3
+
     active_streams: List[Any] = []
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Disable SSL verification for self-signed certificates
+        self.client.verify = False
 
     def on_start(self) -> None:
         """Login and setup"""
@@ -486,6 +508,11 @@ class EventProducerUser(HttpUser):
 
     wait_time = between(0.1, 0.5)  # Very aggressive
     token: Optional[str] = None
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Disable SSL verification for self-signed certificates
+        self.client.verify = False
 
     def on_start(self) -> None:
         """Login and setup"""

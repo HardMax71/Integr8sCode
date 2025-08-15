@@ -43,7 +43,7 @@ from app.events.kafka.metrics.metrics import (
     KAFKA_MESSAGES_SENT,
     KAFKA_SEND_DURATION,
 )
-from app.events.schema.schema_registry import get_schema_registry
+from app.events.schema.schema_registry import SchemaRegistryManager
 from app.schemas_avro.event_schemas import BaseEvent as AvroBaseEvent
 
 # Type aliases
@@ -130,11 +130,11 @@ class UnifiedProducer:
     serialization without branching or magic methods.
     """
 
-    def __init__(self, config: ProducerConfig) -> None:
+    def __init__(self, config: ProducerConfig, schema_registry_manager: SchemaRegistryManager | None = None) -> None:
         self.config = config
         self._producer: AIOKafkaProducer | None = None
         self._dlq_producer: ConfluentProducer | None = None
-        self._schema_registry_manager = get_schema_registry()
+        self._schema_registry_manager = schema_registry_manager
         self._circuit_breaker_manager = KafkaCircuitBreakerManager()
         self._circuit_breakers: dict[str, KafkaCircuitBreaker] = {}
         self._running = False
@@ -286,9 +286,9 @@ class UnifiedProducer:
                 # Add to retry queue if retriable
                 if self._is_retriable_error(e) and self.config.dlq_enabled:
                     # Convert headers back to dict for retry queue
-                    headers_dict = None
+                    headers_dict: Headers | None = None
                     if final_headers:
-                        headers_dict = {k: v.decode('utf-8') if isinstance(v, bytes) else v for k, v in final_headers}
+                        headers_dict = {k: v for k, v in final_headers}
                     await self._add_to_retry_queue(topic, serialized_value, serialized_key, headers_dict)
 
                 # Execute error callback
@@ -340,6 +340,8 @@ class UnifiedProducer:
         """Serialize event based on its type."""
         # Use schema registry for Avro events
         if isinstance(event, AvroBaseEvent):
+            if not self._schema_registry_manager:
+                raise RuntimeError("Schema registry manager not configured for Avro event serialization")
             return self._schema_registry_manager.serialize_event(event, topic)
         else:
             # Use JSON serialization for plain dicts
@@ -382,7 +384,6 @@ class UnifiedProducer:
                 topic,
             )
         return self._circuit_breakers[topic]
-
 
     def _is_retriable_error(self, error: Exception) -> bool:
         """Check if error is retriable."""
@@ -541,142 +542,38 @@ class UnifiedProducer:
         await self.stop()
 
 
-class ProducerSingleton:
+def create_producer_config(config_key: str = "default") -> ProducerConfig:
     """
-    Singleton manager for UnifiedProducer instances.
+    Create a ProducerConfig from application settings.
     
-    This class ensures only one producer instance exists per configuration
-    and provides thread-safe access without using global variables.
-    """
-
-    def __init__(self) -> None:
-        self._instances: dict[str, UnifiedProducer] = {}
-        self._locks: dict[str, asyncio.Lock] = {}
-        self._main_lock = asyncio.Lock()
-
-    async def get_producer(self, config_key: str = "default") -> UnifiedProducer:
-        """
-        Get or create a producer instance for the given configuration key.
+    Args:
+        config_key: Configuration identifier (default: "default")
         
-        Args:
-            config_key: Configuration identifier (default: "default")
-            
-        Returns:
-            Initialized UnifiedProducer instance
-        """
-        # Fast path - check if instance exists
-        if config_key in self._instances:
-            return self._instances[config_key]
+    Returns:
+        ProducerConfig instance
+    """
+    settings = get_settings()
+    return ProducerConfig(
+        bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+        schema_registry_url=settings.SCHEMA_REGISTRY_URL,
+        client_id=f"integr8scode-producer-{config_key}",
+        dlq_topic=settings.KAFKA_DLQ_TOPIC,
+        dlq_enabled=True,
+    )
 
-        # Get or create lock for this config
-        async with self._main_lock:
-            if config_key not in self._locks:
-                self._locks[config_key] = asyncio.Lock()
 
-        # Create instance with double-check pattern
-        async with self._locks[config_key]:
-            if config_key in self._instances:
-                return self._instances[config_key]
-
-            # Create new instance
-            settings = get_settings()
-            config = ProducerConfig(
-                bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-                schema_registry_url=settings.SCHEMA_REGISTRY_URL,
-                client_id=f"integr8scode-producer-{config_key}",
-                dlq_topic=settings.KAFKA_DLQ_TOPIC,
-                dlq_enabled=True,
-            )
-
-            producer = UnifiedProducer(config)
-            await producer.start()
-
-            self._instances[config_key] = producer
-            return producer
-
-    async def close_producer(self, config_key: str = "default") -> None:
-        """
-        Close and remove a specific producer instance.
+def create_unified_producer(config: ProducerConfig | None = None,
+                            schema_registry_manager: SchemaRegistryManager | None = None) -> UnifiedProducer:
+    """
+    Factory function to create a UnifiedProducer.
+    
+    Args:
+        config: Optional producer configuration. If not provided, creates from settings.
+        schema_registry_manager: Optional schema registry manager for Avro serialization
         
-        Args:
-            config_key: Configuration identifier to close
-        """
-        if config_key not in self._instances:
-            return
-
-        async with self._locks.get(config_key, self._main_lock):
-            if config_key in self._instances:
-                await self._instances[config_key].stop()
-                del self._instances[config_key]
-
-    async def close_all(self) -> None:
-        """
-        Close all producer instances.
-        """
-        async with self._main_lock:
-            for producer in self._instances.values():
-                await producer.stop()
-            self._instances.clear()
-            self._locks.clear()
-
-
-class _ProducerManager:
-    """
-    Internal class to manage the singleton instance without globals.
-    """
-    _instance: ProducerSingleton | None = None
-    _lock: asyncio.Lock = asyncio.Lock()
-
-    @classmethod
-    async def get_instance(cls) -> ProducerSingleton:
-        """
-        Get or create the singleton instance.
-        """
-        if cls._instance is None:
-            async with cls._lock:
-                if cls._instance is None:
-                    cls._instance = ProducerSingleton()
-        return cls._instance
-
-    @classmethod
-    async def reset(cls) -> None:
-        """
-        Reset the singleton instance (mainly for testing).
-        """
-        async with cls._lock:
-            if cls._instance:
-                await cls._instance.close_all()
-            cls._instance = None
-
-
-# Public API functions
-async def get_producer() -> UnifiedProducer:
-    """
-    Get the default producer instance.
-    
     Returns:
-        Initialized UnifiedProducer instance
+        A new UnifiedProducer instance
     """
-    singleton = await _ProducerManager.get_instance()
-    return await singleton.get_producer()
-
-
-async def close_producer() -> None:
-    """
-    Close the default producer instance.
-    """
-    singleton = await _ProducerManager.get_instance()
-    await singleton.close_producer()
-
-
-async def get_producer_singleton() -> ProducerSingleton:
-    """
-    Get the ProducerSingleton instance for advanced usage.
-    
-    This allows creating multiple producer instances with different
-    configurations if needed.
-    
-    Returns:
-        The ProducerSingleton instance
-    """
-    return await _ProducerManager.get_instance()
+    if config is None:
+        config = create_producer_config()
+    return UnifiedProducer(config, schema_registry_manager)

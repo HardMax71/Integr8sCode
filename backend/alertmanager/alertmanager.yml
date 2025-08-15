@@ -35,20 +35,32 @@ route:
 receivers:
   - name: 'default'
     webhook_configs:
-      - url: 'http://backend:443/api/v1/health'
+      - url: 'https://backend:443/api/v1/alertmanager/webhook'
         send_resolved: true
+        http_config:
+          tls_config:
+            insecure_skip_verify: true  # Accept self-signed certificates for local development
 
   - name: 'critical-security'
     webhook_configs:
-      - url: 'http://backend:443/api/v1/health'
+      - url: 'https://backend:443/api/v1/alertmanager/webhook'
         send_resolved: true
+        http_config:
+          tls_config:
+            insecure_skip_verify: true  # Accept self-signed certificates for local development
 
   - name: 'critical-infrastructure'
     webhook_configs:
-      - url: 'http://backend:443/api/v1/health'
+      - url: 'https://backend:443/api/v1/alertmanager/webhook'
         send_resolved: true
+        http_config:
+          tls_config:
+            insecure_skip_verify: true  # Accept self-signed certificates for local development
 
   - name: 'warning'
     webhook_configs:
-      - url: 'http://backend:443/api/v1/health'
+      - url: 'https://backend:443/api/v1/alertmanager/webhook'
         send_resolved: true
+        http_config:
+          tls_config:
+            insecure_skip_verify: true  # Accept self-signed certificates for local development

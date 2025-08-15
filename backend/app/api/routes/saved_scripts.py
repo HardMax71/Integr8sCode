@@ -2,8 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from app.api.dependencies import get_current_user
 from app.core.logging import logger
-from app.core.security import security_service, validate_csrf_token
+from app.core.security import validate_csrf_token
+from app.core.service_dependencies import SavedScriptServiceDep
 from app.schemas_pydantic.saved_script import (
     SavedScriptCreate,
     SavedScriptCreateRequest,
@@ -11,11 +13,7 @@ from app.schemas_pydantic.saved_script import (
     SavedScriptResponse,
     SavedScriptUpdate,
 )
-from app.schemas_pydantic.user import UserInDB
-from app.services.saved_script_service import (
-    SavedScriptService,
-    get_saved_script_service,
-)
+from app.schemas_pydantic.user import UserResponse
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
@@ -25,8 +23,8 @@ SCRIPT_NOT_FOUND: str = "Script not found"
 
 
 def get_validated_user(
-        current_user: UserInDB = Depends(security_service.get_current_user),
-) -> UserInDB:
+        current_user: UserResponse = Depends(get_current_user),
+) -> UserResponse:
     if not current_user.user_id:
         raise HTTPException(status_code=404, detail=USER_NOT_FOUND)
     return current_user
@@ -34,8 +32,8 @@ def get_validated_user(
 
 async def get_script_or_404(
         script_id: str,
-        current_user: UserInDB = Depends(get_validated_user),
-        saved_script_service: SavedScriptService = Depends(get_saved_script_service),
+        saved_script_service: SavedScriptServiceDep,
+        current_user: UserResponse = Depends(get_validated_user),
 ) -> SavedScriptInDB:
     script_in_db = await saved_script_service.get_saved_script(script_id, current_user.user_id)
     if not script_in_db:
@@ -52,8 +50,8 @@ async def get_script_or_404(
 async def create_saved_script(
         request: Request,
         saved_script: SavedScriptCreateRequest,
-        current_user: UserInDB = Depends(security_service.get_current_user),
-        saved_script_service: SavedScriptService = Depends(get_saved_script_service),
+        saved_script_service: SavedScriptServiceDep,
+        current_user: UserResponse = Depends(get_current_user),
         csrf_token: str = Depends(validate_csrf_token),
 ) -> SavedScriptResponse:
     logger.info(
@@ -106,8 +104,8 @@ async def create_saved_script(
 @limiter.limit("20/minute")
 async def list_saved_scripts(
         request: Request,
-        current_user: UserInDB = Depends(get_validated_user),
-        saved_script_service: SavedScriptService = Depends(get_saved_script_service),
+        saved_script_service: SavedScriptServiceDep,
+        current_user: UserResponse = Depends(get_validated_user),
 ) -> list[SavedScriptResponse]:
     logger.info(
         "Listing saved scripts",
@@ -166,8 +164,8 @@ async def update_saved_script(
         request: Request,
         script_id: str,
         script_update: SavedScriptCreateRequest,
-        current_user: UserInDB = Depends(get_validated_user),
-        saved_script_service: SavedScriptService = Depends(get_saved_script_service),
+        saved_script_service: SavedScriptServiceDep,
+        current_user: UserResponse = Depends(get_validated_user),
         csrf_token: str = Depends(validate_csrf_token),
 ) -> SavedScriptResponse:
     logger.info(
@@ -217,8 +215,8 @@ async def update_saved_script(
 async def delete_saved_script(
         request: Request,
         script_id: str,
-        current_user: UserInDB = Depends(get_validated_user),
-        saved_script_service: SavedScriptService = Depends(get_saved_script_service),
+        saved_script_service: SavedScriptServiceDep,
+        current_user: UserResponse = Depends(get_validated_user),
         csrf_token: str = Depends(validate_csrf_token),
 ) -> None:
     logger.info(

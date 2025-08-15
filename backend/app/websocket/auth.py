@@ -1,5 +1,3 @@
-"""WebSocket authentication module using simplified patterns and Python 3.11 features."""
-
 import asyncio
 from contextlib import suppress
 from datetime import datetime, timedelta, timezone
@@ -8,20 +6,20 @@ from typing import Any
 import jwt
 from fastapi import WebSocket
 from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
+from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import Settings, get_settings
 from app.core.exceptions import AuthenticationError
 from app.core.logging import logger
-from app.db.mongodb import DatabaseManager
 from app.schemas_pydantic.user import UserRole
 
 
 class WebSocketAuth:
     """Simplified WebSocket authentication handler."""
 
-    def __init__(self, db_manager: DatabaseManager | None = None, settings: Settings | None = None):
+    def __init__(self, database: AsyncIOMotorDatabase | None = None, settings: Settings | None = None):
         self.settings = settings or get_settings()
-        self.db_manager = db_manager
+        self.database = database
         self._auth_timeout = 5.0  # seconds
         self._ws_token_lifetime = timedelta(minutes=15)
 
@@ -131,8 +129,8 @@ class WebSocketAuth:
 
         Returns True if user owns the execution or is admin.
         """
-        if not self.db_manager:
-            logger.warning("No database manager available for execution validation")
+        if self.database is None:
+            logger.warning("No database available for execution validation")
             return False
 
         user_id = user_info.get("user_id") or user_info.get("sub")
@@ -140,13 +138,8 @@ class WebSocketAuth:
             return False
 
         try:
-            db = self.db_manager.db
-            if not db:
-                logger.warning("Database not initialized")
-                return False
-
             # Get execution and check ownership
-            if not (execution := await db.executions.find_one({"execution_id": execution_id})):
+            if not (execution := await self.database.executions.find_one({"execution_id": execution_id})):
                 logger.warning(f"Execution {execution_id} not found")
                 return False
 
@@ -159,8 +152,8 @@ class WebSocketAuth:
             # Since UserRole is StrEnum, it IS the string value
             is_admin = UserRole.ADMIN in roles
 
-            if not is_admin and db:
-                if user := await db.users.find_one({"user_id": user_id}):
+            if not is_admin and self.database is not None:
+                if user := await self.database.users.find_one({"user_id": user_id}):
                     is_admin_user: bool = user.get("role") == UserRole.ADMIN
                     return is_admin_user
 
@@ -193,26 +186,3 @@ class WebSocketAuth:
             self.settings.SECRET_KEY,
             algorithm=self.settings.ALGORITHM
         )
-
-
-class WebSocketAuthManager:
-    """Simplified singleton manager for WebSocketAuth."""
-    _instance: WebSocketAuth | None = None
-
-    @classmethod
-    def get_instance(cls, db_manager: DatabaseManager | None = None) -> WebSocketAuth:
-        """Get or create WebSocketAuth instance."""
-        if not cls._instance or (db_manager and cls._instance.db_manager != db_manager):
-            cls._instance = WebSocketAuth(db_manager)
-        return cls._instance
-
-    @classmethod
-    def reset(cls) -> None:
-        """Reset singleton instance (useful for testing)."""
-        cls._instance = None
-
-
-# Convenience function
-def get_websocket_auth(db_manager: DatabaseManager | None = None) -> WebSocketAuth:
-    """Get WebSocket auth instance."""
-    return WebSocketAuthManager.get_instance(db_manager)

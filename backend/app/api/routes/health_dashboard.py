@@ -4,10 +4,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies import require_admin
 from app.core.health_checker import HealthStatus, get_health_check_manager
-from app.db.repositories.health_dashboard_repository import (
-    HealthDashboardRepository,
-    get_health_dashboard_repository,
-)
+from app.core.service_dependencies import HealthDashboardRepositoryDep
 from app.schemas_pydantic.health_dashboard import (
     HealthDashboardResponse,
     HealthMetrics,
@@ -45,7 +42,7 @@ async def get_simple_health_status() -> dict[str, str]:
 
 @router.get("/dashboard", response_model=HealthDashboardResponse)
 async def get_health_dashboard(
-        repository: HealthDashboardRepository = Depends(get_health_dashboard_repository),
+        repository: HealthDashboardRepositoryDep,
         current_user: dict = Depends(require_admin)
 ) -> HealthDashboardResponse:
     """Get complete health dashboard data - admin only"""
@@ -66,7 +63,7 @@ async def get_detailed_health_status(
 @router.get("/dashboard/services/{service_name}")
 async def get_service_health_details(
         service_name: str,
-        repository: HealthDashboardRepository = Depends(get_health_dashboard_repository),
+        repository: HealthDashboardRepositoryDep,
         current_user: dict = Depends(require_admin)
 ) -> Dict[str, Any]:
     """Get detailed health information for a specific service"""
@@ -76,7 +73,7 @@ async def get_service_health_details(
 @router.get("/dashboard/categories/{category}")
 async def get_category_health(
         category: str,
-        repository: HealthDashboardRepository = Depends(get_health_dashboard_repository),
+        repository: HealthDashboardRepositoryDep,
         current_user: dict = Depends(require_admin)
 ) -> Dict[str, Any]:
     """Get health information for a specific category"""
@@ -85,10 +82,10 @@ async def get_category_health(
 
 @router.get("/dashboard/alerts")
 async def get_health_alerts(
+        repository: HealthDashboardRepositoryDep,
+        current_user: dict = Depends(require_admin),
         severity: Optional[str] = Query(None, description="Filter by severity: critical, warning, info"),
-        limit: int = Query(50, ge=1, le=200),
-        repository: HealthDashboardRepository = Depends(get_health_dashboard_repository),
-        current_user: dict = Depends(require_admin)
+        limit: int = Query(50, ge=1, le=200)
 ) -> List[Dict[str, Any]]:
     """Get current health alerts"""
     return await repository.get_health_alerts(severity, limit)
@@ -96,7 +93,7 @@ async def get_health_alerts(
 
 @router.get("/dashboard/dependencies")
 async def get_service_dependencies(
-        repository: HealthDashboardRepository = Depends(get_health_dashboard_repository),
+        repository: HealthDashboardRepositoryDep,
         current_user: dict = Depends(require_admin)
 ) -> Dict[str, Any]:
     """Get service dependency graph for health visualization"""
@@ -106,7 +103,7 @@ async def get_service_dependencies(
 @router.post("/dashboard/services/{service_name}/check")
 async def trigger_health_check(
         service_name: str,
-        repository: HealthDashboardRepository = Depends(get_health_dashboard_repository),
+        repository: HealthDashboardRepositoryDep,
         current_user: dict = Depends(require_admin)
 ) -> Dict[str, Any]:
     """Manually trigger a health check for a service"""
@@ -115,7 +112,7 @@ async def trigger_health_check(
 
 @router.get("/dashboard/metrics", response_model=HealthMetrics)
 async def get_health_metrics(
-        repository: HealthDashboardRepository = Depends(get_health_dashboard_repository),
+        repository: HealthDashboardRepositoryDep,
         current_user: dict = Depends(require_admin)
 ) -> HealthMetrics:
     """Get aggregated health metrics from Prometheus"""
@@ -125,7 +122,7 @@ async def get_health_metrics(
 @router.get("/dashboard/metrics/{service_name}", response_model=ServiceMetrics)
 async def get_service_metrics(
         service_name: str,
-        repository: HealthDashboardRepository = Depends(get_health_dashboard_repository),
+        repository: HealthDashboardRepositoryDep,
         current_user: dict = Depends(require_admin)
 ) -> ServiceMetrics:
     """Get detailed metrics for a specific service"""
@@ -135,9 +132,9 @@ async def get_service_metrics(
 @router.get("/dashboard/history/{service_name}")
 async def get_service_history(
         service_name: str,
-        hours: int = Query(24, ge=1, le=168),
-        repository: HealthDashboardRepository = Depends(get_health_dashboard_repository),
-        current_user: dict = Depends(require_admin)
+        repository: HealthDashboardRepositoryDep,
+        current_user: dict = Depends(require_admin),
+        hours: int = Query(24, ge=1, le=168)
 ) -> Dict[str, Any]:
     """Get historical health data for a service"""
     return await repository.get_service_history(service_name, hours)
@@ -145,7 +142,7 @@ async def get_service_history(
 
 @router.get("/dashboard/realtime")
 async def get_realtime_status(
-        repository: HealthDashboardRepository = Depends(get_health_dashboard_repository),
+        repository: HealthDashboardRepositoryDep,
         current_user: dict = Depends(require_admin)
 ) -> Dict[str, Any]:
     """Get real-time health status with live updates"""

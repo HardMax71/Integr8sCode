@@ -32,3 +32,21 @@ def configure_exception_handlers(app: FastAPI) -> None:
             status_code=exc.status_code,
             content={"detail": exc.detail},
         )
+
+    @app.exception_handler(AuthenticationError)
+    async def authentication_error_handler(
+            request: Request, exc: AuthenticationError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=401,
+            content={"detail": exc.detail},
+        )
+
+    @app.exception_handler(ServiceError)
+    async def service_error_handler(
+            request: Request, exc: ServiceError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.message},
+        )

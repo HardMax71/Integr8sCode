@@ -349,23 +349,6 @@ class ConnectionManager:
         return len(stale_clients)
 
 
-class ConnectionManagerSingleton:
-    """Singleton manager for ConnectionManager without globals."""
-    _instance: ConnectionManager | None = None
-
-    @classmethod
-    def get_instance(cls) -> ConnectionManager:
-        """Get or create the connection manager instance."""
-        if cls._instance is None:
-            cls._instance = ConnectionManager()
-        return cls._instance
-
-    @classmethod
-    def reset(cls) -> None:
-        """Reset the singleton instance (useful for testing)."""
-        cls._instance = None
-
-
-def get_connection_manager() -> ConnectionManager:
-    """Get the connection manager singleton instance."""
-    return ConnectionManagerSingleton.get_instance()
+def create_connection_manager() -> ConnectionManager:
+    """Factory function to create a ConnectionManager instance."""
+    return ConnectionManager()

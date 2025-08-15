@@ -1,16 +1,16 @@
 from datetime import datetime, timedelta, timezone
 from enum import StrEnum
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, cast
 
 from aiokafka import AIOKafkaClient
 from aiokafka.structs import TopicPartition
-from fastapi import HTTPException, Request
+from fastapi import HTTPException
+from motor.motor_asyncio import AsyncIOMotorDatabase
 from prometheus_client import REGISTRY
 
 from app.config import get_settings
 from app.core.health_checker import HealthStatus
 from app.core.logging import logger
-from app.db.mongodb import DatabaseManager
 from app.events.core.consumer_group import ConsumerGroupManager
 from app.events.kafka.metrics.metrics import (
     KAFKA_CONSUMER_ERRORS,
@@ -19,7 +19,7 @@ from app.events.kafka.metrics.metrics import (
     KAFKA_MESSAGES_SENT,
 )
 from app.events.kafka.metrics.metrics_collector import ConsumerLagTracker, ConsumerLagTrackerRegistry
-from app.events.kafka.metrics.metrics_service import get_metrics_manager
+from app.events.kafka.metrics.metrics_service import KafkaMetricsService
 from app.schemas_avro.event_schemas import EventType
 from app.schemas_pydantic.kafka_metrics import (
     ConsumerGroupMetrics,
@@ -33,9 +33,9 @@ from app.schemas_pydantic.kafka_metrics import (
 type TopicName = str
 type PartitionId = int
 type ConsumerGroupName = str
-type MetricsData = Dict[str, Any]
-type TopicData = Dict[TopicName, MetricsData]
-type GroupData = Dict[ConsumerGroupName, MetricsData]
+type MetricsData = dict[str, Any]
+type TopicData = dict[TopicName, MetricsData]
+type GroupData = dict[ConsumerGroupName, MetricsData]
 type MetricName = str
 type MetricValue = float | int
 
@@ -50,7 +50,7 @@ class AggregationStrategy(StrEnum):
 
 
 # Metric mappings for topics
-TOPIC_METRIC_MAPPINGS: Dict[MetricName, tuple[str, AggregationStrategy]] = {
+TOPIC_METRIC_MAPPINGS: dict[MetricName, tuple[str, AggregationStrategy]] = {
     KAFKA_MESSAGES_SENT._name: ("total_messages_produced", AggregationStrategy.LATEST),
     KAFKA_CONSUMER_MESSAGES_CONSUMED._name: ("total_messages_consumed", AggregationStrategy.SUM),
     KAFKA_MESSAGES_FAILED._name: ("total_errors", AggregationStrategy.SUM),
@@ -58,13 +58,13 @@ TOPIC_METRIC_MAPPINGS: Dict[MetricName, tuple[str, AggregationStrategy]] = {
 }
 
 # Metric mappings for consumer groups
-GROUP_METRIC_MAPPINGS: Dict[MetricName, tuple[str, AggregationStrategy]] = {
+GROUP_METRIC_MAPPINGS: dict[MetricName, tuple[str, AggregationStrategy]] = {
     KAFKA_CONSUMER_MESSAGES_CONSUMED._name: ("total_messages_consumed", AggregationStrategy.LATEST),
     KAFKA_CONSUMER_ERRORS._name: ("total_errors", AggregationStrategy.SUM),
 }
 
 # Cluster-level metrics to aggregate
-CLUSTER_METRICS: Set[MetricName] = {
+CLUSTER_METRICS: set[MetricName] = {
     KAFKA_MESSAGES_SENT._name,
     KAFKA_CONSUMER_MESSAGES_CONSUMED._name,
     KAFKA_MESSAGES_FAILED._name,
@@ -90,9 +90,11 @@ DEFAULT_MESSAGE_SIZE_BYTES = 100
 class KafkaMetricsRepository:
     """Repository for Kafka metrics data and monitoring."""
 
-    def __init__(self, db_manager: DatabaseManager) -> None:
-        self.db_manager = db_manager
-        self.db = db_manager.get_database()
+    def __init__(self,
+                 database: AsyncIOMotorDatabase,
+                 kafka_metrics_service: KafkaMetricsService | None = None) -> None:
+        self.db = database
+        self.kafka_metrics_service = kafka_metrics_service
 
     def _aggregate_metric_value(
             self,
@@ -107,23 +109,27 @@ class KafkaMetricsRepository:
             data_dict[metric_key] = 0
 
         if strategy == AggregationStrategy.SUM:
-            data_dict[metric_key] += value
-            data_dict[field_name] = data_dict.get(field_name, 0) + value
+            current_value = cast(MetricValue, data_dict[metric_key])
+            data_dict[metric_key] = current_value + value
+            field_value = cast(MetricValue, data_dict.get(field_name, 0))
+            data_dict[field_name] = field_value + value
         elif strategy == AggregationStrategy.LATEST:
             data_dict[metric_key] = value
             data_dict[field_name] = value
         elif strategy == AggregationStrategy.MAX:
-            data_dict[metric_key] = max(data_dict[metric_key], value)
+            current_value = cast(MetricValue, data_dict[metric_key])
+            data_dict[metric_key] = max(current_value, value)
             data_dict[field_name] = data_dict[metric_key]
         elif strategy == AggregationStrategy.MIN:
-            data_dict[metric_key] = min(data_dict[metric_key], value)
+            current_value = cast(MetricValue, data_dict[metric_key])
+            data_dict[metric_key] = min(current_value, value)
             data_dict[field_name] = data_dict[metric_key]
 
     def _collect_metrics_from_prometheus(
             self,
             label_key: str,
-            data_dict: Dict[str, MetricsData],
-            metric_mappings: Dict[MetricName, tuple[str, AggregationStrategy]]
+            data_dict: dict[str, MetricsData],
+            metric_mappings: dict[MetricName, tuple[str, AggregationStrategy]]
     ) -> None:
         """Generic method to collect metrics from Prometheus."""
         for metric in REGISTRY.collect():
@@ -131,7 +137,7 @@ class KafkaMetricsRepository:
                 field_name, aggregation = metric_mappings[metric.name]
 
                 for sample in metric.samples:
-                    label_value: Optional[str] = sample.labels.get(label_key)
+                    label_value: str | None = sample.labels.get(label_key)
                     if label_value and label_value in data_dict:
                         metric_key = f"metrics.{metric.name}"
                         value = int(sample.value)
@@ -145,21 +151,23 @@ class KafkaMetricsRepository:
 
     async def get_consumer_lag_metrics(
             self,
-            consumer_group: Optional[ConsumerGroupName] = None,
-            topic: Optional[TopicName] = None
-    ) -> List[LagMetrics]:
+            consumer_group: ConsumerGroupName | None = None,
+            topic: TopicName | None = None
+    ) -> list[LagMetrics]:
         """Get consumer lag metrics with real-time data from Kafka"""
         try:
-            manager = get_metrics_manager()
-            collector = await manager.get_collector()
+            if not self.kafka_metrics_service:
+                raise HTTPException(status_code=503, detail="Kafka metrics service not available")
+
+            collector = await self.kafka_metrics_service.manager.get_collector()
 
             if not collector:
                 raise HTTPException(status_code=503, detail="Metrics collector not available")
 
-            lag_metrics: List[LagMetrics] = []
+            lag_metrics: list[LagMetrics] = []
 
             async with ConsumerGroupManager() as cg_manager:
-                consumer_groups: List[ConsumerGroupName] = await cg_manager.list_consumer_groups()
+                consumer_groups: list[ConsumerGroupName] = await cg_manager.list_consumer_groups()
 
                 for group in consumer_groups:
                     if consumer_group and group != consumer_group:
@@ -167,7 +175,7 @@ class KafkaMetricsRepository:
 
                     try:
                         group_offsets = await cg_manager.get_consumer_group_offsets(group)
-                        topics_set: Set[TopicName] = {tp.topic for tp in group_offsets.keys()}
+                        topics_set: set[TopicName] = {tp.topic for tp in group_offsets.keys()}
 
                         for topic_name in topics_set:
                             if topic and topic_name != topic:
@@ -215,27 +223,29 @@ class KafkaMetricsRepository:
 
     async def get_throughput_metrics(
             self,
-            topic: Optional[TopicName] = None,
-            direction: Optional[str] = None
-    ) -> List[ThroughputMetrics]:
+            topic: TopicName | None = None,
+            direction: str | None = None
+    ) -> list[ThroughputMetrics]:
         """Get message throughput metrics with real-time calculations"""
         try:
-            manager = get_metrics_manager()
-            collector = await manager.get_collector()
+            if not self.kafka_metrics_service:
+                raise HTTPException(status_code=503, detail="Kafka metrics service not available")
+
+            collector = await self.kafka_metrics_service.manager.get_collector()
 
             if not collector:
                 raise HTTPException(status_code=503, detail="Metrics collector not available")
 
-            throughput_metrics: List[ThroughputMetrics] = []
-            message_throughput_data: Dict[str, MetricsData] = {}
-            bytes_throughput_data: Dict[str, float] = {}
+            throughput_metrics: list[ThroughputMetrics] = []
+            message_throughput_data: dict[str, MetricsData] = {}
+            bytes_throughput_data: dict[str, float] = {}
             now = datetime.now(timezone.utc)
             one_minute_ago = now - timedelta(minutes=1)
 
             events_collection = self.db[EVENTS_COLLECTION]
 
             # Get producer metrics from events
-            producer_pipeline: List[MetricsData] = [
+            producer_pipeline: list[MetricsData] = [
                 {
                     "$match": {
                         "timestamp": {"$gte": one_minute_ago},
@@ -265,7 +275,7 @@ class KafkaMetricsRepository:
             ]
 
             async for result in events_collection.aggregate(producer_pipeline):
-                topic_name: Optional[TopicName] = result["_id"].get("topic")
+                topic_name: TopicName | None = result["_id"].get("topic")
                 if topic_name:
                     if topic and topic_name != topic:
                         continue
@@ -308,9 +318,9 @@ class KafkaMetricsRepository:
 
             for key, msg_data in message_throughput_data.items():
                 throughput_metric = ThroughputMetrics(
-                    topic=msg_data['labels']['topic'],
-                    direction=msg_data['labels']['direction'],
-                    messages_per_second=round(msg_data['value'], 2),
+                    topic=str(msg_data['labels']['topic']),
+                    direction=str(msg_data['labels']['direction']),
+                    messages_per_second=round(cast(float, msg_data['value']), 2),
                     bytes_per_second=round(bytes_throughput_data.get(key, 0.0), 2),
                     timestamp=datetime.now(timezone.utc)
                 )
@@ -322,7 +332,7 @@ class KafkaMetricsRepository:
             logger.error(f"Error retrieving throughput metrics: {e}")
             raise HTTPException(status_code=500, detail="Failed to retrieve throughput metrics") from e
 
-    async def _collect_kafka_metadata(self, topic: Optional[TopicName] = None) -> TopicData:
+    async def _collect_kafka_metadata(self, topic: TopicName | None = None) -> TopicData:
         """Collect metadata from Kafka cluster"""
         topic_data: TopicData = {}
         settings = get_settings()
@@ -355,16 +365,18 @@ class KafkaMetricsRepository:
 
         return topic_data
 
-    async def get_topic_metrics(self, topic: Optional[TopicName] = None) -> List[TopicMetrics]:
+    async def get_topic_metrics(self, topic: TopicName | None = None) -> list[TopicMetrics]:
         """Get topic-level metrics with real Kafka metadata"""
-        manager = get_metrics_manager()
-        collector = await manager.get_collector()
+        if not self.kafka_metrics_service:
+            raise HTTPException(status_code=503, detail="Kafka metrics service not available")
+
+        collector = await self.kafka_metrics_service.manager.get_collector()
 
         if not collector:
             raise HTTPException(status_code=503, detail="Metrics collector not available")
 
         try:
-            topic_metrics: List[TopicMetrics] = []
+            topic_metrics: list[TopicMetrics] = []
 
             # Get Kafka metadata
             topic_data = await self._collect_kafka_metadata(topic)
@@ -375,11 +387,11 @@ class KafkaMetricsRepository:
             for topic_name, data in topic_data.items():
                 topic_metric = TopicMetrics(
                     topic=topic_name,
-                    partition_count=data.get('partition_count', 0),
-                    replication_factor=data.get('replication_factor', 1),
-                    total_messages_produced=data.get('total_messages_produced', 0),
-                    total_messages_consumed=data.get('total_messages_consumed', 0),
-                    total_errors=data.get('total_errors', 0)
+                    partition_count=cast(int, data.get('partition_count', 0)),
+                    replication_factor=cast(int, data.get('replication_factor', 1)),
+                    total_messages_produced=cast(int, data.get('total_messages_produced', 0)),
+                    total_messages_consumed=cast(int, data.get('total_messages_consumed', 0)),
+                    total_errors=cast(int, data.get('total_errors', 0))
                 )
                 topic_metrics.append(topic_metric)
 
@@ -391,21 +403,23 @@ class KafkaMetricsRepository:
 
     async def get_consumer_group_metrics(
             self,
-            group_id: Optional[ConsumerGroupName] = None
-    ) -> List[ConsumerGroupMetrics]:
+            group_id: ConsumerGroupName | None = None
+    ) -> list[ConsumerGroupMetrics]:
         """Get consumer group metrics with real Kafka data"""
         try:
-            manager = get_metrics_manager()
-            collector = await manager.get_collector()
+            if not self.kafka_metrics_service:
+                raise HTTPException(status_code=503, detail="Kafka metrics service not available")
+
+            collector = await self.kafka_metrics_service.manager.get_collector()
 
             if not collector:
                 raise HTTPException(status_code=503, detail="Metrics collector not available")
 
-            group_metrics: List[ConsumerGroupMetrics] = []
+            group_metrics: list[ConsumerGroupMetrics] = []
             group_data: GroupData = {}
 
             async with ConsumerGroupManager() as cg_manager:
-                consumer_groups: List[ConsumerGroupName] = await cg_manager.list_consumer_groups()
+                consumer_groups: list[ConsumerGroupName] = await cg_manager.list_consumer_groups()
 
                 for group in consumer_groups:
                     if group_id and group != group_id:
@@ -413,10 +427,10 @@ class KafkaMetricsRepository:
 
                     try:
                         group_offsets = await cg_manager.get_consumer_group_offsets(group)
-                        topics_set: Set[TopicName] = {tp.topic for tp in group_offsets.keys()}
+                        topics_set: set[TopicName] = {tp.topic for tp in group_offsets.keys()}
 
                         total_lag = 0
-                        partitions_info: List[MetricsData] = []
+                        partitions_info: list[MetricsData] = []
 
                         for topic_name in topics_set:
                             topic_partitions = [tp for tp in group_offsets.keys() if tp.topic == topic_name]
@@ -455,11 +469,11 @@ class KafkaMetricsRepository:
             for group_name, data in group_data.items():
                 group_metric = ConsumerGroupMetrics(
                     group_id=group_name,
-                    topics=data.get('topics', []),
-                    total_lag=data.get('total_lag', 0),
-                    total_messages_consumed=data.get('total_messages_consumed', 0),
-                    total_errors=data.get('total_errors', 0),
-                    partitions=data.get('partitions', [])
+                    topics=cast(list[str], data.get('topics', [])),
+                    total_lag=cast(int, data.get('total_lag', 0)),
+                    total_messages_consumed=cast(int, data.get('total_messages_consumed', 0)),
+                    total_errors=cast(int, data.get('total_errors', 0)),
+                    partitions=cast(list[dict[str, Any]], data.get('partitions', []))
                 )
                 group_metrics.append(group_metric)
 
@@ -472,15 +486,17 @@ class KafkaMetricsRepository:
     async def get_cluster_metrics(self) -> KafkaClusterMetrics:
         """Get overall Kafka cluster metrics with real cluster data"""
         try:
-            manager = get_metrics_manager()
-            collector = await manager.get_collector()
+            if not self.kafka_metrics_service:
+                raise HTTPException(status_code=503, detail="Kafka metrics service not available")
+
+            collector = await self.kafka_metrics_service.manager.get_collector()
 
             if not collector:
                 raise HTTPException(status_code=503, detail="Metrics collector not available")
 
             broker_count = 0
             topic_count = 0
-            consumer_groups: Set[ConsumerGroupName] = set()
+            consumer_groups: set[ConsumerGroupName] = set()
             total_messages_produced = 0
             total_messages_consumed = 0
             total_errors = 0
@@ -507,13 +523,13 @@ class KafkaMetricsRepository:
 
             async with ConsumerGroupManager() as cg_manager:
                 try:
-                    groups: List[ConsumerGroupName] = await cg_manager.list_consumer_groups()
+                    groups: list[ConsumerGroupName] = await cg_manager.list_consumer_groups()
                     consumer_groups.update(groups)
                 except Exception as e:
                     logger.warning(f"Failed to list consumer groups: {e}")
 
             # Collect metrics from Prometheus - simplified aggregation for cluster
-            cluster_metrics: Dict[MetricName, MetricValue] = {}
+            cluster_metrics: dict[MetricName, MetricValue] = {}
 
             for metric in REGISTRY.collect():
                 if metric.name in CLUSTER_METRICS:
@@ -599,7 +615,7 @@ class KafkaMetricsRepository:
             now = datetime.now(timezone.utc)
             history_start = now - timedelta(minutes=window_minutes)
 
-            historical_data: List[MetricsData] = []
+            historical_data: list[MetricsData] = []
             async for record in metrics_collection.find({
                 "consumer_group": consumer_group,
                 "topic": topic,
@@ -637,8 +653,3 @@ class KafkaMetricsRepository:
         except Exception as e:
             logger.error(f"Error retrieving lag trend: {e}")
             raise HTTPException(status_code=500, detail="Failed to retrieve lag trend") from e
-
-
-def get_kafka_metrics_repository(request: Request) -> KafkaMetricsRepository:
-    db_manager: DatabaseManager = request.app.state.db_manager
-    return KafkaMetricsRepository(db_manager)

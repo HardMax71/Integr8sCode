@@ -5,7 +5,6 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo import ASCENDING, DESCENDING, IndexModel
 
 from app.core.logging import logger
-from app.db.mongodb import DatabaseManager
 from app.schemas_avro.event_schemas import EventType
 from app.schemas_pydantic.user import User
 from app.schemas_pydantic.user_settings import (
@@ -23,12 +22,11 @@ from app.services.kafka_event_service import KafkaEventService
 class UserSettingsService:
     """Service for managing user settings with event sourcing"""
 
-    def __init__(self, db_manager: DatabaseManager, event_service: KafkaEventService) -> None:
-        self.db_manager = db_manager
-        self._db: AsyncIOMotorDatabase[Any] | None = db_manager.db
+    def __init__(self, database: AsyncIOMotorDatabase, event_service: KafkaEventService) -> None:
+        self._db: AsyncIOMotorDatabase[Any] = database
         self.event_service = event_service
         self._settings_cache: Dict[str, UserSettings] = {}
-    
+
     @property
     def db(self) -> AsyncIOMotorDatabase[Any]:
         """Get database with null check"""
@@ -527,28 +525,3 @@ class UserSettingsService:
         """Invalidate cached settings for a user"""
         if user_id in self._settings_cache:
             del self._settings_cache[user_id]
-
-
-class UserSettingsManager:
-    """Manager for UserSettingsService lifecycle"""
-
-    def __init__(self) -> None:
-        self._service: Optional[UserSettingsService] = None
-
-    async def get_service(
-            self,
-            db_manager: DatabaseManager,
-            event_service: KafkaEventService
-    ) -> UserSettingsService:
-        """Get or create service instance"""
-        if self._service is None:
-            self._service = UserSettingsService(db_manager, event_service)
-            await self._service.initialize()
-        return self._service
-
-    async def shutdown(self) -> None:
-        """Shutdown the service"""
-        if self._service:
-            # Clear cache
-            self._service._settings_cache.clear()
-            self._service = None

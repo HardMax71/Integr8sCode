@@ -1,10 +1,10 @@
 import logging
-from datetime import datetime, timezone
-from typing import List, Optional
+from datetime import UTC, datetime
+from typing import Optional
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.events.core.producer import UnifiedProducer, get_producer
+from app.events.core.producer import UnifiedProducer
 from app.schemas_avro.event_schemas import (
     EventType,
     ExecutionRequestedEvent,
@@ -68,7 +68,10 @@ class AllocateResourcesStep(SagaStep[ExecutionRequestedEvent]):
         """Allocate computational resources"""
         try:
             if not self.producer:
-                self.producer = await get_producer()
+                # Get producer from context (set by orchestrator)
+                self.producer = context.get("_producer")
+                if self.producer is None:
+                    raise RuntimeError("Producer not available in saga context")
             if self.db is None:
                 # Get database from context (set by orchestrator)
                 self.db = context.get("_db")
@@ -101,7 +104,7 @@ class AllocateResourcesStep(SagaStep[ExecutionRequestedEvent]):
                 "cpu_limit": event.cpu_limit,
                 "memory_limit": event.memory_limit,
                 "status": "active",
-                "allocated_at": datetime.now(timezone.utc),
+                "allocated_at": datetime.now(UTC),
             }
 
             await allocations_collection.insert_one(allocation)
@@ -132,7 +135,10 @@ class QueueExecutionStep(SagaStep[ExecutionRequestedEvent]):
         """Queue execution"""
         try:
             if not self.producer:
-                self.producer = await get_producer()
+                # Get producer from context (set by orchestrator)
+                self.producer = context.get("_producer")
+                if self.producer is None:
+                    raise RuntimeError("Producer not available in saga context")
 
             execution_id = context.get("execution_id")
             logger.info(f"Queueing execution {execution_id}")
@@ -165,7 +171,10 @@ class CreatePodStep(SagaStep[ExecutionRequestedEvent]):
         """Trigger pod creation"""
         try:
             if not self.producer:
-                self.producer = await get_producer()
+                # Get producer from context (set by orchestrator)
+                self.producer = context.get("_producer")
+                if self.producer is None:
+                    raise RuntimeError("Producer not available in saga context")
 
             execution_id = context.get("execution_id")
             logger.info(f"Triggering pod creation for execution {execution_id}")
@@ -247,7 +256,7 @@ class ReleaseResourcesCompensation(CompensationStep):
                 {
                     "$set": {
                         "status": "released",
-                        "released_at": datetime.now(timezone.utc),
+                        "released_at": datetime.now(UTC),
                     }
                 }
             )
@@ -270,7 +279,10 @@ class RemoveFromQueueCompensation(CompensationStep):
         """Remove from execution queue"""
         try:
             if not self.producer:
-                self.producer = await get_producer()
+                # Get producer from context (set by orchestrator)
+                self.producer = context.get("_producer")
+                if self.producer is None:
+                    raise RuntimeError("Producer not available in saga context")
 
             execution_id = context.get("execution_id")
             if not execution_id or not context.get("queued"):
@@ -299,7 +311,10 @@ class DeletePodCompensation(CompensationStep):
         """Delete Kubernetes pod"""
         try:
             if not self.producer:
-                self.producer = await get_producer()
+                # Get producer from context (set by orchestrator)
+                self.producer = context.get("_producer")
+                if self.producer is None:
+                    raise RuntimeError("Producer not available in saga context")
 
             execution_id = context.get("execution_id")
             if not execution_id or not context.get("pod_creation_triggered"):
@@ -307,9 +322,32 @@ class DeletePodCompensation(CompensationStep):
 
             logger.info(f"Triggering pod deletion for execution {execution_id}")
 
-            # In a real implementation, this would trigger pod deletion
-            # The actual deletion would be handled by another service
-
+            # Publish execution cancelled event which will trigger pod cleanup
+            from app.schemas_avro.event_schemas import (
+                EventMetadata,
+                EventType,
+                ExecutionCancelledEvent,
+                get_topic_for_event,
+            )
+            
+            cancellation_event = ExecutionCancelledEvent(
+                execution_id=execution_id,
+                reason="Saga cancellation or compensation",
+                metadata=EventMetadata(
+                    service_name="saga-orchestrator",
+                    service_version="1.0.0",
+                    user_id=context.get("user_id", "system")
+                )
+            )
+            
+            topic = get_topic_for_event(EventType.EXECUTION_CANCELLED)
+            await self.producer.send_event(
+                cancellation_event,
+                str(topic),
+                key=execution_id
+            )
+            
+            logger.info(f"Published execution cancelled event for {execution_id}")
             return True
 
         except Exception as e:
@@ -326,11 +364,11 @@ class ExecutionSaga(BaseSaga):
         return "execution_saga"
 
     @classmethod
-    def get_trigger_events(cls) -> List[str]:
+    def get_trigger_events(cls) -> list[str]:
         """Get events that trigger this saga"""
-        return [get_topic_for_event(EventType.EXECUTION_REQUESTED).value]
+        return [str(get_topic_for_event(EventType.EXECUTION_REQUESTED))]
 
-    def get_steps(self) -> List[SagaStep]:
+    def get_steps(self) -> list[SagaStep]:
         """Get saga steps in order"""
         return [
             ValidateExecutionStep(),

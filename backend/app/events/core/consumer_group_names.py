@@ -77,7 +77,8 @@ CONSUMER_GROUP_TOPICS: Dict[GroupId, List[str]] = {
     GroupId.NOTIFICATION_SERVICE: [
         get_topic_for_event(EventType.NOTIFICATION_CREATED).value,
         get_topic_for_event(EventType.EXECUTION_COMPLETED).value,
-        get_topic_for_event(EventType.EXECUTION_FAILED).value
+        get_topic_for_event(EventType.EXECUTION_FAILED).value,
+        get_topic_for_event(EventType.EXECUTION_TIMEOUT).value
     ],
     GroupId.DLQ_PROCESSOR: [
         KafkaTopic.DEAD_LETTER_QUEUE.value

@@ -11,10 +11,7 @@ from app.core.logging import logger
 from app.core.metrics import Counter, Histogram
 from app.events.core.consumer import UnifiedConsumer
 from app.schemas_avro.event_schemas import BaseEvent
-from app.services.idempotency.idempotency_manager import (
-    IdempotencyManager,
-    get_idempotency_manager,
-)
+from app.services.idempotency.idempotency_manager import IdempotencyManager
 
 # Metrics
 IDEMPOTENT_EVENTS_PROCESSED = Counter(
@@ -37,6 +34,7 @@ class IdempotentEventHandler:
     def __init__(
             self,
             handler: Callable,
+            idempotency_manager: IdempotencyManager,
             key_strategy: str = "event_based",
             custom_key_func: Optional[Callable[[BaseEvent], str]] = None,
             fields: Optional[Set[str]] = None,
@@ -45,21 +43,17 @@ class IdempotentEventHandler:
             on_duplicate: Optional[Callable] = None
     ):
         self.handler = handler
+        self.idempotency_manager = idempotency_manager
         self.key_strategy = key_strategy
         self.custom_key_func = custom_key_func
         self.fields = fields
         self.ttl_seconds = ttl_seconds
         self.cache_result = cache_result
         self.on_duplicate = on_duplicate
-        self._idempotency_manager: Optional[IdempotencyManager] = None
 
     async def __call__(self, event: BaseEvent, record: Optional[ConsumerRecord] = None) -> Any:
         """Process event with idempotency check"""
         start_time = time.time()
-
-        # Get idempotency manager
-        if not self._idempotency_manager:
-            self._idempotency_manager = get_idempotency_manager()
 
         # Generate custom key if function provided
         custom_key = None
@@ -67,10 +61,7 @@ class IdempotentEventHandler:
             custom_key = self.custom_key_func(event)
 
         # Check idempotency
-        if not self._idempotency_manager:
-            raise RuntimeError("IdempotencyManager not initialized")
-            
-        idempotency_result = await self._idempotency_manager.check_and_reserve(
+        idempotency_result = await self.idempotency_manager.check_and_reserve(
             event=event,
             key_strategy=self.key_strategy,
             custom_key=custom_key,
@@ -115,8 +106,8 @@ class IdempotentEventHandler:
                 ) if record else await asyncio.to_thread(self.handler, event)
 
             # Mark as completed
-            if self._idempotency_manager:
-                await self._idempotency_manager.mark_completed(
+            if self.idempotency_manager:
+                await self.idempotency_manager.mark_completed(
                 event=event,
                 result=result if self.cache_result else None,
                 key_strategy=self.key_strategy,
@@ -139,8 +130,7 @@ class IdempotentEventHandler:
 
         except Exception as e:
             # Mark as failed
-            if self._idempotency_manager:
-                await self._idempotency_manager.mark_failed(
+            await self.idempotency_manager.mark_failed(
                 event=event,
                 error=str(e),
                 key_strategy=self.key_strategy,
@@ -157,6 +147,7 @@ class IdempotentEventHandler:
 
 
 def idempotent_handler(
+        idempotency_manager: IdempotencyManager,
         key_strategy: str = "event_based",
         custom_key_func: Optional[Callable[[BaseEvent], str]] = None,
         fields: Optional[Set[str]] = None,
@@ -171,6 +162,7 @@ def idempotent_handler(
         async def wrapper(event: BaseEvent, *args: Any, **kwargs: Any) -> Any:
             handler = IdempotentEventHandler(
                 handler=func,
+                idempotency_manager=idempotency_manager,
                 key_strategy=key_strategy,
                 custom_key_func=custom_key_func,
                 fields=fields,
@@ -191,11 +183,13 @@ class IdempotentConsumerWrapper:
     def __init__(
             self,
             consumer: UnifiedConsumer,
+            idempotency_manager: IdempotencyManager,
             default_key_strategy: str = "event_based",
             default_ttl_seconds: int = 3600,
             enable_for_all_handlers: bool = True
     ):
         self.consumer = consumer
+        self.idempotency_manager = idempotency_manager
         self.default_key_strategy = default_key_strategy
         self.default_ttl_seconds = default_ttl_seconds
         self.enable_for_all_handlers = enable_for_all_handlers
@@ -220,6 +214,7 @@ class IdempotentConsumerWrapper:
                     # Wrap with idempotency
                     wrapped = IdempotentEventHandler(
                         handler=handler,
+                        idempotency_manager=self.idempotency_manager,
                         key_strategy=self.default_key_strategy,
                         ttl_seconds=self.default_ttl_seconds
                     )
@@ -243,6 +238,7 @@ class IdempotentConsumerWrapper:
         # Create the idempotent handler wrapper
         idempotent_wrapper = IdempotentEventHandler(
             handler=handler,
+            idempotency_manager=self.idempotency_manager,
             key_strategy=key_strategy or self.default_key_strategy,
             custom_key_func=custom_key_func,
             fields=fields,

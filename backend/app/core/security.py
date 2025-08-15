@@ -1,14 +1,13 @@
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Any, Optional
 
 import jwt
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 
 from app.config import get_settings
-from app.db.repositories.user_repository import UserRepository, get_user_repository
-from app.schemas_pydantic.user import UserInDB
+from app.schemas_pydantic.user import UserInDB, UserRole
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/login")
 
@@ -51,8 +50,8 @@ class SecurityService:
 
     async def get_current_user(
             self,
-            token: str = Depends(get_token_from_cookie),
-            user_repo: UserRepository = Depends(get_user_repository),
+            token: str,
+            user_repo: Any,  # Avoid circular import by using Any
     ) -> UserInDB:
         credentials_exception = HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -71,19 +70,19 @@ class SecurityService:
         user = await user_repo.get_user(username)
         if user is None:
             raise credentials_exception
-        return user
+        return user  # type: ignore[no-any-return]
 
     async def get_current_admin_user(
             self,
-            token: str = Depends(get_token_from_cookie),
-            user_repo: UserRepository = Depends(get_user_repository),
+            token: str,
+            user_repo: Any,  # Avoid circular import by using Any
     ) -> UserInDB:
         """Ensure current user has admin role"""
         # First get the current user
         current_user = await self.get_current_user(token, user_repo)
 
         # Then check if they have admin role
-        if current_user.role != "admin":
+        if current_user.role != UserRole.ADMIN:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not enough permissions",

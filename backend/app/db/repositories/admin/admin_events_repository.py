@@ -6,11 +6,9 @@ instead of Dict[str, Any] for improved type safety and maintainability.
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import Request
 from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
 
 from app.core.logging import logger
-from app.db.mongodb import DatabaseManager
 from app.domain.admin.event_models import (
     CollectionNames,
     Event,
@@ -450,9 +448,3 @@ class AdminEventsRepository:
         except Exception as e:
             logger.error(f"Error getting replay preview: {e}")
             raise
-
-
-def get_admin_events_repository(request: Request) -> AdminEventsRepository:
-    """FastAPI dependency to get admin events repository."""
-    db_manager: DatabaseManager = request.app.state.db_manager
-    return AdminEventsRepository(db_manager.get_database())

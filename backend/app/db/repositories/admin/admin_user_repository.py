@@ -1,12 +1,10 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import Request
 from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
 
 from app.core.logging import logger
 from app.core.security import SecurityService
-from app.db.mongodb import DatabaseManager
 from app.domain.admin.user_models import (
     PasswordReset,
     User,
@@ -17,7 +15,7 @@ from app.domain.admin.user_models import (
 )
 
 
-class AdminUsersRepository:
+class AdminUserRepository:
     def __init__(self, db: AsyncIOMotorDatabase):
         self.db = db
         self.users_collection: AsyncIOMotorCollection = self.db.get_collection("users")
@@ -139,9 +137,3 @@ class AdminUsersRepository:
         except Exception as e:
             logger.error(f"Error resetting user password: {e}")
             raise
-
-
-def get_admin_users_repository(request: Request) -> AdminUsersRepository:
-    """FastAPI dependency to get admin users repository"""
-    db_manager: DatabaseManager = request.app.state.db_manager
-    return AdminUsersRepository(db_manager.get_database())

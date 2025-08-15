@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, cast
+from typing import cast
 
-from fastapi import HTTPException, Request
+from fastapi import HTTPException
+from motor.motor_asyncio import AsyncIOMotorDatabase
 from prometheus_client import REGISTRY
 
 from app.core.health_checker import (
@@ -11,7 +12,6 @@ from app.core.health_checker import (
 )
 from app.core.logging import logger
 from app.core.metrics import HEALTH_CHECK_DURATION, HEALTH_CHECK_FAILURES, HEALTH_CHECK_STATUS
-from app.db.mongodb import DatabaseManager
 from app.schemas_pydantic.health_dashboard import (
     HealthDashboardResponse,
     HealthMetrics,
@@ -25,9 +25,8 @@ from app.services.health_service import get_health_summary
 class HealthDashboardRepository:
     """Repository for health dashboard data and metrics."""
 
-    def __init__(self, db_manager: DatabaseManager) -> None:
-        self.db_manager = db_manager
-        self.db = db_manager.get_database()
+    def __init__(self, database: AsyncIOMotorDatabase) -> None:
+        self.db = database
 
     async def get_health_dashboard_data(self) -> HealthDashboardResponse:
         """Get complete health dashboard data"""
@@ -35,7 +34,7 @@ class HealthDashboardRepository:
         summary = await get_health_summary()
         results = await manager.run_all_checks()
 
-        services: List[ServiceHealth] = []
+        services: list[ServiceHealth] = []
         for name, result in results.items():
             check = manager._checks.get(name)
             if check:
@@ -49,7 +48,7 @@ class HealthDashboardRepository:
                     critical=check.critical
                 ))
 
-        alerts: List[Dict[str, Any]] = []
+        alerts: list[dict[str, object]] = []
         for service in services:
             if service.status == HealthStatus.UNHEALTHY.value and service.critical:
                 alerts.append({
@@ -78,7 +77,7 @@ class HealthDashboardRepository:
             trends=trends
         )
 
-    async def get_service_health_details(self, service_name: str) -> Dict[str, Any]:
+    async def get_service_health_details(self, service_name: str) -> dict[str, object]:
         """Get detailed health information for a specific service"""
         manager = get_health_check_manager()
 
@@ -110,7 +109,7 @@ class HealthDashboardRepository:
             }
         }
 
-    async def get_category_health(self, category: str) -> Dict[str, Any]:
+    async def get_category_health(self, category: str) -> dict[str, object]:
         """Get health information for a specific category"""
         summary = await get_health_summary()
 
@@ -142,12 +141,14 @@ class HealthDashboardRepository:
             }
         }
 
-    async def get_health_alerts(self, severity: Optional[str] = None, limit: int = 50) -> List[Dict[str, Any]]:
+    async def get_health_alerts(self,
+                                severity: str | None = None,
+                                limit: int = 50) -> list[dict[str, object]]:
         """Get current health alerts"""
         manager = get_health_check_manager()
         results = await manager.run_all_checks()
 
-        alerts: List[Dict[str, Any]] = []
+        alerts: list[dict[str, object]] = []
 
         for name, result in results.items():
             check = manager._checks.get(name)
@@ -180,13 +181,14 @@ class HealthDashboardRepository:
         if severity:
             alerts = [a for a in alerts if a["severity"] == severity]
 
+        # Sort by timestamp (datetime objects are comparable)
         alerts.sort(key=lambda x: cast(datetime, x["timestamp"]), reverse=True)
 
         return alerts[:limit]
 
-    async def get_service_dependencies(self) -> Dict[str, Any]:
+    async def get_service_dependencies(self) -> dict[str, object]:
         """Get service dependency graph for health visualization"""
-        dependencies: Dict[str, Dict[str, Any]] = {
+        dependencies: dict[str, dict[str, object]] = {
             "api": {"depends_on": ["mongodb", "kafka_connectivity"], "critical": True},
             "event_store": {"depends_on": ["mongodb"], "critical": True},
             "kafka_producer": {"depends_on": ["kafka_connectivity", "circuit_breaker"], "critical": True},
@@ -200,7 +202,7 @@ class HealthDashboardRepository:
         manager = get_health_check_manager()
         results = await manager.run_all_checks()
 
-        graph: Dict[str, List[Dict[str, Any]]] = {"nodes": [], "edges": []}
+        graph: dict[str, list[dict[str, object]]] = {"nodes": [], "edges": []}
 
         for service_name, result in results.items():
             node = {
@@ -213,7 +215,9 @@ class HealthDashboardRepository:
             graph["nodes"].append(node)
 
         for service, config in dependencies.items():
-            service_depends_on = cast(List[str], config.get("depends_on", []))
+            service_depends_on = config.get("depends_on", [])
+            if not isinstance(service_depends_on, list):
+                service_depends_on = []
             for dependency in service_depends_on:
                 edge = {
                     "from": service,
@@ -222,12 +226,12 @@ class HealthDashboardRepository:
                 }
                 graph["edges"].append(edge)
 
-        impact_analysis: Dict[str, Dict[str, Any]] = {}
+        impact_analysis: dict[str, dict[str, object]] = {}
         for service_name, result in results.items():
             if result.status != HealthStatus.HEALTHY:
                 affected = []
                 for svc, svc_config in dependencies.items():
-                    svc_depends_on = cast(List[str], svc_config.get("depends_on", []))
+                    svc_depends_on = cast(list[str], svc_config.get("depends_on", []))
                     if service_name in svc_depends_on:
                         affected.append(svc)
 
@@ -249,7 +253,7 @@ class HealthDashboardRepository:
             )
         }
 
-    async def trigger_health_check(self, service_name: str) -> Dict[str, Any]:
+    async def trigger_health_check(self, service_name: str) -> dict[str, object]:
         """Manually trigger a health check for a service"""
         manager = get_health_check_manager()
 
@@ -340,8 +344,8 @@ class HealthDashboardRepository:
 
         check_count_24h = 0
         failure_count_24h = 0
-        durations: List[float] = []
-        failure_reasons: Dict[str, int] = {}
+        durations: list[float] = []
+        failure_reasons: dict[str, int] = {}
 
         for family in REGISTRY.collect():
             if family.name == "health_check_duration_seconds":
@@ -386,7 +390,7 @@ class HealthDashboardRepository:
             failure_reasons=failure_reasons
         )
 
-    async def get_service_history(self, service_name: str, hours: int = 24) -> Dict[str, Any]:
+    async def get_service_history(self, service_name: str, hours: int = 24) -> dict[str, object]:
         """Get historical health data for a service"""
         manager = get_health_check_manager()
 
@@ -395,10 +399,10 @@ class HealthDashboardRepository:
 
         current_result = await manager.get_check_result(service_name)
 
-        history_points: List[Dict[str, Any]] = []
+        history_points: list[dict[str, object]] = []
         now = datetime.now(timezone.utc)
 
-        failure_times: List[datetime] = []
+        failure_times: list[datetime] = []
         for family in REGISTRY.collect():
             if family.name == "health_check_failures_total":
                 for sample in family.samples:
@@ -441,7 +445,7 @@ class HealthDashboardRepository:
         return {
             "service_name": service_name,
             "time_range_hours": hours,
-            "data_points": sorted(history_points, key=lambda x: x["timestamp"]),
+            "data_points": sorted(history_points, key=lambda x: cast(datetime, x["timestamp"])),
             "summary": {
                 "uptime_percentage": uptime_percentage,
                 "total_checks": len(history_points),
@@ -450,7 +454,7 @@ class HealthDashboardRepository:
             }
         }
 
-    async def get_realtime_status(self) -> Dict[str, Any]:
+    async def get_realtime_status(self) -> dict[str, object]:
         """Get real-time health status with live updates"""
         manager = get_health_check_manager()
         results = await manager.run_all_checks()
@@ -470,7 +474,7 @@ class HealthDashboardRepository:
                 for sample in family.samples:
                     kafka_lag += int(sample.value)
 
-        services_status: Dict[str, Dict[str, Any]] = {}
+        services_status: dict[str, dict[str, object]] = {}
         for name, result in results.items():
             services_status[name] = {
                 "status": result.status.value,  # Convert enum to string
@@ -533,9 +537,9 @@ class HealthDashboardRepository:
             self,
             hours: int = 24,
             interval_minutes: int = 60
-    ) -> List[HealthTrend]:
+    ) -> list[HealthTrend]:
         """Generate health trends from Prometheus metrics and current state"""
-        trends: List[HealthTrend] = []
+        trends: list[HealthTrend] = []
         now = datetime.now(timezone.utc)
         manager = get_health_check_manager()
 
@@ -613,9 +617,3 @@ class HealthDashboardRepository:
             trends.sort(key=lambda x: x.timestamp)
 
         return trends
-
-
-def get_health_dashboard_repository(request: Request) -> HealthDashboardRepository:
-    """FastAPI dependency to get health dashboard repository"""
-    db_manager: DatabaseManager = request.app.state.db_manager
-    return HealthDashboardRepository(db_manager)

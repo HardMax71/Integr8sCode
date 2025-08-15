@@ -3,20 +3,21 @@
 import asyncio
 import logging
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Optional
 from uuid import uuid4
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel, Field
 
-from app.db.mongodb import DatabaseManager
 from app.events.core.consumer import ConsumerConfig, UnifiedConsumer
-from app.events.core.producer import UnifiedProducer, get_producer
-from app.events.store.event_store import EventStore, get_event_store
+from app.events.core.producer import UnifiedProducer
+from app.events.schema.schema_registry import SchemaRegistryManager
+from app.events.store.event_store import EventStore
 from app.schemas_avro.event_schemas import BaseEvent
 from app.services.idempotency import IdempotentConsumerWrapper
+from app.services.idempotency.idempotency_manager import IdempotencyConfig, IdempotencyManager
 from app.services.saga.saga_step import SagaContext, SagaStep
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,7 @@ class SagaState(StrEnum):
     COMPLETED = "completed"
     FAILED = "failed"
     TIMEOUT = "timeout"
+    CANCELLED = "cancelled"
 
 
 class SagaConfig(BaseModel):
@@ -51,9 +53,9 @@ class SagaInstance(BaseModel):
     execution_id: str
     state: SagaState = Field(default=SagaState.CREATED)
     current_step: Optional[str] = None
-    completed_steps: List[str] = Field(default_factory=list)
-    compensated_steps: List[str] = Field(default_factory=list)
-    context_data: Dict[str, Any] = Field(default_factory=dict)
+    completed_steps: list[str] = Field(default_factory=list)
+    compensated_steps: list[str] = Field(default_factory=list)
+    context_data: dict[str, Any] = Field(default_factory=dict)
     error_message: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
@@ -64,34 +66,49 @@ class SagaInstance(BaseModel):
 class SagaOrchestrator:
     """Orchestrates saga execution and compensation"""
 
-    def __init__(self, config: SagaConfig, db_manager: Optional[DatabaseManager] = None):
+    def __init__(self, config: SagaConfig, database: Optional[AsyncIOMotorDatabase] = None,
+                 producer: Optional[UnifiedProducer] = None,
+                 schema_registry_manager: Optional[SchemaRegistryManager] = None,
+                 event_store: Optional[EventStore] = None):
         self.config = config
-        self.db_manager = db_manager
-        self._sagas: Dict[str, Type['BaseSaga']] = {}
-        self._running_instances: Dict[str, SagaInstance] = {}
+        self._sagas: dict[str, type['BaseSaga']] = {}
+        self._running_instances: dict[str, SagaInstance] = {}
         self._consumer: Optional[IdempotentConsumerWrapper] = None
-        self._producer: Optional[UnifiedProducer] = None
-        self._event_store: Optional[EventStore] = None
-        self._db: Optional[AsyncIOMotorDatabase[Any]] = None
+        self._producer = producer
+        self._event_store = event_store
+        self._db: Optional[AsyncIOMotorDatabase] = database
         self._running = False
-        self._tasks: List[asyncio.Task] = []
+        self._tasks: list[asyncio.Task] = []
+        self._schema_registry_manager = schema_registry_manager
 
-    def register_saga(self, saga_class: Type['BaseSaga']) -> None:
+    def register_saga(self, saga_class: type['BaseSaga']) -> None:
         """Register a saga class"""
         self._sagas[saga_class.get_name()] = saga_class
         logger.info(f"Registered saga: {saga_class.get_name()}")
+
+    def _register_default_sagas(self) -> None:
+        """Register default sagas"""
+        from app.services.saga.execution_saga import ExecutionSaga
+
+        self.register_saga(ExecutionSaga)
+        logger.info("Registered default sagas")
+
+    @property
+    def is_running(self) -> bool:
+        """Check if orchestrator is running"""
+        return self._running
 
     async def start(self) -> None:
         """Start the saga orchestrator"""
         logger.info(f"Starting saga orchestrator: {self.config.name}")
 
         # Initialize components
-        if not self.db_manager:
-            raise RuntimeError("DatabaseManager not provided to SagaOrchestrator")
-        self._db = self.db_manager.get_database()
-        self._producer = await get_producer()
-        if self.config.store_events:
-            self._event_store = get_event_store()
+        if self._db is None:
+            raise RuntimeError("Database not provided to SagaOrchestrator")
+        if self._producer is None:
+            raise RuntimeError("Producer not provided to SagaOrchestrator")
+        if self.config.store_events and self._event_store is None:
+            raise RuntimeError("Event store not provided to SagaOrchestrator when store_events is enabled")
 
         # Create indexes
         await self._create_indexes()
@@ -102,6 +119,9 @@ class SagaOrchestrator:
         # Start timeout checker
         timeout_task = asyncio.create_task(self._check_timeouts())
         self._tasks.append(timeout_task)
+
+        # Register default sagas
+        self._register_default_sagas()
 
         self._running = True
         logger.info("Saga orchestrator started")
@@ -140,6 +160,9 @@ class SagaOrchestrator:
 
     async def _start_consumer(self) -> None:
         """Start Kafka consumer for saga events"""
+        if self._db is None:
+            raise RuntimeError("Database not initialized")
+
         # Get all trigger events from registered sagas
         topics = set()
         for saga_class in self._sagas.values():
@@ -155,11 +178,19 @@ class SagaOrchestrator:
             enable_auto_commit=False,
         )
 
-        consumer = UnifiedConsumer(consumer_config)
+        consumer = UnifiedConsumer(consumer_config, self._schema_registry_manager)
+
+        idempotency_config = IdempotencyConfig(
+            default_ttl_seconds=7200,
+            processing_timeout_seconds=300
+        )
+        idempotency_manager = IdempotencyManager(idempotency_config, self._db)
+        await idempotency_manager.initialize()
 
         # Wrap with idempotency
         self._consumer = IdempotentConsumerWrapper(
             consumer=consumer,
+            idempotency_manager=idempotency_manager,
             default_key_strategy="event_based",
             default_ttl_seconds=7200,  # 2 hours
             enable_for_all_handlers=False
@@ -194,7 +225,7 @@ class SagaOrchestrator:
         except Exception as e:
             logger.error(f"Error handling event {event.event_id}: {e}", exc_info=True)
 
-    def _should_trigger_saga(self, saga_class: Type['BaseSaga'], event: BaseEvent) -> bool:
+    def _should_trigger_saga(self, saga_class: type['BaseSaga'], event: BaseEvent) -> bool:
         """Check if event should trigger saga"""
         trigger_events = saga_class.get_trigger_events()
         return str(event.event_type) in trigger_events
@@ -229,8 +260,9 @@ class SagaOrchestrator:
         # Create saga and context
         saga = saga_class()
         context = SagaContext(instance.saga_id, execution_id)
-        # Pass database to context for saga steps
+        # Pass database and producer to context for saga steps
         context.set("_db", self._db)
+        context.set("_producer", self._producer)
 
         # Start processing
         asyncio.create_task(self._execute_saga(saga, instance, context, trigger_event))
@@ -267,6 +299,10 @@ class SagaOrchestrator:
                     # Mark step as completed
                     instance.completed_steps.append(step.name)
 
+                    # Save context data for potential cancellation
+                    instance.context_data = context.data
+                    await self._save_saga_instance(instance)
+
                     # Add compensation if available
                     compensation = step.get_compensation()
                     if compensation:
@@ -297,8 +333,10 @@ class SagaOrchestrator:
         """Execute compensation steps"""
         logger.info(f"Starting compensation for saga {instance.saga_id}")
 
-        instance.state = SagaState.COMPENSATING
-        await self._save_saga_instance(instance)
+        # Only update state if not already cancelled
+        if instance.state != SagaState.CANCELLED:
+            instance.state = SagaState.COMPENSATING
+            await self._save_saga_instance(instance)
 
         # Execute compensations in reverse order
         for compensation in reversed(context.compensations):
@@ -315,13 +353,20 @@ class SagaOrchestrator:
             except Exception as e:
                 logger.error(f"Error in compensation {compensation.name}: {e}", exc_info=True)
 
-        # Mark saga as failed after compensation
-        await self._fail_saga(instance, "Saga compensated due to failure")
+        # Mark saga as failed or keep as cancelled
+        if instance.state == SagaState.CANCELLED:
+            # Keep cancelled state but update compensated steps
+            instance.updated_at = datetime.now(UTC)
+            await self._save_saga_instance(instance)
+            logger.info(f"Saga {instance.saga_id} compensation completed after cancellation")
+        else:
+            # Mark as failed for non-cancelled compensations
+            await self._fail_saga(instance, "Saga compensated due to failure")
 
     async def _complete_saga(self, instance: SagaInstance) -> None:
         """Mark saga as completed"""
         instance.state = SagaState.COMPLETED
-        instance.completed_at = datetime.now(timezone.utc)
+        instance.completed_at = datetime.now(UTC)
         await self._save_saga_instance(instance)
 
         # Remove from running instances
@@ -333,7 +378,7 @@ class SagaOrchestrator:
         """Mark saga as failed"""
         instance.state = SagaState.FAILED
         instance.error_message = error_message
-        instance.completed_at = datetime.now(timezone.utc)
+        instance.completed_at = datetime.now(UTC)
         await self._save_saga_instance(instance)
 
         # Remove from running instances
@@ -354,7 +399,7 @@ class SagaOrchestrator:
                 # Check every 30 seconds
                 await asyncio.sleep(30)
 
-                cutoff_time = datetime.now(timezone.utc) - timedelta(seconds=self.config.timeout_seconds)
+                cutoff_time = datetime.now(UTC) - timedelta(seconds=self.config.timeout_seconds)
 
                 # Find timed out sagas
                 if self._db is None:
@@ -372,7 +417,7 @@ class SagaOrchestrator:
 
                     instance.state = SagaState.TIMEOUT
                     instance.error_message = f"Saga timed out after {self.config.timeout_seconds} seconds"
-                    instance.completed_at = datetime.now(timezone.utc)
+                    instance.completed_at = datetime.now(UTC)
 
                     await self._save_saga_instance(instance)
                     self._running_instances.pop(instance.saga_id, None)
@@ -382,7 +427,7 @@ class SagaOrchestrator:
 
     async def _save_saga_instance(self, instance: SagaInstance) -> None:
         """Save saga instance to database"""
-        instance.updated_at = datetime.now(timezone.utc)
+        instance.updated_at = datetime.now(UTC)
 
         if self._db is None:
             raise RuntimeError("Database not initialized")
@@ -395,9 +440,8 @@ class SagaOrchestrator:
 
     def _extract_execution_id(self, event: BaseEvent) -> str | None:
         """Extract execution ID from event"""
-        if hasattr(event, 'execution_id'):
-            return str(event.execution_id)
-        return None
+        execution_id = getattr(event, "execution_id", None)
+        return str(execution_id) if execution_id else None
 
     async def get_saga_status(self, saga_id: str) -> SagaInstance | None:
         """Get saga instance status"""
@@ -416,7 +460,7 @@ class SagaOrchestrator:
 
         return None
 
-    async def get_execution_sagas(self, execution_id: str) -> List[SagaInstance]:
+    async def get_execution_sagas(self, execution_id: str) -> list[SagaInstance]:
         """Get all sagas for an execution"""
         if self._db is None:
             return []
@@ -427,6 +471,121 @@ class SagaOrchestrator:
         }).to_list(length=100)
 
         return [SagaInstance(**doc) for doc in saga_docs]
+
+    async def cancel_saga(self, saga_id: str) -> bool:
+        """Cancel a running saga and trigger compensation.
+        
+        Args:
+            saga_id: The ID of the saga to cancel
+            
+        Returns:
+            True if cancelled successfully, False otherwise
+        """
+        try:
+            # Get saga instance
+            saga_instance = await self.get_saga_status(saga_id)
+            if not saga_instance:
+                logger.error(f"Saga {saga_id} not found")
+                return False
+
+            # Check if saga can be cancelled
+            if saga_instance.state not in [SagaState.RUNNING, SagaState.CREATED]:
+                logger.warning(
+                    f"Cannot cancel saga {saga_id} in state {saga_instance.state}. "
+                    f"Only RUNNING or CREATED sagas can be cancelled."
+                )
+                return False
+
+            # Update state to CANCELLED
+            saga_instance.state = SagaState.CANCELLED
+            saga_instance.error_message = "Saga cancelled by user request"
+            saga_instance.completed_at = datetime.now(UTC)
+
+            # Save state
+            await self._save_saga_instance(saga_instance)
+
+            # Remove from running instances
+            self._running_instances.pop(saga_id, None)
+
+            # Publish cancellation event
+            if self._producer and self.config.store_events:
+                await self._publish_saga_cancelled_event(saga_instance)
+
+            # Trigger compensation if saga was running and has completed steps
+            if saga_instance.completed_steps and self.config.enable_compensation:
+                # Get saga class
+                saga_class = self._sagas.get(saga_instance.saga_name)
+                if saga_class:
+                    # Create saga instance and context
+                    saga = saga_class()
+                    context = SagaContext(saga_instance.saga_id, saga_instance.execution_id)
+                    context.set("_db", self._db)
+                    context.set("_producer", self._producer)
+
+                    # Restore context data
+                    for key, value in saga_instance.context_data.items():
+                        context.set(key, value)
+
+                    # Get steps and build compensation list
+                    steps = saga.get_steps()
+                    for step in steps:
+                        if step.name in saga_instance.completed_steps:
+                            compensation = step.get_compensation()
+                            if compensation:
+                                context.add_compensation(compensation)
+
+                    # Execute compensation
+                    await self._compensate_saga(saga_instance, context)
+                else:
+                    logger.error(f"Saga class {saga_instance.saga_name} not found for compensation")
+
+            logger.info(f"Saga {saga_id} cancelled successfully")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error cancelling saga {saga_id}: {e}", exc_info=True)
+            return False
+
+    async def _publish_saga_cancelled_event(self, saga_instance: SagaInstance) -> None:
+        """Publish saga cancelled event.
+        
+        Args:
+            saga_instance: The cancelled saga instance
+        """
+        try:
+            from app.schemas_avro.event_schemas import (
+                EventMetadata,
+            )
+
+            # Create cancellation event
+            event_data = {
+                "event_id": str(uuid4()),
+                "event_type": "saga.cancelled",
+                "correlation_id": saga_instance.saga_id,
+                "execution_id": saga_instance.execution_id,
+                "saga_id": saga_instance.saga_id,
+                "saga_name": saga_instance.saga_name,
+                "cancelled_at": saga_instance.completed_at.isoformat() if saga_instance.completed_at else None,
+                "completed_steps": saga_instance.completed_steps,
+                "metadata": EventMetadata(
+                    service_name="saga-orchestrator",
+                    service_version="1.0.0",
+                    user_id=saga_instance.context_data.get("user_id", "system")
+                )
+            }
+
+            # Publish to saga events topic
+            if self._producer:
+                await self._producer.send_event(
+                    event=event_data,
+                    topic="saga-events",
+                    key=saga_instance.execution_id
+                )
+
+            logger.info(f"Published cancellation event for saga {saga_instance.saga_id}")
+
+        except Exception as e:
+            logger.error(f"Failed to publish saga cancellation event: {e}")
 
 
 class BaseSaga(ABC):
@@ -440,11 +599,44 @@ class BaseSaga(ABC):
 
     @classmethod
     @abstractmethod
-    def get_trigger_events(cls) -> List[str]:
+    def get_trigger_events(cls) -> list[str]:
         """Get events that trigger this saga"""
         pass
 
     @abstractmethod
-    def get_steps(self) -> List[SagaStep]:
+    def get_steps(self) -> list[SagaStep]:
         """Get saga steps in order"""
         pass
+
+
+def create_saga_orchestrator(database: AsyncIOMotorDatabase, producer: UnifiedProducer,
+                             schema_registry_manager: SchemaRegistryManager | None = None,
+                             event_store: EventStore | None = None,
+                             config: SagaConfig | None = None) -> SagaOrchestrator:
+    """Factory function to create a saga orchestrator.
+    
+    Args:
+        database: MongoDB database instance
+        producer: Kafka producer instance
+        schema_registry_manager: Schema registry manager for Avro serialization
+        event_store: Event store instance for event sourcing
+        config: Optional saga configuration (uses defaults if not provided)
+        
+    Returns:
+        A new saga orchestrator instance
+    """
+    if config is None:
+        config = SagaConfig(
+            name="main-orchestrator",
+            timeout_seconds=300,
+            max_retries=3,
+            retry_delay_seconds=5,
+            enable_compensation=True,
+            store_events=True
+        )
+
+    return SagaOrchestrator(config,
+                            database=database,
+                            producer=producer,
+                            schema_registry_manager=schema_registry_manager,
+                            event_store=event_store)

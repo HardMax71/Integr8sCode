@@ -17,17 +17,17 @@ from app.core.health_checker import (
 )
 from app.core.logging import logger
 from app.dlq.health_check import DLQHealthCheck, DLQProcessingHealthCheck
+from app.dlq.manager import DLQManager
 from app.events.kafka.health_check.create_hcs import create_kafka_health_checks
-from app.events.store.event_store import get_event_store
-from app.services.idempotency import get_idempotency_manager
+from app.services.idempotency import IdempotencyManager
 from app.websocket.event_handler import WebSocketEventHandler
 
 
 def _create_health_result(
-    name: str,
-    health_data: Dict[str, Any],
-    healthy_message: str,
-    unhealthy_status: HealthStatus = HealthStatus.UNHEALTHY
+        name: str,
+        health_data: Dict[str, Any],
+        healthy_message: str,
+        unhealthy_status: HealthStatus = HealthStatus.UNHEALTHY
 ) -> HealthCheckResult:
     """Create health check result based on health data.
     
@@ -120,8 +120,6 @@ class MongoDBHealthCheck(HealthCheck):
             )
 
 
-
-
 class KubernetesHealthCheck(HealthCheck):
     """Health check for Kubernetes API connectivity"""
 
@@ -175,7 +173,7 @@ class KubernetesHealthCheck(HealthCheck):
 class EventStoreHealthCheck(HealthCheck):
     """Health check for Event Store"""
 
-    def __init__(self) -> None:
+    def __init__(self, event_store: Optional[Any] = None) -> None:
         super().__init__(
             name="event_store",
             check_type=HealthCheckType.READINESS,
@@ -184,18 +182,18 @@ class EventStoreHealthCheck(HealthCheck):
                 interval_seconds=30.0
             )
         )
+        self.event_store = event_store
 
     async def check(self) -> HealthCheckResult:
         """Check Event Store health"""
         try:
-            event_store = get_event_store()
-            if event_store is None:
+            if self.event_store is None:
                 return HealthCheckResult(
                     name=self.name,
                     status=HealthStatus.UNHEALTHY,
                     message="Event Store not initialized"
                 )
-            health = await event_store.health_check()
+            health = await self.event_store.health_check()
 
             return _create_health_result(
                 name=self.name,
@@ -256,7 +254,7 @@ class WebSocketHealthCheck(HealthCheck):
 class IdempotencyHealthCheck(HealthCheck):
     """Health check for Idempotency Manager"""
 
-    def __init__(self) -> None:
+    def __init__(self, idempotency_manager: Optional[IdempotencyManager] = None) -> None:
         super().__init__(
             name="idempotency",
             check_type=HealthCheckType.READINESS,
@@ -266,18 +264,18 @@ class IdempotencyHealthCheck(HealthCheck):
             ),
             critical=False
         )
+        self.idempotency_manager = idempotency_manager
 
     async def check(self) -> HealthCheckResult:
         """Check Idempotency Manager health"""
         try:
-            manager = get_idempotency_manager()
-            if manager is None:
+            if self.idempotency_manager is None:
                 return HealthCheckResult(
                     name=self.name,
                     status=HealthStatus.UNHEALTHY,
                     message="Idempotency Manager not initialized"
                 )
-            health = await manager.health_check()
+            health = await self.idempotency_manager.health_check()
 
             return _create_health_result(
                 name=self.name,
@@ -297,30 +295,38 @@ class IdempotencyHealthCheck(HealthCheck):
             )
 
 
-async def initialize_health_checks(db_manager: Optional[Any] = None) -> None:
+async def initialize_health_checks(db_manager: Optional[Any] = None,
+                                   dlq_manager: Optional[DLQManager] = None,
+                                   idempotency_manager: Optional[IdempotencyManager] = None,
+                                   kafka_producer: Optional[Any] = None,
+                                   event_store: Optional[Any] = None) -> None:
     """Initialize all health checks and register with manager"""
     manager = get_health_check_manager()
 
     # Core infrastructure checks
     manager.register_check(MongoDBHealthCheck(db_manager))
 
-
     # Kubernetes check
     manager.register_check(KubernetesHealthCheck())
 
     # Event system checks
-    manager.register_check(EventStoreHealthCheck())
+    manager.register_check(EventStoreHealthCheck(event_store))
     manager.register_check(WebSocketHealthCheck())
-    manager.register_check(IdempotencyHealthCheck())
+    manager.register_check(IdempotencyHealthCheck(idempotency_manager))
 
     # Kafka health checks
-    kafka_checks = await create_kafka_health_checks()
+    kafka_checks = await create_kafka_health_checks(kafka_producer)
     for check in kafka_checks:
         manager.register_check(check)
 
     # DLQ health checks
-    manager.register_check(DLQHealthCheck())
-    manager.register_check(DLQProcessingHealthCheck())
+    if dlq_manager:
+        manager.register_check(DLQHealthCheck(dlq_manager=dlq_manager))
+        manager.register_check(DLQProcessingHealthCheck(dlq_manager=dlq_manager))
+    else:
+        # Register without manager for now, will be updated when manager is available
+        manager.register_check(DLQHealthCheck())
+        manager.register_check(DLQProcessingHealthCheck())
 
     # Create composite checks
     infrastructure_check = CompositeHealthCheck(

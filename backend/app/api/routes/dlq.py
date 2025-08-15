@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.dependencies import get_current_user
 from app.core.logging import logger
-from app.db.repositories.dlq_repository import DLQRepository, get_dlq_repository
-from app.dlq.manager import RetryPolicy, get_dlq_manager
+from app.core.service_dependencies import DLQRepositoryDep, get_dlq_manager
+from app.dlq.manager import DLQManager, RetryPolicy
 from app.schemas_pydantic.dlq import (
     DLQBatchRetryResponse,
     DLQMessageDetail,
@@ -24,7 +24,7 @@ router = APIRouter(prefix="/dlq", tags=["Dead Letter Queue"])
 
 @router.get("/stats", response_model=DLQStats)
 async def get_dlq_statistics(
-        repository: DLQRepository = Depends(get_dlq_repository),
+        repository: DLQRepositoryDep,
         current_user: dict = Depends(get_current_user)
 ) -> DLQStats:
     """Get DLQ statistics"""
@@ -38,13 +38,13 @@ async def get_dlq_statistics(
 
 @router.get("/messages", response_model=DLQMessagesResponse)
 async def get_dlq_messages(
+        repository: DLQRepositoryDep,
+        current_user: dict = Depends(get_current_user),
         status: Optional[DLQMessageStatus] = Query(None),
         topic: Optional[str] = None,
         event_type: Optional[str] = None,
         limit: int = Query(50, ge=1, le=1000),
-        offset: int = Query(0, ge=0),
-        repository: DLQRepository = Depends(get_dlq_repository),
-        current_user: dict = Depends(get_current_user)
+        offset: int = Query(0, ge=0)
 ) -> DLQMessagesResponse:
     """Get DLQ messages with filters"""
     try:
@@ -92,7 +92,7 @@ async def get_dlq_messages(
 @router.get("/messages/{event_id}", response_model=DLQMessageDetail)
 async def get_dlq_message(
         event_id: str,
-        repository: DLQRepository = Depends(get_dlq_repository),
+        repository: DLQRepositoryDep,
         current_user: dict = Depends(get_current_user)
 ) -> DLQMessageDetail:
     """Get specific DLQ message details"""
@@ -132,12 +132,12 @@ async def get_dlq_message(
 @router.post("/retry", response_model=DLQBatchRetryResponse)
 async def retry_dlq_messages(
         request: ManualRetryRequest,
-        repository: DLQRepository = Depends(get_dlq_repository),
+        repository: DLQRepositoryDep,
+        dlq_manager: DLQManager = Depends(get_dlq_manager),
         current_user: dict = Depends(get_current_user)
 ) -> DLQBatchRetryResponse:
     """Manually retry DLQ messages"""
     try:
-        dlq_manager = await get_dlq_manager()
         result = await repository.retry_messages_batch(request.event_ids, dlq_manager)
         
         return DLQBatchRetryResponse(**result.to_dict())
@@ -150,11 +150,11 @@ async def retry_dlq_messages(
 @router.post("/retry-policy", response_model=MessageResponse)
 async def set_retry_policy(
         request: RetryPolicyRequest,
+        dlq_manager: DLQManager = Depends(get_dlq_manager),
         current_user: dict = Depends(get_current_user)
 ) -> MessageResponse:
     """Set retry policy for a topic"""
     try:
-        dlq_manager = await get_dlq_manager()
 
         policy = RetryPolicy(
             topic=request.topic,
@@ -179,9 +179,10 @@ async def set_retry_policy(
 @router.delete("/messages/{event_id}", response_model=MessageResponse)
 async def discard_dlq_message(
         event_id: str,
-        reason: str = Query(..., description="Reason for discarding"),
-        repository: DLQRepository = Depends(get_dlq_repository),
-        current_user: dict = Depends(get_current_user)
+        repository: DLQRepositoryDep,
+        dlq_manager: DLQManager = Depends(get_dlq_manager),
+        current_user: dict = Depends(get_current_user),
+        reason: str = Query(..., description="Reason for discarding")
 ) -> MessageResponse:
     """Discard a DLQ message"""
     try:
@@ -192,7 +193,6 @@ async def discard_dlq_message(
             raise HTTPException(status_code=404, detail="Message not found")
 
         # Use dlq_manager for discard logic
-        dlq_manager = await get_dlq_manager()
         await dlq_manager._discard_message(message_data, f"manual: {reason}")
 
         # Mark as discarded in repository
@@ -211,7 +211,7 @@ async def discard_dlq_message(
 
 @router.get("/topics", response_model=List[DLQTopicSummaryResponse])
 async def get_dlq_topics(
-        repository: DLQRepository = Depends(get_dlq_repository),
+        repository: DLQRepositoryDep,
         current_user: dict = Depends(get_current_user)
 ) -> List[DLQTopicSummaryResponse]:
     """Get summary of all topics in DLQ"""

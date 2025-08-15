@@ -1,35 +1,13 @@
 from fastapi import Depends, HTTPException, Request, status
-from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.config import Settings, get_settings
 from app.core.logging import logger
 from app.core.security import security_service
-from app.db.mongodb import DatabaseManager
-from app.db.repositories.user_repository import UserRepository, get_user_repository
+from app.core.service_dependencies import get_user_repository
+from app.db.repositories import UserRepository
 from app.schemas_pydantic.user import UserResponse, UserRole
 
-
-def get_settings_dependency() -> Settings:
-    return get_settings()
-
-
-def get_db_dependency(request: Request) -> AsyncIOMotorDatabase:
-    try:
-        db_manager: DatabaseManager = request.app.state.db_manager
-        return db_manager.get_database()
-    except AttributeError as e:
-        logger.critical("DatabaseManager not found in app state. Application startup likely failed.")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error: Database service not available.",
-        ) from e
-    except RuntimeError as e:
-        logger.error(f"Error retrieving database handle: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error: Database connection issue.",
-        ) from e
-
+# Database dependencies have been moved to app.core.service_dependencies
+# Import them from there instead
 
 async def get_current_user(
         request: Request,
@@ -54,14 +32,13 @@ async def get_current_user(
             created_at=user_in_db.created_at,
             updated_at=user_in_db.updated_at
         )
-    except HTTPException:
-        raise
-    except Exception:
+    except Exception as e:
+        logger.error(f"Authentication failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from e
 
 
 async def require_admin(

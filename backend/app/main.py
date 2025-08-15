@@ -13,6 +13,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 
 from app.api.routes import (
+    alertmanager,
     auth,
     circuit_breaker,
     dlq,
@@ -41,30 +42,263 @@ from app.api.routes.admin import (
 from app.config import Settings, get_settings
 from app.core.cache_middleware import CacheControlMiddleware
 from app.core.correlation import CorrelationMiddleware
+from app.core.database_context import (
+    AsyncDatabaseConnection,
+    DatabaseConfig,
+    DatabaseProvider,
+    create_contextual_provider,
+    create_database_connection,
+    get_database_provider,
+)
 from app.core.exceptions import configure_exception_handlers
 from app.core.logging import logger
 from app.core.middleware import RequestSizeLimitMiddleware
+from app.core.service_dependencies import LifespanContext
 from app.core.tracing import init_tracing
-from app.db.mongodb import DatabaseManager
 from app.db.repositories.event_repository import EventRepository
-from app.dlq.manager import DLQManagerSingleton
-from app.events.core.producer import close_producer, get_producer
+from app.db.repositories.notification_repository import NotificationRepository
+from app.dlq.consumer import DLQConsumerRegistry
+from app.dlq.manager import DLQManager, create_dlq_manager
+from app.events.core.producer import UnifiedProducer, create_unified_producer
 from app.events.kafka.metrics.metrics_service import KafkaMetricsService
-from app.events.store.event_store import start_event_store_consumer, stop_event_store_consumer
+from app.events.schema.schema_registry import (
+    SchemaRegistryManager,
+    create_schema_registry_manager,
+    initialize_event_schemas,
+)
+from app.events.store.event_store import EventStore, create_event_store, create_event_store_consumer
 from app.schemas_avro.event_schemas import get_all_topics
 from app.services.event_bus import EventBusManager
-from app.services.event_projections import EventProjectionManager
-from app.services.event_replay.replay_service import EventReplayServiceSingleton
+from app.services.event_projections import EventProjectionService
 from app.services.health_service import initialize_health_checks, shutdown_health_checks
-from app.services.idempotency import close_idempotency_manager
-from app.services.idempotency.idempotency_manager import IdempotencyManagerSingleton
-from app.services.kafka_event_service import KafkaEventService, KafkaEventServiceManager
-from app.services.kubernetes_service import KubernetesService, KubernetesServiceManager
-from app.services.notification_service import NotificationManager
-from app.services.saga.saga_manager import SagaOrchestratorManagerSingleton, get_saga_orchestrator_manager
-from app.services.sse_shutdown_manager import get_sse_shutdown_manager
-from app.services.user_settings_service import UserSettingsManager
-from app.websocket.event_handler import get_websocket_event_handler
+from app.services.idempotency import IdempotencyManager, create_idempotency_manager
+from app.services.kafka_event_service import KafkaEventService
+from app.services.kubernetes_service import KubernetesService
+from app.services.notification_service import NotificationService
+from app.services.saga.saga_orchestrator import SagaOrchestrator, create_saga_orchestrator
+from app.services.sse_connection_manager import SSEConnectionManager, create_sse_connection_manager
+from app.services.sse_shutdown_manager import SSEShutdownManager, create_sse_shutdown_manager
+from app.websocket.connection_manager import ConnectionManager, create_connection_manager
+from app.websocket.event_handler import WebSocketEventHandler
+
+
+class StartupContext:
+    """Container for services initialized during startup."""
+
+    def __init__(self) -> None:
+        self.db_connection: AsyncDatabaseConnection | None = None
+        self.k8s_service: KubernetesService | None = None
+        self.dlq_manager: DLQManager | None = None
+        self.idempotency_manager: IdempotencyManager | None = None
+        self.sse_shutdown_manager: SSEShutdownManager | None = None
+        self.kafka_metrics_service: KafkaMetricsService | None = None
+        self.event_bus_manager: EventBusManager | None = None
+        self.schema_registry_manager: SchemaRegistryManager | None = None
+        self.sse_connection_manager: SSEConnectionManager | None = None
+        self.websocket_connection_manager: ConnectionManager | None = None
+        self.kafka_producer: UnifiedProducer | None = None
+        self.websocket_event_handler: WebSocketEventHandler | None = None
+        self.projection_service: EventProjectionService | None = None
+        self.kafka_event_service: KafkaEventService | None = None
+        self.notification_service: NotificationService | None = None
+        self.saga_orchestrator: SagaOrchestrator | None = None
+        self.event_store: EventStore | None = None
+
+
+async def initialize_database(settings: Settings, startup_ctx: StartupContext) -> None:
+    """Initialize database connection."""
+    db_config = DatabaseConfig(
+        mongodb_url=settings.MONGODB_URL,
+        db_name=settings.PROJECT_NAME + "_test" if settings.TESTING else settings.PROJECT_NAME,
+        server_selection_timeout_ms=5000,
+        connect_timeout_ms=5000,
+        max_pool_size=50,
+        min_pool_size=10
+    )
+
+    startup_ctx.db_connection = create_database_connection(db_config)
+    await startup_ctx.db_connection.connect()
+    logger.info("Database connection established.")
+
+
+async def initialize_core_services(startup_ctx: StartupContext, lifespan_context: LifespanContext) -> None:
+    """Initialize core services like DLQ, idempotency, SSE managers."""
+    # Validate db_connection is available
+    if not startup_ctx.db_connection:
+        raise RuntimeError("Database connection not initialized")
+
+    # DLQ Manager
+    logger.info("Initializing DLQ manager...")
+    startup_ctx.dlq_manager = create_dlq_manager(startup_ctx.db_connection.database)
+    await startup_ctx.dlq_manager.start()
+    lifespan_context.dlq_manager = startup_ctx.dlq_manager
+    logger.info("DLQ manager initialized and started")
+
+    # DLQ Consumer Registry
+    logger.info("Initializing DLQ consumer registry...")
+    lifespan_context.dlq_consumer_registry = DLQConsumerRegistry()
+    logger.info("DLQ consumer registry initialized")
+
+    # Idempotency Manager
+    logger.info("Initializing idempotency manager...")
+    startup_ctx.idempotency_manager = create_idempotency_manager(startup_ctx.db_connection.database)
+    await startup_ctx.idempotency_manager.initialize()
+    lifespan_context.idempotency_manager = startup_ctx.idempotency_manager
+    logger.info("Idempotency manager initialized")
+
+    # SSE Shutdown Manager
+    logger.info("Initializing SSE shutdown manager...")
+    startup_ctx.sse_shutdown_manager = create_sse_shutdown_manager()
+    lifespan_context.sse_shutdown_manager = startup_ctx.sse_shutdown_manager
+    logger.info("SSE shutdown manager initialized")
+
+
+async def initialize_kafka_services(startup_ctx: StartupContext, lifespan_context: LifespanContext) -> None:
+    """Initialize Kafka-related services."""
+    # Schema Registry
+    logger.info("Initializing schema registry...")
+    startup_ctx.schema_registry_manager = create_schema_registry_manager()
+    await initialize_event_schemas(startup_ctx.schema_registry_manager)
+    lifespan_context.schema_registry_manager = startup_ctx.schema_registry_manager
+    logger.info("Schema registry initialized")
+
+    # Kafka Producer
+    logger.info("Initializing Kafka producer...")
+    startup_ctx.kafka_producer = create_unified_producer(schema_registry_manager=startup_ctx.schema_registry_manager)
+    await startup_ctx.kafka_producer.start()
+    lifespan_context.kafka_producer = startup_ctx.kafka_producer
+    logger.info("Kafka producer initialized and started")
+
+    # Kafka Metrics
+    logger.info("Initializing Kafka metrics collection...")
+    startup_ctx.kafka_metrics_service = KafkaMetricsService()
+    await startup_ctx.kafka_metrics_service.initialize()
+    lifespan_context.kafka_metrics_service = startup_ctx.kafka_metrics_service
+    logger.info("Kafka metrics collection initialized")
+    
+    # Circuit Breaker Manager
+    logger.info("Initializing circuit breaker manager...")
+    from app.events.kafka.cb import KafkaCircuitBreakerManager
+    lifespan_context.circuit_breaker_manager = KafkaCircuitBreakerManager()
+    logger.info("Circuit breaker manager initialized")
+
+    # Event Store
+    logger.info("Initializing event store...")
+    if not startup_ctx.db_connection or not startup_ctx.db_connection.is_connected():
+        raise RuntimeError("Database connection not established.")
+
+    # Create event store
+    startup_ctx.event_store = create_event_store(
+        db=startup_ctx.db_connection.database,
+        ttl_days=90
+    )
+    await startup_ctx.event_store.initialize()
+    lifespan_context.event_store = startup_ctx.event_store
+    logger.info("Event store initialized")
+
+    # Event Store Consumer
+    logger.info("Initializing event store consumer...")
+    event_store_topics = get_all_topics()
+    logger.info(f"Subscribing to {len(event_store_topics)} Kafka topics")
+
+    # Create and start event store consumer
+    event_store_consumer = create_event_store_consumer(
+        event_store=startup_ctx.event_store,
+        topics=list(event_store_topics),
+        schema_registry_manager=startup_ctx.schema_registry_manager
+    )
+    await event_store_consumer.start()
+    lifespan_context.event_store_consumer = event_store_consumer
+    logger.info("Event store consumer started")
+
+
+async def initialize_websocket_services(startup_ctx: StartupContext, lifespan_context: LifespanContext) -> None:
+    """Initialize WebSocket and SSE services."""
+    # SSE Connection Manager
+    logger.info("Initializing SSE connection manager...")
+    startup_ctx.sse_connection_manager = create_sse_connection_manager(
+        schema_registry_manager=startup_ctx.schema_registry_manager,
+        shutdown_manager=startup_ctx.sse_shutdown_manager
+    )
+    lifespan_context.sse_connection_manager = startup_ctx.sse_connection_manager
+    logger.info("SSE connection manager initialized")
+
+    # WebSocket Connection Manager
+    logger.info("Initializing WebSocket connection manager...")
+    startup_ctx.websocket_connection_manager = create_connection_manager()
+    lifespan_context.websocket_connection_manager = startup_ctx.websocket_connection_manager
+    logger.info("WebSocket connection manager initialized")
+
+    # WebSocket Event Handler
+    logger.info("Starting WebSocket event handler...")
+    startup_ctx.websocket_event_handler = WebSocketEventHandler(
+        schema_registry_manager=startup_ctx.schema_registry_manager,
+        connection_manager=startup_ctx.websocket_connection_manager
+    )
+    await startup_ctx.websocket_event_handler.start()
+    lifespan_context.websocket_event_handler = startup_ctx.websocket_event_handler
+    logger.info("WebSocket event handler started")
+
+
+async def initialize_business_services(startup_ctx: StartupContext, lifespan_context: LifespanContext) -> None:
+    """Initialize business logic services."""
+    # Event Bus
+    logger.info("Initializing event bus...")
+    startup_ctx.event_bus_manager = EventBusManager()
+    await startup_ctx.event_bus_manager.get_event_bus()
+    logger.info("Event bus initialized")
+
+    # Validate database connection
+    if not startup_ctx.db_connection:
+        raise RuntimeError("Database connection not initialized")
+
+    # Projection Service
+    logger.info("Initializing projection service...")
+    startup_ctx.projection_service = EventProjectionService(startup_ctx.db_connection.database)
+    await startup_ctx.projection_service.initialize()
+
+    projection_names = startup_ctx.projection_service.get_projection_names()
+    logger.info(f"Starting {len(projection_names)} projections: {', '.join(projection_names)}")
+
+    for projection_name in projection_names:
+        await startup_ctx.projection_service.start_projection(projection_name)
+
+    logger.info("Projection service initialized with all registered projections")
+
+    # Kafka Event Service
+    notification_repository = NotificationRepository(startup_ctx.db_connection.database)
+    if not startup_ctx.kafka_producer:
+        raise RuntimeError("Kafka producer not initialized")
+    startup_ctx.kafka_event_service = KafkaEventService(
+        event_repository=EventRepository(startup_ctx.db_connection.database),
+        kafka_producer=startup_ctx.kafka_producer
+    )
+    await startup_ctx.kafka_event_service.initialize()
+
+    # Notification Service
+    logger.info("Initializing notification service...")
+    startup_ctx.notification_service = NotificationService(
+        notification_repository=notification_repository,
+        event_service=startup_ctx.kafka_event_service,
+        event_bus_manager=startup_ctx.event_bus_manager,
+        schema_registry_manager=startup_ctx.schema_registry_manager
+    )
+    await startup_ctx.notification_service.initialize()
+    lifespan_context.notification_service = startup_ctx.notification_service
+    logger.info("Notification service initialized and consuming events")
+
+    # Saga Orchestrator
+    logger.info("Initializing saga orchestrator...")
+    if not startup_ctx.db_connection or not startup_ctx.kafka_producer:
+        raise RuntimeError("Database connection or Kafka producer not initialized")
+    startup_ctx.saga_orchestrator = create_saga_orchestrator(
+        database=startup_ctx.db_connection.database,
+        producer=startup_ctx.kafka_producer,
+        schema_registry_manager=startup_ctx.schema_registry_manager,
+        event_store=startup_ctx.event_store
+    )
+    lifespan_context.saga_orchestrator = startup_ctx.saga_orchestrator
+    logger.info("Saga orchestrator initialized")
 
 
 @asynccontextmanager
@@ -88,230 +322,125 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
     logger.info("Distributed tracing initialized")
 
-    db_manager = DatabaseManager(settings)
+    # Initialize startup context
+    startup_ctx = StartupContext()
+
     try:
-        await db_manager.connect_to_database()
-        app.state.db_manager = db_manager
-        logger.info("DatabaseManager initialized and connected.")
+        # Initialize database
+        await initialize_database(settings, startup_ctx)
 
-        k8s_manager = KubernetesServiceManager()
-        app.state.k8s_manager = k8s_manager
-        logger.info("Kubernetes service manager initialized")
+        # Create contextual provider for request-scoped access
+        db_provider = create_contextual_provider()
 
-        k8s_service = KubernetesService(k8s_manager)
-        app.state.k8s_service = k8s_service
-        logger.info("KubernetesService singleton instance created.")
+        # Set up dependency override for database provider
+        async def override_get_database_provider() -> DatabaseProvider:
+            if not startup_ctx.db_connection:
+                raise RuntimeError("Database connection not initialized")
+            db_provider.set_connection(startup_ctx.db_connection)
+            return db_provider
 
-        daemonset_task = asyncio.create_task(k8s_service.ensure_image_pre_puller_daemonset())
-        app.state.daemonset_task = daemonset_task
+        app.dependency_overrides[get_database_provider] = override_get_database_provider
+
+        # Create lifespan context for background services
+        lifespan_context = LifespanContext()
+        app.state.lifespan_context = lifespan_context
+        app.state.db_connection = startup_ctx.db_connection  # Store for shutdown
+        logger.info("Database dependency injection configured.")
+
+        # Initialize Kubernetes service for daemonset
+        startup_ctx.k8s_service = KubernetesService()
+        lifespan_context.k8s_daemonset_task = asyncio.create_task(  # type: ignore[assignment]
+            startup_ctx.k8s_service.ensure_image_pre_puller_daemonset()
+        )
         logger.info("Kubernetes image pre-puller daemonset task scheduled.")
 
-        logger.info("Starting WebSocket event handler...")
-        websocket_event_handler = get_websocket_event_handler()
-        await websocket_event_handler.start()
-        app.state.websocket_handler = websocket_event_handler
-        logger.info("WebSocket event handler started")
+        # Initialize core services
+        await initialize_core_services(startup_ctx, lifespan_context)
 
+        # Initialize Kafka services first (needed for health checks)
+        await initialize_kafka_services(startup_ctx, lifespan_context)
+
+        # Initialize health checks (after Kafka producer is available)
         logger.info("Initializing health check system...")
-        await initialize_health_checks(db_manager)
+        if not startup_ctx.db_connection:
+            raise RuntimeError("Database connection not initialized")
+        await initialize_health_checks(
+            startup_ctx.db_connection.database,
+            startup_ctx.dlq_manager,
+            startup_ctx.idempotency_manager,
+            startup_ctx.kafka_producer,
+            startup_ctx.event_store
+        )
         logger.info("Health check system initialized")
 
-        logger.info("Initializing Kafka metrics collection...")
-        kafka_metrics_service = KafkaMetricsService()
-        await kafka_metrics_service.initialize()
-        app.state.kafka_metrics_service = kafka_metrics_service
-        logger.info("Kafka metrics collection initialized")
+        # Initialize WebSocket/SSE services
+        await initialize_websocket_services(startup_ctx, lifespan_context)
 
-        logger.info("Initializing event store consumer...")
-        event_store_topics = get_all_topics()
-        logger.info(f"Subscribing to {len(event_store_topics)} Kafka topics")
+        # Initialize business services
+        await initialize_business_services(startup_ctx, lifespan_context)
 
-        if db_manager.db is None:
-            raise RuntimeError("Database connection failed.")
+        # EventReplayService now uses dependency injection instead of singleton
 
-        event_store_consumer = await start_event_store_consumer(
-            db_manager.db,
-            list(event_store_topics),
-            ttl_days=90
-        )
-        app.state.event_store_consumer = event_store_consumer
-        logger.info("Event store consumer initialized and started")
-
-        logger.info("Initializing event bus...")
-        event_bus_manager = EventBusManager()
-        app.state.event_bus_manager = event_bus_manager
-        event_bus = await event_bus_manager.get_event_bus()
-        logger.info("Event bus initialized")
-
-        logger.info("Initializing Kafka producer...")
-        producer = await get_producer()
-        logger.info("Kafka producer initialized and started")
-
-        logger.info("Initializing event service...")
-        event_repository = EventRepository(db_manager)
-        await event_repository.initialize()
-
-        logger.info("Initializing Kafka-based event service")
-        kafka_event_service_manager = KafkaEventServiceManager()
-        event_service: KafkaEventService = await kafka_event_service_manager.get_service(db_manager)
-        app.state.event_service_manager = kafka_event_service_manager
-        logger.info("Kafka event service initialized")
-
-        k8s_service.set_event_service(event_service)
-        logger.info("Event service configured for Kubernetes service")
-
-        logger.info("Initializing projection service...")
-        projection_manager = EventProjectionManager()
-        projection_service = await projection_manager.get_service(db_manager)
-        app.state.projection_manager = projection_manager
-
-        # Start all registered projections
-        projection_names = projection_service.get_projection_names()
-        logger.info(f"Starting {len(projection_names)} projections: {', '.join(projection_names)}")
-
-        for projection_name in projection_names:
-            await projection_service.start_projection(projection_name)
-
-        logger.info("Projection service initialized with all registered projections")
-
-        logger.info("Initializing user settings service...")
-        settings_manager = UserSettingsManager()
-        settings_service = await settings_manager.get_service(db_manager, event_service)
-        app.state.settings_manager = settings_manager
-        logger.info("User settings service initialized")
-
-        logger.info("Initializing notification service...")
-        notification_manager = NotificationManager()
-        notification_service = await notification_manager.get_service(db_manager, event_service, event_bus_manager)
-        app.state.notification_manager = notification_manager
-        logger.info("Notification service initialized")
-
-        logger.info("Initializing idempotency manager...")
-        await IdempotencyManagerSingleton.get_instance(db_manager)
-        logger.info("Idempotency manager initialized")
-
-        logger.info("Initializing saga orchestrator...")
-        SagaOrchestratorManagerSingleton.set_database_manager(db_manager)
-        saga_manager = await get_saga_orchestrator_manager()
-        app.state.saga_manager = saga_manager
-        # Get orchestrator to initialize it (but don't start it in web app)
-        saga_orchestrator = await saga_manager.get_orchestrator()
-        logger.info("Saga orchestrator initialized")
-
-        DLQManagerSingleton.set_database_manager(db_manager)
-        logger.info("DLQManagerSingleton database manager set")
-
-        EventReplayServiceSingleton.set_database_manager(db_manager)
-        logger.info("EventReplayServiceSingleton database manager set")
     except ConnectionError as e:
-        logger.critical(f"Failed to initialize DatabaseManager: {e}", extra={"error": str(e)})
+        logger.critical(f"Failed to connect to database: {e}", extra={"error": str(e)})
         raise RuntimeError("Application startup failed: Could not connect to database.") from e
     except Exception as e:
         logger.critical(f"Failed during application startup: {e}", extra={"error": str(e)})
-        if hasattr(app.state, 'db_manager') and app.state.db_manager:
-            logger.info("Attempting to close database connection after startup failure...")
-            await app.state.db_manager.close_database_connection()
+        logger.info("Attempting to close database connection after startup failure...")
+        if startup_ctx.db_connection:
+            try:
+                await startup_ctx.db_connection.disconnect()
+            except Exception:
+                pass  # Connection might not have been fully established
         raise
 
     yield
 
     # Shutdown
     try:
-        logger.info("Initiating SSE connection draining...")
-        sse_shutdown_manager = get_sse_shutdown_manager()
-        sse_shutdown_task = asyncio.create_task(sse_shutdown_manager.initiate_shutdown())
+        # Get lifespan context from app state
+        shutdown_context: LifespanContext | None = getattr(app.state, 'lifespan_context', None)
 
-        if hasattr(app.state, "daemonset_task") and app.state.daemonset_task:
-            task = app.state.daemonset_task
-            if not task.done():
-                task.cancel()
+        # Initiate SSE shutdown if manager exists
+        sse_shutdown_task = None
+        if shutdown_context and shutdown_context.sse_shutdown_manager:
+            logger.info("Initiating SSE connection draining...")
+            sse_shutdown_task = asyncio.create_task(shutdown_context.sse_shutdown_manager.initiate_shutdown())
+
+        if shutdown_context:
+            # Cancel background tasks
+            await shutdown_context.cleanup()
+
+            # Cancel daemonset task
+            if shutdown_context.k8s_daemonset_task and not shutdown_context.k8s_daemonset_task.done():
+                shutdown_context.k8s_daemonset_task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
-                    await task
+                    await shutdown_context.k8s_daemonset_task
                 logger.info("Image pre-puller daemonset task cancelled successfully.")
 
-        if hasattr(app.state, "websocket_handler") and app.state.websocket_handler:
-            logger.info("Stopping WebSocket event handler...")
-            await app.state.websocket_handler.stop()
-            logger.info("WebSocket event handler stopped")
-
-        # Close idempotency manager
-        logger.info("Closing idempotency manager...")
-        await close_idempotency_manager()
-        logger.info("Idempotency manager closed")
+        # Idempotency manager will be closed via lifespan_context.cleanup()
 
         # Shutdown health check system
         logger.info("Shutting down health check system...")
         await shutdown_health_checks()
         logger.info("Health check system shut down")
 
-        # Shutdown Kafka metrics
-        try:
-            kafka_metrics_service = app.state.kafka_metrics_service
-            logger.info("Shutting down Kafka metrics collection...")
-            await kafka_metrics_service.shutdown()
-            logger.info("Kafka metrics collection shut down")
-        except AttributeError:
-            # Service not initialized, nothing to shutdown
-            pass
+        # Kafka metrics shutdown happens via background task cancellation
 
-        # Shutdown user settings service
-        if hasattr(app.state, "settings_manager") and app.state.settings_manager:
-            logger.info("Shutting down user settings service...")
-            await app.state.settings_manager.shutdown()
-            logger.info("User settings service shut down")
+        # Services will be cleaned up through dependency injection lifecycle
 
-        # Shutdown notification service
-        if hasattr(app.state, "notification_manager") and app.state.notification_manager:
-            logger.info("Shutting down notification service...")
-            await app.state.notification_manager.shutdown()
-            logger.info("Notification service shut down")
+        # Event store consumer shutdown happens via lifespan_context.cleanup()
 
-        # Shutdown event store consumer
-        if hasattr(app.state, "event_store_consumer") and app.state.event_store_consumer:
-            logger.info("Shutting down event store consumer...")
-            await stop_event_store_consumer()
-            logger.info("Event store consumer shut down")
+        # Kafka producer will be closed via lifespan_context.cleanup()
 
-        # Shutdown saga orchestrator
-        if hasattr(app.state, "saga_manager") and app.state.saga_manager:
-            logger.info("Shutting down saga orchestrator...")
-            await app.state.saga_manager.shutdown()
-            logger.info("Saga orchestrator shut down")
-
-        # Shutdown projection service
-        if hasattr(app.state, "projection_manager") and app.state.projection_manager:
-            logger.info("Shutting down projection service...")
-            await app.state.projection_manager.shutdown()
-            logger.info("Projection service shut down")
-
-        # Shutdown event service
-        if hasattr(app.state, "event_service_manager") and app.state.event_service_manager:
-            logger.info("Shutting down event service...")
-            if hasattr(app.state.event_service_manager, 'close'):
-                await app.state.event_service_manager.close()
-            logger.info("Event service shut down")
-
-        # Shutdown Kafka producer
-        logger.info("Shutting down Kafka producer...")
-        await close_producer()
-        logger.info("Kafka producer shut down")
-
-        # Shutdown event bus
-        if hasattr(app.state, "event_bus_manager") and app.state.event_bus_manager:
-            logger.info("Shutting down event bus...")
-            await app.state.event_bus_manager.close()
-            logger.info("Event bus shut down")
-
-        if hasattr(app.state, "k8s_manager") and app.state.k8s_manager:
-            await app.state.k8s_manager.shutdown_all()
-            logger.info("All Kubernetes services shut down")
-
-        if hasattr(app.state, "db_manager") and app.state.db_manager:
-            logger.info("Closing database connection via DatabaseManager...")
-            await app.state.db_manager.close_database_connection()
+        # Close database connection
+        if hasattr(app.state, "db_connection") and app.state.db_connection:
+            logger.info("Closing database connection...")
+            await app.state.db_connection.disconnect()
+            logger.info("Database connection closed.")
 
         # Wait for SSE shutdown to complete
-        if 'sse_shutdown_task' in locals():
+        if sse_shutdown_task is not None:
             logger.info("Waiting for SSE shutdown to complete...")
             try:
                 await asyncio.wait_for(sse_shutdown_task, timeout=45.0)
@@ -320,8 +449,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 logger.error("SSE shutdown timed out after 45 seconds")
 
             # Log final SSE shutdown status
-            shutdown_status = sse_shutdown_manager.get_shutdown_status()
-            logger.info(f"SSE shutdown status: {shutdown_status}")
+            if shutdown_context and shutdown_context.sse_shutdown_manager:
+                shutdown_status = shutdown_context.sse_shutdown_manager.get_shutdown_status()
+                logger.info(f"SSE shutdown status: {shutdown_status}")
 
     except Exception as e:
         logger.error("Error during application shutdown", extra={"error": str(e)})
@@ -387,6 +517,7 @@ def create_app() -> FastAPI:
     app.include_router(notifications.router, prefix=settings.API_V1_STR)
     app.include_router(saga.router, prefix=settings.API_V1_STR)
     app.include_router(kafka_metrics.router, prefix=settings.API_V1_STR)
+    app.include_router(alertmanager.router, prefix=settings.API_V1_STR)
 
     logger.info("All routers configured")
 

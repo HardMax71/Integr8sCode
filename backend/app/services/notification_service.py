@@ -10,19 +10,25 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum, auto
-from typing import Any, ClassVar, Protocol
+from typing import Any, Protocol, cast
 
 import httpx
-from fastapi import Request
 from jinja2 import Template
-from motor.motor_asyncio import AsyncIOMotorDatabase
-from pymongo import ASCENDING, DESCENDING, IndexModel
 
 from app.config import get_settings
 from app.core.logging import logger
 from app.core.metrics import NOTIFICATION_DELIVERY_TIME, NOTIFICATIONS_FAILED, NOTIFICATIONS_SENT
-from app.db.mongodb import DatabaseManager
-from app.schemas_avro.event_schemas import EventType
+from app.db.repositories.notification_repository import NotificationRepository
+from app.events.core.consumer import ConsumerConfig, UnifiedConsumer
+from app.events.core.consumer_group_names import GroupId
+from app.events.schema.schema_registry import SchemaRegistryManager
+from app.schemas_avro.event_schemas import (
+    EventType,
+    ExecutionCompletedEvent,
+    ExecutionFailedEvent,
+    ExecutionTimeoutEvent,
+    get_topic_for_event,
+)
 from app.schemas_pydantic.notification import (
     Notification,
     NotificationChannel,
@@ -33,6 +39,7 @@ from app.schemas_pydantic.notification import (
     NotificationSubscription,
     NotificationTemplate,
     NotificationType,
+    TestNotificationRequest,
 )
 from app.services.kafka_event_service import KafkaEventService
 
@@ -99,26 +106,24 @@ class ThrottleCache:
         """Check if notification should be throttled."""
         key = f"{user_id}:{notification_type}"
         now = datetime.now(UTC)
-        cutoff = now - timedelta(hours=THROTTLE_WINDOW_HOURS)
+        window_start = now - timedelta(hours=THROTTLE_WINDOW_HOURS)
 
         async with self._lock:
+            if key not in self._entries:
+                self._entries[key] = []
+
             # Clean old entries
-            if key in self._entries:
-                self._entries[key] = [
-                    ts for ts in self._entries[key]
-                    if ts > cutoff
-                ]
+            self._entries[key] = [
+                ts for ts in self._entries[key]
+                if ts > window_start
+            ]
 
             # Check limit
-            recent_count = len(self._entries.get(key, []))
-            if recent_count >= THROTTLE_MAX_PER_HOUR:
+            if len(self._entries[key]) >= THROTTLE_MAX_PER_HOUR:
                 return True
 
             # Add new entry
-            if key not in self._entries:
-                self._entries[key] = []
             self._entries[key].append(now)
-
             return False
 
     async def clear(self) -> None:
@@ -127,76 +132,10 @@ class ThrottleCache:
             self._entries.clear()
 
 
-@dataclass(frozen=True, slots=True)
-class DefaultTemplate:
-    """Default notification template configuration."""
-    notification_type: NotificationType
-    channels: list[NotificationChannel]
-    priority: NotificationPriority
-    subject_template: str
-    body_template: str
-    action_url_template: str | None = None
-
-
-# Default templates
-DEFAULT_TEMPLATES: tuple[DefaultTemplate, ...] = (
-    DefaultTemplate(
-        notification_type=NotificationType.EXECUTION_COMPLETED,
-        channels=[NotificationChannel.IN_APP],
-        priority=NotificationPriority.MEDIUM,
-        subject_template="Execution {{ execution_id }} completed successfully",
-        body_template="""Your code execution has completed successfully.
-
-Execution ID: {{ execution_id }}
-Language: {{ language }}
-Duration: {{ duration_seconds }}s
-Output Lines: {{ output_lines }}
-
-View results: {{ action_url }}""",
-        action_url_template="/editor?execution={{ execution_id }}"
-    ),
-    DefaultTemplate(
-        notification_type=NotificationType.EXECUTION_FAILED,
-        channels=[NotificationChannel.IN_APP],
-        priority=NotificationPriority.HIGH,
-        subject_template="Execution {{ execution_id }} failed",
-        body_template="""Your code execution has failed.
-
-Execution ID: {{ execution_id }}
-Language: {{ language }}
-Error: {{ error_message }}
-
-View details: {{ action_url }}""",
-        action_url_template="/editor?execution={{ execution_id }}"
-    ),
-    DefaultTemplate(
-        notification_type=NotificationType.SECURITY_ALERT,
-        channels=[NotificationChannel.IN_APP],
-        priority=NotificationPriority.URGENT,
-        subject_template="Security Alert: {{ alert_type }}",
-        body_template="""A security event has been detected on your account.
-
-Alert Type: {{ alert_type }}
-Details: {{ details }}
-Time: {{ timestamp }}
-IP Address: {{ ip_address }}
-
-If this wasn't you, please secure your account immediately.
-
-View details: {{ action_url }}""",
-        action_url_template="/settings/security"
-    ),
-)
-
-
 class EventBus(Protocol):
-    """Protocol for event bus operations."""
+    """Protocol for event bus interface."""
 
-    async def subscribe(self, event_type: str, handler: Any) -> None:
-        """Subscribe to event type."""
-        ...
-
-    async def publish(self, topic: str, data: Any) -> None:
+    async def publish(self, topic: str, event: Any) -> None:
         """Publish event to topic."""
         ...
 
@@ -206,17 +145,18 @@ class NotificationService:
 
     def __init__(
             self,
-            db_manager: DatabaseManager,
+            notification_repository: NotificationRepository,
             event_service: KafkaEventService,
-            event_bus_manager: Any = None
+            event_bus_manager: Any = None,
+            schema_registry_manager: SchemaRegistryManager | None = None
     ) -> None:
         """Initialize the notification service."""
-        self.db_manager = db_manager
-        self._db: AsyncIOMotorDatabase[Any] | None = db_manager.db
+        self.repository = notification_repository
         self.event_service = event_service
         self.event_bus_manager = event_bus_manager
         self.event_bus: EventBus | None = None
         self.settings = get_settings()
+        self.schema_registry_manager = schema_registry_manager
 
         # State
         self._state = ServiceState.IDLE
@@ -225,19 +165,16 @@ class NotificationService:
         # Tasks
         self._tasks: set[asyncio.Task[None]] = set()
 
+        # Event consumer
+        self._consumer: UnifiedConsumer | None = None
+        self._consumer_task: asyncio.Task[None] | None = None
+
         # Channel handlers mapping
         self._channel_handlers: dict[NotificationChannel, ChannelHandler] = {
             NotificationChannel.IN_APP: self._send_in_app,
             NotificationChannel.WEBHOOK: self._send_webhook,
             NotificationChannel.SLACK: self._send_slack
         }
-    
-    @property
-    def db(self) -> AsyncIOMotorDatabase[Any]:
-        """Get database with null check"""
-        if self._db is None:
-            raise RuntimeError("Database not initialized")
-        return self._db
 
     @property
     def state(self) -> ServiceState:
@@ -258,7 +195,7 @@ class NotificationService:
                 self.event_bus = await self.event_bus_manager.get_event_bus()
 
             # Create indexes
-            await self._create_indexes()
+            await self.repository.create_indexes()
 
             # Load templates
             await self._load_default_templates()
@@ -267,7 +204,7 @@ class NotificationService:
             self._state = ServiceState.RUNNING
             self._start_background_tasks()
 
-            # Subscribe to events
+            # Subscribe to events (currently a no-op)
             await self._subscribe_to_events()
 
             logger.info("Notification service initialized")
@@ -293,841 +230,702 @@ class NotificationService:
         if self._tasks:
             await asyncio.gather(*self._tasks, return_exceptions=True)
 
+        # Stop consumer
+        if self._consumer:
+            await self._consumer.stop()
+
         # Clear cache
         await self._throttle_cache.clear()
 
         self._state = ServiceState.STOPPED
-        logger.info("Notification service shut down")
-
-    async def _create_indexes(self) -> None:
-        """Create database indexes for notifications."""
-        indexes = [
-            # Notifications
-            self.db.notifications.create_indexes([
-                IndexModel([("user_id", ASCENDING), ("created_at", DESCENDING)]),
-                IndexModel([("status", ASCENDING), ("scheduled_for", ASCENDING)]),
-                IndexModel([("correlation_id", ASCENDING)]),
-                IndexModel([("related_entity_id", ASCENDING), ("related_entity_type", ASCENDING)])
-            ]),
-            # Rules
-            self.db.notification_rules.create_indexes([
-                IndexModel([("event_types", ASCENDING)]),
-                IndexModel([("enabled", ASCENDING)])
-            ]),
-            # Subscriptions
-            self.db.notification_subscriptions.create_indexes([
-                IndexModel([("user_id", ASCENDING), ("channel", ASCENDING)], unique=True),
-                IndexModel([("enabled", ASCENDING)])
-            ])
-        ]
-
-        await asyncio.gather(*indexes)
+        logger.info("Notification service stopped")
 
     async def _load_default_templates(self) -> None:
         """Load default notification templates."""
-        operations = []
-
-        for template_config in DEFAULT_TEMPLATES:
-            template = NotificationTemplate(
-                notification_type=template_config.notification_type,
-                channels=template_config.channels,
-                priority=template_config.priority,
-                subject_template=template_config.subject_template,
-                body_template=template_config.body_template,
-                action_url_template=template_config.action_url_template
+        templates = [
+            NotificationTemplate(
+                notification_type=NotificationType.EXECUTION_COMPLETED,
+                subject_template="Execution Completed: {{ execution_id }}",
+                body_template="Your code execution {{ execution_id }} completed successfully in {{ duration }}s.",
+                channels=[NotificationChannel.IN_APP, NotificationChannel.WEBHOOK]
+            ),
+            NotificationTemplate(
+                notification_type=NotificationType.EXECUTION_FAILED,
+                subject_template="Execution Failed: {{ execution_id }}",
+                body_template="Your code execution {{ execution_id }} failed: {{ error }}",
+                channels=[NotificationChannel.IN_APP, NotificationChannel.WEBHOOK, NotificationChannel.SLACK],
+                priority=NotificationPriority.HIGH
+            ),
+            NotificationTemplate(
+                notification_type=NotificationType.EXECUTION_TIMEOUT,
+                subject_template="Execution Timeout: {{ execution_id }}",
+                body_template="Your code execution {{ execution_id }} timed out after {{ timeout }}s.",
+                channels=[NotificationChannel.IN_APP, NotificationChannel.WEBHOOK],
+                priority=NotificationPriority.HIGH
+            ),
+            NotificationTemplate(
+                notification_type=NotificationType.SYSTEM_UPDATE,
+                subject_template="System Update: {{ update_type }}",
+                body_template="{{ message }}",
+                channels=[NotificationChannel.IN_APP],
+                priority=NotificationPriority.MEDIUM
+            ),
+            NotificationTemplate(
+                notification_type=NotificationType.SECURITY_ALERT,
+                subject_template="Security Alert: {{ alert_type }}",
+                body_template="{{ message }}",
+                channels=[NotificationChannel.IN_APP, NotificationChannel.SLACK],
+                priority=NotificationPriority.URGENT
             )
+        ]
 
-            operations.append(
-                self.db.notification_templates.update_one(
-                    {"notification_type": template.notification_type},
-                    {"$set": template.model_dump()},
-                    upsert=True
-                )
-            )
+        for template in templates:
+            await self.repository.upsert_template(template)
 
-        await asyncio.gather(*operations)
+        logger.info(f"Loaded {len(templates)} default notification templates")
 
     def _start_background_tasks(self) -> None:
         """Start background processing tasks."""
-        self._tasks.add(asyncio.create_task(self._process_pending_notifications()))
-        self._tasks.add(asyncio.create_task(self._process_scheduled_notifications()))
-        self._tasks.add(asyncio.create_task(self._cleanup_old_notifications()))
-
-    async def _subscribe_to_events(self) -> None:
-        """Subscribe to events that trigger notifications."""
-        if not self.event_bus:
-            logger.warning("Event bus not available, skipping event subscriptions")
-            return
-
-        # Event handlers mapping
-        handlers = {
-            EventType.EXECUTION_COMPLETED: self._handle_execution_completed,
-            EventType.EXECUTION_FAILED: self._handle_execution_failed,
-            EventType.EXECUTION_TIMEOUT: self._handle_execution_timeout,
-            EventType.USER_SETTINGS_UPDATED: self._handle_settings_updated,
-            EventType.RESOURCE_LIMIT_EXCEEDED: self._handle_resource_limit
-        }
-
-        # Subscribe concurrently
-        subscriptions = [
-            self.event_bus.subscribe(event_type, handler)
-            for event_type, handler in handlers.items()
+        tasks = [
+            asyncio.create_task(self._process_pending_notifications()),
+            asyncio.create_task(self._process_scheduled_notifications()),
+            asyncio.create_task(self._cleanup_old_notifications())
         ]
 
-        await asyncio.gather(*subscriptions)
+        for task in tasks:
+            self._tasks.add(task)
+            task.add_done_callback(self._tasks.discard)
+
+    async def _subscribe_to_events(self) -> None:
+        """Subscribe to relevant events for notifications."""
+        # Configure consumer for notification-relevant events
+        consumer_config = ConsumerConfig(
+            group_id=GroupId.NOTIFICATION_SERVICE,
+            topics=[
+                str(get_topic_for_event(EventType.EXECUTION_COMPLETED)),
+                str(get_topic_for_event(EventType.EXECUTION_FAILED)),
+                str(get_topic_for_event(EventType.EXECUTION_TIMEOUT)),
+            ],
+            max_poll_records=10,
+            enable_auto_commit=True,
+            auto_offset_reset="latest"  # Only process new events
+        )
+
+        # Create consumer
+        self._consumer = UnifiedConsumer(consumer_config, self.schema_registry_manager)
+
+        # Register event handlers
+        self._consumer.register_handler(
+            str(EventType.EXECUTION_COMPLETED),
+            self._handle_execution_completed_event
+        )
+        self._consumer.register_handler(
+            str(EventType.EXECUTION_FAILED),
+            self._handle_execution_failed_event
+        )
+        self._consumer.register_handler(
+            str(EventType.EXECUTION_TIMEOUT),
+            self._handle_execution_timeout_event
+        )
+
+        # Start consumer
+        await self._consumer.start()
+
+        # Start consumer task
+        self._consumer_task = asyncio.create_task(self._run_consumer())
+        self._tasks.add(self._consumer_task)
+        self._consumer_task.add_done_callback(self._tasks.discard)
+
+        logger.info("Notification service subscribed to execution events")
 
     async def create_notification(
             self,
             user_id: UserId,
             notification_type: NotificationType,
-            channel: NotificationChannel,
             context: NotificationContext,
+            channel: NotificationChannel | None = None,
+            scheduled_for: datetime | None = None,
             priority: NotificationPriority | None = None,
-            scheduled_for: datetime | None = None
-    ) -> Notification | None:
-        """Create a notification from template."""
-        # Check subscription
-        subscription = await self._get_user_subscription(user_id, channel)
-        if not subscription or not subscription.enabled:
-            logger.info(f"User {user_id} not subscribed to {channel} notifications")
-            return None
-
-        if notification_type not in subscription.notification_types:
-            logger.info(f"User {user_id} not subscribed to {notification_type} notifications")
-            return None
-
-        # Get template
-        template = await self.db.notification_templates.find_one({
-            "notification_type": notification_type
-        })
-
-        if not template:
-            logger.error(f"No template found for notification type {notification_type}")
-            return None
-
+            correlation_id: str | None = None,
+            related_entity_id: str | None = None,
+            related_entity_type: str | None = None
+    ) -> Notification:
+        """Create a new notification."""
         # Check throttling
         if await self._throttle_cache.check_throttle(user_id, notification_type):
-            logger.info(f"Notification throttled for user {user_id}, type {notification_type}")
-            return None
+            logger.warning(f"Notification throttled for user {user_id}, type {notification_type}")
+            raise ValueError("Notification rate limit exceeded")
 
-        # Render content
-        subject = Template(template["subject_template"]).render(**context)
-        body = Template(template["body_template"]).render(**context)
-        action_url = (
-            Template(template["action_url_template"]).render(**context)
-            if template.get("action_url_template")
-            else None
-        )
+        # Get template
+        template = await self.repository.get_template(notification_type)
+        if not template:
+            logger.error(f"No template found for notification type: {notification_type}")
+            raise ValueError(f"No template for notification type: {notification_type}")
+
+        # Render notification content
+        subject = Template(template.subject_template).render(**context)
+        body = Template(template.body_template).render(**context)
+        action_url = None
+        if template.action_url_template:
+            action_url = Template(template.action_url_template).render(**context)
+
+        # Use provided channel or first from template
+        notification_channel = channel or template.channels[0]
 
         # Create notification
         notification = Notification(
             user_id=user_id,
             notification_type=notification_type,
-            channel=channel,
-            priority=priority or template.get("priority", NotificationPriority.MEDIUM),
+            channel=notification_channel,
             subject=subject,
             body=body,
             action_url=action_url,
+            priority=priority or template.priority,
             scheduled_for=scheduled_for,
-            correlation_id=context.get("correlation_id"),
-            related_entity_id=context.get("entity_id"),
-            related_entity_type=context.get("entity_type"),
-            metadata=context
+            status=NotificationStatus.PENDING,
+            correlation_id=correlation_id,
+            related_entity_id=related_entity_id,
+            related_entity_type=related_entity_type,
+            metadata=context,
+            created_at=datetime.now(UTC)
         )
 
         # Save to database
-        await self.db.notifications.insert_one(notification.model_dump())
+        await self.repository.create_notification(notification)
 
         # Publish event
-        await self._publish_notification_event(
-            EventType.NOTIFICATION_CREATED,
-            notification
-        )
+        if self.event_bus:
+            await self.event_bus.publish(
+                "notifications.created",
+                {
+                    "notification_id": str(notification.notification_id),
+                    "user_id": user_id,
+                    "type": notification_type
+                }
+            )
+
+        # Process immediately if not scheduled
+        if not scheduled_for:
+            asyncio.create_task(self._deliver_notification(notification))
 
         return notification
 
-    async def send_notification(self, notification: Notification) -> bool:
-        """Send a notification through the appropriate channel."""
-        try:
-            # Update status
-            notification.status = NotificationStatus.SENDING
-            await self._update_notification(notification)
+    async def create_system_notification(
+            self,
+            title: str,
+            message: str,
+            notification_type: str = "warning",
+            metadata: dict[str, Any] | None = None,
+            target_users: list[UserId] | None = None,
+            target_roles: list[str] | None = None
+    ) -> dict[str, Any]:
+        """Create system-wide notifications for all users or specific user groups.
+        
+        Args:
+            title: Notification title/subject
+            message: Notification message body
+            notification_type: Type of notification (error, warning, success, info)
+            metadata: Additional metadata for the notification
+            target_users: Specific users to notify (if None, notifies based on roles)
+            target_roles: User roles to notify (if None and target_users is None, notifies all active users)
+            
+        Returns:
+            Dictionary with creation statistics
+        """
+        # Map string notification type to enum
+        type_mapping = {
+            "error": NotificationType.SECURITY_ALERT,
+            "critical": NotificationType.SECURITY_ALERT,
+            "warning": NotificationType.SYSTEM_UPDATE,
+            "success": NotificationType.SYSTEM_UPDATE,
+            "info": NotificationType.SYSTEM_UPDATE
+        }
+        
+        notification_enum = type_mapping.get(notification_type, NotificationType.SYSTEM_UPDATE)
+        
+        # Prepare notification context
+        context: NotificationContext = {
+            "update_type": notification_type.title(),
+            "alert_type": notification_type.title(),
+            "message": message,
+            "timestamp": datetime.now(UTC).isoformat(),
+            **(metadata or {})
+        }
+        
+        # Determine target users
+        users_to_notify: list[UserId] = []
+        
+        if target_users:
+            users_to_notify = target_users
+        else:
+            # Get users based on roles or all active users
+            if target_roles:
+                # Fetch users with specific roles
+                users_to_notify = await self.repository.get_users_by_roles(target_roles)
+            else:
+                # Get all active users (users who have logged in within last 30 days)
+                users_to_notify = await self.repository.get_active_users(days=30)
+        
+        # Create notifications for each user
+        created_count = 0
+        failed_count = 0
+        throttled_count = 0
+        
+        for user_id in users_to_notify:
+            try:
+                # Skip throttle check for critical alerts
+                if notification_type not in ["error", "critical"]:
+                    if await self._throttle_cache.check_throttle(user_id, notification_enum):
+                        throttled_count += 1
+                        continue
+                
+                # Override the title in context for proper template rendering
+                context["update_type"] = title if notification_enum == NotificationType.SYSTEM_UPDATE \
+                    else notification_type.title()
+                context["alert_type"] = title if notification_enum == NotificationType.SECURITY_ALERT \
+                    else notification_type.title()
 
-            # Get handler
+                await self.create_notification(
+                    user_id=user_id,
+                    notification_type=notification_enum,
+                    context=context,
+                    channel=NotificationChannel.IN_APP,
+                    priority=NotificationPriority.HIGH if notification_type in ["error", "critical"]
+                    else NotificationPriority.MEDIUM,
+                    correlation_id=metadata.get("correlation_id") if metadata else None,
+                    related_entity_id=metadata.get("alert_fingerprint") if metadata else None,
+                    related_entity_type="alertmanager_alert" if metadata and "alert_fingerprint" in metadata else None
+                )
+                created_count += 1
+                
+            except Exception as e:
+                logger.error(f"Failed to create system notification for user {user_id}: {e}")
+                failed_count += 1
+        
+        logger.info(
+            f"System notification created: {created_count} sent, {failed_count} failed, {throttled_count} throttled",
+            extra={
+                "notification_type": notification_type,
+                "title": title,
+                "target_users_count": len(users_to_notify),
+                "created_count": created_count,
+                "failed_count": failed_count,
+                "throttled_count": throttled_count
+            }
+        )
+        
+        return {
+            "total_users": len(users_to_notify),
+            "created": created_count,
+            "failed": failed_count,
+            "throttled": throttled_count
+        }
+
+    async def _deliver_notification(self, notification: Notification) -> None:
+        """Deliver notification through configured channel."""
+        # Check user subscription for the channel
+        subscription = await self.repository.get_subscription(
+            notification.user_id,
+            notification.channel
+        )
+
+        if not subscription or not subscription.enabled:
+            logger.info(f"User {notification.user_id} not subscribed to {notification.channel}")
+            notification.status = NotificationStatus.FAILED
+            notification.error_message = "User not subscribed to this channel"
+            await self.repository.update_notification(notification)
+            return
+
+        # Check notification type filter
+        if (subscription.notification_types and
+                notification.notification_type not in subscription.notification_types):
+            logger.info(f"Notification type {notification.notification_type} filtered for user {notification.user_id}")
+            notification.status = NotificationStatus.FAILED
+            notification.error_message = "Notification type filtered by user preferences"
+            await self.repository.update_notification(notification)
+            return
+
+        # Send through channel
+        start_time = asyncio.get_event_loop().time()
+        try:
             handler = self._channel_handlers.get(notification.channel)
-            if not handler:
+            if handler:
+                await handler(notification, subscription)
+                delivery_time = asyncio.get_event_loop().time() - start_time
+
+                # Update status
+                notification.status = NotificationStatus.SENT
+                notification.sent_at = datetime.now(UTC)
+
+                # Metrics
+                NOTIFICATIONS_SENT.labels(
+                    channel=str(notification.channel),
+                    notification_type=str(notification.notification_type)
+                ).inc()
+                NOTIFICATION_DELIVERY_TIME.labels(channel=str(notification.channel)).observe(delivery_time)
+            else:
                 raise ValueError(f"No handler for channel {notification.channel}")
 
-            # Send through channel
-            start_time = datetime.now(UTC)
-            success = await handler(notification)
-            delivery_time = (datetime.now(UTC) - start_time).total_seconds()
-
-            # Process result
-            delivery = NotificationDelivery(
-                notification_id=str(notification.notification_id),
-                channel=notification.channel,
-                success=success,
-                delivery_time_seconds=delivery_time,
-                error=notification.error_message if not success else None
-            )
-
-            await self._process_delivery_result(notification, delivery)
-
-            return bool(success)
-
         except Exception as e:
-            logger.error(f"Error sending notification {notification.notification_id}: {e}")
+            logger.error(
+                f"Failed to deliver notification {notification.notification_id} via {notification.channel}: {e}")
 
             notification.status = NotificationStatus.FAILED
+            notification.failed_at = datetime.now(UTC)
             notification.error_message = str(e)
-            notification.failed_at = datetime.now(UTC)
-
-            await self._update_notification(notification)
-            await self._publish_notification_event(
-                EventType.NOTIFICATION_FAILED,
-                notification,
-                error=str(e)
-            )
-
-            return False
-
-    async def _process_delivery_result(
-            self,
-            notification: Notification,
-            delivery: NotificationDelivery
-    ) -> None:
-        """Process notification delivery result."""
-        if delivery.success:
-            # Success handling
-            notification.status = NotificationStatus.SENT
-            notification.sent_at = datetime.now(UTC)
-
-            # Metrics
-            NOTIFICATIONS_SENT.labels(
-                channel=notification.channel,
-                notification_type=notification.notification_type
-            ).inc()
-
-            NOTIFICATION_DELIVERY_TIME.labels(
-                channel=notification.channel
-            ).observe(delivery.delivery_time_seconds)
-
-            # Event
-            await self._publish_notification_event(
-                EventType.NOTIFICATION_SENT,
-                notification,
-                delivery_time_seconds=delivery.delivery_time_seconds
-            )
-        else:
-            # Failure handling
-            notification.status = NotificationStatus.FAILED
-            notification.failed_at = datetime.now(UTC)
-            notification.retry_count += 1
-
-            NOTIFICATIONS_FAILED.labels(
-                channel=notification.channel,
-                notification_type=notification.notification_type
-            ).inc()
+            notification.retry_count = notification.retry_count + 1
 
             # Schedule retry if under limit
             if notification.retry_count < notification.max_retries:
+                notification.scheduled_for = datetime.now(UTC) + timedelta(minutes=RETRY_DELAY_MINUTES)
                 notification.status = NotificationStatus.PENDING
-                notification.scheduled_for = datetime.now(UTC) + timedelta(
-                    minutes=RETRY_DELAY_MINUTES * notification.retry_count
-                )
 
-        await self._update_notification(notification)
+            # Metrics
+            NOTIFICATIONS_FAILED.labels(
+                channel=str(notification.channel),
+                notification_type=str(notification.notification_type),
+                error_type=type(e).__name__
+            ).inc()
 
-    async def _send_in_app(self, notification: Notification) -> bool:
-        """Send in-app notification through SSE."""
-        if not self.event_bus:
-            logger.error("Event bus not available for in-app notifications")
-            return False
+        await self.repository.update_notification(notification)
 
-        try:
-            # Publish to user's event stream
-            await self.event_bus.publish(
-                f"user.{notification.user_id}.notifications",
-                {
-                    "id": str(notification.notification_id),
-                    "type": notification.notification_type,
-                    "subject": notification.subject,
-                    "body": notification.body,
-                    "action_url": notification.action_url,
-                    "priority": notification.priority,
-                    "created_at": notification.created_at.isoformat()
-                }
-            )
+    async def _send_in_app(
+            self,
+            notification: Notification,
+            subscription: NotificationSubscription
+    ) -> None:
+        """Send in-app notification."""
+        # In-app notifications are already stored, just update status
+        notification.status = NotificationStatus.DELIVERED
+        await self.repository.update_notification(notification)
 
-            logger.info(f"In-app notification sent to user {notification.user_id}")
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to send in-app notification: {e}")
-            notification.error_message = str(e)
-            return False
-
-    async def _send_webhook(self, notification: Notification) -> bool:
+    async def _send_webhook(
+            self,
+            notification: Notification,
+            subscription: NotificationSubscription
+    ) -> None:
         """Send webhook notification."""
-        try:
-            # Get webhook URL
-            webhook_url = notification.webhook_url
-            if not webhook_url:
-                subscription = await self._get_user_subscription(
-                    notification.user_id,
-                    NotificationChannel.WEBHOOK
-                )
-                webhook_url = subscription.webhook_url if subscription else None
+        webhook_url = notification.webhook_url or subscription.webhook_url
+        if not webhook_url:
+            raise ValueError("No webhook URL configured")
 
-            if not webhook_url:
-                raise ValueError("No webhook URL configured")
+        payload = {
+            "notification_id": str(notification.notification_id),
+            "type": str(notification.notification_type),
+            "subject": notification.subject,
+            "body": notification.body,
+            "priority": str(notification.priority),
+            "timestamp": notification.created_at.isoformat()
+        }
 
-            # Prepare payload
-            payload = {
-                "notification_id": str(notification.notification_id),
-                "type": notification.notification_type,
-                "subject": notification.subject,
-                "body": notification.body,
-                "action_url": notification.action_url,
-                "priority": notification.priority,
-                "metadata": notification.metadata,
-                "timestamp": datetime.now(UTC).isoformat()
-            }
+        if notification.action_url:
+            payload["action_url"] = notification.action_url
+        if notification.related_entity_id:
+            payload["related_entity_id"] = notification.related_entity_id
+            payload["related_entity_type"] = notification.related_entity_type or ""
 
-            # Send webhook
-            async with httpx.AsyncClient() as client:
-                headers = notification.webhook_headers or {}
-                headers["Content-Type"] = "application/json"
+        headers = notification.webhook_headers or {}
+        headers["Content-Type"] = "application/json"
 
-                response = await client.post(
-                    webhook_url,
-                    json=payload,
-                    headers=headers,
-                    timeout=30.0
-                )
-                response.raise_for_status()
-
-            logger.info(f"Webhook sent to {webhook_url}")
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to send webhook: {e}")
-            notification.error_message = str(e)
-            return False
-
-    async def _send_slack(self, notification: Notification) -> bool:
-        """Send Slack notification."""
-        try:
-            # Get Slack webhook
-            subscription = await self._get_user_subscription(
-                notification.user_id,
-                NotificationChannel.SLACK
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                webhook_url,
+                json=payload,
+                headers=headers,
+                timeout=30.0
             )
+            response.raise_for_status()
+            notification.delivered_at = datetime.now(UTC)
+            notification.status = NotificationStatus.DELIVERED
 
-            if not subscription or not subscription.slack_webhook:
-                raise ValueError("No Slack webhook configured")
+    async def _send_slack(
+            self,
+            notification: Notification,
+            subscription: NotificationSubscription
+    ) -> None:
+        """Send Slack notification."""
+        if not subscription.slack_webhook:
+            raise ValueError("No Slack webhook URL configured")
 
-            # Build Slack message
-            slack_message = self._build_slack_message(notification)
-
-            # Send to Slack
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    subscription.slack_webhook,
-                    json=slack_message,
-                    timeout=30.0
-                )
-                response.raise_for_status()
-
-            logger.info(f"Slack notification sent for user {notification.user_id}")
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to send Slack notification: {e}")
-            notification.error_message = str(e)
-            return False
-
-    def _build_slack_message(self, notification: Notification) -> dict[str, Any]:
-        """Build Slack message structure."""
-        blocks: list[dict[str, Any]] = [
-            {
-                "type": "header",
-                "text": {
-                    "type": "plain_text",
-                    "text": notification.subject
-                }
-            },
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": notification.body
-                }
-            }
-        ]
+        # Format message for Slack
+        slack_message: dict[str, Any] = {
+            "text": notification.subject,
+            "attachments": [{
+                "color": self._get_slack_color(notification.priority),
+                "text": notification.body,
+                "footer": "Integr8sCode Notifications",
+                "ts": int(notification.created_at.timestamp())
+            }]
+        }
 
         # Add action button if URL provided
         if notification.action_url:
-            blocks.append({
-                "type": "actions",
-                "elements": [
-                    {
-                    "type": "button",
-                    "text": {
-                        "type": "plain_text",
-                        "text": "View Details"
-                    },
-                    "url": f"{self.settings.APP_URL}{notification.action_url}"
-                    }
-                ]
-            })
+            attachments = slack_message.get("attachments", [])
+            if attachments and isinstance(attachments, list):
+                attachments[0]["actions"] = [{
+                "type": "button",
+                "text": "View Details",
+                "url": notification.action_url
+            }]
 
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                subscription.slack_webhook,
+                json=slack_message,
+                timeout=30.0
+            )
+            response.raise_for_status()
+            notification.delivered_at = datetime.now(UTC)
+            notification.status = NotificationStatus.DELIVERED
+
+    def _get_slack_color(self, priority: NotificationPriority) -> str:
+        """Get Slack color based on priority."""
         return {
-            "text": notification.subject,
-            "blocks": blocks
-        }
-
-    async def _get_user_subscription(
-            self,
-            user_id: UserId,
-            channel: NotificationChannel
-    ) -> NotificationSubscription | None:
-        """Get user's subscription preferences for a channel."""
-        sub_data = await self.db.notification_subscriptions.find_one({
-            "user_id": user_id,
-            "channel": channel
-        })
-
-        if sub_data:
-            return NotificationSubscription(**sub_data)
-
-        # Return default subscription
-        return NotificationSubscription(
-            user_id=user_id,
-            channel=channel,
-            notification_types=[nt for nt in NotificationType],
-            enabled=True
-        )
-
-    async def _update_notification(self, notification: Notification) -> None:
-        """Update notification in database."""
-        await self.db.notifications.update_one(
-            {"notification_id": str(notification.notification_id)},
-            {"$set": notification.model_dump()}
-        )
-
-    async def _publish_notification_event(
-            self,
-            event_type: EventType,
-            notification: Notification,
-            **extra_payload: Any
-    ) -> None:
-        """Publish notification-related event."""
-        payload = {
-            "notification_id": str(notification.notification_id),
-            "user_id": notification.user_id,
-            "type": notification.notification_type,
-            "channel": notification.channel,
-            "priority": notification.priority,
-            **extra_payload
-        }
-
-        await self.event_service.publish_event(
-            event_type=event_type,
-            aggregate_id=f"notification_{notification.notification_id}",
-            payload=payload
-        )
+            NotificationPriority.LOW: "#36a64f",  # Green
+            NotificationPriority.MEDIUM: "#ff9900",  # Orange
+            NotificationPriority.HIGH: "#ff0000",  # Red
+            NotificationPriority.URGENT: "#990000"  # Dark Red
+        }.get(priority, "#808080")  # Default gray
 
     async def _process_pending_notifications(self) -> None:
-        """Process pending notifications in batches."""
+        """Process pending notifications in background."""
         while self._state == ServiceState.RUNNING:
             try:
                 # Find pending notifications
-                cursor = self.db.notifications.find({
-                    "status": NotificationStatus.PENDING,
-                    "$or": [
-                        {"scheduled_for": None},
-                        {"scheduled_for": {"$lte": datetime.now(UTC)}}
-                    ]
-                }).limit(PENDING_BATCH_SIZE)
+                notifications = await self.repository.find_pending_notifications(
+                    batch_size=PENDING_BATCH_SIZE
+                )
 
-                # Process batch
-                async for notification_data in cursor:
-                    notification = Notification(**notification_data)
-                    await self.send_notification(notification)
+                # Process each notification
+                for notification in notifications:
+                    if self._state != ServiceState.RUNNING:
+                        break
+                    await self._deliver_notification(notification)
+
+                # Sleep between batches
+                await asyncio.sleep(5)
 
             except Exception as e:
                 logger.error(f"Error processing pending notifications: {e}")
-
-            await asyncio.sleep(5)
+                await asyncio.sleep(10)
 
     async def _process_scheduled_notifications(self) -> None:
         """Process scheduled notifications."""
         while self._state == ServiceState.RUNNING:
             try:
                 # Find due scheduled notifications
-                cursor = self.db.notifications.find({
-                    "status": NotificationStatus.PENDING,
-                    "scheduled_for": {
-                        "$lte": datetime.now(UTC),
-                        "$ne": None
-                    }
-                }).limit(PENDING_BATCH_SIZE)
+                notifications = await self.repository.find_scheduled_notifications(
+                    batch_size=PENDING_BATCH_SIZE
+                )
 
-                # Process batch
-                async for notification_data in cursor:
-                    notification = Notification(**notification_data)
-                    await self.send_notification(notification)
+                # Process each notification
+                for notification in notifications:
+                    if self._state != ServiceState.RUNNING:
+                        break
+                    await self._deliver_notification(notification)
+
+                # Sleep between checks
+                await asyncio.sleep(30)
 
             except Exception as e:
                 logger.error(f"Error processing scheduled notifications: {e}")
-
-            await asyncio.sleep(30)
+                await asyncio.sleep(60)
 
     async def _cleanup_old_notifications(self) -> None:
-        """Clean up old notifications periodically."""
+        """Cleanup old notifications periodically."""
         while self._state == ServiceState.RUNNING:
             try:
-                # Calculate cutoff
-                cutoff = datetime.now(UTC) - timedelta(days=OLD_NOTIFICATION_DAYS)
+                # Run cleanup once per day
+                await asyncio.sleep(86400)  # 24 hours
+
+                if self._state != ServiceState.RUNNING:
+                    break
 
                 # Delete old notifications
-                result = await self.db.notifications.delete_many({
-                    "created_at": {"$lt": cutoff}
-                })
+                deleted_count = await self.repository.cleanup_old_notifications(OLD_NOTIFICATION_DAYS)
 
-                if result.deleted_count > 0:
-                    logger.info(f"Deleted {result.deleted_count} old notifications")
+                logger.info(f"Cleaned up {deleted_count} old notifications")
 
             except Exception as e:
-                logger.error(f"Error cleaning up notifications: {e}")
-
-            await asyncio.sleep(3600)  # Run hourly
+                logger.error(f"Error cleaning up old notifications: {e}")
 
     # Event handlers
 
-    async def _handle_execution_completed(self, event: EventPayload) -> None:
-        """Handle execution completed event."""
+    async def _run_consumer(self) -> None:
+        """Run the event consumer loop."""
+        while self._state == ServiceState.RUNNING:
+            try:
+                # Consumer handles polling internally
+                await asyncio.sleep(1)
+            except asyncio.CancelledError:
+                logger.info("Notification consumer task cancelled")
+                break
+            except Exception as e:
+                logger.error(f"Error in notification consumer loop: {e}")
+                await asyncio.sleep(5)
+
+    async def _handle_execution_timeout_event(
+            self,
+            event: Any,
+            record: Any
+    ) -> None:
+        """Handle execution timeout event from Kafka."""
+        if not isinstance(event, ExecutionTimeoutEvent):
+            logger.error(f"Expected ExecutionTimeoutEvent, got {type(event)}")
+            return
+        event = cast(ExecutionTimeoutEvent, event)
         try:
-            payload = event.get("payload", {})
-            user_id = event.get("metadata", {}).get("user_id")
-
+            user_id = event.metadata.user_id
             if not user_id:
+                logger.error("No user_id in event metadata")
                 return
-
-            # Check user settings
-            settings = await self._get_user_notification_settings(user_id)
-            if not settings.get("execution_completed"):
-                return
-
-            # Create context
-            context: NotificationContext = {
-                "execution_id": payload.get("execution_id"),
-                "language": payload.get("language"),
-                "duration_seconds": payload.get("duration_seconds", 0),
-                "output_lines": len(payload.get("output", "").split("\n")),
-                "correlation_id": event.get("correlation_id"),
-                "entity_id": payload.get("execution_id"),
-                "entity_type": "execution"
-            }
-
-            # Create notifications for enabled channels
-            await self._create_channel_notifications(
-                user_id,
-                NotificationType.EXECUTION_COMPLETED,
-                context,
-                settings.get("channels", ["in_app"])
-            )
-
-        except Exception as e:
-            logger.error(f"Error handling execution completed event: {e}")
-
-    async def _handle_execution_failed(self, event: EventPayload) -> None:
-        """Handle execution failed event."""
-        try:
-            payload = event.get("payload", {})
-            user_id = event.get("metadata", {}).get("user_id")
-
-            if not user_id:
-                return
-
-            # Check user settings
-            settings = await self._get_user_notification_settings(user_id)
-            if not settings.get("execution_failed"):
-                return
-
-            # Create context
-            context: NotificationContext = {
-                "execution_id": payload.get("execution_id"),
-                "language": payload.get("language"),
-                "error_message": payload.get("error", "Unknown error"),
-                "correlation_id": event.get("correlation_id"),
-                "entity_id": payload.get("execution_id"),
-                "entity_type": "execution"
-            }
-
-            # Create notifications
-            await self._create_channel_notifications(
-                user_id,
-                NotificationType.EXECUTION_FAILED,
-                context,
-                settings.get("channels", ["in_app"]),
-                priority=NotificationPriority.HIGH
-            )
-
-        except Exception as e:
-            logger.error(f"Error handling execution failed event: {e}")
-
-    async def _handle_execution_timeout(self, event: EventPayload) -> None:
-        """Handle execution timeout event."""
-        try:
-            payload = event.get("payload", {})
-            user_id = event.get("metadata", {}).get("user_id")
-
-            if not user_id:
-                return
-
-            # Create context
-            context: NotificationContext = {
-                "execution_id": payload.get("execution_id"),
-                "language": payload.get("language"),
-                "timeout_seconds": payload.get("timeout_seconds", 30),
-                "correlation_id": event.get("correlation_id"),
-                "entity_id": payload.get("execution_id"),
-                "entity_type": "execution"
-            }
-
-            # Create notification
             await self.create_notification(
                 user_id=user_id,
                 notification_type=NotificationType.EXECUTION_TIMEOUT,
-                channel=NotificationChannel.IN_APP,
-                context=context,
-                priority=NotificationPriority.HIGH
+                context={
+                    "execution_id": event.execution_id,
+                    "timeout": getattr(event, "timeout", 300)
+                },
+                priority=NotificationPriority.HIGH,
+                correlation_id=getattr(event, "correlation_id", None),
+                related_entity_id=event.execution_id,
+                related_entity_type="execution"
             )
-
         except Exception as e:
             logger.error(f"Error handling execution timeout event: {e}")
 
-    async def _handle_settings_updated(self, event: EventPayload) -> None:
-        """Handle settings updated event."""
-        try:
-            payload = event.get("payload", {})
-            user_id = payload.get("user_id")
-            changes = payload.get("changes", [])
-
-            if not user_id or not changes:
-                return
-
-            # Filter significant changes
-            significant_fields = {"notifications", "security", "privacy"}
-            significant_changes = [
-                change for change in changes
-                if change.get("field_path") in significant_fields
-            ]
-
-            if not significant_changes:
-                return
-
-            # Create context
-            context: NotificationContext = {
-                "changes": [change.get("field_path") for change in significant_changes],
-                "change_count": len(significant_changes),
-                "timestamp": event.get("timestamp"),
-                "correlation_id": event.get("correlation_id")
-            }
-
-            # Create notification
-            await self.create_notification(
-                user_id=user_id,
-                notification_type=NotificationType.SETTINGS_CHANGED,
-                channel=NotificationChannel.IN_APP,
-                context=context
-            )
-
-        except Exception as e:
-            logger.error(f"Error handling settings updated event: {e}")
-
-    async def _handle_resource_limit(self, event: EventPayload) -> None:
-        """Handle resource limit exceeded event."""
-        try:
-            payload = event.get("payload", {})
-            user_id = event.get("metadata", {}).get("user_id")
-
-            if not user_id:
-                return
-
-            # Create context
-            context: NotificationContext = {
-                "execution_id": payload.get("execution_id"),
-                "resource_type": payload.get("resource_type", "unknown"),
-                "limit": payload.get("limit"),
-                "usage": payload.get("usage"),
-                "correlation_id": event.get("correlation_id"),
-                "entity_id": payload.get("execution_id"),
-                "entity_type": "execution"
-            }
-
-            # Create notification
-            await self.create_notification(
-                user_id=user_id,
-                notification_type=NotificationType.RESOURCE_LIMIT,
-                channel=NotificationChannel.IN_APP,
-                context=context,
-                priority=NotificationPriority.HIGH
-            )
-
-        except Exception as e:
-            logger.error(f"Error handling resource limit event: {e}")
-
-    async def _get_user_notification_settings(
+    async def _handle_execution_completed_event(
             self,
-            user_id: UserId
-    ) -> dict[str, Any]:
-        """Get user notification settings."""
-        settings = await self.db.user_settings_snapshots.find_one({
-            "user_id": user_id
-        })
-
-        if not settings:
-            return {"notifications": {}}
-
-        return dict(settings.get("notifications", {}))
-
-    async def _create_channel_notifications(
-            self,
-            user_id: UserId,
-            notification_type: NotificationType,
-            context: NotificationContext,
-            channels: list[str],
-            priority: NotificationPriority | None = None
+            event: Any,
+            record: Any
     ) -> None:
-        """Create notifications for multiple channels."""
-        tasks = [
-            self.create_notification(
+        """Handle execution completed event from Kafka."""
+        if not isinstance(event, ExecutionCompletedEvent):
+            logger.error(f"Expected ExecutionCompletedEvent, got {type(event)}")
+            return
+        event = cast(ExecutionCompletedEvent, event)
+        try:
+            user_id = event.metadata.user_id
+            if not user_id:
+                logger.error("No user_id in event metadata")
+                return
+            await self.create_notification(
                 user_id=user_id,
-                notification_type=notification_type,
-                channel=NotificationChannel(channel),
-                context=context,
-                priority=priority
+                notification_type=NotificationType.EXECUTION_COMPLETED,
+                context={
+                    "execution_id": event.execution_id,
+                    "duration": getattr(event, "duration", 0),
+                    "output": str(getattr(event, "output", ""))[:100]  # Truncate output
+                },
+                correlation_id=getattr(event, "correlation_id", None),
+                related_entity_id=event.execution_id,
+                related_entity_type="execution"
             )
-            for channel in channels
-        ]
+        except Exception as e:
+            logger.error(f"Error handling execution completed event: {e}")
 
-        await asyncio.gather(*tasks, return_exceptions=True)
+    async def _handle_execution_failed_event(
+            self,
+            event: Any,
+            record: Any
+    ) -> None:
+        """Handle execution failed event from Kafka."""
+        if not isinstance(event, ExecutionFailedEvent):
+            logger.error(f"Expected ExecutionFailedEvent, got {type(event)}")
+            return
+        event = cast(ExecutionFailedEvent, event)
+        try:
+            user_id = event.metadata.user_id
+            if not user_id:
+                logger.error("No user_id in event metadata")
+                return
+            await self.create_notification(
+                user_id=user_id,
+                notification_type=NotificationType.EXECUTION_FAILED,
+                context={
+                    "execution_id": event.execution_id,
+                    "error": getattr(event, "error", "Unknown error")
+                },
+                priority=NotificationPriority.HIGH,
+                correlation_id=getattr(event, "correlation_id", None),
+                related_entity_id=event.execution_id,
+                related_entity_type="execution"
+            )
+        except Exception as e:
+            logger.error(f"Error handling execution failed event: {e}")
 
     # Public API methods
 
-    async def mark_as_read(
-            self,
-            notification_id: NotificationId,
-            user_id: UserId
-    ) -> bool:
+    async def mark_as_read(self, user_id: UserId, notification_id: NotificationId) -> bool:
         """Mark notification as read."""
         try:
-            result = await self.db.notifications.update_one(
-                {"notification_id": str(notification_id), "user_id": user_id},
-                {
-                    "$set": {
-                        "status": NotificationStatus.READ,
-                        "read_at": datetime.now(UTC)
-                    }
-                }
-            )
+            success = await self.repository.mark_as_read(str(notification_id), user_id)
 
-            if result.modified_count > 0:
-                # Publish event
-                await self.event_service.publish_event(
-                    event_type=EventType.NOTIFICATION_READ,
-                    aggregate_id=f"notification_{notification_id}",
-                    payload={
-                        "notification_id": notification_id,
-                        "user_id": user_id
+            if success and self.event_bus:
+                await self.event_bus.publish(
+                    "notifications.read",
+                    {
+                        "notification_id": str(notification_id),
+                        "user_id": user_id,
+                        "read_at": datetime.now(UTC).isoformat()
                     }
                 )
-                return True
 
-            return False
+            return success
 
         except Exception as e:
             logger.error(f"Error marking notification as read: {e}")
             return False
 
-    async def get_user_notifications(
+    async def get_notifications(
             self,
             user_id: UserId,
             status: NotificationStatus | None = None,
-            limit: int = 50,
-            skip: int = 0
-    ) -> list[Notification]:
+            limit: int = 20,
+            offset: int = 0
+    ) -> list[NotificationResponse]:
         """Get notifications for a user."""
-        query = {"user_id": user_id}
-        if status:
-            query["status"] = status
+        notifications = await self.repository.list_notifications(
+            user_id=user_id,
+            status=status,
+            skip=offset,
+            limit=limit
+        )
 
-        cursor = self.db.notifications.find(query).sort(
-            "created_at", DESCENDING
-        ).skip(skip).limit(limit)
-
-        notifications = []
-        async for notification_data in cursor:
-            notifications.append(Notification(**notification_data))
-
-        return notifications
+        return [
+            NotificationResponse.model_validate(n.model_dump())
+            for n in notifications
+        ]
 
     async def get_unread_count(self, user_id: UserId) -> int:
         """Get count of unread notifications."""
-        return await self.db.notifications.count_documents({
-            "user_id": user_id,
-            "status": {"$in": [NotificationStatus.SENT, NotificationStatus.DELIVERED]}
-        })
+        return await self.repository.get_unread_count(user_id)
 
-    async def get_user_notifications_list(
+    async def list_notifications(
             self,
             user_id: UserId,
             status: NotificationStatus | None = None,
-            limit: int = 50,
-            skip: int = 0
+            limit: int = 20,
+            offset: int = 0
     ) -> NotificationListResponse:
-        """Get user notifications with pagination."""
+        """List notifications with pagination."""
         # Get notifications
-        notifications = await self.get_user_notifications(
+        notifications = await self.get_notifications(
             user_id=user_id,
             status=status,
             limit=limit,
-            skip=skip
+            offset=offset
         )
 
         # Get counts
-        query = {"user_id": user_id}
-        if status:
-            query["status"] = status
-
+        query: dict[str, object] | None = {"status": status} if status else None
         total, unread_count = await asyncio.gather(
-            self.db.notifications.count_documents(query),
+            self.repository.count_notifications(user_id, query),
             self.get_unread_count(user_id)
         )
 
-        # Build response
-        notification_responses = [
-            NotificationResponse(
-                notification_id=str(notification.notification_id),
-                notification_type=notification.notification_type,
-                channel=notification.channel,
-                status=notification.status,
-                subject=notification.subject,
-                body=notification.body,
-                action_url=notification.action_url,
-                created_at=notification.created_at,
-                read_at=notification.read_at,
-                priority=notification.priority
-            )
-            for notification in notifications
-        ]
-
         return NotificationListResponse(
-            notifications=notification_responses,
+            notifications=notifications,
             total=total,
             unread_count=unread_count
         )
@@ -1136,153 +934,106 @@ class NotificationService:
             self,
             user_id: UserId,
             channel: NotificationChannel,
-            subscription: NotificationSubscription
+            enabled: bool,
+            webhook_url: str | None = None,
+            slack_webhook: str | None = None,
+            notification_types: list[NotificationType] | None = None
     ) -> NotificationSubscription:
-        """Update user's notification subscription."""
-        subscription.user_id = user_id
-        subscription.channel = channel
-        subscription.updated_at = datetime.now(UTC)
+        """Update notification subscription preferences."""
+        # Get existing or create new
+        subscription = await self.repository.get_subscription(user_id, channel)
 
-        await self.db.notification_subscriptions.replace_one(
-            {"user_id": user_id, "channel": channel},
-            subscription.model_dump(),
-            upsert=True
-        )
+        if not subscription:
+            subscription = NotificationSubscription(
+                user_id=user_id,
+                channel=channel,
+                enabled=enabled,
+                notification_types=notification_types or [],
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC)
+            )
+        else:
+            subscription.enabled = enabled
 
-        # Publish event
-        await self.event_service.publish_event(
-            event_type=EventType.NOTIFICATION_PREFERENCES_UPDATED,
-            aggregate_id=f"user_notifications_{user_id}",
-            payload={
-                "user_id": user_id,
-                "channel": channel,
-                "enabled": subscription.enabled,
-                "notification_types": subscription.notification_types
-            }
-        )
+        # Update URLs if provided
+        if webhook_url is not None:
+            subscription.webhook_url = webhook_url
+        if slack_webhook is not None:
+            subscription.slack_webhook = slack_webhook
+        if notification_types is not None:
+            subscription.notification_types = notification_types
+
+        await self.repository.upsert_subscription(user_id, channel, subscription)
 
         return subscription
 
     async def mark_all_as_read(self, user_id: UserId) -> int:
         """Mark all notifications as read for a user."""
-        result = await self.db.notifications.update_many(
-            {
-                "user_id": user_id,
-                "status": {"$in": [NotificationStatus.SENT, NotificationStatus.DELIVERED]}
-            },
-            {
-                "$set": {
-                    "status": NotificationStatus.READ,
-                    "read_at": datetime.now(UTC)
+        count = await self.repository.mark_all_as_read(user_id)
+
+        if count > 0 and self.event_bus:
+            await self.event_bus.publish(
+                "notifications.all_read",
+                {
+                    "user_id": user_id,
+                    "count": count,
+                    "read_at": datetime.now(UTC).isoformat()
                 }
-            }
-        )
-        return result.modified_count
+            )
 
-    async def get_subscriptions(
-            self,
-            user_id: UserId
-    ) -> list[NotificationSubscription]:
+        return count
+
+    async def get_subscriptions(self, user_id: UserId) -> dict[str, NotificationSubscription]:
         """Get all notification subscriptions for a user."""
-        subscriptions = []
-
-        for channel in NotificationChannel:
-            sub_data = await self.db.notification_subscriptions.find_one({
-                "user_id": user_id,
-                "channel": channel
-            })
-
-            if sub_data:
-                subscriptions.append(NotificationSubscription(**sub_data))
-            else:
-                # Return default subscription
-                subscriptions.append(NotificationSubscription(
-                    user_id=user_id,
-                    channel=channel,
-                    notification_types=[nt for nt in NotificationType],
-                    enabled=True,
-                ))
-
-        return subscriptions
+        return await self.repository.get_all_subscriptions(user_id)
 
     async def delete_notification(
             self,
-            notification_id: NotificationId,
-            user_id: UserId
+            user_id: UserId,
+            notification_id: NotificationId
     ) -> bool:
         """Delete a notification."""
-        result = await self.db.notifications.delete_one({
-            "notification_id": notification_id,
-            "user_id": user_id
-        })
-        return result.deleted_count > 0
+        return await self.repository.delete_notification(str(notification_id), user_id)
 
-
-class NotificationManager:
-    """Manager for NotificationService lifecycle with singleton pattern."""
-
-    _instance: ClassVar['NotificationManager | None'] = None
-    _lock: ClassVar[asyncio.Lock] = asyncio.Lock()
-
-    def __new__(cls) -> 'NotificationManager':
-        """Create or return singleton instance."""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
-    def __init__(self) -> None:
-        """Initialize the manager."""
-        if not hasattr(self, '_initialized'):
-            self._service: NotificationService | None = None
-            self._initialized = True
-
-    async def get_service(
+    async def send_test_notification(
             self,
-            db_manager: DatabaseManager,
-            event_service: KafkaEventService,
-            event_bus_manager: Any = None
-    ) -> NotificationService:
-        """Get or create service instance."""
-        async with self._lock:
-            if self._service is None:
-                self._service = NotificationService(
-                    db_manager,
-                    event_service,
-                    event_bus_manager
-                )
-                await self._service.initialize()
-            return self._service
+            user_id: UserId,
+            request: TestNotificationRequest
+    ) -> Notification:
+        """Send a test notification to verify channel configuration."""
+        # Create test context
+        context = {
+            "test": True,
+            "timestamp": datetime.now(UTC).isoformat(),
+            "channel": str(request.channel),
+            "type": str(request.notification_type)
+        }
 
-    async def shutdown(self) -> None:
-        """Shutdown the service."""
-        async with self._lock:
-            if self._service:
-                await self._service.shutdown()
-                self._service = None
+        # Create and send test notification
+        return await self.create_notification(
+            user_id=user_id,
+            notification_type=request.notification_type,
+            context=context,
+            channel=request.channel,
+            priority=NotificationPriority.LOW
+        )
 
 
 @asynccontextmanager
-async def create_notification_service(
-        db_manager: DatabaseManager,
+async def notification_service_context(
+        notification_repository: NotificationRepository,
         event_service: KafkaEventService,
         event_bus_manager: Any = None
 ) -> AsyncIterator[NotificationService]:
-    """Create and manage notification service instance."""
-    service = NotificationService(db_manager, event_service, event_bus_manager)
+    """Context manager for notification service."""
+    service = NotificationService(
+        notification_repository=notification_repository,
+        event_service=event_service,
+        event_bus_manager=event_bus_manager
+    )
 
     try:
         await service.initialize()
         yield service
     finally:
         await service.shutdown()
-
-
-def get_notification_service(request: Request) -> NotificationService:
-    """FastAPI dependency to get notification service."""
-    try:
-        manager: NotificationManager = request.app.state.notification_manager
-        if manager._service is None:
-            raise RuntimeError("Notification service not initialized")
-        return manager._service
-    except AttributeError as e:
-        raise RuntimeError("Notification manager not found in app state") from e

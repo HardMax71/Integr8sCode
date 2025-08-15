@@ -9,7 +9,7 @@ from bson import ObjectId
 
 from app.config import get_settings
 from app.core.exceptions import IntegrationException
-from app.db.repositories.execution_repository import get_execution_repository
+from app.core.service_dependencies import get_execution_repository
 from app.events.core.producer import UnifiedProducer
 from app.events.store.event_store import EventStore
 from app.schemas_pydantic.execution import ExecutionInDB, ExecutionStatus
@@ -287,7 +287,7 @@ class TestExecutionService:
 class TestExecutionServiceDependency:
 
     def test_execution_service_can_be_instantiated(self, db: AsyncGenerator) -> None:
-        from app.db.repositories.execution_repository import get_execution_repository
+        from app.core.service_dependencies import get_execution_repository
         from tests.unit.services.mock_kubernetes_service import get_mock_kubernetes_service
 
         execution_repo = get_execution_repository(db)

@@ -8,7 +8,8 @@ from aiokafka.structs import ConsumerRecord
 from app.core.logging import logger
 from app.events.core.consumer import ConsumerConfig, UnifiedConsumer
 from app.events.core.consumer_group_names import GroupId
-from app.events.core.producer import get_producer
+from app.events.core.producer import UnifiedProducer, create_unified_producer
+from app.events.schema.schema_registry import SchemaRegistryManager
 from app.schemas_avro.event_schemas import BaseEvent, deserialize_event
 
 
@@ -66,6 +67,8 @@ class DLQConsumer:
             retry_delay_hours: int = 1,
             max_age_days: int = 7,
             batch_size: int = 100,
+            producer: Optional[UnifiedProducer] = None,
+            schema_registry_manager: Optional[SchemaRegistryManager] = None,
     ):
         self.dlq_topic = dlq_topic
         self.group_id = group_id
@@ -83,6 +86,9 @@ class DLQConsumer:
         )
 
         self.consumer: Optional[UnifiedConsumer] = None
+        self.producer: Optional[UnifiedProducer] = producer
+        self._producer_provided = producer is not None
+        self.schema_registry_manager = schema_registry_manager
         self._retry_handlers: Dict[str, Callable] = {}
         self._permanent_failure_handlers: List[Callable] = []
         self._running = False
@@ -102,7 +108,12 @@ class DLQConsumer:
         if self._running:
             return
 
-        self.consumer = UnifiedConsumer(self.config)
+        # Create producer if not provided
+        if not self.producer:
+            self.producer = create_unified_producer()
+            await self.producer.start()
+
+        self.consumer = UnifiedConsumer(self.config, self.schema_registry_manager)
 
         # Set up batch handler with proper signature
         async def batch_handler(event: BaseEvent | dict[str, Any], record: Any) -> Any:
@@ -137,6 +148,10 @@ class DLQConsumer:
 
         if self.consumer:
             await self.consumer.stop()
+
+        # Stop producer if we created it
+        if self.producer and not self._producer_provided:
+            await self.producer.stop()
 
         logger.info(f"DLQ consumer stopped. Stats: {self.stats}")
 
@@ -210,7 +225,9 @@ class DLQConsumer:
         if not messages:
             return
 
-        producer = await get_producer()
+        if not self.producer:
+            logger.error("Producer not available for retrying messages")
+            return
 
         for msg in messages:
             try:
@@ -246,7 +263,7 @@ class DLQConsumer:
                 }
 
                 # Send back to original topic
-                success = await producer.send_event(
+                success = await self.producer.send_event(
                     event,
                     msg.original_topic,
                     headers=headers
@@ -373,20 +390,11 @@ class DLQConsumer:
         }
 
 
-class DLQConsumerRegistrySingleton:
-    """Singleton wrapper for DLQ consumer registry"""
-    _instance: Optional['DLQConsumerRegistrySingleton'] = None
-
-    def __new__(cls) -> 'DLQConsumerRegistrySingleton':
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialized = False  # type: ignore[attr-defined]
-        return cls._instance
+class DLQConsumerRegistry:
+    """Registry for managing multiple DLQ consumers"""
 
     def __init__(self) -> None:
-        if not getattr(self, '_initialized', False):
-            self._consumers: Dict[str, DLQConsumer] = {}
-            self._initialized = True  # type: ignore[attr-defined]
+        self._consumers: Dict[str, DLQConsumer] = {}
 
     def get(self, topic: str) -> Optional[DLQConsumer]:
         return self._consumers.get(topic)
@@ -406,26 +414,10 @@ class DLQConsumerRegistrySingleton:
             await asyncio.gather(*tasks, return_exceptions=True)
 
 
-def get_dlq_consumer_registry() -> DLQConsumerRegistrySingleton:
-    """Get DLQ consumer registry instance"""
-    return DLQConsumerRegistrySingleton()
-
-
-def get_dlq_consumer(topic: str) -> Optional[DLQConsumer]:
-    """Get DLQ consumer for topic"""
-    return get_dlq_consumer_registry().get(topic)
-
-
-def register_dlq_consumer(consumer: DLQConsumer) -> None:
-    """Register DLQ consumer"""
-    get_dlq_consumer_registry().register(consumer)
-
-
-async def start_all_dlq_consumers() -> None:
-    """Start all registered DLQ consumers"""
-    await get_dlq_consumer_registry().start_all()
-
-
-async def stop_all_dlq_consumers() -> None:
-    """Stop all registered DLQ consumers"""
-    await get_dlq_consumer_registry().stop_all()
+def create_dlq_consumer_registry() -> DLQConsumerRegistry:
+    """Factory function to create a DLQ consumer registry.
+    
+    Returns:
+        A new DLQ consumer registry instance
+    """
+    return DLQConsumerRegistry()

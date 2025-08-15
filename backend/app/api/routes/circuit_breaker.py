@@ -6,10 +6,9 @@ from pydantic import BaseModel
 
 from app.api.dependencies import get_current_user, require_admin
 from app.core.logging import logger
-from app.events.kafka.cb import (
-    CircuitBreakerType,
-    KafkaCircuitBreakerManager,
-)
+from app.core.service_dependencies import CircuitBreakerManagerDep
+from app.events.kafka.cb import CircuitBreakerType
+from app.schemas_pydantic.user import UserResponse
 
 
 class CircuitBreakerAction(StrEnum):
@@ -47,24 +46,12 @@ class CircuitBreakerConfigUpdate(BaseModel):
     minimum_number_of_calls: Optional[int] = None
 
 
-# Shared manager instance - in production should be injected
-_manager: Optional[KafkaCircuitBreakerManager] = None
-
-
-def get_manager() -> KafkaCircuitBreakerManager:
-    """Get or create circuit breaker manager."""
-    global _manager
-    if _manager is None:
-        _manager = KafkaCircuitBreakerManager()
-    return _manager
-
-
 @router.get("/", response_model=List[CircuitBreakerStatus])
 async def list_circuit_breakers(
-        current_user: dict = Depends(get_current_user)
+        manager: CircuitBreakerManagerDep,
+        current_user: UserResponse = Depends(get_current_user)
 ) -> List[CircuitBreakerStatus]:
     """List all circuit breakers and their status"""
-    manager = get_manager()
 
     # Get Kafka circuit breaker statuses
     kafka_statuses = await manager.get_all_status()
@@ -88,10 +75,10 @@ async def list_circuit_breakers(
 @router.get("/{breaker_name}", response_model=CircuitBreakerStatus)
 async def get_circuit_breaker(
         breaker_name: str,
-        current_user: dict = Depends(get_current_user)
+        manager: CircuitBreakerManagerDep,
+        current_user: UserResponse = Depends(get_current_user)
 ) -> CircuitBreakerStatus:
     """Get detailed status of a specific circuit breaker"""
-    manager = get_manager()
 
     # Get all statuses and find the specific one
     kafka_statuses = await manager.get_all_status()
@@ -115,10 +102,10 @@ async def get_circuit_breaker(
 async def update_circuit_breaker(
         breaker_name: str,
         update: CircuitBreakerUpdate,
-        current_user: dict = Depends(require_admin)
+        manager: CircuitBreakerManagerDep,
+        current_user: UserResponse = Depends(require_admin)
 ) -> Dict[str, str]:
     """Update circuit breaker state (admin only)"""
-    manager = get_manager()
 
     # Parse breaker name to get type and identifier
     if breaker_name.startswith("kafka-producer-"):
@@ -146,7 +133,7 @@ async def update_circuit_breaker(
             await breaker.reset()
             message = f"Circuit breaker {breaker_name} manually closed"
 
-        logger.info(f"{message} by user {current_user['id']}")
+        logger.info(f"{message} by user {current_user.user_id}")
         return {"message": message}
 
     except Exception as e:
@@ -156,15 +143,14 @@ async def update_circuit_breaker(
 
 @router.post("/reset-all")
 async def reset_all_circuit_breakers(
-        current_user: dict = Depends(require_admin)
+        manager: CircuitBreakerManagerDep,
+        current_user: UserResponse = Depends(require_admin)
 ) -> Dict[str, str]:
     """Reset all circuit breakers to closed state (admin only)"""
-    manager = get_manager()
-
     try:
         await manager.reset_all()
 
-        logger.info(f"All circuit breakers reset by user {current_user['id']}")
+        logger.info(f"All circuit breakers reset by user {current_user.user_id}")
         return {"message": "All circuit breakers reset to closed state"}
 
     except Exception as e:
@@ -174,10 +160,10 @@ async def reset_all_circuit_breakers(
 
 @router.get("/health/check")
 async def health_check(
-        current_user: dict = Depends(get_current_user)
+        manager: CircuitBreakerManagerDep,
+        current_user: UserResponse = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """Check health of all circuit breakers"""
-    manager = get_manager()
 
     kafka_statuses = await manager.get_all_status()
 
@@ -196,10 +182,10 @@ async def health_check(
 
 @router.get("/metrics/summary")
 async def get_metrics_summary(
-        current_user: dict = Depends(get_current_user)
+        manager: CircuitBreakerManagerDep,
+        current_user: UserResponse = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """Get summary metrics for all circuit breakers"""
-    manager = get_manager()
 
     kafka_statuses = await manager.get_all_status()
 

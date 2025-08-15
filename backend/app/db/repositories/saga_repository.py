@@ -1,37 +1,26 @@
-from typing import Any, Dict, Optional
-
-from fastapi import HTTPException, Request
+from fastapi import HTTPException
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.core.logging import logger
-from app.db.mongodb import DatabaseManager
 from app.schemas_pydantic.saga import SagaListResponse, SagaStatusResponse
-from app.schemas_pydantic.user import UserResponse
+from app.schemas_pydantic.user import UserResponse, UserRole
 from app.services.saga import SagaOrchestrator, SagaState
-from app.services.saga.saga_manager import get_saga_orchestrator_manager
+
+# Removed saga manager import - will use dependency injection
 
 
 class SagaRepository:
     """Repository for managing saga data access"""
 
-    def __init__(self, db_manager: DatabaseManager):
-        self.db_manager = db_manager
-        if db_manager.db is None:
-            raise ValueError("DB is not initialized")
-        self.db: AsyncIOMotorDatabase = db_manager.db
-        self._orchestrator: Optional[SagaOrchestrator] = None
+    def __init__(self, database: AsyncIOMotorDatabase):
+        self.db: AsyncIOMotorDatabase = database
 
-    async def get_orchestrator(self) -> SagaOrchestrator:
-        """Get saga orchestrator instance"""
-        if not self._orchestrator:
-            manager = await get_saga_orchestrator_manager()
-            self._orchestrator = await manager.get_orchestrator()
-        return self._orchestrator
-
-    async def get_saga_status(self, saga_id: str, current_user: UserResponse) -> SagaStatusResponse:
+    async def get_saga_status(self,
+                              saga_id: str,
+                              current_user: UserResponse,
+                              orchestrator: SagaOrchestrator) -> SagaStatusResponse:
         """Get status of a specific saga"""
         try:
-            orchestrator = await self.get_orchestrator()
             saga_instance = await orchestrator.get_saga_status(saga_id)
 
             if not saga_instance:
@@ -43,7 +32,7 @@ class SagaRepository:
                 "user_id": current_user.user_id
             })
 
-            if not execution and current_user.role != "admin":
+            if not execution and current_user.role != UserRole.ADMIN:
                 raise HTTPException(status_code=404, detail="Saga not found or access denied")
 
             return SagaStatusResponse(
@@ -67,8 +56,9 @@ class SagaRepository:
     async def get_execution_sagas(
             self,
             execution_id: str,
-            state: Optional[SagaState],
-            current_user: UserResponse
+            state: SagaState | None,
+            current_user: UserResponse,
+            orchestrator: SagaOrchestrator
     ) -> SagaListResponse:
         """Get all sagas for a specific execution"""
         try:
@@ -78,10 +68,9 @@ class SagaRepository:
                 "user_id": current_user.user_id
             })
 
-            if not execution and current_user.role != "admin":
+            if not execution and current_user.role != UserRole.ADMIN:
                 raise HTTPException(status_code=404, detail="Execution not found or access denied")
 
-            orchestrator = await self.get_orchestrator()
             saga_instances = await orchestrator.get_execution_sagas(execution_id)
 
             # Filter by state if provided
@@ -116,7 +105,7 @@ class SagaRepository:
 
     async def list_sagas(
             self,
-            state: Optional[SagaState],
+            state: SagaState | None,
             limit: int,
             offset: int,
             current_user: UserResponse
@@ -126,8 +115,8 @@ class SagaRepository:
             sagas_collection = self.db.sagas
 
             # Build query based on user permissions
-            query: Dict[str, Any] = {}
-            if current_user.role != "admin":
+            query: dict[str, object] = {}
+            if current_user.role != UserRole.ADMIN:
                 # Get user's executions
                 user_executions = await self.db.executions.distinct(
                     "_id",
@@ -171,9 +160,3 @@ class SagaRepository:
         except Exception as e:
             logger.error(f"Error listing sagas: {e}")
             raise HTTPException(status_code=500, detail="Internal server error") from e
-
-
-def get_saga_repository(request: Request) -> SagaRepository:
-    """FastAPI dependency to get saga repository"""
-    db_manager: DatabaseManager = request.app.state.db_manager
-    return SagaRepository(db_manager)

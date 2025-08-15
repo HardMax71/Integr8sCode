@@ -1,10 +1,8 @@
 from datetime import datetime, timezone
 
-from fastapi import Request
 from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
 
 from app.core.logging import logger
-from app.db.mongodb import DatabaseManager
 from app.domain.admin.settings_models import (
     AuditAction,
     AuditLogEntry,
@@ -21,6 +19,9 @@ class AdminSettingsRepository:
     async def get_system_settings(self) -> SystemSettings:
         """Get system settings from database."""
         settings_doc = await self.settings_collection.find_one({"_id": "global"})
+        if not settings_doc:
+            logger.warning("System settings document not found in database")
+            raise ValueError("System settings document not found")
         return SystemSettings.from_dict(settings_doc)
 
     async def update_system_settings(
@@ -30,36 +31,42 @@ class AdminSettingsRepository:
             user_id: str
     ) -> SystemSettings:
         """Update system-wide settings."""
-        try:
-            # Update settings metadata
-            settings.updated_by = updated_by
-            settings.updated_at = datetime.now(timezone.utc)
+        async with await self.db.client.start_session() as session:
+            async with session.start_transaction():
+                try:
+                    # Update settings metadata
+                    settings.updated_by = updated_by
+                    settings.updated_at = datetime.now(timezone.utc)
 
-            # Convert to dict and save
-            settings_dict = settings.to_dict()
+                    # Convert to dict and save
+                    settings_dict = settings.to_dict()
 
-            await self.settings_collection.replace_one(
-                {"_id": "global"},
-                settings_dict,
-                upsert=True
-            )
+                    await self.settings_collection.replace_one(
+                        {"_id": "global"},
+                        settings_dict,
+                        upsert=True,
+                        session=session
+                    )
 
-            # Create audit log entry
-            audit_entry = AuditLogEntry(
-                action=AuditAction.SYSTEM_SETTINGS_UPDATED,
-                user_id=user_id,
-                username=updated_by,
-                timestamp=datetime.now(timezone.utc),
-                changes=settings_dict
-            )
+                    # Create audit log entry
+                    audit_entry = AuditLogEntry(
+                        action=AuditAction.SYSTEM_SETTINGS_UPDATED,
+                        user_id=user_id,
+                        username=updated_by,
+                        timestamp=datetime.now(timezone.utc),
+                        changes=settings_dict
+                    )
 
-            await self.audit_log_collection.insert_one(audit_entry.to_dict())
+                    await self.audit_log_collection.insert_one(
+                        audit_entry.to_dict(),
+                        session=session
+                    )
 
-            return settings
+                    return settings
 
-        except Exception as e:
-            logger.error(f"Error updating system settings: {e}")
-            raise
+                except Exception as e:
+                    logger.error(f"Error updating system settings: {e}")
+                    raise
 
     async def reset_system_settings(self, username: str, user_id: str) -> SystemSettings:
         """Reset system settings to defaults."""
@@ -83,9 +90,3 @@ class AdminSettingsRepository:
         except Exception as e:
             logger.error(f"Error resetting system settings: {e}")
             raise
-
-
-def get_admin_settings_repository(request: Request) -> AdminSettingsRepository:
-    """FastAPI dependency to get admin settings repository"""
-    db_manager: DatabaseManager = request.app.state.db_manager
-    return AdminSettingsRepository(db_manager.get_database())

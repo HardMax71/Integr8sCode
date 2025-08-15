@@ -9,9 +9,8 @@ from app.api.dependencies import get_current_user, require_admin
 from app.core.exceptions import IntegrationException
 from app.core.logging import logger
 from app.core.metrics import ACTIVE_EXECUTIONS, EXECUTION_DURATION, SCRIPT_EXECUTIONS
+from app.core.service_dependencies import EventRepositoryDep, ExecutionServiceDep, KafkaEventServiceDep
 from app.core.tracing import EventAttributes, add_span_attributes, get_current_trace_id
-from app.db.mongodb import DatabaseManager, get_database_manager
-from app.db.repositories.event_repository import get_event_repository
 from app.schemas_avro.event_schemas import EventType
 from app.schemas_pydantic.execution import (
     CancelExecutionRequest,
@@ -27,11 +26,6 @@ from app.schemas_pydantic.execution import (
     RetryExecutionRequest,
 )
 from app.schemas_pydantic.user import User, UserResponse, UserRole
-from app.services.execution_service import (
-    ExecutionService,
-    get_execution_service,
-)
-from app.services.kafka_event_service import KafkaEventService, get_event_service
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
@@ -41,10 +35,10 @@ def check_execution_access(result: Any, current_user: UserResponse) -> None:
     """Check if user has access to the execution result."""
     if not result or not hasattr(result, 'user_id') or not result.user_id:
         return  # No user_id means public/system execution, allow access
-    
+
     is_owner = result.user_id == current_user.user_id
     is_admin = current_user.role == UserRole.ADMIN
-    
+
     if not is_owner and not is_admin:
         raise HTTPException(status_code=403, detail="Access denied")
 
@@ -54,9 +48,7 @@ def check_execution_access(result: Any, current_user: UserResponse) -> None:
 async def create_execution(
         request: Request,
         execution: ExecutionRequest,
-        execution_service: ExecutionService = Depends(
-            get_execution_service
-        ),
+        execution_service: ExecutionServiceDep,
         current_user: UserResponse = Depends(get_current_user),
 ) -> ExecutionResponse:
     """Create a new code execution request using event-driven architecture."""
@@ -156,11 +148,9 @@ async def create_execution(
 @router.get("/result/{execution_id}", response_model=ExecutionResult)
 @limiter.limit("20/minute")
 async def get_result(
-        request: Request,
         execution_id: str,
-        execution_service: ExecutionService = Depends(
-            get_execution_service
-        ),
+        request: Request,
+        execution_service: ExecutionServiceDep,
         current_user: UserResponse = Depends(get_current_user),
 ) -> ExecutionResult:
     """Get execution result by ID."""
@@ -215,13 +205,11 @@ async def get_result(
 @router.post("/{execution_id}/cancel", response_model=Dict[str, Any])
 @limiter.limit("10/minute")
 async def cancel_execution(
-        request: Request,
         execution_id: str,
+        request: Request,
         cancel_request: CancelExecutionRequest,
-        execution_service: ExecutionService = Depends(
-            get_execution_service
-        ),
-        event_service: KafkaEventService = Depends(get_event_service),
+        event_service: KafkaEventServiceDep,
+        execution_service: ExecutionServiceDep,
         current_user: UserResponse = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """Cancel a running or queued execution."""
@@ -280,13 +268,10 @@ async def cancel_execution(
 @router.post("/{execution_id}/retry", response_model=ExecutionResponse)
 @limiter.limit("10/minute")
 async def retry_execution(
-        request: Request,
         execution_id: str,
+        request: Request,
         retry_request: RetryExecutionRequest,
-        execution_service: ExecutionService = Depends(
-            get_execution_service
-        ),
-        event_service: KafkaEventService = Depends(get_event_service),
+        execution_service: ExecutionServiceDep,
         current_user: UserResponse = Depends(get_current_user),
 ) -> ExecutionResponse:
     """Retry a failed or completed execution."""
@@ -338,15 +323,15 @@ async def retry_execution(
 @router.get("/events/{execution_id}", response_model=List[ExecutionEventResponse])
 @limiter.limit("20/minute")
 async def get_execution_events(
-        request: Request,
         execution_id: str,
+        request: Request,
+        execution_service: ExecutionServiceDep,
+        event_repository: EventRepositoryDep,
+        current_user: UserResponse = Depends(get_current_user),
         event_types: Optional[str] = Query(
             None, description="Comma-separated event types to filter"
         ),
         limit: int = Query(100, ge=1, le=1000),
-        execution_service: ExecutionService = Depends(get_execution_service),
-        db_manager: DatabaseManager = Depends(get_database_manager),
-        current_user: UserResponse = Depends(get_current_user),
 ) -> List[ExecutionEventResponse]:
     """Get all events for an execution."""
     logger.info(
@@ -366,7 +351,6 @@ async def get_execution_events(
     if event_types:
         event_type_list = [t.strip() for t in event_types.split(",")]
 
-    event_repository = get_event_repository(db_manager)
     events = await event_repository.get_events_by_aggregate(
         aggregate_id=execution_id,
         event_types=event_type_list,
@@ -396,16 +380,14 @@ async def get_execution_events(
 @limiter.limit("20/minute")
 async def get_user_executions(
         request: Request,
+        execution_service: ExecutionServiceDep,
+        current_user: UserResponse = Depends(get_current_user),
         status: Optional[ExecutionStatus] = Query(None),
         lang: Optional[str] = Query(None),
         start_time: Optional[datetime] = Query(None),
         end_time: Optional[datetime] = Query(None),
         limit: int = Query(50, ge=1, le=200),
         skip: int = Query(0, ge=0),
-        execution_service: ExecutionService = Depends(
-            get_execution_service
-        ),
-        current_user: UserResponse = Depends(get_current_user),
 ) -> ExecutionListResponse:
     """Get executions for the current user."""
     logger.info(
@@ -461,9 +443,7 @@ async def get_user_executions(
 
 @router.get("/example-scripts", response_model=ExampleScripts)
 async def get_example_scripts(
-        execution_service: ExecutionService = Depends(
-            get_execution_service
-        ),
+        execution_service: ExecutionServiceDep,
 ) -> ExampleScripts:
     logger.info("Received example scripts request")
     scripts = await execution_service.get_example_scripts()
@@ -473,9 +453,7 @@ async def get_example_scripts(
 
 @router.get("/k8s-limits", response_model=ResourceLimits)
 async def get_k8s_resource_limits(
-        execution_service: ExecutionService = Depends(
-            get_execution_service
-        ),
+        execution_service: ExecutionServiceDep,
 ) -> ResourceLimits:
     logger.info("Retrieving K8s resource limits", extra={"endpoint": "/k8s-limits"})
 
@@ -499,11 +477,9 @@ async def get_k8s_resource_limits(
 @router.delete("/{execution_id}")
 @limiter.limit("10/minute")
 async def delete_execution(
-        request: Request,
         execution_id: str,
-        execution_service: ExecutionService = Depends(
-            get_execution_service
-        ),
+        request: Request,
+        execution_service: ExecutionServiceDep,
         current_user: UserResponse = Depends(require_admin),
 ) -> Dict[str, Any]:
     """Delete an execution and its associated data (admin only)."""

@@ -41,7 +41,7 @@ if __name__ == "__main__":
         help="Load test scenario to run",
     )
     parser.add_argument(
-        "--host", default="http://localhost:443", help="Host to test against"
+        "--host", default="https://localhost:443", help="Host to test against"
     )
 
     args = parser.parse_args()

@@ -1,7 +1,6 @@
 from datetime import datetime
-from typing import Any, List, Optional
 
-from fastapi import HTTPException, Request
+from fastapi import HTTPException
 
 from app.core.logging import logger
 from app.schemas_avro.event_schemas import EventType
@@ -14,7 +13,6 @@ from app.services.event_replay import (
     ReplayStatus,
     ReplayTarget,
     ReplayType,
-    get_replay_service,
 )
 
 
@@ -28,19 +26,19 @@ class ReplayRepository:
             self,
             replay_type: ReplayType,
             target: ReplayTarget,
-            execution_id: Optional[str] = None,
-            event_types: Optional[List[EventType]] = None,
-            start_time: Optional[datetime] = None,
-            end_time: Optional[datetime] = None,
-            user_id: Optional[str] = None,
-            service_name: Optional[str] = None,
+            execution_id: str | None = None,
+            event_types: list[EventType] | None = None,
+            start_time: datetime | None = None,
+            end_time: datetime | None = None,
+            user_id: str | None = None,
+            service_name: str | None = None,
             speed_multiplier: float = 1.0,
             preserve_timestamps: bool = False,
             batch_size: int = 100,
-            max_events: Optional[int] = None,
+            max_events: int | None = None,
             skip_errors: bool = True,
-            target_file_path: Optional[str] = None,
-            current_user: Optional[dict[str, Any]] = None
+            target_file_path: str | None = None,
+            current_user: dict[str, object] | None = None
     ) -> ReplayResponse:
         """Create a new replay session"""
         try:
@@ -152,9 +150,9 @@ class ReplayRepository:
 
     def list_sessions(
             self,
-            status: Optional[ReplayStatus] = None,
+            status: ReplayStatus | None = None,
             limit: int = 100
-    ) -> List[SessionSummary]:
+    ) -> list[SessionSummary]:
         """List replay sessions with optional filtering"""
         sessions = self.replay_service.list_sessions(status=status, limit=limit)
 
@@ -201,9 +199,3 @@ class ReplayRepository:
             removed_sessions=removed,
             message=f"Removed {removed} old sessions"
         )
-
-
-async def get_replay_repository(request: Request) -> ReplayRepository:
-    """FastAPI dependency to get replay repository"""
-    replay_service = await get_replay_service()
-    return ReplayRepository(replay_service)

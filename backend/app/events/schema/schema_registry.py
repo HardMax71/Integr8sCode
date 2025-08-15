@@ -147,25 +147,13 @@ class SchemaRegistryManager:
                 logger.error(f"Failed to initialize {event_class.__name__}: {e}")
 
 
-class SchemaRegistryManagerSingleton:
-    """Singleton wrapper for SchemaRegistryManager"""
-    _instance: Optional[SchemaRegistryManager] = None
-
-    @classmethod
-    def get_instance(cls) -> SchemaRegistryManager:
-        if cls._instance is None:
-            cls._instance = SchemaRegistryManager()
-        return cls._instance
+def create_schema_registry_manager(schema_registry_url: Optional[str] = None) -> SchemaRegistryManager:
+    """Factory function to create a SchemaRegistryManager instance"""
+    return SchemaRegistryManager(schema_registry_url)
 
 
-def get_schema_registry() -> SchemaRegistryManager:
-    """Get schema registry manager instance"""
-    return SchemaRegistryManagerSingleton.get_instance()
-
-
-async def initialize_event_schemas() -> None:
+async def initialize_event_schemas(registry: SchemaRegistryManager) -> None:
     """Initialize all event schemas in the registry"""
-    registry = get_schema_registry()
     event_type_mapping = build_event_type_mapping()
     event_classes = list(event_type_mapping.values())
 

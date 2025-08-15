@@ -24,7 +24,6 @@
 │   │
 │   ├── db
 │   │   ├── __init__.py
-│   │   ├── mongodb.py
 │   │   └── repositories
 │   │       ├── __init__.py
 │   │       └── execution_repository.py

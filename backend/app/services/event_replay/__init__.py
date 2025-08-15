@@ -6,7 +6,6 @@ from app.services.event_replay.replay_service import (
     ReplayStatus,
     ReplayTarget,
     ReplayType,
-    get_replay_service,
 )
 
 __all__ = [
@@ -17,5 +16,4 @@ __all__ = [
     "ReplayFilter",
     "ReplayConfig",
     "ReplaySession",
-    "get_replay_service"
 ]

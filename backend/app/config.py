@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "integr8scode"
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str = Field(
-        default="key" * 12,  # Actual key be loaded from .env file
+        ...,  # Actual key be loaded from .env file
         min_length=32,
         description="Secret key for JWT token signing. Must be at least 32 characters."
     )
@@ -68,7 +68,12 @@ class Settings(BaseSettings):
     JAEGER_AGENT_HOST: str = "jaeger"
     JAEGER_AGENT_PORT: int = 6831
     JAEGER_COLLECTOR_ENDPOINT: str | None = None
-    TRACING_SAMPLING_RATE: float = 1.0  # 100% sampling by default
+    TRACING_SAMPLING_RATE: float = Field(
+        default=0.1, # 10% sampling by default
+        ge=0.0,
+        le=1.0,
+        description="Sampling rate for distributed tracing (0.0 to 1.0)"
+    )
     TRACING_SERVICE_NAME: str = "integr8scode-backend"
     TRACING_SERVICE_VERSION: str = "1.0.0"
     TRACING_ADAPTIVE_SAMPLING: bool = False  # Enable adaptive sampling in production
@@ -84,15 +89,6 @@ class Settings(BaseSettings):
 
     # App URL for notification links
     APP_URL: str = "https://integr8scode.cc"
-
-    # Feature flags
-    FEATURE_EVENT_DRIVEN_EXECUTION: bool = True
-    FEATURE_SSE_STREAMING: bool = True
-    FEATURE_WEBSOCKET_UPDATES: bool = True
-    FEATURE_DISTRIBUTED_TRACING: bool = True
-    FEATURE_EVENT_STORE_ENABLED: bool = True
-    FEATURE_CIRCUIT_BREAKER_ENABLED: bool = True
-    FEATURE_KAFKA_EVENTS: bool = True
 
     # WebSocket configuration
     WEBSOCKET_PING_INTERVAL: int = 30
@@ -111,6 +107,12 @@ class Settings(BaseSettings):
     # Development mode detection
     DEVELOPMENT_MODE: bool = False
     SECURE_COOKIES: bool = True  # Can be overridden in .env for development
+    
+    # Logging configuration
+    LOG_LEVEL: str = Field(
+        default="INFO",
+        description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)"
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -121,4 +123,4 @@ class Settings(BaseSettings):
 
 
 def get_settings() -> Settings:
-    return Settings()
+    return Settings()  # type: ignore[call-arg]

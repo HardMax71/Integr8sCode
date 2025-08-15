@@ -1,12 +1,12 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from app.api.dependencies import get_current_user, require_admin
 from app.core.correlation import CorrelationContext
 from app.core.logging import logger
-from app.db.repositories.event_repository import EventRepository, get_event_repository
+from app.core.service_dependencies import EventRepositoryDep, KafkaEventServiceDep
 from app.domain.events.event_models import EventFilter
 from app.schemas_pydantic.events import (
     DeleteEventResponse,
@@ -21,7 +21,6 @@ from app.schemas_pydantic.events import (
     SortOrder,
 )
 from app.schemas_pydantic.user import User, UserResponse
-from app.services.kafka_event_service import KafkaEventService, get_event_service
 
 router = APIRouter(prefix="/events", tags=["events"])
 
@@ -29,12 +28,12 @@ router = APIRouter(prefix="/events", tags=["events"])
 @router.get("/executions/{execution_id}", response_model=EventListResponse)
 async def get_execution_events(
         execution_id: str,
+        event_repository: EventRepositoryDep,
+        current_user: UserResponse = Depends(get_current_user),
         include_system_events: bool = Query(
             False,
             description="Include system-generated events"
-        ),
-        current_user: UserResponse = Depends(get_current_user),
-        event_repository: EventRepository = Depends(get_event_repository)
+        )
 ) -> EventListResponse:
     """Get all events for a specific execution"""
     try:
@@ -67,14 +66,14 @@ async def get_execution_events(
 
 @router.get("/user", response_model=EventListResponse)
 async def get_user_events(
+        event_repository: EventRepositoryDep,
+        current_user: UserResponse = Depends(get_current_user),
         event_types: Optional[List[str]] = Query(None),
         start_time: Optional[datetime] = Query(None),
         end_time: Optional[datetime] = Query(None),
         limit: int = Query(100, ge=1, le=1000),
         skip: int = Query(0, ge=0),
-        sort_order: SortOrder = Query(SortOrder.DESC),
-        current_user: UserResponse = Depends(get_current_user),
-        event_repository: EventRepository = Depends(get_event_repository)
+        sort_order: SortOrder = Query(SortOrder.DESC)
 ) -> EventListResponse:
     """Get events for the current user"""
     try:
@@ -105,9 +104,9 @@ async def get_user_events(
 
 @router.post("/query", response_model=EventListResponse)
 async def query_events(
+        event_repository: EventRepositoryDep,
         request: EventFilterRequest,
         current_user: UserResponse = Depends(get_current_user),
-        event_repository: EventRepository = Depends(get_event_repository)
 ) -> EventListResponse:
     """Query events with advanced filters"""
     try:
@@ -151,13 +150,13 @@ async def query_events(
 @router.get("/correlation/{correlation_id}", response_model=EventListResponse)
 async def get_events_by_correlation(
         correlation_id: str,
+        event_repository: EventRepositoryDep,
+        current_user: UserResponse = Depends(get_current_user),
         include_all_users: bool = Query(
             False,
             description="Include events from all users (admin only)"
         ),
-        limit: int = Query(100, ge=1, le=1000),
-        current_user: UserResponse = Depends(get_current_user),
-        event_repository: EventRepository = Depends(get_event_repository)
+        limit: int = Query(100, ge=1, le=1000)
 ) -> EventListResponse:
     """Get all events with the same correlation ID"""
     try:
@@ -186,9 +185,9 @@ async def get_events_by_correlation(
 
 @router.get("/current-request", response_model=EventListResponse)
 async def get_current_request_events(
+        event_repository: EventRepositoryDep,
         limit: int = Query(100, ge=1, le=1000),
         current_user: UserResponse = Depends(get_current_user),
-        event_repository: EventRepository = Depends(get_event_repository)
 ) -> EventListResponse:
     """Get all events for the current request (using correlation ID from context)"""
     try:
@@ -227,6 +226,7 @@ async def get_current_request_events(
 
 @router.get("/statistics", response_model=EventStatistics)
 async def get_event_statistics(
+        event_repository: EventRepositoryDep,
         start_time: Optional[datetime] = Query(
             None,
             description="Start time for statistics (defaults to 24 hours ago)"
@@ -239,8 +239,7 @@ async def get_event_statistics(
             False,
             description="Include stats from all users (admin only)"
         ),
-        current_user: UserResponse = Depends(get_current_user),
-        event_repository: EventRepository = Depends(get_event_repository)
+        current_user: UserResponse = Depends(get_current_user)
 ) -> EventStatistics:
     """Get event statistics"""
     try:
@@ -267,8 +266,8 @@ async def get_event_statistics(
 @router.get("/{event_id}", response_model=EventResponse)
 async def get_event(
         event_id: str,
-        current_user: UserResponse = Depends(get_current_user),
-        event_repository: EventRepository = Depends(get_event_repository)
+        event_repository: EventRepositoryDep,
+        current_user: UserResponse = Depends(get_current_user)
 ) -> EventResponse:
     """Get a specific event by ID"""
     try:
@@ -294,8 +293,8 @@ async def get_event(
 async def publish_custom_event(
         event_request: PublishEventRequest,
         request: Request,
-        current_user: UserResponse = Depends(require_admin),
-        event_service: KafkaEventService = Depends(get_event_service)
+        event_service: KafkaEventServiceDep,
+        current_user: UserResponse = Depends(require_admin)
 ) -> PublishEventResponse:
     """Publish a custom event (admin only)"""
     try:
@@ -326,8 +325,8 @@ async def publish_custom_event(
 @router.post("/aggregate", response_model=List[Dict[str, Any]])
 async def aggregate_events(
         aggregation: EventAggregationRequest,
+        event_repository: EventRepositoryDep,
         current_user: UserResponse = Depends(get_current_user),
-        event_repository: EventRepository = Depends(get_event_repository)
 ) -> List[Dict[str, Any]]:
     """Run aggregation pipeline on events (admin only for cross-user aggregations)"""
     try:
@@ -347,8 +346,8 @@ async def aggregate_events(
 
 @router.get("/types/list", response_model=List[str])
 async def list_event_types(
-        current_user: UserResponse = Depends(get_current_user),
-        event_repository: EventRepository = Depends(get_event_repository)
+        event_repository: EventRepositoryDep,
+        current_user: UserResponse = Depends(get_current_user)
 ) -> List[str]:
     """Get list of all event types used by the current user"""
     try:
@@ -367,9 +366,8 @@ async def list_event_types(
 @router.delete("/{event_id}", response_model=DeleteEventResponse)
 async def delete_event(
         event_id: str,
-        background_tasks: BackgroundTasks,
+        event_repository: EventRepositoryDep,
         current_user: UserResponse = Depends(require_admin),
-        event_repository: EventRepository = Depends(get_event_repository)
 ) -> DeleteEventResponse:
     """Delete an event (admin only, soft delete with archival)"""
     try:
@@ -406,6 +404,8 @@ async def delete_event(
 @router.post("/replay/{aggregate_id}", response_model=ReplayAggregateResponse)
 async def replay_aggregate_events(
         aggregate_id: str,
+        event_repository: EventRepositoryDep,
+        event_service: KafkaEventServiceDep,
         target_service: Optional[str] = Query(
             None,
             description="Service to replay events to"
@@ -415,8 +415,6 @@ async def replay_aggregate_events(
             description="If true, only show what would be replayed"
         ),
         current_user: UserResponse = Depends(require_admin),
-        event_repository: EventRepository = Depends(get_event_repository),
-        event_service: KafkaEventService = Depends(get_event_service)
 ) -> ReplayAggregateResponse:
     """Replay all events for an aggregate (admin only)"""
     try:

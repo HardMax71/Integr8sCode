@@ -1,36 +1,26 @@
-"""Alertmanager webhook endpoint for receiving alerts"""
-
 from typing import Any, Dict
 
-from fastapi import APIRouter, BackgroundTasks, Request
+from dishka import FromDishka
+from dishka.integrations.fastapi import DishkaRoute
+from fastapi import APIRouter, BackgroundTasks
 
 from app.core.correlation import CorrelationContext
 from app.core.logging import logger
-from app.core.service_dependencies import NotificationServiceDep
+from app.domain.enums.user import UserRole
 from app.schemas_pydantic.alertmanager import AlertmanagerWebhook, AlertResponse
+from app.services.notification_service import NotificationService
 
-router = APIRouter(prefix="/alertmanager", tags=["alertmanager"])
+router = APIRouter(prefix="/alertmanager",
+                   tags=["alertmanager"],
+                   route_class=DishkaRoute)
 
 
 @router.post("/webhook", response_model=AlertResponse)
 async def receive_alerts(
         webhook_payload: AlertmanagerWebhook,
         background_tasks: BackgroundTasks,
-        request: Request,
-        notification_service: NotificationServiceDep
+        notification_service: FromDishka[NotificationService]
 ) -> AlertResponse:
-    """
-    Receive alerts from Alertmanager webhook
-    
-    Args:
-        webhook_payload: Alertmanager webhook payload
-        background_tasks: FastAPI background tasks
-        request: HTTP request
-        notification_service: Notification service
-        
-    Returns:
-        AlertResponse with processing status
-    """
     correlation_id = CorrelationContext.get_correlation_id()
 
     logger.info(
@@ -88,15 +78,15 @@ async def receive_alerts(
                     "alert_status": alert.status,
                     "severity": severity,
                     "generator_url": alert.generator_url,
-                    "starts_at": alert.starts_at.isoformat(),
-                    "ends_at": alert.ends_at.isoformat() if alert.ends_at else None,
+                    "starts_at": alert.starts_at,
+                    "ends_at": alert.ends_at,
                     "receiver": webhook_payload.receiver,
                     "group_key": webhook_payload.group_key,
                     "correlation_id": correlation_id
                 },
                 # For critical alerts, notify all active users
-                # For other alerts, notify only admin users
-                target_roles=["admin", "operator"] if severity not in ["critical", "error"] else None
+                # For other alerts, notify only admin and moderator users
+                target_roles=[UserRole.ADMIN, UserRole.MODERATOR] if severity not in ["critical", "error"] else None
             )
 
             processed_count += 1
@@ -108,7 +98,7 @@ async def receive_alerts(
                     "alert_fingerprint": alert.fingerprint,
                     "alert_status": alert.status,
                     "severity": severity,
-                    "starts_at": alert.starts_at.isoformat()
+                    "starts_at": alert.starts_at
                 }
             )
 

@@ -1,20 +1,18 @@
-"""Event bus for real-time event publishing and subscription using Kafka"""
-
 import asyncio
 import fnmatch
 import json
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, AsyncGenerator, Callable
+from typing import Any, AsyncGenerator, Callable, Optional
 from uuid import uuid4
 
-from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
+from confluent_kafka import Consumer, KafkaError, Producer
 from fastapi import Request
 
-from app.config import get_settings
 from app.core.logging import logger
-from app.core.metrics import EVENT_BUS_SUBSCRIBERS
+from app.core.metrics.context import get_connection_metrics
+from app.settings import get_settings
 
 
 @dataclass
@@ -37,14 +35,16 @@ class EventBus:
 
     def __init__(self) -> None:
         self.settings = get_settings()
-        self.producer: AIOKafkaProducer | None = None
-        self.consumer: AIOKafkaConsumer | None = None
+        self.metrics = get_connection_metrics()
+        self.producer: Optional[Producer] = None
+        self.consumer: Optional[Consumer] = None
         self._subscriptions: dict[str, Subscription] = {}  # id -> Subscription
         self._pattern_index: dict[str, set[str]] = {}  # pattern -> set of subscription ids
         self._running = False
-        self._consumer_task: asyncio.Task | None = None
+        self._consumer_task: Optional[asyncio.Task] = None
         self._lock = asyncio.Lock()
-        self._topic = "event-bus-stream"
+        self._topic = "event_bus_stream"
+        self._executor: Optional[Callable] = None  # Will store the executor function
 
     async def start(self) -> None:
         """Start the event bus with Kafka backing."""
@@ -53,36 +53,35 @@ class EventBus:
 
         self._running = True
 
-        try:
-            await self._initialize_kafka()
-            self._consumer_task = asyncio.create_task(self._kafka_listener())
-            logger.info("Event bus started with Kafka backing")
-        except Exception as e:
-            logger.error(f"Failed to initialize Kafka event bus: {e}")
-            await self._cleanup()
-            raise
+        await self._initialize_kafka()
+        self._consumer_task = asyncio.create_task(self._kafka_listener())
+        self._running = True
+        logger.info("Event bus started with Kafka backing")
+
 
     async def _initialize_kafka(self) -> None:
         """Initialize Kafka producer and consumer."""
         # Producer setup
-        self.producer = AIOKafkaProducer(
-            bootstrap_servers=self.settings.KAFKA_BOOTSTRAP_SERVERS,
-            value_serializer=lambda v: json.dumps(v).encode('utf-8'),
-            key_serializer=lambda k: k.encode('utf-8') if k else None
-        )
-        await self.producer.start()
+        self.producer = Producer({
+            'bootstrap.servers': self.settings.KAFKA_BOOTSTRAP_SERVERS,
+            'client.id': f'event-bus-producer-{uuid4()}',
+            'linger.ms': 10,
+            'batch.size': 16384
+        })
 
         # Consumer setup
-        self.consumer = AIOKafkaConsumer(
-            self._topic,
-            bootstrap_servers=self.settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=f"event-bus-{uuid4().hex[:8]}",
-            value_deserializer=lambda v: json.loads(v.decode('utf-8')),
-            key_deserializer=lambda k: k.decode('utf-8') if k else None,
-            auto_offset_reset='latest',
-            enable_auto_commit=True
-        )
-        await self.consumer.start()
+        self.consumer = Consumer({
+            'bootstrap.servers': self.settings.KAFKA_BOOTSTRAP_SERVERS,
+            'group.id': f"event-bus-{uuid4()}",
+            'auto.offset.reset': 'latest',
+            'enable.auto.commit': True,
+            'client.id': f'event-bus-consumer-{uuid4()}'
+        })
+        self.consumer.subscribe([self._topic])
+        
+        # Store the executor function for sync operations
+        loop = asyncio.get_event_loop()
+        self._executor = loop.run_in_executor
 
     async def stop(self) -> None:
         """Stop the event bus and clean up resources."""
@@ -103,11 +102,12 @@ class EventBus:
 
         # Stop Kafka components
         if self.consumer:
-            await self.consumer.stop()
+            self.consumer.close()
             self.consumer = None
 
         if self.producer:
-            await self.producer.stop()
+            # Flush any pending messages
+            self.producer.flush(timeout=5)
             self.producer = None
 
         # Clear subscriptions
@@ -128,7 +128,19 @@ class EventBus:
         # Publish to Kafka for distributed handling
         if self.producer:
             try:
-                await self.producer.send(self._topic, value=event, key=event_type)
+                # Serialize and send message asynchronously
+                value = json.dumps(event).encode('utf-8')
+                key = event_type.encode('utf-8') if event_type else None
+                
+                # Use executor to avoid blocking
+                if self._executor:
+                    await self._executor(None, self.producer.produce, self._topic, value=value, key=key)
+                    # Poll to handle delivery callbacks
+                    await self._executor(None, self.producer.poll, 0)
+                else:
+                    # Fallback to sync operation if executor not available
+                    self.producer.produce(self._topic, value=value, key=key)
+                    self.producer.poll(0)
             except Exception as e:
                 logger.error(f"Failed to publish to Kafka: {e}")
 
@@ -253,12 +265,26 @@ class EventBus:
         logger.info("Kafka listener started")
 
         try:
-            async for msg in self.consumer:
-                if not self._running:
-                    break
+            while self._running:
+                # Poll for messages with small timeout
+                if self._executor:
+                    msg = await self._executor(None, self.consumer.poll, 0.1)
+                else:
+                    # Fallback to sync operation if executor not available
+                    await asyncio.sleep(0.1)
+                    continue
+                
+                if msg is None:
+                    continue
+                    
+                if msg.error():
+                    if msg.error().code() != KafkaError._PARTITION_EOF:
+                        logger.error(f"Consumer error: {msg.error()}")
+                    continue
 
                 try:
-                    event = msg.value
+                    # Deserialize message
+                    event = json.loads(msg.value().decode('utf-8'))
                     event_type = event.get("event_type", "")
                     await self._distribute_event(event_type, event)
                 except Exception as e:
@@ -272,8 +298,9 @@ class EventBus:
 
     def _update_metrics(self, pattern: str) -> None:
         """Update metrics for a pattern (must be called within lock)."""
-        count = len(self._pattern_index.get(pattern, set()))
-        EVENT_BUS_SUBSCRIBERS.labels(event_type=pattern).set(count)
+        if self.metrics:
+            count = len(self._pattern_index.get(pattern, set()))
+            self.metrics.update_event_bus_subscribers(count, pattern)
 
     async def get_statistics(self) -> dict[str, Any]:
         """Get event bus statistics."""
@@ -291,7 +318,7 @@ class EventBusManager:
     """Manages EventBus lifecycle as a singleton."""
 
     def __init__(self) -> None:
-        self._event_bus: EventBus | None = None
+        self._event_bus: Optional[EventBus] = None
         self._lock = asyncio.Lock()
 
     async def get_event_bus(self) -> EventBus:
@@ -320,9 +347,5 @@ class EventBusManager:
 
 
 async def get_event_bus(request: Request) -> EventBus:
-    """FastAPI dependency to get event bus instance."""
-    manager = getattr(request.app.state, "event_bus_manager", None)
-    if not manager:
-        # Fallback for testing
-        manager = EventBusManager()
+    manager: EventBusManager = request.app.state.event_bus_manager
     return await manager.get_event_bus()

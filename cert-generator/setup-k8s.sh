@@ -52,7 +52,7 @@ openssl req -x509 -newkey rsa:2048 -nodes \
   -keyout "$BACKEND_CERT_DIR/server.key" \
   -out "$BACKEND_CERT_DIR/server.crt" \
   -subj "/CN=backend" \
-  -addext "subjectAltName = DNS:backend,DNS:localhost" \
+  -addext "subjectAltName = DNS:backend,DNS:localhost,IP:127.0.0.1,IP:::1" \
   -days 365
 
 # Copy the same certificate for the frontend to use.
@@ -72,9 +72,10 @@ echo "Self-signed certificate created and copied."
 # --- Generate Kubeconfig ---
 if [ -d /backend ]; then
     echo "Checking if Kubernetes is available..."
+    echo "Using KUBECONFIG: ${KUBECONFIG}"
     
     # Try to connect to Kubernetes, but don't fail if it's not available
-    if kubectl version >/dev/null 2>&1; then
+    if kubectl version --request-timeout=5s >/dev/null 2>&1; then
         echo "Kubernetes cluster detected. Setting up kubeconfig..."
         if ! kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' > /dev/null 2>&1; then
             echo "ERROR: kubectl is not configured to connect to a cluster."
@@ -159,11 +160,10 @@ EOF
         echo "CI: Patched K8S_SERVER to ${K8S_SERVER}"
     fi
     
-    # For Docker environments, use the Docker host IP
     if [ "$USE_DOCKER_HOST" = "true" ]; then
-        # Replace any local addresses with Docker host IP
-        K8S_SERVER="https://172.17.0.1:6443"
-        echo "Docker: Set K8S_SERVER to ${K8S_SERVER}"
+        # Containers in app-network need host.docker.internal to reach the host
+        K8S_SERVER="https://host.docker.internal:6443"
+        echo "Docker: Set K8S_SERVER to ${K8S_SERVER} (for container access)"
     fi
     
     cat > /backend/kubeconfig.yaml <<EOF
@@ -187,10 +187,45 @@ current-context: integr8scode
 EOF
     chmod 644 /backend/kubeconfig.yaml
     echo "kubeconfig.yaml successfully generated."
+    
+    # --- Setup NetworkPolicy for Security ---
+    echo "Setting up NetworkPolicy for integr8scode namespace..."
+    
+    # Apply NetworkPolicy to deny all traffic for executor pods
+    # This uses standard Kubernetes NetworkPolicy that works with k3s/flannel
+    kubectl apply -f - <<'EOF'
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: executor-deny-all
+  namespace: integr8scode
+spec:
+  podSelector:
+    matchLabels:
+      app: integr8s
+      component: executor
+  policyTypes:
+  - Ingress
+  - Egress
+  # Empty rules = deny all traffic (no ingress, no egress)
+EOF
+    
+    # Verify the policy was created
+    if kubectl get networkpolicy executor-deny-all -n integr8scode >/dev/null 2>&1; then
+        echo "✓ NetworkPolicy created successfully in integr8scode namespace"
+        
+        # Check if NetworkPolicy controller is enabled
+        # Note: k3s may have --disable-network-policy flag set
+        echo ""
+        echo "⚠️  IMPORTANT: NetworkPolicy requires k3s to have network policy enabled."
+        echo "   If executor pods still have network access, enable it with:"
+        echo "   sudo sed -i \"/'--disable-network-policy'/d\" /etc/systemd/system/k3s.service"
+        echo "   sudo systemctl daemon-reload && sudo systemctl restart k3s"
+    else
+        echo "⚠️  WARNING: Failed to create NetworkPolicy"
+    fi
+    
     fi
 fi
 
 echo "Setup completed successfully."
-
-# Create a setup-complete file to indicate success
-touch /backend/setup-complete || true

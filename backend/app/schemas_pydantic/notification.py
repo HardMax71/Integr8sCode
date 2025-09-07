@@ -1,51 +1,15 @@
-"""Notification models for event-driven notifications"""
-
-from datetime import datetime, timezone
-from enum import StrEnum
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-
-class NotificationChannel(StrEnum):
-    """Notification delivery channels"""
-    IN_APP = "in_app"
-    WEBHOOK = "webhook"
-    SLACK = "slack"
-
-
-class NotificationPriority(StrEnum):
-    """Notification priority levels"""
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    URGENT = "urgent"
-
-
-class NotificationStatus(StrEnum):
-    """Notification delivery status"""
-    PENDING = "pending"
-    QUEUED = "queued"
-    SENDING = "sending"
-    SENT = "sent"
-    DELIVERED = "delivered"
-    FAILED = "failed"
-    READ = "read"
-    CLICKED = "clicked"
-
-
-class NotificationType(StrEnum):
-    """Types of notifications"""
-    EXECUTION_COMPLETED = "execution_completed"
-    EXECUTION_FAILED = "execution_failed"
-    EXECUTION_TIMEOUT = "execution_timeout"
-    SYSTEM_UPDATE = "system_update"
-    SECURITY_ALERT = "security_alert"
-    RESOURCE_LIMIT = "resource_limit"
-    ACCOUNT_UPDATE = "account_update"
-    SETTINGS_CHANGED = "settings_changed"
-    CUSTOM = "custom"
+from app.domain.enums.notification import (
+    NotificationChannel,
+    NotificationPriority,
+    NotificationStatus,
+    NotificationType,
+)
 
 
 class NotificationTemplate(BaseModel):
@@ -78,7 +42,7 @@ class Notification(BaseModel):
     action_url: str | None = None
 
     # Tracking
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     scheduled_for: datetime | None = None
     sent_at: datetime | None = None
     delivered_at: datetime | None = None
@@ -104,7 +68,7 @@ class Notification(BaseModel):
     @field_validator("scheduled_for")
     @classmethod
     def validate_scheduled_for(cls, v: datetime | None) -> datetime | None:
-        if v and v < datetime.now(timezone.utc):
+        if v and v < datetime.now(UTC):
             raise ValueError("scheduled_for must be in the future")
         return v
 
@@ -117,7 +81,7 @@ class NotificationBatch(BaseModel):
     """Batch of notifications for bulk processing"""
     batch_id: str = Field(default_factory=lambda: str(uuid4()))
     notifications: list[Notification]
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     processed_count: int = 0
     failed_count: int = 0
 
@@ -158,8 +122,8 @@ class NotificationRule(BaseModel):
     max_per_day: int | None = None
 
     # Metadata
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     created_by: str | None = None
 
     model_config = ConfigDict(
@@ -194,8 +158,8 @@ class NotificationSubscription(BaseModel):
     # Batching preferences
     batch_interval_minutes: int = 60
 
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     model_config = ConfigDict(
         from_attributes=True
@@ -283,6 +247,33 @@ class TestNotificationRequest(BaseModel):
     """Request schema for sending test notifications"""
     notification_type: NotificationType
     channel: NotificationChannel
+
+    model_config = ConfigDict(
+        from_attributes=True
+    )
+
+
+class SubscriptionsResponse(BaseModel):
+    """Response schema for user subscriptions"""
+    subscriptions: list[NotificationSubscription]
+
+    model_config = ConfigDict(
+        from_attributes=True
+    )
+
+
+class UnreadCountResponse(BaseModel):
+    """Response schema for unread notification count"""
+    unread_count: int
+
+    model_config = ConfigDict(
+        from_attributes=True
+    )
+
+
+class DeleteNotificationResponse(BaseModel):
+    """Response schema for notification deletion"""
+    message: str
 
     model_config = ConfigDict(
         from_attributes=True

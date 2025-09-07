@@ -1,19 +1,4 @@
-"""Admin settings schemas for API requests/responses."""
 from pydantic import BaseModel, ConfigDict, Field
-
-
-class RateLimitsSchema(BaseModel):
-    """Rate limiting configuration schema."""
-    default: str = Field(default="100/minute", description="Default rate limit")
-    auth: str = Field(default="5/minute", description="Authentication endpoints rate limit")
-    execution: str = Field(default="20/minute", description="Execution endpoints rate limit")
-
-
-class KafkaSettingsSchema(BaseModel):
-    """Kafka configuration schema."""
-    retention_days: int = Field(default=7, ge=1, le=30, description="Message retention in days")
-    partition_count: int = Field(default=3, ge=1, le=10, description="Number of partitions")
-    replication_factor: int = Field(default=1, ge=1, le=3, description="Replication factor")
 
 
 class ExecutionLimitsSchema(BaseModel):
@@ -44,8 +29,6 @@ class SystemSettings(BaseModel):
     """System-wide settings model."""
     model_config = ConfigDict(extra="ignore")
 
-    rate_limits: RateLimitsSchema = Field(default_factory=RateLimitsSchema)
-    kafka_settings: KafkaSettingsSchema = Field(default_factory=KafkaSettingsSchema)
     execution_limits: ExecutionLimitsSchema = Field(default_factory=ExecutionLimitsSchema)
     security_settings: SecuritySettingsSchema = Field(default_factory=SecuritySettingsSchema)
     monitoring_settings: MonitoringSettingsSchema = Field(default_factory=MonitoringSettingsSchema)

@@ -1,15 +1,15 @@
 import threading
 import time
 from collections import deque
-from typing import Any, Optional, Sequence, Tuple
+from typing import Any, Sequence, Tuple
 
 from opentelemetry.context import Context
 from opentelemetry.sdk.trace.sampling import Decision, Sampler, SamplingResult
 from opentelemetry.trace import Link, SpanKind, TraceState, get_current_span
 from opentelemetry.util.types import Attributes
 
-from app.config import get_settings
 from app.core.logging import logger
+from app.settings import get_settings
 
 
 class AdaptiveSampler(Sampler):
@@ -71,13 +71,13 @@ class AdaptiveSampler(Sampler):
 
     def should_sample(
             self,
-            parent_context: Optional[Context],
+            parent_context: Context | None,
             trace_id: int,
             name: str,
-            kind: Optional[SpanKind] = None,
-            attributes: Optional[Attributes] = None,
-            links: Optional[Sequence[Link]] = None,
-            trace_state: Optional[TraceState] = None,
+            kind: SpanKind | None = None,
+            attributes: Attributes | None = None,
+            links: Sequence[Link] | None = None,
+            trace_state: TraceState | None = None,
     ) -> SamplingResult:
         """Determine if a span should be sampled"""
         # Get parent trace state
@@ -101,7 +101,7 @@ class AdaptiveSampler(Sampler):
                     )
 
         # Track request
-        self._track_request(attributes)
+        self._track_request()
 
         # Always sample errors
         if self._is_error(attributes):
@@ -118,9 +118,15 @@ class AdaptiveSampler(Sampler):
                     attributes=attributes
                 )
 
-        # Apply current sampling rate
+        # Apply current sampling rate using integer arithmetic to avoid precision issues
         # Use trace ID for deterministic sampling
-        should_sample = (trace_id & 0xffffffffffffffff) < (self._current_rate * 0xffffffffffffffff)
+        max_trace_id = (1 << 64) - 1  # 0xffffffffffffffff
+        masked_trace_id = trace_id & max_trace_id
+        # Compute threshold as integer, capping at max_trace_id if rate is 1.0
+        threshold = int(self._current_rate * max_trace_id)
+        if self._current_rate >= 1.0:
+            threshold = max_trace_id
+        should_sample = masked_trace_id < threshold
 
         if parent_trace_state is not None:
             return SamplingResult(
@@ -138,7 +144,7 @@ class AdaptiveSampler(Sampler):
         """Return sampler description"""
         return f"AdaptiveSampler(current_rate={self._current_rate:.2%})"
 
-    def _track_request(self, attributes: Optional[Attributes] = None) -> None:
+    def _track_request(self) -> None:
         """Track a request"""
         with self._lock:
             self._request_count += 1
@@ -150,7 +156,7 @@ class AdaptiveSampler(Sampler):
             self._error_count += 1
             self._error_window.append(time.time())
 
-    def _is_error(self, attributes: Optional[Attributes]) -> bool:
+    def _is_error(self, attributes: Attributes | None) -> bool:
         """Check if span attributes indicate an error"""
         if not attributes:
             return False
@@ -247,7 +253,7 @@ class AdaptiveSampler(Sampler):
             self._adjustment_thread.join(timeout=5.0)
 
 
-def create_adaptive_sampler(settings: Optional[Any] = None) -> AdaptiveSampler:
+def create_adaptive_sampler(settings: Any | None = None) -> AdaptiveSampler:
     """Create adaptive sampler with settings"""
     if settings is None:
         settings = get_settings()

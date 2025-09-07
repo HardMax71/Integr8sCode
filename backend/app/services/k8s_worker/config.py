@@ -1,24 +1,20 @@
-"""Configuration for KubernetesWorker service"""
-
 import os
 from dataclasses import dataclass, field
-from typing import Optional
 
-from app.schemas_avro.event_schemas import KafkaTopic
+from app.domain.enums.kafka import KafkaTopic
 
 
 @dataclass
 class K8sWorkerConfig:
-    """Configuration for KubernetesWorker"""
 
     # Kafka settings
-    kafka_bootstrap_servers: Optional[str] = None
+    kafka_bootstrap_servers: str | None = None
     consumer_group: str = "kubernetes-worker"
-    topics: list[str] = field(default_factory=lambda: [KafkaTopic.EXECUTION_TASKS])
+    topics: list[KafkaTopic] = field(default_factory=lambda: [KafkaTopic.EXECUTION_TASKS])
 
     # Kubernetes settings
     namespace: str = os.environ.get("K8S_NAMESPACE", "integr8scode")
-    kubeconfig_path: Optional[str] = os.environ.get("KUBECONFIG", None)
+    kubeconfig_path: str | None = os.environ.get("KUBECONFIG", None)
     in_cluster: bool = False
 
     # Worker settings
@@ -36,16 +32,6 @@ class K8sWorkerConfig:
     max_retries: int = 3
     retry_delay_seconds: int = 5
 
-    # Security settings
-    enable_network_policies: bool = True
-    enable_security_context: bool = True
-    run_as_non_root: bool = True
-    read_only_root_filesystem: bool = True
-
     # Monitoring
     enable_pod_metrics: bool = True
     metrics_port: int = 9090
-
-    def __post_init__(self) -> None:
-        # Additional post-initialization logic can go here if needed
-        pass

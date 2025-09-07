@@ -1,51 +1,45 @@
 <script>
   export let size = 'medium';
+  export let color = 'primary';
+  export let className = '';
   
-  $: sizeClass = {
-    small: 'spinner-small',
-    medium: 'spinner-medium', 
-    large: 'spinner-large'
-  }[size] || 'spinner-medium';
+  const sizeClasses = {
+    small: 'h-4 w-4',
+    medium: 'h-6 w-6',
+    large: 'h-8 w-8',
+    xlarge: 'h-12 w-12'
+  };
+  
+  const colorClasses = {
+    primary: 'text-primary dark:text-primary-light',
+    white: 'text-white',
+    current: 'text-current',
+    muted: 'text-gray-400 dark:text-gray-500'
+  };
+  
+  $: sizeClass = sizeClasses[size] || sizeClasses.medium;
+  $: colorClass = colorClasses[color] || colorClasses.primary;
 </script>
 
-<div role="status" aria-label="Loading">
-  <div class="spinner {sizeClass}"></div>
-</div>
-
-<style>
-  .spinner {
-    border: 3px solid theme('colors.neutral.200');
-    border-top-color: theme('colors.primary.DEFAULT');
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    margin: 1rem auto; /* Center it */
-  }
-  
-  .spinner-small {
-    width: 1.5rem; /* 24px */
-    height: 1.5rem; /* 24px */
-    border-width: 2px;
-  }
-  
-  .spinner-medium {
-    width: 2rem; /* 32px */
-    height: 2rem; /* 32px */
-  }
-  
-  .spinner-large {
-    width: 3rem; /* 48px */
-    height: 3rem; /* 48px */
-    border-width: 4px;
-  }
-
-  .dark .spinner {
-     border-color: theme('colors.neutral.700');
-     border-top-color: theme('colors.primary.light');
-  }
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-</style>
+<svg 
+  class="animate-spin {sizeClass} {colorClass} {className}" 
+  xmlns="http://www.w3.org/2000/svg"
+  fill="none" 
+  viewBox="0 0 24 24"
+  role="status" 
+  aria-label="Loading"
+>
+  <circle 
+    class="opacity-20" 
+    cx="12" 
+    cy="12" 
+    r="10" 
+    stroke="currentColor" 
+    stroke-width="2"
+  />
+  <path 
+    class="opacity-75" 
+    fill="currentColor" 
+    d="M12 2a10 10 0 00-10 10h2a8 8 0 018-8V2z"
+  />
+</svg>

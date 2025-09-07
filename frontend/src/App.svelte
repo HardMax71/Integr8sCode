@@ -6,14 +6,12 @@
     import Register from "./routes/Register.svelte";
     import Editor from "./routes/Editor.svelte";
     import AdminEvents from "./routes/admin/AdminEvents.svelte";
-    import AdminProjections from "./routes/admin/AdminProjections.svelte";
-    import AdminStats from "./routes/admin/AdminStats.svelte";
     import AdminUsers from "./routes/admin/AdminUsers.svelte";
     import AdminSettings from "./routes/admin/AdminSettings.svelte";
-    import KafkaMetrics from "./routes/admin/KafkaMetrics.svelte";
     import AdminSagas from "./routes/admin/AdminSagas.svelte";
     import Settings from "./routes/Settings.svelte";
     import NotificationsPage from "./routes/Notifications.svelte";
+    import Privacy from "./routes/Privacy.svelte";
     import Header from "./components/Header.svelte";
     import Footer from "./components/Footer.svelte";
     import Notifications from "./components/Notifications.svelte";
@@ -63,21 +61,6 @@
             </ProtectedRoute>
         </Route>
     
-        <Route path="/admin/projections">
-            <ProtectedRoute>
-                <div class="flex flex-col min-h-screen bg-bg-default dark:bg-dark-bg-default pt-16">
-                    <Header/>
-                    <div class="flex-grow flex flex-col">
-                        <Notifications/>
-                        <main class="flex-grow">
-                            <AdminProjections/>
-                        </main>
-                    </div>
-                    <Footer/>
-                </div>
-            </ProtectedRoute>
-        </Route>
-    
         <Route path="/admin/sagas">
             <ProtectedRoute>
                 <div class="flex flex-col min-h-screen bg-bg-default dark:bg-dark-bg-default pt-16">
@@ -86,21 +69,6 @@
                         <Notifications/>
                         <main class="flex-grow">
                             <AdminSagas/>
-                        </main>
-                    </div>
-                    <Footer/>
-                </div>
-            </ProtectedRoute>
-        </Route>
-    
-        <Route path="/admin/stats">
-            <ProtectedRoute>
-                <div class="flex flex-col min-h-screen bg-bg-default dark:bg-dark-bg-default pt-16">
-                    <Header/>
-                    <div class="flex-grow flex flex-col">
-                        <Notifications/>
-                        <main class="flex-grow">
-                            <AdminStats/>
                         </main>
                     </div>
                     <Footer/>
@@ -131,21 +99,6 @@
                         <Notifications/>
                         <main class="flex-grow">
                             <AdminSettings/>
-                        </main>
-                    </div>
-                    <Footer/>
-                </div>
-            </ProtectedRoute>
-        </Route>
-    
-        <Route path="/admin/kafka">
-            <ProtectedRoute>
-                <div class="flex flex-col min-h-screen bg-bg-default dark:bg-dark-bg-default pt-16">
-                    <Header/>
-                    <div class="flex-grow flex flex-col">
-                        <Notifications/>
-                        <main class="flex-grow">
-                            <KafkaMetrics/>
                         </main>
                     </div>
                     <Footer/>
@@ -217,6 +170,19 @@
                 <Notifications/>
                 <main class="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                     <Register/>
+                </main>
+            </div>
+            <Footer/>
+        </div>
+    </Route>
+    
+    <Route path="/privacy">
+        <div class="flex flex-col min-h-screen bg-bg-default dark:bg-dark-bg-default pt-16">
+            <Header/>
+            <div class="flex-grow flex flex-col">
+                <Notifications/>
+                <main class="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                    <Privacy/>
                 </main>
             </div>
             <Footer/>

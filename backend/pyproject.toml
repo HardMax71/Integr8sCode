@@ -15,7 +15,8 @@ exclude = [
     "prometheus",
     "**/venv/**",
     "**/.venv/**",
-    "**/site-packages/**"
+    "**/site-packages/**",
+    "**/.claude/**"
 ]
 
 [tool.ruff.lint.flake8-bugbear]
@@ -34,3 +35,23 @@ disallow_incomplete_defs = true
 disable_error_code = ["import-untyped", "import-not-found"]
 # TODO: REMOVE NEXT LINE
 exclude = '(^tests/|/tests/)'
+
+# Pytest configuration
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "slow: marks tests as slow running",
+    "kafka: marks tests as requiring Kafka",
+    "mongodb: marks tests as requiring MongoDB",
+    "performance: marks tests as performance tests"
+]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+log_cli = true
+log_cli_level = "INFO"

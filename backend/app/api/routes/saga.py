@@ -1,101 +1,160 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from dishka import FromDishka
+from dishka.integrations.fastapi import DishkaRoute
+from fastapi import APIRouter, Depends, Query, Request
 
-from app.api.dependencies import get_current_user
-from app.core.logging import logger
-from app.core.service_dependencies import SagaOrchestratorDep, SagaRepositoryDep
-from app.schemas_pydantic.saga import SagaCancellationResponse, SagaListResponse, SagaStatusResponse
-from app.schemas_pydantic.user import UserResponse, UserRole
-from app.services.saga import SagaState
+from app.api.dependencies import AuthService
+from app.api.rate_limit import check_rate_limit
+from app.domain.enums.saga import SagaState
+from app.infrastructure.mappers.admin_mapper import UserMapper as AdminUserMapper
+from app.infrastructure.mappers.saga_mapper import SagaResponseMapper
+from app.schemas_pydantic.saga import (
+    SagaCancellationResponse,
+    SagaListResponse,
+    SagaStatusResponse,
+)
+from app.schemas_pydantic.user import User
+from app.services.saga_service import SagaService
 
-router = APIRouter(prefix="/sagas", tags=["sagas"])
+router = APIRouter(
+    prefix="/sagas",
+    tags=["sagas"],
+    route_class=DishkaRoute,
+    dependencies=[Depends(check_rate_limit)]
+)
 
 
 @router.get("/{saga_id}", response_model=SagaStatusResponse)
 async def get_saga_status(
         saga_id: str,
-        repository: SagaRepositoryDep,
-        orchestrator: SagaOrchestratorDep,
-        current_user: UserResponse = Depends(get_current_user),
+        request: Request,
+        saga_service: FromDishka[SagaService],
+        auth_service: FromDishka[AuthService],
 ) -> SagaStatusResponse:
-    """Get status of a specific saga"""
-    return await repository.get_saga_status(saga_id, current_user, orchestrator)
+    """Get saga status by ID.
+    
+    Args:
+        saga_id: The saga identifier
+        request: FastAPI request object
+        saga_service: Saga service from DI
+        auth_service: Auth service from DI
+        
+    Returns:
+        Saga status response
+        
+    Raises:
+        HTTPException: 404 if saga not found, 403 if access denied
+    """
+    current_user = await auth_service.get_current_user(request)
+
+    service_user = User.from_response(current_user)
+    domain_user = AdminUserMapper.from_pydantic_service_user(service_user)
+    saga = await saga_service.get_saga_with_access_check(saga_id, domain_user)
+    mapper = SagaResponseMapper()
+    return mapper.to_response(saga)
 
 
 @router.get("/execution/{execution_id}", response_model=SagaListResponse)
 async def get_execution_sagas(
         execution_id: str,
-        repository: SagaRepositoryDep,
-        orchestrator: SagaOrchestratorDep,
+        request: Request,
+        saga_service: FromDishka[SagaService],
+        auth_service: FromDishka[AuthService],
         state: SagaState | None = Query(None, description="Filter by saga state"),
-        current_user: UserResponse = Depends(get_current_user),
 ) -> SagaListResponse:
-    """Get all sagas for a specific execution"""
-    return await repository.get_execution_sagas(execution_id, state, current_user, orchestrator)
+    """Get all sagas for an execution.
+    
+    Args:
+        execution_id: The execution identifier
+        request: FastAPI request object
+        saga_service: Saga service from DI
+        auth_service: Auth service from DI
+        state: Optional state filter
+        
+    Returns:
+        List of sagas for the execution
+        
+    Raises:
+        HTTPException: 403 if access denied
+    """
+    current_user = await auth_service.get_current_user(request)
+
+    service_user = User.from_response(current_user)
+    domain_user = AdminUserMapper.from_pydantic_service_user(service_user)
+    sagas = await saga_service.get_execution_sagas(execution_id, domain_user, state)
+    mapper = SagaResponseMapper()
+    saga_responses = mapper.list_to_responses(sagas)
+    return SagaListResponse(sagas=saga_responses, total=len(saga_responses))
 
 
 @router.get("/", response_model=SagaListResponse)
 async def list_sagas(
-        repository: SagaRepositoryDep,
+        request: Request,
+        saga_service: FromDishka[SagaService],
+        auth_service: FromDishka[AuthService],
         state: SagaState | None = Query(None, description="Filter by saga state"),
         limit: int = Query(100, ge=1, le=1000),
         offset: int = Query(0, ge=0),
-        current_user: UserResponse = Depends(get_current_user),
 ) -> SagaListResponse:
-    """List sagas with filtering and pagination"""
-    return await repository.list_sagas(state, limit, offset, current_user)
+    """List sagas accessible by the current user.
+    
+    Args:
+        request: FastAPI request object
+        saga_service: Saga service from DI
+        auth_service: Auth service from DI
+        state: Optional state filter
+        limit: Maximum number of results
+        offset: Number of results to skip
+        
+    Returns:
+        Paginated list of sagas
+    """
+    current_user = await auth_service.get_current_user(request)
+
+    service_user = User.from_response(current_user)
+    domain_user = AdminUserMapper.from_pydantic_service_user(service_user)
+    result = await saga_service.list_user_sagas(
+        domain_user,
+        state,
+        limit,
+        offset
+    )
+    mapper = SagaResponseMapper()
+    saga_responses = mapper.list_to_responses(result.sagas)
+    return SagaListResponse(sagas=saga_responses, total=result.total)
 
 
 @router.post("/{saga_id}/cancel", response_model=SagaCancellationResponse)
 async def cancel_saga(
         saga_id: str,
-        repository: SagaRepositoryDep,
-        orchestrator: SagaOrchestratorDep,
-        current_user: UserResponse = Depends(get_current_user),
+        request: Request,
+        saga_service: FromDishka[SagaService],
+        auth_service: FromDishka[AuthService],
 ) -> SagaCancellationResponse:
-    """Cancel a running saga and trigger compensation.
+    """Cancel a running saga.
     
-    Only the saga owner or admin users can cancel a saga.
-    Cancellation will trigger compensation for any completed steps.
+    Args:
+        saga_id: The saga identifier
+        request: FastAPI request object
+        saga_service: Saga service from DI
+        auth_service: Auth service from DI
+        
+    Returns:
+        Cancellation response with success status
+        
+    Raises:
+        HTTPException: 404 if not found, 403 if denied, 400 if invalid state
     """
-    try:
-        # Get saga to check ownership
-        saga_status = await orchestrator.get_saga_status(saga_id)
-        if not saga_status:
-            raise HTTPException(status_code=404, detail="Saga not found")
-        
-        # Check if user has permission to cancel
-        if current_user.role != UserRole.ADMIN:
-            # Get execution to check ownership
-            execution = await repository.db.executions.find_one({
-                "execution_id": saga_status.execution_id,
-                "user_id": current_user.user_id
-            })
-            
-            if not execution:
-                raise HTTPException(
-                    status_code=403,
-                    detail="You don't have permission to cancel this saga"
-                )
-        
-        # Cancel the saga
-        success = await orchestrator.cancel_saga(saga_id)
-        
-        if success:
-            logger.info(f"User {current_user.user_id} cancelled saga {saga_id}")
-            return SagaCancellationResponse(
-                success=True,
-                message="Saga cancelled successfully",
-                saga_id=saga_id
-            )
-        else:
-            return SagaCancellationResponse(
-                success=False,
-                message="Failed to cancel saga - check if saga is in a cancellable state",
-                saga_id=saga_id
-            )
-            
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error cancelling saga {saga_id}: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error") from e
+    current_user = await auth_service.get_current_user(request)
+
+    service_user = User.from_response(current_user)
+    domain_user = AdminUserMapper.from_pydantic_service_user(service_user)
+    success = await saga_service.cancel_saga(saga_id, domain_user)
+
+    return SagaCancellationResponse(
+        success=success,
+        message=(
+            "Saga cancelled successfully" if success
+            else "Failed to cancel saga"
+        ),
+        saga_id=saga_id
+    )

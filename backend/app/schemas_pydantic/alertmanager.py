@@ -1,34 +1,25 @@
-"""Alertmanager webhook payload models"""
-
 from datetime import datetime
-from enum import StrEnum
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from pydantic import BaseModel, Field
 
-
-class AlertStatus(StrEnum):
-    """Alert status values"""
-    FIRING = "firing"
-    RESOLVED = "resolved"
+from app.domain.enums.health import AlertStatus
 
 
 class Alert(BaseModel):
-    """Individual alert from Alertmanager"""
     status: AlertStatus
     labels: Dict[str, str]
     annotations: Dict[str, str]
     starts_at: datetime = Field(alias="startsAt")
-    ends_at: Optional[datetime] = Field(alias="endsAt", default=None)
+    ends_at: datetime | None = Field(alias="endsAt", default=None)
     generator_url: str = Field(alias="generatorURL")
     fingerprint: str
-    
+
     class Config:
         populate_by_name = True
 
 
 class AlertmanagerWebhook(BaseModel):
-    """Alertmanager webhook payload"""
     version: str
     group_key: str = Field(alias="groupKey")
     truncated_alerts: int = Field(alias="truncatedAlerts", default=0)
@@ -39,7 +30,7 @@ class AlertmanagerWebhook(BaseModel):
     common_annotations: Dict[str, str] = Field(alias="commonAnnotations")
     external_url: str = Field(alias="externalURL")
     alerts: List[Alert]
-    
+
     class Config:
         populate_by_name = True
 

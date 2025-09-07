@@ -4,11 +4,12 @@
     import { api } from '../lib/api';
     import { isAuthenticated, verifyAuth } from '../stores/auth';
     import { addNotification } from '../stores/notifications';
+    import { notificationStore, notifications, unreadCount } from '../stores/notificationStore';
     import { get } from 'svelte/store';
     import { fly } from 'svelte/transition';
+    import Spinner from '../components/Spinner.svelte';
     
-    let notifications = [];
-    let loading = true;
+    let loading = false;
     let deleting = {};
     
     const bellIcon = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>`;
@@ -41,8 +42,10 @@
             return;
         }
         
-        // Load data immediately, verify auth in background
-        loadNotifications();
+        // Load data immediately using shared store
+        loading = true;
+        await notificationStore.load(100);
+        loading = false;
         
         // Verify auth in background
         verifyAuth().then(isValid => {
@@ -57,67 +60,29 @@
         });
     });
     
-    async function loadNotifications() {
-        loading = true;
-        try {
-            const response = await api.get('/api/v1/notifications?limit=100');
-            notifications = response.notifications || [];
-        } catch (error) {
-            console.error('Failed to load notifications:', error);
-            addNotification('Failed to load notifications', 'error');
-            notifications = [];
-        } finally {
-            loading = false;
-        }
-    }
-    
     async function deleteNotification(id) {
         if (deleting[id]) return;
         
         deleting[id] = true;
-        try {
-            await api.delete(`/api/v1/notifications/${id}`);
-            notifications = notifications.filter(n => n.notification_id !== id);
+        const success = await notificationStore.delete(id);
+        if (success) {
             addNotification('Notification deleted', 'success');
-        } catch (error) {
+        } else {
             addNotification('Failed to delete notification', 'error');
-        } finally {
-            deleting[id] = false;
         }
+        deleting[id] = false;
     }
     
     async function markAsRead(notification) {
         if (notification.status === 'read') return;
-        
-        try {
-            await api.put(`/api/v1/notifications/${notification.notification_id}/read`);
-            notification.status = 'read';
-            notification.read_at = new Date().toISOString();
-            notifications = notifications;
-        } catch (error) {
-            addNotification('Failed to mark as read', 'error');
-        }
+        await notificationStore.markAsRead(notification.notification_id);
     }
     
     async function markAllAsRead() {
-        const unreadNotifications = notifications.filter(n => n.status !== 'read');
-        if (unreadNotifications.length === 0) return;
-        
-        try {
-            await Promise.all(
-                unreadNotifications.map(n => 
-                    api.put(`/api/v1/notifications/${n.notification_id}/read`)
-                )
-            );
-            
-            notifications = notifications.map(n => ({
-                ...n,
-                status: 'read',
-                read_at: new Date().toISOString()
-            }));
-            
+        const success = await notificationStore.markAllAsRead();
+        if (success) {
             addNotification('All notifications marked as read', 'success');
-        } catch (error) {
+        } else {
             addNotification('Failed to mark all as read', 'error');
         }
     }
@@ -161,7 +126,7 @@
     <div class="container mx-auto px-4 py-8 max-w-5xl">
         <div class="flex justify-between items-center mb-8">
             <h1 class="text-3xl font-bold text-fg-default dark:text-dark-fg-default">Notifications</h1>
-            {#if notifications.length > 0 && notifications.some(n => n.status !== 'read')}
+            {#if $notifications.length > 0 && $unreadCount > 0}
                 <button
                     on:click={markAllAsRead}
                     class="btn btn-secondary-outline btn-sm"
@@ -173,12 +138,9 @@
         
         {#if loading}
             <div class="flex justify-center items-center h-64">
-                <svg class="animate-spin h-12 w-12 text-primary" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
+                <Spinner size="xlarge" />
             </div>
-        {:else if notifications.length === 0}
+        {:else if $notifications.length === 0}
             <div class="card">
                 <div class="p-12 text-center">
                     <div class="w-20 h-20 mx-auto mb-4 text-fg-subtle dark:text-dark-fg-subtle">
@@ -194,7 +156,7 @@
             </div>
         {:else}
             <div class="space-y-3">
-                {#each notifications as notification (notification.notification_id)}
+                {#each $notifications as notification (notification.notification_id)}
                     <div
                         in:fly={{ y: 20, duration: 300 }}
                         class="card transition-all duration-200 cursor-pointer {notification.status !== 'read' ? 'bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800/50' : ''}"
@@ -206,8 +168,8 @@
                     >
                         <div class="p-4">
                             <div class="flex items-start gap-4">
-                                <div class="{getNotificationColor(notification.event_type || 'default')} mt-1">
-                                    {@html getNotificationIcon(notification.event_type || 'default')}
+                                <div class="{getNotificationColor(notification.notification_type || 'default')} mt-1">
+                                    {@html getNotificationIcon(notification.notification_type || 'default')}
                                 </div>
                                 
                                 <div class="flex-1">
@@ -227,10 +189,7 @@
                                             disabled={deleting[notification.notification_id]}
                                         >
                                             {#if deleting[notification.notification_id]}
-                                                <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                                </svg>
+                                                <Spinner size="small" />
                                             {:else}
                                                 {@html trashIcon}
                                             {/if}

@@ -1,108 +1,169 @@
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
-
-from motor.motor_asyncio import AsyncIOMotorDatabase
-from pymongo import ASCENDING, DESCENDING, IndexModel
+from collections import OrderedDict
+from datetime import datetime, timedelta, timezone
+from typing import Any, List
 
 from app.core.logging import logger
-from app.schemas_avro.event_schemas import EventType
-from app.schemas_pydantic.user import User
-from app.schemas_pydantic.user_settings import (
-    EditorSettings,
-    NotificationChannel,
-    NotificationSettings,
-    SettingChange,
-    Theme,
-    UserSettings,
-    UserSettingsUpdate,
+from app.db.repositories.user_settings_repository import UserSettingsRepository
+from app.domain.enums import Theme
+from app.domain.enums.events import EventType
+from app.domain.user.settings_models import (
+    CachedSettings,
+    DomainEditorSettings,
+    DomainNotificationSettings,
+    DomainSettingChange,
+    DomainSettingsEvent,
+    DomainSettingsHistoryEntry,
+    DomainUserSettings,
+    DomainUserSettingsUpdate,
 )
 from app.services.kafka_event_service import KafkaEventService
 
 
 class UserSettingsService:
-    """Service for managing user settings with event sourcing"""
-
-    def __init__(self, database: AsyncIOMotorDatabase, event_service: KafkaEventService) -> None:
-        self._db: AsyncIOMotorDatabase[Any] = database
+    def __init__(
+            self,
+            repository: UserSettingsRepository,
+            event_service: KafkaEventService
+    ) -> None:
+        self.repository = repository
         self.event_service = event_service
-        self._settings_cache: Dict[str, UserSettings] = {}
+        # Use OrderedDict for LRU-like behavior
+        self._settings_cache: OrderedDict[str, CachedSettings] = OrderedDict()
+        self._cache_ttl = timedelta(minutes=5)
+        self._max_cache_size = 1000
 
-    @property
-    def db(self) -> AsyncIOMotorDatabase[Any]:
-        """Get database with null check"""
-        if self._db is None:
-            raise RuntimeError("Database not initialized")
-        return self._db
+        logger.info(
+            "UserSettingsService initialized",
+            extra={
+                "cache_ttl_seconds": self._cache_ttl.total_seconds(),
+                "max_cache_size": self._max_cache_size
+            }
+        )
 
-    async def initialize(self) -> None:
-        """Initialize collections and indexes"""
-        # Create indexes for settings snapshots
-        await self.db.user_settings_snapshots.create_indexes([
-            IndexModel([("user_id", ASCENDING)], unique=True),
-            IndexModel([("updated_at", DESCENDING)]),
-        ])
+    async def get_user_settings(self, user_id: str) -> DomainUserSettings:
+        """Get settings with cache; rebuild and cache on miss."""
+        cached = self._get_from_cache(user_id)
+        if cached:
+            logger.debug(
+                f"Settings cache hit for user {user_id}",
+                extra={"cache_size": len(self._settings_cache)}
+            )
+            return cached
 
-        # Create indexes for settings events
-        await self.db.events.create_indexes([
-            IndexModel([("event_type", ASCENDING), ("aggregate_id", ASCENDING)]),
-            IndexModel([("aggregate_id", ASCENDING), ("timestamp", ASCENDING)]),
-        ])
+        return await self.get_user_settings_fresh(user_id)
 
-        logger.info("User settings service initialized")
-
-    async def get_user_settings(self, user_id: str, use_cache: bool = True) -> UserSettings:
-        """Get user settings by rebuilding from events or snapshot"""
-        # Check cache first
-        if use_cache and user_id in self._settings_cache:
-            return self._settings_cache[user_id]
-
-        # Try to get latest snapshot
-        snapshot = await self.db.user_settings_snapshots.find_one({"user_id": user_id})
+    async def get_user_settings_fresh(self, user_id: str) -> DomainUserSettings:
+        """Bypass cache and rebuild settings from snapshot + events."""
+        snapshot = await self.repository.get_snapshot(user_id)
 
         if snapshot:
-            settings = UserSettings(**snapshot)
-            # Get events since snapshot
-            events = await self._get_settings_events(user_id, since=settings.updated_at)
+            settings = snapshot
+            events = await self._get_settings_events(user_id, since=snapshot.updated_at)
         else:
-            # No snapshot, rebuild from all events
-            settings = UserSettings(user_id=user_id)
+            settings = DomainUserSettings(user_id=user_id)
             events = await self._get_settings_events(user_id)
 
-        # Apply events to rebuild current state
         for event in events:
             settings = self._apply_event(settings, event)
 
-        # Cache the settings
-        self._settings_cache[user_id] = settings
-
+        self._add_to_cache(user_id, settings)
         return settings
 
     async def update_user_settings(
             self,
-            user: User,
-            updates: UserSettingsUpdate,
-            reason: Optional[str] = None
-    ) -> UserSettings:
+            user_id: str,
+            updates: DomainUserSettingsUpdate,
+            reason: str | None = None
+    ) -> DomainUserSettings:
         """Update user settings and publish events"""
-        # Get current settings
-        current_settings = await self.get_user_settings(str(user.user_id))
+        current_settings = await self.get_user_settings(user_id)
 
-        # Track changes
-        changes = []
-        update_dict = updates.model_dump(exclude_unset=True)
+        # Track changes and apply explicitly-typed updates
+        changes: list[DomainSettingChange] = []
+        new_values: dict[str, Any] = {}
 
-        # Apply updates and record changes
-        for field, value in update_dict.items():
-            if value is not None:
-                old_value = getattr(current_settings, field)
-                if old_value != value:
-                    changes.append(SettingChange(
-                        field_path=field,
-                        old_value=old_value,
-                        new_value=value,
-                        change_reason=reason
-                    ))
-                    setattr(current_settings, field, value)
+        if updates.theme is not None and current_settings.theme != updates.theme:
+            changes.append(DomainSettingChange(
+                field_path="theme",
+                old_value=current_settings.theme,
+                new_value=updates.theme,
+                change_reason=reason,
+            ))
+            current_settings.theme = updates.theme
+            new_values["theme"] = updates.theme
+
+        if updates.timezone is not None and current_settings.timezone != updates.timezone:
+            changes.append(DomainSettingChange(
+                field_path="timezone",
+                old_value=current_settings.timezone,
+                new_value=updates.timezone,
+                change_reason=reason,
+            ))
+            current_settings.timezone = updates.timezone
+            new_values["timezone"] = updates.timezone
+
+        if updates.date_format is not None and current_settings.date_format != updates.date_format:
+            changes.append(DomainSettingChange(
+                field_path="date_format",
+                old_value=current_settings.date_format,
+                new_value=updates.date_format,
+                change_reason=reason,
+            ))
+            current_settings.date_format = updates.date_format
+            new_values["date_format"] = updates.date_format
+
+        if updates.time_format is not None and current_settings.time_format != updates.time_format:
+            changes.append(DomainSettingChange(
+                field_path="time_format",
+                old_value=current_settings.time_format,
+                new_value=updates.time_format,
+                change_reason=reason,
+            ))
+            current_settings.time_format = updates.time_format
+            new_values["time_format"] = updates.time_format
+
+        if updates.notifications is not None and current_settings.notifications != updates.notifications:
+            changes.append(DomainSettingChange(
+                field_path="notifications",
+                old_value=current_settings.notifications,
+                new_value=updates.notifications,
+                change_reason=reason,
+            ))
+            current_settings.notifications = updates.notifications
+            new_values["notifications"] = {
+                "execution_completed": updates.notifications.execution_completed,
+                "execution_failed": updates.notifications.execution_failed,
+                "system_updates": updates.notifications.system_updates,
+                "security_alerts": updates.notifications.security_alerts,
+                "channels": updates.notifications.channels,
+            }
+
+        if updates.editor is not None and current_settings.editor != updates.editor:
+            changes.append(DomainSettingChange(
+                field_path="editor",
+                old_value=current_settings.editor,
+                new_value=updates.editor,
+                change_reason=reason,
+            ))
+            current_settings.editor = updates.editor
+            new_values["editor"] = {
+                "theme": updates.editor.theme,
+                "font_size": updates.editor.font_size,
+                "tab_size": updates.editor.tab_size,
+                "use_tabs": updates.editor.use_tabs,
+                "word_wrap": updates.editor.word_wrap,
+                "show_line_numbers": updates.editor.show_line_numbers,
+            }
+
+        if updates.custom_settings is not None and current_settings.custom_settings != updates.custom_settings:
+            changes.append(DomainSettingChange(
+                field_path="custom_settings",
+                old_value=current_settings.custom_settings,
+                new_value=updates.custom_settings,
+                change_reason=reason,
+            ))
+            current_settings.custom_settings = updates.custom_settings
+            new_values["custom_settings"] = updates.custom_settings
 
         if not changes:
             return current_settings  # No changes
@@ -110,76 +171,85 @@ class UserSettingsService:
         # Update timestamp
         current_settings.updated_at = datetime.now(timezone.utc)
 
-        # Publish event based on what changed
-        event_type = self._determine_event_type(changes)
+        # Publish event based on the updated top-level fields
+        event_type = self._determine_event_type_from_fields(set(new_values.keys()))
 
         await self.event_service.publish_event(
             event_type=event_type,
-            aggregate_id=f"user_settings_{user.user_id}",
+            aggregate_id=f"user_settings_{user_id}",
             payload={
-                "user_id": str(user.user_id),
-                "changes": [change.dict() for change in changes],
+                "user_id": user_id,
+                "changes": [
+                    {
+                        "field_path": change.field_path,
+                        "old_value": change.old_value,
+                        "new_value": change.new_value,
+                        "changed_at": change.changed_at,
+                        "change_reason": change.change_reason,
+                    }
+                    for change in changes
+                ],
                 "reason": reason,
-                "new_values": update_dict
+                "new_values": new_values
             },
-            user=user
+            user_id=None
         )
 
         # Update cache
-        self._settings_cache[str(user.user_id)] = current_settings
+        self._add_to_cache(user_id, current_settings)
 
         # Create snapshot if enough changes accumulated
-        event_count = await self._count_events_since_snapshot(str(user.user_id))
+        event_count = await self.repository.count_events_since_snapshot(user_id)
         if event_count >= 10:  # Snapshot every 10 events
-            await self._create_snapshot(current_settings)
+            await self.repository.create_snapshot(current_settings)
 
         return current_settings
 
-    async def update_theme(self, user: User, theme: Theme) -> UserSettings:
+    async def update_theme(self, user_id: str, theme: Theme) -> DomainUserSettings:
         """Update user's theme preference"""
         return await self.update_user_settings(
-            user,
-            UserSettingsUpdate(theme=theme),
+            user_id,
+            DomainUserSettingsUpdate(theme=theme),
             reason="User changed theme"
         )
 
     async def update_notification_settings(
             self,
-            user: User,
-            notifications: NotificationSettings
-    ) -> UserSettings:
+            user_id: str,
+            notifications: DomainNotificationSettings
+    ) -> DomainUserSettings:
         """Update notification preferences"""
         return await self.update_user_settings(
-            user,
-            UserSettingsUpdate(notifications=notifications),
+            user_id,
+            DomainUserSettingsUpdate(notifications=notifications),
             reason="User updated notification preferences"
         )
 
     async def update_editor_settings(
             self,
-            user: User,
-            editor: EditorSettings
-    ) -> UserSettings:
+            user_id: str,
+            editor: DomainEditorSettings
+    ) -> DomainUserSettings:
         """Update editor preferences"""
         return await self.update_user_settings(
-            user,
-            UserSettingsUpdate(editor=editor),
+            user_id,
+            DomainUserSettingsUpdate(editor=editor),
             reason="User updated editor settings"
         )
 
     async def update_custom_setting(
             self,
-            user: User,
+            user_id: str,
             key: str,
             value: Any
-    ) -> UserSettings:
+    ) -> DomainUserSettings:
         """Update a custom setting"""
-        current_settings = await self.get_user_settings(str(user.user_id))
+        current_settings = await self.get_user_settings(user_id)
         current_settings.custom_settings[key] = value
 
         return await self.update_user_settings(
-            user,
-            UserSettingsUpdate(custom_settings=current_settings.custom_settings),
+            user_id,
+            DomainUserSettingsUpdate(custom_settings=current_settings.custom_settings),
             reason=f"Custom setting '{key}' updated"
         )
 
@@ -187,341 +257,277 @@ class UserSettingsService:
             self,
             user_id: str,
             limit: int = 50
-    ) -> List[Dict[str, Any]]:
+    ) -> List[DomainSettingsHistoryEntry]:
         """Get history of settings changes"""
         events = await self._get_settings_events(user_id, limit=limit)
 
-        history = []
+        history: list[DomainSettingsHistoryEntry] = []
         for event in events:
-            if event.get("payload", {}).get("changes"):
-                for change in event["payload"]["changes"]:
-                    history.append({
-                        "timestamp": event["timestamp"],
-                        "event_type": event["event_type"],
-                        "field": change["field_path"],
-                        "old_value": change["old_value"],
-                        "new_value": change["new_value"],
-                        "reason": change.get("change_reason"),
-                        "correlation_id": event.get("correlation_id")
-                    })
+            if event.payload.get("changes"):
+                event_timestamp = event.timestamp
+
+                for change in event.payload["changes"]:
+                    history.append(
+                        DomainSettingsHistoryEntry(
+                            timestamp=event_timestamp,
+                            event_type=str(event.event_type),
+                            field=change["field_path"],
+                            old_value=change["old_value"],
+                            new_value=change["new_value"],
+                            reason=change.get("change_reason"),
+                            correlation_id=event.correlation_id,
+                        )
+                    )
 
         return history
 
     async def restore_settings_to_point(
             self,
-            user: User,
+            user_id: str,
             timestamp: datetime
-    ) -> UserSettings:
+    ) -> DomainUserSettings:
         """Restore settings to a specific point in time"""
         # Get all events up to the timestamp
         events = await self._get_settings_events(
-            str(user.user_id),
+            user_id,
             until=timestamp
         )
 
         # Rebuild settings from events
-        settings = UserSettings(user_id=str(user.user_id))
+        settings = DomainUserSettings(user_id=user_id)
         for event in events:
             settings = self._apply_event(settings, event)
 
         # Save as current settings
-        await self._create_snapshot(settings)
-        self._settings_cache[str(user.user_id)] = settings
+        await self.repository.create_snapshot(settings)
+        self._add_to_cache(user_id, settings)
 
         # Publish restoration event
-        await self.event_service.publish_event(
-            event_type=EventType.USER_SETTINGS_UPDATED,
-            aggregate_id=f"user_settings_{user.user_id}",
-            payload={
-                "user_id": str(user.user_id),
-                "action": "restored",
-                "restored_to": timestamp.isoformat(),
-                "reason": f"Settings restored to {timestamp}"
-            },
-            user=user
-        )
-
-        return settings
-
-    async def migrate_legacy_settings(self, user_id: str, legacy_settings: Dict[str, Any]) -> UserSettings:
-        """Migrate legacy settings to event-sourced model"""
-        # Map notification settings
-        notifications = NotificationSettings()
-        if "notifications" in legacy_settings:
-            legacy_notif = legacy_settings["notifications"]
-            notifications.execution_completed = legacy_notif.get("execution_completed", True)
-            notifications.execution_failed = legacy_notif.get("execution_failed", True)
-            notifications.system_updates = legacy_notif.get("system_updates", True)
-            notifications.security_alerts = legacy_notif.get("security_alerts", True)
-
-            # Map notification channels
-            if "channels" in legacy_notif:
-                channels = []
-                for channel in legacy_notif["channels"]:
-                    try:
-                        channels.append(NotificationChannel(channel))
-                    except ValueError:
-                        logger.warning(f"Unknown notification channel in legacy settings: {channel}")
-                if channels:
-                    notifications.channels = channels
-
-            # Email-related settings removed
-            pass
-
-        # Map editor settings
-        editor = EditorSettings()
-        if "editor" in legacy_settings:
-            legacy_editor = legacy_settings["editor"]
-            editor.theme = legacy_editor.get("theme", "one-dark")
-            editor.font_size = legacy_editor.get("font_size", 14)
-            editor.font_family = legacy_editor.get("font_family", editor.font_family)
-            editor.tab_size = legacy_editor.get("tab_size", 4)
-            editor.use_tabs = legacy_editor.get("use_tabs", False)
-            editor.word_wrap = legacy_editor.get("word_wrap", True)
-            editor.show_line_numbers = legacy_editor.get("show_line_numbers", True)
-            # vim_mode removed, auto_complete is always on
-            editor.auto_complete = True
-            editor.bracket_matching = legacy_editor.get("bracket_matching", True)
-            editor.highlight_active_line = legacy_editor.get("highlight_active_line", True)
-            editor.default_language = legacy_editor.get("default_language", "python")
-
-        # User preferences removed - execution settings defined at infra level
-
-        # Map custom settings
-        custom_settings = {}
-        # Collect any fields not mapped to standard settings
-        standard_fields = {
-            "theme", "language", "timezone", "date_format", "time_format",
-            "notifications", "editor", "preferences", "user_id", "version",
-            "created_at", "updated_at"
-        }
-        for key, value in legacy_settings.items():
-            if key not in standard_fields:
-                custom_settings[key] = value
-
-        # Create initial settings from legacy data
-        settings = UserSettings(
-            user_id=user_id,
-            theme=Theme(legacy_settings.get("theme", "auto")),
-            timezone=legacy_settings.get("timezone", "UTC"),
-            date_format=legacy_settings.get("date_format", "YYYY-MM-DD"),
-            time_format=legacy_settings.get("time_format", "24h"),
-            notifications=notifications,
-            editor=editor,
-            custom_settings=custom_settings
-        )
-
-        # Create initial event
         await self.event_service.publish_event(
             event_type=EventType.USER_SETTINGS_UPDATED,
             aggregate_id=f"user_settings_{user_id}",
             payload={
                 "user_id": user_id,
-                "action": "migrated",
-                "migrated_from": "legacy",
-                "initial_settings": settings.model_dump()
-            }
+                "action": "restored",
+                "restored_to": timestamp,
+                "reason": f"Settings restored to timestamp {timestamp}"
+            },
+            user_id=None
         )
 
-        # Create snapshot
-        await self._create_snapshot(settings)
-
         return settings
-
-    async def migrate_flat_legacy_settings(self, user_id: str, legacy_settings: Dict[str, Any]) -> UserSettings:
-        """Migrate flat legacy settings (non-nested structure) to event-sourced model"""
-        # Reorganize flat settings into nested structure
-        organized_settings: Dict[str, Any] = {
-            "theme": legacy_settings.get("theme"),
-            "language": legacy_settings.get("language"),
-            "timezone": legacy_settings.get("timezone"),
-            "date_format": legacy_settings.get("date_format"),
-            "time_format": legacy_settings.get("time_format"),
-            "notifications": {},
-            "editor": {},
-            "preferences": {}
-        }
-
-        # Map notification-related fields
-        notification_fields = {
-            "notif_execution_completed": "execution_completed",
-            "notif_execution_failed": "execution_failed",
-            "notif_system_updates": "system_updates",
-            "notif_security_alerts": "security_alerts",
-            "notif_channels": "channels",
-            "notif_email_frequency": "email_frequency",
-            "notif_quiet_hours_start": "quiet_hours_start",
-            "notif_quiet_hours_end": "quiet_hours_end"
-        }
-
-        for legacy_key, new_key in notification_fields.items():
-            if legacy_key in legacy_settings:
-                if isinstance(organized_settings["notifications"], dict):
-                    organized_settings["notifications"][new_key] = legacy_settings[legacy_key]
-
-        # Map editor-related fields
-        editor_fields = {
-            "editor_theme": "theme",
-            "editor_font_size": "font_size",
-            "editor_font_family": "font_family",
-            "editor_tab_size": "tab_size",
-            "editor_use_tabs": "use_tabs",
-            "editor_word_wrap": "word_wrap",
-            "editor_show_line_numbers": "show_line_numbers",
-            "editor_show_minimap": "show_minimap",
-            "editor_vim_mode": "vim_mode",
-            "editor_auto_complete": "auto_complete",
-            "editor_bracket_matching": "bracket_matching",
-            "editor_highlight_active_line": "highlight_active_line",
-            "editor_default_language": "default_language"
-        }
-
-        for legacy_key, new_key in editor_fields.items():
-            if legacy_key in legacy_settings:
-                if isinstance(organized_settings["editor"], dict):
-                    organized_settings["editor"][new_key] = legacy_settings[legacy_key]
-
-        # Map preference-related fields
-        preference_fields = {
-            "pref_default_execution_timeout": "default_execution_timeout",
-            "pref_default_memory_limit": "default_memory_limit",
-            "pref_default_cpu_limit": "default_cpu_limit",
-            "pref_show_execution_timer": "show_execution_timer",
-            "pref_show_resource_usage": "show_resource_usage",
-            "pref_auto_run_on_load": "auto_run_on_load",
-            "pref_save_output_history": "save_output_history",
-            "pref_output_history_limit": "output_history_limit",
-            "pref_confirm_before_run": "confirm_before_run",
-            "pref_show_execution_cost": "show_execution_cost"
-        }
-
-        for legacy_key, new_key in preference_fields.items():
-            if legacy_key in legacy_settings:
-                if isinstance(organized_settings["preferences"], dict):
-                    organized_settings["preferences"][new_key] = legacy_settings[legacy_key]
-
-        # Use the existing migration method with organized settings
-        return await self.migrate_legacy_settings(user_id, organized_settings)
 
     async def _get_settings_events(
             self,
             user_id: str,
-            since: Optional[datetime] = None,
-            until: Optional[datetime] = None,
-            limit: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
+            since: datetime | None = None,
+            until: datetime | None = None,
+            limit: int | None = None
+    ) -> List[DomainSettingsEvent]:
         """Get settings-related events for a user"""
-        query = {
-            "aggregate_id": f"user_settings_{user_id}",
-            "event_type": {
-                "$in": [
-                    EventType.USER_SETTINGS_UPDATED,
-                    EventType.USER_PREFERENCES_UPDATED,
-                    EventType.USER_THEME_CHANGED,
-                    EventType.USER_LANGUAGE_CHANGED,
-                    EventType.USER_NOTIFICATION_SETTINGS_UPDATED,
-                    EventType.USER_EDITOR_SETTINGS_UPDATED
-                ]
-            }
-        }
+        event_types = [
+            EventType.USER_SETTINGS_UPDATED,
+            EventType.USER_THEME_CHANGED,
+            EventType.USER_NOTIFICATION_SETTINGS_UPDATED,
+            EventType.USER_EDITOR_SETTINGS_UPDATED
+        ]
 
-        if since or until:
-            timestamp_query: Dict[str, Any] = {}
-            if since:
-                timestamp_query["$gt"] = since
-            if until:
-                timestamp_query["$lte"] = until
-            query["timestamp"] = timestamp_query
+        raw = await self.repository.get_settings_events(
+            user_id=user_id,
+            event_types=event_types,
+            since=since,
+            until=until,
+            limit=limit
+        )
+        # map to domain
+        out: list[DomainSettingsEvent] = []
+        for e in raw:
+            et = EventType(e.event_type)
+            out.append(
+                DomainSettingsEvent(
+                    event_type=et,
+                    timestamp=e.timestamp,
+                    payload=e.payload,
+                    correlation_id=e.correlation_id,
+                )
+            )
+        return out
 
-        cursor = self.db.events.find(query).sort("timestamp", ASCENDING)
-
-        if limit:
-            cursor = cursor.limit(limit)
-
-        return await cursor.to_list(None)
-
-    def _apply_event(self, settings: UserSettings, event: Dict[str, Any]) -> UserSettings:
+    def _apply_event(self, settings: DomainUserSettings, event: DomainSettingsEvent) -> DomainUserSettings:
         """Apply an event to settings state"""
-        payload = event.get("payload", {})
+        # TODO: Refactoring this mess with branching and dict[whatever, whatever]
+        payload = event.payload
 
         # Handle different event types
-        if event["event_type"] == EventType.USER_THEME_CHANGED:
-            settings.theme = Theme(payload["new_values"]["theme"])
+        if event.event_type == EventType.USER_THEME_CHANGED:
+            settings.theme = payload["new_values"]["theme"]
 
-        elif event["event_type"] == EventType.USER_LANGUAGE_CHANGED:
-            # Language removed - app is English only
-            pass
+        elif event.event_type == EventType.USER_NOTIFICATION_SETTINGS_UPDATED:
+            n = payload["new_values"]["notifications"]
+            settings.notifications = DomainNotificationSettings(
+                execution_completed=n.get("execution_completed", True),
+                execution_failed=n.get("execution_failed", True),
+                system_updates=n.get("system_updates", True),
+                security_alerts=n.get("security_alerts", True),
+                channels=n.get("channels", []),
+            )
 
-        elif event["event_type"] == EventType.USER_NOTIFICATION_SETTINGS_UPDATED:
-            settings.notifications = NotificationSettings(**payload["new_values"]["notifications"])
-
-        elif event["event_type"] == EventType.USER_EDITOR_SETTINGS_UPDATED:
-            settings.editor = EditorSettings(**payload["new_values"]["editor"])
-
-        elif event["event_type"] == EventType.USER_PREFERENCES_UPDATED:
-            # User preferences removed - execution settings defined at infra level
-            pass
+        elif event.event_type == EventType.USER_EDITOR_SETTINGS_UPDATED:
+            e = payload["new_values"]["editor"]
+            settings.editor = DomainEditorSettings(
+                theme=e.get("theme", settings.editor.theme),
+                font_size=e.get("font_size", settings.editor.font_size),
+                tab_size=e.get("tab_size", settings.editor.tab_size),
+                use_tabs=e.get("use_tabs", settings.editor.use_tabs),
+                word_wrap=e.get("word_wrap", settings.editor.word_wrap),
+                show_line_numbers=e.get("show_line_numbers", settings.editor.show_line_numbers),
+            )
 
         else:
-            # Generic settings update
+            # Generic settings update; handle known nested fields explicitly
             for change in payload.get("changes", []):
                 field_path = change["field_path"]
                 new_value = change["new_value"]
-
-                # Handle nested fields
                 if "." in field_path:
                     parts = field_path.split(".")
-                    obj = settings
-                    for part in parts[:-1]:
-                        obj = getattr(obj, part)
-                    setattr(obj, parts[-1], new_value)
+                    top = parts[0]
+                    leaf = parts[-1]
+                    if top == "editor":
+                        setattr(settings.editor, leaf, new_value)
+                    elif top == "notifications":
+                        setattr(settings.notifications, leaf, new_value)
+                    elif top == "custom_settings" and len(parts) == 2:
+                        settings.custom_settings[leaf] = new_value
                 else:
-                    setattr(settings, field_path, new_value)
+                    if field_path == "theme":
+                        settings.theme = new_value
+                    elif field_path == "timezone":
+                        settings.timezone = new_value
+                    elif field_path == "date_format":
+                        settings.date_format = new_value
+                    elif field_path == "time_format":
+                        settings.time_format = new_value
+                    elif field_path == "editor" and isinstance(new_value, dict):
+                        e = new_value
+                        settings.editor = DomainEditorSettings(
+                            theme=e.get("theme", settings.editor.theme),
+                            font_size=e.get("font_size", settings.editor.font_size),
+                            tab_size=e.get("tab_size", settings.editor.tab_size),
+                            use_tabs=e.get("use_tabs", settings.editor.use_tabs),
+                            word_wrap=e.get("word_wrap", settings.editor.word_wrap),
+                            show_line_numbers=e.get("show_line_numbers", settings.editor.show_line_numbers),
+                        )
+                    elif field_path == "notifications" and isinstance(new_value, dict):
+                        n = new_value
+                        settings.notifications = DomainNotificationSettings(
+                            execution_completed=n.get("execution_completed",
+                                                      settings.notifications.execution_completed),
+                            execution_failed=n.get("execution_failed", settings.notifications.execution_failed),
+                            system_updates=n.get("system_updates", settings.notifications.system_updates),
+                            security_alerts=n.get("security_alerts", settings.notifications.security_alerts),
+                            channels=n.get("channels", settings.notifications.channels),
+                        )
 
-        settings.updated_at = event["timestamp"]
+        settings.updated_at = event.timestamp
         return settings
 
-    def _determine_event_type(self, changes: List[SettingChange]) -> str:
-        """Determine the appropriate event type based on changes"""
-        field_paths = [change.field_path for change in changes]
+    def _determine_event_type_from_fields(self, updated_fields: set[str]) -> EventType:
+        """Determine event type from top-level updated fields (no brittle path parsing)."""
+        field_event_map = {
+            "theme": EventType.USER_THEME_CHANGED,
+            "notifications": EventType.USER_NOTIFICATION_SETTINGS_UPDATED,
+            "editor": EventType.USER_EDITOR_SETTINGS_UPDATED,
+        }
 
-        if any("theme" in path for path in field_paths):
-            return EventType.USER_THEME_CHANGED
-        elif any("language" in path for path in field_paths):
-            return EventType.USER_LANGUAGE_CHANGED
-        elif any("notifications" in path for path in field_paths):
-            return EventType.USER_NOTIFICATION_SETTINGS_UPDATED
-        elif any("editor" in path for path in field_paths):
-            return EventType.USER_EDITOR_SETTINGS_UPDATED
-        elif any("preferences" in path for path in field_paths):
-            return EventType.USER_PREFERENCES_UPDATED
-        else:
-            return EventType.USER_SETTINGS_UPDATED
-
-    async def _create_snapshot(self, settings: UserSettings) -> None:
-        """Create a snapshot of current settings state"""
-        await self.db.user_settings_snapshots.replace_one(
-            {"user_id": settings.user_id},
-            settings.model_dump(),
-            upsert=True
-        )
-        logger.info(f"Created settings snapshot for user {settings.user_id}")
-
-    async def _count_events_since_snapshot(self, user_id: str) -> int:
-        """Count events since last snapshot"""
-        snapshot = await self.db.user_settings_snapshots.find_one({"user_id": user_id})
-
-        if not snapshot:
-            return await self.db.events.count_documents({
-                "aggregate_id": f"user_settings_{user_id}"
-            })
-
-        return await self.db.events.count_documents({
-            "aggregate_id": f"user_settings_{user_id}",
-            "timestamp": {"$gt": snapshot["updated_at"]}
-        })
+        if len(updated_fields) == 1:
+            field = next(iter(updated_fields))
+            return field_event_map.get(field, EventType.USER_SETTINGS_UPDATED)
+        return EventType.USER_SETTINGS_UPDATED
 
     def invalidate_cache(self, user_id: str) -> None:
         """Invalidate cached settings for a user"""
         if user_id in self._settings_cache:
             del self._settings_cache[user_id]
+            logger.debug(
+                f"Invalidated cache for user {user_id}",
+                extra={"cache_size": len(self._settings_cache)}
+            )
+
+    def _get_from_cache(self, user_id: str) -> DomainUserSettings | None:
+        """Get settings from cache if valid."""
+        if user_id not in self._settings_cache:
+            return None
+
+        cached = self._settings_cache[user_id]
+
+        # Check if expired
+        if cached.is_expired():
+            logger.debug(f"Cache expired for user {user_id}")
+            del self._settings_cache[user_id]
+            return None
+
+        # Move to end for LRU behavior
+        self._settings_cache.move_to_end(user_id)
+        return cached.settings
+
+    def _add_to_cache(self, user_id: str, settings: DomainUserSettings) -> None:
+        """Add settings to cache with expiry and size management."""
+        # Remove expired entries periodically (every 10 additions)
+        if len(self._settings_cache) % 10 == 0:
+            self._cleanup_expired_cache()
+
+        # Enforce max cache size (LRU eviction)
+        while len(self._settings_cache) >= self._max_cache_size:
+            # Remove oldest entry (first item in OrderedDict)
+            evicted_user_id, _ = self._settings_cache.popitem(last=False)
+            logger.debug(
+                f"Evicted user {evicted_user_id} from cache (size limit)",
+                extra={"cache_size": len(self._settings_cache)}
+            )
+
+        # Add new entry with expiry
+        expires_at = datetime.now(timezone.utc) + self._cache_ttl
+        self._settings_cache[user_id] = CachedSettings(
+            settings=settings,
+            expires_at=expires_at
+        )
+
+        logger.debug(
+            f"Cached settings for user {user_id}",
+            extra={
+                "cache_size": len(self._settings_cache),
+                "expires_at": expires_at.isoformat()
+            }
+        )
+
+    def _cleanup_expired_cache(self) -> None:
+        """Remove all expired entries from cache."""
+        now = datetime.now(timezone.utc)
+        expired_users = [
+            user_id for user_id, cached in self._settings_cache.items()
+            if cached.expires_at <= now
+        ]
+
+        for user_id in expired_users:
+            del self._settings_cache[user_id]
+
+        if expired_users:
+            logger.debug(
+                f"Cleaned up {len(expired_users)} expired cache entries",
+                extra={"remaining_cache_size": len(self._settings_cache)}
+            )
+
+    def get_cache_stats(self) -> dict[str, Any]:
+        """Get cache statistics for monitoring."""
+        now = datetime.now(timezone.utc)
+        expired_count = sum(
+            1 for cached in self._settings_cache.values()
+            if cached.expires_at <= now
+        )
+
+        return {
+            "cache_size": len(self._settings_cache),
+            "max_cache_size": self._max_cache_size,
+            "expired_entries": expired_count,
+            "cache_ttl_seconds": self._cache_ttl.total_seconds()
+        }

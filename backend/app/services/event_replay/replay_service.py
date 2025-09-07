@@ -1,194 +1,49 @@
 import asyncio
+import inspect
 import json
 from datetime import datetime, timedelta, timezone
-from enum import StrEnum
-from typing import Any, AsyncIterator, Callable, ClassVar, Dict, List, Optional, Type
+from typing import Any, AsyncIterator, Callable, Dict, List
 from uuid import uuid4
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
-from pydantic import BaseModel, Field
-
 from app.core.logging import logger
+from app.core.metrics import ReplayMetrics
 from app.core.tracing import SpanKind, trace_span
+from app.db.repositories.replay_repository import ReplayRepository
+from app.domain.enums.replay import ReplayStatus, ReplayTarget
+from app.domain.replay.models import ReplayConfig, ReplaySessionState
 from app.events.core.producer import UnifiedProducer
-from app.events.store.event_store import EventStore
-from app.schemas_avro.event_schemas import BaseEvent, EventType, build_event_type_mapping
-from app.services.event_replay.metrics import (
-    ACTIVE_REPLAYS,
-    EVENTS_REPLAYED,
-    REPLAY_DURATION,
-    REPLAY_ERRORS,
-)
-
-
-class ReplayType(StrEnum):
-    EXECUTION = "execution"
-    TIME_RANGE = "time_range"
-    EVENT_TYPE = "event_type"
-    QUERY = "query"
-    RECOVERY = "recovery"
-
-
-class ReplayStatus(StrEnum):
-    CREATED = "created"
-    RUNNING = "running"
-    PAUSED = "paused"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-
-
-class ReplayTarget(StrEnum):
-    KAFKA = "kafka"
-    CALLBACK = "callback"
-    FILE = "file"
-    TEST = "test"
-
-
-class ReplayFilter(BaseModel):
-    execution_id: Optional[str] = None
-    event_types: Optional[List[EventType]] = None
-    start_time: Optional[datetime] = None
-    end_time: Optional[datetime] = None
-    user_id: Optional[str] = None
-    service_name: Optional[str] = None
-    custom_query: Optional[Dict[str, Any]] = None
-    exclude_event_types: Optional[List[EventType]] = None
-
-    def to_mongo_query(self) -> Dict[str, Any]:
-        query: Dict[str, Any] = {}
-
-        if self.execution_id:
-            query["execution_id"] = str(self.execution_id)
-
-        if self.event_types:
-            query["event_type"] = {"$in": [str(et) for et in self.event_types]}
-
-        if self.exclude_event_types:
-            if "event_type" in query:
-                query["event_type"]["$nin"] = [str(et) for et in self.exclude_event_types]
-            else:
-                query["event_type"] = {"$nin": [str(et) for et in self.exclude_event_types]}
-
-        if self.start_time or self.end_time:
-            time_query: Dict[str, Any] = {}
-            if self.start_time:
-                time_query["$gte"] = self.start_time
-            if self.end_time:
-                time_query["$lte"] = self.end_time
-            query["timestamp"] = time_query
-
-        if self.user_id:
-            query["metadata.user_id"] = self.user_id
-
-        if self.service_name:
-            query["metadata.service_name"] = self.service_name
-
-        if self.custom_query:
-            query.update(self.custom_query)
-
-        return query
-
-
-class ReplayConfig(BaseModel):
-    replay_type: ReplayType
-    target: ReplayTarget = ReplayTarget.KAFKA
-    filter: ReplayFilter
-
-    speed_multiplier: float = Field(default=1.0, ge=0.1, le=100.0)
-    preserve_timestamps: bool = False
-    batch_size: int = Field(default=100, ge=1, le=1000)
-    max_events: Optional[int] = Field(default=None, ge=1)
-
-    target_topics: Optional[Dict[EventType, str]] = None
-    target_file_path: Optional[str] = None
-
-    skip_errors: bool = True
-    retry_failed: bool = False
-    retry_attempts: int = 3
-
-    enable_progress_tracking: bool = True
-    progress_callback: Optional[Callable] = None
-
-
-class ReplaySession(BaseModel):
-    session_id: str = Field(default_factory=lambda: str(uuid4()))
-    config: ReplayConfig
-    status: ReplayStatus = ReplayStatus.CREATED
-
-    total_events: int = 0
-    replayed_events: int = 0
-    failed_events: int = 0
-    skipped_events: int = 0
-
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
-    last_event_at: Optional[datetime] = None
-
-    errors: List[Dict[str, Any]] = Field(default_factory=list)
-
-    class Config:
-        arbitrary_types_allowed = True
+from app.events.event_store import EventStore
+from app.infrastructure.kafka.events.base import BaseEvent
 
 
 class EventReplayService:
-    _event_type_mapping: ClassVar[Dict[EventType, Type[BaseEvent]]] = {}
-    _default_topic_mapping: ClassVar[Dict[EventType, str]] = {
-        EventType.EXECUTION_REQUESTED: "execution-requests",
-        EventType.EXECUTION_STARTED: "execution-events",
-        EventType.EXECUTION_COMPLETED: "execution-events",
-        EventType.EXECUTION_FAILED: "execution-events",
-        EventType.POD_CREATED: "pod-events",
-        EventType.POD_SCHEDULED: "pod-events",
-        EventType.POD_RUNNING: "pod-events",
-        EventType.POD_SUCCEEDED: "pod-events",
-        EventType.POD_FAILED: "pod-events",
-    }
 
     def __init__(
-        self,
-        database: AsyncIOMotorDatabase,
-        producer: UnifiedProducer,
-        event_store: EventStore
+            self,
+            repository: ReplayRepository,
+            producer: UnifiedProducer,
+            event_store: EventStore,
     ) -> None:
-        self._sessions: Dict[str, ReplaySession] = {}
+        self._sessions: Dict[str, ReplaySessionState] = {}
         self._active_tasks: Dict[str, asyncio.Task] = {}
+        self._repository = repository
         self._producer = producer
         self._event_store = event_store
-        self._db = database
         self._callbacks: Dict[ReplayTarget, Callable] = {}
         self._file_locks: Dict[str, asyncio.Lock] = {}
-        self._initialize_event_type_mapping()
+        self._metrics = ReplayMetrics()
         logger.info("Event replay service initialized")
 
-    async def initialize_indexes(self) -> None:
-        """Initialize database indexes - should be called during startup"""
-        await self._create_indexes()
-
-    async def _create_indexes(self) -> None:
-        if self._db is None:
-            return
-
-        events_collection = self._db.events
-        await events_collection.create_index([("execution_id", 1), ("timestamp", 1)])
-        await events_collection.create_index([("event_type", 1), ("timestamp", 1)])
-        await events_collection.create_index([("metadata.user_id", 1), ("timestamp", 1)])
-
-    def _initialize_event_type_mapping(self) -> None:
-        """Initialize event type mapping from the central registry."""
-        EventReplayService._event_type_mapping = build_event_type_mapping()
-
     async def create_replay_session(self, config: ReplayConfig) -> str:
-        session = ReplaySession(config=config)
-        self._sessions[session.session_id] = session
+        state = ReplaySessionState(session_id=str(uuid4()), config=config)
+        self._sessions[state.session_id] = state
 
         logger.info(
-            f"Created replay session {session.session_id} "
+            f"Created replay session {state.session_id} "
             f"type={config.replay_type} target={config.target}"
         )
 
-        return session.session_id
+        return state.session_id
 
     async def start_replay(self, session_id: str) -> None:
         session = self._sessions.get(session_id)
@@ -204,10 +59,10 @@ class EventReplayService:
         session.status = ReplayStatus.RUNNING
         session.started_at = datetime.now(timezone.utc)
 
-        ACTIVE_REPLAYS.inc()
+        self._metrics.increment_active_replays()
         logger.info(f"Started replay session {session_id}")
 
-    async def _run_replay(self, session: ReplaySession) -> None:
+    async def _run_replay(self, session: ReplaySessionState) -> None:
         start_time = asyncio.get_event_loop().time()
 
         try:
@@ -234,11 +89,11 @@ class EventReplayService:
         except Exception as e:
             await self._handle_session_error(session, e)
         finally:
-            ACTIVE_REPLAYS.dec()
+            self._metrics.decrement_active_replays()
             self._active_tasks.pop(session.session_id, None)
 
-    async def _prepare_session(self, session: ReplaySession) -> None:
-        total_count = await self._count_events(session.config.filter)
+    async def _prepare_session(self, session: ReplaySessionState) -> None:
+        total_count = await self._repository.count_events(session.config.filter)
         session.total_events = min(
             total_count,
             session.config.max_events or total_count
@@ -249,75 +104,51 @@ class EventReplayService:
             f"{session.total_events} events"
         )
 
-    async def _handle_progress_callback(self, session: ReplaySession) -> None:
-        if session.config.progress_callback:
+    async def _handle_progress_callback(self, session: ReplaySessionState) -> None:
+        cb = session.config.get_progress_callback()
+        if cb is not None:
             try:
-                await session.config.progress_callback(session)
+                result = cb(session)
+                if inspect.isawaitable(result):
+                    await result
             except Exception as e:
                 logger.error(f"Progress callback error: {e}")
 
-    async def _complete_session(self, session: ReplaySession, start_time: float) -> None:
-        if session.status == ReplayStatus.RUNNING:
-            session.status = ReplayStatus.COMPLETED
-            session.completed_at = datetime.now(timezone.utc)
+    async def _complete_session(self, session: ReplaySessionState, start_time: float) -> None:
+        session.status = ReplayStatus.COMPLETED
+        session.completed_at = datetime.now(timezone.utc)
 
-            duration = asyncio.get_event_loop().time() - start_time
-            REPLAY_DURATION.labels(
-                replay_type=session.config.replay_type
-            ).observe(duration)
+        duration = asyncio.get_event_loop().time() - start_time
+        self._metrics.record_replay_duration(duration, session.config.replay_type)
 
-            logger.info(
-                f"Replay session {session.session_id} completed. "
-                f"Replayed: {session.replayed_events}, "
-                f"Failed: {session.failed_events}, "
-                f"Skipped: {session.skipped_events}, "
-                f"Duration: {duration:.2f}s"
-            )
+        await self._update_session_in_db(session)
 
-    async def _handle_session_error(self, session: ReplaySession, error: Exception) -> None:
+        logger.info(
+            f"Replay session {session.session_id} completed. "
+            f"Replayed: {session.replayed_events}, "
+            f"Failed: {session.failed_events}, "
+            f"Skipped: {session.skipped_events}, "
+            f"Duration: {duration:.2f}s"
+        )
+
+    async def _handle_session_error(self, session: ReplaySessionState, error: Exception) -> None:
         logger.error(
             f"Replay session {session.session_id} failed: {error}",
             exc_info=True
         )
         session.status = ReplayStatus.FAILED
+        session.completed_at = datetime.now(timezone.utc)
         session.errors.append({
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "error": str(error),
             "type": type(error).__name__
         })
-        REPLAY_ERRORS.labels(error_type=type(error).__name__).inc()
-
-    async def _count_events(self, filter: ReplayFilter) -> int:
-        query = filter.to_mongo_query()
-        if self._db is None:
-            raise RuntimeError("Database not initialized")
-        count = await self._db.events.count_documents(query)
-        return count
-
-    async def _deserialize_event(
-            self,
-            doc: Dict[str, Any],
-            session: ReplaySession
-    ) -> Optional[BaseEvent]:
-        try:
-            event_type = EventType(doc["event_type"])
-            event_class = self._get_event_class(event_type)
-            if event_class:
-                return event_class(**doc)
-            else:
-                logger.warning(f"Unknown event type: {event_type}")
-                session.skipped_events += 1
-                return None
-        except Exception as e:
-            logger.error(f"Failed to deserialize event: {e}")
-            session.failed_events += 1
-            if not session.config.skip_errors:
-                raise
-            return None
+        self._metrics.record_replay_error(type(error).__name__)
+        await self._update_session_in_db(session)
 
     async def _apply_replay_delay(
             self,
-            session: ReplaySession,
+            session: ReplaySessionState,
             event: BaseEvent
     ) -> None:
         if session.last_event_at and session.config.speed_multiplier < 100:
@@ -328,7 +159,7 @@ class EventReplayService:
 
     def _update_replay_metrics(
             self,
-            session: ReplaySession,
+            session: ReplaySessionState,
             event: BaseEvent,
             success: bool
     ) -> None:
@@ -339,15 +170,11 @@ class EventReplayService:
             session.failed_events += 1
             status = "failed"
 
-        EVENTS_REPLAYED.labels(
-            replay_type=session.config.replay_type,
-            event_type=event.event_type,
-            status=status
-        ).inc()
+        self._metrics.record_event_replayed(session.config.replay_type, event.event_type, status)
 
     async def _handle_replay_error(
             self,
-            session: ReplaySession,
+            session: ReplaySessionState,
             event: BaseEvent,
             error: Exception
     ) -> None:
@@ -361,33 +188,21 @@ class EventReplayService:
 
     async def _replay_to_kafka(
             self,
-            session: ReplaySession,
+            session: ReplaySessionState,
             event: BaseEvent
     ) -> bool:
         config = session.config
-        topic = self._get_target_topic(event, config)
-        if not topic:
-            logger.warning(f"No target topic for event type {event.event_type}")
-            return False
-
         if not config.preserve_timestamps:
             event.timestamp = datetime.now(timezone.utc)
 
-        # Add replay metadata to the event's payload or as additional context
-        # Since EventMetadata doesn't have these fields, we'll handle replay tracking differently
-        # The replay information should be tracked in the session, not in the event metadata
-
-        if not self._producer:
-            raise RuntimeError("Producer not initialized")
-        
         # Send the event without modifying its metadata structure
-        result = await self._producer.send_event(event, topic)
-        return result is not None
+        await self._producer.produce(event_to_produce=event)
+        return True
 
     async def _replay_to_callback(
             self,
             event: BaseEvent,
-            session: ReplaySession
+            session: ReplaySessionState
     ) -> bool:
         callback = self._callbacks.get(ReplayTarget.CALLBACK)
         if callback:
@@ -398,7 +213,7 @@ class EventReplayService:
     async def _replay_to_file(
             self,
             event: BaseEvent,
-            file_path: Optional[str]
+            file_path: str | None
     ) -> bool:
         if not file_path:
             logger.error("No target file path specified")
@@ -406,98 +221,85 @@ class EventReplayService:
         await self._write_event_to_file(event, file_path)
         return True
 
-    async def _retry_replay(
-            self,
-            session: ReplaySession,
-            event: BaseEvent,
-            error: Exception
-    ) -> bool:
-        for attempt in range(session.config.retry_attempts):
-            try:
-                await asyncio.sleep(min(2 ** attempt, 10))
-                return await self._replay_event(session, event)
-            except Exception:
-                if attempt == session.config.retry_attempts - 1:
-                    return False
-        return False
-
     async def _fetch_event_batches(
             self,
-            session: ReplaySession
+            session: ReplaySessionState
     ) -> AsyncIterator[List[BaseEvent]]:
-        query = session.config.filter.to_mongo_query()
-        batch_size = session.config.batch_size
-        if self._db is None:
-            raise RuntimeError("Database not initialized")
-        cursor = self._db.events.find(query).sort("timestamp", 1)
+        logger.info(f"Fetching events for session {session.session_id}")
+        events_processed = 0
+        max_events = session.config.max_events
 
-        if session.config.max_events:
-            cursor = cursor.limit(session.config.max_events)
+        async for batch_docs in self._repository.fetch_events(
+                filter=session.config.filter,
+                batch_size=session.config.batch_size
+        ):
+            batch: List[BaseEvent] = []
+            for doc in batch_docs:
+                if max_events and events_processed >= max_events:
+                    break
 
-        batch: List[BaseEvent] = []
-        async for doc in cursor:
-            event = await self._deserialize_event(doc, session)
-            if event:
-                batch.append(event)
-                if len(batch) >= batch_size:
-                    yield batch
-                    batch = []
+                event = self._event_store.schema_registry.deserialize_json(doc)
+                if event:
+                    batch.append(event)
+                    events_processed += 1
 
-        if batch:
-            yield batch
+            if batch:
+                yield batch
+
+            if max_events and events_processed >= max_events:
+                break
 
     async def _process_batch(
             self,
-            session: ReplaySession,
+            session: ReplaySessionState,
             batch: List[BaseEvent]
     ) -> None:
         for event in batch:
             if session.status != ReplayStatus.RUNNING:
                 break
 
+            # Apply delay before external I/O
+            await self._apply_replay_delay(session, event)
             try:
-                await self._apply_replay_delay(session, event)
                 success = await self._replay_event(session, event)
-                self._update_replay_metrics(session, event, success)
-                session.last_event_at = event.timestamp
             except Exception as e:
                 await self._handle_replay_error(session, event, e)
                 if not session.config.skip_errors:
                     raise
+                continue
+
+            self._update_replay_metrics(session, event, success)
+            session.last_event_at = event.timestamp
+            await self._update_session_in_db(session)
 
     async def _replay_event(
             self,
-            session: ReplaySession,
+            session: ReplaySessionState,
             event: BaseEvent
     ) -> bool:
         config = session.config
 
-        try:
-            if config.target == ReplayTarget.KAFKA:
-                return await self._replay_to_kafka(session, event)
-            elif config.target == ReplayTarget.CALLBACK:
-                return await self._replay_to_callback(event, session)
-            elif config.target == ReplayTarget.FILE:
-                return await self._replay_to_file(event, config.target_file_path)
-            elif config.target == ReplayTarget.TEST:
-                return True
-            else:
-                logger.error(f"Unknown replay target: {config.target}")
-                return False
-        except Exception as e:
-            logger.error(f"Failed to replay event: {e}")
-            if config.retry_failed:
-                return await self._retry_replay(session, event, e)
-            raise
+        attempts = config.retry_attempts if config.retry_failed else 1
+        for attempt in range(attempts):
+            try:
+                if config.target == ReplayTarget.KAFKA:
+                    return await self._replay_to_kafka(session, event)
+                elif config.target == ReplayTarget.CALLBACK:
+                    return await self._replay_to_callback(event, session)
+                elif config.target == ReplayTarget.FILE:
+                    return await self._replay_to_file(event, config.target_file_path)
+                elif config.target == ReplayTarget.TEST:
+                    return True
+                else:
+                    logger.error(f"Unknown replay target: {config.target}")
+                    return False
+            except Exception as e:
+                logger.error(f"Failed to replay event (attempt {attempt + 1}/{attempts}): {e}")
+                if attempt < attempts - 1:
+                    await asyncio.sleep(min(2 ** attempt, 10))
+                    continue
 
-    def _get_target_topic(
-            self,
-            event: BaseEvent,
-            config: ReplayConfig
-    ) -> Optional[str]:
-        if config.target_topics:
-            return config.target_topics.get(event.event_type)
-        return self._default_topic_mapping.get(event.event_type, "replay-events")
+        return False
 
     async def _write_event_to_file(
             self,
@@ -523,9 +325,6 @@ class EventReplayService:
     ) -> None:
         with open(file_path, 'a') as f:
             f.write(json.dumps(event.model_dump(), default=str) + '\n')
-
-    def _get_event_class(self, event_type: EventType) -> Optional[Type[BaseEvent]]:
-        return self._event_type_mapping.get(event_type)
 
     async def pause_replay(self, session_id: str) -> None:
         session = self._sessions.get(session_id)
@@ -558,14 +357,14 @@ class EventReplayService:
 
         logger.info(f"Cancelled replay session {session_id}")
 
-    def get_session(self, session_id: str) -> Optional[ReplaySession]:
+    def get_session(self, session_id: str) -> ReplaySessionState | None:
         return self._sessions.get(session_id)
 
     def list_sessions(
             self,
-            status: Optional[ReplayStatus] = None,
+            status: ReplayStatus | None = None,
             limit: int = 100
-    ) -> List[ReplaySession]:
+    ) -> List[ReplaySessionState]:
         sessions = list(self._sessions.values())
 
         if status:
@@ -577,7 +376,7 @@ class EventReplayService:
     def register_callback(
             self,
             target: ReplayTarget,
-            callback: Callable[[BaseEvent, ReplaySession], Any]
+            callback: Callable[[BaseEvent, ReplaySessionState], Any]
     ) -> None:
         self._callbacks[target] = callback
 
@@ -605,3 +404,20 @@ class EventReplayService:
 
         logger.info(f"Cleaned up {removed} old replay sessions")
         return removed
+
+    async def _update_session_in_db(self, session: ReplaySessionState) -> None:
+        """Update session progress in the database."""
+        try:
+            await self._repository.update_replay_session(
+                session_id=session.session_id,
+                updates={
+                    "status": session.status,
+                    "replayed_events": session.replayed_events,
+                    "failed_events": session.failed_events,
+                    "skipped_events": session.skipped_events,
+                    "completed_at": session.completed_at,
+                    "last_event_at": session.last_event_at
+                }
+            )
+        except Exception as e:
+            logger.error(f"Failed to update session in database: {e}")

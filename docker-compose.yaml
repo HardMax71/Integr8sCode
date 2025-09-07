@@ -29,7 +29,7 @@ services:
         condition: service_completed_successfully
 
   mongo:
-    image: mongo:4.4
+    image: mongo:8.0
     ports:
       - "27017:27017"
     environment:
@@ -42,11 +42,28 @@ services:
       - app-network
     container_name: mongo
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongo localhost/integr8scode -u ${MONGO_ROOT_USER:-root} -p ${MONGO_ROOT_PASSWORD:-rootpassword} --authenticationDatabase admin --quiet
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost/integr8scode -u ${MONGO_ROOT_USER:-root} -p ${MONGO_ROOT_PASSWORD:-rootpassword} --authenticationDatabase admin --quiet
       interval: 10s
       timeout: 10s
       retries: 5
       start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --save ""
+    volumes:
+      - redis_data:/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   backend:
     build:
@@ -57,10 +74,12 @@ services:
         condition: service_completed_successfully
       mongo:
         condition: service_healthy
+      redis:
+        condition: service_healthy
       kafka:
         condition: service_healthy
       schema-registry:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - ./backend:/app
       - ./backend/certs:/app/certs:ro
@@ -68,6 +87,7 @@ services:
       - ./backend/kubeconfig.yaml:/app/kubeconfig.yaml:ro
     ports:
       - "443:443"
+      - "9090:9090"  # Metrics port (host:container)
     networks:
       - app-network
     container_name: backend
@@ -77,12 +97,16 @@ services:
       - ./backend/.env
     environment:
       - SERVER_HOST=0.0.0.0
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_SERVICE_NAME=integr8scode-backend
+      - OTEL_SERVICE_VERSION=1.0.0
     healthcheck:
-      test: [ "CMD", "curl", "-k", "https://localhost/api/v1/health" ]
-      interval: 10s
+      # Simpler, reliable healthcheck: curl fails non-zero for HTTP >=400 with -f
+      test: ["CMD-SHELL", "curl -k -f -s https://localhost:443/api/v1/health/live >/dev/null || exit 1"]
+      interval: 5s
       timeout: 5s
       retries: 10
-      start_period: 5s
+      start_period: 15s
 
   frontend:
     container_name: frontend
@@ -107,32 +131,6 @@ services:
       - VITE_BACKEND_URL=https://backend:443
       - NODE_EXTRA_CA_CERTS=/shared_ca/mkcert-ca.pem
 
-  prometheus:
-    container_name: prometheus
-    image: prom/prometheus:v2.45.0
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./backend/prometheus:/etc/prometheus
-      - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
-      - '--storage.tsdb.retention.time=15d'
-      - '--storage.tsdb.retention.size=5GB'
-      - '--query.max-samples=50000000'
-    networks:
-      - app-network
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-          cpus: '1'
-        reservations:
-          memory: 1G
-          cpus: '0.5'
 
   alertmanager:
     container_name: alertmanager
@@ -157,9 +155,6 @@ services:
       - ./backend/grafana/grafana.ini:/etc/grafana/grafana.ini:ro
       - ./backend/grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana_data:/var/lib/grafana
-    depends_on:
-      prometheus:
-        condition: service_started
     networks:
       - app-network
     environment:
@@ -187,7 +182,6 @@ services:
     environment:
       # Basic configuration
       ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_SECURE_CLIENT_PORT: 2281
       ZOOKEEPER_TICK_TIME: 2000
       
       # Production settings
@@ -195,16 +189,10 @@ services:
       ZOOKEEPER_INIT_LIMIT: 10
       ZOOKEEPER_SYNC_LIMIT: 5
       
-      # Security settings
-      # ZOOKEEPER_AUTH_PROVIDER_1: org.apache.zookeeper.server.auth.DigestAuthenticationProvider
+      # Security settings (plaintext + SASL only)
+      ZOOKEEPER_AUTH_PROVIDER_1: org.apache.zookeeper.server.auth.DigestAuthenticationProvider
       ZOOKEEPER_SERVER_CNXN_FACTORY: org.apache.zookeeper.server.NettyServerCnxnFactory
-      KAFKA_OPTS: '-Dzookeeper.serverCnxnFactory=org.apache.zookeeper.server.NettyServerCnxnFactory -Dzookeeper.4lw.commands.whitelist=*'
-      ZOOKEEPER_SSL_KEYSTORE_LOCATION: '/etc/kafka/certs/zookeeper.keystore.jks'
-      ZOOKEEPER_SSL_KEYSTORE_PASSWORD: 'zookeeper_keystore_password'
-      ZOOKEEPER_SSL_TRUSTSTORE_LOCATION: '/etc/kafka/certs/zookeeper.truststore.jks'
-      ZOOKEEPER_SSL_TRUSTSTORE_PASSWORD: 'zookeeper_truststore_password'
-      ZOOKEEPER_SSL_CLIENTAUTH: 'need'
-      ZOOKEEPER_SSL_QUORUM: 'true'
+      KAFKA_OPTS: '-Dzookeeper.serverCnxnFactory=org.apache.zookeeper.server.NettyServerCnxnFactory -Dzookeeper.4lw.commands.whitelist=* -Djava.security.auth.login.config=/etc/kafka/secrets/kafka_jaas.conf'
       
       # 4lw commands whitelist (minimal for security)
       ZOOKEEPER_4LW_COMMANDS_WHITELIST: '*'
@@ -232,13 +220,11 @@ services:
     volumes:
       - ./backend/zookeeper/conf:/etc/kafka/conf:ro
       - ./backend/zookeeper/secrets:/etc/kafka/secrets:ro
-      - zookeeper_certs:/etc/kafka/certs:ro
       - zookeeper_data:/var/lib/zookeeper/data
       - zookeeper_log:/var/lib/zookeeper/log
       - zookeeper_logs:/var/log/zookeeper
     ports:
       - "2181:2181"
-      - "2281:2281"  # Secure client port
       - "7070:7070"  # Metrics port
     networks:
       - app-network
@@ -274,8 +260,8 @@ services:
       KAFKA_DELETE_TOPIC_ENABLE: 'true'
       KAFKA_LOG_RETENTION_HOURS: 168
       
-      # Security settings for Zookeeper connection
-      # KAFKA_OPTS: '-Djava.security.auth.login.config=/etc/kafka/secrets/kafka_jaas.conf'
+      # Security settings for Zookeeper connection (SASL/Digest over plaintext)
+      KAFKA_OPTS: '-Dzookeeper.sasl.client=true -Dzookeeper.sasl.clientconfig=Client -Djava.security.auth.login.config=/etc/kafka/secrets/kafka_client_jaas.conf'
       KAFKA_ZOOKEEPER_SET_ACL: 'false'
       # KAFKA_AUTHORIZER_CLASS_NAME: 'kafka.security.authorizer.AclAuthorizer'
       # KAFKA_SUPER_USERS: 'User:admin;User:kafka'
@@ -299,6 +285,7 @@ services:
       
     volumes:
       - ./backend/zookeeper/secrets/kafka_jaas.conf:/etc/kafka/secrets/kafka_jaas.conf:ro
+      - ./backend/zookeeper/secrets/kafka_client_jaas.conf:/etc/kafka/secrets/kafka_client_jaas.conf:ro
       - kafka_data:/var/lib/kafka/data
       - kafka_logs:/var/log/kafka
     networks:
@@ -318,7 +305,8 @@ services:
     image: confluentinc/cp-schema-registry:7.5.0
     container_name: schema-registry
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     ports:
       - "8081:8081"
     environment:
@@ -327,6 +315,12 @@ services:
       SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/config"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   kafdrop:
     image: obsidiandynamics/kafdrop:3.31.0
@@ -353,7 +347,7 @@ services:
       kafka:
         condition: service_healthy
       schema-registry:
-        condition: service_started
+        condition: service_healthy
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - SCHEMA_REGISTRY_URL=http://schema-registry:8081
@@ -361,6 +355,7 @@ services:
     networks:
       - app-network
     restart: "no"  # Run once and exit
+
 
   # Event-driven workers
   coordinator:
@@ -416,7 +411,7 @@ services:
       - KUBECONFIG=/app/kubeconfig.yaml
       - KAFKA_CONSUMER_GROUP_ID=k8s-worker
     volumes:
-      - ./backend/kubeconfig.yaml:/app/kubeconfig.yaml:ro
+      - ./backend:/app:ro
     networks:
       - app-network
     extra_hosts:
@@ -446,7 +441,7 @@ services:
       - KUBECONFIG=/app/kubeconfig.yaml
       - KAFKA_CONSUMER_GROUP_ID=pod-monitor
     volumes:
-      - ./backend/kubeconfig.yaml:/app/kubeconfig.yaml:ro
+      - ./backend:/app:ro
     networks:
       - app-network
     extra_hosts:
@@ -476,8 +471,9 @@ services:
       - JAEGER_AGENT_PORT=6831
       - TRACING_SERVICE_NAME=result-processor
       - KAFKA_CONSUMER_GROUP_ID=result-processor-group
+      - KUBECONFIG=/app/kubeconfig.yaml
     volumes:
-      - ./backend/kubeconfig.yaml:/root/.kube/config:ro
+      - ./backend:/app:ro
     networks:
       - app-network
     extra_hosts:
@@ -556,10 +552,106 @@ services:
       - app-network
     restart: unless-stopped
 
+  # DLQ Processor Service
+  dlq-processor:
+    build:
+      context: ./backend
+      dockerfile: workers/Dockerfile.dlq_processor
+    container_name: dlq-processor
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      mongo:
+        condition: service_started
+    command: python workers/dlq_processor.py
+    env_file:
+      - ./backend/.env
+    environment:
+      - MONGODB_URL=mongodb://${MONGO_ROOT_USER:-root}:${MONGO_ROOT_PASSWORD:-rootpassword}@mongo:27017/integr8scode?authSource=admin
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - SCHEMA_REGISTRY_URL=http://schema-registry:8081
+      - SERVICE_NAME=dlq-processor
+      - TRACING_SERVICE_NAME=dlq-processor
+      - ENABLE_TRACING=true
+      - JAEGER_AGENT_HOST=jaeger
+      - JAEGER_AGENT_PORT=6831
+      - DLQ_MAX_RETRY_ATTEMPTS=5
+      - DLQ_RETRY_DELAY_HOURS=1
+      - DLQ_MAX_AGE_DAYS=7
+      - DLQ_BATCH_SIZE=100
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # Monitoring Stack
+  # Victoria Metrics - Time series database
+  victoria-metrics:
+    image: victoriametrics/victoria-metrics:v1.96.0
+    container_name: victoria-metrics
+    ports:
+      - "8428:8428"
+    volumes:
+      - victoria_metrics_data:/victoria-metrics-data
+    command:
+      - "--storageDataPath=/victoria-metrics-data"
+      - "--httpListenAddr=0.0.0.0:8428"
+      - "--retentionPeriod=30d"
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8428/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Kafka Exporter for metrics
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:latest
+    container_name: kafka-exporter
+    command:
+      - "--kafka.server=kafka:29092"
+      - "--web.listen-address=:9308"
+      - "--topic.filter=.*"
+      - "--group.filter=.*"
+    ports:
+      - "9308:9308"
+    networks:
+      - app-network
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # OpenTelemetry Collector
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.91.0
+    container_name: otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./backend/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "13133:13133" # Health check
+    networks:
+      - app-network
+    depends_on:
+      - victoria-metrics
+      - jaeger
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:13133/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
 volumes:
   mongo_data:
-  prometheus_data:
+  redis_data:
   grafana_data:
+  victoria_metrics_data:
   shared_ca:
   kafka_data:
   kafka_logs:

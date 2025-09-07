@@ -1,20 +1,19 @@
-"""Admin events schemas"""
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from pydantic import BaseModel, Field
 
 
 class EventFilter(BaseModel):
     """Filter criteria for browsing events"""
-    event_types: Optional[List[str]] = None
-    aggregate_id: Optional[str] = None
-    correlation_id: Optional[str] = None
-    user_id: Optional[str] = None
-    start_time: Optional[datetime] = None
-    end_time: Optional[datetime] = None
-    service_name: Optional[str] = None
-    search_text: Optional[str] = None
+    event_types: List[str] | None = None
+    aggregate_id: str | None = None
+    correlation_id: str | None = None
+    user_id: str | None = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
+    service_name: str | None = None
+    search_text: str | None = None
 
 
 class EventBrowseRequest(BaseModel):
@@ -28,12 +27,12 @@ class EventBrowseRequest(BaseModel):
 
 class EventReplayRequest(BaseModel):
     """Request model for replaying events"""
-    event_ids: Optional[List[str]] = None
-    correlation_id: Optional[str] = None
-    aggregate_id: Optional[str] = None
-    start_time: Optional[datetime] = None
-    end_time: Optional[datetime] = None
-    target_service: Optional[str] = None
+    event_ids: List[str] | None = None
+    correlation_id: str | None = None
+    aggregate_id: str | None = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
+    target_service: str | None = None
     dry_run: bool = True
 
 
@@ -57,9 +56,9 @@ class EventReplayResponse(BaseModel):
     dry_run: bool
     total_events: int
     replay_correlation_id: str
-    session_id: Optional[str] = None
+    session_id: str | None = None
     status: str
-    events_preview: Optional[List[Dict[str, Any]]] = None
+    events_preview: List[Dict[str, Any]] | None = None
 
 
 class EventReplayStatusResponse(BaseModel):
@@ -72,11 +71,12 @@ class EventReplayStatusResponse(BaseModel):
     skipped_events: int
     correlation_id: str
     created_at: datetime
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
-    error: Optional[str] = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    error: str | None = None
     progress_percentage: float
-    estimated_completion: Optional[datetime] = None
+    estimated_completion: datetime | None = None
+    execution_results: List[Dict[str, Any]] | None = None  # Results from replayed executions
 
 
 class EventDeleteResponse(BaseModel):

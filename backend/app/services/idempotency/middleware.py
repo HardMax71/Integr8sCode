@@ -1,31 +1,15 @@
 """Idempotent event processing middleware"""
 
 import asyncio
-import functools
-import time
-from typing import Any, Callable, Dict, Optional, Set
-
-from aiokafka.structs import ConsumerRecord
+from typing import Any, Awaitable, Callable, Dict, Set
 
 from app.core.logging import logger
-from app.core.metrics import Counter, Histogram
+from app.domain.enums.events import EventType
+from app.domain.enums.kafka import KafkaTopic
 from app.events.core.consumer import UnifiedConsumer
-from app.schemas_avro.event_schemas import BaseEvent
+from app.events.core.dispatcher import EventDispatcher
+from app.infrastructure.kafka.events.base import BaseEvent
 from app.services.idempotency.idempotency_manager import IdempotencyManager
-
-# Metrics
-IDEMPOTENT_EVENTS_PROCESSED = Counter(
-    "idempotent_events_processed_total",
-    "Total number of events processed with idempotency",
-    ["event_type", "result"]
-)
-
-IDEMPOTENT_PROCESSING_DURATION = Histogram(
-    "idempotent_processing_duration_seconds",
-    "Time taken to process events with idempotency",
-    ["event_type"],
-    buckets=[0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 30.0]
-)
 
 
 class IdempotentEventHandler:
@@ -33,14 +17,14 @@ class IdempotentEventHandler:
 
     def __init__(
             self,
-            handler: Callable,
+            handler: Callable[[BaseEvent], Awaitable[None]],
             idempotency_manager: IdempotencyManager,
             key_strategy: str = "event_based",
-            custom_key_func: Optional[Callable[[BaseEvent], str]] = None,
-            fields: Optional[Set[str]] = None,
-            ttl_seconds: Optional[int] = None,
+            custom_key_func: Callable[[BaseEvent], str] | None = None,
+            fields: Set[str] | None = None,
+            ttl_seconds: int | None = None,
             cache_result: bool = True,
-            on_duplicate: Optional[Callable] = None
+            on_duplicate: Callable | None = None
     ):
         self.handler = handler
         self.idempotency_manager = idempotency_manager
@@ -51,10 +35,10 @@ class IdempotentEventHandler:
         self.cache_result = cache_result
         self.on_duplicate = on_duplicate
 
-    async def __call__(self, event: BaseEvent, record: Optional[ConsumerRecord] = None) -> Any:
+    async def __call__(self, event: BaseEvent) -> None:
         """Process event with idempotency check"""
-        start_time = time.time()
-
+        logger.info(f"IdempotentEventHandler called for event {event.event_type}, "
+                    f"id={event.event_id}, handler={self.handler.__name__}")
         # Generate custom key if function provided
         custom_key = None
         if self.key_strategy == "custom" and self.custom_key_func:
@@ -71,11 +55,6 @@ class IdempotentEventHandler:
 
         if idempotency_result.is_duplicate:
             # Handle duplicate
-            IDEMPOTENT_EVENTS_PROCESSED.labels(
-                event_type=event.event_type,
-                result="duplicate"
-            ).inc()
-
             logger.info(
                 f"Duplicate event detected: {event.event_type} ({event.event_id}), "
                 f"status: {idempotency_result.status}"
@@ -88,45 +67,22 @@ class IdempotentEventHandler:
                 else:
                     await asyncio.to_thread(self.on_duplicate, event, idempotency_result)
 
-            # Return cached result if available
-            if idempotency_result.result is not None:
-                return idempotency_result.result
-
-            # If still processing or no result cached, return None
-            return None
+            # For duplicate, just return without error
+            return
 
         # Not a duplicate, process the event
         try:
-            # Call the actual handler
-            if asyncio.iscoroutinefunction(self.handler):
-                result = await self.handler(event, record) if record else await self.handler(event)
-            else:
-                result = await asyncio.to_thread(
-                    self.handler, event, record
-                ) if record else await asyncio.to_thread(self.handler, event)
+            # Call the actual handler - it returns None
+            await self.handler(event)
 
             # Mark as completed
-            if self.idempotency_manager:
-                await self.idempotency_manager.mark_completed(
+            await self.idempotency_manager.mark_completed(
                 event=event,
-                result=result if self.cache_result else None,
+                result=None,  # Handlers return None
                 key_strategy=self.key_strategy,
                 custom_key=custom_key,
                 fields=self.fields
             )
-
-            # Update metrics
-            duration = time.time() - start_time
-            IDEMPOTENT_PROCESSING_DURATION.labels(
-                event_type=event.event_type
-            ).observe(duration)
-
-            IDEMPOTENT_EVENTS_PROCESSED.labels(
-                event_type=event.event_type,
-                result="processed"
-            ).inc()
-
-            return result
 
         except Exception as e:
             # Mark as failed
@@ -137,42 +93,32 @@ class IdempotentEventHandler:
                 custom_key=custom_key,
                 fields=self.fields
             )
-
-            IDEMPOTENT_EVENTS_PROCESSED.labels(
-                event_type=event.event_type,
-                result="failed"
-            ).inc()
-
             raise
 
 
 def idempotent_handler(
         idempotency_manager: IdempotencyManager,
         key_strategy: str = "event_based",
-        custom_key_func: Optional[Callable[[BaseEvent], str]] = None,
-        fields: Optional[Set[str]] = None,
-        ttl_seconds: Optional[int] = None,
+        custom_key_func: Callable[[BaseEvent], str] | None = None,
+        fields: Set[str] | None = None,
+        ttl_seconds: int | None = None,
         cache_result: bool = True,
-        on_duplicate: Optional[Callable] = None
-) -> Callable[[Callable], Callable]:
+        on_duplicate: Callable | None = None
+) -> Callable[[Callable[[BaseEvent], Awaitable[None]]], Callable[[BaseEvent], Awaitable[None]]]:
     """Decorator for making event handlers idempotent"""
 
-    def decorator(func: Callable) -> Callable:
-        @functools.wraps(func)
-        async def wrapper(event: BaseEvent, *args: Any, **kwargs: Any) -> Any:
-            handler = IdempotentEventHandler(
-                handler=func,
-                idempotency_manager=idempotency_manager,
-                key_strategy=key_strategy,
-                custom_key_func=custom_key_func,
-                fields=fields,
-                ttl_seconds=ttl_seconds,
-                cache_result=cache_result,
-                on_duplicate=on_duplicate
-            )
-            return await handler(event, *args, **kwargs)
-
-        return wrapper
+    def decorator(func: Callable[[BaseEvent], Awaitable[None]]) -> Callable[[BaseEvent], Awaitable[None]]:
+        handler = IdempotentEventHandler(
+            handler=func,
+            idempotency_manager=idempotency_manager,
+            key_strategy=key_strategy,
+            custom_key_func=custom_key_func,
+            fields=fields,
+            ttl_seconds=ttl_seconds,
+            cache_result=cache_result,
+            on_duplicate=on_duplicate
+        )
+        return handler  # IdempotentEventHandler is already callable with the right signature
 
     return decorator
 
@@ -184,55 +130,61 @@ class IdempotentConsumerWrapper:
             self,
             consumer: UnifiedConsumer,
             idempotency_manager: IdempotencyManager,
+            dispatcher: EventDispatcher,
             default_key_strategy: str = "event_based",
             default_ttl_seconds: int = 3600,
             enable_for_all_handlers: bool = True
     ):
         self.consumer = consumer
         self.idempotency_manager = idempotency_manager
+        self.dispatcher = dispatcher
         self.default_key_strategy = default_key_strategy
         self.default_ttl_seconds = default_ttl_seconds
         self.enable_for_all_handlers = enable_for_all_handlers
-        self._original_handlers: Dict[str, list] = {}
+        self._original_handlers: Dict[EventType, list] = {}
 
     def make_handlers_idempotent(self) -> None:
         """Wrap all registered handlers with idempotency"""
-        if not self.enable_for_all_handlers:
+        logger.info(f"make_handlers_idempotent called: enable_for_all={self.enable_for_all_handlers}, "
+                    f"dispatcher={self.dispatcher is not None}")
+        if not self.enable_for_all_handlers or not self.dispatcher:
+            logger.warning("Skipping handler wrapping - conditions not met")
             return
 
-        # Store original handlers
-        self._original_handlers = self.consumer._event_handlers.copy()
+        # Store original handlers using public API
+        self._original_handlers = self.dispatcher.get_all_handlers()
+        logger.info(f"Got {len(self._original_handlers)} event types with handlers to wrap")
 
         # Wrap each handler
-        for event_type, handlers in self.consumer._event_handlers.items():
-            wrapped_handlers = []
+        for event_type, handlers in self._original_handlers.items():
+            wrapped_handlers: list[Callable[[BaseEvent], Awaitable[None]]] = []
             for handler in handlers:
-                # Skip if already wrapped
-                if isinstance(handler, IdempotentEventHandler):
-                    wrapped_handlers.append(handler)
-                else:
-                    # Wrap with idempotency
-                    wrapped = IdempotentEventHandler(
-                        handler=handler,
-                        idempotency_manager=self.idempotency_manager,
-                        key_strategy=self.default_key_strategy,
-                        ttl_seconds=self.default_ttl_seconds
-                    )
-                    wrapped_handlers.append(wrapped)
+                # Wrap with idempotency - IdempotentEventHandler is callable with the right signature
+                wrapped = IdempotentEventHandler(
+                    handler=handler,
+                    idempotency_manager=self.idempotency_manager,
+                    key_strategy=self.default_key_strategy,
+                    ttl_seconds=self.default_ttl_seconds
+                )
+                wrapped_handlers.append(wrapped)
 
-            # Cast to the expected type
-            self.consumer._event_handlers[event_type] = wrapped_handlers  # type: ignore[assignment]
+            # Replace handlers using public API
+            logger.info(f"Replacing {len(handlers)} handlers for {event_type} "
+                        f"with {len(wrapped_handlers)} wrapped handlers")
+            self.dispatcher.replace_handlers(event_type, wrapped_handlers)
+        
+        logger.info("Handler wrapping complete")
 
     def subscribe_idempotent_handler(
             self,
             event_type: str,
             handler: Callable,
-            key_strategy: Optional[str] = None,
-            custom_key_func: Optional[Callable[[BaseEvent], str]] = None,
-            fields: Optional[Set[str]] = None,
-            ttl_seconds: Optional[int] = None,
+            key_strategy: str | None = None,
+            custom_key_func: Callable[[BaseEvent], str] | None = None,
+            fields: Set[str] | None = None,
+            ttl_seconds: int | None = None,
             cache_result: bool = True,
-            on_duplicate: Optional[Callable] = None
+            on_duplicate: Callable | None = None
     ) -> None:
         """Subscribe an idempotent handler for specific event type"""
         # Create the idempotent handler wrapper
@@ -247,22 +199,70 @@ class IdempotentConsumerWrapper:
             on_duplicate=on_duplicate
         )
 
-        # Create a handler that requires typed events
-        async def async_handler(event: BaseEvent, record: ConsumerRecord) -> Any:
-            # Consumer should always provide typed events
-            if not isinstance(event, BaseEvent):
-                raise TypeError(f"Expected BaseEvent, got {type(event).__name__}")
-            return await idempotent_wrapper(event, record)
+        # Create an async handler that processes the message
+        async def async_handler(message: Any) -> Any:
+            logger.info(f"IDEMPOTENT HANDLER CALLED for {event_type}")
+            
+            # Extract event from confluent-kafka Message
+            if not hasattr(message, 'value'):
+                logger.error(f"Received non-Message object for {event_type}: {type(message)}")
+                return None
+            
+            # Debug log to check message details
+            logger.info(f"Handler for {event_type} - Message type: {type(message)}, "
+                        f"has key: {hasattr(message, 'key')}, "
+                        f"has topic: {hasattr(message, 'topic')}")
+            
+            raw_value = message.value()
+            
+            # Debug the raw value
+            logger.info(f"Raw value extracted: {raw_value[:100] if raw_value else 'None or empty'}")
+            
+            # Handle tombstone messages (null value for log compaction)
+            if raw_value is None:
+                logger.warning(f"Received empty message for {event_type} - tombstone or consumed value")
+                return None
+            
+            # Handle empty messages
+            if not raw_value:
+                logger.warning(f"Received empty message for {event_type} - empty bytes")
+                return None
+            
+            try:
+                # Deserialize using schema registry if available
+                event = self.consumer._schema_registry.deserialize_event(raw_value, message.topic())
+                if not event:
+                    logger.error(f"Failed to deserialize event for {event_type}")
+                    return None
+                
+                # Call the idempotent wrapper directly in async context
+                await idempotent_wrapper(event)
+                
+                logger.debug(f"Successfully processed {event_type} event: {event.event_id}")
+                return None
+            except Exception as e:
+                logger.error(f"Failed to process message for {event_type}: {e}", exc_info=True)
+                raise
 
-        self.consumer.register_handler(event_type, async_handler)
+        # Register with the dispatcher if available
+        if self.dispatcher:
+            # Create wrapper for EventDispatcher
+            async def dispatch_handler(event: BaseEvent) -> None:
+                await idempotent_wrapper(event)
+            self.dispatcher.register(EventType(event_type))(dispatch_handler)
+        else:
+            # Fallback to direct consumer registration if no dispatcher
+            logger.error(f"No EventDispatcher available for registering idempotent handler for {event_type}")
 
-    async def start(self) -> None:
+    async def start(self, topics: list[KafkaTopic]) -> None:
         """Start the consumer with idempotency"""
+        logger.info(f"IdempotentConsumerWrapper.start called with topics: {topics}")
         # Make handlers idempotent before starting
         self.make_handlers_idempotent()
 
-        # Start the consumer
-        await self.consumer.start()
+        # Start the consumer with required topics parameter
+        await self.consumer.start(topics)
+        logger.info("IdempotentConsumerWrapper started successfully")
 
     async def stop(self) -> None:
         """Stop the consumer"""

@@ -1,19 +1,11 @@
-"""User models for authentication and user management"""
-
 from datetime import datetime, timezone
-from enum import StrEnum
-from typing import List
+from typing import List, Optional
 from uuid import uuid4
 
 from bson import ObjectId
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-
-class UserRole(StrEnum):
-    """User roles in the system"""
-    USER = "user"
-    ADMIN = "admin"
-    MODERATOR = "moderator"
+from app.domain.enums.user import UserRole
 
 
 class UserBase(BaseModel):
@@ -53,11 +45,11 @@ class UserInDB(UserBase):
 
 class UserUpdate(BaseModel):
     """Model for updating a user"""
-    username: str | None = None
-    email: EmailStr | None = None
-    role: UserRole | None = None
-    is_active: bool | None = None
-    password: str | None = Field(None, min_length=8)
+    username: Optional[str] = None
+    email: Optional[EmailStr] = None
+    role: Optional[UserRole] = None
+    is_active: Optional[bool] = None
+    password: Optional[str] = Field(None, min_length=8)
 
     model_config = ConfigDict(
         from_attributes=True
@@ -70,6 +62,10 @@ class UserResponse(UserBase):
     is_superuser: bool = False
     created_at: datetime
     updated_at: datetime
+    # Rate limit summary fields (optional, populated by admin endpoints)
+    bypass_rate_limit: Optional[bool] = None
+    global_multiplier: Optional[float] = None
+    has_custom_limits: Optional[bool] = None
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -85,8 +81,10 @@ class User(BaseModel):
     username: str
     email: EmailStr
     role: UserRole = UserRole.USER
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
+    is_active: bool = True
+    is_superuser: bool = False
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -104,6 +102,8 @@ class User(BaseModel):
             username=user_response.username,
             email=user_response.email,
             role=user_response.role,
+            is_active=user_response.is_active,
+            is_superuser=user_response.is_superuser,
             created_at=user_response.created_at,
             updated_at=user_response.updated_at
         )

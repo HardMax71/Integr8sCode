@@ -12,7 +12,7 @@ route:
     - match:
         severity: critical
       match_re:
-        alertname: '(NetworkPolicyViolations|PrivilegeEscalationAttempts|CriticalMemoryUtilization|CriticalCPUUtilization)'
+        alertname: '(NetworkPolicyViolations|PrivilegeEscalationAttempts|CriticalMemoryUtilization|CriticalCPUUtilization|KafkaProducerCriticalLatency|KafkaProducerCriticalQueueBacklog|KafkaConsumerCriticalLag|CriticalEventProcessingFailureRate|CriticalEventProcessingTime|KafkaProducerDown|KafkaConsumerStalled)'
       group_wait: 10s
       group_interval: 1m
       repeat_interval: 30m

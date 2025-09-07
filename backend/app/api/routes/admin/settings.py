@@ -1,20 +1,29 @@
-from fastapi import APIRouter, Depends, HTTPException
+from dishka import FromDishka
+from dishka.integrations.fastapi import DishkaRoute
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import ValidationError
 
-from app.api.dependencies import require_admin
+from app.api.dependencies import AuthService, require_admin_guard
 from app.core.logging import logger
 from app.core.service_dependencies import AdminSettingsRepositoryDep
-from app.domain.admin.settings_models import SystemSettings as DomainSystemSettings
+from app.infrastructure.mappers.admin_mapper import SettingsMapper
 from app.schemas_pydantic.admin_settings import SystemSettings
-from app.schemas_pydantic.user import UserResponse
 
-router = APIRouter(prefix="/admin/settings", tags=["admin", "settings"])
+router = APIRouter(
+    prefix="/admin/settings",
+    tags=["admin", "settings"],
+    route_class=DishkaRoute,
+    dependencies=[Depends(require_admin_guard)]
+)
 
 
 @router.get("/", response_model=SystemSettings)
 async def get_system_settings(
         repository: AdminSettingsRepositoryDep,
-        current_user: UserResponse = Depends(require_admin),
+
+        request: Request, auth_service: FromDishka[AuthService],
 ) -> SystemSettings:
+    current_user = await auth_service.require_admin(request)
     logger.info(
         "Admin retrieving system settings",
         extra={"admin_username": current_user.username}
@@ -23,7 +32,8 @@ async def get_system_settings(
     try:
         domain_settings = await repository.get_system_settings()
         # Convert domain model to pydantic schema
-        return SystemSettings(**domain_settings.to_pydantic_dict())
+        settings_mapper = SettingsMapper()
+        return SystemSettings(**settings_mapper.system_settings_to_pydantic_dict(domain_settings))
 
     except Exception as e:
         logger.error(f"Failed to retrieve system settings: {str(e)}", exc_info=True)
@@ -34,20 +44,46 @@ async def get_system_settings(
 async def update_system_settings(
         settings: SystemSettings,
         repository: AdminSettingsRepositoryDep,
-        current_user: UserResponse = Depends(require_admin),
+
+        request: Request, auth_service: FromDishka[AuthService],
 ) -> SystemSettings:
+    current_user = await auth_service.require_admin(request)
+    # Validate settings completeness
+    try:
+        settings_dict = settings.model_dump()
+        if not settings_dict:
+            raise ValueError("Empty settings payload")
+    except Exception as e:
+        logger.warning(f"Invalid settings payload from {current_user.username}: {str(e)}")
+        raise HTTPException(status_code=400, detail="Invalid settings payload")
+
     logger.info(
         "Admin updating system settings",
         extra={
             "admin_username": current_user.username,
-            "settings": settings.model_dump()
+            "settings": settings_dict
         }
     )
 
+    # Validate and convert to domain model
     try:
-        # Convert pydantic schema to domain model
-        domain_settings = DomainSystemSettings.from_pydantic(settings.model_dump())
-        
+        settings_mapper = SettingsMapper()
+        domain_settings = settings_mapper.system_settings_from_pydantic(settings_dict)
+    except (ValueError, ValidationError, KeyError) as e:
+        logger.warning(
+            f"Settings validation failed for {current_user.username}: {str(e)}",
+            extra={"settings": settings_dict}
+        )
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid settings: {str(e)}"
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error during settings validation: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=400, detail="Invalid settings format")
+
+    # Perform the update
+    try:
         updated_domain_settings = await repository.update_system_settings(
             settings=domain_settings,
             updated_by=current_user.username,
@@ -56,7 +92,8 @@ async def update_system_settings(
 
         logger.info("System settings updated successfully")
         # Convert back to pydantic schema for response
-        return SystemSettings(**updated_domain_settings.to_pydantic_dict())
+        settings_mapper = SettingsMapper()
+        return SystemSettings(**settings_mapper.system_settings_to_pydantic_dict(updated_domain_settings))
 
     except Exception as e:
         logger.error(f"Failed to update system settings: {str(e)}", exc_info=True)
@@ -66,8 +103,10 @@ async def update_system_settings(
 @router.post("/reset", response_model=SystemSettings)
 async def reset_system_settings(
         repository: AdminSettingsRepositoryDep,
-        current_user: UserResponse = Depends(require_admin),
+
+        request: Request, auth_service: FromDishka[AuthService],
 ) -> SystemSettings:
+    current_user = await auth_service.require_admin(request)
     logger.info(
         "Admin resetting system settings to defaults",
         extra={"admin_username": current_user.username}
@@ -80,8 +119,8 @@ async def reset_system_settings(
         )
 
         logger.info("System settings reset to defaults")
-        # Convert domain model to pydantic schema
-        return SystemSettings(**reset_domain_settings.to_pydantic_dict())
+        settings_mapper = SettingsMapper()
+        return SystemSettings(**settings_mapper.system_settings_to_pydantic_dict(reset_domain_settings))
 
     except Exception as e:
         logger.error(f"Failed to reset system settings: {str(e)}", exc_info=True)

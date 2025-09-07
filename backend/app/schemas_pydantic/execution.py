@@ -1,27 +1,11 @@
-"""Execution-related schemas for REST API endpoints.
-
-This module contains Pydantic models for execution-related API requests and responses.
-"""
 from datetime import datetime, timezone
-from enum import StrEnum
 from typing import Any
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.schemas_pydantic.error_types import ErrorType
-
-
-class ExecutionStatus(StrEnum):
-    """Status of an execution."""
-    QUEUED = "queued"
-    SCHEDULED = "scheduled"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    TIMEOUT = "timeout"
-    CANCELLED = "cancelled"
-    ERROR = "error"
+from app.domain.enums.common import ErrorType
+from app.domain.enums.execution import ExecutionStatus
 
 
 class ExecutionBase(BaseModel):
@@ -66,14 +50,17 @@ class ExecutionUpdate(BaseModel):
 
 class ResourceUsage(BaseModel):
     """Model for execution resource usage."""
-    cpu_usage: float | None = Field(
-        default=None, description="Current CPU usage (in cores or percentage)"
+    execution_time_wall_seconds: float | None = Field(
+        default=None, description="Wall clock execution time in seconds"
     )
-    memory_usage: float | None = Field(
-        default=None, description="Current memory usage (in MB or GB)"
+    cpu_time_jiffies: int | None = Field(
+        default=None, description="CPU time in jiffies (multiply by 10 for milliseconds)"
     )
-    execution_time: float | None = Field(
-        default=None, description="Total execution time in seconds"
+    clk_tck_hertz: int | None = Field(
+        default=None, description="Clock ticks per second (usually 100)"
+    )
+    peak_memory_kb: int | None = Field(
+        default=None, description="Peak memory usage in KB"
     )
 
 
@@ -86,6 +73,21 @@ class ExecutionRequest(BaseModel):
     lang_version: str = Field(
         default="3.11", description="Language version to use for execution"
     )
+
+    @model_validator(mode="after")
+    def validate_runtime_supported(self) -> "ExecutionRequest":  # noqa: D401
+        from app.settings import get_settings
+
+        settings = get_settings()
+        runtimes = settings.SUPPORTED_RUNTIMES or {}
+        if self.lang not in runtimes:
+            raise ValueError(f"Language '{self.lang}' not supported. Supported: {list(runtimes.keys())}")
+        versions = runtimes.get(self.lang, [])
+        if self.lang_version not in versions:
+            raise ValueError(
+                f"Version '{self.lang_version}' not supported for {self.lang}. Supported: {versions}"
+            )
+        return self
 
 
 class ExecutionResponse(BaseModel):
@@ -156,3 +158,17 @@ class ExecutionListResponse(BaseModel):
     limit: int
     skip: int
     has_more: bool
+
+
+class CancelResponse(BaseModel):
+    """Model for execution cancellation response."""
+    execution_id: str
+    status: str
+    message: str
+    event_id: str | None = Field(None, description="Event ID for the cancellation event, if published")
+
+
+class DeleteResponse(BaseModel):
+    """Model for execution deletion response."""
+    message: str
+    execution_id: str

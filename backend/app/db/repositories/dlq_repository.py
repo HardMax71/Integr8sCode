@@ -1,14 +1,13 @@
 from datetime import datetime, timezone
-from typing import Mapping
+from typing import Dict, List, Mapping
 
 from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
 
 from app.core.logging import logger
 from app.dlq.manager import DLQManager
-from app.domain.dlq.dlq_models import (
-    DLQAgeStats,
+from app.dlq.models import (
+    AgeStatistics,
     DLQBatchRetryResult,
-    DLQEventTypeStats,
     DLQFields,
     DLQMessage,
     DLQMessageFilter,
@@ -16,9 +15,9 @@ from app.domain.dlq.dlq_models import (
     DLQMessageStatus,
     DLQRetryResult,
     DLQStatistics,
-    DLQStatsByStatus,
-    DLQTopicStats,
     DLQTopicSummary,
+    EventTypeStatistic,
+    TopicStatistic,
 )
 
 
@@ -28,7 +27,6 @@ class DLQRepository:
         self.dlq_collection: AsyncIOMotorCollection = self.db.get_collection("dlq_messages")
 
     async def get_dlq_stats(self) -> DLQStatistics:
-        """Get DLQ statistics."""
         try:
             # Get counts by status
             status_pipeline: list[Mapping[str, object]] = [
@@ -42,7 +40,11 @@ class DLQRepository:
             async for doc in self.dlq_collection.aggregate(status_pipeline):
                 status_results.append(doc)
 
-            by_status = DLQStatsByStatus.from_aggregation(status_results)
+            # Convert status results to dict
+            by_status: Dict[str, int] = {}
+            for doc in status_results:
+                if doc["_id"]:
+                    by_status[doc["_id"]] = doc["count"]
 
             # Get counts by topic
             topic_pipeline: list[Mapping[str, object]] = [
@@ -55,9 +57,9 @@ class DLQRepository:
                 {"$limit": 10}
             ]
 
-            by_topic = []
+            by_topic: List[TopicStatistic] = []
             async for doc in self.dlq_collection.aggregate(topic_pipeline):
-                by_topic.append(DLQTopicStats(
+                by_topic.append(TopicStatistic(
                     topic=doc["_id"],
                     count=doc["count"],
                     avg_retry_count=round(doc["avg_retry_count"], 2)
@@ -73,10 +75,10 @@ class DLQRepository:
                 {"$limit": 10}
             ]
 
-            by_event_type = []
+            by_event_type: List[EventTypeStatistic] = []
             async for doc in self.dlq_collection.aggregate(event_type_pipeline):
                 if doc["_id"]:  # Skip null event types
-                    by_event_type.append(DLQEventTypeStats(
+                    by_event_type.append(EventTypeStatistic(
                         event_type=doc["_id"],
                         count=doc["count"]
                     ))
@@ -100,8 +102,12 @@ class DLQRepository:
             ]
 
             age_result = await self.dlq_collection.aggregate(age_pipeline).to_list(1)
-            age_stats_data = age_result[0] if age_result else None
-            age_stats = DLQAgeStats.from_aggregation(age_stats_data)
+            age_stats_data = age_result[0] if age_result else {}
+            age_stats = AgeStatistics(
+                min_age_seconds=age_stats_data.get("min_age", 0.0),
+                max_age_seconds=age_stats_data.get("max_age", 0.0),
+                avg_age_seconds=age_stats_data.get("avg_age", 0.0)
+            )
 
             return DLQStatistics(
                 by_status=by_status,
@@ -122,7 +128,6 @@ class DLQRepository:
             limit: int = 50,
             offset: int = 0
     ) -> DLQMessageListResult:
-        """Get DLQ messages with filters."""
         try:
             # Create filter
             filter = DLQMessageFilter(
@@ -154,7 +159,6 @@ class DLQRepository:
             raise
 
     async def get_message_by_id(self, event_id: str) -> DLQMessage | None:
-        """Get DLQ message by event ID."""
         try:
             doc = await self.dlq_collection.find_one({DLQFields.EVENT_ID: event_id})
 
@@ -168,7 +172,6 @@ class DLQRepository:
             raise
 
     async def get_message_for_retry(self, event_id: str) -> DLQMessage | None:
-        """Get DLQ message for retry operation."""
         try:
             doc = await self.dlq_collection.find_one({DLQFields.EVENT_ID: event_id})
 
@@ -182,7 +185,6 @@ class DLQRepository:
             raise
 
     async def get_topics_summary(self) -> list[DLQTopicSummary]:
-        """Get summary of all topics in DLQ."""
         try:
             pipeline: list[Mapping[str, object]] = [
                 {"$group": {
@@ -220,14 +222,13 @@ class DLQRepository:
             raise
 
     async def mark_message_retried(self, event_id: str) -> bool:
-        """Mark a message as retried."""
         try:
             now = datetime.now(timezone.utc)
             result = await self.dlq_collection.update_one(
                 {DLQFields.EVENT_ID: event_id},
                 {
                     "$set": {
-                        DLQFields.STATUS: DLQMessageStatus.RETRIED.value,
+                        DLQFields.STATUS: DLQMessageStatus.RETRIED,
                         DLQFields.RETRIED_AT: now,
                         DLQFields.LAST_UPDATED: now
                     }
@@ -240,7 +241,6 @@ class DLQRepository:
             raise
 
     async def mark_message_discarded(self, event_id: str, reason: str) -> bool:
-        """Mark a message as discarded."""
         try:
             now = datetime.now(timezone.utc)
             result = await self.dlq_collection.update_one(

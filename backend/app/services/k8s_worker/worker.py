@@ -1,35 +1,39 @@
-"""KubernetesWorker service - creates pods from execution events"""
-
 import asyncio
 import os
 import signal
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional, Set
+from typing import Any
 
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
 from kubernetes.client.rest import ApiException
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.config import get_settings
 from app.core.logging import logger
-from app.core.metrics import Counter, Gauge, Histogram
+from app.core.metrics import ExecutionMetrics, KubernetesMetrics
+from app.db.schema.schema_manager import SchemaManager
+from app.domain.enums.events import EventType
+from app.domain.enums.kafka import KafkaTopic
+from app.domain.enums.storage import ExecutionErrorType
+from app.domain.execution.models import ResourceUsageDomain
 from app.events.core.consumer import ConsumerConfig, UnifiedConsumer
-from app.events.core.producer import UnifiedProducer, create_unified_producer
+from app.events.core.dispatcher import EventDispatcher
+from app.events.core.producer import ProducerConfig, UnifiedProducer
+from app.events.event_store import EventStore
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.events.store.event_store import EventStore
-from app.schemas_avro.event_schemas import (
-    EventType,
-    ExecutionErrorType,
+from app.infrastructure.kafka.events.base import BaseEvent
+from app.infrastructure.kafka.events.execution import (
     ExecutionFailedEvent,
-    ExecutionRequestedEvent,
     ExecutionStartedEvent,
-    PodCreatedEvent,
 )
-from app.services.idempotency import IdempotentConsumerWrapper
+from app.infrastructure.kafka.events.pod import PodCreatedEvent
+from app.infrastructure.kafka.events.saga import CreatePodCommandEvent, DeletePodCommandEvent
+from app.services.idempotency import IdempotencyManager, create_idempotency_manager
+from app.services.idempotency.middleware import IdempotentConsumerWrapper
 from app.services.k8s_worker.config import K8sWorkerConfig
-from app.services.k8s_worker.pod_builder import EventDrivenPodBuilder
+from app.services.k8s_worker.pod_builder import PodBuilder
+from app.settings import get_settings
 
 
 class KubernetesWorker:
@@ -45,65 +49,38 @@ class KubernetesWorker:
     """
 
     def __init__(self,
-                 config: Optional[K8sWorkerConfig] = None,
-                 database: Optional[AsyncIOMotorDatabase] = None,
-                 producer: Optional[UnifiedProducer] = None,
-                 schema_registry_manager: Optional[SchemaRegistryManager] = None,
-                 event_store: Optional['EventStore'] = None):
+                 config: K8sWorkerConfig,
+                 database: AsyncIOMotorDatabase,
+                 producer: UnifiedProducer,
+                 schema_registry_manager: SchemaRegistryManager,
+                 event_store: EventStore):
+        self.metrics = KubernetesMetrics()
+        self.execution_metrics = ExecutionMetrics()
         self.config = config or K8sWorkerConfig()
         settings = get_settings()
 
-        # Kafka configuration
         self.kafka_servers = self.config.kafka_bootstrap_servers or settings.KAFKA_BOOTSTRAP_SERVERS
-
-        # Database
-        self._db: Optional[AsyncIOMotorDatabase] = database
-        
-        # Event store
+        self._db: AsyncIOMotorDatabase = database
         self._event_store = event_store
 
         # Kubernetes clients
-        self.v1: Optional[k8s_client.CoreV1Api] = None
-        self.networking_v1: Optional[k8s_client.NetworkingV1Api] = None
+        self.v1: k8s_client.CoreV1Api | None = None
+        self.networking_v1: k8s_client.NetworkingV1Api | None = None
+        self.apps_v1: k8s_client.AppsV1Api | None = None
 
         # Components
-        self.pod_builder = EventDrivenPodBuilder(namespace=self.config.namespace)
-        self.consumer: Optional[IdempotentConsumerWrapper] = None
-        self.producer: Optional[UnifiedProducer] = producer
-        self._producer_provided = producer is not None
+        self.pod_builder = PodBuilder(namespace=self.config.namespace, config=self.config)
+        self.consumer: UnifiedConsumer | None = None
+        self.idempotent_consumer: IdempotentConsumerWrapper | None = None
+        self.idempotency_manager: IdempotencyManager | None = None
+        self.dispatcher: EventDispatcher | None = None
+        self.producer: UnifiedProducer = producer
 
         # State tracking
         self._running = False
-        self._active_creations: Set[str] = set()
+        self._active_creations: set[str] = set()
         self._creation_semaphore = asyncio.Semaphore(self.config.max_concurrent_pods)
         self._schema_registry_manager = schema_registry_manager
-
-        # Metrics
-        self.pods_created = Counter(
-            "k8s_worker_pods_created_total",
-            "Total pods created",
-            ["status", "language"]
-        )
-        self.pod_creation_duration = Histogram(
-            "k8s_worker_pod_creation_duration_seconds",
-            "Time taken to create pod",
-            ["language"],
-            buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0]
-        )
-        self.active_creations_gauge = Gauge(
-            "k8s_worker_active_creations",
-            "Number of pods being created"
-        )
-        self.config_maps_created = Counter(
-            "k8s_worker_config_maps_created_total",
-            "Total config maps created",
-            ["status"]
-        )
-        self.network_policies_created = Counter(
-            "k8s_worker_network_policies_created_total",
-            "Total network policies created",
-            ["status"]
-        )
 
     async def start(self) -> None:
         """Start the Kubernetes worker"""
@@ -114,66 +91,67 @@ class KubernetesWorker:
         logger.info("Starting KubernetesWorker service...")
         logger.info("DEBUG: About to initialize Kubernetes client")
 
+        if self.config.namespace == "default":
+            raise RuntimeError("KubernetesWorker namespace 'default' is forbidden. "
+                               "Set K8S_NAMESPACE to a dedicated namespace.")
+
         # Initialize Kubernetes client
         self._initialize_kubernetes_client()
         logger.info("DEBUG: Kubernetes client initialized")
 
         # Create producer if not provided
-        logger.info(f"Producer exists: {self.producer is not None}, "
-                    f"Schema registry: {self._schema_registry_manager is not None}")
         if not self.producer:
             logger.info("Creating new producer with schema registry manager")
-            self.producer = create_unified_producer(schema_registry_manager=self._schema_registry_manager)
+            settings = get_settings()
+            config = ProducerConfig(
+                bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS
+            )
+            self.producer = UnifiedProducer(config, self._schema_registry_manager)
             await self.producer.start()
             logger.info("Producer created and started")
         else:
             logger.info("Using existing producer")
 
-        # Create consumer
+        # Initialize idempotency manager
+        self.idempotency_manager = create_idempotency_manager(self._db)
+        await self.idempotency_manager.initialize()
+        logger.info("Idempotency manager initialized for K8s Worker")
+
+        # Create consumer configuration
         consumer_config = ConsumerConfig(
             bootstrap_servers=self.kafka_servers,
             group_id=self.config.consumer_group,
-            topics=self.config.topics,
             enable_auto_commit=False
         )
 
-        consumer = UnifiedConsumer(consumer_config, self._schema_registry_manager)
+        # Create dispatcher and register handlers for saga commands
+        self.dispatcher = EventDispatcher()
+        self.dispatcher.register_handler(EventType.CREATE_POD_COMMAND, self._handle_create_pod_command_wrapper)
+        self.dispatcher.register_handler(EventType.DELETE_POD_COMMAND, self._handle_delete_pod_command_wrapper)
 
-        # Create idempotency manager
-        from app.services.idempotency.idempotency_manager import IdempotencyConfig, IdempotencyManager
-        idempotency_config = IdempotencyConfig(
-            default_ttl_seconds=3600,
-            processing_timeout_seconds=300
-        )
-        if self._db is None:
-            raise RuntimeError("Database not provided to KubernetesWorker")
-        
-        idempotency_manager = IdempotencyManager(idempotency_config, self._db)
-        await idempotency_manager.initialize()
-        
-        # Wrap with idempotency
-        self.consumer = IdempotentConsumerWrapper(
-            consumer=consumer,
-            idempotency_manager=idempotency_manager,
-            default_key_strategy="event_based",
-            default_ttl_seconds=3600,  # 1 hour
-            enable_for_all_handlers=False
+        # Create consumer with dispatcher
+        self.consumer = UnifiedConsumer(
+            consumer_config,
+            event_dispatcher=self.dispatcher
         )
 
-        # Subscribe handler with idempotency
-        # Use execution_id as idempotency key to prevent duplicate pod creation
-        self.consumer.subscribe_idempotent_handler(
-            str(EventType.EXECUTION_REQUESTED),
-            self._handle_execution_requested,
-            key_strategy="custom",
-            custom_key_func=lambda e: f"pod_creation:{e.execution_id if hasattr(e, 'execution_id') else 'unknown'}",
-            ttl_seconds=3600,
-            cache_result=False
+        # Wrap consumer with idempotency - use content hash for pod commands
+        self.idempotent_consumer = IdempotentConsumerWrapper(
+            consumer=self.consumer,
+            idempotency_manager=self.idempotency_manager,
+            dispatcher=self.dispatcher,
+            default_key_strategy="content_hash",  # Hash execution_id + script for deduplication
+            default_ttl_seconds=3600,  # 1 hour TTL for pod creation events
+            enable_for_all_handlers=True  # Enable idempotency for all handlers
         )
 
-        # Start consumer
-        await self.consumer.consumer.start()
+        # Start the consumer with idempotency - listen to saga commands topic
+        await self.idempotent_consumer.start([KafkaTopic.SAGA_COMMANDS])
         self._running = True
+
+        # Create daemonset for image pre-pulling
+        asyncio.create_task(self.ensure_image_pre_puller_daemonset())
+        logger.info("Image pre-puller daemonset task scheduled")
 
         logger.info("KubernetesWorker service started successfully")
 
@@ -197,12 +175,16 @@ class KubernetesWorker:
             if self._active_creations:
                 logger.warning(f"Timeout waiting for pod creations, {len(self._active_creations)} still active")
 
-        # Stop consumer
-        if self.consumer:
-            await self.consumer.stop()
+        # Stop the consumer (idempotent wrapper only)
+        if self.idempotent_consumer:
+            await self.idempotent_consumer.stop()
+
+        # Close idempotency manager
+        if self.idempotency_manager:
+            await self.idempotency_manager.close()
 
         # Stop producer if we created it
-        if self.producer and not self._producer_provided:
+        if self.producer:
             await self.producer.stop()
 
         logger.info("KubernetesWorker service stopped")
@@ -238,22 +220,34 @@ class KubernetesWorker:
             api_client = k8s_client.ApiClient(configuration)
             self.v1 = k8s_client.CoreV1Api(api_client)
             self.networking_v1 = k8s_client.NetworkingV1Api(api_client)
+            self.apps_v1 = k8s_client.AppsV1Api(api_client)
 
-            # Test connection
-            version = self.v1.get_api_resources()
-            logger.info(f"Successfully connected to Kubernetes API, version: {version}")
+            # Test connection with namespace-scoped operation
+            _ = self.v1.list_namespaced_pod(namespace=self.config.namespace, limit=1)
+            logger.info(f"Successfully connected to Kubernetes API, namespace {self.config.namespace} accessible")
 
         except Exception as e:
             logger.error(f"Failed to initialize Kubernetes client: {e}")
             raise
 
-    async def _handle_execution_requested(
+    async def _handle_create_pod_command_wrapper(self, event: BaseEvent) -> None:
+        """Wrapper for handling CreatePodCommandEvent with type safety."""
+        assert isinstance(event, CreatePodCommandEvent)
+        logger.info(f"Processing create_pod_command for execution {event.execution_id} from saga {event.saga_id}")
+        await self._handle_create_pod_command(event)
+
+    async def _handle_delete_pod_command_wrapper(self, event: BaseEvent) -> None:
+        """Wrapper for handling DeletePodCommandEvent."""
+        assert isinstance(event, DeletePodCommandEvent)
+        logger.info(f"Processing delete_pod_command for execution {event.execution_id} from saga {event.saga_id}")
+        await self._handle_delete_pod_command(event)
+
+    async def _handle_create_pod_command(
             self,
-            event: ExecutionRequestedEvent,
-            record: Any
+            command: CreatePodCommandEvent
     ) -> None:
-        """Handle execution requested event by creating pod"""
-        execution_id = event.execution_id
+        """Handle create pod command from saga orchestrator"""
+        execution_id = command.execution_id
 
         # Check if already processing
         if execution_id in self._active_creations:
@@ -261,93 +255,81 @@ class KubernetesWorker:
             return
 
         # Create pod asynchronously
-        asyncio.create_task(self._create_pod_for_execution(event))
+        asyncio.create_task(self._create_pod_for_execution(command))
 
-    async def _create_pod_for_execution(self, event: ExecutionRequestedEvent) -> None:
+    async def _handle_delete_pod_command(
+            self,
+            command: DeletePodCommandEvent
+    ) -> None:
+        """Handle delete pod command from saga orchestrator (compensation)"""
+        execution_id = command.execution_id
+        logger.info(f"Deleting pod for execution {execution_id} due to: {command.reason}")
+
+        try:
+            # Delete the pod
+            pod_name = f"executor-{execution_id}"
+            if self.v1:
+                await asyncio.to_thread(
+                    self.v1.delete_namespaced_pod,
+                    name=pod_name,
+                    namespace=self.config.namespace,
+                    grace_period_seconds=30
+                )
+                logger.info(f"Successfully deleted pod {pod_name}")
+
+            # Delete associated ConfigMap
+            configmap_name = f"script-{execution_id}"
+            if self.v1:
+                await asyncio.to_thread(
+                    self.v1.delete_namespaced_config_map,
+                    name=configmap_name,
+                    namespace=self.config.namespace
+                )
+                logger.info(f"Successfully deleted ConfigMap {configmap_name}")
+
+            # NetworkPolicy cleanup is managed via a static cluster policy; no per-execution NP deletion
+
+        except ApiException as e:
+            if e.status == 404:
+                logger.warning(f"Resources for execution {execution_id} not found (may have already been deleted)")
+            else:
+                logger.error(f"Failed to delete resources for execution {execution_id}: {e}")
+
+    async def _create_pod_for_execution(self, command: CreatePodCommandEvent) -> None:
         """Create pod for execution"""
         async with self._creation_semaphore:
-            execution_id = event.execution_id
+            execution_id = command.execution_id
             self._active_creations.add(execution_id)
-            self.active_creations_gauge.set(len(self._active_creations))
+            self.metrics.update_k8s_active_creations(len(self._active_creations))
+
+            # Queue depth is owned by the coordinator; do not modify here
 
             start_time = time.time()
 
             try:
-                # We now have the ExecutionRequestedEvent directly
-                requested_event = event
-
-                # Extract script content and runtime info directly from the event
-                script_content = requested_event.script
-                runtime_image = requested_event.runtime_image
-                language = requested_event.language
-                timeout_seconds = requested_event.timeout_seconds
-
-                if not script_content:
-                    raise ValueError(f"Script content not found for execution {execution_id}")
-
-                if not runtime_image:
-                    raise ValueError(f"Runtime image not found for execution {execution_id}")
-
-                if not timeout_seconds:
-                    raise ValueError(f"Timeout seconds not found for execution {execution_id}")
-
-                # Get entrypoint script
+                # We now have the CreatePodCommandEvent directly from saga
+                script_content = command.script
                 entrypoint_content = await self._get_entrypoint_script()
-
-                # Parse language from container image
-                language, version = self.pod_builder._parse_container_image(runtime_image)
 
                 # Create ConfigMap
                 config_map = self.pod_builder.build_config_map(
-                    execution_id=execution_id,
+                    command=command,
                     script_content=script_content,
-                    entrypoint_content=entrypoint_content,
-                    language=language
+                    entrypoint_content=entrypoint_content
                 )
 
                 await self._create_config_map(config_map)
 
-                # Build pod configuration
-                pod_config = {
-                    "execution_id": execution_id,
-                    "timeout_seconds": timeout_seconds,  # Use timeout from requested event
-                    "container_image": runtime_image,  # Pass runtime image
-                    "file_extension": self._get_file_extension(language),
-                    "default_cpu_request": self.config.default_cpu_request,
-                    "default_memory_request": self.config.default_memory_request,
-                    "enable_security_context": self.config.enable_security_context,
-                    "run_as_non_root": self.config.run_as_non_root,
-                    "read_only_root_filesystem": self.config.read_only_root_filesystem,
-                }
-
-                # Create Pod
-                pod = self.pod_builder.build_pod_manifest(
-                    event=event,
-                    script_content=script_content,
-                    config=pod_config
-                )
-
+                pod = self.pod_builder.build_pod_manifest(command=command)
                 await self._create_pod(pod)
 
-                # Create NetworkPolicy if enabled
-                if self.config.enable_network_policies:
-                    network_policy = self.pod_builder.build_network_policy(
-                        execution_id=execution_id,
-                        pod_name=pod.metadata.name,
-                        allow_egress=True
-                    )
-                    await self._create_network_policy(network_policy)
-
-                # Publish ExecutionStartedEvent now that pod is created
-                await self._publish_execution_started(execution_event=event, pod=pod)
-                
                 # Publish PodCreated event
-                await self._publish_pod_created(event, pod)
+                await self._publish_pod_created(command, pod)
 
                 # Update metrics
                 duration = time.time() - start_time
-                self.pod_creation_duration.labels(language=language).observe(duration)
-                self.pods_created.labels(status="success", language=language).inc()
+                self.metrics.record_k8s_pod_creation_duration(duration, command.language)
+                self.metrics.record_k8s_pod_created("success", command.language)
 
                 logger.info(
                     f"Successfully created pod {pod.metadata.name} for execution {execution_id}. "
@@ -361,40 +343,14 @@ class KubernetesWorker:
                 )
 
                 # Update metrics
-                self.pods_created.labels(status="failed", language="unknown").inc()
+                self.metrics.record_k8s_pod_created("failed", "unknown")
 
                 # Publish failure event
-                await self._publish_pod_creation_failed(event, str(e))
+                await self._publish_pod_creation_failed(command, str(e))
 
             finally:
                 self._active_creations.discard(execution_id)
-                self.active_creations_gauge.set(len(self._active_creations))
-
-    async def _get_script_content(self, execution_id: str) -> Optional[str]:
-        """Get script content from event store"""
-        if not self._event_store:
-            logger.error("Event store not available")
-            return None
-
-        # Get execution requested event
-        try:
-            events = await self._event_store.get_execution_events(
-                execution_id,
-                [EventType.EXECUTION_REQUESTED]
-            )
-
-            if events and len(events) > 0:
-                event = events[0]
-                if hasattr(event, 'payload') and isinstance(event.payload, dict):
-                    return event.payload.get('script')
-                elif hasattr(event, 'script'):
-                    return str(event.script)
-
-            logger.error(f"No ExecutionRequestedEvent found for execution {execution_id}")
-            return None
-        except Exception as e:
-            logger.error(f"Error retrieving script content: {e}")
-            return None
+                self.metrics.update_k8s_active_creations(len(self._active_creations))
 
     async def _get_entrypoint_script(self) -> str:
         """Get entrypoint script content"""
@@ -429,14 +385,14 @@ exec "$@"
                 namespace=self.config.namespace,
                 body=config_map
             )
-            self.config_maps_created.labels(status="success").inc()
+            self.metrics.record_k8s_config_map_created("success")
             logger.debug(f"Created ConfigMap {config_map.metadata.name}")
         except ApiException as e:
             if e.status == 409:  # Already exists
                 logger.warning(f"ConfigMap {config_map.metadata.name} already exists")
-                self.config_maps_created.labels(status="already_exists").inc()
+                self.metrics.record_k8s_config_map_created("already_exists")
             else:
-                self.config_maps_created.labels(status="failed").inc()
+                self.metrics.record_k8s_config_map_created("failed")
                 raise
 
     async def _create_pod(self, pod: k8s_client.V1Pod) -> None:
@@ -456,97 +412,66 @@ exec "$@"
             else:
                 raise
 
-    async def _create_network_policy(self, policy: k8s_client.V1NetworkPolicy) -> None:
-        """Create NetworkPolicy in Kubernetes"""
-        if not self.networking_v1:
-            raise RuntimeError("Kubernetes networking client not initialized")
-        try:
-            await asyncio.to_thread(
-                self.networking_v1.create_namespaced_network_policy,
-                namespace=self.config.namespace,
-                body=policy
-            )
-            self.network_policies_created.labels(status="success").inc()
-            logger.debug(f"Created NetworkPolicy {policy.metadata.name}")
-        except ApiException as e:
-            if e.status == 409:  # Already exists
-                logger.warning(f"NetworkPolicy {policy.metadata.name} already exists")
-                self.network_policies_created.labels(status="already_exists").inc()
-            else:
-                self.network_policies_created.labels(status="failed").inc()
-                # Don't fail pod creation if network policy fails
-                logger.error(f"Failed to create NetworkPolicy: {e}")
 
     async def _publish_execution_started(
             self,
-            execution_event: ExecutionRequestedEvent,
+            command: CreatePodCommandEvent,
             pod: k8s_client.V1Pod
     ) -> None:
         """Publish execution started event"""
         event = ExecutionStartedEvent(
-            execution_id=execution_event.execution_id,
+            execution_id=command.execution_id,
+            aggregate_id=command.execution_id,  # Set aggregate_id to execution_id
             pod_name=pod.metadata.name,
             node_name=pod.spec.node_name,
             container_id=None,  # Will be set when container actually starts
-            metadata=execution_event.metadata
+            metadata=command.metadata
         )
         if not self.producer:
             logger.error("Producer not initialized")
             return
-        await self.producer.send_event(event, EventType.EXECUTION_STARTED)
-        
+        await self.producer.produce(event_to_produce=event)
+
     async def _publish_pod_created(
             self,
-            execution_event: ExecutionRequestedEvent,
+            command: CreatePodCommandEvent,
             pod: k8s_client.V1Pod
     ) -> None:
         """Publish pod created event"""
         event = PodCreatedEvent(
-            execution_id=execution_event.execution_id,
+            execution_id=command.execution_id,
             pod_name=pod.metadata.name,
             namespace=pod.metadata.namespace,
-            metadata=execution_event.metadata
+            metadata=command.metadata
         )
 
         if not self.producer:
             logger.error("Producer not initialized")
             return
-        await self.producer.send_event(event, EventType.POD_CREATED)
+        await self.producer.produce(event_to_produce=event)
 
     async def _publish_pod_creation_failed(
             self,
-            execution_event: ExecutionRequestedEvent,
+            command: CreatePodCommandEvent,
             error: str
     ) -> None:
         """Publish pod creation failed event"""
         event = ExecutionFailedEvent(
-            execution_id=execution_event.execution_id,
+            execution_id=command.execution_id,
             error_type=ExecutionErrorType.SYSTEM_ERROR,
-            error=f"Failed to create pod: {error}",
-            exit_code=None,
-            output=None,
-            metadata=execution_event.metadata
+            exit_code=-1,
+            stderr=f"Failed to create pod: {error}",
+            resource_usage=ResourceUsageDomain.from_dict({}),
+            metadata=command.metadata,
+            error_message=str(error),
         )
 
         if not self.producer:
             logger.error("Producer not initialized")
             return
-        await self.producer.send_event(event, EventType.EXECUTION_FAILED)
+        await self.producer.produce(event_to_produce=event)
 
-    def _get_file_extension(self, language: str) -> str:
-        """Get file extension for language"""
-        extensions = {
-            "python": ".py",
-            "javascript": ".js",
-            "go": ".go",
-            "rust": ".rs",
-            "java": ".java",
-            "cpp": ".cpp",
-            "r": ".r"
-        }
-        return extensions.get(language.lower(), ".txt")
-
-    async def get_status(self) -> Dict[str, Any]:
+    async def get_status(self) -> dict[str, Any]:
         """Get worker status"""
         return {
             "running": self._running,
@@ -554,26 +479,101 @@ exec "$@"
             "config": {
                 "namespace": self.config.namespace,
                 "max_concurrent_pods": self.config.max_concurrent_pods,
-                "enable_network_policies": self.config.enable_network_policies
+                "enable_network_policies": True
             }
         }
+
+    async def ensure_image_pre_puller_daemonset(self) -> None:
+        """Ensure the runtime image pre-puller DaemonSet exists"""
+        if not self.apps_v1:
+            logger.warning("Kubernetes AppsV1Api client not initialized. Skipping DaemonSet creation.")
+            return
+
+        from app.runtime_registry import RUNTIME_REGISTRY
+        
+        daemonset_name = "runtime-image-pre-puller"
+        namespace = self.config.namespace
+        await asyncio.sleep(5)
+
+        try:
+            init_containers = []
+            all_images = {
+                config.image
+                for lang in RUNTIME_REGISTRY.values()
+                for config in lang.values()
+            }
+
+            for i, image_ref in enumerate(sorted(list(all_images))):
+                sanitized_image_ref = image_ref.split('/')[-1].replace(':', '-').replace('.', '-').replace('_', '-')
+                logger.info(f"DAEMONSET: before: {image_ref} -> {sanitized_image_ref}")
+                container_name = f"pull-{i}-{sanitized_image_ref}"
+                init_containers.append({
+                    "name": container_name,
+                    "image": image_ref,
+                    "command": ["/bin/sh", "-c", f'echo "Image {image_ref} pulled."'],
+                    "imagePullPolicy": "Always",
+                })
+
+            manifest: dict[str, Any] = {
+                "apiVersion": "apps/v1",
+                "kind": "DaemonSet",
+                "metadata": {"name": daemonset_name, "namespace": namespace},
+                "spec": {
+                    "selector": {"matchLabels": {"name": daemonset_name}},
+                    "template": {
+                        "metadata": {"labels": {"name": daemonset_name}},
+                        "spec": {
+                            "initContainers": init_containers,
+                            "containers": [{
+                                "name": "pause",
+                                "image": "registry.k8s.io/pause:3.9"
+                            }],
+                            "tolerations": [{"operator": "Exists"}]
+                        }
+                    },
+                    "updateStrategy": {"type": "RollingUpdate"}
+                }
+            }
+
+            try:
+                await asyncio.to_thread(self.apps_v1.read_namespaced_daemon_set, name=daemonset_name,
+                                        namespace=namespace)
+                logger.info(f"DaemonSet '{daemonset_name}' exists. Replacing to ensure it is up-to-date.")
+                await asyncio.to_thread(
+                    self.apps_v1.replace_namespaced_daemon_set,
+                    name=daemonset_name, namespace=namespace, body=manifest
+                )
+                logger.info(f"DaemonSet '{daemonset_name}' replaced successfully.")
+            except ApiException as e:
+                if e.status == 404:
+                    logger.info(f"DaemonSet '{daemonset_name}' not found. Creating...")
+                    await asyncio.to_thread(
+                        self.apps_v1.create_namespaced_daemon_set, namespace=namespace, body=manifest
+                    )
+                    logger.info(f"DaemonSet '{daemonset_name}' created successfully.")
+                else:
+                    raise
+
+        except ApiException as e:
+            logger.error(f"K8s API error applying DaemonSet '{daemonset_name}': {e.reason}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Unexpected error applying image-puller DaemonSet: {e}", exc_info=True)
 
 
 async def run_kubernetes_worker() -> None:
     """Run the Kubernetes worker service"""
     from motor.motor_asyncio import AsyncIOMotorClient
 
-    from app.config import get_settings
-    from app.events.store.event_store import create_event_store
-    from app.services.idempotency import create_idempotency_manager
+    from app.events.event_store import create_event_store
+    from app.settings import get_settings
 
     # Initialize variables
     db_client = None
-    idempotency_manager = None
     worker = None
+    producer = None
 
     try:
-        # Initialize database and idempotency manager
+        # Initialize database
         logger.info("Initializing database connection...")
         settings = get_settings()
         db_client = AsyncIOMotorClient(
@@ -591,13 +591,8 @@ async def run_kubernetes_worker() -> None:
             raise RuntimeError("Failed to create database client")
         logger.info(f"Connected to database: {db_name}")
 
-        logger.info("Initializing idempotency manager...")
-        idempotency_manager = create_idempotency_manager(database)
-        await idempotency_manager.initialize()
-
-        logger.info("Initializing event store...")
-        event_store = create_event_store(database)
-        await event_store.initialize()
+        # Ensure DB schema
+        await SchemaManager(database).apply_all()
 
         # Initialize schema registry manager
         logger.info("Initializing schema registry...")
@@ -605,10 +600,23 @@ async def run_kubernetes_worker() -> None:
         schema_registry_manager = create_schema_registry_manager()
         await initialize_event_schemas(schema_registry_manager)
 
+        logger.info("Creating event store...")
+        event_store = create_event_store(database, schema_registry_manager)
+
+        # Create producer
+        logger.info("Creating producer for Kubernetes worker...")
+        producer_config = ProducerConfig(
+            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS
+        )
+        producer = UnifiedProducer(producer_config, schema_registry_manager)
+        await producer.start()
+        logger.info("Producer started successfully")
+
         config = K8sWorkerConfig()
         worker = KubernetesWorker(
             config=config,
             database=database,
+            producer=producer,
             schema_registry_manager=schema_registry_manager,
             event_store=event_store
         )
@@ -637,8 +645,8 @@ async def run_kubernetes_worker() -> None:
     finally:
         if worker:
             await worker.stop()
-        if idempotency_manager:
-            await idempotency_manager.close()
+        if producer and not worker:  # Stop producer if worker wasn't created
+            await producer.stop()
         if db_client:
             db_client.close()
 

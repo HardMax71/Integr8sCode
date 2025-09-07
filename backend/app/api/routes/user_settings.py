@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from dishka.integrations.fastapi import DishkaRoute
+from fastapi import APIRouter, Request
 
-from app.api.dependencies import get_current_user
-from app.core.logging import logger
-from app.core.service_dependencies import UserSettingsServiceDep
-from app.schemas_pydantic.user import User
+from app.api.dependencies import AuthService
+from app.core.service_dependencies import FromDishka
+from app.infrastructure.mappers.user_settings_api_mapper import UserSettingsApiMapper
 from app.schemas_pydantic.user_settings import (
     EditorSettings,
     NotificationSettings,
@@ -13,111 +13,111 @@ from app.schemas_pydantic.user_settings import (
     UserSettings,
     UserSettingsUpdate,
 )
+from app.services.user_settings_service import UserSettingsService
 
-router = APIRouter(prefix="/user/settings", tags=["user-settings"])
+router = APIRouter(prefix="/user/settings",
+                   tags=["user-settings"],
+                   route_class=DishkaRoute)
 
 
 @router.get("/", response_model=UserSettings)
 async def get_user_settings(
-        settings_service: UserSettingsServiceDep,
-        current_user: User = Depends(get_current_user)
+        settings_service: FromDishka[UserSettingsService],
+        request: Request,
+        auth_service: FromDishka[AuthService]
 ) -> UserSettings:
-    try:
-        return await settings_service.get_user_settings(current_user.user_id)
-    except Exception as e:
-        logger.error(f"Error getting user settings: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get settings") from e
+    current_user = await auth_service.get_current_user(request)
+    domain = await settings_service.get_user_settings(current_user.user_id)
+    return UserSettingsApiMapper.to_api_settings(domain)
 
 
 @router.put("/", response_model=UserSettings)
 async def update_user_settings(
         updates: UserSettingsUpdate,
-        settings_service: UserSettingsServiceDep,
-        current_user: User = Depends(get_current_user)
+        settings_service: FromDishka[UserSettingsService],
+        request: Request,
+        auth_service: FromDishka[AuthService]
 ) -> UserSettings:
-    try:
-        return await settings_service.update_user_settings(current_user, updates)
-    except Exception as e:
-        logger.error(f"Error updating user settings: {e}")
-        raise HTTPException(status_code=500, detail="Failed to update settings") from e
+    current_user = await auth_service.get_current_user(request)
+    domain_updates = UserSettingsApiMapper.to_domain_update(updates)
+    domain = await settings_service.update_user_settings(current_user.user_id, domain_updates)
+    return UserSettingsApiMapper.to_api_settings(domain)
 
 
 @router.put("/theme", response_model=UserSettings)
 async def update_theme(
-        request: ThemeUpdateRequest,
-        settings_service: UserSettingsServiceDep,
-        current_user: User = Depends(get_current_user)
+        request: Request,
+        update_request: ThemeUpdateRequest,
+        settings_service: FromDishka[UserSettingsService],
+        auth_service: FromDishka[AuthService]
 ) -> UserSettings:
-    try:
-        return await settings_service.update_theme(current_user, request.theme)
-    except Exception as e:
-        logger.error(f"Error updating theme: {e}")
-        raise HTTPException(status_code=500, detail="Failed to update theme") from e
+    current_user = await auth_service.get_current_user(request)
+    domain = await settings_service.update_theme(current_user.user_id, update_request.theme)
+    return UserSettingsApiMapper.to_api_settings(domain)
 
 
 @router.put("/notifications", response_model=UserSettings)
 async def update_notification_settings(
         notifications: NotificationSettings,
-        settings_service: UserSettingsServiceDep,
-        current_user: User = Depends(get_current_user),
+        settings_service: FromDishka[UserSettingsService],
+        request: Request,
+        auth_service: FromDishka[AuthService]
 ) -> UserSettings:
-    try:
-        return await settings_service.update_notification_settings(current_user, notifications)
-    except Exception as e:
-        logger.error(f"Error updating notification settings: {e}")
-        raise HTTPException(status_code=500, detail="Failed to update notifications") from e
+    current_user = await auth_service.get_current_user(request)
+    domain = await settings_service.update_notification_settings(
+        current_user.user_id,
+        UserSettingsApiMapper._to_domain_notifications(notifications),
+    )
+    return UserSettingsApiMapper.to_api_settings(domain)
 
 
 @router.put("/editor", response_model=UserSettings)
 async def update_editor_settings(
         editor: EditorSettings,
-        settings_service: UserSettingsServiceDep,
-        current_user: User = Depends(get_current_user)
+        settings_service: FromDishka[UserSettingsService],
+        request: Request,
+        auth_service: FromDishka[AuthService]
 ) -> UserSettings:
-    try:
-        return await settings_service.update_editor_settings(current_user, editor)
-    except Exception as e:
-        logger.error(f"Error updating editor settings: {e}")
-        raise HTTPException(status_code=500, detail="Failed to update editor settings") from e
+    current_user = await auth_service.get_current_user(request)
+    domain = await settings_service.update_editor_settings(
+        current_user.user_id,
+        UserSettingsApiMapper._to_domain_editor(editor),
+    )
+    return UserSettingsApiMapper.to_api_settings(domain)
 
 
 @router.get("/history", response_model=SettingsHistoryResponse)
 async def get_settings_history(
-        settings_service: UserSettingsServiceDep,
+        request: Request,
+        settings_service: FromDishka[UserSettingsService],
+        auth_service: FromDishka[AuthService],
         limit: int = 50,
-        current_user: User = Depends(get_current_user)
 ) -> SettingsHistoryResponse:
-    try:
-        history = await settings_service.get_settings_history(current_user.user_id, limit=limit)
-        return SettingsHistoryResponse(history=history, total=len(history))
-    except Exception as e:
-        logger.error(f"Error getting settings history: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get history") from e
+    current_user = await auth_service.get_current_user(request)
+    history = await settings_service.get_settings_history(current_user.user_id, limit=limit)
+    return UserSettingsApiMapper.history_to_api(history)
 
 
 @router.post("/restore", response_model=UserSettings)
 async def restore_settings(
-        request: RestoreSettingsRequest,
-        settings_service: UserSettingsServiceDep,
-        current_user: User = Depends(get_current_user)
+        request: Request,
+        restore_request: RestoreSettingsRequest,
+        settings_service: FromDishka[UserSettingsService],
+        auth_service: FromDishka[AuthService]
 ) -> UserSettings:
-    try:
-        return await settings_service.restore_settings_to_point(current_user, request.timestamp)
-    except Exception as e:
-        logger.error(f"Error restoring settings: {e}")
-        raise HTTPException(status_code=500, detail="Failed to restore settings") from e
+    current_user = await auth_service.get_current_user(request)
+    domain = await settings_service.restore_settings_to_point(current_user.user_id, restore_request.timestamp)
+    return UserSettingsApiMapper.to_api_settings(domain)
 
 
 @router.put("/custom/{key}")
 async def update_custom_setting(
         key: str,
         value: dict[str, object],
-        settings_service: UserSettingsServiceDep,
-        current_user: User = Depends(get_current_user),
-) -> dict[str, object]:
-    try:
-        settings = await settings_service.update_custom_setting(current_user, key, value)
-        return {"key": key, "value": settings.custom_settings.get(key)}
-    except Exception as e:
-        logger.error(f"Error updating custom setting: {e}")
-        raise HTTPException(status_code=500, detail="Failed to update custom setting") from e
+        settings_service: FromDishka[UserSettingsService],
+        request: Request,
+        auth_service: FromDishka[AuthService]
+) -> UserSettings:
+    current_user = await auth_service.get_current_user(request)
+    domain = await settings_service.update_custom_setting(current_user.user_id, key, value)
+    return UserSettingsApiMapper.to_api_settings(domain)

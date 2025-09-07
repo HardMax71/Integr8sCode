@@ -5,9 +5,8 @@
     import { isAuthenticated, username, userId } from '../stores/auth';
     import { get } from 'svelte/store';
     import { navigate } from 'svelte-routing';
+    import { notificationStore, notifications, unreadCount } from '../stores/notificationStore';
     
-    let notifications = [];
-    let unreadCount = 0;
     let showDropdown = false;
     let loading = false;
     let eventSource = null;
@@ -37,12 +36,8 @@
         const unsubscribe = isAuthenticated.subscribe(async ($isAuth) => {
             if ($isAuth && !hasLoadedInitialData) {
                 hasLoadedInitialData = true;
-                // Load data in parallel, not sequentially
-                const loadPromises = [
-                    loadNotifications(),
-                    loadUnreadCount()
-                ];
-                await Promise.all(loadPromises);
+                // Load notifications using the shared store
+                await notificationStore.load(20);
                 connectToNotificationStream();
             } else if (!$isAuth) {
                 // Close stream if not authenticated
@@ -51,6 +46,7 @@
                     eventSource = null;
                 }
                 hasLoadedInitialData = false;
+                notificationStore.clear();
             }
         });
         
@@ -65,26 +61,6 @@
         clearTimeout(reconnectTimeout);
     });
     
-    async function loadNotifications() {
-        loading = true;
-        try {
-            const response = await api.get('/api/v1/notifications?limit=20');
-            notifications = response.notifications;
-        } catch (error) {
-            console.error('Failed to load notifications:', error);
-        } finally {
-            loading = false;
-        }
-    }
-    
-    async function loadUnreadCount() {
-        try {
-            const response = await api.get('/api/v1/notifications/unread-count');
-            unreadCount = response.unread_count;
-        } catch (error) {
-            console.error('Failed to load unread count:', error);
-        }
-    }
     
     function connectToNotificationStream() {
         const isAuth = get(isAuthenticated);
@@ -113,20 +89,28 @@
         
         eventSource.onmessage = (event) => {
             try {
-                const notification = JSON.parse(event.data);
+                const data = JSON.parse(event.data);
                 
-                // Add to notifications list
-                notifications = [notification, ...notifications].slice(0, 20);
+                // Ignore heartbeat and connection messages
+                if (data.event === 'heartbeat' || data.event === 'connected') {
+                    console.debug('SSE heartbeat/connection:', data);
+                    return;
+                }
                 
-                // Increment unread count
-                unreadCount++;
-                
-                // Show browser notification if permission granted
-                if (Notification.permission === 'granted') {
-                    new Notification(notification.subject, {
-                        body: notification.body,
-                        icon: '/favicon.png'
-                    });
+                // Only process actual notification events
+                if (data.notification_id && data.subject && data.body) {
+                    // Add to shared notification store
+                    notificationStore.add(data);
+                    
+                    // Show browser notification if permission granted
+                    if (Notification.permission === 'granted') {
+                        new Notification(data.subject, {
+                            body: data.body,
+                            icon: '/favicon.png'
+                        });
+                    }
+                } else {
+                    console.debug('SSE event received but not a notification:', data);
                 }
             } catch (error) {
                 console.error('Error processing notification:', error);
@@ -177,46 +161,24 @@
     
     async function markAsRead(notification) {
         if (notification.status === 'read') return;
-        
-        try {
-            await api.put(`/api/v1/notifications/${notification.notification_id}/read`);
-            
-            // Update local state
-            notification.status = 'read';
-            notification.read_at = new Date().toISOString();
-            notifications = notifications;
-            
-            // Update unread count
-            unreadCount = Math.max(0, unreadCount - 1);
-        } catch (error) {
-            console.error('Failed to mark notification as read:', error);
-        }
+        await notificationStore.markAsRead(notification.notification_id);
     }
     
     async function markAllAsRead() {
-        try {
-            await api.post('/api/v1/notifications/mark-all-read');
-            
-            // Update local state
-            notifications = notifications.map(n => ({
-                ...n,
-                status: 'read',
-                read_at: new Date().toISOString()
-            }));
-            
-            unreadCount = 0;
-        } catch (error) {
-            console.error('Failed to mark all as read:', error);
+        const success = await notificationStore.markAllAsRead();
+        if (success) {
+            // Close dropdown after marking all as read
+            showDropdown = false;
         }
     }
     
     function toggleDropdown() {
         showDropdown = !showDropdown;
         
-        if (showDropdown && unreadCount > 0) {
+        if (showDropdown && $unreadCount > 0) {
             // Mark visible notifications as read after a delay
             setTimeout(() => {
-                notifications.slice(0, 5).forEach(n => {
+                $notifications.slice(0, 5).forEach(n => {
                     if (n.status !== 'read') {
                         markAsRead(n);
                     }
@@ -226,8 +188,8 @@
     }
     
     function formatTime(timestamp) {
-        // Backend sends Unix timestamps in seconds, JS Date expects milliseconds
-        const date = new Date(timestamp * 1000);
+        // Backend sends ISO datetime strings
+        const date = new Date(timestamp);
         const now = new Date();
         const diff = now - date;
         
@@ -254,9 +216,9 @@
         aria-label="Notifications"
     >
         {@html bellIcon}
-        {#if unreadCount > 0}
+        {#if $unreadCount > 0}
             <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                {unreadCount > 9 ? '9+' : unreadCount}
+                {$unreadCount > 9 ? '9+' : $unreadCount}
             </span>
         {/if}
     </button>
@@ -269,7 +231,7 @@
             <div class="p-4 border-b border-gray-200 dark:border-gray-700">
                 <div class="flex justify-between items-center">
                     <h3 class="font-semibold text-lg">Notifications</h3>
-                    {#if unreadCount > 0}
+                    {#if $unreadCount > 0}
                         <button
                             on:click={markAllAsRead}
                             class="text-sm text-blue-600 dark:text-blue-400 hover:underline"
@@ -285,12 +247,12 @@
                     <div class="p-8 text-center">
                         <span class="loading loading-spinner loading-sm"></span>
                     </div>
-                {:else if notifications.length === 0}
+                {:else if $notifications.length === 0}
                     <div class="p-8 text-center text-gray-500">
                         No notifications yet
                     </div>
                 {:else}
-                    {#each notifications as notification}
+                    {#each $notifications as notification}
                         <div
                             class="p-4 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
                             class:bg-blue-50={notification.status !== 'read'}

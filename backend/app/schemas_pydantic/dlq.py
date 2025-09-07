@@ -1,32 +1,22 @@
 from datetime import datetime
-from enum import StrEnum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel
 
-from app.domain.dlq.dlq_models import RetryStrategy
-from app.domain.events.event_models import Event
-
-
-class DLQMessageStatus(StrEnum):
-    """Status of a message in the Dead Letter Queue"""
-    PENDING = "pending"
-    SCHEDULED = "scheduled"
-    RETRIED = "retried"
-    DISCARDED = "discarded"
+from app.dlq.models import DLQMessageStatus, RetryStrategy
 
 
 class DLQStats(BaseModel):
-    """Statistics for the Dead Letter Queue"""
-    by_status: Dict[str, int]
-    by_topic: List[Dict[str, Any]]
-    by_event_type: List[Dict[str, Any]]
-    age_stats: Dict[str, Any]
-    timestamp: str
+    """Statistics for the Dead Letter Queue."""
+    by_status: dict[str, int]
+    by_topic: list[dict[str, Any]]
+    by_event_type: list[dict[str, Any]]
+    age_stats: dict[str, Any]
+    timestamp: datetime
 
 
 class DLQMessageResponse(BaseModel):
-    """Response model for a DLQ message"""
+    """Response model for a DLQ message."""
     event_id: str
     event_type: str
     original_topic: str
@@ -35,11 +25,11 @@ class DLQMessageResponse(BaseModel):
     failed_at: datetime
     status: DLQMessageStatus
     age_seconds: float
-    details: Dict[str, Any]
+    details: dict[str, Any]
 
 
 class RetryPolicyRequest(BaseModel):
-    """Request model for setting a retry policy"""
+    """Request model for setting a retry policy."""
     topic: str
     strategy: RetryStrategy
     max_retries: int = 5
@@ -49,31 +39,31 @@ class RetryPolicyRequest(BaseModel):
 
 
 class ManualRetryRequest(BaseModel):
-    """Request model for manual retry of messages"""
-    event_ids: List[str]
+    """Request model for manual retry of messages."""
+    event_ids: list[str]
 
 
 class DLQMessagesResponse(BaseModel):
-    """Response model for listing DLQ messages"""
-    messages: List[DLQMessageResponse]
+    """Response model for listing DLQ messages."""
+    messages: list[DLQMessageResponse]
     total: int
     offset: int
     limit: int
 
 
 class DLQBatchRetryResponse(BaseModel):
-    """Response model for batch retry operation"""
+    """Response model for batch retry operation."""
     total: int
     successful: int
     failed: int
-    details: List[Dict[str, Any]]
+    details: list[dict[str, Any]]
 
 
 class DLQTopicSummaryResponse(BaseModel):
-    """Response model for topic summary"""
+    """Response model for topic summary."""
     topic: str
     total_messages: int
-    status_breakdown: Dict[str, int]
+    status_breakdown: dict[str, int]
     oldest_message: datetime
     newest_message: datetime
     avg_retry_count: float
@@ -81,22 +71,22 @@ class DLQTopicSummaryResponse(BaseModel):
 
 
 class DLQMessageDetail(BaseModel):
-    """Detailed DLQ message response"""
+    """Detailed DLQ message response."""
     event_id: str
-    event: Event
+    event: dict[str, Any]  # BaseEvent as dict
     event_type: str
     original_topic: str
     error: str
     retry_count: int
     failed_at: datetime
     status: DLQMessageStatus
-    created_at: Optional[datetime] = None
-    last_updated: Optional[datetime] = None
-    next_retry_at: Optional[datetime] = None
-    retried_at: Optional[datetime] = None
-    discarded_at: Optional[datetime] = None
-    discard_reason: Optional[str] = None
+    created_at: datetime | None = None
+    last_updated: datetime | None = None
+    next_retry_at: datetime | None = None
+    retried_at: datetime | None = None
+    discarded_at: datetime | None = None
+    discard_reason: str | None = None
     producer_id: str
-    dlq_offset: Optional[int] = None
-    dlq_partition: Optional[int] = None
-    last_error: Optional[str] = None
+    dlq_offset: int | None = None
+    dlq_partition: int | None = None
+    last_error: str | None = None

@@ -3,7 +3,8 @@ import uuid
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.schemas_pydantic.user import UserInDB, UserRole
+from app.domain.enums.user import UserRole
+from app.schemas_pydantic.user import UserInDB
 
 
 class UserRepository:
@@ -19,7 +20,7 @@ class UserRepository:
     async def create_user(self, user: UserInDB) -> UserInDB:
         if not user.user_id:
             user.user_id = str(uuid.uuid4())
-        user_dict = user.model_dump(exclude_unset=True)
+        user_dict = user.model_dump()
         await self.db.users.insert_one(user_dict)
         return user
 

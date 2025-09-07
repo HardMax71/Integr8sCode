@@ -1,13 +1,13 @@
 from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from typing import Any
 
 import jwt
 from fastapi import HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 
-from app.config import get_settings
-from app.schemas_pydantic.user import UserInDB, UserRole
+from app.schemas_pydantic.user import UserInDB
+from app.settings import get_settings
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/login")
 
@@ -35,13 +35,10 @@ class SecurityService:
         return self.pwd_context.hash(password)  # type: ignore
 
     def create_access_token(
-            self, data: dict, expires_delta: Optional[timedelta] = None
+            self, data: dict, expires_delta: timedelta
     ) -> str:
         to_encode = data.copy()
-        if expires_delta:
-            expire = datetime.now(timezone.utc) + expires_delta
-        else:
-            expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+        expire = datetime.now(timezone.utc) + expires_delta
         to_encode.update({"exp": expire})
         encoded_jwt = jwt.encode(
             to_encode, self.settings.SECRET_KEY, algorithm=self.settings.ALGORITHM
@@ -71,23 +68,6 @@ class SecurityService:
         if user is None:
             raise credentials_exception
         return user  # type: ignore[no-any-return]
-
-    async def get_current_admin_user(
-            self,
-            token: str,
-            user_repo: Any,  # Avoid circular import by using Any
-    ) -> UserInDB:
-        """Ensure current user has admin role"""
-        # First get the current user
-        current_user = await self.get_current_user(token, user_repo)
-
-        # Then check if they have admin role
-        if current_user.role != UserRole.ADMIN:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not enough permissions",
-            )
-        return current_user
 
     def generate_csrf_token(self) -> str:
         """Generate a CSRF token using secure random"""

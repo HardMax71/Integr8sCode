@@ -1,50 +1,26 @@
-"""
-Unified event-driven execution service for code execution orchestration.
-
-This service handles code execution requests by publishing events to Kafka,
-enabling a distributed, scalable architecture where workers process executions
-independently. It maintains backward compatibility while providing a modern,
-event-driven approach to execution management.
-"""
-
-import asyncio
 from contextlib import suppress
 from datetime import datetime
 from time import time
 from typing import Any, TypeAlias
-from uuid import UUID, uuid4
 
-from fastapi import Request
-
-from app.config import Settings, get_settings
 from app.core.correlation import CorrelationContext
-from app.core.exceptions import IntegrationException
+from app.core.exceptions import IntegrationException, ServiceError
 from app.core.logging import logger
-from app.core.metrics import (
-    ACTIVE_EXECUTIONS,
-    ERROR_COUNTER,
-    QUEUE_DEPTH,
-    QUEUE_WAIT_TIME,
-)
+from app.core.metrics.context import get_execution_metrics
 from app.db.repositories.execution_repository import ExecutionRepository
+from app.domain.enums.events import EventType
+from app.domain.enums.execution import ExecutionStatus
+from app.domain.execution.models import DomainExecution
 from app.events.core.producer import UnifiedProducer
-from app.events.store.event_store import EventStore
-from app.runtime_registry import RUNTIME_REGISTRY, RuntimeConfig
-from app.schemas_avro.event_schemas import (
-    BaseEvent,
-    EventMetadata,
-    EventType,
+from app.events.event_store import EventStore
+from app.infrastructure.kafka.events.base import BaseEvent
+from app.infrastructure.kafka.events.execution import (
     ExecutionCancelledEvent,
     ExecutionRequestedEvent,
-    get_topic_for_event,
 )
-from app.schemas_pydantic.execution import (
-    ExecutionCreate,
-    ExecutionInDB,
-    ExecutionStatus,
-    ExecutionUpdate,
-)
-from app.schemas_pydantic.user import User
+from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.runtime_registry import RUNTIME_REGISTRY
+from app.settings import Settings
 
 # Type aliases for better readability
 UserId: TypeAlias = str
@@ -52,26 +28,6 @@ EventFilter: TypeAlias = list[EventType] | None
 TimeRange: TypeAlias = tuple[datetime | None, datetime | None]
 ExecutionQuery: TypeAlias = dict[str, Any]
 ExecutionStats: TypeAlias = dict[str, Any]
-
-
-class ExecutionServiceError(Exception):
-    """Base exception for execution service errors."""
-    pass
-
-
-class RuntimeNotSupportedError(ExecutionServiceError):
-    """Raised when requested runtime is not supported."""
-    pass
-
-
-class EventPublishError(ExecutionServiceError):
-    """Raised when event publishing fails."""
-    pass
-
-
-class ExecutionNotFoundError(ExecutionServiceError):
-    """Raised when execution is not found."""
-    pass
 
 
 class ExecutionService:
@@ -86,9 +42,9 @@ class ExecutionService:
     def __init__(
             self,
             execution_repo: ExecutionRepository,
-            producer: UnifiedProducer | None = None,
-            event_store: EventStore | None = None,
-            settings: Settings | None = None,
+            producer: UnifiedProducer,
+            event_store: EventStore,
+            settings: Settings,
     ) -> None:
         """
         Initialize execution service.
@@ -102,32 +58,10 @@ class ExecutionService:
         self.execution_repo = execution_repo
         self.producer = producer
         self.event_store = event_store
-        self.settings = settings or get_settings()
-        self._initialized = False
-        self._lock = asyncio.Lock()
-
-    async def _ensure_initialized(self) -> None:
-        """Ensure required services are initialized."""
-        if self._initialized:
-            return
-
-        async with self._lock:
-            if self._initialized:  # Double-check pattern
-                return
-
-            if not self.producer:
-                raise RuntimeError("Producer not provided to ExecutionService. Use dependency injection.")
-            if not self.event_store:
-                raise RuntimeError("Event store not provided to ExecutionService. Use dependency injection.")
-            self._initialized = True
+        self.settings = settings
+        self.metrics = get_execution_metrics()
 
     async def get_k8s_resource_limits(self) -> dict[str, Any]:
-        """
-        Get Kubernetes resource limits and configuration.
-        
-        Returns:
-            Dictionary containing resource limits and supported runtimes.
-        """
         return {
             "cpu_limit": self.settings.K8S_POD_CPU_LIMIT,
             "memory_limit": self.settings.K8S_POD_MEMORY_LIMIT,
@@ -138,110 +72,11 @@ class ExecutionService:
         }
 
     async def get_example_scripts(self) -> dict[str, str]:
-        """
-        Get example scripts for all supported languages.
-        
-        Returns:
-            Dictionary mapping language to example script.
-        """
         return self.settings.EXAMPLE_SCRIPTS
-
-    def _validate_runtime(self, lang: str, lang_version: str) -> RuntimeConfig:
-        """
-        Validate language and version are supported.
-        
-        Args:
-            lang: Programming language.
-            lang_version: Language version.
-            
-        Returns:
-            RuntimeConfig for the validated runtime.
-            
-        Raises:
-            RuntimeNotSupportedError: If runtime is not supported.
-        """
-        # Check if language is supported
-        if lang not in self.settings.SUPPORTED_RUNTIMES:
-            supported = list(self.settings.SUPPORTED_RUNTIMES.keys())
-            raise RuntimeNotSupportedError(
-                f"Language '{lang}' not supported. Supported: {supported}"
-            )
-
-        # Check if version is supported
-        supported_versions = self.settings.SUPPORTED_RUNTIMES[lang]
-        if lang_version not in supported_versions:
-            raise RuntimeNotSupportedError(
-                f"Version '{lang_version}' not supported for {lang}. "
-                f"Supported: {supported_versions}"
-            )
-
-        # Validate runtime registry has configuration
-        if lang not in RUNTIME_REGISTRY or lang_version not in RUNTIME_REGISTRY[lang]:
-            raise RuntimeNotSupportedError(
-                f"Runtime configuration missing for {lang} {lang_version}"
-            )
-
-        return RUNTIME_REGISTRY[lang][lang_version]
-
-    def _extract_request_metadata(
-            self,
-            request: Request | None
-    ) -> tuple[str | None, str | None]:
-        """
-        Extract client IP and user agent from request.
-        
-        Args:
-            request: FastAPI request object.
-            
-        Returns:
-            Tuple of (client_ip, user_agent).
-        """
-        if not request:
-            return None, None
-
-        client_ip = request.client.host if request.client else None
-        user_agent = request.headers.get("user-agent")
-        return client_ip, user_agent
-
-    def _extract_user_info(
-            self,
-            user: User | None,
-            request: Request | None
-    ) -> tuple[str | None, str | None]:
-        """
-        Extract user ID and session ID from user object and request.
-        
-        Args:
-            user: User object.
-            request: FastAPI request object.
-            
-        Returns:
-            Tuple of (user_id, session_id).
-        """
-        user_id = None
-        session_id = None
-
-        # Extract from user object
-        if user:
-            user_id = getattr(user, 'user_id', None) or getattr(user, 'id', None)
-            if user_id:
-                user_id = str(user_id)
-
-        # Extract from request
-        if request:
-            session_id = request.headers.get("x-session-id")
-            if not user_id:
-                # Try to get user_id from request state
-                user_id = getattr(request.state, 'user_id', None)
-                if user_id:
-                    user_id = str(user_id)
-
-        return user_id, session_id
 
     def _create_event_metadata(
             self,
             user_id: str | None = None,
-            session_id: str | None = None,
             client_ip: str | None = None,
             user_agent: str | None = None,
     ) -> EventMetadata:
@@ -250,29 +85,19 @@ class ExecutionService:
         
         Args:
             user_id: User identifier.
-            session_id: Session identifier.
             client_ip: Client IP address.
             user_agent: User agent string.
             
         Returns:
             EventMetadata instance.
         """
-        # Get or generate correlation ID
         correlation_id = CorrelationContext.get_correlation_id()
-        if not correlation_id:
-            correlation_id = f"exec_{uuid4().hex[:12]}"
-
-        # Convert correlation ID to UUID format
-        # Handle various correlation ID formats
-        clean_id = correlation_id.replace("req_", "").replace("exec_", "").split("_")[0][:32]
-        correlation_uuid = str(UUID(clean_id.ljust(32, '0')))
 
         return EventMetadata(
-            correlation_id=correlation_uuid,
+            correlation_id=correlation_id,
             service_name="execution-service",
             service_version="2.0.0",
             user_id=user_id,
-            session_id=session_id,
             ip_address=client_ip,
             user_agent=user_agent,
         )
@@ -280,13 +105,15 @@ class ExecutionService:
     async def execute_script(
             self,
             script: str,
+            user_id: str,
+            *,
+            client_ip: str | None,
+            user_agent: str | None,
             lang: str = "python",
             lang_version: str = "3.11",
-            user: User | None = None,
-            request: Request | None = None,
             priority: int = 5,
             timeout_override: int | None = None,
-    ) -> ExecutionInDB:
+    ) -> DomainExecution:
         """
         Execute a script by creating an execution record and publishing an event.
         
@@ -294,54 +121,48 @@ class ExecutionService:
             script: The code to execute.
             lang: Programming language.
             lang_version: Language version.
-            user: User object (for backward compatibility).
-            request: FastAPI request object.
+            user_id: ID of the user requesting execution.
             priority: Execution priority (1-10, lower is higher priority).
             timeout_override: Override default timeout in seconds.
             
         Returns:
-            ExecutionInDB record with queued status.
+            DomainExecution record with queued status.
             
         Raises:
             IntegrationException: If validation fails or event publishing fails.
         """
-        await self._ensure_initialized()
-
-        # Track metrics
-        ACTIVE_EXECUTIONS.inc()
-        QUEUE_DEPTH.inc()
-
         lang_and_version = f"{lang}-{lang_version}"
         start_time = time()
-        created_execution: ExecutionInDB | None = None
+
+        # Log incoming request
+        logger.info(
+            "Received script execution request",
+            extra={
+                "lang": lang,
+                "lang_version": lang_version,
+                "script_length": len(script),
+                "priority": priority,
+                "timeout_override": timeout_override,
+            }
+        )
+
+        # Track metrics
+        self.metrics.increment_active_executions()
+        created_execution: DomainExecution | None = None
+
+        # Runtime selection relies on API schema validation
+        runtime_cfg = RUNTIME_REGISTRY[lang][lang_version]
 
         try:
-            # Validate runtime
-            try:
-                runtime_cfg = self._validate_runtime(lang, lang_version)
-            except RuntimeNotSupportedError as e:
-                raise IntegrationException(
-                    status_code=400,
-                    detail=str(e)
-                ) from e
-
-            # Extract user info
-            user_id, session_id = self._extract_user_info(user, request)
-
             # Create execution record
-            execution_create = ExecutionCreate(
-                script=script,
-                lang=lang,
-                lang_version=lang_version,
-                status=ExecutionStatus.QUEUED,
-            )
-
-            execution_data = execution_create.model_dump()
-            if user_id:
-                execution_data['user_id'] = user_id
-
             created_execution = await self.execution_repo.create_execution(
-                ExecutionInDB(**execution_data)
+                DomainExecution(
+                    script=script,
+                    lang=lang,
+                    lang_version=lang_version,
+                    status=ExecutionStatus.QUEUED,
+                    user_id=user_id,
+                )
             )
 
             logger.info(
@@ -355,21 +176,9 @@ class ExecutionService:
                 }
             )
 
-            # Extract request metadata
-            client_ip, user_agent = self._extract_request_metadata(request)
-
-            # Create event metadata
-            metadata = self._create_event_metadata(
-                user_id=user_id,
-                session_id=session_id,
-                client_ip=client_ip,
-                user_agent=user_agent,
-            )
-
-            # Determine timeout
+            # Metadata and event
+            metadata = self._create_event_metadata(user_id=user_id, client_ip=client_ip, user_agent=user_agent)
             timeout = timeout_override or self.settings.K8S_POD_EXECUTION_TIMEOUT
-
-            # Create execution requested event
             event = ExecutionRequestedEvent(
                 execution_id=created_execution.execution_id,
                 script=script,
@@ -387,85 +196,35 @@ class ExecutionService:
                 metadata=metadata,
             )
 
-            # Store event in event store
-            if self.event_store:
-                stored = await self.event_store.store_event(event)
-                if not stored:
-                    logger.warning(
-                        f"Failed to store event {event.event_id} in event store"
-                    )
+            with suppress(Exception):
+                await self.event_store.store_event(event)
 
-            # Publish event to Kafka
-            if not self.producer:
-                raise EventPublishError("Producer not available")
-
+            # Publish to Kafka; on failure, mark error and raise
             try:
-                # Get the correct Kafka topic for the event type
-                topic = get_topic_for_event(EventType.EXECUTION_REQUESTED)
-                await self.producer.send_event(
-                    event=event,
-                    topic=str(topic)  # Convert KafkaTopic enum to string
-                )
-
-                logger.info(
-                    "Published execution request event",
-                    extra={
-                        "execution_id": str(created_execution.execution_id),
-                        "event_id": str(event.event_id),
-                        "correlation_id": str(metadata.correlation_id),
-                    }
-                )
+                await self.producer.produce(event_to_produce=event)
             except Exception as e:
-                raise EventPublishError(
-                    "Failed to submit execution request to processing queue"
-                ) from e
+                self.metrics.record_script_execution(ExecutionStatus.ERROR, lang_and_version)
+                self.metrics.record_error(type(e).__name__)
+                if created_execution:
+                    await self._update_execution_error(created_execution.execution_id,
+                                                       f"Failed to submit execution: {str(e)}")
+                raise IntegrationException(status_code=500, detail="Failed to submit execution request") from e
 
-            # Track queue wait time
-            queue_wait_duration = time() - start_time
-            QUEUE_WAIT_TIME.labels(lang_and_version=lang_and_version).observe(queue_wait_duration)
-
-            return created_execution
-
-        except Exception as e:
-            logger.error(
-                "Failed to create execution",
+            # Success metrics and return
+            duration = time() - start_time
+            self.metrics.record_script_execution(ExecutionStatus.QUEUED, lang_and_version)
+            self.metrics.record_queue_wait_time(duration, lang_and_version)
+            logger.info(
+                "Script execution submitted successfully",
                 extra={
-                    "error": str(e),
-                    "error_type": type(e).__name__,
-                    "lang": lang,
-                    "lang_version": lang_version,
-                },
-                exc_info=True
+                    "execution_id": str(created_execution.execution_id),
+                    "status": created_execution.status,
+                    "duration_seconds": duration,
+                }
             )
-
-            ERROR_COUNTER.labels(error_type=type(e).__name__).inc()
-
-            # Update execution status if we created it
-            if created_execution:
-                await self._update_execution_error(
-                    created_execution.execution_id,
-                    f"Failed to submit execution: {str(e)}"
-                )
-
-            # Re-raise IntegrationException as-is
-            if isinstance(e, IntegrationException):
-                raise
-
-            # Wrap other exceptions
-            if isinstance(e, EventPublishError):
-                raise IntegrationException(
-                    status_code=503,
-                    detail=str(e)
-                ) from e
-
-            raise IntegrationException(
-                status_code=500,
-                detail="Failed to submit execution request"
-            ) from e
-
+            return created_execution
         finally:
-            ACTIVE_EXECUTIONS.dec()
-            QUEUE_DEPTH.dec()
+            self.metrics.decrement_active_executions()
 
     async def _update_execution_error(
             self,
@@ -482,10 +241,10 @@ class ExecutionService:
         try:
             await self.execution_repo.update_execution(
                 execution_id,
-                ExecutionUpdate(
-                    status=ExecutionStatus.ERROR,
-                    errors=error_message
-                ).model_dump(exclude_unset=True)
+                {
+                    "status": ExecutionStatus.ERROR,
+                    "errors": error_message,
+                }
             )
         except Exception as update_error:
             logger.error(
@@ -493,7 +252,7 @@ class ExecutionService:
                 extra={"execution_id": execution_id}
             )
 
-    async def get_execution_result(self, execution_id: str) -> ExecutionInDB:
+    async def get_execution_result(self, execution_id: str) -> DomainExecution:
         """
         Get execution result from database.
         
@@ -512,20 +271,25 @@ class ExecutionService:
         """
         execution = await self.execution_repo.get_execution(execution_id)
         if not execution:
+            logger.warning(
+                "Execution not found",
+                extra={"execution_id": execution_id}
+            )
             raise IntegrationException(
                 status_code=404,
                 detail=f"Execution {execution_id} not found"
             )
 
-        logger.debug(
-            "Retrieved execution result",
+        logger.info(
+            "Execution result retrieved successfully",
             extra={
                 "execution_id": execution_id,
                 "status": execution.status,
+                "lang": execution.lang,
+                "lang_version": execution.lang_version,
                 "has_output": bool(execution.output),
                 "has_errors": bool(execution.errors),
-                "created_at": execution.created_at.isoformat() if execution.created_at else None,
-                "updated_at": execution.updated_at.isoformat() if execution.updated_at else None,
+                "resource_usage": execution.resource_usage,
             }
         )
 
@@ -548,12 +312,6 @@ class ExecutionService:
         Returns:
             List of events for the execution.
         """
-        await self._ensure_initialized()
-
-        if not self.event_store:
-            logger.warning("Event store not available")
-            return []
-
         # Use the correct method name - get_execution_events instead of get_events_by_execution
         events = await self.event_store.get_execution_events(
             execution_id=execution_id,
@@ -584,7 +342,7 @@ class ExecutionService:
             end_time: datetime | None = None,
             limit: int = 50,
             skip: int = 0,
-    ) -> list[ExecutionInDB]:
+    ) -> list[DomainExecution]:
         """
         Get executions for a specific user with optional filters.
         
@@ -669,7 +427,7 @@ class ExecutionService:
         query: ExecutionQuery = {"user_id": str(user_id)}
 
         if status:
-            query["status"] = status
+            query["status"] = status.value
 
         if lang:
             query["lang"] = lang
@@ -680,7 +438,7 @@ class ExecutionService:
                 time_filter["$gte"] = start_time
             if end_time:
                 time_filter["$lte"] = end_time
-            query["created_at"] = time_filter
+            query["updated_at"] = time_filter
 
         return query
 
@@ -699,7 +457,7 @@ class ExecutionService:
 
         if not deleted:
             logger.warning(f"Execution {execution_id} not found for deletion")
-            return False
+            raise ServiceError("Execution not found", status_code=404)
 
         logger.info(
             "Deleted execution",
@@ -718,12 +476,6 @@ class ExecutionService:
         Args:
             execution_id: UUID of deleted execution.
         """
-        await self._ensure_initialized()
-
-        if not self.producer:
-            logger.warning("Producer not available for deletion event")
-            return
-
         try:
             metadata = self._create_event_metadata()
 
@@ -736,15 +488,11 @@ class ExecutionService:
             )
 
             # Store in event store
-            if self.event_store:
-                with suppress(Exception):
-                    await self.event_store.store_event(event)
+            with suppress(Exception):
+                await self.event_store.store_event(event)
 
-            # Get the correct Kafka topic and publish event
-            topic = get_topic_for_event(EventType.EXECUTION_CANCELLED)
-            await self.producer.send_event(
-                topic=str(topic),  # Convert KafkaTopic enum to string
-                event=event,
+            await self.producer.produce(
+                event_to_produce=event,
                 key=execution_id
             )
 
@@ -823,7 +571,7 @@ class ExecutionService:
 
         return query
 
-    def _calculate_stats(self, executions: list[ExecutionInDB]) -> ExecutionStats:
+    def _calculate_stats(self, executions: list[DomainExecution]) -> ExecutionStats:
         """
         Calculate statistics from executions.
         

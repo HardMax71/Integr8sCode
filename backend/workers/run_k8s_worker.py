@@ -3,11 +3,11 @@
 import asyncio
 import logging
 
-from app.config import get_settings
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
-from app.events.core.consumer_group_names import GroupId
+from app.domain.enums.kafka import GroupId
 from app.services.k8s_worker.worker import run_kubernetes_worker
+from app.settings import get_settings
 
 
 def main() -> None:

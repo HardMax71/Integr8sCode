@@ -5,6 +5,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Import component styles */
+@import './styles/components.css';
+
 @layer utilities {
   /* Animation utilities for consistent transitions */
   .animate-fadeIn {
@@ -244,7 +247,10 @@
   
   /* Select/Dropdown Styles */
   .form-select-standard {
-    @apply form-input-standard pr-10 cursor-pointer;
+    @apply w-full px-3 py-1.5 text-sm border border-neutral-300 dark:border-dark-border-input 
+           bg-white dark:bg-dark-bg-alt text-fg-default dark:text-dark-fg-default 
+           rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary 
+           hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors pr-10 cursor-pointer;
   }
   
   /* Custom Dropdown Button */

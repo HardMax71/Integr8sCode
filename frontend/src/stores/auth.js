@@ -94,20 +94,30 @@ export async function login(usernameValue, password) {
         // Token is now stored in httpOnly cookie, just update auth state
         isAuthenticated.set(true);
         username.set(data.username || usernameValue);
-        userId.set(data.user_id);
         userRole.set(data.role || 'user');
-        userEmail.set(data.email || null);
         csrfToken.set(data.csrf_token);
         
-        // Persist auth state to localStorage
+        // Clear detailed user info until fetched from /me endpoint
+        userId.set(null);
+        userEmail.set(null);
+        
+        // Persist minimal auth state to localStorage
         persistAuthState(
             true,
             data.username || usernameValue,
-            data.email || null,
+            null, // email will be fetched separately
             data.role || 'user',
-            data.user_id,
+            null, // user_id will be fetched separately
             data.csrf_token
         );
+        
+        // Fetch detailed user profile after successful login
+        try {
+            await fetchUserProfile();
+        } catch (e) {
+            console.warn('Failed to fetch user profile after login:', e);
+            // Continue anyway - basic auth is successful
+        }
         
         // Invalidate cache on login
         authCache = {
@@ -118,6 +128,45 @@ export async function login(usernameValue, password) {
         return true;
     } catch (error) {
         console.error("Login failed:", error);
+        throw error;
+    }
+}
+
+export async function fetchUserProfile() {
+    try {
+        const response = await fetchWithRetry('/api/v1/auth/me', {
+            method: 'GET'
+        }, {
+            numOfAttempts: 2,
+            maxDelay: 3000
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to fetch user profile');
+        }
+
+        const data = await response.json();
+        
+        // Update stores with detailed user info
+        userId.set(data.user_id);
+        userEmail.set(data.email);
+        
+        // Update persisted state
+        const currentState = getPersistedAuthState();
+        if (currentState) {
+            persistAuthState(
+                currentState.isAuthenticated,
+                currentState.username,
+                data.email,
+                currentState.userRole,
+                data.user_id,
+                currentState.csrfToken
+            );
+        }
+        
+        return data;
+    } catch (error) {
+        console.error("Failed to fetch user profile:", error);
         throw error;
     }
 }
@@ -185,32 +234,45 @@ export async function verifyAuth(forceRefresh = false) {
     // Create new verification promise
     verifyAuthPromise = (async () => {
         try {
+            console.log('[verifyAuth] Starting token verification...');
             const response = await fetchWithRetry('/api/v1/auth/verify-token', {
                 method: 'GET'
             }, {
-                numOfAttempts: 2, // Reduced from 3
-                maxDelay: 2000 // Reduced from 5000ms
+                numOfAttempts: 1, // Don't retry for auth verification
+                maxDelay: 1000,
+                timeout: 5000 // 5 second timeout
             });
+            console.log('[verifyAuth] Got response:', response.status);
 
             if (response.ok) {
                 const data = await response.json();
                 isAuthenticated.set(data.valid);
                 username.set(data.username);
-                userId.set(data.user_id);
                 userRole.set(data.role || 'user');
-                userEmail.set(data.email || null);
                 csrfToken.set(data.csrf_token);
                 
-                // Persist auth state if valid
+                // Clear detailed info until fetched
+                userId.set(null);
+                userEmail.set(null);
+                
+                // Persist minimal auth state if valid
                 if (data.valid) {
                     persistAuthState(
                         true,
                         data.username,
-                        data.email || null,
+                        null, // email will be fetched separately
                         data.role || 'user',
-                        data.user_id,
+                        null, // user_id will be fetched separately
                         data.csrf_token
                     );
+                    
+                    // Fetch detailed user profile
+                    try {
+                        await fetchUserProfile();
+                    } catch (e) {
+                        console.warn('Failed to fetch user profile during verification:', e);
+                        // Continue anyway - basic auth is valid
+                    }
                 }
                 
                 // Update cache

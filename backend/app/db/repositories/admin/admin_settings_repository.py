@@ -8,6 +8,7 @@ from app.domain.admin.settings_models import (
     AuditLogEntry,
     SystemSettings,
 )
+from app.infrastructure.mappers.admin_mapper import AuditLogMapper, SettingsMapper
 
 
 class AdminSettingsRepository:
@@ -15,14 +16,23 @@ class AdminSettingsRepository:
         self.db = db
         self.settings_collection: AsyncIOMotorCollection = self.db.get_collection("system_settings")
         self.audit_log_collection: AsyncIOMotorCollection = self.db.get_collection("audit_log")
+        self.settings_mapper = SettingsMapper()
+        self.audit_mapper = AuditLogMapper()
 
     async def get_system_settings(self) -> SystemSettings:
-        """Get system settings from database."""
+        """Get system settings from database, creating defaults if not found."""
         settings_doc = await self.settings_collection.find_one({"_id": "global"})
         if not settings_doc:
-            logger.warning("System settings document not found in database")
-            raise ValueError("System settings document not found")
-        return SystemSettings.from_dict(settings_doc)
+            logger.info("System settings not found, creating defaults")
+            # Create default settings
+            default_settings = SystemSettings()
+            settings_dict = self.settings_mapper.system_settings_to_dict(default_settings)
+            
+            # Insert default settings
+            await self.settings_collection.insert_one(settings_dict)
+            return default_settings
+            
+        return self.settings_mapper.system_settings_from_dict(settings_doc)
 
     async def update_system_settings(
             self,
@@ -31,42 +41,37 @@ class AdminSettingsRepository:
             user_id: str
     ) -> SystemSettings:
         """Update system-wide settings."""
-        async with await self.db.client.start_session() as session:
-            async with session.start_transaction():
-                try:
-                    # Update settings metadata
-                    settings.updated_by = updated_by
-                    settings.updated_at = datetime.now(timezone.utc)
+        try:
+            # Update settings metadata
+            settings.updated_at = datetime.now(timezone.utc)
 
-                    # Convert to dict and save
-                    settings_dict = settings.to_dict()
+            # Convert to dict and save
+            settings_dict = self.settings_mapper.system_settings_to_dict(settings)
 
-                    await self.settings_collection.replace_one(
-                        {"_id": "global"},
-                        settings_dict,
-                        upsert=True,
-                        session=session
-                    )
+            await self.settings_collection.replace_one(
+                {"_id": "global"},
+                settings_dict,
+                upsert=True
+            )
 
-                    # Create audit log entry
-                    audit_entry = AuditLogEntry(
-                        action=AuditAction.SYSTEM_SETTINGS_UPDATED,
-                        user_id=user_id,
-                        username=updated_by,
-                        timestamp=datetime.now(timezone.utc),
-                        changes=settings_dict
-                    )
+            # Create audit log entry
+            audit_entry = AuditLogEntry(
+                action=AuditAction.SYSTEM_SETTINGS_UPDATED,
+                user_id=user_id,
+                username=updated_by,
+                timestamp=datetime.now(timezone.utc),
+                changes=settings_dict
+            )
 
-                    await self.audit_log_collection.insert_one(
-                        audit_entry.to_dict(),
-                        session=session
-                    )
+            await self.audit_log_collection.insert_one(
+                self.audit_mapper.to_dict(audit_entry)
+            )
 
-                    return settings
+            return settings
 
-                except Exception as e:
-                    logger.error(f"Error updating system settings: {e}")
-                    raise
+        except Exception as e:
+            logger.error(f"Error updating system settings: {e}")
+            raise
 
     async def reset_system_settings(self, username: str, user_id: str) -> SystemSettings:
         """Reset system settings to defaults."""
@@ -82,10 +87,10 @@ class AdminSettingsRepository:
                 timestamp=datetime.now(timezone.utc)
             )
 
-            await self.audit_log_collection.insert_one(audit_entry.to_dict())
+            await self.audit_log_collection.insert_one(self.audit_mapper.to_dict(audit_entry))
 
             # Return default settings
-            return SystemSettings.get_defaults()
+            return SystemSettings()
 
         except Exception as e:
             logger.error(f"Error resetting system settings: {e}")

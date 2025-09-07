@@ -1,32 +1,32 @@
-from fastapi import APIRouter, Depends, Request
+from dishka import FromDishka
+from dishka.integrations.fastapi import DishkaRoute
+from fastapi import APIRouter, Request
 from sse_starlette.sse import EventSourceResponse
 
-from app.api.dependencies import get_current_user
-from app.core.service_dependencies import (
-    SSEConnectionManagerDep,
-    SSERepositoryDep,
-    SSEShutdownManagerDep,
-)
+from app.api.dependencies import AuthService
+from app.domain.sse.models import SSEHealthDomain
 from app.schemas_pydantic.sse import SSEHealthResponse
-from app.schemas_pydantic.user import UserResponse
+from app.services.sse.sse_service import SSEService
 
-router = APIRouter(prefix="/events", tags=["sse"])
+router = APIRouter(
+    prefix="/events",
+    tags=["sse"],
+    route_class=DishkaRoute
+)
 
 
 @router.get("/notifications/stream")
 async def notification_stream(
         request: Request,
-        repository: SSERepositoryDep,
-        current_user: UserResponse = Depends(get_current_user),
+        sse_service: FromDishka[SSEService],
+        auth_service: FromDishka[AuthService],
 ) -> EventSourceResponse:
-    async def check_disconnected() -> bool:
-        """Check if the request is disconnected."""
-        return await request.is_disconnected()
+    """Stream notifications for authenticated user."""
+    current_user = await auth_service.get_current_user(request)
 
     return EventSourceResponse(
-        repository.create_notification_stream(
-            user_id=current_user.user_id,
-            request_disconnected_check=check_disconnected
+        sse_service.create_notification_stream(
+            user_id=current_user.user_id
         )
     )
 
@@ -35,48 +35,36 @@ async def notification_stream(
 async def execution_events(
         execution_id: str,
         request: Request,
-        repository: SSERepositoryDep,
-        current_user: UserResponse = Depends(get_current_user)
+        sse_service: FromDishka[SSEService],
+        auth_service: FromDishka[AuthService]
 ) -> EventSourceResponse:
-    async def check_disconnected() -> bool:
-        """Check if the request is disconnected."""
-        return await request.is_disconnected()
+    """Stream events for specific execution."""
+    current_user = await auth_service.get_current_user(request)
 
     return EventSourceResponse(
-        repository.create_execution_event_stream(
+        sse_service.create_execution_stream(
             execution_id=execution_id,
-            user_id=current_user.user_id,
-            request_disconnected_check=check_disconnected
-        )
-    )
-
-
-@router.get("/executions/{execution_id}/kafka")
-async def execution_events_kafka(
-        execution_id: str,
-        request: Request,
-        repository: SSERepositoryDep,
-        shutdown_manager: SSEShutdownManagerDep,
-        connection_manager: SSEConnectionManagerDep,
-        current_user: UserResponse = Depends(get_current_user)
-) -> EventSourceResponse:
-    connection_id = connection_manager.get_connection_id()
-
-    return EventSourceResponse(
-        repository.create_kafka_event_stream(
-            execution_id=execution_id,
-            user_id=current_user.user_id,
-            connection_id=connection_id,
-            shutdown_manager=shutdown_manager,
-            connection_manager=connection_manager
+            user_id=current_user.user_id
         )
     )
 
 
 @router.get("/health", response_model=SSEHealthResponse)
 async def sse_health(
-        repository: SSERepositoryDep,
-        shutdown_manager: SSEShutdownManagerDep,
-        current_user: UserResponse = Depends(get_current_user),
+        request: Request,
+        sse_service: FromDishka[SSEService],
+        auth_service: FromDishka[AuthService],
 ) -> SSEHealthResponse:
-    return await repository.get_health_status(shutdown_manager)
+    """Get SSE service health status."""
+    _ = await auth_service.get_current_user(request)
+    domain: SSEHealthDomain = await sse_service.get_health_status()
+    return SSEHealthResponse(
+        status=domain.status,
+        kafka_enabled=domain.kafka_enabled,
+        active_connections=domain.active_connections,
+        active_executions=domain.active_executions,
+        active_consumers=domain.active_consumers,
+        max_connections_per_user=domain.max_connections_per_user,
+        shutdown=domain.shutdown,
+        timestamp=domain.timestamp,
+    )

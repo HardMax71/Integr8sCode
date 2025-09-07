@@ -453,52 +453,74 @@
             executionId = executeData.execution_id;
             result = {status: 'running', execution_id: executionId};
 
-            const pollInterval = 1000;
-            const maxAttempts = (k8sLimits?.execution_timeout || 5) + 10;
-            let attempts = 0;
-
-            while (attempts < maxAttempts && (result?.status === 'queued' || result?.status === 'running')) {
-                await new Promise(resolve => setTimeout(resolve, pollInterval));
-                attempts++;
-                try {
-                    const resultResponse = await fetchWithRetry(`/api/v1/result/${executionId}`, {
-                        method: 'GET'
-                    }, {
-                        numOfAttempts: 2,
-                        maxDelay: 3000
+            // Use Kafka-based SSE for real-time execution updates
+            const timeout = ((k8sLimits?.execution_timeout || 5) + 10) * 1000; // Convert to milliseconds
+            
+            result = await new Promise((resolve, reject) => {
+                // Use the SSE endpoint for real-time events from Kafka
+                const eventSource = new EventSource(`/api/v1/events/executions/${executionId}`, {
+                    withCredentials: true
+                });
+                
+                let timeoutId = setTimeout(() => {
+                    eventSource.close();
+                    resolve({
+                        status: 'timeout', 
+                        errors: 'Execution timed out', 
+                        execution_id: executionId
                     });
-                    result = await resultResponse.json();
-
-                    if (result.status === 'completed' || result.status === 'error') {
-                        break;
+                }, timeout);
+                
+                eventSource.onopen = () => {
+                    console.log('SSE connected for execution:', executionId);
+                };
+                
+                eventSource.onmessage = async (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        console.log('Execution update:', data);
+                        
+                        // Update result with the latest status
+                        if (data.event_type === 'result_stored' || data.type === 'result_stored') {
+                            result = data.result;
+                            clearTimeout(timeoutId);
+                            eventSource.close();
+                            resolve(result);
+                        } else if (data.event_type === 'execution_completed' || data.type === 'execution_completed' || data.status === 'completed') {
+                            result = { ...(result || {}), status: 'completed' };
+                        } else if (data.event_type === 'execution_failed' || data.type === 'execution_failed' || data.status === 'failed' || data.status === 'error') {
+                            result = { ...(result || {}), status: 'failed' };
+                        } else if (data.event_type === 'execution_timeout' || data.type === 'execution_timeout' || data.status === 'timeout') {
+                            result = { ...(result || {}), status: 'timeout' };
+                        } else if (data.status) {
+                            // Update intermediate status
+                            result = {...result, status: data.status};
+                        }
+                    } catch (error) {
+                        console.error('Error processing SSE event:', error);
                     }
-                } catch (pollError) {
-                    console.error("Polling error:", pollError);
-                    if (pollError.response?.status === 404) {
-                        apiError = `Execution ID ${executionId} not found. It might have expired or never existed.`;
-                        result = {status: 'error', errors: apiError, execution_id: executionId};
-                        addNotification(apiError, "error");
-                        break;
-                    } else if (pollError.response) {
-                        apiError = `Error polling for results (Status ${pollError.response.status}).`;
-                        result = {status: 'error', errors: apiError, execution_id: executionId};
-                        addNotification(apiError, "warning");
+                };
+                
+                eventSource.onerror = (error) => {
+                    console.error('SSE error:', error);
+                    clearTimeout(timeoutId);
+                    eventSource.close();
+                    
+                    // Fall back to polling one final time to get the result
+                    fetchWithRetry(`/api/v1/result/${executionId}`, {
+                        method: 'GET'
+                    }).then(response => response.json())
+                      .then(data => resolve(data))
+                      .catch(() => resolve({
+                          status: 'error',
+                          errors: 'Lost connection to execution stream',
+                          execution_id: executionId
+                      }));
+                };
+            });
 
-                    } else {
-                        apiError = 'Network error while polling for results.';
-                        result = {status: 'error', errors: apiError, execution_id: executionId};
-                        addNotification(apiError, "warning");
-                    }
-
-                    if (result.status === 'error') {
-                        break;
-                    }
-                    break;
-                }
-            }
-
-            if (result?.status !== 'completed' && result?.status !== 'error') {
-                const timeoutMessage = `Execution timed out after ${attempts} seconds waiting for a final status.`;
+            if (result?.status !== 'completed' && result?.status !== 'error' && result?.status !== 'failed') {
+                const timeoutMessage = `Execution timed out waiting for a final status.`;
                 result = {status: 'error', errors: timeoutMessage, execution_id: executionId};
                 addNotification(timeoutMessage, 'warning');
             }
@@ -1018,15 +1040,23 @@
                                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-3 gap-y-1">
                                     <div class="flex flex-col">
                                         <span class="text-fg-muted dark:text-dark-fg-muted font-normal">CPU:</span>
-                                        <span class="text-fg-default dark:text-dark-fg-default font-medium">{result.resource_usage.cpu_usage ?? 'N/A'} m</span>
+                                        <span class="text-fg-default dark:text-dark-fg-default font-medium">
+                                            {result.resource_usage.cpu_time_jiffies === 0 
+                                                ? '< 10 m'
+                                                : `${(result.resource_usage.cpu_time_jiffies * 10).toFixed(3)} m` ?? 'N/A'}
+                                        </span>
                                     </div>
                                     <div class="flex flex-col">
                                         <span class="text-fg-muted dark:text-dark-fg-muted font-normal">Memory:</span>
-                                        <span class="text-fg-default dark:text-dark-fg-default font-medium">{result.resource_usage.memory_usage ?? 'N/A'} Mi</span>
+                                        <span class="text-fg-default dark:text-dark-fg-default font-medium">
+                                            {`${(result.resource_usage.peak_memory_kb / 1024).toFixed(3)} MiB` ?? 'N/A'}
+                                        </span>
                                     </div>
                                     <div class="flex flex-col">
                                         <span class="text-fg-muted dark:text-dark-fg-muted font-normal">Time:</span>
-                                        <span class="text-fg-default dark:text-dark-fg-default font-medium">{result.resource_usage.execution_time ?? 'N/A'} s</span>
+                                        <span class="text-fg-default dark:text-dark-fg-default font-medium">
+                                            {`${result.resource_usage.execution_time_wall_seconds.toFixed(3)} s` ?? 'N/A'}
+                                        </span>
                                     </div>
                                 </div>
                             </div>

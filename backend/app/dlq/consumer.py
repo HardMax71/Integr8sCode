@@ -1,74 +1,32 @@
 import asyncio
-import json
-from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Dict, List, Optional
+from datetime import timedelta
+from typing import Any, Callable, Dict, List
 
-from aiokafka.structs import ConsumerRecord
+from confluent_kafka import OFFSET_BEGINNING, OFFSET_END, Message, TopicPartition
 
 from app.core.logging import logger
+from app.dlq.models import DLQMessage
+from app.domain.enums.events import EventType
+from app.domain.enums.kafka import GroupId, KafkaTopic
 from app.events.core.consumer import ConsumerConfig, UnifiedConsumer
-from app.events.core.consumer_group_names import GroupId
-from app.events.core.producer import UnifiedProducer, create_unified_producer
+from app.events.core.dispatcher import EventDispatcher
+from app.events.core.producer import UnifiedProducer
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.schemas_avro.event_schemas import BaseEvent, deserialize_event
-
-
-class DLQMessage:
-    """Represents a message in the Dead Letter Queue"""
-
-    def __init__(self, record: ConsumerRecord):
-        self.record = record
-        self.data = json.loads(record.value.decode('utf-8'))
-        self.event_data = self.data.get("event", {})
-        self.original_topic = self.data.get("original_topic")
-        self.error = self.data.get("error")
-        self.retry_count = self.data.get("retry_count", 0)
-        self.failed_at = datetime.fromisoformat(self.data.get("failed_at"))
-        self.producer_id = self.data.get("producer_id")
-
-        # Parse headers
-        self.headers = {}
-        if record.headers:
-            for key, value in record.headers:
-                self.headers[key] = value.decode('utf-8') if value else None
-
-    @property
-    def event_id(self) -> str:
-        """Get event ID"""
-        return str(self.event_data.get("event_id", "unknown"))
-
-    @property
-    def event_type(self) -> str:
-        """Get event type"""
-        return str(self.event_data.get("event_type", "unknown"))
-
-    @property
-    def age(self) -> timedelta:
-        """Get age of the failed message"""
-        return datetime.now(timezone.utc) - self.failed_at
-
-    def deserialize_event(self) -> Optional[BaseEvent]:
-        """Deserialize the original event"""
-        try:
-            return deserialize_event(self.event_data)
-        except Exception as e:
-            logger.error(f"Failed to deserialize DLQ event: {e}")
-            return None
+from app.infrastructure.kafka.events.base import BaseEvent
+from app.settings import get_settings
 
 
 class DLQConsumer:
-    """Consumer specifically for Dead Letter Queue processing"""
-
     def __init__(
             self,
-            dlq_topic: str,
-            group_id: str = GroupId.DLQ_PROCESSOR,
+            dlq_topic: KafkaTopic,
+            producer: UnifiedProducer,
+            schema_registry_manager: SchemaRegistryManager,
+            group_id: GroupId = GroupId.DLQ_PROCESSOR,
             max_retry_attempts: int = 5,
             retry_delay_hours: int = 1,
             max_age_days: int = 7,
             batch_size: int = 100,
-            producer: Optional[UnifiedProducer] = None,
-            schema_registry_manager: Optional[SchemaRegistryManager] = None,
     ):
         self.dlq_topic = dlq_topic
         self.group_id = group_id
@@ -78,21 +36,22 @@ class DLQConsumer:
         self.batch_size = batch_size
 
         # Create consumer config
+        settings = get_settings()
         self.config = ConsumerConfig(
+            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
             group_id=group_id,
-            topics=[dlq_topic],
             max_poll_records=batch_size,
             enable_auto_commit=False,
         )
 
-        self.consumer: Optional[UnifiedConsumer] = None
-        self.producer: Optional[UnifiedProducer] = producer
-        self._producer_provided = producer is not None
+        self.consumer: UnifiedConsumer | None = None
+        self.producer: UnifiedProducer = producer
         self.schema_registry_manager = schema_registry_manager
+        self.dispatcher = EventDispatcher()
         self._retry_handlers: Dict[str, Callable] = {}
         self._permanent_failure_handlers: List[Callable] = []
         self._running = False
-        self._process_task: Optional[asyncio.Task] = None
+        self._process_task: asyncio.Task | None = None
 
         # Statistics
         self.stats = {
@@ -108,29 +67,95 @@ class DLQConsumer:
         if self._running:
             return
 
-        # Create producer if not provided
-        if not self.producer:
-            self.producer = create_unified_producer()
-            await self.producer.start()
+        self.consumer = UnifiedConsumer(
+            self.config,
+            event_dispatcher=self.dispatcher
+        )
 
-        self.consumer = UnifiedConsumer(self.config, self.schema_registry_manager)
+        # Register handler for DLQ events through dispatcher
+        # DLQ messages are generic, so we handle all event types
+        for event_type in EventType:
+            self.dispatcher.register(event_type)(self._process_dlq_event)
 
-        # Set up batch handler with proper signature
-        async def batch_handler(event: BaseEvent | dict[str, Any], record: Any) -> Any:
-            # Extract batch from record
-            if hasattr(record, 'batch'):
-                await self._process_dlq_batch(record.batch)
-            return None
-        
-        self.consumer.register_handler("__batch__", batch_handler)
-
-        await self.consumer.start()
+        await self.consumer.start([self.dlq_topic])
         self._running = True
 
         # Start periodic processing
         self._process_task = asyncio.create_task(self._periodic_process())
 
         logger.info(f"DLQ consumer started for topic: {self.dlq_topic}")
+
+    async def _process_dlq_event(self, event: BaseEvent) -> None:
+        """Process a single DLQ event from dispatcher."""
+        try:
+            # Extract DLQ-specific attributes from the event
+            # These should be added by the producer when sending to DLQ
+            original_topic = getattr(event, 'original_topic', str(event.topic))
+            error = getattr(event, 'error', 'Unknown error')
+            retry_count = getattr(event, 'retry_count', 0)
+            producer_id = getattr(event, 'producer_id', 'unknown')
+
+            # Create DLQMessage from the failed event
+            dlq_message = DLQMessage.from_failed_event(
+                event=event,
+                original_topic=original_topic,
+                error=error,
+                producer_id=producer_id,
+                retry_count=retry_count
+            )
+
+            # Process the message based on retry policy
+            self.stats["processed"] += 1
+
+            # Check if message is too old
+            if dlq_message.age > self.max_age:
+                await self._handle_expired_messages([dlq_message])
+                return
+
+            # Check retry count
+            if dlq_message.retry_count >= self.max_retry_attempts:
+                await self._handle_permanent_failures([dlq_message])
+                return
+
+            # Check if enough time has passed for retry
+            if dlq_message.age >= self.retry_delay:
+                await self._retry_messages([dlq_message])
+            else:
+                # Message is not ready for retry yet
+                logger.debug(f"Message {dlq_message.event_id} not ready for retry yet")
+
+        except Exception as e:
+            logger.error(f"Failed to process DLQ event: {e}", exc_info=True)
+            self.stats["errors"] += 1
+
+    async def _process_dlq_message(self, message: Message) -> None:
+        """Process a single DLQ message from confluent-kafka Message"""
+        try:
+            dlq_message = DLQMessage.from_kafka_message(message, self.schema_registry_manager)
+
+            # Process individual message similar to batch processing
+            self.stats["processed"] += 1
+
+            # Check if message is too old
+            if dlq_message.age > self.max_age:
+                await self._handle_expired_messages([dlq_message])
+                return
+
+            # Check retry count
+            if dlq_message.retry_count >= self.max_retry_attempts:
+                await self._handle_permanent_failures([dlq_message])
+                return
+
+            # Check if enough time has passed for retry
+            if dlq_message.age >= self.retry_delay:
+                await self._retry_messages([dlq_message])
+            else:
+                # Message is not ready for retry yet, skip
+                logger.debug(f"Message {dlq_message.event_id} not ready for retry yet")
+
+        except Exception as e:
+            logger.error(f"Failed to process DLQ message: {e}")
+            self.stats["errors"] += 1
 
     async def stop(self) -> None:
         """Stop the DLQ consumer"""
@@ -149,22 +174,15 @@ class DLQConsumer:
         if self.consumer:
             await self.consumer.stop()
 
-        # Stop producer if we created it
-        if self.producer and not self._producer_provided:
-            await self.producer.stop()
-
         logger.info(f"DLQ consumer stopped. Stats: {self.stats}")
 
     def add_retry_handler(self, event_type: str, handler: Callable) -> None:
-        """Add handler for retrying specific event types"""
         self._retry_handlers[event_type] = handler
 
     def add_permanent_failure_handler(self, handler: Callable) -> None:
-        """Add handler for permanently failed messages"""
         self._permanent_failure_handlers.append(handler)
 
     async def _periodic_process(self) -> None:
-        """Periodically trigger processing"""
         while self._running:
             try:
                 # Process is triggered by the consumer's batch handler
@@ -178,13 +196,12 @@ class DLQConsumer:
                 await asyncio.sleep(60)
 
     async def _process_dlq_batch(self, events: List[tuple]) -> None:
-        """Process a batch of DLQ messages"""
         dlq_messages = []
 
         # Convert to DLQMessage objects
         for _, record in events:
             try:
-                dlq_message = DLQMessage(record)
+                dlq_message = DLQMessage.from_kafka_message(record, self.schema_registry_manager)
                 dlq_messages.append(dlq_message)
             except Exception as e:
                 logger.error(f"Failed to parse DLQ message: {e}")
@@ -221,12 +238,7 @@ class DLQConsumer:
         await self._handle_expired_messages(expired)
 
     async def _retry_messages(self, messages: List[DLQMessage]) -> None:
-        """Retry messages by sending them back to original topic"""
         if not messages:
-            return
-
-        if not self.producer:
-            logger.error("Producer not available for retrying messages")
             return
 
         for msg in messages:
@@ -247,10 +259,10 @@ class DLQConsumer:
                         )
                         continue
 
-                # Deserialize original event
-                event = msg.deserialize_event()
+                # Get the original event
+                event = msg.event
                 if not event:
-                    logger.error(f"Failed to deserialize event {msg.event_id} for retry")
+                    logger.error(f"Failed to get event {msg.event_id} for retry")
                     self.stats["errors"] += 1
                     continue
 
@@ -263,11 +275,11 @@ class DLQConsumer:
                 }
 
                 # Send back to original topic
-                success = await self.producer.send_event(
-                    event,
-                    msg.original_topic,
+                await self.producer.produce(
+                    event_to_produce=event,
                     headers=headers
                 )
+                success = True
 
                 if success:
                     logger.info(
@@ -284,7 +296,6 @@ class DLQConsumer:
                 self.stats["errors"] += 1
 
     async def _handle_permanent_failures(self, messages: List[DLQMessage]) -> None:
-        """Handle messages that have exceeded retry attempts"""
         if not messages:
             return
 
@@ -312,7 +323,6 @@ class DLQConsumer:
                 self.stats["errors"] += 1
 
     async def _handle_expired_messages(self, messages: List[DLQMessage]) -> None:
-        """Handle messages that are too old"""
         if not messages:
             return
 
@@ -325,10 +335,9 @@ class DLQConsumer:
 
     async def reprocess_all(
             self,
-            event_types: Optional[List[str]] = None,
+            event_types: List[str] | None = None,
             force: bool = False
     ) -> Dict[str, int]:
-        """Reprocess all messages in DLQ"""
         if not self.consumer:
             raise RuntimeError("Consumer not started")
 
@@ -337,8 +346,19 @@ class DLQConsumer:
             f"{f' for types: {event_types}' if event_types else ''}"
         )
 
-        # Seek to beginning
-        await self.consumer.seek_to_beginning()
+        # Seek to beginning using native confluent-kafka
+        if self.consumer.consumer:
+            try:
+                # Get current assignment
+                assignment = self.consumer.consumer.assignment()
+                if assignment:
+                    for partition in assignment:
+                        # Create new TopicPartition with desired offset
+                        new_partition = TopicPartition(partition.topic, partition.partition, OFFSET_BEGINNING)
+                        self.consumer.consumer.seek(new_partition)
+                    logger.info(f"Seeked {len(assignment)} partitions to beginning")
+            except Exception as e:
+                logger.error(f"Failed to seek to beginning: {e}")
 
         # Temporarily adjust settings for bulk reprocessing
         original_retry_delay = self.retry_delay
@@ -369,13 +389,23 @@ class DLQConsumer:
             # Restore original settings
             self.retry_delay = original_retry_delay
 
-            # Seek back to end for normal processing
-            await self.consumer.seek_to_end()
+            # Seek back to end for normal processing using native confluent-kafka
+            if self.consumer.consumer:
+                try:
+                    # Get current assignment
+                    assignment = self.consumer.consumer.assignment()
+                    if assignment:
+                        for partition in assignment:
+                            # Create new TopicPartition with desired offset
+                            new_partition = TopicPartition(partition.topic, partition.partition, OFFSET_END)
+                            self.consumer.consumer.seek(new_partition)
+                        logger.info(f"Seeked {len(assignment)} partitions to end")
+                except Exception as e:
+                    logger.error(f"Failed to seek to end: {e}")
 
         return reprocess_stats
 
     def get_stats(self) -> Dict[str, Any]:
-        """Get current statistics"""
         return {
             **self.stats,
             "topic": self.dlq_topic,
@@ -391,12 +421,10 @@ class DLQConsumer:
 
 
 class DLQConsumerRegistry:
-    """Registry for managing multiple DLQ consumers"""
-
     def __init__(self) -> None:
         self._consumers: Dict[str, DLQConsumer] = {}
 
-    def get(self, topic: str) -> Optional[DLQConsumer]:
+    def get(self, topic: str) -> DLQConsumer | None:
         return self._consumers.get(topic)
 
     def register(self, consumer: DLQConsumer) -> None:
@@ -415,9 +443,4 @@ class DLQConsumerRegistry:
 
 
 def create_dlq_consumer_registry() -> DLQConsumerRegistry:
-    """Factory function to create a DLQ consumer registry.
-    
-    Returns:
-        A new DLQ consumer registry instance
-    """
     return DLQConsumerRegistry()

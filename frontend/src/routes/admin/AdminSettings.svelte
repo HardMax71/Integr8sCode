@@ -3,10 +3,9 @@
     import { api } from '../../lib/api';
     import { addNotification } from '../../stores/notifications';
     import AdminLayout from './AdminLayout.svelte';
+    import Spinner from '../../components/Spinner.svelte';
     
     let settings = {
-        rate_limits: {},
-        kafka_settings: {},
         execution_limits: {},
         security_settings: {},
         monitoring_settings: {}
@@ -74,57 +73,10 @@
                 
                 {#if loading}
                     <div class="flex justify-center items-center h-64">
-                        <svg class="animate-spin h-12 w-12 text-primary" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
+                        <Spinner size="xlarge" />
                     </div>
                 {:else}
                     <div class="space-y-6">
-                        <!-- Rate Limits -->
-                        <div>
-                            <h4 class="text-md font-semibold text-fg-default dark:text-dark-fg-default mb-3">Rate Limits</h4>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div>
-                                    <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Default</label>
-                                    <input type="text" bind:value={settings.rate_limits.default} 
-                                        class="form-input-standard" placeholder="100/minute"/>
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Auth Endpoints</label>
-                                    <input type="text" bind:value={settings.rate_limits.auth} 
-                                        class="form-input-standard" placeholder="5/minute"/>
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Execution</label>
-                                    <input type="text" bind:value={settings.rate_limits.execution} 
-                                        class="form-input-standard" placeholder="20/minute"/>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Kafka Settings -->
-                        <div>
-                            <h4 class="text-md font-semibold text-fg-default dark:text-dark-fg-default mb-3">Kafka Settings</h4>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div>
-                                    <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Retention Days</label>
-                                    <input type="number" bind:value={settings.kafka_settings.retention_days} 
-                                        class="form-input-standard" min="1" max="30"/>
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Partition Count</label>
-                                    <input type="number" bind:value={settings.kafka_settings.partition_count} 
-                                        class="form-input-standard" min="1" max="10"/>
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Replication Factor</label>
-                                    <input type="number" bind:value={settings.kafka_settings.replication_factor} 
-                                        class="form-input-standard" min="1" max="3"/>
-                                </div>
-                            </div>
-                        </div>
-
                         <!-- Execution Limits -->
                         <div>
                             <h4 class="text-md font-semibold text-fg-default dark:text-dark-fg-default mb-3">Execution Limits</h4>
@@ -190,7 +142,7 @@
                                 </div>
                                 <div>
                                     <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Log Level</label>
-                                    <select bind:value={settings.monitoring_settings.log_level} class="form-input-standard">
+                                    <select bind:value={settings.monitoring_settings.log_level} class="form-select-standard">
                                         <option value="DEBUG">DEBUG</option>
                                         <option value="INFO">INFO</option>
                                         <option value="WARNING">WARNING</option>
@@ -199,7 +151,7 @@
                                 </div>
                                 <div>
                                     <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Enable Tracing</label>
-                                    <select bind:value={settings.monitoring_settings.enable_tracing} class="form-input-standard">
+                                    <select bind:value={settings.monitoring_settings.enable_tracing} class="form-select-standard">
                                         <option value={true}>Enabled</option>
                                         <option value={false}>Disabled</option>
                                     </select>

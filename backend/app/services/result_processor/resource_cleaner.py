@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import asyncio
 from datetime import datetime, timedelta, timezone
 from functools import partial
@@ -12,6 +10,7 @@ from kubernetes.client.rest import ApiException
 from app.core.exceptions import ServiceError
 from app.core.logging import logger
 
+# Python 3.12 type aliases
 type ResourceDict = dict[str, list[str]]
 type CountDict = dict[str, int]
 
@@ -48,7 +47,7 @@ class ResourceCleaner:
     async def cleanup_pod_resources(
             self,
             pod_name: str,
-            namespace: str = "default",
+            namespace: str = "integr8scode",
             execution_id: str | None = None,
             timeout: int = 60,
             delete_pvcs: bool = False,
@@ -63,7 +62,6 @@ class ResourceCleaner:
                 *(
                     [
                         self._delete_configmaps(execution_id, namespace),
-                        self._delete_network_policies(execution_id, namespace),
                         *(
                             [self._delete_pvcs(execution_id, namespace)]
                             if delete_pvcs
@@ -135,18 +133,6 @@ class ResourceCleaner:
             "ConfigMap"
         )
 
-    async def _delete_network_policies(self, execution_id: str, namespace: str) -> None:
-        """Delete NetworkPolicies for an execution"""
-        if not self.networking_v1:
-            raise ServiceError("Kubernetes networking client not initialized")
-            
-        await self._delete_labeled_resources(
-            execution_id,
-            namespace,
-            self.networking_v1.list_namespaced_network_policy,
-            self.networking_v1.delete_namespaced_network_policy,
-            "NetworkPolicy"
-        )
 
     async def _delete_pvcs(self, execution_id: str, namespace: str) -> None:
         """Delete PersistentVolumeClaims for an execution"""
@@ -193,7 +179,7 @@ class ResourceCleaner:
 
     async def cleanup_orphaned_resources(
             self,
-            namespace: str = "default",
+            namespace: str = "integr8scode",
             max_age_hours: int = 24,
             dry_run: bool = False,
     ) -> ResourceDict:
@@ -204,7 +190,6 @@ class ResourceCleaner:
         cleaned: ResourceDict = {
             "pods": [],
             "configmaps": [],
-            "network_policies": [],
             "pvcs": [],
         }
 

@@ -3,19 +3,15 @@
 This module contains Pydantic models for event-related API requests and responses.
 For Avro-based event schemas used in Kafka streaming, see app.schemas_avro.event_schemas.
 """
-from datetime import datetime
-from enum import StrEnum
-from typing import Any, Dict, List, Optional
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.schemas_avro.event_schemas import EventType
-
-
-class SortOrder(StrEnum):
-    ASC = "asc"
-    DESC = "desc"
+from app.domain.enums.common import SortOrder
+from app.domain.enums.events import EventType
+from app.infrastructure.kafka.events.metadata import EventMetadata
 
 
 class EventResponse(BaseModel):
@@ -23,12 +19,12 @@ class EventResponse(BaseModel):
     event_type: EventType
     event_version: str
     timestamp: datetime
-    aggregate_id: Optional[str] = None
-    correlation_id: Optional[str] = None
-    causation_id: Optional[str] = None
+    aggregate_id: str | None = None
+    correlation_id: str | None = None
+    causation_id: str | None = None
     metadata: Dict[str, Any]
     payload: Dict[str, Any]
-    stored_at: Optional[datetime] = None
+    stored_at: datetime | None = None
 
 
 class EventListResponse(BaseModel):
@@ -41,14 +37,14 @@ class EventListResponse(BaseModel):
 
 class EventFilterRequest(BaseModel):
     """Request model for filtering events."""
-    event_types: Optional[List[EventType]] = Field(None, description="Filter by event types")
-    aggregate_id: Optional[str] = Field(None, description="Filter by aggregate ID")
-    correlation_id: Optional[str] = Field(None, description="Filter by correlation ID")
-    user_id: Optional[str] = Field(None, description="Filter by user ID (admin only)")
-    service_name: Optional[str] = Field(None, description="Filter by service name")
-    start_time: Optional[datetime] = Field(None, description="Filter events after this time")
-    end_time: Optional[datetime] = Field(None, description="Filter events before this time")
-    text_search: Optional[str] = Field(None, description="Full-text search in event data")
+    event_types: List[EventType] | None = Field(None, description="Filter by event types")
+    aggregate_id: str | None = Field(None, description="Filter by aggregate ID")
+    correlation_id: str | None = Field(None, description="Filter by correlation ID")
+    user_id: str | None = Field(None, description="Filter by user ID (admin only)")
+    service_name: str | None = Field(None, description="Filter by service name")
+    start_time: datetime | None = Field(None, description="Filter events after this time")
+    end_time: datetime | None = Field(None, description="Filter events before this time")
+    text_search: str | None = Field(None, description="Full-text search in event data")
     sort_by: str = Field("timestamp", description="Field to sort by")
     sort_order: SortOrder = Field(SortOrder.DESC, description="Sort order")
     limit: int = Field(100, ge=1, le=1000, description="Maximum events to return")
@@ -79,26 +75,10 @@ class PublishEventRequest(BaseModel):
     """Request model for publishing events."""
     event_type: EventType = Field(..., description="Type of event to publish")
     payload: Dict[str, Any] = Field(..., description="Event payload data")
-    aggregate_id: Optional[str] = Field(None, description="Aggregate root ID")
-    correlation_id: Optional[str] = Field(None, description="Correlation ID")
-    causation_id: Optional[str] = Field(None, description="ID of causing event")
-    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
-
-
-class EventMetadata(BaseModel):
-    """Metadata for event auditing and tracing in API responses."""
-    user_id: Optional[str] = None
-    service_name: str
-    service_version: str
-    ip_address: Optional[str] = None
-    user_agent: Optional[str] = None
-    session_id: Optional[str] = None
-    trace_id: Optional[str] = None
-    span_id: Optional[str] = None
-
-    model_config = ConfigDict(
-        extra="allow"  # Allow additional metadata fields
-    )
+    aggregate_id: str | None = Field(None, description="Aggregate root ID")
+    correlation_id: str | None = Field(None, description="Correlation ID")
+    causation_id: str | None = Field(None, description="ID of causing event")
+    metadata: Dict[str, Any] | None = Field(None, description="Additional metadata")
 
 
 class EventBase(BaseModel):
@@ -106,10 +86,10 @@ class EventBase(BaseModel):
     event_id: str = Field(default_factory=lambda: str(uuid4()))
     event_type: EventType
     event_version: str = "1.0"
-    timestamp: float = Field(default_factory=lambda: datetime.now().timestamp())  # Unix timestamp
-    aggregate_id: Optional[str] = None
-    correlation_id: Optional[str] = None
-    causation_id: Optional[str] = None  # ID of the event that caused this event
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    aggregate_id: str | None = None
+    correlation_id: str | None = None
+    causation_id: str | None = None  # ID of the event that caused this event
     metadata: EventMetadata
     payload: Dict[str, Any]
 
@@ -143,14 +123,14 @@ class ExecutionEventPayload(BaseModel):
     """Common payload for execution-related events in API responses."""
     execution_id: str
     user_id: str
-    status: Optional[str] = None
-    script: Optional[str] = None
-    language: Optional[str] = None
-    language_version: Optional[str] = None
-    output: Optional[str] = None
-    errors: Optional[str] = None
-    exit_code: Optional[int] = None
-    duration_seconds: Optional[float] = None
+    status: str | None = None
+    script: str | None = None
+    language: str | None = None
+    language_version: str | None = None
+    output: str | None = None
+    errors: str | None = None
+    exit_code: int | None = None
+    duration_seconds: float | None = None
 
 
 class PodEventPayload(BaseModel):
@@ -158,30 +138,30 @@ class PodEventPayload(BaseModel):
     pod_name: str
     namespace: str
     execution_id: str
-    phase: Optional[str] = None
-    container_statuses: Optional[List[Dict[str, Any]]] = None
-    node_name: Optional[str] = None
-    pod_ip: Optional[str] = None
-    reason: Optional[str] = None
-    message: Optional[str] = None
+    phase: str | None = None
+    container_statuses: List[Dict[str, Any]] | None = None
+    node_name: str | None = None
+    pod_ip: str | None = None
+    reason: str | None = None
+    message: str | None = None
 
 
 class EventInDB(EventBase):
     """Event as stored in database."""
-    stored_at: float = Field(default_factory=lambda: datetime.now().timestamp())  # Unix timestamp
-    ttl_expires_at: float = Field(default_factory=lambda: datetime.now().timestamp() + (30 * 24 * 60 * 60))  # 30d TTL
+    stored_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    ttl_expires_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc) + timedelta(days=30))
 
 
 class EventQuery(BaseModel):
     """Query parameters for event search."""
-    event_types: Optional[List[EventType]] = None
-    aggregate_id: Optional[str] = None
-    correlation_id: Optional[str] = None
-    user_id: Optional[str] = None
-    service_name: Optional[str] = None
-    start_time: Optional[float] = None  # Unix timestamp
-    end_time: Optional[float] = None  # Unix timestamp
-    text_search: Optional[str] = None
+    event_types: List[EventType] | None = None
+    aggregate_id: str | None = None
+    correlation_id: str | None = None
+    user_id: str | None = None
+    service_name: str | None = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
+    text_search: str | None = None
     limit: int = Field(default=100, ge=1, le=1000)
     skip: int = Field(default=0, ge=0)
 
@@ -205,7 +185,8 @@ class EventStatistics(BaseModel):
     events_by_type: Dict[str, int]
     events_by_service: Dict[str, int]
     events_by_hour: List[Dict[str, Any]]
-    time_range: Optional[Dict[str, datetime]] = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -232,12 +213,12 @@ class EventStatistics(BaseModel):
 class EventProjection(BaseModel):
     """Configuration for event projections."""
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     source_events: List[EventType]  # Event types to include
     aggregation_pipeline: List[Dict[str, Any]]
     output_collection: str
     refresh_interval_seconds: int = 300  # 5 minutes default
-    last_updated: Optional[datetime] = None
+    last_updated: datetime | None = None
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -275,22 +256,23 @@ class PublishEventResponse(BaseModel):
     """Response model for publishing events"""
     event_id: str
     status: str
-    timestamp: str
+    timestamp: datetime
 
 
 class DeleteEventResponse(BaseModel):
     """Response model for deleting events"""
     message: str
     event_id: str
-    deleted_at: str
+    deleted_at: datetime
 
 
 class ReplayAggregateResponse(BaseModel):
     """Response model for replaying aggregate events"""
     dry_run: bool
     aggregate_id: str
-    event_count: Optional[int] = None
-    event_types: Optional[List[str]] = None
-    time_range: Optional[Dict[str, Any]] = None
-    replayed_count: Optional[int] = None
-    replay_correlation_id: Optional[str] = None
+    event_count: int | None = None
+    event_types: List[str] | None = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
+    replayed_count: int | None = None
+    replay_correlation_id: str | None = None

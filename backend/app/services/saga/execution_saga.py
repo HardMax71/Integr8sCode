@@ -1,16 +1,13 @@
 import logging
-from datetime import UTC, datetime
 from typing import Optional
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
-
+from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
+from app.domain.enums.events import EventType
 from app.events.core.producer import UnifiedProducer
-from app.schemas_avro.event_schemas import (
-    EventType,
-    ExecutionRequestedEvent,
-    get_topic_for_event,
-)
-from app.services.saga.saga_orchestrator import BaseSaga
+from app.infrastructure.kafka.events.execution import ExecutionRequestedEvent
+from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.infrastructure.kafka.events.saga import CreatePodCommandEvent, DeletePodCommandEvent
+from app.services.saga.base_saga import BaseSaga
 from app.services.saga.saga_step import CompensationStep, SagaContext, SagaStep
 
 logger = logging.getLogger(__name__)
@@ -51,7 +48,7 @@ class ValidateExecutionStep(SagaStep[ExecutionRequestedEvent]):
             context.set_error(e)
             return False
 
-    def get_compensation(self) -> Optional[CompensationStep]:
+    def get_compensation(self) -> CompensationStep | None:
         """No compensation needed for validation"""
         return None
 
@@ -59,55 +56,39 @@ class ValidateExecutionStep(SagaStep[ExecutionRequestedEvent]):
 class AllocateResourcesStep(SagaStep[ExecutionRequestedEvent]):
     """Allocate resources for execution"""
 
-    def __init__(self) -> None:
+    def __init__(self, alloc_repo: Optional[ResourceAllocationRepository] = None) -> None:
         super().__init__("allocate_resources")
-        self.producer: Optional[UnifiedProducer] = None
-        self.db: Optional[AsyncIOMotorDatabase] = None
+        self.alloc_repo: ResourceAllocationRepository | None = alloc_repo
 
     async def execute(self, context: SagaContext, event: ExecutionRequestedEvent) -> bool:
         """Allocate computational resources"""
         try:
-            if not self.producer:
-                # Get producer from context (set by orchestrator)
-                self.producer = context.get("_producer")
-                if self.producer is None:
-                    raise RuntimeError("Producer not available in saga context")
-            if self.db is None:
-                # Get database from context (set by orchestrator)
-                self.db = context.get("_db")
-                if self.db is None:
-                    raise RuntimeError("Database not available in saga context")
+            if self.alloc_repo is None:
+                raise RuntimeError("ResourceAllocationRepository dependency not injected")
 
             execution_id = context.get("execution_id")
             logger.info(f"Allocating resources for execution {execution_id}")
 
             # Check resource availability
-            allocations_collection = self.db.resource_allocations
-
             # Count current allocations
-            active_count = await allocations_collection.count_documents({
-                "status": "active",
-                "language": event.language
-            })
+            active_count = await self.alloc_repo.count_active(event.language)
 
             # Simple resource limit check (e.g., max 100 concurrent per language)
             if active_count >= 100:
                 raise ValueError("Resource limit exceeded")
 
-            # Create allocation record
-            allocation = {
-                "_id": execution_id,
-                "execution_id": execution_id,
-                "language": event.language,
-                "cpu_request": event.cpu_request,
-                "memory_request": event.memory_request,
-                "cpu_limit": event.cpu_limit,
-                "memory_limit": event.memory_limit,
-                "status": "active",
-                "allocated_at": datetime.now(UTC),
-            }
-
-            await allocations_collection.insert_one(allocation)
+            # Create allocation record via repository
+            ok = await self.alloc_repo.create_allocation(
+                execution_id,
+                execution_id=execution_id,
+                language=event.language,
+                cpu_request=event.cpu_request,
+                memory_request=event.memory_request,
+                cpu_limit=event.cpu_limit,
+                memory_limit=event.memory_limit,
+            )
+            if not ok:
+                raise RuntimeError("Failed to persist resource allocation")
 
             context.set("allocation_id", execution_id)
             context.set("resources_allocated", True)
@@ -119,9 +100,9 @@ class AllocateResourcesStep(SagaStep[ExecutionRequestedEvent]):
             context.set_error(e)
             return False
 
-    def get_compensation(self) -> Optional[CompensationStep]:
+    def get_compensation(self) -> CompensationStep | None:
         """Return compensation to release resources"""
-        return ReleaseResourcesCompensation()
+        return ReleaseResourcesCompensation(alloc_repo=self.alloc_repo)
 
 
 class QueueExecutionStep(SagaStep[ExecutionRequestedEvent]):
@@ -129,17 +110,10 @@ class QueueExecutionStep(SagaStep[ExecutionRequestedEvent]):
 
     def __init__(self) -> None:
         super().__init__("queue_execution")
-        self.producer: Optional[UnifiedProducer] = None
 
     async def execute(self, context: SagaContext, event: ExecutionRequestedEvent) -> bool:
         """Queue execution"""
         try:
-            if not self.producer:
-                # Get producer from context (set by orchestrator)
-                self.producer = context.get("_producer")
-                if self.producer is None:
-                    raise RuntimeError("Producer not available in saga context")
-
             execution_id = context.get("execution_id")
             logger.info(f"Queueing execution {execution_id}")
 
@@ -155,7 +129,7 @@ class QueueExecutionStep(SagaStep[ExecutionRequestedEvent]):
             context.set_error(e)
             return False
 
-    def get_compensation(self) -> Optional[CompensationStep]:
+    def get_compensation(self) -> CompensationStep | None:
         """Return compensation to remove from queue"""
         return RemoveFromQueueCompensation()
 
@@ -163,26 +137,61 @@ class QueueExecutionStep(SagaStep[ExecutionRequestedEvent]):
 class CreatePodStep(SagaStep[ExecutionRequestedEvent]):
     """Create Kubernetes pod"""
 
-    def __init__(self) -> None:
+    def __init__(self, producer: Optional[UnifiedProducer] = None, publish_commands: Optional[bool] = None) -> None:
         super().__init__("create_pod")
-        self.producer: Optional[UnifiedProducer] = None
+        self.producer: UnifiedProducer | None = producer
+        self.publish_commands: Optional[bool] = publish_commands
 
     async def execute(self, context: SagaContext, event: ExecutionRequestedEvent) -> bool:
-        """Trigger pod creation"""
+        """Trigger pod creation by publishing CreatePodCommandEvent"""
         try:
-            if not self.producer:
-                # Get producer from context (set by orchestrator)
-                self.producer = context.get("_producer")
-                if self.producer is None:
-                    raise RuntimeError("Producer not available in saga context")
-
             execution_id = context.get("execution_id")
-            logger.info(f"Triggering pod creation for execution {execution_id}")
+            saga_id = context.saga_id
+            logger.info(f"Publishing CreatePodCommandEvent for execution {execution_id}")
 
-            # The actual pod creation is handled by KubernetesWorker
-            # This step just ensures the event flow continues
+            # Allow deployments where coordinator publishes commands to avoid duplicates
+            publish_commands: bool = bool(self.publish_commands)
+            if not publish_commands:
+                logger.info(
+                    f"Skipping CreatePodCommandEvent publish for execution {execution_id} "
+                    f"because publish_commands flag is disabled"
+                )
+                context.set("pod_creation_triggered", False)
+                return True
+
+            # Create the command event for K8sWorker
+            create_pod_cmd = CreatePodCommandEvent(
+                saga_id=saga_id,
+                execution_id=execution_id,
+                script=event.script,
+                language=event.language,
+                language_version=event.language_version,
+                runtime_image=event.runtime_image,
+                runtime_command=event.runtime_command,
+                runtime_filename=event.runtime_filename,
+                timeout_seconds=event.timeout_seconds,
+                cpu_limit=event.cpu_limit,
+                memory_limit=event.memory_limit,
+                cpu_request=event.cpu_request,
+                memory_request=event.memory_request,
+                priority=event.priority,
+                metadata=EventMetadata(
+                    service_name="saga-orchestrator",
+                    service_version="1.0.0",
+                    user_id=event.metadata.user_id if event.metadata else "system"
+                )
+            )
+
+            # Publish command to saga_commands topic
+            if not self.producer:
+                raise RuntimeError("Producer dependency not injected")
+            await self.producer.produce(
+                event_to_produce=create_pod_cmd,
+                key=execution_id
+            )
 
             context.set("pod_creation_triggered", True)
+            logger.info(f"CreatePodCommandEvent published for execution {execution_id}")
 
             return True
 
@@ -191,9 +200,9 @@ class CreatePodStep(SagaStep[ExecutionRequestedEvent]):
             context.set_error(e)
             return False
 
-    def get_compensation(self) -> Optional[CompensationStep]:
+    def get_compensation(self) -> CompensationStep | None:
         """Return compensation to delete pod"""
-        return DeletePodCompensation()
+        return DeletePodCompensation(producer=self.producer)
 
 
 class MonitorExecutionStep(SagaStep[ExecutionRequestedEvent]):
@@ -220,7 +229,7 @@ class MonitorExecutionStep(SagaStep[ExecutionRequestedEvent]):
             context.set_error(e)
             return False
 
-    def get_compensation(self) -> Optional[CompensationStep]:
+    def get_compensation(self) -> CompensationStep | None:
         """No compensation needed for monitoring"""
         return None
 
@@ -230,18 +239,15 @@ class MonitorExecutionStep(SagaStep[ExecutionRequestedEvent]):
 class ReleaseResourcesCompensation(CompensationStep):
     """Release allocated resources"""
 
-    def __init__(self) -> None:
+    def __init__(self, alloc_repo: Optional[ResourceAllocationRepository] = None) -> None:
         super().__init__("release_resources")
-        self.db: Optional[AsyncIOMotorDatabase] = None
+        self.alloc_repo: ResourceAllocationRepository | None = alloc_repo
 
     async def compensate(self, context: SagaContext) -> bool:
         """Release allocated resources"""
         try:
-            if self.db is None:
-                # Get database from context (set by orchestrator)
-                self.db = context.get("_db")
-                if self.db is None:
-                    raise RuntimeError("Database not available in saga context")
+            if self.alloc_repo is None:
+                raise RuntimeError("ResourceAllocationRepository dependency not injected")
 
             allocation_id = context.get("allocation_id")
             if not allocation_id:
@@ -249,17 +255,7 @@ class ReleaseResourcesCompensation(CompensationStep):
 
             logger.info(f"Releasing resources for allocation {allocation_id}")
 
-            allocations_collection = self.db.resource_allocations
-
-            await allocations_collection.update_one(
-                {"_id": allocation_id},
-                {
-                    "$set": {
-                        "status": "released",
-                        "released_at": datetime.now(UTC),
-                    }
-                }
-            )
+            await self.alloc_repo.release_allocation(allocation_id)
 
             return True
 
@@ -271,19 +267,13 @@ class ReleaseResourcesCompensation(CompensationStep):
 class RemoveFromQueueCompensation(CompensationStep):
     """Remove execution from queue"""
 
-    def __init__(self) -> None:
+    def __init__(self, producer: Optional[UnifiedProducer] = None) -> None:
         super().__init__("remove_from_queue")
-        self.producer: Optional[UnifiedProducer] = None
+        self.producer: UnifiedProducer | None = producer
 
     async def compensate(self, context: SagaContext) -> bool:
         """Remove from execution queue"""
         try:
-            if not self.producer:
-                # Get producer from context (set by orchestrator)
-                self.producer = context.get("_producer")
-                if self.producer is None:
-                    raise RuntimeError("Producer not available in saga context")
-
             execution_id = context.get("execution_id")
             if not execution_id or not context.get("queued"):
                 return True
@@ -303,51 +293,41 @@ class RemoveFromQueueCompensation(CompensationStep):
 class DeletePodCompensation(CompensationStep):
     """Delete created pod"""
 
-    def __init__(self) -> None:
+    def __init__(self, producer: Optional[UnifiedProducer] = None) -> None:
         super().__init__("delete_pod")
-        self.producer: Optional[UnifiedProducer] = None
+        self.producer: UnifiedProducer | None = producer
 
     async def compensate(self, context: SagaContext) -> bool:
         """Delete Kubernetes pod"""
         try:
-            if not self.producer:
-                # Get producer from context (set by orchestrator)
-                self.producer = context.get("_producer")
-                if self.producer is None:
-                    raise RuntimeError("Producer not available in saga context")
-
             execution_id = context.get("execution_id")
             if not execution_id or not context.get("pod_creation_triggered"):
                 return True
 
-            logger.info(f"Triggering pod deletion for execution {execution_id}")
+            saga_id = context.saga_id
+            logger.info(f"Publishing DeletePodCommandEvent for execution {execution_id}")
 
-            # Publish execution cancelled event which will trigger pod cleanup
-            from app.schemas_avro.event_schemas import (
-                EventMetadata,
-                EventType,
-                ExecutionCancelledEvent,
-                get_topic_for_event,
-            )
-            
-            cancellation_event = ExecutionCancelledEvent(
+            if not self.producer:
+                raise RuntimeError("Producer dependency not injected")
+
+            # Publish DeletePodCommandEvent for K8sWorker
+            delete_pod_cmd = DeletePodCommandEvent(
+                saga_id=saga_id,
                 execution_id=execution_id,
-                reason="Saga cancellation or compensation",
+                reason="Saga compensation due to failure",
                 metadata=EventMetadata(
                     service_name="saga-orchestrator",
                     service_version="1.0.0",
                     user_id=context.get("user_id", "system")
                 )
             )
-            
-            topic = get_topic_for_event(EventType.EXECUTION_CANCELLED)
-            await self.producer.send_event(
-                cancellation_event,
-                str(topic),
+
+            await self.producer.produce(
+                event_to_produce=delete_pod_cmd,
                 key=execution_id
             )
             
-            logger.info(f"Published execution cancelled event for {execution_id}")
+            logger.info(f"DeletePodCommandEvent published for {execution_id}")
             return True
 
         except Exception as e:
@@ -364,16 +344,30 @@ class ExecutionSaga(BaseSaga):
         return "execution_saga"
 
     @classmethod
-    def get_trigger_events(cls) -> list[str]:
+    def get_trigger_events(cls) -> list[EventType]:
         """Get events that trigger this saga"""
-        return [str(get_topic_for_event(EventType.EXECUTION_REQUESTED))]
+        return [EventType.EXECUTION_REQUESTED]
 
     def get_steps(self) -> list[SagaStep]:
         """Get saga steps in order"""
+        alloc_repo = getattr(self, "_alloc_repo", None)
+        producer = getattr(self, "_producer", None)
+        publish_commands = bool(getattr(self, "_publish_commands", False))
         return [
             ValidateExecutionStep(),
-            AllocateResourcesStep(),
+            AllocateResourcesStep(alloc_repo=alloc_repo),
             QueueExecutionStep(),
-            CreatePodStep(),
+            CreatePodStep(producer=producer, publish_commands=publish_commands),
             MonitorExecutionStep(),
         ]
+
+    def bind_dependencies(self, **kwargs: object) -> None:
+        producer = kwargs.get("producer")
+        alloc_repo = kwargs.get("alloc_repo")
+        publish_commands = kwargs.get("publish_commands")
+        if isinstance(producer, UnifiedProducer):
+            self._producer = producer
+        if isinstance(alloc_repo, ResourceAllocationRepository):
+            self._alloc_repo = alloc_repo
+        if isinstance(publish_commands, bool):
+            self._publish_commands = publish_commands

@@ -1,6 +1,5 @@
-"""Pydantic schemas for SSE endpoints."""
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from pydantic import BaseModel, Field
 
@@ -25,26 +24,26 @@ class SSEHealthResponse(BaseModel):
 
 class ExecutionStreamEvent(BaseModel):
     """Model for execution stream events."""
-    event_id: Optional[str] = Field(None, description="Unique event identifier")
-    timestamp: Optional[str] = Field(None, description="Event timestamp")
-    type: Optional[str] = Field(None, description="Event type")
+    event_id: str | None = Field(None, description="Unique event identifier")
+    timestamp: datetime | None = Field(None, description="Event timestamp")
+    type: str | None = Field(None, description="Event type")
     execution_id: str = Field(description="Execution ID")
-    status: Optional[str] = Field(None, description="Execution status")
+    status: str | None = Field(None, description="Execution status")
     payload: Dict[str, Any] = Field(default_factory=dict, description="Event payload")
-    output: Optional[str] = Field(None, description="Execution output")
-    errors: Optional[str] = Field(None, description="Execution errors")
+    output: str | None = Field(None, description="Execution output")
+    errors: str | None = Field(None, description="Execution errors")
 
 
 class NotificationStreamEvent(BaseModel):
     """Model for notification stream events."""
     message: str = Field(description="Notification message")
     user_id: str = Field(description="User ID")
-    timestamp: str = Field(description="Event timestamp")
+    timestamp: datetime = Field(description="Event timestamp")
 
 
 class HeartbeatEvent(BaseModel):
     """Model for heartbeat events."""
-    timestamp: str = Field(description="Heartbeat timestamp")
-    execution_id: Optional[str] = Field(None, description="Associated execution ID")
-    user_id: Optional[str] = Field(None, description="Associated user ID")
-    message: Optional[str] = Field(None, description="Optional heartbeat message")
+    timestamp: datetime = Field(description="Heartbeat timestamp")
+    execution_id: str | None = Field(None, description="Associated execution ID")
+    user_id: str | None = Field(None, description="Associated user ID")
+    message: str | None = Field(None, description="Optional heartbeat message")

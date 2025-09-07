@@ -1,112 +1,94 @@
-from typing import Optional
-
+from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, Query
 
-from app.api.dependencies import require_admin
-from app.core.service_dependencies import ReplayRepositoryDep
+from app.api.dependencies import require_admin_guard
+from app.core.service_dependencies import FromDishka
+from app.domain.enums.replay import ReplayStatus
+from app.infrastructure.mappers.replay_api_mapper import ReplayApiMapper
 from app.schemas_pydantic.replay import (
     CleanupResponse,
     ReplayRequest,
     ReplayResponse,
     SessionSummary,
 )
-from app.services.event_replay import ReplaySession, ReplayStatus
+from app.schemas_pydantic.replay_models import ReplaySession
+from app.services.replay_service import ReplayService
 
-router = APIRouter(prefix="/replay", tags=["Event Replay"])
+router = APIRouter(prefix="/replay",
+                   tags=["Event Replay"],
+                   route_class=DishkaRoute,
+                   dependencies=[Depends(require_admin_guard)])
 
 
 @router.post("/sessions", response_model=ReplayResponse)
 async def create_replay_session(
-        request: ReplayRequest,
-        repository: ReplayRepositoryDep,
-        current_user: dict = Depends(require_admin),
+        replay_request: ReplayRequest,
+        service: FromDishka[ReplayService],
 ) -> ReplayResponse:
-    """Create a new replay session"""
-    return await repository.create_session(
-        replay_type=request.replay_type,
-        target=request.target,
-        execution_id=request.execution_id,
-        event_types=request.event_types,
-        start_time=request.start_time,
-        end_time=request.end_time,
-        user_id=request.user_id,
-        service_name=request.service_name,
-        speed_multiplier=request.speed_multiplier,
-        preserve_timestamps=request.preserve_timestamps,
-        batch_size=request.batch_size,
-        max_events=request.max_events,
-        skip_errors=request.skip_errors,
-        target_file_path=request.target_file_path,
-        current_user=current_user
-    )
+    cfg = ReplayApiMapper.request_to_config(replay_request)
+    result = await service.create_session(cfg)
+    return ReplayApiMapper.op_to_response(result.session_id, result.status, result.message)
 
 
 @router.post("/sessions/{session_id}/start", response_model=ReplayResponse)
 async def start_replay_session(
         session_id: str,
-        repository: ReplayRepositoryDep,
-        current_user: dict = Depends(require_admin)
+        service: FromDishka[ReplayService],
 ) -> ReplayResponse:
-    """Start a replay session"""
-    return await repository.start_session(session_id)
+    result = await service.start_session(session_id)
+    return ReplayApiMapper.op_to_response(result.session_id, result.status, result.message)
 
 
 @router.post("/sessions/{session_id}/pause", response_model=ReplayResponse)
 async def pause_replay_session(
         session_id: str,
-        repository: ReplayRepositoryDep,
-        current_user: dict = Depends(require_admin)
+        service: FromDishka[ReplayService],
 ) -> ReplayResponse:
-    """Pause a running replay session"""
-    return await repository.pause_session(session_id)
+    result = await service.pause_session(session_id)
+    return ReplayApiMapper.op_to_response(result.session_id, result.status, result.message)
 
 
 @router.post("/sessions/{session_id}/resume", response_model=ReplayResponse)
 async def resume_replay_session(
         session_id: str,
-        repository: ReplayRepositoryDep,
-        current_user: dict = Depends(require_admin)
+        service: FromDishka[ReplayService]
 ) -> ReplayResponse:
-    """Resume a paused replay session"""
-    return await repository.resume_session(session_id)
+    result = await service.resume_session(session_id)
+    return ReplayApiMapper.op_to_response(result.session_id, result.status, result.message)
 
 
 @router.post("/sessions/{session_id}/cancel", response_model=ReplayResponse)
 async def cancel_replay_session(
         session_id: str,
-        repository: ReplayRepositoryDep,
-        current_user: dict = Depends(require_admin)
+        service: FromDishka[ReplayService]
 ) -> ReplayResponse:
-    """Cancel a replay session"""
-    return await repository.cancel_session(session_id)
+    result = await service.cancel_session(session_id)
+    return ReplayApiMapper.op_to_response(result.session_id, result.status, result.message)
 
 
 @router.get("/sessions", response_model=list[SessionSummary])
 async def list_replay_sessions(
-        repository: ReplayRepositoryDep,
-        status: Optional[ReplayStatus] = Query(None),
+        service: FromDishka[ReplayService],
+        status: ReplayStatus | None = Query(None),
         limit: int = Query(100, ge=1, le=1000),
-        current_user: dict = Depends(require_admin)
 ) -> list[SessionSummary]:
-    """list replay sessions with optional filtering"""
-    return repository.list_sessions(status=status, limit=limit)
+    states = service.list_sessions(status=status, limit=limit)
+    return [ReplayApiMapper.session_to_summary(s) for s in states]
 
 
 @router.get("/sessions/{session_id}", response_model=ReplaySession)
 async def get_replay_session(
         session_id: str,
-        repository: ReplayRepositoryDep,
-        current_user: dict = Depends(require_admin)
+        service: FromDishka[ReplayService]
 ) -> ReplaySession:
-    """Get details of a specific replay session"""
-    return repository.get_session(session_id)
+    state = service.get_session(session_id)
+    return ReplayApiMapper.session_to_response(state)
 
 
 @router.post("/cleanup", response_model=CleanupResponse)
 async def cleanup_old_sessions(
-        repository: ReplayRepositoryDep,
+        service: FromDishka[ReplayService],
         older_than_hours: int = Query(24, ge=1),
-        current_user: dict = Depends(require_admin)
 ) -> CleanupResponse:
-    """Clean up old replay sessions"""
-    return await repository.cleanup_old_sessions(older_than_hours)
+    result = await service.cleanup_old_sessions(older_than_hours)
+    return ReplayApiMapper.cleanup_to_response(result.removed_sessions, result.message)

@@ -1,14 +1,13 @@
-"""Dead Letter Queue processor worker"""
-
 import asyncio
 import signal
 import sys
 from typing import Any, Optional
 
-from app.config import get_settings
 from app.core.logging import logger
-from app.dlq.manager import DLQManager, DLQMessage, RetryPolicy, RetryStrategy
-from prometheus_client import start_http_server
+from app.dlq.manager import DLQManager, DLQMessage, RetryPolicy, RetryStrategy, create_dlq_manager
+from app.domain.enums.kafka import KafkaTopic
+from app.settings import get_settings
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 
 
 class DLQProcessor:
@@ -18,14 +17,29 @@ class DLQProcessor:
         self.dlq_manager: Optional[DLQManager] = None
         self._shutdown_event = asyncio.Event()
         self.settings = get_settings()
+        self.database: Optional[AsyncIOMotorDatabase] = None
 
     async def start(self) -> None:
         """Start DLQ processor"""
         logger.info("Starting DLQ processor...")
 
-        # Initialize DLQ manager
-        self.dlq_manager = DLQManager(
-            dlq_topic=self.settings.KAFKA_DLQ_TOPIC,
+        # Create database connection
+        db_client: AsyncIOMotorClient = AsyncIOMotorClient(
+            self.settings.MONGODB_URL,
+            tz_aware=True,
+            serverSelectionTimeoutMS=5000
+        )
+        db_name = self.settings.PROJECT_NAME + "_test" if self.settings.TESTING else self.settings.PROJECT_NAME
+        self.database = db_client[db_name]
+
+        # Verify connection
+        await db_client.admin.command("ping")
+        logger.info(f"Connected to database: {db_name}")
+
+        # Initialize DLQ manager with database and metrics
+        self.dlq_manager = create_dlq_manager(
+            database=self.database,
+            dlq_topic=KafkaTopic.DEAD_LETTER_QUEUE,
             retry_topic_suffix="-retry"
         )
 
@@ -40,9 +54,6 @@ class DLQProcessor:
 
         # Start DLQ manager
         await self.dlq_manager.start()
-
-        # Start metrics server
-        start_http_server(9096)
 
         logger.info("DLQ processor started successfully")
 

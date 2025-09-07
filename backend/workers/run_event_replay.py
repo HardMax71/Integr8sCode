@@ -1,12 +1,15 @@
 import asyncio
 import logging
 
-from app.config import get_settings
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
-from app.events.core.producer import create_unified_producer
-from app.events.store.event_store import create_event_store
+from app.db.repositories.replay_repository import ReplayRepository
+from app.db.schema.schema_manager import SchemaManager
+from app.events.core.producer import ProducerConfig, UnifiedProducer
+from app.events.event_store import create_event_store
+from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.event_replay.replay_service import EventReplayService
+from app.settings import get_settings
 from motor.motor_asyncio import AsyncIOMotorClient
 
 
@@ -43,21 +46,33 @@ async def run_replay_service() -> None:
     await db_client.admin.command("ping")
     logger.info(f"Connected to database: {db_name}")
 
+    # Ensure DB schema
+    await SchemaManager(database).apply_all()
+
     # Initialize services
-    producer = create_unified_producer()
+    schema_registry = SchemaRegistryManager()
+    producer_config = ProducerConfig(
+        bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS
+    )
+    producer = UnifiedProducer(producer_config, schema_registry)
     await producer.start()
-    
+
     # Create event store
-    event_store = create_event_store(database)
-    await event_store.initialize()
-    
+    event_store = create_event_store(db=database, schema_registry=schema_registry)
+
+    # Ensure schema (indexes) for this worker process
+    schema_manager = SchemaManager(database)
+    await schema_manager.apply_all()
+
+    # Create repository
+    replay_repository = ReplayRepository(database)
+
     # Create replay service
     replay_service = EventReplayService(
-        database=database,
+        repository=replay_repository,
         producer=producer,
         event_store=event_store
     )
-    await replay_service.initialize_indexes()
     logger.info("Event replay service initialized")
 
     # Start cleanup task

@@ -1,12 +1,10 @@
-"""Replay schemas for event replay functionality"""
-
 from datetime import datetime
-from typing import List, Optional
+from typing import List
 
 from pydantic import BaseModel, Field
 
-from app.schemas_avro.event_schemas import EventType
-from app.services.event_replay import ReplayStatus, ReplayTarget, ReplayType
+from app.domain.enums.events import EventType
+from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
 
 
 class ReplayRequest(BaseModel):
@@ -15,20 +13,20 @@ class ReplayRequest(BaseModel):
     target: ReplayTarget = ReplayTarget.KAFKA
 
     # Filter options
-    execution_id: Optional[str] = None
-    event_types: Optional[List[EventType]] = None
-    start_time: Optional[datetime] = None
-    end_time: Optional[datetime] = None
-    user_id: Optional[str] = None
-    service_name: Optional[str] = None
+    execution_id: str | None = None
+    event_types: List[EventType] | None = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
+    user_id: str | None = None
+    service_name: str | None = None
 
     # Replay configuration
     speed_multiplier: float = Field(default=1.0, ge=0.1, le=100.0)
     preserve_timestamps: bool = False
     batch_size: int = Field(default=100, ge=1, le=1000)
-    max_events: Optional[int] = Field(default=None, ge=1)
+    max_events: int | None = Field(default=None, ge=1)
     skip_errors: bool = True
-    target_file_path: Optional[str] = None
+    target_file_path: str | None = None
 
 
 class ReplayResponse(BaseModel):
@@ -49,10 +47,10 @@ class SessionSummary(BaseModel):
     failed_events: int
     skipped_events: int
     created_at: datetime
-    started_at: Optional[datetime]
-    completed_at: Optional[datetime]
-    duration_seconds: Optional[float] = None
-    throughput_events_per_second: Optional[float] = None
+    started_at: datetime | None
+    completed_at: datetime | None
+    duration_seconds: float | None = None
+    throughput_events_per_second: float | None = None
 
 
 class CleanupResponse(BaseModel):

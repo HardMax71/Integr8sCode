@@ -1,249 +1,92 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
-from slowapi import Limiter
-from slowapi.util import get_remote_address
+from dishka import FromDishka
+from dishka.integrations.fastapi import DishkaRoute
+from fastapi import APIRouter, Depends, Request
 
-from app.api.dependencies import get_current_user
-from app.core.logging import logger
-from app.core.security import validate_csrf_token
-from app.core.service_dependencies import SavedScriptServiceDep
+from app.api.dependencies import AuthService
+from app.api.rate_limit import DynamicRateLimiter
+from app.infrastructure.mappers.saved_script_api_mapper import SavedScriptApiMapper
 from app.schemas_pydantic.saved_script import (
-    SavedScriptCreate,
     SavedScriptCreateRequest,
-    SavedScriptInDB,
     SavedScriptResponse,
-    SavedScriptUpdate,
 )
-from app.schemas_pydantic.user import UserResponse
+from app.services.saved_script_service import SavedScriptService
 
-router = APIRouter()
-limiter = Limiter(key_func=get_remote_address)
-
-USER_NOT_FOUND: str = "User not found"
-SCRIPT_NOT_FOUND: str = "Script not found"
+router = APIRouter(route_class=DishkaRoute)
 
 
-def get_validated_user(
-        current_user: UserResponse = Depends(get_current_user),
-) -> UserResponse:
-    if not current_user.user_id:
-        raise HTTPException(status_code=404, detail=USER_NOT_FOUND)
-    return current_user
-
-
-async def get_script_or_404(
-        script_id: str,
-        saved_script_service: SavedScriptServiceDep,
-        current_user: UserResponse = Depends(get_validated_user),
-) -> SavedScriptInDB:
-    script_in_db = await saved_script_service.get_saved_script(script_id, current_user.user_id)
-    if not script_in_db:
-        logger.warning(
-            "Script not found for user",
-            extra={"user_id": current_user.user_id, "script_id": script_id},
-        )
-        raise HTTPException(status_code=404, detail=SCRIPT_NOT_FOUND)
-    return script_in_db
-
-
-@router.post("/scripts", response_model=SavedScriptResponse)
-@limiter.limit("20/minute")
+@router.post("/scripts", response_model=SavedScriptResponse, dependencies=[Depends(DynamicRateLimiter)])
 async def create_saved_script(
         request: Request,
         saved_script: SavedScriptCreateRequest,
-        saved_script_service: SavedScriptServiceDep,
-        current_user: UserResponse = Depends(get_current_user),
-        csrf_token: str = Depends(validate_csrf_token),
+        saved_script_service: FromDishka[SavedScriptService],
+        auth_service: FromDishka[AuthService],
 ) -> SavedScriptResponse:
-    logger.info(
-        "Creating new saved script",
-        extra={
-            "user_id": current_user.user_id,
-            "username": current_user.username,
-            "script_name": saved_script.name,
-            "script_length": len(saved_script.script),
-            "client_ip": get_remote_address(request),
-            "endpoint": "/scripts",
-        },
+    current_user = await auth_service.get_current_user(request)
+    create = SavedScriptApiMapper.request_to_create(saved_script)
+    domain = await saved_script_service.create_saved_script(
+        create,
+        current_user.user_id
     )
-
-    try:
-        # Convert SavedScriptCreateRequest to SavedScriptCreate
-        saved_script_create = SavedScriptCreate(
-            name=saved_script.name,
-            script=saved_script.script,
-            lang=saved_script.lang,
-            lang_version=saved_script.lang_version,
-            description=saved_script.description
-        )
-        saved_script_in_db = await saved_script_service.create_saved_script(
-            saved_script_create, current_user.user_id
-        )
-        logger.info(
-            "Successfully created saved script",
-            extra={
-                "script_id": str(saved_script_in_db.script_id),
-                "user_id": current_user.user_id,
-                "script_name": saved_script_in_db.name,
-            },
-        )
-        return SavedScriptResponse(**saved_script_in_db.model_dump())
-    except Exception as e:
-        logger.error(
-            "Failed to create saved script",
-            extra={
-                "user_id": current_user.user_id,
-                "script_name": saved_script.name,
-                "error_type": type(e).__name__,
-                "error_detail": str(e),
-            },
-        )
-        raise HTTPException(status_code=500, detail="Failed to create script") from e
+    return SavedScriptApiMapper.to_response(domain)
 
 
-@router.get("/scripts", response_model=list[SavedScriptResponse])
-@limiter.limit("20/minute")
+@router.get("/scripts", response_model=list[SavedScriptResponse], dependencies=[Depends(DynamicRateLimiter)])
 async def list_saved_scripts(
         request: Request,
-        saved_script_service: SavedScriptServiceDep,
-        current_user: UserResponse = Depends(get_validated_user),
+        saved_script_service: FromDishka[SavedScriptService],
+        auth_service: FromDishka[AuthService],
 ) -> list[SavedScriptResponse]:
-    logger.info(
-        "Listing saved scripts",
-        extra={
-            "user_id": current_user.user_id,
-            "username": current_user.username,
-            "client_ip": get_remote_address(request),
-            "endpoint": "/scripts",
-        },
-    )
-
-    try:
-        scripts_in_db = await saved_script_service.list_saved_scripts(current_user.user_id)
-        logger.info(
-            "Successfully retrieved saved scripts",
-            extra={"user_id": current_user.user_id, "script_count": len(scripts_in_db)},
-        )
-        return [SavedScriptResponse(**script.model_dump()) for script in scripts_in_db]
-    except Exception as e:
-        logger.error(
-            "Failed to list saved scripts",
-            extra={
-                "user_id": current_user.user_id,
-                "error_type": type(e).__name__,
-                "error_detail": str(e),
-            },
-        )
-        raise HTTPException(status_code=500, detail="Failed to list scripts") from e
+    current_user = await auth_service.get_current_user(request)
+    items = await saved_script_service.list_saved_scripts(current_user.user_id)
+    return SavedScriptApiMapper.list_to_response(items)
 
 
-@router.get("/scripts/{script_id}", response_model=SavedScriptResponse)
-@limiter.limit("20/minute")
+@router.get("/scripts/{script_id}", response_model=SavedScriptResponse, dependencies=[Depends(DynamicRateLimiter)])
 async def get_saved_script(
         request: Request,
-        script_in_db: SavedScriptInDB = Depends(get_script_or_404),
+        script_id: str,
+        saved_script_service: FromDishka[SavedScriptService],
+        auth_service: FromDishka[AuthService],
 ) -> SavedScriptResponse:
-    logger.info(
-        "Retrieving saved script",
-        extra={
-            "user_id": script_in_db.user_id,
-            "script_id": script_in_db.script_id,
-            "client_ip": get_remote_address(request),
-            "endpoint": f"/scripts/{script_in_db.script_id}",
-        },
+    current_user = await auth_service.get_current_user(request)
+
+    domain = await saved_script_service.get_saved_script(
+        script_id,
+        current_user.user_id
     )
-    logger.info(
-        "Successfully retrieved script",
-        extra={"script_id": script_in_db.script_id, "script_name": script_in_db.name},
-    )
-    return SavedScriptResponse(**script_in_db.model_dump())
+    return SavedScriptApiMapper.to_response(domain)
 
 
-@router.put("/scripts/{script_id}", response_model=SavedScriptResponse)
-@limiter.limit("20/minute")
+@router.put("/scripts/{script_id}", response_model=SavedScriptResponse, dependencies=[Depends(DynamicRateLimiter)])
 async def update_saved_script(
         request: Request,
         script_id: str,
         script_update: SavedScriptCreateRequest,
-        saved_script_service: SavedScriptServiceDep,
-        current_user: UserResponse = Depends(get_validated_user),
-        csrf_token: str = Depends(validate_csrf_token),
+        saved_script_service: FromDishka[SavedScriptService],
+        auth_service: FromDishka[AuthService],
 ) -> SavedScriptResponse:
-    logger.info(
-        "Updating saved script",
-        extra={
-            "user_id": current_user.user_id,
-            "script_id": script_id,
-            "script_name": script_update.name,
-            "script_length": len(script_update.script),
-            "client_ip": get_remote_address(request),
-            "endpoint": f"/scripts/{script_id}",
-        },
+    current_user = await auth_service.get_current_user(request)
+
+    update_data = SavedScriptApiMapper.request_to_update(script_update)
+    domain = await saved_script_service.update_saved_script(
+        script_id,
+        current_user.user_id,
+        update_data
     )
-
-    try:
-        update_data = SavedScriptUpdate(
-            name=script_update.name,
-            script=script_update.script,
-            description=script_update.description,
-        )
-        await saved_script_service.update_saved_script(
-            script_id, current_user.user_id, update_data
-        )
-        updated_script = await saved_script_service.get_saved_script(script_id, current_user.user_id)
-        if not updated_script:
-            raise Exception("Failed to update saved script (Updated_script = None)")
-        logger.info(
-            "Successfully updated script",
-            extra={"script_id": script_id, "script_name": updated_script.name},
-        )
-        return SavedScriptResponse(**updated_script.model_dump())
-    except Exception as e:
-        logger.error(
-            "Failed to update script",
-            extra={
-                "script_id": script_id,
-                "user_id": current_user.user_id,
-                "error_type": type(e).__name__,
-                "error_detail": str(e),
-            },
-        )
-        raise HTTPException(status_code=500, detail="Failed to update script") from e
+    return SavedScriptApiMapper.to_response(domain)
 
 
-@router.delete("/scripts/{script_id}", status_code=204)
-@limiter.limit("20/minute")
+@router.delete("/scripts/{script_id}", status_code=204, dependencies=[Depends(DynamicRateLimiter)])
 async def delete_saved_script(
         request: Request,
         script_id: str,
-        saved_script_service: SavedScriptServiceDep,
-        current_user: UserResponse = Depends(get_validated_user),
-        csrf_token: str = Depends(validate_csrf_token),
+        saved_script_service: FromDishka[SavedScriptService],
+        auth_service: FromDishka[AuthService],
 ) -> None:
-    logger.info(
-        "Deleting saved script",
-        extra={
-            "user_id": current_user.user_id,
-            "script_id": script_id,
-            "client_ip": get_remote_address(request),
-            "endpoint": f"/scripts/{script_id}",
-        },
-    )
+    current_user = await auth_service.get_current_user(request)
 
-    try:
-        await saved_script_service.delete_saved_script(script_id, current_user.user_id)
-        logger.info(
-            "Successfully deleted script",
-            extra={"script_id": script_id, "user_id": current_user.user_id},
-        )
-        return None
-    except Exception as e:
-        logger.error(
-            "Failed to delete script",
-            extra={
-                "script_id": script_id,
-                "user_id": current_user.user_id,
-                "error_type": type(e).__name__,
-                "error_detail": str(e),
-            },
-        )
-        raise HTTPException(status_code=500, detail="Failed to delete script") from e
+    await saved_script_service.delete_saved_script(
+        script_id,
+        current_user.user_id
+    )
+    return None

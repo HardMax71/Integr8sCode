@@ -4,11 +4,11 @@ import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 from app.core.logging import logger
-from app.core.metrics import Counter, Gauge, Histogram
-from app.schemas_avro.event_schemas import ExecutionRequestedEvent
+from app.core.metrics.context import get_coordinator_metrics
+from app.infrastructure.kafka.events import ExecutionRequestedEvent
 
 
 class QueuePriority(IntEnum):
@@ -46,6 +46,7 @@ class QueueManager:
             max_executions_per_user: int = 100,
             stale_timeout_seconds: int = 3600,
     ) -> None:
+        self.metrics = get_coordinator_metrics()
         self.max_queue_size = max_queue_size
         self.max_executions_per_user = max_executions_per_user
         self.stale_timeout_seconds = stale_timeout_seconds
@@ -54,33 +55,8 @@ class QueueManager:
         self._queue_lock = asyncio.Lock()
         self._user_execution_count: Dict[str, int] = defaultdict(int)
         self._execution_users: Dict[str, str] = {}
-        self._cleanup_task: Optional[asyncio.Task] = None
+        self._cleanup_task: asyncio.Task | None = None
         self._running = False
-
-        self._init_metrics()
-
-    def _init_metrics(self) -> None:
-        self.queue_size = Gauge(
-            "execution_queue_size",
-            "Current size of execution queue",
-            ["queue_name"]
-        )
-        self.queue_added = Counter(
-            "execution_queue_added_total",
-            "Total executions added to queue",
-            ["priority", "queue_name"]
-        )
-        self.queue_removed = Counter(
-            "execution_queue_removed_total",
-            "Total executions removed from queue",
-            ["reason", "queue_name"]
-        )
-        self.queue_wait_time = Histogram(
-            "execution_queue_wait_seconds",
-            "Time spent waiting in queue",
-            ["priority", "queue_name"],
-            buckets=[0.1, 0.5, 1.0, 5.0, 10.0, 30.0, 60.0, 300.0]
-        )
 
     async def start(self) -> None:
         if self._running:
@@ -108,17 +84,15 @@ class QueueManager:
     async def add_execution(
             self,
             event: ExecutionRequestedEvent,
-            priority: Optional[QueuePriority] = None
-    ) -> Tuple[bool, Optional[int], Optional[str]]:
+            priority: QueuePriority | None = None
+    ) -> Tuple[bool, int | None, str | None]:
         async with self._queue_lock:
             if len(self._queue) >= self.max_queue_size:
-                self._record_removal("queue_full")
                 return False, None, "Queue is full"
 
             user_id = event.metadata.user_id or "anonymous"
 
             if self._user_execution_count[user_id] >= self.max_executions_per_user:
-                self._record_removal("user_limit_exceeded")
                 return False, None, f"User execution limit exceeded ({self.max_executions_per_user})"
 
             if priority is None:
@@ -134,7 +108,8 @@ class QueueManager:
             self._track_execution(event.execution_id, user_id)
             position = self._get_queue_position(event.execution_id)
 
-            self._update_add_metrics(priority)
+            # Update single authoritative metric for execution request queue depth
+            self.metrics.update_execution_request_queue_size(len(self._queue))
 
             logger.info(
                 f"Added execution {event.execution_id} to queue. "
@@ -144,7 +119,7 @@ class QueueManager:
 
             return True, position, None
 
-    async def get_next_execution(self) -> Optional[ExecutionRequestedEvent]:
+    async def get_next_execution(self) -> ExecutionRequestedEvent | None:
         async with self._queue_lock:
             while self._queue:
                 queued = heapq.heappop(self._queue)
@@ -156,7 +131,8 @@ class QueueManager:
 
                 self._untrack_execution(queued.execution_id)
                 self._record_wait_time(queued)
-                self._record_removal("processed")
+                # Update metric after removal from the queue
+                self.metrics.update_execution_request_queue_size(len(self._queue))
 
                 logger.info(
                     f"Retrieved execution {queued.execution_id} from queue. "
@@ -175,14 +151,14 @@ class QueueManager:
             if len(self._queue) < initial_size:
                 heapq.heapify(self._queue)
                 self._untrack_execution(execution_id)
-                self._record_removal("cancelled")
-                self._update_queue_size()
+                # Update metric after explicit removal
+                self.metrics.update_execution_request_queue_size(len(self._queue))
                 logger.info(f"Removed execution {execution_id} from queue")
                 return True
 
             return False
 
-    async def get_queue_position(self, execution_id: str) -> Optional[int]:
+    async def get_queue_position(self, execution_id: str) -> int | None:
         async with self._queue_lock:
             return self._get_queue_position(execution_id)
 
@@ -214,20 +190,31 @@ class QueueManager:
             self,
             event: ExecutionRequestedEvent,
             increment_retry: bool = True
-    ) -> Tuple[bool, Optional[int], Optional[str]]:
+    ) -> Tuple[bool, int | None, str | None]:
+        def _next_lower(p: QueuePriority) -> QueuePriority:
+            order = [
+                QueuePriority.CRITICAL,
+                QueuePriority.HIGH,
+                QueuePriority.NORMAL,
+                QueuePriority.LOW,
+                QueuePriority.BACKGROUND,
+            ]
+            try:
+                idx = order.index(p)
+            except ValueError:
+                # Fallback: treat unknown numeric as NORMAL
+                idx = order.index(QueuePriority.NORMAL)
+            return order[min(idx + 1, len(order) - 1)]
+
         if increment_retry:
             original_priority = QueuePriority(event.priority)
-            new_priority_value = min(
-                original_priority.value + 1,
-                QueuePriority.LOW.value
-            )
-            new_priority = QueuePriority(new_priority_value)
+            new_priority = _next_lower(original_priority)
         else:
             new_priority = QueuePriority(event.priority)
 
         return await self.add_execution(event, priority=new_priority)
 
-    def _get_queue_position(self, execution_id: str) -> Optional[int]:
+    def _get_queue_position(self, execution_id: str) -> int | None:
         for position, queued in enumerate(self._queue, 1):
             if queued.execution_id == execution_id:
                 return position
@@ -248,26 +235,22 @@ class QueueManager:
                 del self._user_execution_count[user_id]
 
     def _record_removal(self, reason: str) -> None:
-        self.queue_removed.labels(
-            reason=reason,
-            queue_name="default"
-        ).inc()
+        # No-op: we keep a single queue depth metric and avoid operation counters
+        return
 
     def _record_wait_time(self, queued: QueuedExecution) -> None:
-        self.queue_wait_time.labels(
-            priority=QueuePriority(queued.priority).name,
-            queue_name="default"
-        ).observe(queued.age_seconds)
+        self.metrics.record_queue_wait_time_by_priority(
+                queued.age_seconds,
+                QueuePriority(queued.priority).name,
+                "default"
+            )
 
     def _update_add_metrics(self, priority: QueuePriority) -> None:
-        self.queue_size.labels(queue_name="default").set(len(self._queue))
-        self.queue_added.labels(
-            priority=priority.name,
-            queue_name="default"
-        ).inc()
+        # Deprecated in favor of single execution queue depth metric
+        self.metrics.update_execution_request_queue_size(len(self._queue))
 
     def _update_queue_size(self) -> None:
-        self.queue_size.labels(queue_name="default").set(len(self._queue))
+        self.metrics.update_execution_request_queue_size(len(self._queue))
 
     async def _cleanup_stale_executions(self) -> None:
         while self._running:
@@ -290,9 +273,9 @@ class QueueManager:
 
                         for queued in stale_executions:
                             self._untrack_execution(queued.execution_id)
-                            self._record_removal("stale")
 
-                        self._update_queue_size()
+                        # Update metric after stale cleanup
+                        self.metrics.update_execution_request_queue_size(len(self._queue))
                         logger.info(f"Cleaned {len(stale_executions)} stale executions from queue")
 
             except Exception as e:

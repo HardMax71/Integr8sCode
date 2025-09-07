@@ -1,9 +1,9 @@
 import asyncio
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from app.core.logging import logger
-from app.core.metrics import Gauge
+from app.core.metrics.context import get_coordinator_metrics
 
 
 @dataclass
@@ -85,6 +85,7 @@ class ResourceManager:
             total_gpu_count: int = 0,
             overcommit_factor: float = 1.2,  # Allow 20% overcommit
     ):
+        self.metrics = get_coordinator_metrics()
         self.pool = ResourcePool(
             total_cpu_cores=total_cpu_cores * overcommit_factor,
             total_memory_mb=int(total_memory_mb * overcommit_factor),
@@ -92,6 +93,18 @@ class ResourceManager:
             available_cpu_cores=total_cpu_cores * overcommit_factor,
             available_memory_mb=int(total_memory_mb * overcommit_factor),
             available_gpu_count=total_gpu_count
+        )
+
+        # Adjust minimum reserve thresholds proportionally for small pools.
+        # Keep at most 10% of total as reserve (but not higher than defaults).
+        # This avoids refusing small, reasonable allocations on modest clusters.
+        self.pool.min_available_cpu_cores = min(
+            self.pool.min_available_cpu_cores,
+            max(0.1 * self.pool.total_cpu_cores, 0.0),
+        )
+        self.pool.min_available_memory_mb = min(
+            self.pool.min_available_memory_mb,
+            max(int(0.1 * self.pool.total_memory_mb), 0),
         )
 
         # Track allocations
@@ -109,24 +122,6 @@ class ResourceManager:
             "r": ResourceAllocation(cpu_cores=1.0, memory_mb=2048),
         }
 
-        # Metrics
-        self.cpu_available = Gauge(
-            "resource_cpu_available_cores",
-            "Available CPU cores"
-        )
-        self.memory_available = Gauge(
-            "resource_memory_available_mb",
-            "Available memory in MB"
-        )
-        self.gpu_available = Gauge(
-            "resource_gpu_available_count",
-            "Available GPU count"
-        )
-        self.allocations_active = Gauge(
-            "resource_allocations_active",
-            "Number of active resource allocations"
-        )
-
         # Update initial metrics
         self._update_metrics()
 
@@ -134,10 +129,10 @@ class ResourceManager:
             self,
             execution_id: str,
             language: str,
-            requested_cpu: Optional[float] = None,
-            requested_memory_mb: Optional[int] = None,
+            requested_cpu: float | None = None,
+            requested_memory_mb: int | None = None,
             requested_gpu: int = 0
-    ) -> Optional[ResourceAllocation]:
+    ) -> ResourceAllocation | None:
         """
         Request resource allocation for execution
         
@@ -238,7 +233,7 @@ class ResourceManager:
 
             return True
 
-    async def get_allocation(self, execution_id: str) -> Optional[ResourceAllocation]:
+    async def get_allocation(self, execution_id: str) -> ResourceAllocation | None:
         """Get current allocation for execution"""
         async with self._allocation_lock:
             return self._allocations.get(execution_id)
@@ -320,8 +315,17 @@ class ResourceManager:
             return allocations
 
     def _update_metrics(self) -> None:
-        """Update Prometheus metrics"""
-        self.cpu_available.set(self.pool.available_cpu_cores)
-        self.memory_available.set(self.pool.available_memory_mb)
-        self.gpu_available.set(self.pool.available_gpu_count)
-        self.allocations_active.set(len(self._allocations))
+        """Update metrics"""
+        cpu_usage = (self.pool.total_cpu_cores - self.pool.available_cpu_cores)
+        cpu_percent = cpu_usage / self.pool.total_cpu_cores * 100
+        self.metrics.update_resource_usage("cpu", cpu_percent)
+        
+        memory_usage = self.pool.total_memory_mb - self.pool.available_memory_mb
+        memory_percent = memory_usage / self.pool.total_memory_mb * 100
+        self.metrics.update_resource_usage("memory", memory_percent)
+        
+        gpu_usage = self.pool.total_gpu_count - self.pool.available_gpu_count
+        gpu_percent = gpu_usage / max(1, self.pool.total_gpu_count) * 100
+        self.metrics.update_resource_usage("gpu", gpu_percent)
+        
+        self.metrics.update_coordinator_active_executions(len(self._allocations))

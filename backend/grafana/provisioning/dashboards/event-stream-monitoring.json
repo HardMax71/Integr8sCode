@@ -19,7 +19,44 @@
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
   "id": null,
-  "links": [],
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": true,
+      "title": "System Overview",
+      "tooltip": "View system overview dashboard",
+      "type": "link",
+      "url": "/d/integr8scode-main"
+    },
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": true,
+      "title": "Kafka Monitoring",
+      "tooltip": "View Kafka metrics",
+      "type": "link",
+      "url": "/d/kafka-events-monitoring"
+    },
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": true,
+      "title": "Rate Limiting",
+      "tooltip": "View rate limiting metrics",
+      "type": "link",
+      "url": "/d/rate-limiting"
+    }
+  ],
   "panels": [
     {
       "collapsed": false,
@@ -35,10 +72,7 @@
       "type": "row"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
+      "datasource": "Victoria Metrics",
       "description": "Current number of active SSE connections",
       "fieldConfig": {
         "defaults": {
@@ -68,8 +102,8 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 6,
+        "h": 6,
+        "w": 4,
         "x": 0,
         "y": 1
       },
@@ -90,12 +124,9 @@
       "pluginVersion": "10.2.0",
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
+          "datasource": "Victoria Metrics",
           "editorMode": "code",
-          "expr": "sum(sse_active_connections)",
+          "expr": "sum(sse_connections_active)",
           "instant": false,
           "legendFormat": "Active Connections",
           "range": true,
@@ -106,11 +137,138 @@
       "type": "stat"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+      "datasource": "Victoria Metrics",
+      "description": "Number of SSE connections being drained during shutdown",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 10
+              },
+              {
+                "color": "red",
+                "value": 50
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
       },
-      "description": "Total events published per second across all types",
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "id": 52,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "10.2.0",
+      "targets": [
+        {
+          "datasource": "Victoria Metrics",
+          "editorMode": "code",
+          "expr": "sse_connections_draining",
+          "instant": false,
+          "legendFormat": "Draining",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Draining Connections",
+      "type": "stat"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "description": "Total events currently buffered",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1000
+              },
+              {
+                "color": "red",
+                "value": 5000
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
+      "id": 53,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "10.2.0",
+      "targets": [
+        {
+          "datasource": "Victoria Metrics",
+          "editorMode": "code",
+          "expr": "event_buffer_size",
+          "instant": false,
+          "legendFormat": "Buffered Events",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Events in Buffer",
+      "type": "stat"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "description": "Total event publishing rate",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -162,12 +320,12 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
+        "h": 6,
         "w": 6,
-        "x": 6,
+        "x": 12,
         "y": 1
       },
-      "id": 52,
+      "id": 54,
       "options": {
         "legend": {
           "calcs": ["mean", "max"],
@@ -182,14 +340,11 @@
       },
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
+          "datasource": "Victoria Metrics",
           "editorMode": "code",
           "expr": "sum(rate(events_published_total[1m]))",
           "instant": false,
-          "legendFormat": "Total Event Rate",
+          "legendFormat": "Event Rate",
           "range": true,
           "refId": "A"
         }
@@ -198,82 +353,8 @@
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "description": "Number of events currently in buffers",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 1000
-              },
-              {
-                "color": "red",
-                "value": 5000
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 6,
-        "x": 12,
-        "y": 1
-      },
-      "id": 53,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "10.2.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "editorMode": "code",
-          "expr": "sum(event_buffer_size)",
-          "instant": false,
-          "legendFormat": "Buffered Events",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Events in Buffer",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "description": "Percentage of events successfully delivered vs dropped",
+      "datasource": "Victoria Metrics",
+      "description": "Event delivery success rate",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -304,12 +385,12 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
+        "h": 6,
         "w": 6,
         "x": 18,
         "y": 1
       },
-      "id": 54,
+      "id": 55,
       "options": {
         "minVizHeight": 75,
         "minVizWidth": 75,
@@ -326,19 +407,16 @@
       "pluginVersion": "10.2.0",
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
+          "datasource": "Victoria Metrics",
           "editorMode": "code",
-          "expr": "(sum(rate(event_buffer_processed_total[5m])) / (sum(rate(event_buffer_processed_total[5m])) + sum(rate(event_buffer_dropped_total[5m])))) * 100",
+          "expr": "100 - (sum(rate(event_buffer_dropped_total[5m])) / (sum(rate(event_buffer_processed_total[5m])) + 0.0001) * 100)",
           "instant": false,
           "legendFormat": "Delivery Rate",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Event Delivery Success Rate",
+      "title": "Event Delivery Success",
       "type": "gauge"
     },
     {
@@ -347,19 +425,16 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 9
+        "y": 7
       },
-      "id": 55,
+      "id": 56,
       "panels": [],
       "title": "SSE Connection Details",
       "type": "row"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "description": "Active SSE connections by endpoint over time",
+      "datasource": "Victoria Metrics",
+      "description": "SSE connections by endpoint over time",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -368,7 +443,7 @@
           "custom": {
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "",
+            "axisLabel": "Connections",
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
@@ -412,11 +487,11 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 8,
         "x": 0,
-        "y": 10
+        "y": 8
       },
-      "id": 56,
+      "id": 57,
       "options": {
         "legend": {
           "calcs": ["mean", "max", "lastNotNull"],
@@ -431,12 +506,9 @@
       },
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
+          "datasource": "Victoria Metrics",
           "editorMode": "code",
-          "expr": "sse_active_connections",
+          "expr": "sse_connections_active",
           "instant": false,
           "legendFormat": "{{endpoint}}",
           "range": true,
@@ -447,47 +519,43 @@
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
+      "datasource": "Victoria Metrics",
       "description": "Distribution of SSE connection durations",
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
-            "drawStyle": "bars",
-            "lineInterpolation": "linear",
-            "barAlignment": 0,
-            "lineWidth": 1,
-            "fillOpacity": 100,
-            "gradientMode": "none",
-            "spanNulls": false,
-            "insertNulls": false,
-            "showPoints": "auto",
-            "pointSize": 5,
-            "stacking": {
-              "mode": "none",
-              "group": "A"
-            },
-            "axisPlacement": "auto",
-            "axisLabel": "",
+            "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisBorderShow": false,
+            "axisLabel": "Duration (seconds)",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
             },
-            "axisCenteredZero": false,
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
             },
             "thresholdsStyle": {
               "mode": "off"
             }
-          },
-          "color": {
-            "mode": "palette-classic"
           },
           "mappings": [],
           "thresholds": {
@@ -499,77 +567,64 @@
               }
             ]
           },
-          "unit": "short"
+          "unit": "s"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 10
+        "w": 8,
+        "x": 8,
+        "y": 8
       },
-      "id": 57,
+      "id": 58,
       "options": {
         "legend": {
-          "calcs": [],
+          "calcs": ["mean", "max"],
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
-          "mode": "single",
+          "mode": "multi",
           "sort": "none"
         }
       },
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
+          "datasource": "Victoria Metrics",
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum(rate(sse_connection_duration_seconds_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(sse_connection_duration_seconds_bucket[5m])) by (le))",
           "instant": false,
-          "legendFormat": "95th percentile",
+          "legendFormat": "p99",
           "range": true,
           "refId": "A"
         },
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
+          "datasource": "Victoria Metrics",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum(rate(sse_connection_duration_seconds_bucket[5m])) by (le))",
+          "instant": false,
+          "legendFormat": "p95",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": "Victoria Metrics",
           "editorMode": "code",
           "expr": "histogram_quantile(0.50, sum(rate(sse_connection_duration_seconds_bucket[5m])) by (le))",
           "instant": false,
-          "legendFormat": "50th percentile",
+          "legendFormat": "p50",
           "range": true,
-          "refId": "B"
+          "refId": "C"
         }
       ],
-      "title": "SSE Connection Duration Distribution",
+      "title": "SSE Connection Duration Percentiles",
       "type": "timeseries"
     },
     {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 18
-      },
-      "id": 58,
-      "panels": [],
-      "title": "Event Buffer Performance",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "description": "Event buffer size by priority level",
+      "datasource": "Victoria Metrics",
+      "description": "SSE messages sent by event type",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -578,11 +633,11 @@
           "custom": {
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "",
+            "axisLabel": "Messages/sec",
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
-            "fillOpacity": 20,
+            "fillOpacity": 10,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -591,7 +646,7 @@
             },
             "insertNulls": false,
             "lineInterpolation": "linear",
-            "lineWidth": 2,
+            "lineWidth": 1,
             "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
@@ -616,81 +671,127 @@
               }
             ]
           },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 8
+      },
+      "id": 59,
+      "options": {
+        "legend": {
+          "calcs": ["sum"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": "Victoria Metrics",
+          "editorMode": "code",
+          "expr": "rate(sse_messages_sent_total[5m])",
+          "instant": false,
+          "legendFormat": "{{event_type}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "SSE Messages by Event Type",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "id": 60,
+      "panels": [],
+      "title": "Event Buffer Performance",
+      "type": "row"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "description": "Event buffer size trends",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Events",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1000
+              },
+              {
+                "color": "red",
+                "value": 5000
+              }
+            ]
+          },
           "unit": "short"
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "CRITICAL"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "red",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "HIGH"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "orange",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "NORMAL"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "green",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "LOW"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "blue",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 19
+        "y": 17
       },
-      "id": 59,
+      "id": 61,
       "options": {
         "legend": {
-          "calcs": ["mean", "max"],
+          "calcs": ["mean", "max", "lastNotNull"],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
@@ -702,27 +803,21 @@
       },
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
+          "datasource": "Victoria Metrics",
           "editorMode": "code",
           "expr": "event_buffer_size",
           "instant": false,
-          "legendFormat": "{{priority}}",
+          "legendFormat": "Buffer Size",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Event Buffer Size by Priority",
+      "title": "Event Buffer Size Over Time",
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "description": "Rate of events dropped from buffer by reason",
+      "datasource": "Victoria Metrics",
+      "description": "Event buffer processing and drop rates",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -753,7 +848,7 @@
             "spanNulls": false,
             "stacking": {
               "group": "A",
-              "mode": "stack"
+              "mode": "none"
             },
             "thresholdsStyle": {
               "mode": "off"
@@ -771,18 +866,49 @@
           },
           "unit": "ops"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Dropped"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Processed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 19
+        "y": 17
       },
-      "id": 60,
+      "id": 62,
       "options": {
         "legend": {
-          "calcs": ["sum"],
+          "calcs": ["mean", "max", "sum"],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
@@ -794,26 +920,29 @@
       },
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
+          "datasource": "Victoria Metrics",
+          "editorMode": "code",
+          "expr": "rate(event_buffer_processed_total[5m])",
+          "instant": false,
+          "legendFormat": "Processed",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": "Victoria Metrics",
           "editorMode": "code",
           "expr": "rate(event_buffer_dropped_total[5m])",
           "instant": false,
-          "legendFormat": "{{reason}}",
+          "legendFormat": "Dropped",
           "range": true,
-          "refId": "A"
+          "refId": "B"
         }
       ],
-      "title": "Event Drop Rate by Reason",
+      "title": "Event Buffer Processing vs Drops",
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
+      "datasource": "Victoria Metrics",
       "description": "Event processing latency percentiles",
       "fieldConfig": {
         "defaults": {
@@ -877,9 +1006,9 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 27
+        "y": 25
       },
-      "id": 61,
+      "id": 63,
       "options": {
         "legend": {
           "calcs": ["mean", "max"],
@@ -894,10 +1023,7 @@
       },
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
+          "datasource": "Victoria Metrics",
           "editorMode": "code",
           "expr": "histogram_quantile(0.99, sum(rate(event_buffer_latency_seconds_bucket[5m])) by (le))",
           "instant": false,
@@ -906,10 +1032,7 @@
           "refId": "A"
         },
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
+          "datasource": "Victoria Metrics",
           "editorMode": "code",
           "expr": "histogram_quantile(0.95, sum(rate(event_buffer_latency_seconds_bucket[5m])) by (le))",
           "instant": false,
@@ -918,10 +1041,7 @@
           "refId": "B"
         },
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
+          "datasource": "Victoria Metrics",
           "editorMode": "code",
           "expr": "histogram_quantile(0.50, sum(rate(event_buffer_latency_seconds_bucket[5m])) by (le))",
           "instant": false,
@@ -930,44 +1050,49 @@
           "refId": "C"
         }
       ],
-      "title": "Event Processing Latency",
+      "title": "Event Buffer Processing Latency",
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "description": "Active backpressure states across buffers",
+      "datasource": "Victoria Metrics",
+      "description": "Memory usage of event buffers",
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "thresholds"
+            "mode": "palette-classic"
           },
           "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Memory (MB)",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
             },
-            "inspect": false
-          },
-          "mappings": [
-            {
-              "options": {
-                "0": {
-                  "color": "green",
-                  "index": 0,
-                  "text": "Inactive"
-                },
-                "1": {
-                  "color": "red",
-                  "index": 1,
-                  "text": "Active"
-                }
-              },
-              "type": "value"
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
             }
-          ],
+          },
+          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -976,12 +1101,16 @@
                 "value": null
               },
               {
+                "color": "yellow",
+                "value": 50
+              },
+              {
                 "color": "red",
-                "value": 1
+                "value": 100
               }
             ]
           },
-          "unit": "short"
+          "unit": "decmbytes"
         },
         "overrides": []
       },
@@ -989,47 +1118,34 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 27
+        "y": 25
       },
-      "id": 62,
+      "id": 64,
       "options": {
-        "showHeader": true
+        "legend": {
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
-      "pluginVersion": "10.2.0",
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
+          "datasource": "Victoria Metrics",
           "editorMode": "code",
-          "expr": "event_buffer_backpressure_active",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "__auto",
-          "range": false,
+          "expr": "event_buffer_memory_usage_MB_sum / event_buffer_memory_usage_MB_count",
+          "instant": false,
+          "legendFormat": "Memory Usage",
+          "range": true,
           "refId": "A"
         }
       ],
-      "title": "Backpressure Status",
-      "transformations": [
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true,
-              "__name__": true,
-              "job": true,
-              "instance": true
-            },
-            "renameByName": {
-              "buffer_name": "Buffer",
-              "Value": "Status"
-            }
-          }
-        }
-      ],
-      "type": "table"
+      "title": "Event Buffer Memory Usage",
+      "type": "timeseries"
     },
     {
       "collapsed": false,
@@ -1037,19 +1153,16 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 35
+        "y": 33
       },
-      "id": 63,
+      "id": 65,
       "panels": [],
       "title": "Event Flow Analysis",
       "type": "row"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "description": "Event flow rate by type",
+      "datasource": "Victoria Metrics",
+      "description": "Event publishing rate by type",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1104,9 +1217,9 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 36
+        "y": 34
       },
-      "id": 64,
+      "id": 66,
       "options": {
         "legend": {
           "calcs": ["mean", "max"],
@@ -1121,10 +1234,7 @@
       },
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
+          "datasource": "Victoria Metrics",
           "editorMode": "code",
           "expr": "rate(events_published_total[5m])",
           "instant": false,
@@ -1137,11 +1247,8 @@
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "description": "SSE messages sent by event type",
+      "datasource": "Victoria Metrics",
+      "description": "Event processing duration by type",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1150,7 +1257,7 @@
           "custom": {
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "Messages/sec",
+            "axisLabel": "Duration (seconds)",
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
@@ -1163,7 +1270,7 @@
             },
             "insertNulls": false,
             "lineInterpolation": "linear",
-            "lineWidth": 1,
+            "lineWidth": 2,
             "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
@@ -1172,7 +1279,114 @@
             "spanNulls": false,
             "stacking": {
               "group": "A",
-              "mode": "normal"
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.5
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 34
+      },
+      "id": 67,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": "Victoria Metrics",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum(rate(event_processing_duration_seconds_bucket[5m])) by (event_type, le))",
+          "instant": false,
+          "legendFormat": "{{event_type}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Event Processing Duration by Type (p95)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 42
+      },
+      "id": 68,
+      "panels": [],
+      "title": "Event Store Performance",
+      "type": "row"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "description": "Event store operations",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Operations/sec",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
             },
             "thresholdsStyle": {
               "mode": "off"
@@ -1190,20 +1404,36 @@
           },
           "unit": "ops"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 36
+        "x": 0,
+        "y": 43
       },
-      "id": 65,
+      "id": 69,
       "options": {
         "legend": {
-          "calcs": ["sum"],
+          "calcs": ["mean", "max", "sum"],
           "displayMode": "table",
-          "placement": "right",
+          "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
@@ -1213,27 +1443,30 @@
       },
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
+          "datasource": "Victoria Metrics",
           "editorMode": "code",
-          "expr": "rate(sse_messages_sent_total[5m])",
+          "expr": "sum(rate(event_processing_duration_seconds_count{operation=~\"store_.*|query_.*\"}[5m])) by (operation)",
           "instant": false,
-          "legendFormat": "{{event_type}}",
+          "legendFormat": "{{operation}}",
           "range": true,
           "refId": "A"
+        },
+        {
+          "datasource": "Victoria Metrics",
+          "editorMode": "code",
+          "expr": "sum(rate(event_store_failures_total[5m]))",
+          "instant": false,
+          "legendFormat": "Failed",
+          "range": true,
+          "refId": "B"
         }
       ],
-      "title": "SSE Messages by Event Type",
+      "title": "Event Store Operations",
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "description": "Event bus subscriber count by pattern",
+      "datasource": "Victoria Metrics",
+      "description": "Event store operation latencies",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1242,7 +1475,7 @@
           "custom": {
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "",
+            "axisLabel": "Duration (seconds)",
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
@@ -1254,7 +1487,209 @@
               "viz": false
             },
             "insertNulls": false,
-            "lineInterpolation": "stepAfter",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.1
+              },
+              {
+                "color": "red",
+                "value": 0.5
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 43
+      },
+      "id": 70,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": "Victoria Metrics",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum(rate(event_processing_duration_seconds_bucket{operation=~\"store_.*|query_.*\"}[5m])) by (operation, le))",
+          "instant": false,
+          "legendFormat": "{{operation}} p95",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": "Victoria Metrics",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50, sum(rate(event_processing_duration_seconds_bucket{operation=~\"store_.*|query_.*\"}[5m])) by (operation, le))",
+          "instant": false,
+          "legendFormat": "{{operation}} p50",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "Event Store Operation Latency",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 51
+      },
+      "id": 71,
+      "panels": [],
+      "title": "SSE Shutdown Monitoring",
+      "type": "row"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "description": "SSE graceful shutdown phases",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Duration (seconds)",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "bars",
+            "fillOpacity": 50,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 52
+      },
+      "id": 72,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": "Victoria Metrics",
+          "editorMode": "code",
+          "expr": "sse_shutdown_duration_seconds_sum / sse_shutdown_duration_seconds_count",
+          "instant": false,
+          "legendFormat": "{{phase}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "SSE Shutdown Phase Durations",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "description": "SSE draining connections during shutdown",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Connections",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
             "lineWidth": 2,
             "pointSize": 5,
             "scaleDistribution": {
@@ -1287,143 +1722,40 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
-        "y": 44
+        "x": 12,
+        "y": 52
       },
-      "id": 66,
+      "id": 73,
       "options": {
         "legend": {
-          "calcs": ["lastNotNull"],
-          "displayMode": "table",
+          "calcs": ["max", "lastNotNull"],
+          "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
-          "mode": "multi",
+          "mode": "single",
           "sort": "none"
         }
       },
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
+          "datasource": "Victoria Metrics",
           "editorMode": "code",
-          "expr": "event_bus_subscribers",
+          "expr": "sse_connections_draining",
           "instant": false,
-          "legendFormat": "{{event_type}}",
+          "legendFormat": "Draining Connections",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Event Bus Subscribers",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "description": "Memory usage of event buffers",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "Memory (MB)",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "normal"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 50
-              },
-              {
-                "color": "red",
-                "value": 100
-              }
-            ]
-          },
-          "unit": "decmbytes"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 44
-      },
-      "id": 67,
-      "options": {
-        "legend": {
-          "calcs": ["mean", "max"],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "editorMode": "code",
-          "expr": "event_buffer_memory_usage_mb",
-          "instant": false,
-          "legendFormat": "{{buffer_name}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Event Buffer Memory Usage",
+      "title": "SSE Connections Being Drained",
       "type": "timeseries"
     }
   ],
   "refresh": "5s",
   "schemaVersion": 38,
-  "tags": ["event-streaming", "monitoring"],
+  "tags": ["event-streaming", "sse"],
   "templating": {
     "list": []
   },
@@ -1433,8 +1765,8 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Event Stream Monitoring",
+  "title": "Event Stream",
   "uid": "event-stream-monitoring",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }

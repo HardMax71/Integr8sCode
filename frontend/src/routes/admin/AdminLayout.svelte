@@ -4,6 +4,7 @@
     import { addNotification } from '../../stores/notifications';
     import { isAuthenticated, username, userRole, verifyAuth } from '../../stores/auth';
     import { get } from 'svelte/store';
+    import Spinner from '../../components/Spinner.svelte';
     
     export let path = '';
     
@@ -13,10 +14,7 @@
     
     const menuItems = [
         { href: '/admin/events', label: 'Event Browser' },
-        { href: '/admin/projections', label: 'Projections' },
         { href: '/admin/sagas', label: 'Sagas' },
-        { href: '/admin/stats', label: 'Statistics' },
-        { href: '/admin/kafka', label: 'Kafka Metrics' },
         { href: '/admin/users', label: 'Users' },
         { href: '/admin/settings', label: 'Settings' },
     ];
@@ -69,7 +67,7 @@
 {#if loading}
     <div class="flex items-center justify-center min-h-screen">
         <div class="text-center">
-            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <Spinner size="xlarge" className="mx-auto mb-4" />
             <p class="text-fg-muted dark:text-dark-fg-muted">Verifying authentication...</p>
         </div>
     </div>

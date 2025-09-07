@@ -12,7 +12,7 @@ route:
     - match:
         severity: critical
       match_re:
-        alertname: '(NetworkPolicyViolations|PrivilegeEscalationAttempts|CriticalMemoryUtilization|CriticalCPUUtilization)'
+        alertname: '(NetworkPolicyViolations|PrivilegeEscalationAttempts|CriticalMemoryUtilization|CriticalCPUUtilization|KafkaProducerCriticalLatency|KafkaProducerCriticalQueueBacklog|KafkaConsumerCriticalLag|CriticalEventProcessingFailureRate|CriticalEventProcessingTime|KafkaProducerDown|KafkaConsumerStalled)'
       group_wait: 10s
       group_interval: 1m
       repeat_interval: 30m
@@ -35,53 +35,32 @@ route:
 receivers:
   - name: 'default'
     webhook_configs:
-      - url: 'http://backend:443/api/v1/health'
+      - url: 'https://backend:443/api/v1/alertmanager/webhook'
         send_resolved: true
-        title: 'Integr8sCode Alert: {{ .GroupLabels.alertname }}'
-        text: |
-          {{ range .Alerts }}
-          Alert: {{ .Annotations.summary }}
-          Description: {{ .Annotations.description }}
-          Severity: {{ .Labels.severity }}
-          {{ end }}
+        http_config:
+          tls_config:
+            insecure_skip_verify: true  # Accept self-signed certificates for local development
 
   - name: 'critical-security'
     webhook_configs:
-      - url: 'http://backend:443/api/v1/health'
+      - url: 'https://backend:443/api/v1/alertmanager/webhook'
         send_resolved: true
-        title: '🚨 CRITICAL SECURITY ALERT: {{ .GroupLabels.alertname }}'
-        text: |
-          IMMEDIATE ATTENTION REQUIRED - Security incident detected!
-          
-          {{ range .Alerts }}
-          Alert: {{ .Annotations.summary }}
-          Description: {{ .Annotations.description }}
-          Labels: {{ range .Labels.SortedPairs }}{{ .Name }}={{ .Value }} {{ end }}
-          {{ end }}
+        http_config:
+          tls_config:
+            insecure_skip_verify: true  # Accept self-signed certificates for local development
 
   - name: 'critical-infrastructure'
     webhook_configs:
-      - url: 'http://backend:443/api/v1/health'
+      - url: 'https://backend:443/api/v1/alertmanager/webhook'
         send_resolved: true
-        title: '🔥 CRITICAL INFRASTRUCTURE ALERT: {{ .GroupLabels.alertname }}'
-        text: |
-          Critical system issue requiring immediate attention!
-          
-          {{ range .Alerts }}
-          Alert: {{ .Annotations.summary }}
-          Description: {{ .Annotations.description }}
-          Severity: {{ .Labels.severity }}
-          {{ end }}
+        http_config:
+          tls_config:
+            insecure_skip_verify: true  # Accept self-signed certificates for local development
 
   - name: 'warning'
     webhook_configs:
-      - url: 'http://backend:443/api/v1/health'
+      - url: 'https://backend:443/api/v1/alertmanager/webhook'
         send_resolved: true
-        title: '⚠️ WARNING: {{ .GroupLabels.alertname }}'
-        text: |
-          Warning condition detected - monitoring recommended.
-          
-          {{ range .Alerts }}
-          Alert: {{ .Annotations.summary }}
-          Description: {{ .Annotations.description }}
-          {{ end }}
+        http_config:
+          tls_config:
+            insecure_skip_verify: true  # Accept self-signed certificates for local development

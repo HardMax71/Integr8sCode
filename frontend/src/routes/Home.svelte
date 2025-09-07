@@ -2,6 +2,7 @@
   import { Link } from "svelte-routing";
   import { fade, fly } from "svelte/transition";
   import { onMount } from 'svelte';
+  import { updateMetaTags, pageMeta } from '../utils/meta.js';
 
   const boltIcon = `<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>`;
   const shieldCheckIcon = `<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>`;
@@ -14,15 +15,18 @@
   ];
 
   let ready = false;
-  onMount(() => ready = true);
+  onMount(() => {
+    ready = true;
+    updateMetaTags(pageMeta.home.title, pageMeta.home.description);
+  });
 </script>
 
 {#if ready}
 <div class="overflow-x-hidden">
 
   <!-- HERO SECTION - Enhanced responsiveness -->
-  <section class="hero-section relative isolate bg-bg-default dark:bg-dark-bg-default min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-20">
-     <div class="relative z-10 text-center w-full">
+  <section class="hero-section relative isolate bg-bg-default dark:bg-dark-bg-default min-h-[80vh] flex items-center justify-center px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-20">
+     <div class="relative z-10 text-center w-full -mt-4 sm:-mt-6">
         <div class="animate-flyIn" style="--fly-y: -20px; --fly-delay: 100ms;">
              <h1 class="mx-auto max-w-full xl:max-w-7xl text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold tracking-tight text-fg-default dark:text-dark-fg-default !leading-tight px-2 sm:px-4">
                  Code, Run, <span class="text-primary dark:text-primary-light">Integrate</span>. Instantly.
@@ -42,45 +46,30 @@
      </div>
   </section>
 
-  <!-- FEATURES SECTION - Full width utilization -->
+  <!-- FEATURES SECTION - Simplified, adaptive, on-brand -->
   <section class="bg-bg-default dark:bg-dark-bg-default py-16 sm:py-20 lg:py-28 px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-20">
     <div class="mx-auto max-w-full text-center mb-12 sm:mb-16">
-         <h2 class="text-sm sm:text-base font-semibold leading-7 text-primary dark:text-primary-light animate-flyIn uppercase tracking-wider" style="--fly-delay: 600ms;">Core Features</h2>
+         <h2 class="text-sm sm:text-base font-semibold leading-7 text-primary-dark dark:text-primary-light animate-flyIn uppercase tracking-wider" style="--fly-delay: 600ms;">Core Features</h2>
          <p class="mt-2 text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-fg-default dark:text-dark-fg-default animate-flyIn" style="--fly-delay: 700ms;">
              Everything you need for quick execution.
          </p>
          <div class="mx-auto mt-6 w-24 h-1 bg-gradient-to-r from-transparent via-primary to-transparent animate-flyIn" style="--fly-delay: 800ms;"></div>
     </div>
 
-    <!-- Responsive grid with better space utilization -->
-    <div class="mx-auto max-w-full 2xl:max-w-screen-2xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8 xl:gap-10">
-     {#each features as feature, i}
-       <div class="feature-card relative flex flex-col items-start text-left p-6 sm:p-8 lg:p-10 bg-bg-alt dark:bg-dark-bg-alt rounded-2xl shadow-xl border border-border-default/50 dark:border-dark-border-default/30 transition-all duration-500 ease-out-expo hover:shadow-2xl hover:border-primary/50 dark:hover:border-primary/60 hover:-translate-y-2 animate-flyIn h-full overflow-hidden group"
-            style="--fly-y: 30px; --fly-delay: {800 + i * 150}ms;">
-         <!-- Number accent -->
-         <div class="absolute top-6 right-6 text-5xl font-bold text-primary/10 dark:text-primary/20 select-none group-hover:text-primary/20 dark:group-hover:text-primary/30 transition-colors duration-500">
-           0{i + 1}
-         </div>
-
-         <!-- Gradient overlay for depth -->
-         <div class="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-
-         <!-- Animated background pattern -->
-         <div class="absolute -right-8 -top-8 w-32 h-32 bg-primary/10 rounded-full blur-3xl opacity-0 group-hover:opacity-50 transition-all duration-700 group-hover:scale-150"></div>
-
-         <!-- Content with relative positioning -->
-         <div class="relative z-10">
-           <div class="icon-wrapper flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-primary/10 dark:from-primary/30 dark:to-primary/15 text-primary dark:text-primary-light mb-6 shadow-lg group-hover:shadow-primary/25 transition-all duration-500 group-hover:scale-110 group-hover:rotate-3">
-              {@html feature.icon}
-           </div>
-           <h3 class="text-lg sm:text-xl font-bold leading-7 sm:leading-8 text-fg-default dark:text-dark-fg-default mb-3 group-hover:text-primary dark:group-hover:text-primary-light transition-colors duration-300">{feature.title}</h3>
-           <p class="flex-grow text-sm sm:text-base leading-6 sm:leading-7 text-fg-muted dark:text-dark-fg-muted group-hover:text-fg-default dark:group-hover:text-dark-fg-muted transition-colors duration-300">{feature.content}</p>
-
-           <!-- Subtle bottom accent -->
-           <div class="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-primary/30 to-transparent transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500"></div>
-         </div>
-       </div>
-     {/each}
+    <!-- Responsive grid with centered lone last item at 2-col breakpoint -->
+    <div class="mx-auto max-w-5xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-7 lg:gap-8 features-grid">
+      {#each features as feature, i}
+        <div class="feature-card group relative flex flex-col items-start text-left p-6 sm:p-8 bg-bg-alt dark:bg-dark-bg-alt rounded-xl border border-border-default/50 dark:border-dark-border-default/50 shadow-sm transition-transform duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-primary/40 animate-flyIn h-full"
+             style="--fly-y: 24px; --fly-delay: {800 + i * 120}ms;">
+          <!-- Icon -->
+          <div class="flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-full bg-primary/10 text-primary dark:text-primary-light ring-1 ring-primary/20 mb-5 transition-transform duration-300 group-hover:scale-110 group-hover:ring-primary/40">
+            {@html feature.icon}
+          </div>
+          <h3 class="text-lg sm:text-xl font-semibold leading-7 sm:leading-8 text-fg-default dark:text-dark-fg-default mb-2 transition-colors duration-200 group-hover:text-primary dark:group-hover:text-primary-light">{feature.title}</h3>
+          <p class="flex-grow text-sm sm:text-base leading-6 sm:leading-7 text-fg-muted dark:text-dark-fg-muted">{feature.content}</p>
+          <div class="mt-6 h-0.5 w-full origin-left transform scale-x-0 bg-gradient-to-r from-transparent via-primary/50 to-transparent transition-transform duration-300 group-hover:scale-x-100"></div>
+        </div>
+      {/each}
     </div>
   </section>
 
@@ -118,72 +107,8 @@
        100% { transform: translate(0, 0) rotate(0deg) scale(1); }
     }
 
-    /* Feature card enhancements */
-    .feature-card {
-        position: relative;
-        background: theme('colors.bg-alt');
-        backdrop-filter: blur(10px);
-    }
-
-    .dark .feature-card {
-        background: theme('colors.dark-bg-alt');
-    }
-
-    .feature-card::before {
-        content: '';
-        position: absolute;
-        inset: -2px;
-        background: linear-gradient(135deg,
-            theme('colors.primary.DEFAULT') 0%,
-            transparent 40%,
-            transparent 60%,
-            theme('colors.secondary.DEFAULT') 100%);
-        border-radius: 1rem;
-        opacity: 0;
-        transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-        z-index: -1;
-    }
-
-    .feature-card:hover::before {
-        opacity: 0.2;
-    }
-
-    .icon-wrapper {
-        position: relative;
-    }
-
-    .icon-wrapper::after {
-        content: '';
-        position: absolute;
-        inset: -4px;
-        background: radial-gradient(circle, theme('colors.primary.DEFAULT') 0%, transparent 70%);
-        opacity: 0;
-        border-radius: 1rem;
-        transition: opacity 0.5s ease;
-        z-index: -1;
-    }
-
-    .group:hover .icon-wrapper::after {
-        opacity: 0.3;
-    }
-
-    .icon-wrapper svg {
-        transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    .group:hover .icon-wrapper svg {
-        transform: scale(1.1);
-    }
-
-    /* Subtle floating animation for icons */
-    @keyframes icon-float {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-4px); }
-    }
-
-    .group:hover .icon-wrapper {
-        animation: icon-float 2s ease-in-out infinite;
-    }
+    /* Feature card: simplified to align with general style */
+    .feature-card { position: relative; }
 
     .hero-section::before,
     .hero-section::after {
@@ -251,4 +176,14 @@
          background-color: theme('colors.secondary.dark');
           border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%;
      }
+
+    /* Center a lone last card when grid has 2 columns (sm..lg) */
+    @media (min-width: 640px) and (max-width: 1023.98px) {
+      .features-grid > :last-child:nth-child(2n + 1) {
+        grid-column: 1 / -1;
+        justify-self: center;
+        max-width: 36rem;
+        width: 100%;
+      }
+    }
 </style>

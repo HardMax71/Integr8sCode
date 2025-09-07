@@ -1,15 +1,20 @@
-from __future__ import annotations
-
-from typing import Dict, List, NamedTuple
+from typing import NamedTuple, TypedDict
 
 
 class RuntimeConfig(NamedTuple):
     image: str  # Full Docker image reference
     file_name: str  # Name that will be mounted under /scripts/
-    command: List[str]  # Entrypoint executed inside the container
+    command: list[str]  # Entrypoint executed inside the container
 
 
-LANGUAGE_SPECS: Dict[str, dict] = {
+class LanguageSpec(TypedDict):
+    versions: list[str]
+    image_tpl: str
+    file_ext: str
+    interpreter: list[str]
+
+
+LANGUAGE_SPECS: dict[str, LanguageSpec] = {
     "python": {
         "versions": ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"],
         "image_tpl": "python:{version}-slim",
@@ -42,7 +47,7 @@ LANGUAGE_SPECS: Dict[str, dict] = {
     },
 }
 
-EXAMPLE_SCRIPTS: Dict[str, str] = {
+EXAMPLE_SCRIPTS: dict[str, str] = {
     "python": """
 # This f-string formatting works on all supported Python versions (3.7+)
 py_version = "3.x"
@@ -58,6 +63,16 @@ match lang_code:
         print("Structural Pattern Matching is available on this version (Python 3.10+).")
     case _:
         print("Default case.")
+
+# Union types using | operator (Python 3.10+)
+def process_data(value: int | str | None) -> str:
+    if value is None:
+        return "No value"
+    return f"Got: {value}"
+
+print(process_data(42))
+print(process_data("hello"))
+print(process_data(None))
 """,
     "node": """
 // This works on all supported Node versions (18+)
@@ -137,14 +152,14 @@ func main() {
 }
 
 
-def _make_runtime_configs() -> Dict[str, Dict[str, RuntimeConfig]]:
-    registry: Dict[str, Dict[str, RuntimeConfig]] = {}
+def _make_runtime_configs() -> dict[str, dict[str, RuntimeConfig]]:
+    registry: dict[str, dict[str, RuntimeConfig]] = {}
 
     for lang, spec in LANGUAGE_SPECS.items():
         versions = spec["versions"]
         image_tpl: str = spec["image_tpl"]
         file_ext: str = spec["file_ext"]
-        interpreter_cmd: List[str] = spec["interpreter"]
+        interpreter_cmd: list[str] = spec["interpreter"]
 
         file_name = f"main.{file_ext}"
         full_path = f"/scripts/{file_name}"
@@ -165,8 +180,8 @@ def _make_runtime_configs() -> Dict[str, Dict[str, RuntimeConfig]]:
     return registry
 
 
-RUNTIME_REGISTRY: Dict[str, Dict[str, RuntimeConfig]] = _make_runtime_configs()
+RUNTIME_REGISTRY: dict[str, dict[str, RuntimeConfig]] = _make_runtime_configs()
 
-SUPPORTED_RUNTIMES: Dict[str, List[str]] = {
+SUPPORTED_RUNTIMES: dict[str, list[str]] = {
     lang: list(versions.keys()) for lang, versions in RUNTIME_REGISTRY.items()
 }

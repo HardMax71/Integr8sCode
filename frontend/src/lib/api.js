@@ -1,65 +1,11 @@
-import { backOff } from 'exponential-backoff';
 import { get } from 'svelte/store';
 import { csrfToken } from '../stores/auth.js';
+import { fetchWithRetry } from './fetch-utils.js';
+import { handleSessionExpired, isSessionExpired } from './session-handler.js';
+import { requestManager } from './request-manager.js';
 
-/**
- * Check if an error should trigger a retry
- */
-function shouldRetry(error) {
-    // Network errors
-    if (error.name === 'TypeError' && error.message.includes('fetch')) {
-        return true;
-    }
-    
-    // If it's a Response object, check status codes
-    if (error instanceof Response) {
-        const status = error.status;
-        return status >= 500 || status === 408 || status === 429;
-    }
-    
-    return false;
-}
-
-/**
- * Fetch with retry logic using exponential-backoff
- * @param {string} url - The URL to fetch
- * @param {Object} options - Fetch options
- * @param {Object} retryOptions - Retry configuration
- * @returns {Promise<Response>} - The fetch response
- */
-export async function fetchWithRetry(url, options = {}, retryOptions = {}) {
-    const {
-        numOfAttempts = 3,
-        maxDelay = 10000,
-        jitter = 'none',
-        ...otherRetryOptions
-    } = retryOptions;
-
-    return backOff(
-        async () => {
-            const response = await fetch(url, {
-                credentials: 'include',
-                ...options
-            });
-            
-            // For retryable errors, throw to trigger retry logic
-            if (!response.ok && shouldRetry(response)) {
-                const error = new Error(`HTTP ${response.status}: ${response.statusText}`);
-                error.response = response;
-                throw error;
-            }
-            
-            return response;
-        },
-        {
-            numOfAttempts,
-            maxDelay,
-            jitter,
-            retry: (error) => shouldRetry(error) || shouldRetry(error.response),
-            ...otherRetryOptions
-        }
-    );
-}
+// Re-export fetchWithRetry for backward compatibility
+export { fetchWithRetry };
 
 /**
  * Make an authenticated request with CSRF token and retry logic
@@ -107,6 +53,16 @@ function addCSRFTokenToHeaders(method) {
 export async function apiCall(url, options = {}, retryOptions = {}) {
     const response = await makeAuthenticatedRequest(url, options, retryOptions);
     
+    // Handle session expiration
+    if (isSessionExpired(response)) {
+        handleSessionExpired();
+        
+        // Throw error to stop further processing
+        const error = new Error('Session expired');
+        error.response = response;
+        throw error;
+    }
+    
     if (!response.ok) {
         const error = new Error(`HTTP ${response.status}: ${response.statusText}`);
         error.response = response;
@@ -121,3 +77,34 @@ export async function apiCall(url, options = {}, retryOptions = {}) {
     
     return response;
 }
+
+// Export an api object for convenience
+export const api = {
+    get: (url, options = {}) => {
+        // Use request manager for GET requests to prevent duplicates
+        return requestManager.dedupedRequest(url, 
+            () => apiCall(url, { ...options, method: 'GET' }),
+            { method: 'GET', ...options }
+        );
+    },
+    post: (url, data, options = {}) => apiCall(url, { 
+        ...options, 
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...options.headers
+        },
+        body: JSON.stringify(data)
+    }),
+    put: (url, data, options = {}) => apiCall(url, {
+        ...options,
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            ...options.headers
+        },
+        body: JSON.stringify(data)
+    }),
+    delete: (url, options = {}) => apiCall(url, { ...options, method: 'DELETE' }),
+    clearCache: (pattern) => requestManager.clearCache(pattern)
+};

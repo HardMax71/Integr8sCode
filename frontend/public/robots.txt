@@ -1,0 +1,16 @@
+User-agent: *
+Allow: /$
+Allow: /editor$
+Allow: /login$
+Allow: /register$
+Disallow: /api/
+Disallow: /build/
+Disallow: /*.js$
+Disallow: /*.css$
+Disallow: /*.map$
+Disallow: /certs/
+Disallow: /node_modules/
+Disallow: /src/
+Disallow: /scripts/
+
+Sitemap: https://app.integr8scode.cc/sitemap.xml

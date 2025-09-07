@@ -70,17 +70,14 @@ ELAPSED_S=$(printf '%s\n' "$END_TIME $START_TIME" | awk '{printf "%.6f",$1-$2}')
 
 # ---------- emit single-line JSON ------------------------------------------
 
-printf '%s' "$(cat <<EOF
-{
-  "exit_code": ${EXIT_CODE:-1},
-  "resource_usage": {
-    "execution_time_wall_seconds": ${ELAPSED_S:-0},
-    "cpu_time_jiffies": ${JIFS:-0},
-    "clk_tck_hertz": ${CLK_TCK:-100},
-    "peak_memory_kb": ${PEAK_KB:-0}
-  },
-  "stdout": "$(cat "$OUT" | json_escape)",
-  "stderr": "$(cat "$ERR" | json_escape)"
-}
-EOF
-)"
+# Build JSON on a single line
+# Note: CLK_TCK included for CPU time conversion (cpu_seconds = jiffies / clk_tck)
+# Security: CLK_TCK is obtainable by any user via getconf, not sensitive
+printf '{"exit_code":%d,"resource_usage":{"execution_time_wall_seconds":%s,"cpu_time_jiffies":%d,"clk_tck_hertz":%d,"peak_memory_kb":%d},"stdout":"%s","stderr":"%s"}' \
+    "${EXIT_CODE:-1}" \
+    "${ELAPSED_S:-0}" \
+    "${JIFS:-0}" \
+    "${CLK_TCK:-100}" \
+    "${PEAK_KB:-0}" \
+    "$(cat "$OUT" | json_escape)" \
+    "$(cat "$ERR" | json_escape)"

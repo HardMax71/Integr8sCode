@@ -38,6 +38,14 @@ jobs:
           # For the backend service
           yq eval '.services.backend.extra_hosts += ["host.docker.internal:host-gateway"]' -i docker-compose.ci.yaml
           yq eval '.services.backend.environment += ["TESTING=true"]' -i docker-compose.ci.yaml
+          yq eval '.services.backend.environment += ["MONGO_ROOT_USER=testroot"]' -i docker-compose.ci.yaml
+          yq eval '.services.backend.environment += ["MONGO_ROOT_PASSWORD=testpassword"]' -i docker-compose.ci.yaml
+          # Disable OpenTelemetry SDK during tests to avoid exporter retries
+          yq eval '.services.backend.environment += ["OTEL_SDK_DISABLED=true"]' -i docker-compose.ci.yaml
+          
+          # For the mongo service
+          yq eval '.services.mongo.environment += ["MONGO_ROOT_USER=testroot"]' -i docker-compose.ci.yaml
+          yq eval '.services.mongo.environment += ["MONGO_ROOT_PASSWORD=testpassword"]' -i docker-compose.ci.yaml
 
           # For the cert-generator service
           yq eval '.services.cert-generator.extra_hosts += ["host.docker.internal:host-gateway"]' -i docker-compose.ci.yaml
@@ -75,7 +83,7 @@ jobs:
 
       - name: Wait for backend to be healthy
         run: |
-          timeout 300 bash -c 'until curl -k https://localhost:443/api/v1/health -o /dev/null; do \
+          timeout 300 bash -c 'until curl -k https://127.0.0.1:443/api/v1/health -o /dev/null; do \
             echo "Retrying backend health check..."; \
             sleep 5; \
           done'
@@ -83,7 +91,7 @@ jobs:
 
       - name: Wait for frontend to be ready
         run: |
-          timeout 120 bash -c 'until curl -k https://localhost:5001 -o /dev/null; do \
+          timeout 120 bash -c 'until curl -k https://127.0.0.1:5001 -o /dev/null; do \
              echo "Retrying frontend check..."; \
              sleep 5; \
           done'
@@ -100,7 +108,7 @@ jobs:
       - name: Set up Python for Tests
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.12'
 
       - name: Install Python test dependencies
         run: |
@@ -111,8 +119,11 @@ jobs:
           pip3 install -r requirements-dev.txt
 
       - name: Run backend tests with coverage
+        env:
+          BACKEND_BASE_URL: https://127.0.0.1:443
         run: |
           cd backend
+          echo "Using BACKEND_BASE_URL=$BACKEND_BASE_URL"
           python -m pytest tests/integration tests/unit -v --cov=app --cov-report=xml --cov-report=term
 
       - name: Upload coverage to Codecov

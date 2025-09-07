@@ -5,14 +5,44 @@
     <meta name='viewport' content='width=device-width,initial-scale=1'>
 
     <title>Integr8sCode</title>
+    <meta name="description" content="Integr8sCode - Write, compile, and manage code directly in your browser with our powerful online development environment">
 
     <link rel='icon' type='image/png' href='/favicon.png'>
-    <link rel='stylesheet' href='/global.css'>
-    <link rel='stylesheet' href='/build/bundle.css'>
 
+    <style>
+        body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
+        .app-container { max-width: 1280px; margin: 0 auto; padding: 0 1rem; }
+        header { position: fixed; top: 0; left: 0; right: 0; z-index: 50; }
+        main { padding-top: 1rem; }
+        /* Prevent layout shift */
+        img { max-width: 100%; height: auto; }
+        @media (prefers-color-scheme: dark) {
+            body { background-color: #0f172a; color: #e2e8f0; }
+        }
+    </style>
+
+    <link rel="preload" href="/build/bundle.css" as="style">
+    <link rel="stylesheet" href="/build/bundle.css" media="print" onload="this.media='all'; this.onload=null;">
+    <noscript><link rel="stylesheet" href="/build/bundle.css"></noscript>
     <script type="module" src='/build/main.js'></script>
 </head>
 
 <body>
+    <div id="app-loading" style="min-height: 100vh; display: flex; align-items: center; justify-content: center;">
+        <div style="text-align: center;">
+            <div style="width: 40px; height: 40px; border: 3px solid #f3f4f6; border-top-color: #3b82f6; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto;"></div>
+            <style>
+                @keyframes spin { to { transform: rotate(360deg); } }
+            </style>
+        </div>
+    </div>
+    <script>
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                const loader = document.getElementById('app-loading');
+                if (loader) loader.style.display = 'none';
+            }, 100);
+        });
+    </script>
 </body>
 </html>

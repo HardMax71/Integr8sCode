@@ -27,28 +27,32 @@ function startServer() {
     };
 
     // --- HTTPS Agent for the PROXY to the backend ---
-    // This is the critical part.
-    const caPath = './certs/server.crt';
-    if (!caPath || !fs.existsSync(caPath)) {
+    const caPath = '/shared_ca/mkcert-ca.pem';
+    if (!fs.existsSync(caPath)) {
         console.error(`\n\nFATAL ERROR: The CA certificate for the proxy is missing.`);
-        console.error(`This is set by NODE_EXTRA_CA_CERTS.`);
-        console.error(`Expected path: ${caPath}\n\n`);
+        console.error(`Expected path: ${caPath}`);
+        console.error(`Make sure cert-generator has run successfully.\n\n`);
         process.exit(1); // Exit if the CA is missing.
     }
 
     const proxyAgent = new https.Agent({
         ca: fs.readFileSync(caPath),
+        rejectUnauthorized: false  // Accept self-signed certificates in development
     });
 
     server = https.createServer(httpsOptions, (req, res) => {
         // Proxy API requests
         if (req.url.startsWith('/api')) {
+            // Forward the original host header and cookies
+            const proxyHeaders = { ...req.headers };
+            proxyHeaders.host = req.headers.host || 'localhost:5001';
+            
             const options = {
                 hostname: 'backend',
                 port: 443,
                 path: req.url,
                 method: req.method,
-                headers: req.headers,
+                headers: proxyHeaders,
                 agent: proxyAgent // Use our special agent that trusts our CA
             };
 
@@ -113,7 +117,29 @@ export default {
         sourcemap: true,
         format: 'es',
         name: 'app',
-        dir: 'public/build'
+        dir: 'public/build',
+        manualChunks: {
+            'vendor': [
+                'svelte',
+                'svelte-routing',
+                'axios'
+            ],
+            'codemirror': [
+                '@codemirror/state',
+                '@codemirror/view',
+                '@codemirror/commands',
+                '@codemirror/language',
+                '@codemirror/autocomplete',
+                '@codemirror/lang-python',
+                '@codemirror/theme-one-dark',
+                '@uiw/codemirror-theme-github'
+            ]
+        },
+        generatedCode: {
+            arrowFunctions: true,
+            constBindings: true,
+            objectShorthand: true
+        }
     },
     plugins: [
         replace({
@@ -131,7 +157,11 @@ export default {
         json(),
         resolve({
             browser: true,
-            dedupe: ['svelte']
+            dedupe: ['svelte'],
+            preferBuiltins: false,
+            // Prefer ES modules
+            mainFields: ['svelte', 'module', 'browser', 'main'],
+            exportConditions: ['svelte']
         }),
         commonjs(),
         !production && {
@@ -140,7 +170,17 @@ export default {
                 startServer();
             }
         },
-        production && terser()
+        production && terser({
+            ecma: 2020,
+            module: true,
+            compress: {
+                passes: 2,
+                pure_funcs: ['console.log']
+            },
+            format: {
+                comments: false
+            }
+        })
     ],
     watch: {
         clearScreen: false

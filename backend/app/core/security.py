@@ -1,13 +1,13 @@
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Any
 
 import jwt
-from app.config import get_settings
-from app.db.repositories.user_repository import UserRepository, get_user_repository
-from app.schemas.user import UserInDB
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
+
+from app.schemas_pydantic.user import UserInDB
+from app.settings import get_settings
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/login")
 
@@ -35,13 +35,10 @@ class SecurityService:
         return self.pwd_context.hash(password)  # type: ignore
 
     def create_access_token(
-            self, data: dict, expires_delta: Optional[timedelta] = None
+            self, data: dict, expires_delta: timedelta
     ) -> str:
         to_encode = data.copy()
-        if expires_delta:
-            expire = datetime.now(timezone.utc) + expires_delta
-        else:
-            expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+        expire = datetime.now(timezone.utc) + expires_delta
         to_encode.update({"exp": expire})
         encoded_jwt = jwt.encode(
             to_encode, self.settings.SECRET_KEY, algorithm=self.settings.ALGORITHM
@@ -50,8 +47,8 @@ class SecurityService:
 
     async def get_current_user(
             self,
-            token: str = Depends(get_token_from_cookie),
-            user_repo: UserRepository = Depends(get_user_repository),
+            token: str,
+            user_repo: Any,  # Avoid circular import by using Any
     ) -> UserInDB:
         credentials_exception = HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -70,7 +67,7 @@ class SecurityService:
         user = await user_repo.get_user(username)
         if user is None:
             raise credentials_exception
-        return user
+        return user  # type: ignore[no-any-return]
 
     def generate_csrf_token(self) -> str:
         """Generate a CSRF token using secure random"""

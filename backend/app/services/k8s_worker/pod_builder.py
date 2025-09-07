@@ -80,7 +80,7 @@ class PodBuilder:
                 k8s_client.V1VolumeMount(name="script-volume", mount_path="/scripts", read_only=True),
                 k8s_client.V1VolumeMount(name="entrypoint-volume", mount_path="/entry", read_only=True),
                 k8s_client.V1VolumeMount(name="output-volume", mount_path="/output"),
-                k8s_client.V1VolumeMount(name="tmp-volume", mount_path="/tmp")
+                k8s_client.V1VolumeMount(name="tmp-volume", mount_path="/tmp")  # nosec B108: K8s EmptyDir mounted inside container; not host /tmp
             ],
             resources=k8s_client.V1ResourceRequirements(
                 requests={"cpu": cpu_request, "memory": memory_request},

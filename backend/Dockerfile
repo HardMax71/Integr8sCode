@@ -6,11 +6,7 @@ RUN apt-get update && apt-get upgrade -y liblzma-dev liblzma5 xz-utils && \
     apt-get install -y libsnappy-dev && \
     rm -rf /var/lib/apt/lists/*
 
-# Install kubectl v1.32.6 (temporary pin to avoid CVE-2025-47907 until v1.33.5+ is released)
-# Note: v1.32 series is still supported and should work with most K8s clusters
-# TODO: Update to latest stable once kubectl is rebuilt with Go 1.24.6+
-RUN wget -q "https://dl.k8s.io/release/v1.32.6/bin/linux/amd64/kubectl" -O /usr/local/bin/kubectl && \
-    chmod +x /usr/local/bin/kubectl
+## Remove kubectl from runtime image: rely on Python client only
 
 # Install Python dependencies
 COPY requirements.txt .

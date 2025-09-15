@@ -42,10 +42,10 @@ jobs:
           yq eval '.services.backend.environment += ["MONGO_ROOT_PASSWORD=testpassword"]' -i docker-compose.ci.yaml
           # Disable OpenTelemetry SDK during tests to avoid exporter retries
           yq eval '.services.backend.environment += ["OTEL_SDK_DISABLED=true"]' -i docker-compose.ci.yaml
-          
-          # For the mongo service
-          yq eval '.services.mongo.environment += ["MONGO_ROOT_USER=testroot"]' -i docker-compose.ci.yaml
-          yq eval '.services.mongo.environment += ["MONGO_ROOT_PASSWORD=testpassword"]' -i docker-compose.ci.yaml
+
+          # For the mongo service (environment is a map, not a list)
+          yq eval '.services.mongo.environment.MONGO_INITDB_ROOT_USERNAME = "testroot"' -i docker-compose.ci.yaml
+          yq eval '.services.mongo.environment.MONGO_INITDB_ROOT_PASSWORD = "testpassword"' -i docker-compose.ci.yaml
 
           # For the cert-generator service
           yq eval '.services.cert-generator.extra_hosts += ["host.docker.internal:host-gateway"]' -i docker-compose.ci.yaml

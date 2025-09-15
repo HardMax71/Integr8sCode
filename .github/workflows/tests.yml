@@ -47,10 +47,11 @@ jobs:
           yq eval '.services.mongo.environment.MONGO_INITDB_ROOT_USERNAME = "testroot"' -i docker-compose.ci.yaml
           yq eval '.services.mongo.environment.MONGO_INITDB_ROOT_PASSWORD = "testpassword"' -i docker-compose.ci.yaml
 
-          # Disable SASL authentication for Kafka in CI (remove KAFKA_OPTS and volume mounts for JAAS files)
+          # Disable SASL authentication for Kafka and Zookeeper in CI
           yq eval 'del(.services.kafka.environment.KAFKA_OPTS)' -i docker-compose.ci.yaml
-          yq eval '.services.kafka.volumes = [.services.kafka.volumes[] | select(. | contains("kafka_client_jaas.conf") | not)]' -i docker-compose.ci.yaml
-          yq eval '.services.kafka.volumes = [.services.kafka.volumes[] | select(. | contains("kafka_jaas.conf") | not)]' -i docker-compose.ci.yaml
+          yq eval 'del(.services.zookeeper.environment.KAFKA_OPTS)' -i docker-compose.ci.yaml
+          yq eval '.services.kafka.volumes = [.services.kafka.volumes[] | select(. | contains("jaas.conf") | not)]' -i docker-compose.ci.yaml
+          yq eval '.services.zookeeper.volumes = [.services.zookeeper.volumes[] | select(. | contains("/etc/kafka/secrets") | not)]' -i docker-compose.ci.yaml
 
           # For the cert-generator service
           # Check if extra_hosts exists, if not create it as a list

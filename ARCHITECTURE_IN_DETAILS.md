@@ -5,37 +5,47 @@ This document sketches the system as it actually exists in this repo, using ASCI
 
 ## Top-level system (containers/services)
 
-```plantuml
-@startuml
-rectangle "Public Internet\n(Browser SPA)" as Browser
-rectangle "Frontend\n(Nginx + Svelte)" as Frontend
-node "Backend" as Backend {
-  [FastAPI / Uvicorn\n(routers, Dishka DI, middlewares)] as FastAPI
-  [SSE Service\n(Partitioned router + Redis bus)] as SSE
-  database "MongoDB" as Mongo
-  queue "Redis" as Redis
-  cloud "Kafka" as Kafka
-  [Schema Registry] as Schema
-  cloud "Kubernetes API" as K8s
-  [OTel Collector] as OTel
-  [VictoriaMetrics] as VM
-  [Jaeger] as Jaeger
-}
-rectangle "Cert Generator\n(setup-k8s.sh, TLS)" as CertGen
-Browser --> Frontend : HTTPS 443\nSPA + static assets
-Frontend --> FastAPI : HTTPS /api/v1/*\nCookies/CSRF
-FastAPI <--> SSE     : /api/v1/events/*\nJSON frames
-FastAPI --> Mongo    : Repos CRUD\nexecutions, settings, events
-FastAPI <--> Redis   : Rate limiting keys\nSSE pub/sub channels
-FastAPI --> Kafka    : UnifiedProducer\n(events)
-Kafka --> FastAPI    : UnifiedConsumer\n(dispatch)
-Kafka -- Schema
-FastAPI <--> K8s     : pod create/monitor\nworker + pod monitor
-FastAPI --> OTel     : metrics/traces (export)
-OTel --> VM          : remote_write (metrics)
-FastAPI --> Jaeger   : traces (export)
-CertGen .. K8s       : cluster setup / certs
-@enduml
+```mermaid
+%%{init: {'theme': 'neutral'}}%%
+graph TD
+    subgraph "Public Internet"
+        Browser["Browser SPA"]
+    end
+
+    subgraph "Frontend"
+        Frontend_service["Nginx + Svelte"]
+    end
+
+    subgraph "Backend"
+        FastAPI["FastAPI / Uvicorn<br/>(routers, Dishka DI, middlewares)"]
+        SSE["SSE Service<br/>(Partitioned router + Redis bus)"]
+        Mongo[(MongoDB)]
+        Redis[(Redis)]
+        Kafka[Kafka]
+        Schema["Schema Registry"]
+        K8s[Kubernetes API]
+        OTel["OTel Collector"]
+        VM["VictoriaMetrics"]
+        Jaeger["Jaeger"]
+    end
+
+    subgraph "Cert Generator"
+        CertGen["setup-k8s.sh, TLS"]
+    end
+
+    Browser -- "HTTPS 443<br/>SPA + static assets" --> Frontend_service
+    Frontend_service -- "HTTPS /api/v1/*<br/>Cookies/CSRF" --> FastAPI
+    FastAPI -- "/api/v1/events/*<br/>JSON frames" <--> SSE
+    FastAPI -- "Repos CRUD<br/>executions, settings, events" --> Mongo
+    FastAPI -- "Rate limiting keys<br/>SSE pub/sub channels" <--> Redis
+    FastAPI -- "UnifiedProducer<br/>(events)" --> Kafka
+    Kafka -- "UnifiedConsumer<br/>(dispatch)" --> FastAPI
+    Kafka --- Schema
+    FastAPI -- "pod create/monitor<br/>worker + pod monitor" <--> K8s
+    FastAPI -- "metrics/traces (export)" --> OTel
+    OTel -- "remote_write (metrics)" --> VM
+    FastAPI -- "traces (export)" --> Jaeger
+    CertGen -. "cluster setup / certs" .-> K8s
 ```
 
 Frontend serves the SPA; the SPA calls FastAPI over HTTPS. Backend exposes REST + SSE; Mongo persists state, Redis backs rate limiting and the SSE bus, Kafka carries domain events (with schema registry), and Kubernetes runs/monitors execution pods.
@@ -43,97 +53,97 @@ Frontend serves the SPA; the SPA calls FastAPI over HTTPS. Backend exposes REST 
 
 ## Backend composition (app/main.py wiring)
 
-```plantuml
-@startwbs
-* Backend (FastAPI app)
-** Middlewares
-*** CorrelationMiddleware (request ID)
-*** RequestSizeLimitMiddleware
-*** CacheControlMiddleware
-*** OTel Metrics (setup_metrics)
-** Routers (public)
-*** /auth (api/routes/auth.py)
-*** /execute (api/routes/execution.py)
-**** /result/{id}, /executions/{id}/events
-**** /user/executions, /example-scripts, /k8s-limits
-**** /{execution_id}/cancel, /{execution_id}/retry, DELETE /{execution_id}
-*** /scripts (api/routes/saved_scripts.py)
-*** /replay (api/routes/replay.py)
-*** /health (api/routes/health.py)
-*** /dlq (api/routes/dlq.py)
-*** /events (api/routes/events.py)
-*** /events (SSE) (api/routes/sse.py)
-**** /events/notifications/stream
-**** /events/executions/{id}
-*** /notifications (api/routes/notifications.py)
-*** /saga (api/routes/saga.py)
-*** /user/settings (api/routes/user_settings.py)
-*** /admin/users (api/routes/admin/users.py)
-*** /admin/events (api/routes/admin/events.py)
-*** /admin/settings (api/routes/admin/settings.py)
-*** /alerts (api/routes/grafana_alerts.py)
-** DI & Providers (Dishka)
-*** Container (core/container.py, core/providers.py)
-*** Exception handlers (core/exceptions/handlers.py)
-** Services (private)
-*** ExecutionService (services/execution_service.py)
-**** Uses ExecutionRepository, UnifiedProducer, EventStore, Settings
-*** KafkaEventService (services/kafka_event_service.py)
-*** EventService (services/event_service.py)
-*** IdempotencyManager (services/idempotency/idempotency_manager.py)
-*** SSEService (services/sse/sse_service.py)
-**** SSERedisBus, PartitionedSSERouter, SSEShutdownManager, EventBuffer
-*** NotificationService (services/notification_service.py)
-**** UnifiedConsumer handlers (completed/failed/timeout), SSE, throttle
-*** UserSettingsService (services/user_settings_service.py)
-**** LRU cache, USER_* events to EventStore/Kafka
-*** SavedScriptService (services/saved_script_service.py)
-*** RateLimitService (services/rate_limit_service.py)
-*** ReplayService (services/event_replay/replay_service.py)
-*** SagaService (services/saga_service.py)
-**** SagaOrchestrator, ExecutionSaga, SagaStep (explicit DI)
-*** K8s Worker (services/k8s_worker/{config,pod_builder,worker}.py)
-*** Pod Monitor (services/pod_monitor/{monitor,event_mapper}.py)
-*** Result Processor (services/result_processor/{processor,resource_cleaner}.py)
-*** Coordinator (services/coordinator/{queue_manager,resource_manager,coordinator}.py)
-*** EventBusManager (services/event_bus.py)
-** Repositories (Mongo, private)
-*** ExecutionRepository
-*** EventRepository
-*** NotificationRepository
-*** UserRepository
-*** UserSettingsRepository
-*** SavedScriptRepository
-*** SagaRepository
-*** ReplayRepository
-*** IdempotencyRepository
-*** SSERepository
-*** ResourceAllocationRepository
-*** Admin repositories (db/repositories/admin/*)
-** Events (Kafka plumbing)
-*** UnifiedProducer, UnifiedConsumer, EventDispatcher (events/core/*)
-*** EventStore (events/event_store.py)
-*** SchemaRegistryManager (events/schema/schema_registry.py)
-*** Topics mapping (infrastructure/kafka/mappings.py)
-*** Event models (infrastructure/kafka/events/*)
-** Mappers (API/domain)
-*** execution_api_mapper, saved_script_api_mapper, user_settings_api_mapper
-*** notification_api_mapper, saga_mapper, replay_api_mapper
-*** admin_mapper, admin_overview_api_mapper, rate_limit_mapper, event_mapper
-** Domain
-*** Enums: execution, events, notification, replay, saga, user, common, kafka
-*** Models: execution, sse, saga, notification, saved_script, replay, user.settings
-*** Admin models: overview, settings, user
-** External dependencies (private)
-*** MongoDB (db)
-*** Redis (rate limit, SSE bus)
-*** Kafka + Schema Registry
-*** Kubernetes API (pods)
-*** OTel Collector + VictoriaMetrics (metrics)
-*** Jaeger (traces)
-** Settings (app/settings.py)
-*** Runtimes/limits, Kafka/Redis/Mongo endpoints, SSE, rate limiting
-@endwbs
+```mermaid
+%%{init: {'theme': 'neutral'}}%%
+mindmap
+  root((Backend (FastAPI app)))
+    Middlewares
+      CorrelationMiddleware (request ID)
+      RequestSizeLimitMiddleware
+      CacheControlMiddleware
+      OTel Metrics (setup_metrics)
+    Routers (public)
+      /auth (api/routes/auth.py)
+      /execute (api/routes/execution.py)
+        /result/{id}, /executions/{id}/events
+        /user/executions, /example-scripts, /k8s-limits
+        /{execution_id}/cancel, /{execution_id}/retry, DELETE /{execution_id}
+      /scripts (api/routes/saved_scripts.py)
+      /replay (api/routes/replay.py)
+      /health (api/routes/health.py)
+      /dlq (api/routes/dlq.py)
+      /events (api/routes/events.py)
+      /events (SSE) (api/routes/sse.py)
+        /events/notifications/stream
+        /events/executions/{id}
+      /notifications (api/routes/notifications.py)
+      /saga (api/routes/saga.py)
+      /user/settings (api/routes/user_settings.py)
+      /admin/users (api/routes/admin/users.py)
+      /admin/events (api/routes/admin/events.py)
+      /admin/settings (api/routes/admin/settings.py)
+      /alerts (api/routes/grafana_alerts.py)
+    DI & Providers (Dishka)
+      Container (core/container.py, core/providers.py)
+      Exception handlers (core/exceptions/handlers.py)
+    Services (private)
+      ExecutionService (services/execution_service.py)
+        Uses ExecutionRepository, UnifiedProducer, EventStore, Settings
+      KafkaEventService (services/kafka_event_service.py)
+      EventService (services/event_service.py)
+      IdempotencyManager (services/idempotency/idempotency_manager.py)
+      SSEService (services/sse/sse_service.py)
+        SSERedisBus, PartitionedSSERouter, SSEShutdownManager, EventBuffer
+      NotificationService (services/notification_service.py)
+        UnifiedConsumer handlers (completed/failed/timeout), SSE, throttle
+      UserSettingsService (services/user_settings_service.py)
+        LRU cache, USER_* events to EventStore/Kafka
+      SavedScriptService (services/saved_script_service.py)
+      RateLimitService (services/rate_limit_service.py)
+      ReplayService (services/event_replay/replay_service.py)
+      SagaService (services/saga_service.py)
+        SagaOrchestrator, ExecutionSaga, SagaStep (explicit DI)
+      K8s Worker (services/k8s_worker/{config,pod_builder,worker}.py)
+      Pod Monitor (services/pod_monitor/{monitor,event_mapper}.py)
+      Result Processor (services/result_processor/{processor,resource_cleaner}.py)
+      Coordinator (services/coordinator/{queue_manager,resource_manager,coordinator}.py)
+      EventBusManager (services/event_bus.py)
+    Repositories (Mongo, private)
+      ExecutionRepository
+      EventRepository
+      NotificationRepository
+      UserRepository
+      UserSettingsRepository
+      SavedScriptRepository
+      SagaRepository
+      ReplayRepository
+      IdempotencyRepository
+      SSERepository
+      ResourceAllocationRepository
+      Admin repositories (db/repositories/admin/*)
+    Events (Kafka plumbing)
+      UnifiedProducer, UnifiedConsumer, EventDispatcher (events/core/*)
+      EventStore (events/event_store.py)
+      SchemaRegistryManager (events/schema/schema_registry.py)
+      Topics mapping (infrastructure/kafka/mappings.py)
+      Event models (infrastructure/kafka/events/*)
+    Mappers (API/domain)
+      execution_api_mapper, saved_script_api_mapper, user_settings_api_mapper
+      notification_api_mapper, saga_mapper, replay_api_mapper
+      admin_mapper, admin_overview_api_mapper, rate_limit_mapper, event_mapper
+    Domain
+      Enums: execution, events, notification, replay, saga, user, common, kafka
+      Models: execution, sse, saga, notification, saved_script, replay, user.settings
+      Admin models: overview, settings, user
+    External dependencies (private)
+      MongoDB (db)
+      Redis (rate limit, SSE bus)
+      Kafka + Schema Registry
+      Kubernetes API (pods)
+      OTel Collector + VictoriaMetrics (metrics)
+      Jaeger (traces)
+    Settings (app/settings.py)
+      Runtimes/limits, Kafka/Redis/Mongo endpoints, SSE, rate limiting
 ```
 
 This outlines backend internals: public routers, DI and services, repositories, event stack, and external dependencies, grounded in the actual modules and paths.
@@ -153,83 +163,92 @@ Routers resolve dependencies via Dishka and call services. Services talk to Mong
 
 ## Execution lifecycle (request -> result -> SSE)
 
-```plantuml
-@startuml
-autonumber 1
-skinparam monochrome true
-skinparam shadowing false
+```mermaid
+%%{init: {'theme': 'neutral'}}%%
+sequenceDiagram
+    autonumber
+    actor Client
+    participant ApiExec as API (Exec Route)<br/>/api/v1/execute
+    participant Auth as AuthService
+    participant Idem as IdempotencyManager
+    participant ExecSvc as ExecutionService
+    participant ExecRepo as ExecutionRepository<br/>(Mongo)
+    participant EStore as EventStore<br/>(Mongo)
+    participant Kafka as Kafka
+    participant K8sWorker as K8s Worker
+    participant K8sAPI as Kubernetes API
+    participant PodMon as Pod Monitor
+    participant ResProc as Result Processor
+    participant RedisBus as SSERedisBus<br/>(Redis pub/sub)
+    participant ApiSSE as API (SSE Route)<br/>/events/executions/{id}
+    participant SSE as SSEService
 
-actor Client
-participant "API (Exec Route)\n/api/v1/execute" as ApiExec
-participant "AuthService" as Auth
-participant "IdempotencyManager" as Idem
-participant "ExecutionService" as ExecSvc
-database "ExecutionRepository\n(Mongo)" as ExecRepo
-database "EventStore\n(Mongo)" as EStore
-queue "Kafka" as Kafka
-participant "K8s Worker" as K8sWorker
-participant "Kubernetes API" as K8sAPI
-participant "Pod Monitor" as PodMon
-participant "Result Processor" as ResProc
-queue "SSERedisBus\n(Redis pub/sub)" as RedisBus
-participant "API (SSE Route)\n/events/executions/{id}" as ApiSSE
-participant "SSEService" as SSE
+    Client->>ApiExec: POST /execute {script, lang, version}
+    ApiExec->>Auth: get_current_user()
+    Auth-->>ApiExec: UserResponse
+    ApiExec->>Idem: check_and_reserve(http:{user}:{key})
+    Idem-->>ApiExec: IdempotencyResult
+    ApiExec->>ExecSvc: execute_script(script, lang, v, user, ip, UA)
+    ExecSvc->>ExecRepo: create execution (queued)
+    ExecRepo-->>ExecSvc: created(id)
+    ExecSvc->>EStore: persist ExecutionRequested
+    ExecSvc->>Kafka: publish execution.requested
+    Kafka->>K8sWorker: consume execution.requested
+    K8sWorker->>K8sAPI: create pod, run script
+    K8sWorker-->>K8sAPI: stream logs/status
+    K8sAPI->>PodMon: pod events/logs
+    PodMon->>EStore: persist Execution{Completed|Failed|Timeout}
+    PodMon->>Kafka: publish execution.{completed|failed|timeout}
+    Kafka->>ResProc: consume execution result
+    ResProc->>ExecRepo: update result (status/output/errors/usage)
+    ResProc->>RedisBus: publish result_stored(execution_id)
+    ApiExec-->>Client: 200 {execution_id}
 
-Client -> ApiExec : POST /execute {script, lang, version}
-ApiExec -> Auth : get_current_user()
-Auth --> ApiExec : UserResponse
-ApiExec -> Idem : check_and_reserve(http:{user}:{key})
-Idem --> ApiExec : IdempotencyResult
-ApiExec -> ExecSvc : execute_script(script, lang, v, user, ip, UA)
-ExecSvc -> ExecRepo : create execution (queued)
-ExecRepo --> ExecSvc : created(id)
-ExecSvc -> EStore : persist ExecutionRequested
-ExecSvc -> Kafka : publish execution.requested
-Kafka --> K8sWorker : consume execution.requested
-K8sWorker -> K8sAPI : create pod, run script
-K8sWorker --> K8sAPI : stream logs/status
-K8sAPI --> PodMon : pod events/logs
-PodMon -> EStore : persist Execution{Completed|Failed|Timeout}
-PodMon -> Kafka : publish execution.{completed|failed|timeout}
-Kafka --> ResProc : consume execution result
-ResProc -> ExecRepo : update result (status/output/errors/usage)
-ResProc -> RedisBus : publish result_stored(execution_id)
-ApiExec --> Client : 200 {execution_id}
-
-== Client subscribes to updates ==
-Client -> ApiSSE : GET /events/executions/{id}
-ApiSSE -> Auth : get_current_user()
-Auth --> ApiSSE : UserResponse
-ApiSSE -> SSE : create_execution_stream(execution_id, user)
-SSE -> RedisBus : subscribe channel:{execution_id}
-RedisBus --> SSE : events..., result_stored
-SSE --> Client : JSON event frames (until result_stored)
-
-@enduml
+    rect rgb(230, 230, 230)
+        note over Client, ApiSSE: Client subscribes to updates
+        Client->>ApiSSE: GET /events/executions/{id}
+        ApiSSE->>Auth: get_current_user()
+        Auth-->>ApiSSE: UserResponse
+        ApiSSE->>SSE: create_execution_stream(execution_id, user)
+        SSE->>RedisBus: subscribe channel:{execution_id}
+        RedisBus-->>SSE: events..., result_stored
+        SSE-->>Client: JSON event frames (until result_stored)
+    end
 ```
-
-[//]: # (TODO: Update all schemas below)
 
 Execution is event-driven end-to-end. The request records an execution and emits events; workers and the pod monitor complete it; the result is persisted and the SSE stream closes on result_stored.
 
 
 ## SSE architecture (execution and notifications)
 
-```
-             +--------------------+        Redis Pub/Sub (private)        +------------------+
-             |  SSEService        |<------------------------------------->|  SSERedisBus     |
-             |  (per-request Gen) |                                       +---------+--------+
-             +----------+---------+                                                 ^
-                        ^                                                           |
-                        | PartitionedSSERouter (N partitions)                        |
-                        | (manages consumers/subs)                                   |
-                        |                                                           |
-    /events/executions/{id}     /events/notifications/stream                         |
-           ^                                  ^                                      |
-           |                                  |                                      |
-   FastAPI routes (public)          FastAPI routes (public)                          |
-           |                                  |                                      |
-           +------------------->  stream JSON frames  <------------------------------+
+```mermaid
+%%{init: {'theme': 'neutral'}}%%
+graph TD
+    subgraph " "
+        style " " fill:none,stroke:none
+        SSEService["SSEService<br/>(per-request Gen)"]
+        subgraph "Redis Pub/Sub (private)"
+            RedisBus["SSERedisBus"]
+        end
+    end
+
+    Router["PartitionedSSERouter<br/>(N partitions)<br/>(manages consumers/subs)"]
+
+    subgraph "FastAPI routes (public)" as ApiRoutes
+        direction LR
+        RouteExec["/events/executions/{id}"]
+        RouteNotify["/events/notifications/stream"]
+    end
+
+    %% ---- Connections ----
+
+    %% Control/Request Flow
+    ApiRoutes -- "Request" --> Router
+    Router --> SSEService
+    SSEService <--> |"sub/pub"| RedisBus
+
+    %% Data Stream Flow
+    RedisBus -.-> |"stream JSON frames"| ApiRoutes
 ```
 
 All app workers publish/consume via Redis so SSE works across processes; streams end on result_stored (executions) and on client close or shutdown (notifications).
@@ -237,17 +256,23 @@ All app workers publish/consume via Redis so SSE works across processes; streams
 
 ## Saga orchestration (execution_saga)
 
-```
- [SagaService] --starts--> [SagaOrchestrator]
-       |                       |
-       |                       |-- bind explicit dependencies (producers, repos, command publisher)
-       |                       |
-       |                       +--[ExecutionSaga] (steps/compensations)
-       |                                  |
-       |                                  |-- step.run(...)  -> publish commands (Kafka)
-       |                                  |-- compensation() -> publish compensations
-       v                                  v
-   SagaRepository (Mongo)          EventStore + Kafka topics
+```mermaid
+%%{init: {'theme': 'neutral'}}%%
+graph TD
+    SagaService[SagaService]
+    Orchestrator[SagaOrchestrator]
+    ExecutionSaga["ExecutionSaga<br/>(steps/compensations)"]
+    SagaRepo[(SagaRepository<br/>Mongo)]
+    EventStore[(EventStore + Kafka topics)]
+
+    SagaService -- starts --> Orchestrator
+    SagaService --> SagaRepo
+
+    Orchestrator -- "binds explicit dependencies<br/>(producers, repos, command publisher)" --> ExecutionSaga
+    Orchestrator --> EventStore
+
+    ExecutionSaga -- "step.run(...) -> publish commands (Kafka)" --> EventStore
+    ExecutionSaga -- "compensation() -> publish compensations" --> EventStore
 ```
 
 Sagas use explicit DI (no context-based injection). Only serializable public data is persisted; runtime objects are not stored.
@@ -255,23 +280,30 @@ Sagas use explicit DI (no context-based injection). Only serializable public dat
 
 ## Notifications (in-app, webhook, Slack, SSE)
 
-```
-  [Execution events] (Kafka topics)
-            |
-            v
-  NotificationService (private)
-     |-- UnifiedConsumer (typed handlers for completed/failed/timeout)
-     |-- Repository: notifications + subscriptions (Mongo)
-     |-- Channels:
-     |     - IN_APP: persist + publish SSE bus (Redis)
-     |     - WEBHOOK: httpx POST
-     |     - SLACK: httpx POST to slack_webhook
-     |-- Throttle cache (in-memory) per user/type
-     v
-  /api/v1/notifications (public)
-     |-- list, mark read, mark all read, subscriptions, unread-count
-     v
-  /events/notifications/stream (SSE, public)
+```mermaid
+%%{init: {'theme': 'neutral'}}%%
+graph TD
+    Kafka["[Execution events]<br/>(Kafka topics)"]
+
+    subgraph "NotificationService (private)"
+        NotificationSvc["
+            <b>NotificationService</b><br/>
+            - UnifiedConsumer (typed handlers for completed/failed/timeout)<br/>
+            - Repository: notifications + subscriptions (Mongo)<br/>
+            - Channels:<br/>
+              &nbsp;&nbsp;- IN_APP: persist + publish SSE bus (Redis)<br/>
+              &nbsp;&nbsp;- WEBHOOK: httpx POST<br/>
+              &nbsp;&nbsp;- SLACK: httpx POST to slack_webhook<br/>
+            - Throttle cache (in-memory) per user/type
+        "]
+    end
+
+    ApiNotifications["/api/v1/notifications (public)<br/>(list, mark read, mark all read, subscriptions, unread-count)"]
+    ApiSSE["/events/notifications/stream (SSE, public)"]
+
+    Kafka --> NotificationSvc
+    NotificationSvc --> ApiNotifications
+    NotificationSvc --> ApiSSE
 ```
 
 NotificationService processes execution events; in-app notifications are stored and streamed to users; webhooks/Slack are sent via httpx.

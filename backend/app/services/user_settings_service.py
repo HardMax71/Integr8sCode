@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Any, List
 
@@ -68,7 +69,8 @@ class UserSettingsService:
             payload = evt.get("payload", {})
             uid = payload.get("user_id")
             if uid:
-                self.invalidate_cache(str(uid))
+                # Use asyncio.to_thread for the sync operation to make it properly async
+                await asyncio.to_thread(self.invalidate_cache, str(uid))
 
         self._subscription_id = await bus.subscribe("user.settings.updated*", _handle)
 
@@ -153,6 +155,7 @@ class UserSettingsService:
                     "user_id": user_id,
                     "old_theme": str(old_theme),
                     "new_theme": str(s.theme),
+                    "reason": reason,
                 },
                 metadata=None,
             )
@@ -167,6 +170,7 @@ class UserSettingsService:
                     "user_id": user_id,
                     "settings": notif,
                     "channels": channels,
+                    "reason": reason,
                 },
                 metadata=None,
             )
@@ -178,17 +182,20 @@ class UserSettingsService:
                 payload={
                     "user_id": user_id,
                     "settings": updated["editor"],
+                    "reason": reason,
                 },
                 metadata=None,
             )
         else:
             # Multiple fields changed or other fields
-            settings_type = (
-                SettingsType.NOTIFICATION if "notifications" in updated else
-                SettingsType.EDITOR if "editor" in updated else
-                SettingsType.DISPLAY if "theme" in updated else
-                SettingsType.PREFERENCES
-            )
+            if "notifications" in updated:
+                settings_type = SettingsType.NOTIFICATION
+            elif "editor" in updated:
+                settings_type = SettingsType.EDITOR
+            elif "theme" in updated:
+                settings_type = SettingsType.DISPLAY
+            else:
+                settings_type = SettingsType.PREFERENCES
             # Flatten changes to string map for the generic event
             changes: dict[str, str] = {}
             for k, v in updated.items():
@@ -200,6 +207,7 @@ class UserSettingsService:
                     "user_id": user_id,
                     "settings_type": settings_type,
                     "changes": changes,
+                    "reason": reason,
                 },
                 metadata=None,
             )
@@ -278,7 +286,7 @@ class UserSettingsService:
                         field="/theme",
                         old_value=event.payload.get("old_theme"),
                         new_value=event.payload.get("new_theme"),
-                        reason=None,
+                        reason=event.payload.get("reason"),
                         correlation_id=event.correlation_id,
                     )
                 )

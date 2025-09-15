@@ -11,6 +11,7 @@ from app.core.logging import logger
 from app.core.metrics import ReplayMetrics
 from app.core.tracing.utils import trace_span
 from app.db.repositories.replay_repository import ReplayRepository
+from app.domain.admin.replay_updates import ReplaySessionUpdate
 from app.domain.enums.replay import ReplayStatus, ReplayTarget
 from app.domain.replay import ReplayConfig, ReplaySessionState
 from app.events.core import UnifiedProducer
@@ -419,16 +420,18 @@ class EventReplayService:
     async def _update_session_in_db(self, session: ReplaySessionState) -> None:
         """Update session progress in the database."""
         try:
+            session_update = ReplaySessionUpdate(
+                status=session.status,
+                replayed_events=session.replayed_events,
+                failed_events=session.failed_events,
+                skipped_events=session.skipped_events,
+                completed_at=session.completed_at,
+            )
+            # Note: last_event_at is not in ReplaySessionUpdate
+            # If needed, add it to the domain model
             await self._repository.update_replay_session(
                 session_id=session.session_id,
-                updates={
-                    "status": session.status,
-                    "replayed_events": session.replayed_events,
-                    "failed_events": session.failed_events,
-                    "skipped_events": session.skipped_events,
-                    "completed_at": session.completed_at,
-                    "last_event_at": session.last_event_at
-                }
+                updates=session_update
             )
         except Exception as e:
             logger.error(f"Failed to update session in database: {e}")

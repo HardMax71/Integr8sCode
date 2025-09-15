@@ -4,7 +4,7 @@ from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.api.dependencies import AdminUser
+from app.api.dependencies import admin_user
 from app.db.repositories.admin.admin_user_repository import AdminUserRepository
 from app.domain.rate_limit import UserRateLimit
 from app.domain.user import (
@@ -28,13 +28,13 @@ router = APIRouter(
     prefix="/admin/users",
     tags=["admin", "users"],
     route_class=DishkaRoute,
-    dependencies=[Depends(AdminUser)]
+    dependencies=[Depends(admin_user)]
 )
 
 
 @router.get("/", response_model=UserListResponse)
 async def list_users(
-        admin: Annotated[UserResponse, Depends(AdminUser)],
+        admin: Annotated[UserResponse, Depends(admin_user)],
         admin_user_service: FromDishka[AdminUserService],
         rate_limit_service: FromDishka[RateLimitService],
         limit: int = Query(default=100, le=1000),
@@ -72,7 +72,7 @@ async def list_users(
 
 @router.post("/", response_model=UserResponse)
 async def create_user(
-        admin: Annotated[UserResponse, Depends(AdminUser)],
+        admin: Annotated[UserResponse, Depends(admin_user)],
         user_data: UserCreate,
         admin_user_service: FromDishka[AdminUserService],
 ) -> UserResponse:
@@ -88,7 +88,7 @@ async def create_user(
 
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
-        admin: Annotated[UserResponse, Depends(AdminUser)],
+        admin: Annotated[UserResponse, Depends(admin_user)],
         user_id: str,
         admin_user_service: FromDishka[AdminUserService],
 ) -> UserResponse:
@@ -102,7 +102,7 @@ async def get_user(
 
 @router.get("/{user_id}/overview", response_model=AdminUserOverview)
 async def get_user_overview(
-        admin: Annotated[UserResponse, Depends(AdminUser)],
+        admin: Annotated[UserResponse, Depends(admin_user)],
         user_id: str,
         admin_user_service: FromDishka[AdminUserService],
 ) -> AdminUserOverview:
@@ -117,7 +117,7 @@ async def get_user_overview(
 
 @router.put("/{user_id}", response_model=UserResponse)
 async def update_user(
-        admin: Annotated[UserResponse, Depends(AdminUser)],
+        admin: Annotated[UserResponse, Depends(admin_user)],
         user_id: str,
         user_update: UserUpdate,
         user_repo: FromDishka[AdminUserRepository],
@@ -149,7 +149,7 @@ async def update_user(
 
 @router.delete("/{user_id}")
 async def delete_user(
-        admin: Annotated[UserResponse, Depends(AdminUser)],
+        admin: Annotated[UserResponse, Depends(admin_user)],
         user_id: str,
         admin_user_service: FromDishka[AdminUserService],
         cascade: bool = Query(default=True, description="Cascade delete user's data"),
@@ -169,7 +169,7 @@ async def delete_user(
 
 @router.post("/{user_id}/reset-password", response_model=MessageResponse)
 async def reset_user_password(
-        admin: Annotated[UserResponse, Depends(AdminUser)],
+        admin: Annotated[UserResponse, Depends(admin_user)],
         admin_user_service: FromDishka[AdminUserService],
         user_id: str,
         password_request: PasswordResetRequest,
@@ -184,7 +184,7 @@ async def reset_user_password(
 
 @router.get("/{user_id}/rate-limits")
 async def get_user_rate_limits(
-        admin: Annotated[UserResponse, Depends(AdminUser)],
+        admin: Annotated[UserResponse, Depends(admin_user)],
         admin_user_service: FromDishka[AdminUserService],
         user_id: str,
 ) -> dict:
@@ -193,7 +193,7 @@ async def get_user_rate_limits(
 
 @router.put("/{user_id}/rate-limits")
 async def update_user_rate_limits(
-        admin: Annotated[UserResponse, Depends(AdminUser)],
+        admin: Annotated[UserResponse, Depends(admin_user)],
         admin_user_service: FromDishka[AdminUserService],
         user_id: str,
         rate_limit_config: UserRateLimit,
@@ -205,7 +205,7 @@ async def update_user_rate_limits(
 
 @router.post("/{user_id}/rate-limits/reset")
 async def reset_user_rate_limits(
-        admin: Annotated[UserResponse, Depends(AdminUser)],
+        admin: Annotated[UserResponse, Depends(admin_user)],
         admin_user_service: FromDishka[AdminUserService],
         user_id: str,
 ) -> MessageResponse:

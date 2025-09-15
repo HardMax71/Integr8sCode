@@ -6,7 +6,7 @@ from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
-from app.api.dependencies import AdminUser, CurrentUser
+from app.api.dependencies import admin_user, current_user
 from app.core.correlation import CorrelationContext
 from app.core.logging import logger
 from app.core.utils import get_client_ip
@@ -39,7 +39,7 @@ router = APIRouter(prefix="/events",
             response_model=EventListResponse)
 async def get_execution_events(
         execution_id: str,
-        current_user: Annotated[UserResponse, Depends(CurrentUser)],
+        current_user: Annotated[UserResponse, Depends(current_user)],
         event_service: FromDishka[EventService],
         include_system_events: bool = Query(
             False,
@@ -70,7 +70,7 @@ async def get_execution_events(
 
 @router.get("/user", response_model=EventListResponse)
 async def get_user_events(
-        current_user: Annotated[UserResponse, Depends(CurrentUser)],
+        current_user: Annotated[UserResponse, Depends(current_user)],
         event_service: FromDishka[EventService],
         event_types: List[str] | None = Query(None),
         start_time: datetime | None = Query(None),
@@ -104,7 +104,7 @@ async def get_user_events(
 
 @router.post("/query", response_model=EventListResponse)
 async def query_events(
-        current_user: Annotated[UserResponse, Depends(CurrentUser)],
+        current_user: Annotated[UserResponse, Depends(current_user)],
         filter_request: EventFilterRequest,
         event_service: FromDishka[EventService],
 ) -> EventListResponse:
@@ -149,7 +149,7 @@ async def query_events(
 @router.get("/correlation/{correlation_id}", response_model=EventListResponse)
 async def get_events_by_correlation(
         correlation_id: str,
-        current_user: Annotated[UserResponse, Depends(CurrentUser)],
+        current_user: Annotated[UserResponse, Depends(current_user)],
         event_service: FromDishka[EventService],
         include_all_users: bool = Query(
             False,
@@ -179,7 +179,7 @@ async def get_events_by_correlation(
 
 @router.get("/current-request", response_model=EventListResponse)
 async def get_current_request_events(
-        current_user: Annotated[UserResponse, Depends(CurrentUser)],
+        current_user: Annotated[UserResponse, Depends(current_user)],
         event_service: FromDishka[EventService],
         limit: int = Query(100, ge=1, le=1000),
 ) -> EventListResponse:
@@ -215,7 +215,7 @@ async def get_current_request_events(
 
 @router.get("/statistics", response_model=EventStatistics)
 async def get_event_statistics(
-        current_user: Annotated[UserResponse, Depends(CurrentUser)],
+        current_user: Annotated[UserResponse, Depends(current_user)],
         event_service: FromDishka[EventService],
         start_time: datetime | None = Query(
             None,
@@ -250,7 +250,7 @@ async def get_event_statistics(
 @router.get("/{event_id}", response_model=EventResponse)
 async def get_event(
         event_id: str,
-        current_user: Annotated[UserResponse, Depends(CurrentUser)],
+        current_user: Annotated[UserResponse, Depends(current_user)],
         event_service: FromDishka[EventService]
 ) -> EventResponse:
     """Get a specific event by ID"""
@@ -267,7 +267,7 @@ async def get_event(
 
 @router.post("/publish", response_model=PublishEventResponse)
 async def publish_custom_event(
-        admin: Annotated[UserResponse, Depends(AdminUser)],
+        admin: Annotated[UserResponse, Depends(admin_user)],
         event_request: PublishEventRequest,
         request: Request,
         event_service: FromDishka[KafkaEventService]
@@ -301,7 +301,7 @@ async def publish_custom_event(
 
 @router.post("/aggregate", response_model=List[Dict[str, Any]])
 async def aggregate_events(
-        current_user: Annotated[UserResponse, Depends(CurrentUser)],
+        current_user: Annotated[UserResponse, Depends(current_user)],
         aggregation: EventAggregationRequest,
         event_service: FromDishka[EventService],
 ) -> List[Dict[str, Any]]:
@@ -317,7 +317,7 @@ async def aggregate_events(
 
 @router.get("/types/list", response_model=List[str])
 async def list_event_types(
-        current_user: Annotated[UserResponse, Depends(CurrentUser)],
+        current_user: Annotated[UserResponse, Depends(current_user)],
         event_service: FromDishka[EventService]
 ) -> List[str]:
     event_types = await event_service.list_event_types(
@@ -330,7 +330,7 @@ async def list_event_types(
 @router.delete("/{event_id}", response_model=DeleteEventResponse)
 async def delete_event(
         event_id: str,
-        admin: Annotated[UserResponse, Depends(AdminUser)],
+        admin: Annotated[UserResponse, Depends(admin_user)],
         event_service: FromDishka[EventService],
 ) -> DeleteEventResponse:
     result = await event_service.delete_event_with_archival(
@@ -360,7 +360,7 @@ async def delete_event(
 @router.post("/replay/{aggregate_id}", response_model=ReplayAggregateResponse)
 async def replay_aggregate_events(
         aggregate_id: str,
-        admin: Annotated[UserResponse, Depends(AdminUser)],
+        admin: Annotated[UserResponse, Depends(admin_user)],
         event_service: FromDishka[EventService],
         kafka_event_service: FromDishka[KafkaEventService],
         target_service: str | None = Query(

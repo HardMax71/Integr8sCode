@@ -25,10 +25,10 @@ if [ -f /root/.kube/config ]; then
   K8S_PORT=6443
   WORKING_IP=""
 
-  # List of potential IPs to test - include loopback and gateway for host networking
+  # List of potential IPs to test - prefer host.docker.internal for container access
   GATEWAY_IP=$(ip route | awk '/default/ {print $3; exit}')
-  # Try common patterns for host IPs, plus loopback and detected gateway
-  for TEST_IP in 127.0.0.1 ${GATEWAY_IP} 192.168.0.16 192.168.1.1 10.0.0.1 172.17.0.1 172.18.0.1 host.docker.internal; do
+  # Try host.docker.internal first for Docker container compatibility
+  for TEST_IP in host.docker.internal ${GATEWAY_IP} 172.18.0.1 172.17.0.1 192.168.0.16 192.168.1.1 10.0.0.1 127.0.0.1; do
     echo -n "Testing ${TEST_IP}:${K8S_PORT}... "
     if nc -zv -w2 ${TEST_IP} ${K8S_PORT} 2>/dev/null; then
       WORKING_IP=${TEST_IP}
@@ -186,9 +186,9 @@ EOF
     K8S_PORT=$(echo "$K8S_SERVER" | grep -oE ':[0-9]+' | tr -d ':')
     K8S_PORT=${K8S_PORT:-6443}
 
-    # Prefer loopback and gateway IPs first when running with host networking
+    # Prefer host.docker.internal and gateway IPs for Docker container access
     GATEWAY_IP=$(ip route | grep default | awk '{print $3}')
-    POTENTIAL_IPS="127.0.0.1 ${GATEWAY_IP} 172.18.0.1 172.17.0.1 host.docker.internal"
+    POTENTIAL_IPS="host.docker.internal ${GATEWAY_IP} 172.18.0.1 172.17.0.1 127.0.0.1"
 
     echo "Environment info:"
     echo "  K8S_PORT: ${K8S_PORT}"

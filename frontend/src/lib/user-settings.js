@@ -1,8 +1,7 @@
 import { setTheme } from '../stores/theme.js';
-import { addNotification } from '../stores/notifications.js';
 import { get } from 'svelte/store';
 import { isAuthenticated } from '../stores/auth.js';
-import { getCachedSettings, setCachedSettings, updateCachedSetting, clearCache } from './settings-cache.js';
+import { getCachedSettings, setCachedSettings, updateCachedSetting } from './settings-cache.js';
 
 
 export async function saveThemeSetting(theme) {

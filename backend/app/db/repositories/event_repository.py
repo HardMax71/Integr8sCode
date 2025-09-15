@@ -1,5 +1,6 @@
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
+from types import MappingProxyType
 from typing import Any, AsyncIterator, Mapping
 
 from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
@@ -259,7 +260,7 @@ class EventRepository:
 
     async def get_event_statistics_filtered(
             self,
-            match: dict[str, object] | None = None,
+            match: Mapping[str, object] = MappingProxyType({}),
             start_time: datetime | None = None,
             end_time: datetime | None = None,
     ) -> EventStatistics:
@@ -267,7 +268,7 @@ class EventRepository:
 
         and_clauses: list[dict[str, object]] = []
         if match:
-            and_clauses.append(match)
+            and_clauses.append(dict(match))
         time_filter = self._build_time_filter(start_time, end_time)
         if time_filter:
             and_clauses.append({EventFields.TIMESTAMP: time_filter})
@@ -473,10 +474,10 @@ class EventRepository:
 
         return EventAggregationResult(results=results, pipeline=pipeline)
 
-    async def list_event_types(self, match: dict[str, object] | None = None) -> list[str]:
+    async def list_event_types(self, match: Mapping[str, object] = MappingProxyType({})) -> list[str]:
         pipeline: list[Mapping[str, object]] = []
         if match:
-            pipeline.append({"$match": match})
+            pipeline.append({"$match": dict(match)})
         pipeline.extend([
             {"$group": {"_id": f"${EventFields.EVENT_TYPE}"}},
             {"$sort": {"_id": 1}}

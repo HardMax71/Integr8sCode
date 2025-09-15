@@ -39,6 +39,9 @@ from app.services.kafka_event_service import KafkaEventService
 from app.services.sse.redis_bus import SSERedisBus
 from app.settings import Settings
 
+# Constants
+ENTITY_EXECUTION_TAG = "entity:execution"
+
 # Type aliases
 type EventPayload = dict[str, object]
 type NotificationContext = dict[str, object]
@@ -153,7 +156,7 @@ class NotificationService:
     def state(self) -> ServiceState:
         return self._state
 
-    async def initialize(self) -> None:
+    def initialize(self) -> None:
         if self._state != ServiceState.IDLE:
             logger.warning(f"Cannot initialize in state: {self._state}")
             return
@@ -614,7 +617,7 @@ class NotificationService:
             subject=title,
             body=body,
             severity=NotificationSeverity.HIGH,
-            tags=["execution", "timeout", "entity:execution", f"exec:{event.execution_id}"],
+            tags=["execution", "timeout", ENTITY_EXECUTION_TAG, f"exec:{event.execution_id}"],
             metadata=event.model_dump(
                 exclude={"metadata", "event_type", "event_version", "timestamp", "aggregate_id", "topic"}
             ),
@@ -635,7 +638,7 @@ class NotificationService:
             subject=title,
             body=body,
             severity=NotificationSeverity.MEDIUM,
-            tags=["execution", "completed", "entity:execution", f"exec:{event.execution_id}"],
+            tags=["execution", "completed", ENTITY_EXECUTION_TAG, f"exec:{event.execution_id}"],
             metadata=event.model_dump(
                 exclude={"metadata", "event_type", "event_version", "timestamp", "aggregate_id", "topic"}),
         )
@@ -677,7 +680,7 @@ class NotificationService:
             subject=title,
             body=body,
             severity=NotificationSeverity.HIGH,
-            tags=["execution", "failed", "entity:execution", f"exec:{event.execution_id}"],
+            tags=["execution", "failed", ENTITY_EXECUTION_TAG, f"exec:{event.execution_id}"],
             metadata=event_data,
         )
 
@@ -836,6 +839,35 @@ class NotificationService:
         }
         await self.sse_bus.publish_notification(notification.user_id, payload)
 
+    async def _should_skip_notification(
+        self,
+        notification: DomainNotification,
+        subscription: DomainNotificationSubscription | None
+    ) -> str | None:
+        """Check if notification should be skipped based on subscription filters.
+
+        Returns skip reason if should skip, None otherwise.
+        """
+        if not subscription or not subscription.enabled:
+            return f"User {notification.user_id} has {notification.channel} disabled; skipping delivery."
+
+        if subscription.severities and notification.severity not in subscription.severities:
+            return (
+                f"Notification severity '{notification.severity}' filtered by user preferences "
+                f"for {notification.channel}"
+            )
+
+        if subscription.include_tags and not any(tag in subscription.include_tags for tag in (notification.tags or [])):
+            return (
+                f"Notification tags {notification.tags} "
+                f"not in include list for {notification.channel}"
+            )
+
+        if subscription.exclude_tags and any(tag in subscription.exclude_tags for tag in (notification.tags or [])):
+            return f"Notification tags {notification.tags} excluded by preferences for {notification.channel}"
+
+        return None
+
     async def _deliver_notification(self, notification: DomainNotification) -> None:
         """Deliver notification through configured channel using safe state transitions."""
         # Attempt to claim this notification for sending
@@ -860,46 +892,17 @@ class NotificationService:
             notification.channel
         )
 
-        if not subscription or not subscription.enabled:
-            info_msg = (
-                f"User {notification.user_id} has {notification.channel} disabled; skipping delivery."
-            )
-            logger.info(info_msg)
+        # Check if notification should be skipped
+        skip_reason = await self._should_skip_notification(notification, subscription)
+        if skip_reason:
+            logger.info(skip_reason)
             notification.status = NotificationStatus.SKIPPED
-            notification.error_message = info_msg
+            notification.error_message = skip_reason
             await self.repository.update_notification(notification)
             return
 
-        # Check severity/tag filters
-        if subscription.severities and notification.severity not in subscription.severities:
-            info_msg = (
-                f"Notification severity '{notification.severity}' filtered by user preferences "
-                f"for {notification.channel}"
-            )
-            logger.info(info_msg)
-            notification.status = NotificationStatus.SKIPPED
-            notification.error_message = info_msg
-            await self.repository.update_notification(notification)
-            return
-        if subscription.include_tags and not any(tag in subscription.include_tags for tag in (notification.tags or [])):
-            info_msg = (
-                f"Notification tags {notification.tags} "
-                f"not in include list for {notification.channel}"
-            )
-            logger.info(info_msg)
-            notification.status = NotificationStatus.SKIPPED
-            notification.error_message = info_msg
-            await self.repository.update_notification(notification)
-            return
-        if subscription.exclude_tags and any(tag in subscription.exclude_tags for tag in (notification.tags or [])):
-            info_msg = (
-                f"Notification tags {notification.tags} excluded by preferences for {notification.channel}"
-            )
-            logger.info(info_msg)
-            notification.status = NotificationStatus.SKIPPED
-            notification.error_message = info_msg
-            await self.repository.update_notification(notification)
-            return
+        # At this point, subscription is guaranteed to be non-None (checked in _should_skip_notification)
+        assert subscription is not None
 
         # Send through channel
         start_time = asyncio.get_event_loop().time()

@@ -157,13 +157,6 @@ class DLQRepository:
 
         return DLQMapper.from_mongo_document(doc)
 
-    async def get_message_for_retry(self, event_id: str) -> DLQMessage | None:
-        doc = await self.dlq_collection.find_one({DLQFields.EVENT_ID: event_id})
-        if not doc:
-            return None
-
-        return DLQMapper.from_mongo_document(doc)
-
     async def get_topics_summary(self) -> list[DLQTopicSummary]:
         pipeline: list[Mapping[str, object]] = [
             {"$group": {
@@ -234,7 +227,7 @@ class DLQRepository:
         for event_id in event_ids:
             try:
                 # Get message from repository
-                message = await self.get_message_for_retry(event_id)
+                message = await self.get_message_by_id(event_id)
 
                 if not message:
                     failed += 1

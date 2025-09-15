@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from typing import Optional
 
 from starlette.datastructures import MutableHeaders
 from starlette.requests import Request
@@ -73,10 +72,9 @@ class RateLimitMiddleware:
 
         # Build request object to access state
         request = Request(scope, receive=receive)
-        identifier = self._extract_identifier(request)
-        username = self._extract_username(request)
+        user_id = self._extract_user_id(request)
 
-        status = await self._check_rate_limit(identifier, path, username)
+        status = await self._check_rate_limit(user_id, path)
 
         if not status.allowed:
             response = self._rate_limit_exceeded_response(status)
@@ -94,23 +92,16 @@ class RateLimitMiddleware:
 
         await self.app(scope, receive, send_wrapper)
 
-    def _extract_identifier(self, request: Request) -> str:
+    def _extract_user_id(self, request: Request) -> str:
         user: User | None = request.state.__dict__.get("user")
         if user:
             return str(user.user_id)
         return f"ip:{get_client_ip(request)}"
 
-    def _extract_username(self, request: Request) -> Optional[str]:
-        user: User | None = request.state.__dict__.get("user")
-        if user:
-            return user.username
-        return None
-
     async def _check_rate_limit(
             self,
-            identifier: str,
-            endpoint: str,
-            username: Optional[str]
+            user_id: str,
+            endpoint: str
     ) -> RateLimitStatus:
         # At this point service should be available; if not, allow request
         if self.rate_limit_service is None:
@@ -122,9 +113,8 @@ class RateLimitMiddleware:
             )
 
         return await self.rate_limit_service.check_rate_limit(
-            user_id=identifier,
-            endpoint=endpoint,
-            username=username
+            user_id=user_id,
+            endpoint=endpoint
         )
 
     def _rate_limit_exceeded_response(self, status: RateLimitStatus) -> JSONResponse:

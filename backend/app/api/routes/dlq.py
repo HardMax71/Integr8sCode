@@ -5,7 +5,7 @@ from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.api.dependencies import CurrentUser
+from app.api.dependencies import current_user
 from app.db.repositories.dlq_repository import DLQRepository
 from app.dlq import RetryPolicy
 from app.dlq.manager import DLQManager
@@ -26,7 +26,7 @@ router = APIRouter(
     prefix="/dlq",
     tags=["Dead Letter Queue"],
     route_class=DishkaRoute,
-    dependencies=[Depends(CurrentUser)]
+    dependencies=[Depends(current_user)]
 )
 
 
@@ -170,7 +170,7 @@ async def discard_dlq_message(
         dlq_manager: FromDishka[DLQManager],
         reason: str = Query(..., description="Reason for discarding")
 ) -> MessageResponse:
-    message_data = await repository.get_message_for_retry(event_id)
+    message_data = await repository.get_message_by_id(event_id)
     if not message_data:
         raise HTTPException(status_code=404, detail="Message not found")
 

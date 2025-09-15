@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import pytest
 
 from app.db.repositories.replay_repository import ReplayRepository
+from app.domain.admin.replay_updates import ReplaySessionUpdate
 from app.domain.enums.replay import ReplayStatus, ReplayType
 from app.domain.replay import ReplayConfig, ReplayFilter
 from app.schemas_pydantic.replay_models import ReplaySession
@@ -26,7 +27,8 @@ async def test_indexes_and_session_crud(repo: ReplayRepository) -> None:
     lst = await repo.list_sessions(limit=5)
     assert any(s.session_id == "s1" for s in lst)
     assert await repo.update_session_status("s1", "running") is True
-    assert await repo.update_replay_session("s1", {"status": "completed"}) is True
+    session_update = ReplaySessionUpdate(status=ReplayStatus.COMPLETED)
+    assert await repo.update_replay_session("s1", session_update) is True
 
 
 @pytest.mark.asyncio

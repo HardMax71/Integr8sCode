@@ -34,7 +34,7 @@ async def test_normalize_and_disabled_and_bypass_and_no_rule(scope) -> None:  # 
         "u1": UserRateLimit(user_id="u1", bypass_rate_limit=True)
     })
     await svc.update_config(cfg)
-    res2 = await svc.check_rate_limit("u1", "/api/x", config=None, username="alice")
+    res2 = await svc.check_rate_limit("u1", "/api/x", config=None)
     assert res2.allowed is True
 
     # no matching rule -> allowed

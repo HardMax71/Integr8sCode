@@ -20,6 +20,12 @@ class EventService:
     def __init__(self, repository: EventRepository):
         self.repository = repository
 
+    def _build_user_filter(self, user_id: str, user_role: UserRole) -> dict[str, object]:
+        """Build user filter based on role. Returns empty dict ( = see everything) for admins."""
+        if user_role == UserRole.ADMIN:
+            return {}
+        return {"metadata.user_id": user_id}
+
     async def get_execution_events(
             self,
             execution_id: str,
@@ -95,11 +101,8 @@ class EventService:
         direction = DESCENDING if str(sort_order).lower() == "desc" else ASCENDING
 
         # Pagination and sorting from request
-        # Cast to dict[str, object] for repository compatibility
-        # TODO: Remove cast
-        query_obj: dict[str, object] = query  # type: ignore[assignment]
         return await self.repository.query_events_generic(
-            query=query_obj,
+            query=query, # type: ignore[assignment]
             sort_field=sort_field,
             sort_direction=direction,
             skip=skip,
@@ -127,9 +130,7 @@ class EventService:
             end_time: datetime | None = None,
             include_all_users: bool = False,
     ) -> EventStatistics:
-        match: dict[str, Any] | None = None
-        if not include_all_users or user_role != UserRole.ADMIN:
-            match = {"metadata.user_id": user_id}
+        match = {} if include_all_users else self._build_user_filter(user_id, user_role)
         return await self.repository.get_event_statistics_filtered(
             match=match,
             start_time=start_time,
@@ -157,9 +158,9 @@ class EventService:
             pipeline: List[Dict[str, Any]],
             limit: int = 100,
     ) -> EventAggregationResult:
-        user_filter = {"metadata.user_id": user_id}
+        user_filter = self._build_user_filter(user_id, user_role)
         new_pipeline = list(pipeline)
-        if user_role != UserRole.ADMIN:
+        if user_filter:
             if new_pipeline and "$match" in new_pipeline[0]:
                 new_pipeline[0]["$match"] = {"$and": [new_pipeline[0]["$match"], user_filter]}
             else:
@@ -171,8 +172,7 @@ class EventService:
             user_id: str,
             user_role: UserRole,
     ) -> List[str]:
-        # TODO : fix types with obj
-        match: dict[str, object] | None = None if user_role == UserRole.ADMIN else {"metadata.user_id": user_id}
+        match = self._build_user_filter(user_id, user_role)
         return await self.repository.list_event_types(match=match)
 
     async def delete_event_with_archival(

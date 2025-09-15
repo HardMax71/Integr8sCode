@@ -111,19 +111,19 @@ class SagaService:
             skip: int = 0
     ) -> SagaListResult:
         """List sagas accessible by user."""
-        filter = SagaFilter(state=state)
+        saga_filter = SagaFilter(state=state)
 
         # Non-admin users can only see their own sagas
         if user.role != UserRole.ADMIN:
             user_execution_ids = await self.saga_repo.get_user_execution_ids(user.user_id)
-            filter.execution_ids = user_execution_ids
+            saga_filter.execution_ids = user_execution_ids
             logger.debug(
                 f"Filtering sagas for user {user.user_id}",
                 extra={"execution_count": len(user_execution_ids) if user_execution_ids else 0}
             )
 
         # Get sagas from repository
-        result = await self.saga_repo.list_sagas(filter, limit, skip)
+        result = await self.saga_repo.list_sagas(saga_filter, limit, skip)
         logger.debug(
             f"Listed {len(result.sagas)} sagas for user {user.user_id}",
             extra={"total": result.total, "state_filter": str(state) if state else None}
@@ -170,14 +170,14 @@ class SagaService:
             include_all: bool = False
     ) -> dict[str, object]:
         """Get saga statistics."""
-        filter = None
+        saga_filter = None
 
         # Non-admin users can only see their own statistics
         if user.role != UserRole.ADMIN or not include_all:
             user_execution_ids = await self.saga_repo.get_user_execution_ids(user.user_id)
-            filter = SagaFilter(execution_ids=user_execution_ids)
+            saga_filter = SagaFilter(execution_ids=user_execution_ids)
 
-        return await self.saga_repo.get_saga_statistics(filter)
+        return await self.saga_repo.get_saga_statistics(saga_filter)
 
     async def get_saga_status_from_orchestrator(
             self,

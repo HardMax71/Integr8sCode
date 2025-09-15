@@ -7,7 +7,7 @@ from app.services.auth_service import AuthService
 
 
 @inject
-async def CurrentUser(
+async def current_user(
     request: Request,
     auth_service: FromDishka[AuthService]
 ) -> UserResponse:
@@ -16,7 +16,7 @@ async def CurrentUser(
 
 
 @inject
-async def AdminUser(
+async def admin_user(
     request: Request,
     auth_service: FromDishka[AuthService]
 ) -> UserResponse:

@@ -10,7 +10,7 @@ export function shouldRetry(error) {
     }
     
     // Network errors
-    if (error.name === 'TypeError' && error.message && error.message.includes('fetch')) {
+    if (error.name === 'TypeError' && error.message?.includes('fetch')) {
         return true;
     }
     
@@ -83,7 +83,7 @@ export async function fetchWithRetry(url, options = {}, retryOptions = {}) {
             numOfAttempts,
             maxDelay,
             jitter,
-            retry: (error) => shouldRetry(error) || (error && error.response && shouldRetry(error.response)),
+            retry: (error) => shouldRetry(error) || shouldRetry(error?.response),
             ...otherRetryOptions
         }
     );

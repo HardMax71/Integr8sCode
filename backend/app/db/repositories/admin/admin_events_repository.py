@@ -11,6 +11,7 @@ from app.domain.admin import (
     ReplaySessionFields,
     ReplaySessionStatusDetail,
 )
+from app.domain.admin.replay_updates import ReplaySessionUpdate
 from app.domain.enums.replay import ReplayStatus
 from app.domain.events.event_models import (
     CollectionNames,
@@ -247,12 +248,12 @@ class AdminEventsRepository:
         })
         return self.replay_mapper.from_dict(doc) if doc else None
 
-    async def update_replay_session(self, session_id: str, updates: Dict[str, Any]) -> bool:
+    async def update_replay_session(self, session_id: str, updates: ReplaySessionUpdate) -> bool:
         """Update replay session fields."""
-        # TODO: accept correct obj instead of dict of whatever
-        mongo_updates = {}
-        for key, value in updates.items():
-            mongo_updates[str(key)] = value
+        if not updates.has_updates():
+            return False
+
+        mongo_updates = updates.to_dict()
 
         result = await self.replay_sessions_collection.update_one(
             {ReplaySessionFields.SESSION_ID: session_id},
@@ -306,15 +307,15 @@ class AdminEventsRepository:
             updated_session = session.update_progress(estimated_progress)
 
             # Update in database
-            updates: Dict[str, Any] = {
-                ReplaySessionFields.REPLAYED_EVENTS: updated_session.replayed_events
-            }
+            session_update = ReplaySessionUpdate(
+                replayed_events=updated_session.replayed_events
+            )
 
             if updated_session.is_completed:
-                updates[ReplaySessionFields.STATUS] = updated_session.status
-                updates[ReplaySessionFields.COMPLETED_AT] = updated_session.completed_at
+                session_update.status = updated_session.status
+                session_update.completed_at = updated_session.completed_at
 
-            await self.update_replay_session(session_id, updates)
+            await self.update_replay_session(session_id, session_update)
 
             # Use the updated session for the rest of the method
             session = updated_session

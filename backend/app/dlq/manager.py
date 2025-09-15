@@ -3,7 +3,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Mapping, Sequence
 
-from confluent_kafka import Consumer, KafkaError, Producer
+from confluent_kafka import Consumer, KafkaError, Message, Producer
 from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
 from opentelemetry.trace import SpanKind
 
@@ -104,64 +104,82 @@ class DLQManager:
     async def _process_messages(self) -> None:
         while self._running:
             try:
-                # Fetch messages using confluent-kafka poll
-                # Poll for messages (non-blocking with asyncio)
-                msg = await asyncio.to_thread(self.consumer.poll, timeout=1.0)
-
+                msg = await self._poll_message()
                 if msg is None:
                     continue
 
-                if msg.error():
-                    error = msg.error()
-                    if error and error.code() == KafkaError._PARTITION_EOF:
-                        continue
-                    logger.error(f"Consumer error: {error}")
+                if not await self._validate_message(msg):
                     continue
 
                 start_time = asyncio.get_event_loop().time()
+                dlq_message = await self._parse_message(msg)
 
-                schema_registry = SchemaRegistryManager()
-                dlq_message = DLQMapper.from_kafka_message(msg, schema_registry)
-
-                # Build consumer span using propagated context
-                headers_list = msg.headers() or []
-                headers: dict[str, str] = {}
-                for k, v in headers_list:
-                    headers[str(k)] = v.decode("utf-8") if isinstance(v, (bytes, bytearray)) else (v or "")
-                ctx = extract_trace_context(headers)
-                tracer = get_tracer()
-
-                # Update metrics
-                self.metrics.record_dlq_message_received(
-                    dlq_message.original_topic,
-                    dlq_message.event_type
-                )
-
-                self.metrics.record_dlq_message_age(dlq_message.age_seconds)
-
-                # Process message
-                with tracer.start_as_current_span(
-                    name="dlq.consume",
-                    context=ctx,
-                    kind=SpanKind.CONSUMER,
-                    attributes={
-                        str(EventAttributes.KAFKA_TOPIC): str(self.dlq_topic),
-                        str(EventAttributes.EVENT_TYPE): dlq_message.event_type,
-                        str(EventAttributes.EVENT_ID): dlq_message.event_id or "",
-                    },
-                ):
-                    await self._process_dlq_message(dlq_message)
-
-                # Commit offset after successful processing
-                await asyncio.to_thread(self.consumer.commit, asynchronous=False)
-
-                # Record processing time
-                duration = asyncio.get_event_loop().time() - start_time
-                self.metrics.record_dlq_processing_duration(duration, "process")
+                await self._record_message_metrics(dlq_message)
+                await self._process_message_with_tracing(msg, dlq_message)
+                await self._commit_and_record_duration(start_time)
 
             except Exception as e:
                 logger.error(f"Error in DLQ processing loop: {e}")
                 await asyncio.sleep(5)
+
+    async def _poll_message(self) -> Message | None:
+        """Poll for a message from Kafka."""
+        return await asyncio.to_thread(self.consumer.poll, timeout=1.0)
+
+    async def _validate_message(self, msg: Message) -> bool:
+        """Validate the Kafka message."""
+        if msg.error():
+            error = msg.error()
+            if error and error.code() == KafkaError._PARTITION_EOF:
+                return False
+            logger.error(f"Consumer error: {error}")
+            return False
+        return True
+
+    async def _parse_message(self, msg: Message) -> DLQMessage:
+        """Parse Kafka message into DLQMessage."""
+        schema_registry = SchemaRegistryManager()
+        return DLQMapper.from_kafka_message(msg, schema_registry)
+
+    def _extract_headers(self, msg: Message) -> dict[str, str]:
+        """Extract headers from Kafka message."""
+        headers_list = msg.headers() or []
+        headers: dict[str, str] = {}
+        for k, v in headers_list:
+            headers[str(k)] = v.decode("utf-8") if isinstance(v, (bytes, bytearray)) else (v or "")
+        return headers
+
+    async def _record_message_metrics(self, dlq_message: DLQMessage) -> None:
+        """Record metrics for received DLQ message."""
+        self.metrics.record_dlq_message_received(
+            dlq_message.original_topic,
+            dlq_message.event_type
+        )
+        self.metrics.record_dlq_message_age(dlq_message.age_seconds)
+
+    async def _process_message_with_tracing(self, msg: Message, dlq_message: DLQMessage) -> None:
+        """Process message with distributed tracing."""
+        headers = self._extract_headers(msg)
+        ctx = extract_trace_context(headers)
+        tracer = get_tracer()
+
+        with tracer.start_as_current_span(
+            name="dlq.consume",
+            context=ctx,
+            kind=SpanKind.CONSUMER,
+            attributes={
+                str(EventAttributes.KAFKA_TOPIC): str(self.dlq_topic),
+                str(EventAttributes.EVENT_TYPE): dlq_message.event_type,
+                str(EventAttributes.EVENT_ID): dlq_message.event_id or "",
+            },
+        ):
+            await self._process_dlq_message(dlq_message)
+
+    async def _commit_and_record_duration(self, start_time: float) -> None:
+        """Commit offset and record processing duration."""
+        await asyncio.to_thread(self.consumer.commit, asynchronous=False)
+        duration = asyncio.get_event_loop().time() - start_time
+        self.metrics.record_dlq_processing_duration(duration, "process")
 
     async def _process_dlq_message(self, message: DLQMessage) -> None:
         # Apply filters

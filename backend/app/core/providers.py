@@ -54,6 +54,7 @@ from app.services.event_bus import EventBusManager
 from app.services.event_replay.replay_service import EventReplayService
 from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
+from app.services.grafana_alert_processor import GrafanaAlertProcessor
 from app.services.idempotency import IdempotencyConfig, IdempotencyManager
 from app.services.idempotency.idempotency_manager import create_idempotency_manager
 from app.services.idempotency.redis_repository import RedisIdempotencyRepository
@@ -439,7 +440,7 @@ class AdminServicesProvider(Provider):
         return NotificationRepository(database)
 
     @provide
-    async def get_notification_service(
+    def get_notification_service(
             self,
             notification_repository: NotificationRepository,
             kafka_event_service: KafkaEventService,
@@ -456,8 +457,15 @@ class AdminServicesProvider(Provider):
             sse_bus=sse_redis_bus,
             settings=settings,
         )
-        await service.initialize()
+        service.initialize()
         return service
+
+    @provide
+    def get_grafana_alert_processor(
+            self,
+            notification_service: NotificationService,
+    ) -> GrafanaAlertProcessor:
+        return GrafanaAlertProcessor(notification_service)
 
 
 class BusinessServicesProvider(Provider):

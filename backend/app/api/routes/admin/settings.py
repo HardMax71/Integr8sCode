@@ -5,7 +5,7 @@ from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import ValidationError
 
-from app.api.dependencies import AdminUser
+from app.api.dependencies import admin_user
 from app.infrastructure.mappers import SettingsMapper
 from app.schemas_pydantic.admin_settings import SystemSettings
 from app.schemas_pydantic.user import UserResponse
@@ -15,13 +15,13 @@ router = APIRouter(
     prefix="/admin/settings",
     tags=["admin", "settings"],
     route_class=DishkaRoute,
-    dependencies=[Depends(AdminUser)]
+    dependencies=[Depends(admin_user)]
 )
 
 
 @router.get("/", response_model=SystemSettings)
 async def get_system_settings(
-        admin: Annotated[UserResponse, Depends(AdminUser)],
+        admin: Annotated[UserResponse, Depends(admin_user)],
         service: FromDishka[AdminSettingsService],
 ) -> SystemSettings:
     try:
@@ -35,7 +35,7 @@ async def get_system_settings(
 
 @router.put("/", response_model=SystemSettings)
 async def update_system_settings(
-        admin: Annotated[UserResponse, Depends(AdminUser)],
+        admin: Annotated[UserResponse, Depends(admin_user)],
         settings: SystemSettings,
         service: FromDishka[AdminSettingsService],
 ) -> SystemSettings:
@@ -68,7 +68,7 @@ async def update_system_settings(
 
 @router.post("/reset", response_model=SystemSettings)
 async def reset_system_settings(
-        admin: Annotated[UserResponse, Depends(AdminUser)],
+        admin: Annotated[UserResponse, Depends(admin_user)],
         service: FromDishka[AdminSettingsService],
 ) -> SystemSettings:
     try:

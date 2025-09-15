@@ -7,7 +7,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
 
-from app.api.dependencies import AdminUser
+from app.api.dependencies import admin_user
 from app.core.correlation import CorrelationContext
 from app.domain.enums.events import EventType
 from app.infrastructure.mappers import (
@@ -36,7 +36,7 @@ router = APIRouter(
     prefix="/admin/events",
     tags=["admin-events"],
     route_class=DishkaRoute,
-    dependencies=[Depends(AdminUser)]
+    dependencies=[Depends(admin_user)]
 )
 
 
@@ -172,7 +172,7 @@ async def get_replay_status(
 @router.delete("/{event_id}")
 async def delete_event(
         event_id: str,
-        admin: Annotated[UserResponse, Depends(AdminUser)],
+        admin: Annotated[UserResponse, Depends(admin_user)],
         service: FromDishka[AdminEventsService]
 ) -> EventDeleteResponse:
     try:

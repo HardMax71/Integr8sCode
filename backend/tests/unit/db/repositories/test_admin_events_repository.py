@@ -4,6 +4,7 @@ import pytest
 
 from app.db.repositories.admin.admin_events_repository import AdminEventsRepository
 from app.domain.admin import ReplaySession, ReplayQuery
+from app.domain.admin.replay_updates import ReplaySessionUpdate
 from app.domain.enums.replay import ReplayStatus
 from app.domain.events.event_models import EventFields, EventFilter, EventStatistics, Event
 from app.infrastructure.kafka.events.metadata import EventMetadata
@@ -53,7 +54,8 @@ async def test_replay_session_flow_and_helpers(repo: AdminEventsRepository, db) 
     assert sid == "s1"
     got = await repo.get_replay_session("s1")
     assert got and got.session_id == "s1"
-    assert await repo.update_replay_session("s1", {"status": ReplayStatus.RUNNING}) is True
+    session_update = ReplaySessionUpdate(status=ReplayStatus.RUNNING)
+    assert await repo.update_replay_session("s1", session_update) is True
     detail = await repo.get_replay_status_with_progress("s1")
     assert detail and detail.session.session_id == "s1"
     assert await repo.count_events_for_replay({}) >= 0

@@ -9,9 +9,9 @@ from app.core.logging import logger
 from app.db.repositories.admin import AdminEventsRepository
 from app.domain.admin import (
     ReplayQuery,
-    ReplaySessionFields,
     ReplaySessionStatusDetail,
 )
+from app.domain.admin.replay_updates import ReplaySessionUpdate
 from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
 from app.domain.events.event_models import (
     EventBrowseResult,
@@ -140,13 +140,14 @@ class AdminEventsService:
         session_id = op.session_id
 
         # Persist additional metadata to the admin replay session record
+        session_update = ReplaySessionUpdate(
+            total_events=session_data.total_events,
+            correlation_id=replay_correlation_id,
+            status=ReplayStatus.SCHEDULED,
+        )
         await self._repo.update_replay_session(
             session_id=session_id,
-            updates={
-                ReplaySessionFields.TOTAL_EVENTS: session_data.total_events,
-                ReplaySessionFields.CORRELATION_ID: replay_correlation_id,
-                ReplaySessionFields.STATUS: ReplayStatus.SCHEDULED,
-            },
+            updates=session_update,
         )
 
         result = AdminReplayResult(
@@ -173,19 +174,6 @@ class AdminEventsService:
     async def export_events_csv(self, filter: EventFilter) -> List[EventExportRow]:
         rows = await self._repo.export_events_csv(filter)
         return rows
-
-    async def export_events_json(
-            self,
-            *,
-            filter: EventFilter,
-            skip: int,
-            limit: int,
-            sort_by: str,
-            sort_order: int,
-    ) -> EventBrowseResult:
-        return await self._repo.browse_events(
-            filter=filter, skip=skip, limit=limit, sort_by=sort_by, sort_order=sort_order
-        )
 
     async def export_events_csv_content(self, *, filter: EventFilter, limit: int) -> ExportResult:
         rows = await self._repo.export_events_csv(filter)

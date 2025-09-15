@@ -6,7 +6,6 @@
     import { addNotification } from '../stores/notifications';
     import { get } from 'svelte/store';
     import { fly } from 'svelte/transition';
-    import { requireAuth } from '../lib/route-guard';
     import { setCachedSettings, updateCachedSetting } from '../lib/settings-cache';
     import Spinner from '../components/Spinner.svelte';
     
@@ -69,9 +68,7 @@
     
     onMount(async () => {
         // First verify if user is authenticated
-        const isAuth = await requireAuth();
-        
-        if (!isAuth) {
+        if (!get(isAuthenticated)) {
             return;
         }
         

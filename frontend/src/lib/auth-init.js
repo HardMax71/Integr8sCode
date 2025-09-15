@@ -42,78 +42,90 @@ export class AuthInitializer {
 
     static async _performInitialization() {
         console.log('[AuthInit] Starting authentication initialization...');
-        
+
         // Check if we have persisted auth state
         const persistedAuth = this._getPersistedAuth();
-        
+
         if (persistedAuth) {
-            console.log('[AuthInit] Found persisted auth state, verifying with backend...');
-            
-            // Set stores immediately to avoid UI flicker
-            isAuthenticated.set(true);
-            username.set(persistedAuth.username);
-            userId.set(persistedAuth.userId);
-            userRole.set(persistedAuth.userRole);
-            userEmail.set(persistedAuth.userEmail);
-            csrfToken.set(persistedAuth.csrfToken);
-            
-            try {
-                // Verify with backend
-                const isValid = await verifyAuth(true); // Force refresh
-                
-                if (isValid) {
-                    console.log('[AuthInit] Authentication verified successfully');
-                    // Load user settings (theme, etc)
-                    try {
-                        await loadUserSettings();
-                        console.log('[AuthInit] User settings loaded');
-                    } catch (error) {
-                        console.warn('[AuthInit] Failed to load user settings:', error);
-                        // Continue even if settings fail to load
-                    }
-                    return true;
-                } else {
-                    console.log('[AuthInit] Authentication invalid, clearing state');
-                    this._clearAuth();
-                    return false;
-                }
-            } catch (error) {
-                console.error('[AuthInit] Verification failed:', error);
-                
-                // On network error, keep the persisted state if it's recent
-                if (this._isRecentAuth(persistedAuth)) {
-                    console.log('[AuthInit] Network error but auth is recent, keeping state');
-                    return true;
-                } else {
-                    console.log('[AuthInit] Network error and auth is stale, clearing state');
-                    this._clearAuth();
-                    return false;
-                }
-            }
-        } else {
-            console.log('[AuthInit] No persisted auth state found');
-            
-            // Try to verify with backend anyway (in case of httpOnly cookie)
-            try {
-                const isValid = await verifyAuth();
-                console.log('[AuthInit] Backend verification result:', isValid);
-                if (isValid) {
-                    // Load user settings (theme, etc)
-                    try {
-                        await loadUserSettings();
-                        console.log('[AuthInit] User settings loaded');
-                    } catch (error) {
-                        console.warn('[AuthInit] Failed to load user settings:', error);
-                        // Continue even if settings fail to load
-                    }
-                }
-                return isValid;
-            } catch (error) {
-                console.error('[AuthInit] Backend verification failed:', error);
+            return await this._handlePersistedAuth(persistedAuth);
+        }
+
+        return await this._handleNoPersistedAuth();
+    }
+
+    static async _handlePersistedAuth(persistedAuth) {
+        console.log('[AuthInit] Found persisted auth state, verifying with backend...');
+
+        // Set stores immediately to avoid UI flicker
+        this._setAuthStores(persistedAuth);
+
+        try {
+            const isValid = await verifyAuth(true); // Force refresh
+
+            if (!isValid) {
+                console.log('[AuthInit] Authentication invalid, clearing state');
                 this._clearAuth();
                 return false;
             }
+
+            console.log('[AuthInit] Authentication verified successfully');
+            await this._loadUserSettingsSafely();
+            return true;
+
+        } catch (error) {
+            console.error('[AuthInit] Verification failed:', error);
+            return this._handleVerificationError(persistedAuth);
         }
+    }
+
+    static async _handleNoPersistedAuth() {
+        console.log('[AuthInit] No persisted auth state found');
+
+        try {
+            const isValid = await verifyAuth();
+            console.log('[AuthInit] Backend verification result:', isValid);
+
+            if (isValid) {
+                await this._loadUserSettingsSafely();
+            }
+
+            return isValid;
+        } catch (error) {
+            console.error('[AuthInit] Backend verification failed:', error);
+            this._clearAuth();
+            return false;
+        }
+    }
+
+    static _setAuthStores(authData) {
+        isAuthenticated.set(true);
+        username.set(authData.username);
+        userId.set(authData.userId);
+        userRole.set(authData.userRole);
+        userEmail.set(authData.userEmail);
+        csrfToken.set(authData.csrfToken);
+    }
+
+    static async _loadUserSettingsSafely() {
+        try {
+            await loadUserSettings();
+            console.log('[AuthInit] User settings loaded');
+        } catch (error) {
+            console.warn('[AuthInit] Failed to load user settings:', error);
+            // Continue even if settings fail to load
+        }
+    }
+
+    static _handleVerificationError(persistedAuth) {
+        // On network error, keep the persisted state if it's recent
+        if (this._isRecentAuth(persistedAuth)) {
+            console.log('[AuthInit] Network error but auth is recent, keeping state');
+            return true;
+        }
+
+        console.log('[AuthInit] Network error and auth is stale, clearing state');
+        this._clearAuth();
+        return false;
     }
 
     static _getPersistedAuth() {

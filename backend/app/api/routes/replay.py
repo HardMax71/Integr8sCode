@@ -2,7 +2,7 @@ from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, Query
 
-from app.api.dependencies import AdminUser
+from app.api.dependencies import admin_user
 from app.domain.enums.replay import ReplayStatus
 from app.infrastructure.mappers import ReplayApiMapper
 from app.schemas_pydantic.replay import (
@@ -17,7 +17,7 @@ from app.services.replay_service import ReplayService
 router = APIRouter(prefix="/replay",
                    tags=["Event Replay"],
                    route_class=DishkaRoute,
-                   dependencies=[Depends(AdminUser)])
+                   dependencies=[Depends(admin_user)])
 
 
 @router.post("/sessions", response_model=ReplayResponse)

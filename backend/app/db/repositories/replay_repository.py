@@ -4,6 +4,7 @@ from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
 from pymongo import ASCENDING, DESCENDING
 
 from app.core.logging import logger
+from app.domain.admin.replay_updates import ReplaySessionUpdate
 from app.domain.events.event_models import CollectionNames
 from app.domain.replay import ReplayFilter, ReplaySessionState
 from app.infrastructure.mappers import ReplayStateMapper
@@ -88,12 +89,16 @@ class ReplayRepository:
     async def update_replay_session(
             self,
             session_id: str,
-            updates: Dict[str, Any]
+            updates: ReplaySessionUpdate
     ) -> bool:
         """Update specific fields of a replay session"""
+        if not updates.has_updates():
+            return False
+
+        mongo_updates = updates.to_dict()
         result = await self.replay_collection.update_one(
             {"session_id": session_id},
-            {"$set": updates}
+            {"$set": mongo_updates}
         )
         return result.modified_count > 0
 

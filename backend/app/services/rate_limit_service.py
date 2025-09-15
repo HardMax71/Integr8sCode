@@ -1,4 +1,5 @@
 import json
+import math
 import re
 import time
 from contextlib import contextmanager
@@ -108,8 +109,7 @@ class RateLimitService:
             self,
             user_id: str,
             endpoint: str,
-            config: Optional[RateLimitConfig] = None,
-            username: Optional[str] = None
+            config: Optional[RateLimitConfig] = None
     ) -> RateLimitStatus:
         start_time = time.time()
         # Tracing attributes added at end of check
@@ -170,25 +170,21 @@ class RateLimitService:
             self.metrics.window_size.record(rule.window_seconds, {"endpoint": ctx.normalized_endpoint,
                                                                   "algorithm": rule.algorithm.value})
 
-            # Check rate limit based on algorithm
-            if rule.algorithm == RateLimitAlgorithm.SLIDING_WINDOW:
-                with self._timer(self.metrics.algorithm_duration, {"algorithm": rule.algorithm.value,
-                                                                   "endpoint": ctx.normalized_endpoint,
-                                                                   "authenticated": str(ctx.authenticated).lower()}):
-                    status = await self._check_sliding_window(user_id, endpoint, ctx.effective_limit,
-                                                              rule.window_seconds, rule)
-            elif rule.algorithm == RateLimitAlgorithm.TOKEN_BUCKET:
-                with self._timer(self.metrics.algorithm_duration, {"algorithm": rule.algorithm.value,
-                                                                   "endpoint": ctx.normalized_endpoint,
-                                                                   "authenticated": str(ctx.authenticated).lower()}):
-                    status = await self._check_token_bucket(user_id, endpoint, ctx.effective_limit,
-                                                            rule.window_seconds, rule.burst_multiplier, rule)
-            else:
-                with self._timer(self.metrics.algorithm_duration, {"algorithm": rule.algorithm.value,
-                                                                   "endpoint": ctx.normalized_endpoint,
-                                                                   "authenticated": str(ctx.authenticated).lower()}):
-                    status = await self._check_sliding_window(user_id, endpoint, ctx.effective_limit,
-                                                              rule.window_seconds, rule)
+            # Check rate limit based on algorithm (avoid duplicate branches)
+            timer_attrs = {
+                "algorithm": rule.algorithm.value,
+                "endpoint": ctx.normalized_endpoint,
+                "authenticated": str(ctx.authenticated).lower(),
+            }
+            with self._timer(self.metrics.algorithm_duration, timer_attrs):
+                if rule.algorithm == RateLimitAlgorithm.TOKEN_BUCKET:
+                    status = await self._check_token_bucket(
+                        user_id, endpoint, ctx.effective_limit, rule.window_seconds, rule.burst_multiplier, rule
+                    )
+                else:
+                    status = await self._check_sliding_window(
+                        user_id, endpoint, ctx.effective_limit, rule.window_seconds, rule
+                    )
 
             labels = self._labels(ctx)
             if status.allowed:
@@ -454,7 +450,11 @@ class RateLimitService:
         override = config.user_overrides.get(str(user_id))
         if override:
             rules_count = len(override.rules)
-            has_custom = override.bypass_rate_limit or override.global_multiplier != 1.0 or rules_count > 0
+            has_custom = (
+                override.bypass_rate_limit
+                or not math.isclose(override.global_multiplier, 1.0, rel_tol=1e-9, abs_tol=1e-12)
+                or rules_count > 0
+            )
             return UserRateLimitSummary(
                 user_id=str(user_id),
                 has_custom_limits=has_custom,

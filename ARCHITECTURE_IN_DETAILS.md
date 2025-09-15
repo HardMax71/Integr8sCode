@@ -55,95 +55,147 @@ Frontend serves the SPA; the SPA calls FastAPI over HTTPS. Backend exposes REST 
 
 ```mermaid
 %%{init: {'theme': 'neutral'}}%%
-mindmap
-  root((Backend (FastAPI app)))
-    Middlewares
-      CorrelationMiddleware (request ID)
-      RequestSizeLimitMiddleware
-      CacheControlMiddleware
-      OTel Metrics (setup_metrics)
-    Routers (public)
-      /auth (api/routes/auth.py)
-      /execute (api/routes/execution.py)
-        /result/{id}, /executions/{id}/events
-        /user/executions, /example-scripts, /k8s-limits
-        /{execution_id}/cancel, /{execution_id}/retry, DELETE /{execution_id}
-      /scripts (api/routes/saved_scripts.py)
-      /replay (api/routes/replay.py)
-      /health (api/routes/health.py)
-      /dlq (api/routes/dlq.py)
-      /events (api/routes/events.py)
-      /events (SSE) (api/routes/sse.py)
-        /events/notifications/stream
-        /events/executions/{id}
-      /notifications (api/routes/notifications.py)
-      /saga (api/routes/saga.py)
-      /user/settings (api/routes/user_settings.py)
-      /admin/users (api/routes/admin/users.py)
-      /admin/events (api/routes/admin/events.py)
-      /admin/settings (api/routes/admin/settings.py)
-      /alerts (api/routes/grafana_alerts.py)
-    DI & Providers (Dishka)
-      Container (core/container.py, core/providers.py)
-      Exception handlers (core/exceptions/handlers.py)
-    Services (private)
-      ExecutionService (services/execution_service.py)
-        Uses ExecutionRepository, UnifiedProducer, EventStore, Settings
-      KafkaEventService (services/kafka_event_service.py)
-      EventService (services/event_service.py)
-      IdempotencyManager (services/idempotency/idempotency_manager.py)
-      SSEService (services/sse/sse_service.py)
-        SSERedisBus, PartitionedSSERouter, SSEShutdownManager, EventBuffer
-      NotificationService (services/notification_service.py)
-        UnifiedConsumer handlers (completed/failed/timeout), SSE, throttle
-      UserSettingsService (services/user_settings_service.py)
-        LRU cache, USER_* events to EventStore/Kafka
-      SavedScriptService (services/saved_script_service.py)
-      RateLimitService (services/rate_limit_service.py)
-      ReplayService (services/event_replay/replay_service.py)
-      SagaService (services/saga_service.py)
-        SagaOrchestrator, ExecutionSaga, SagaStep (explicit DI)
-      K8s Worker (services/k8s_worker/{config,pod_builder,worker}.py)
-      Pod Monitor (services/pod_monitor/{monitor,event_mapper}.py)
-      Result Processor (services/result_processor/{processor,resource_cleaner}.py)
-      Coordinator (services/coordinator/{queue_manager,resource_manager,coordinator}.py)
-      EventBusManager (services/event_bus.py)
-    Repositories (Mongo, private)
-      ExecutionRepository
-      EventRepository
-      NotificationRepository
-      UserRepository
-      UserSettingsRepository
-      SavedScriptRepository
-      SagaRepository
-      ReplayRepository
-      IdempotencyRepository
-      SSERepository
-      ResourceAllocationRepository
-      Admin repositories (db/repositories/admin/*)
-    Events (Kafka plumbing)
-      UnifiedProducer, UnifiedConsumer, EventDispatcher (events/core/*)
-      EventStore (events/event_store.py)
-      SchemaRegistryManager (events/schema/schema_registry.py)
-      Topics mapping (infrastructure/kafka/mappings.py)
-      Event models (infrastructure/kafka/events/*)
-    Mappers (API/domain)
-      execution_api_mapper, saved_script_api_mapper, user_settings_api_mapper
-      notification_api_mapper, saga_mapper, replay_api_mapper
-      admin_mapper, admin_overview_api_mapper, rate_limit_mapper, event_mapper
-    Domain
-      Enums: execution, events, notification, replay, saga, user, common, kafka
-      Models: execution, sse, saga, notification, saved_script, replay, user.settings
-      Admin models: overview, settings, user
-    External dependencies (private)
-      MongoDB (db)
-      Redis (rate limit, SSE bus)
-      Kafka + Schema Registry
-      Kubernetes API (pods)
-      OTel Collector + VictoriaMetrics (metrics)
-      Jaeger (traces)
-    Settings (app/settings.py)
-      Runtimes/limits, Kafka/Redis/Mongo endpoints, SSE, rate limiting
+graph TD
+    subgraph "Backend (FastAPI app)"
+        direction TB
+        B0("Backend (FastAPI app)")
+
+        subgraph "Middlewares"
+            B1("Middlewares")
+            M1("CorrelationMiddleware (request ID)")
+            M2("RequestSizeLimitMiddleware")
+            M3("CacheControlMiddleware")
+            M4("OTel Metrics (setup_metrics)")
+        end
+
+        subgraph "Routers (public)"
+            B2("Routers (public)")
+            R1("/auth")
+            R2("/execute")
+            R2_1("/result/{id}, /executions/{id}/events")
+            R2_2("/user/executions, /example-scripts, /k8s-limits")
+            R2_3("/{execution_id}/cancel, /{execution_id}/retry, DELETE /{execution_id}")
+            R3("/scripts")
+            R4("/replay")
+            R5("/health")
+            R6("/dlq")
+            R7("/events")
+            R8("/events (SSE)")
+            R8_1("/events/notifications/stream")
+            R8_2("/events/executions/{id}")
+            R9("/notifications")
+            R10("/saga")
+            R11("/user/settings")
+            R12("/admin/users")
+            R13("/admin/events")
+            R14("/admin/settings")
+            R15("/alerts")
+        end
+
+        subgraph "DI & Providers (Dishka)"
+            B3("DI & Providers (Dishka)")
+            D1("Container")
+            D2("Exception handlers")
+        end
+
+        subgraph "Services (private)"
+            B4("Services (private)")
+            S1("ExecutionService")
+            S2("KafkaEventService")
+            S3("EventService")
+            S4("IdempotencyManager")
+            S5("SSEService")
+            S6("NotificationService")
+            S7("UserSettingsService")
+            S8("SavedScriptService")
+            S9("RateLimitService")
+            S10("ReplayService")
+            S11("SagaService")
+            S12("K8s Worker")
+            S13("Pod Monitor")
+            S14("Result Processor")
+            S15("Coordinator")
+            S16("EventBusManager")
+        end
+        
+        subgraph "Repositories (Mongo, private)"
+            B5("Repositories (Mongo, private)")
+            DB1("ExecutionRepository")
+            DB2("EventRepository")
+            DB3("NotificationRepository")
+            DB4("UserRepository")
+            DB5("UserSettingsRepository")
+            DB6("SavedScriptRepository")
+            DB7("SagaRepository")
+            DB8("ReplayRepository")
+            DB9("IdempotencyRepository")
+            DB10("SSERepository")
+            DB11("ResourceAllocationRepository")
+            DB12("Admin repositories")
+        end
+
+        subgraph "Events (Kafka plumbing)"
+            B6("Events (Kafka plumbing)")
+            E1("UnifiedProducer, UnifiedConsumer, EventDispatcher")
+            E2("EventStore")
+            E3("SchemaRegistryManager")
+            E4("Topics mapping")
+            E5("Event models")
+        end
+
+        subgraph "Mappers (API/domain)"
+            B7("Mappers (API/domain)")
+            MAP1("execution_api_mapper, saved_script_api_mapper, ...")
+            MAP2("notification_api_mapper, saga_mapper, replay_api_mapper, ...")
+            MAP3("admin_mapper, admin_overview_api_mapper, ...")
+        end
+        
+        subgraph "Domain"
+            B8("Domain")
+            DOM1("Enums")
+            DOM2("Models")
+            DOM3("Admin models")
+        end
+        
+        subgraph "External dependencies (private)"
+            B9("External dependencies (private)")
+            EXT1("MongoDB (db)")
+            EXT2("Redis (rate limit, SSE bus)")
+            EXT3("Kafka + Schema Registry")
+            EXT4("Kubernetes API (pods)")
+            EXT5("OTel Collector + VictoriaMetrics (metrics)")
+            EXT6("Jaeger (traces)")
+        end
+        
+        subgraph "Settings"
+            B10("Settings (app/settings.py)")
+            SET1("Runtimes/limits, Kafka/Redis/Mongo endpoints, ...")
+        end
+    end
+    
+    B0 --> B1 & B2 & B3 & B4 & B5 & B6 & B7 & B8 & B9 & B10
+    
+    B1 --> M1 & M2 & M3 & M4
+    
+    B2 --> R1 & R2 & R3 & R4 & R5 & R6 & R7 & R8 & R9 & R10 & R11 & R12 & R13 & R14 & R15
+    R2 --> R2_1 & R2_2 & R2_3
+    R8 --> R8_1 & R8_2
+    
+    B3 --> D1 & D2
+    
+    B4 --> S1 & S2 & S3 & S4 & S5 & S6 & S7 & S8 & S9 & S10 & S11 & S12 & S13 & S14 & S15 & S16
+
+    B5 --> DB1 & DB2 & DB3 & DB4 & DB5 & DB6 & DB7 & DB8 & DB9 & DB10 & DB11 & DB12
+
+    B6 --> E1 & E2 & E3 & E4 & E5
+
+    B7 --> MAP1 & MAP2 & MAP3
+    
+    B8 --> DOM1 & DOM2 & DOM3
+
+    B9 --> EXT1 & EXT2 & EXT3 & EXT4 & EXT5 & EXT6
+    
+    B10 --> SET1
 ```
 
 This outlines backend internals: public routers, DI and services, repositories, event stack, and external dependencies, grounded in the actual modules and paths.
@@ -225,7 +277,6 @@ Execution is event-driven end-to-end. The request records an execution and emits
 %%{init: {'theme': 'neutral'}}%%
 graph TD
     subgraph " "
-        style " " fill:none,stroke:none
         SSEService["SSEService<br/>(per-request Gen)"]
         subgraph "Redis Pub/Sub (private)"
             RedisBus["SSERedisBus"]

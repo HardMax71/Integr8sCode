@@ -57,7 +57,9 @@ if "MONGODB_URL" not in os.environ:
     except Exception:
         u = user
         p = pwd
-    os.environ["MONGODB_URL"] = f"mongodb://{u}:{p}@{host}:{port}/?authSource=admin"
+    os.environ["MONGODB_URL"] = (
+        f"mongodb://{u}:{p}@{host}:{port}/?authSource=admin&authMechanism=SCRAM-SHA-256"
+    )
 os.environ.setdefault("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 os.environ.setdefault("REDIS_HOST", "localhost")
 os.environ.setdefault("REDIS_PORT", "6379")

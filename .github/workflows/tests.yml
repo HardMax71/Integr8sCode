@@ -32,12 +32,6 @@ jobs:
           kubectl version
           kubectl get nodes
 
-      - name: Set Mongo credentials from secrets
-        run: |
-          # Export for docker compose variable interpolation and yq usage
-          echo "MONGO_ROOT_USER=${{ secrets.MONGO_ROOT_USER }}" >> $GITHUB_ENV
-          echo "MONGO_ROOT_PASSWORD=${{ secrets.MONGO_ROOT_PASSWORD }}" >> $GITHUB_ENV
-
       - name: Modify Docker Compose for CI
         run: |
           cp docker-compose.yaml docker-compose.ci.yaml
@@ -46,14 +40,13 @@ jobs:
           # For the backend service (extra_hosts already exists, skip it)
           # Note: backend.environment is a list in docker-compose.yaml
           yq eval '.services.backend.environment += ["TESTING=true"]' -i docker-compose.ci.yaml
-          yq eval '.services.backend.environment += ["MONGO_ROOT_USER=" + env(MONGO_ROOT_USER)]' -i docker-compose.ci.yaml
-          yq eval '.services.backend.environment += ["MONGO_ROOT_PASSWORD=" + env(MONGO_ROOT_PASSWORD)]' -i docker-compose.ci.yaml
+          yq eval '.services.backend.environment += ["MONGO_ROOT_USER=root"]' -i docker-compose.ci.yaml
+          yq eval '.services.backend.environment += ["MONGO_ROOT_PASSWORD=rootpassword"]' -i docker-compose.ci.yaml
           # Disable OpenTelemetry SDK during tests to avoid exporter retries
           yq eval '.services.backend.environment += ["OTEL_SDK_DISABLED=true"]' -i docker-compose.ci.yaml
 
-          # For the mongo service (environment is a map, not a list)
-          yq eval '.services.mongo.environment.MONGO_INITDB_ROOT_USERNAME = env(MONGO_ROOT_USER)' -i docker-compose.ci.yaml
-          yq eval '.services.mongo.environment.MONGO_INITDB_ROOT_PASSWORD = env(MONGO_ROOT_PASSWORD)' -i docker-compose.ci.yaml
+          # MongoDB service already has defaults in docker-compose.yaml (root/rootpassword)
+          # No need to override them
 
           # Disable SASL authentication for Kafka and Zookeeper in CI
           yq eval 'del(.services.kafka.environment.KAFKA_OPTS)' -i docker-compose.ci.yaml
@@ -139,16 +132,17 @@ jobs:
       - name: Run backend tests with coverage
         env:
           BACKEND_BASE_URL: https://127.0.0.1:443
-          # Pass credentials separately to let Python handle URL encoding
-          MONGO_ROOT_USER: ${{ secrets.MONGO_ROOT_USER }}
-          MONGO_ROOT_PASSWORD: ${{ secrets.MONGO_ROOT_PASSWORD }}
+          # Use default MongoDB credentials for CI
+          MONGO_ROOT_USER: root
+          MONGO_ROOT_PASSWORD: rootpassword
           MONGODB_HOST: 127.0.0.1
           MONGODB_PORT: 27017
-          # Don't set MONGODB_URL here - let conftest.py construct it with proper encoding
+          # Explicit URL with default credentials
+          MONGODB_URL: mongodb://root:rootpassword@127.0.0.1:27017/?authSource=admin
         run: |
           cd backend
           echo "Using BACKEND_BASE_URL=$BACKEND_BASE_URL"
-          echo "MongoDB connection will use host: 127.0.0.1:27017"
+          echo "MongoDB connection will use default CI credentials"
           python -m pytest tests/integration tests/unit -v --cov=app --cov-branch --cov-report=xml --cov-report=term --cov-report=term-missing
 
       - name: Upload coverage to Codecov

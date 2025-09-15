@@ -139,12 +139,16 @@ jobs:
       - name: Run backend tests with coverage
         env:
           BACKEND_BASE_URL: https://127.0.0.1:443
-          # Provide an explicit Mongo URI for tests using the CI secrets and modern auth mechanism
-          MONGODB_URL: mongodb://${{ secrets.MONGO_ROOT_USER }}:${{ secrets.MONGO_ROOT_PASSWORD }}@127.0.0.1:27017/?authSource=admin&authMechanism=SCRAM-SHA-256
+          # Pass credentials separately to let Python handle URL encoding
+          MONGO_ROOT_USER: ${{ secrets.MONGO_ROOT_USER }}
+          MONGO_ROOT_PASSWORD: ${{ secrets.MONGO_ROOT_PASSWORD }}
+          MONGODB_HOST: 127.0.0.1
+          MONGODB_PORT: 27017
+          # Don't set MONGODB_URL here - let conftest.py construct it with proper encoding
         run: |
           cd backend
           echo "Using BACKEND_BASE_URL=$BACKEND_BASE_URL"
-          # Do not echo the full MONGODB_URL to avoid leaking secrets
+          echo "MongoDB connection will use host: 127.0.0.1:27017"
           python -m pytest tests/integration tests/unit -v --cov=app --cov-branch --cov-report=xml --cov-report=term --cov-report=term-missing
 
       - name: Upload coverage to Codecov

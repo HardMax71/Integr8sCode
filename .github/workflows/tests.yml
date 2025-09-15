@@ -32,20 +32,26 @@ jobs:
           kubectl version
           kubectl get nodes
 
+      - name: Set Mongo credentials from secrets
+        run: |
+          # Export for docker compose variable interpolation and yq usage
+          echo "MONGO_ROOT_USER=${{ secrets.MONGO_ROOT_USER }}" >> $GITHUB_ENV
+          echo "MONGO_ROOT_PASSWORD=${{ secrets.MONGO_ROOT_PASSWORD }}" >> $GITHUB_ENV
+
       - name: Modify Docker Compose for CI
         run: |
           cp docker-compose.yaml docker-compose.ci.yaml
           # For the backend service (extra_hosts already exists, skip it)
           # Note: backend.environment is a list in docker-compose.yaml
           yq eval '.services.backend.environment += ["TESTING=true"]' -i docker-compose.ci.yaml
-          yq eval '.services.backend.environment += ["MONGO_ROOT_USER=testroot"]' -i docker-compose.ci.yaml
-          yq eval '.services.backend.environment += ["MONGO_ROOT_PASSWORD=testpassword"]' -i docker-compose.ci.yaml
+          yq eval '.services.backend.environment += ["MONGO_ROOT_USER=" + env(MONGO_ROOT_USER)]' -i docker-compose.ci.yaml
+          yq eval '.services.backend.environment += ["MONGO_ROOT_PASSWORD=" + env(MONGO_ROOT_PASSWORD)]' -i docker-compose.ci.yaml
           # Disable OpenTelemetry SDK during tests to avoid exporter retries
           yq eval '.services.backend.environment += ["OTEL_SDK_DISABLED=true"]' -i docker-compose.ci.yaml
 
           # For the mongo service (environment is a map, not a list)
-          yq eval '.services.mongo.environment.MONGO_INITDB_ROOT_USERNAME = "testroot"' -i docker-compose.ci.yaml
-          yq eval '.services.mongo.environment.MONGO_INITDB_ROOT_PASSWORD = "testpassword"' -i docker-compose.ci.yaml
+          yq eval '.services.mongo.environment.MONGO_INITDB_ROOT_USERNAME = env(MONGO_ROOT_USER)' -i docker-compose.ci.yaml
+          yq eval '.services.mongo.environment.MONGO_INITDB_ROOT_PASSWORD = env(MONGO_ROOT_PASSWORD)' -i docker-compose.ci.yaml
 
           # Disable SASL authentication for Kafka and Zookeeper in CI
           yq eval 'del(.services.kafka.environment.KAFKA_OPTS)' -i docker-compose.ci.yaml

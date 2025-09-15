@@ -41,6 +41,8 @@ jobs:
       - name: Modify Docker Compose for CI
         run: |
           cp docker-compose.yaml docker-compose.ci.yaml
+          # Drop the frontend service for backend-only tests
+          yq eval 'del(.services.frontend)' -i docker-compose.ci.yaml
           # For the backend service (extra_hosts already exists, skip it)
           # Note: backend.environment is a list in docker-compose.yaml
           yq eval '.services.backend.environment += ["TESTING=true"]' -i docker-compose.ci.yaml
@@ -111,13 +113,7 @@ jobs:
           done'
           echo "Backend is healthy!"
 
-      - name: Wait for frontend to be ready
-        run: |
-          timeout 120 bash -c 'until curl -k https://127.0.0.1:5001 -o /dev/null; do \
-             echo "Retrying frontend check..."; \
-             sleep 5; \
-          done'
-          echo "Frontend is ready!"
+      # Frontend is excluded in backend-only CI; skip UI readiness
 
       - name: Check K8s setup status after startup
         run: |
@@ -165,7 +161,6 @@ jobs:
           docker compose -f docker-compose.ci.yaml logs > logs/docker-compose.log
           docker compose -f docker-compose.ci.yaml logs cert-generator > logs/cert-generator.log
           docker compose -f docker-compose.ci.yaml logs backend > logs/backend.log
-          docker compose -f docker-compose.ci.yaml logs frontend > logs/frontend.log
           docker compose -f docker-compose.ci.yaml logs mongo > logs/mongo.log
           kubectl get events --sort-by='.metadata.creationTimestamp' > logs/k8s-events.log
           kubectl get pods -A -o wide > logs/k8s-pods-final.log

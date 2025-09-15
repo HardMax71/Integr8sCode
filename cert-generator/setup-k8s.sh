@@ -25,9 +25,10 @@ if [ -f /root/.kube/config ]; then
   K8S_PORT=6443
   WORKING_IP=""
 
-  # List of potential IPs to test - host IP is usually most reliable
-  # Try common patterns for host IPs
-  for TEST_IP in 192.168.0.16 192.168.1.1 10.0.0.1 172.17.0.1 172.18.0.1 host.docker.internal; do
+  # List of potential IPs to test - include loopback and gateway for host networking
+  GATEWAY_IP=$(ip route | awk '/default/ {print $3; exit}')
+  # Try common patterns for host IPs, plus loopback and detected gateway
+  for TEST_IP in 127.0.0.1 ${GATEWAY_IP} 192.168.0.16 192.168.1.1 10.0.0.1 172.17.0.1 172.18.0.1 host.docker.internal; do
     echo -n "Testing ${TEST_IP}:${K8S_PORT}... "
     if nc -zv -w2 ${TEST_IP} ${K8S_PORT} 2>/dev/null; then
       WORKING_IP=${TEST_IP}
@@ -39,7 +40,7 @@ if [ -f /root/.kube/config ]; then
 
   if [ -z "$WORKING_IP" ]; then
     echo "ERROR: Cannot find working IP to reach k3s from container"
-    echo "Tested IPs: 192.168.0.16, 192.168.1.1, 10.0.0.1, 172.17.0.1, 172.18.0.1, host.docker.internal"
+    echo "Tested IPs: 127.0.0.1, ${GATEWAY_IP}, 192.168.0.16, 192.168.1.1, 10.0.0.1, 172.17.0.1, 172.18.0.1, host.docker.internal"
     exit 1
   fi
 

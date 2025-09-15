@@ -44,7 +44,20 @@ os.environ.setdefault("OTEL_METRICS_EXPORTER", "none")
 os.environ.setdefault("OTEL_TRACES_EXPORTER", "none")
 
 # Force localhost endpoints to avoid Docker DNS names like 'mongo'
-os.environ.setdefault("MONGODB_URL", "mongodb://root:rootpassword@localhost:27017/?authSource=admin")
+# Do not override if MONGODB_URL is already provided in the environment.
+if "MONGODB_URL" not in os.environ:
+    from urllib.parse import quote_plus
+    user = os.environ.get("MONGO_ROOT_USER", "root")
+    pwd = os.environ.get("MONGO_ROOT_PASSWORD", "rootpassword")
+    host = os.environ.get("MONGODB_HOST", "127.0.0.1")
+    port = os.environ.get("MONGODB_PORT", "27017")
+    try:
+        u = quote_plus(user)
+        p = quote_plus(pwd)
+    except Exception:
+        u = user
+        p = pwd
+    os.environ["MONGODB_URL"] = f"mongodb://{u}:{p}@{host}:{port}/?authSource=admin"
 os.environ.setdefault("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 os.environ.setdefault("REDIS_HOST", "localhost")
 os.environ.setdefault("REDIS_PORT", "6379")

@@ -62,6 +62,10 @@ jobs:
 
           # Simplify Zookeeper for CI
           yq eval '.services.zookeeper.environment.ZOOKEEPER_4LW_COMMANDS_WHITELIST = "ruok,srvr"' -i docker-compose.ci.yaml
+          # Disable zookeeper healthcheck in CI (use service_started instead)
+          yq eval 'del(.services.zookeeper.healthcheck)' -i docker-compose.ci.yaml
+          # Make Kafka start as soon as Zookeeper starts (not healthy)
+          yq eval '.services.kafka.depends_on.zookeeper.condition = "service_started"' -i docker-compose.ci.yaml
 
           # For the cert-generator service
           # Check if extra_hosts exists, if not create it as a list

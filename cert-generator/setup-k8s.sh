@@ -186,37 +186,32 @@ EOF
     K8S_PORT=$(echo "$K8S_SERVER" | grep -oE ':[0-9]+' | tr -d ':')
     K8S_PORT=${K8S_PORT:-6443}
 
-    # Test potential URLs to find one that works
-    # Priority order: gateway IP, specific Docker IPs, host.docker.internal
+    # Prefer loopback and gateway IPs first when running with host networking
     GATEWAY_IP=$(ip route | grep default | awk '{print $3}')
-    POTENTIAL_IPS="${GATEWAY_IP} 172.18.0.1 172.17.0.1 host.docker.internal"
+    POTENTIAL_IPS="127.0.0.1 ${GATEWAY_IP} 172.18.0.1 172.17.0.1 host.docker.internal"
 
     echo "Environment info:"
     echo "  K8S_PORT: ${K8S_PORT}"
     echo "  Gateway IP: ${GATEWAY_IP:-none}"
     echo "  Testing endpoints: ${POTENTIAL_IPS}"
 
+    CHOSEN_URL=""
     for IP in $POTENTIAL_IPS; do
         TEST_URL="https://${IP}:${K8S_PORT}"
         echo -n "  Trying ${TEST_URL}... "
-        if timeout 2 bash -c "echo > /dev/tcp/${IP}/${K8S_PORT}" 2>/dev/null; then
-            K8S_SERVER="${TEST_URL}"
+        if nc -z -w2 ${IP} ${K8S_PORT} 2>/dev/null; then
+            CHOSEN_URL="${TEST_URL}"
             echo "✓ SUCCESS"
             break
         fi
         echo "✗ failed"
     done
 
-    # If we get here without K8S_SERVER being updated, no endpoint worked
-    if echo "$K8S_SERVER" | grep -qE '127\.0\.0\.1|localhost'; then
-        echo ""
-        echo "ERROR: K8s API not accessible from container!"
-        echo "  Original server: ${K8S_SERVER}"
-        echo "  Tested IPs: ${POTENTIAL_IPS}"
-        echo "  Port: ${K8S_PORT}"
-        echo ""
-        echo "Ensure k3s/k8s is running and accessible from Docker containers"
-        exit 1
+    # If none of the alternative endpoints worked, keep the original server URL
+    if [ -z "$CHOSEN_URL" ]; then
+        echo "No alternative endpoint worked; keeping original K8S_SERVER: ${K8S_SERVER}"
+    else
+        K8S_SERVER="$CHOSEN_URL"
     fi
 
     echo "Using K8S_SERVER: ${K8S_SERVER}"

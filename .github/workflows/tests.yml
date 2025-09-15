@@ -124,7 +124,7 @@ jobs:
         run: |
           cd backend
           echo "Using BACKEND_BASE_URL=$BACKEND_BASE_URL"
-          python -m pytest tests/integration tests/unit -v --cov=app --cov-report=xml --cov-report=term
+          python -m pytest tests/integration tests/unit -v --cov=app --cov-branch --cov-report=xml --cov-report=term --cov-report=term-missing
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5

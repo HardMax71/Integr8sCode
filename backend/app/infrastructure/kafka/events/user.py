@@ -1,5 +1,3 @@
-"""User-related Kafka events."""
-
 from typing import ClassVar, Literal
 
 from app.domain.enums.auth import LoginMethod, SettingsType
@@ -58,7 +56,7 @@ class UserSettingsUpdatedEvent(BaseEvent):
 
 class UserThemeChangedEvent(BaseEvent):
     event_type: Literal[EventType.USER_THEME_CHANGED] = EventType.USER_THEME_CHANGED
-    topic: ClassVar[KafkaTopic] = KafkaTopic.USER_SETTINGS_EVENTS
+    topic: ClassVar[KafkaTopic] = KafkaTopic.USER_SETTINGS_THEME_EVENTS
     user_id: str
     old_theme: str
     new_theme: str
@@ -66,13 +64,14 @@ class UserThemeChangedEvent(BaseEvent):
 
 class UserNotificationSettingsUpdatedEvent(BaseEvent):
     event_type: Literal[EventType.USER_NOTIFICATION_SETTINGS_UPDATED] = EventType.USER_NOTIFICATION_SETTINGS_UPDATED
-    topic: ClassVar[KafkaTopic] = KafkaTopic.USER_SETTINGS_EVENTS
+    topic: ClassVar[KafkaTopic] = KafkaTopic.USER_SETTINGS_NOTIFICATION_EVENTS
     user_id: str
     settings: dict[str, bool]
+    channels: list[str] | None = None
 
 
 class UserEditorSettingsUpdatedEvent(BaseEvent):
     event_type: Literal[EventType.USER_EDITOR_SETTINGS_UPDATED] = EventType.USER_EDITOR_SETTINGS_UPDATED
-    topic: ClassVar[KafkaTopic] = KafkaTopic.USER_SETTINGS_EVENTS
+    topic: ClassVar[KafkaTopic] = KafkaTopic.USER_SETTINGS_EDITOR_EVENTS
     user_id: str
     settings: dict[str, str | int | bool]

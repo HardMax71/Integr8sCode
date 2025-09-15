@@ -3,10 +3,12 @@ from typing import Any, Dict, List
 
 from pydantic import BaseModel, Field
 
+from app.domain.enums.events import EventType
+
 
 class EventFilter(BaseModel):
     """Filter criteria for browsing events"""
-    event_types: List[str] | None = None
+    event_types: List[EventType] | None = None
     aggregate_id: str | None = None
     correlation_id: str | None = None
     user_id: str | None = None

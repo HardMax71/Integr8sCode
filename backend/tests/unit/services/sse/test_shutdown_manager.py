@@ -1,12 +1,9 @@
-import asyncio
-
 import pytest
-
-from app.services.sse.sse_shutdown_manager import SSEShutdownManager
 
 
 class DummyRouter:
     def __init__(self): self.stopped = False
+
     async def stop(self): self.stopped = True  # noqa: ANN001
 
 
@@ -55,6 +52,7 @@ async def test_shutdown_force_close_calls_router_stop_and_rejects_new():
     ev2 = await mgr.register_connection("e2", "c2")
     assert ev2 is None
 
+
 import asyncio
 import pytest
 
@@ -69,4 +67,3 @@ async def test_get_shutdown_status_transitions():
     await m.initiate_shutdown()
     st1 = m.get_shutdown_status()
     assert st1["phase"] in ("draining", "complete", "closing", "notifying")
-

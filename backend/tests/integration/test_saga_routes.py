@@ -1,14 +1,12 @@
-"""Integration tests for Saga routes against the backend."""
-
 import uuid
-from typing import Any, Dict
+import asyncio
+from typing import Dict
 
 import pytest
 from httpx import AsyncClient
 
 from app.domain.enums.saga import SagaState
 from app.schemas_pydantic.saga import (
-    SagaCancellationResponse,
     SagaListResponse,
     SagaStatusResponse,
 )
@@ -27,16 +25,10 @@ class TestSagaRoutesReal:
 
     @pytest.mark.asyncio
     async def test_get_saga_not_found(
-        self, client: AsyncClient, shared_user: Dict[str, str]
+            self, client: AsyncClient, shared_user: Dict[str, str]
     ) -> None:
         """Test getting non-existent saga returns 404."""
-        # Login first
-        login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
+        # Already authenticated via shared_user fixture
 
         # Try to get non-existent saga
         saga_id = str(uuid.uuid4())
@@ -46,7 +38,7 @@ class TestSagaRoutesReal:
 
     @pytest.mark.asyncio
     async def test_get_execution_sagas_requires_auth(
-        self, client: AsyncClient
+            self, client: AsyncClient
     ) -> None:
         """Test that getting execution sagas requires authentication."""
         execution_id = str(uuid.uuid4())
@@ -55,16 +47,10 @@ class TestSagaRoutesReal:
 
     @pytest.mark.asyncio
     async def test_get_execution_sagas_empty(
-        self, client: AsyncClient, shared_user: Dict[str, str]
+            self, client: AsyncClient, shared_user: Dict[str, str]
     ) -> None:
         """Test getting sagas for execution with no sagas."""
-        # Login first
-        login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
+        # Already authenticated via shared_user fixture
 
         # Get sagas for non-existent execution
         execution_id = str(uuid.uuid4())
@@ -74,16 +60,10 @@ class TestSagaRoutesReal:
 
     @pytest.mark.asyncio
     async def test_get_execution_sagas_with_state_filter(
-        self, client: AsyncClient, shared_user: Dict[str, str]
+            self, client: AsyncClient, shared_user: Dict[str, str]
     ) -> None:
         """Test getting execution sagas filtered by state."""
-        # Login first
-        login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
+        # Already authenticated via shared_user fixture
 
         # Get sagas filtered by running state
         execution_id = str(uuid.uuid4())
@@ -106,16 +86,10 @@ class TestSagaRoutesReal:
 
     @pytest.mark.asyncio
     async def test_list_sagas_paginated(
-        self, client: AsyncClient, shared_user: Dict[str, str]
+            self, client: AsyncClient, shared_user: Dict[str, str]
     ) -> None:
         """Test listing sagas with pagination."""
-        # Login first
-        login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
+        # Already authenticated via shared_user fixture
 
         # List sagas with pagination
         response = await client.get(
@@ -123,7 +97,7 @@ class TestSagaRoutesReal:
             params={"limit": 10, "offset": 0}
         )
         assert response.status_code == 200
-        
+
         saga_list = SagaListResponse(**response.json())
         assert isinstance(saga_list.total, int)
         assert isinstance(saga_list.sagas, list)
@@ -131,7 +105,7 @@ class TestSagaRoutesReal:
 
     @pytest.mark.asyncio
     async def test_list_sagas_with_state_filter(
-        self, client: AsyncClient, shared_user: Dict[str, str]
+            self, client: AsyncClient, shared_user: Dict[str, str]
     ) -> None:
         """Test listing sagas filtered by state."""
         # Login first
@@ -148,7 +122,7 @@ class TestSagaRoutesReal:
             params={"state": SagaState.COMPLETED.value, "limit": 5}
         )
         assert response.status_code == 200
-        
+
         saga_list = SagaListResponse(**response.json())
         # All sagas should be completed if any exist
         for saga in saga_list.sagas:
@@ -157,7 +131,7 @@ class TestSagaRoutesReal:
 
     @pytest.mark.asyncio
     async def test_list_sagas_large_limit(
-        self, client: AsyncClient, shared_user: Dict[str, str]
+            self, client: AsyncClient, shared_user: Dict[str, str]
     ) -> None:
         """Test listing sagas with maximum limit."""
         # Login first
@@ -174,13 +148,13 @@ class TestSagaRoutesReal:
             params={"limit": 1000}
         )
         assert response.status_code == 200
-        
+
         saga_list = SagaListResponse(**response.json())
         assert len(saga_list.sagas) <= 1000
 
     @pytest.mark.asyncio
     async def test_list_sagas_invalid_limit(
-        self, client: AsyncClient, shared_user: Dict[str, str]
+            self, client: AsyncClient, shared_user: Dict[str, str]
     ) -> None:
         """Test listing sagas with invalid limit."""
         # Login first
@@ -207,7 +181,7 @@ class TestSagaRoutesReal:
 
     @pytest.mark.asyncio
     async def test_cancel_saga_not_found(
-        self, client: AsyncClient, shared_user: Dict[str, str]
+            self, client: AsyncClient, shared_user: Dict[str, str]
     ) -> None:
         """Test cancelling non-existent saga returns 404."""
         # Login first
@@ -226,10 +200,10 @@ class TestSagaRoutesReal:
 
     @pytest.mark.asyncio
     async def test_saga_access_control(
-        self,
-        client: AsyncClient,
-        shared_user: Dict[str, str],
-        another_user: Dict[str, str]
+            self,
+            client: AsyncClient,
+            shared_user: Dict[str, str],
+            another_user: Dict[str, str]
     ) -> None:
         """Test that users can only access their own sagas."""
         # User 1 lists their sagas
@@ -267,7 +241,7 @@ class TestSagaRoutesReal:
 
     @pytest.mark.asyncio
     async def test_get_saga_with_details(
-        self, client: AsyncClient, shared_user: Dict[str, str]
+            self, client: AsyncClient, shared_user: Dict[str, str]
     ) -> None:
         """Test getting saga with all details when it exists."""
         # Login first
@@ -282,15 +256,15 @@ class TestSagaRoutesReal:
         list_response = await client.get("/api/v1/sagas/", params={"limit": 1})
         assert list_response.status_code == 200
         saga_list = SagaListResponse(**list_response.json())
-        
+
         if saga_list.sagas and len(saga_list.sagas) > 0:
             # Get details of the first saga
             saga_id = saga_list.sagas[0].saga_id
             response = await client.get(f"/api/v1/sagas/{saga_id}")
-            
+
             # Could be 200 if accessible or 403 if not owned by user
             assert response.status_code in [200, 403, 404]
-            
+
             if response.status_code == 200:
                 saga_status = SagaStatusResponse(**response.json())
                 assert saga_status.saga_id == saga_id
@@ -298,7 +272,7 @@ class TestSagaRoutesReal:
 
     @pytest.mark.asyncio
     async def test_list_sagas_with_offset(
-        self, client: AsyncClient, shared_user: Dict[str, str]
+            self, client: AsyncClient, shared_user: Dict[str, str]
     ) -> None:
         """Test listing sagas with offset for pagination."""
         # Login first
@@ -334,7 +308,7 @@ class TestSagaRoutesReal:
 
     @pytest.mark.asyncio
     async def test_cancel_saga_invalid_state(
-        self, client: AsyncClient, shared_user: Dict[str, str]
+            self, client: AsyncClient, shared_user: Dict[str, str]
     ) -> None:
         """Test cancelling a saga in invalid state (if one exists)."""
         # Login first
@@ -352,7 +326,7 @@ class TestSagaRoutesReal:
         )
         assert response.status_code == 200
         saga_list = SagaListResponse(**response.json())
-        
+
         if saga_list.sagas and len(saga_list.sagas) > 0:
             # Try to cancel completed saga (should fail)
             saga_id = saga_list.sagas[0].saga_id
@@ -362,7 +336,7 @@ class TestSagaRoutesReal:
 
     @pytest.mark.asyncio
     async def test_get_execution_sagas_multiple_states(
-        self, client: AsyncClient, shared_user: Dict[str, str]
+            self, client: AsyncClient, shared_user: Dict[str, str]
     ) -> None:
         """Test getting execution sagas across different states."""
         # Login first
@@ -374,7 +348,7 @@ class TestSagaRoutesReal:
         assert login_response.status_code == 200
 
         execution_id = str(uuid.uuid4())
-        
+
         # Test each state filter
         for state in [SagaState.CREATED, SagaState.RUNNING, SagaState.COMPLETED,
                       SagaState.FAILED, SagaState.CANCELLED]:
@@ -386,7 +360,7 @@ class TestSagaRoutesReal:
             if response.status_code == 403:
                 continue
             saga_list = SagaListResponse(**response.json())
-            
+
             # All returned sagas should match the requested state
             for saga in saga_list.sagas:
                 if saga.state:
@@ -394,7 +368,7 @@ class TestSagaRoutesReal:
 
     @pytest.mark.asyncio
     async def test_saga_response_structure(
-        self, client: AsyncClient, shared_user: Dict[str, str]
+            self, client: AsyncClient, shared_user: Dict[str, str]
     ) -> None:
         """Test that saga responses have correct structure."""
         # Login first
@@ -408,13 +382,13 @@ class TestSagaRoutesReal:
         # List sagas to verify response structure
         response = await client.get("/api/v1/sagas/", params={"limit": 1})
         assert response.status_code == 200
-        
+
         saga_list = SagaListResponse(**response.json())
         assert hasattr(saga_list, "sagas")
         assert hasattr(saga_list, "total")
         assert isinstance(saga_list.sagas, list)
         assert isinstance(saga_list.total, int)
-        
+
         # If we have sagas, verify their structure
         if saga_list.sagas:
             saga = saga_list.sagas[0]
@@ -425,11 +399,9 @@ class TestSagaRoutesReal:
 
     @pytest.mark.asyncio
     async def test_concurrent_saga_access(
-        self, client: AsyncClient, shared_user: Dict[str, str]
+            self, client: AsyncClient, shared_user: Dict[str, str]
     ) -> None:
         """Test concurrent access to saga endpoints."""
-        import asyncio
-        
         # Login first
         login_data = {
             "username": shared_user["username"],
@@ -445,9 +417,9 @@ class TestSagaRoutesReal:
                 "/api/v1/sagas/",
                 params={"limit": 10, "offset": i * 10}
             ))
-        
+
         responses = await asyncio.gather(*tasks)
-        
+
         # All requests should succeed
         for response in responses:
             assert response.status_code == 200

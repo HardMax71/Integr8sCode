@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
@@ -32,6 +33,8 @@ class RateLimitRule:
     algorithm: RateLimitAlgorithm = RateLimitAlgorithm.SLIDING_WINDOW
     priority: int = 0
     enabled: bool = True
+    # Internal cache for matching speed; not serialized
+    compiled_pattern: Optional[re.Pattern[str]] = field(default=None, repr=False, compare=False)
 
 
 @dataclass
@@ -131,3 +134,16 @@ class RateLimitStatus:
     retry_after: Optional[int] = None
     matched_rule: Optional[str] = None
     algorithm: RateLimitAlgorithm = RateLimitAlgorithm.SLIDING_WINDOW
+
+
+@dataclass
+class UserRateLimitSummary:
+    """Summary view for a user's rate limit configuration.
+
+    Always present for callers; reflects defaults when no override exists.
+    """
+    user_id: str
+    has_custom_limits: bool
+    bypass_rate_limit: bool
+    global_multiplier: float
+    rules_count: int

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import random
-import time
 from dataclasses import dataclass
 from typing import Callable
 
@@ -61,7 +60,7 @@ async def _flow_events_and_history(c: APIClient) -> None:
 
 
 async def _flow_saved_scripts(c: APIClient) -> None:
-    name = f"script-{int(time.time()*1000)}"
+    name = f"script-{int(time.time() * 1000)}"
     r = await c.create_script(name, c.random_script(True))
     script_id = None
     try:
@@ -124,11 +123,13 @@ async def run_user_swarm(cfg: LoadConfig, stats: StatsCollector, clients: int) -
 
     for i in range(clients):
         await sem.acquire()
+
         async def _spawn(j: int) -> None:
             try:
                 await one_client(j)
             finally:
                 sem.release()
+
         tasks.append(asyncio.create_task(_spawn(i)))
 
     await asyncio.gather(*tasks, return_exceptions=True)

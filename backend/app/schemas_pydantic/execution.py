@@ -6,14 +6,15 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.domain.enums.common import ErrorType
 from app.domain.enums.execution import ExecutionStatus
+from app.settings import get_settings
 
 
 class ExecutionBase(BaseModel):
     """Base model for execution data."""
     script: str = Field(..., max_length=50000, description="Script content (max 50,000 characters)")
     status: ExecutionStatus = ExecutionStatus.QUEUED
-    output: str | None = None
-    errors: str | None = None
+    stdout: str | None = None
+    stderr: str | None = None
     lang: str = "python"
     lang_version: str = "3.11"
 
@@ -41,8 +42,8 @@ class ExecutionInDB(ExecutionBase):
 class ExecutionUpdate(BaseModel):
     """Model for updating an execution."""
     status: ExecutionStatus | None = None
-    output: str | None = None
-    errors: str | None = None
+    stdout: str | None = None
+    stderr: str | None = None
     resource_usage: dict | None = None
     exit_code: int | None = None
     error_type: ErrorType | None = None
@@ -76,8 +77,6 @@ class ExecutionRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_runtime_supported(self) -> "ExecutionRequest":  # noqa: D401
-        from app.settings import get_settings
-
         settings = get_settings()
         runtimes = settings.SUPPORTED_RUNTIMES or {}
         if self.lang not in runtimes:
@@ -104,8 +103,8 @@ class ExecutionResult(BaseModel):
     """Model for execution result."""
     execution_id: str
     status: ExecutionStatus
-    output: str | None = None
-    errors: str | None = None
+    stdout: str | None = None
+    stderr: str | None = None
     lang: str
     lang_version: str
     resource_usage: ResourceUsage | None = None

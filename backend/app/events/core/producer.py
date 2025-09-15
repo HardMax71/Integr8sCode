@@ -9,11 +9,12 @@ from confluent_kafka.error import KafkaError
 
 from app.core.logging import logger
 from app.core.metrics.context import get_event_metrics
-from app.dlq.models import DLQMessage
 from app.domain.enums.kafka import KafkaTopic
-from app.events.core.types import ProducerConfig, ProducerMetrics, ProducerState
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.events import BaseEvent
+from app.infrastructure.mappers.dlq_mapper import DLQMapper
+
+from .types import ProducerConfig, ProducerMetrics, ProducerState
 
 DeliveryCallback: TypeAlias = Callable[[KafkaError | None, Message], None]
 StatsCallback: TypeAlias = Callable[[dict[str, Any]], None]
@@ -230,7 +231,7 @@ class UnifiedProducer:
             producer_id = f"{socket.gethostname()}-{task_name}"
 
             # Create DLQ message
-            dlq_message = DLQMessage.from_failed_event(
+            dlq_message = DLQMapper.from_failed_event(
                 event=original_event,
                 original_topic=original_topic,
                 error=str(error),

@@ -1,5 +1,3 @@
-"""Saga-related Kafka events."""
-
 from datetime import datetime
 from typing import ClassVar, Literal
 

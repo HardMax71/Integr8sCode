@@ -1,5 +1,3 @@
-"""Pod lifecycle Kafka events."""
-
 from typing import ClassVar, Literal
 
 from app.domain.enums.events import EventType

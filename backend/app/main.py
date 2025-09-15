@@ -1,13 +1,14 @@
 import uvicorn
+from dishka.integrations.fastapi import setup_dishka
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import (
-    alertmanager,
     auth,
     dlq,
     events,
     execution,
+    grafana_alerts,
     health,
     notifications,
     replay,
@@ -25,13 +26,18 @@ from app.api.routes.admin import (
 from app.api.routes.admin import (
     users_router as admin_users_router,
 )
+from app.core.container import create_app_container
 from app.core.correlation import CorrelationMiddleware
 from app.core.dishka_lifespan import lifespan
 from app.core.exceptions import configure_exception_handlers
 from app.core.logging import logger
-from app.core.middlewares.cache import CacheControlMiddleware
-from app.core.middlewares.metrics import setup_metrics
-from app.core.middlewares.request_size_limit import RequestSizeLimitMiddleware
+from app.core.middlewares import (
+    CacheControlMiddleware,
+    MetricsMiddleware,
+    RateLimitMiddleware,
+    RequestSizeLimitMiddleware,
+    setup_metrics,
+)
 from app.settings import get_settings
 
 
@@ -45,19 +51,18 @@ def create_app() -> FastAPI:
         docs_url=None,
         redoc_url=None,
     )
-    
-    from dishka.integrations.fastapi import setup_dishka
 
-    from app.core.container import create_app_container
     container = create_app_container()
     setup_dishka(container, app)
+
+    setup_metrics(app)
+    app.add_middleware(MetricsMiddleware)
+    if settings.RATE_LIMIT_ENABLED:
+        app.add_middleware(RateLimitMiddleware)
 
     app.add_middleware(CorrelationMiddleware)
     app.add_middleware(RequestSizeLimitMiddleware)
     app.add_middleware(CacheControlMiddleware)
-    
-    # Note: Rate limiting is now handled by our custom middleware injected via Dishka
-    logger.info(f"RATE LIMITING [TESTING={settings.TESTING}] enabled with Redis-based dynamic limits")
 
     app.add_middleware(
         CORSMiddleware,
@@ -102,7 +107,7 @@ def create_app() -> FastAPI:
     app.include_router(user_settings.router, prefix=settings.API_V1_STR)
     app.include_router(notifications.router, prefix=settings.API_V1_STR)
     app.include_router(saga.router, prefix=settings.API_V1_STR)
-    app.include_router(alertmanager.router, prefix=settings.API_V1_STR)
+    app.include_router(grafana_alerts.router, prefix=settings.API_V1_STR)
 
     # No additional testing-only routes here
 
@@ -110,10 +115,6 @@ def create_app() -> FastAPI:
 
     configure_exception_handlers(app)
     logger.info("Exception handlers configured")
-
-    # Set up OpenTelemetry metrics (after other middleware to avoid conflicts)
-    setup_metrics(app)
-    logger.info("OpenTelemetry metrics configured")
 
     return app
 

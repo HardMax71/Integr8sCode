@@ -8,7 +8,7 @@ from kubernetes import client as k8s_client
 from app.core.logging import logger
 from app.domain.enums.kafka import GroupId
 from app.domain.enums.storage import ExecutionErrorType
-from app.domain.execution.models import ResourceUsageDomain
+from app.domain.execution import ResourceUsageDomain
 from app.infrastructure.kafka.events.base import BaseEvent
 from app.infrastructure.kafka.events.execution import (
     ExecutionCompletedEvent,

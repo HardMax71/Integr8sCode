@@ -1,17 +1,18 @@
-from types import SimpleNamespace
+import pytest
+from dishka import AsyncContainer
+from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.core import container as container_mod
+from app.services.event_service import EventService
 
 
-def test_create_app_container_uses_make_async_container(monkeypatch):
-    captured = {}
+@pytest.mark.asyncio
+async def test_container_resolves_services(app_container, scope) -> None:  # type: ignore[valid-type]
+    # Container is the real Dishka container
+    assert isinstance(app_container, AsyncContainer)
 
-    def fake_make_async_container(*providers):  # noqa: ANN001
-        captured["count"] = len(providers)
-        return SimpleNamespace(name="container")
+    # Can resolve core dependencies from DI
+    db: AsyncIOMotorDatabase = await scope.get(AsyncIOMotorDatabase)
+    assert db.name and isinstance(db.name, str)
 
-    monkeypatch.setattr(container_mod, "make_async_container", fake_make_async_container)
-    c = container_mod.create_app_container()
-    assert getattr(c, "name") == "container"
-    assert captured["count"] > 0
-
+    svc: EventService = await scope.get(EventService)
+    assert isinstance(svc, EventService)

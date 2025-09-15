@@ -3,7 +3,8 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.core.utils import StringEnum
-from app.domain.events.event_models import EventSummary, ReplaySessionStatus
+from app.domain.enums.replay import ReplayStatus
+from app.domain.events.event_models import EventSummary
 
 
 class ReplaySessionFields(StringEnum):
@@ -28,7 +29,7 @@ class ReplaySessionFields(StringEnum):
 @dataclass
 class ReplaySession:
     session_id: str
-    status: ReplaySessionStatus
+    status: ReplayStatus
     total_events: int
     correlation_id: str
     created_at: datetime
@@ -54,12 +55,12 @@ class ReplaySession:
     @property
     def is_completed(self) -> bool:
         """Check if session is completed."""
-        return self.status in [ReplaySessionStatus.COMPLETED, ReplaySessionStatus.FAILED, ReplaySessionStatus.CANCELLED]
+        return self.status in [ReplayStatus.COMPLETED, ReplayStatus.FAILED, ReplayStatus.CANCELLED]
 
     @property
     def is_running(self) -> bool:
         """Check if session is running."""
-        return self.status == ReplaySessionStatus.RUNNING
+        return self.status == ReplayStatus.RUNNING
 
     def update_progress(self, replayed: int, failed: int = 0, skipped: int = 0) -> "ReplaySession":
         # Create new instance with updated values
@@ -74,7 +75,7 @@ class ReplaySession:
         if new_session.replayed_events >= new_session.total_events:
             new_session = replace(
                 new_session,
-                status=ReplaySessionStatus.COMPLETED,
+                status=ReplayStatus.COMPLETED,
                 completed_at=datetime.now(timezone.utc)
             )
 
@@ -91,7 +92,7 @@ class ReplaySessionStatusDetail:
 @dataclass
 class ReplaySessionStatusInfo:
     session_id: str
-    status: ReplaySessionStatus
+    status: ReplayStatus
     total_events: int
     replayed_events: int
     failed_events: int

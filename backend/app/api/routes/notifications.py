@@ -1,10 +1,8 @@
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import APIRouter, Query, Request, Response
 
-from app.api.dependencies import AuthService
-from app.api.rate_limit import check_rate_limit
-from app.infrastructure.mappers.notification_api_mapper import NotificationApiMapper
+from app.infrastructure.mappers import NotificationApiMapper
 from app.schemas_pydantic.notification import (
     DeleteNotificationResponse,
     NotificationChannel,
@@ -15,17 +13,21 @@ from app.schemas_pydantic.notification import (
     SubscriptionUpdate,
     UnreadCountResponse,
 )
+from app.services.auth_service import AuthService
 from app.services.notification_service import NotificationService
 
 router = APIRouter(prefix="/notifications", tags=["notifications"], route_class=DishkaRoute)
 
 
-@router.get("", response_model=NotificationListResponse, dependencies=[Depends(check_rate_limit)])
+@router.get("", response_model=NotificationListResponse)
 async def get_notifications(
         request: Request,
         notification_service: FromDishka[NotificationService],
         auth_service: FromDishka[AuthService],
         status: NotificationStatus | None = Query(None),
+        include_tags: list[str] | None = Query(None, description="Only notifications with any of these tags"),
+        exclude_tags: list[str] | None = Query(None, description="Exclude notifications with any of these tags"),
+        tag_prefix: str | None = Query(None, description="Only notifications having a tag starting with this prefix"),
         limit: int = Query(50, ge=1, le=100),
         offset: int = Query(0, ge=0),
 ) -> NotificationListResponse:
@@ -35,11 +37,14 @@ async def get_notifications(
         status=status,
         limit=limit,
         offset=offset,
+        include_tags=include_tags,
+        exclude_tags=exclude_tags,
+        tag_prefix=tag_prefix,
     )
     return NotificationApiMapper.list_result_to_response(result)
 
 
-@router.put("/{notification_id}/read", status_code=204, dependencies=[Depends(check_rate_limit)])
+@router.put("/{notification_id}/read", status_code=204)
 async def mark_notification_read(
         notification_id: str,
         notification_service: FromDishka[NotificationService],
@@ -93,7 +98,9 @@ async def update_subscription(
         enabled=subscription.enabled,
         webhook_url=subscription.webhook_url,
         slack_webhook=subscription.slack_webhook,
-        notification_types=subscription.notification_types
+        severities=subscription.severities,
+        include_tags=subscription.include_tags,
+        exclude_tags=subscription.exclude_tags,
     )
     return NotificationApiMapper.subscription_to_pydantic(updated_sub)
 

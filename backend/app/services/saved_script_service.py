@@ -2,7 +2,7 @@
 from app.core.exceptions import ServiceError
 from app.core.logging import logger
 from app.db.repositories import SavedScriptRepository
-from app.domain.saved_script.models import (
+from app.domain.saved_script import (
     DomainSavedScript,
     DomainSavedScriptCreate,
     DomainSavedScriptUpdate,
@@ -27,30 +27,17 @@ class SavedScriptService:
             },
         )
 
-        try:
-            created_script = await self.saved_script_repo.create_saved_script(saved_script_create, user_id)
+        created_script = await self.saved_script_repo.create_saved_script(saved_script_create, user_id)
 
-            logger.info(
-                "Successfully created saved script",
-                extra={
-                    "script_id": str(created_script.script_id),
-                    "user_id": user_id,
-                    "script_name": created_script.name,
-                },
-            )
-            return created_script
-
-        except Exception as e:
-            logger.error(
-                "Failed to create saved script",
-                extra={
-                    "user_id": user_id,
-                    "script_name": saved_script_create.name,
-                    "error_type": type(e).__name__,
-                    "error_detail": str(e),
-                },
-            )
-            raise
+        logger.info(
+            "Successfully created saved script",
+            extra={
+                "script_id": str(created_script.script_id),
+                "user_id": user_id,
+                "script_name": created_script.name,
+            },
+        )
+        return created_script
 
     async def get_saved_script(
             self,

@@ -324,9 +324,18 @@
         }
     }
     
-    function formatTimestamp(timestamp) {
-        // Backend sends Unix timestamps (seconds since epoch)
-        const date = new Date(timestamp * 1000);
+    function formatTimestamp(ts) {
+        // Support ISO 8601 strings or epoch seconds/ms
+        let date;
+        if (typeof ts === 'string') {
+            date = new Date(ts);
+        } else if (typeof ts === 'number') {
+            // Heuristic: seconds vs ms
+            date = ts < 1e12 ? new Date(ts * 1000) : new Date(ts);
+        } else {
+            return '';
+        }
+        if (isNaN(date.getTime())) return '';
         const day = String(date.getDate()).padStart(2, '0');
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const year = date.getFullYear();

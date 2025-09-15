@@ -1,25 +1,23 @@
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Query, Request
 
-from app.api.dependencies import AuthService
-from app.api.rate_limit import check_rate_limit
 from app.domain.enums.saga import SagaState
-from app.infrastructure.mappers.admin_mapper import UserMapper as AdminUserMapper
-from app.infrastructure.mappers.saga_mapper import SagaResponseMapper
+from app.infrastructure.mappers import SagaResponseMapper
+from app.infrastructure.mappers import UserMapper as AdminUserMapper
 from app.schemas_pydantic.saga import (
     SagaCancellationResponse,
     SagaListResponse,
     SagaStatusResponse,
 )
 from app.schemas_pydantic.user import User
-from app.services.saga_service import SagaService
+from app.services.auth_service import AuthService
+from app.services.saga.saga_service import SagaService
 
 router = APIRouter(
     prefix="/sagas",
     tags=["sagas"],
     route_class=DishkaRoute,
-    dependencies=[Depends(check_rate_limit)]
 )
 
 

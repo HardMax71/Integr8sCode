@@ -1,19 +1,16 @@
-import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
-from app.infrastructure.mappers.replay_mapper import (
-    ReplayQueryMapper,
-    ReplaySessionDataMapper,
-    ReplaySessionMapper,
-)
-from app.domain.admin.replay_models import (
+import pytest
+
+from app.domain.admin import (
     ReplayQuery,
     ReplaySession,
-    ReplaySessionStatus,
     ReplaySessionStatusDetail,
 )
+from app.domain.admin import ReplaySessionData
+from app.domain.enums.replay import ReplayStatus
 from app.domain.events.event_models import EventSummary
-
+from app.infrastructure.mappers import ReplayQueryMapper, ReplaySessionDataMapper, ReplaySessionMapper
 
 pytestmark = pytest.mark.unit
 
@@ -21,7 +18,7 @@ pytestmark = pytest.mark.unit
 def _session() -> ReplaySession:
     return ReplaySession(
         session_id="s1",
-        status=ReplaySessionStatus.SCHEDULED,
+        status=ReplayStatus.SCHEDULED,
         total_events=10,
         correlation_id="c",
         created_at=datetime.now(timezone.utc),
@@ -57,8 +54,7 @@ def test_replay_query_mapper() -> None:
 
 def test_replay_session_data_mapper() -> None:
     es = [EventSummary(event_id="e1", event_type="X", timestamp=datetime.now(timezone.utc))]
-    from app.domain.admin.replay_models import ReplaySessionData
-    data = ReplaySessionData(total_events=1, replay_correlation_id="rc", dry_run=True, query={"x": 1}, events_preview=es)
+    data = ReplaySessionData(total_events=1, replay_correlation_id="rc", dry_run=True, query={"x": 1},
+                             events_preview=es)
     dd = ReplaySessionDataMapper.to_dict(data)
     assert dd["dry_run"] is True and len(dd.get("events_preview", [])) == 1
-

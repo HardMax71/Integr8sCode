@@ -4,14 +4,12 @@ from typing import List
 from app.core.exceptions import ServiceError
 from app.core.logging import logger
 from app.db.repositories.replay_repository import ReplayRepository
-from app.domain.replay.models import (
+from app.domain.replay import (
     ReplayConfig,
-    ReplayFilter,
     ReplayOperationResult,
     ReplaySessionState,
 )
-from app.schemas_pydantic.replay import CleanupResponse, ReplayRequest, SessionSummary
-from app.schemas_pydantic.replay_models import ReplaySession as ReplaySessionSchema
+from app.schemas_pydantic.replay import CleanupResponse
 from app.services.event_replay import (
     EventReplayService,
     ReplayStatus,
@@ -29,32 +27,10 @@ class ReplayService:
         self.repository = repository
         self.event_replay_service = event_replay_service
 
-    async def create_session(self, config: ReplayConfig | ReplayRequest) -> ReplayOperationResult:
-        """Create a new replay session from domain config"""
+    async def create_session_from_config(self, config: ReplayConfig) -> ReplayOperationResult:
+        """Create a new replay session from a domain config"""
         try:
-            # Accept either domain ReplayConfig or API ReplayRequest
-            if isinstance(config, ReplayRequest):
-                cfg = ReplayConfig(
-                    replay_type=config.replay_type,
-                    target=config.target,
-                    filter=ReplayFilter(
-                        execution_id=config.execution_id,
-                        event_types=config.event_types,
-                        start_time=config.start_time.timestamp() if config.start_time else None,
-                        end_time=config.end_time.timestamp() if config.end_time else None,
-                        user_id=config.user_id,
-                        service_name=config.service_name,
-                    ),
-                    speed_multiplier=config.speed_multiplier,
-                    preserve_timestamps=config.preserve_timestamps,
-                    batch_size=config.batch_size,
-                    max_events=config.max_events,
-                    skip_errors=config.skip_errors,
-                    target_file_path=config.target_file_path,
-                )
-            else:
-                cfg = config
-            session_id = await self.event_replay_service.create_replay_session(cfg)
+            session_id = await self.event_replay_service.create_replay_session(config)
             session = self.event_replay_service.get_session(session_id)
             if session:
                 await self.repository.save_session(session)
@@ -67,15 +43,12 @@ class ReplayService:
             logger.error(f"Failed to create replay session: {e}")
             raise ServiceError(str(e), status_code=500) from e
 
-    # create_session_from_config no longer needed; merged into create_session
-
     async def start_session(self, session_id: str) -> ReplayOperationResult:
         """Start a replay session"""
         logger.info(f"Starting replay session {session_id}")
         try:
             await self.event_replay_service.start_replay(session_id)
 
-            # Update status in database
             await self.repository.update_session_status(session_id, ReplayStatus.RUNNING)
 
             return ReplayOperationResult(session_id=session_id, status=ReplayStatus.RUNNING,
@@ -92,7 +65,6 @@ class ReplayService:
         try:
             await self.event_replay_service.pause_replay(session_id)
 
-            # Update status in database
             await self.repository.update_session_status(session_id, ReplayStatus.PAUSED)
 
             return ReplayOperationResult(session_id=session_id, status=ReplayStatus.PAUSED,
@@ -109,7 +81,6 @@ class ReplayService:
         try:
             await self.event_replay_service.resume_replay(session_id)
 
-            # Update status in database
             await self.repository.update_session_status(session_id, ReplayStatus.RUNNING)
 
             return ReplayOperationResult(session_id=session_id, status=ReplayStatus.RUNNING,
@@ -126,7 +97,6 @@ class ReplayService:
         try:
             await self.event_replay_service.cancel_replay(session_id)
 
-            # Update status in database
             await self.repository.update_session_status(session_id, ReplayStatus.CANCELLED)
 
             return ReplayOperationResult(session_id=session_id, status=ReplayStatus.CANCELLED,
@@ -163,7 +133,6 @@ class ReplayService:
     async def cleanup_old_sessions(self, older_than_hours: int = 24) -> CleanupResponse:
         """Clean up old replay sessions"""
         try:
-            # Clean up from memory-based service
             removed_memory = await self.event_replay_service.cleanup_old_sessions(older_than_hours)
 
             # Clean up from database
@@ -176,51 +145,4 @@ class ReplayService:
             logger.error(f"Failed to cleanup old sessions: {e}")
             raise ServiceError(str(e), status_code=500) from e
 
-    # Helper used by tests to summarize session info
-    def _session_to_summary(self, session: ReplaySessionSchema | ReplaySessionState) -> SessionSummary:
-        if isinstance(session, ReplaySessionState):
-            # Map domain to schema-like for summary
-            created_at = session.created_at
-            started_at = session.started_at
-            completed_at = session.completed_at
-            total = session.total_events
-            replayed = session.replayed_events
-            failed = session.failed_events
-            skipped = session.skipped_events
-            rtype = session.config.replay_type
-            target = session.config.target
-            status = session.status
-        else:
-            created_at = session.created_at
-            started_at = session.started_at
-            completed_at = session.completed_at
-            total = session.total_events
-            replayed = session.replayed_events
-            failed = session.failed_events
-            skipped = session.skipped_events
-            rtype = session.config.replay_type
-            target = session.config.target
-            status = session.status
-
-        duration_seconds: float | None = None
-        throughput: float | None = None
-        if started_at and completed_at:
-            duration_seconds = max((completed_at - started_at).total_seconds(), 0)
-            if duration_seconds > 0 and replayed > 0:
-                throughput = replayed / duration_seconds
-
-        return SessionSummary(
-            session_id=session.session_id,
-            replay_type=rtype,
-            target=target,
-            status=status,
-            total_events=total,
-            replayed_events=replayed,
-            failed_events=failed,
-            skipped_events=skipped,
-            created_at=created_at,
-            started_at=started_at,
-            completed_at=completed_at,
-            duration_seconds=duration_seconds,
-            throughput_events_per_second=throughput,
-        )
+    

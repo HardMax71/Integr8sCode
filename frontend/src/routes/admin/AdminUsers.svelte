@@ -264,7 +264,7 @@
         { pattern: /\/notifications/i, group: 'api' },
         { pattern: /\/saved-scripts/i, group: 'api' },
         { pattern: /\/user-settings/i, group: 'api' },
-        { pattern: /\/alertmanager/i, group: 'api' },
+        { pattern: /\/alerts\//i, group: 'api' },
     ];
     
     function detectGroupFromEndpoint(endpoint) {

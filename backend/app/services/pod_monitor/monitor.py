@@ -17,8 +17,10 @@ from app.core.metrics.context import get_kubernetes_metrics
 from app.core.utils import StringEnum
 
 # Metrics will be passed as parameter to avoid globals
-from app.events.core.producer import ProducerConfig, UnifiedProducer
+from app.events.core import ProducerConfig, UnifiedProducer
+from app.events.schema.schema_registry import create_schema_registry_manager, initialize_event_schemas
 from app.infrastructure.kafka.events import BaseEvent
+from app.infrastructure.kafka.mappings import get_topic_for_event
 from app.services.pod_monitor.config import PodMonitorConfig
 from app.services.pod_monitor.event_mapper import PodEventMapper
 from app.settings import get_settings
@@ -319,7 +321,7 @@ class PodMonitor:
         # Watch stream
         if not self._watch or not self._v1:
             raise RuntimeError("Watch or API not initialized")
-        
+
         stream = self._watch.stream(
             self._v1.list_namespaced_pod,
             **kwargs
@@ -423,7 +425,7 @@ class PodMonitor:
         """Publish event to Kafka."""
         try:
             # Get proper topic from event type mapping
-            from app.infrastructure.kafka.mappings import get_topic_for_event
+
             topic = str(get_topic_for_event(event.event_type))
 
             # Add correlation ID from pod labels
@@ -517,7 +519,7 @@ class PodMonitor:
                     success=False,
                     error="K8s API not initialized"
                 )
-                
+
             pods = await asyncio.to_thread(
                 self._v1.list_namespaced_pod,
                 namespace=self.config.namespace,
@@ -618,8 +620,6 @@ async def create_pod_monitor(
 
 async def run_pod_monitor() -> None:
     """Run the pod monitor service."""
-    from app.events.schema.schema_registry import create_schema_registry_manager, initialize_event_schemas
-
     # Initialize schema registry
     schema_registry_manager = create_schema_registry_manager()
     await initialize_event_schemas(schema_registry_manager)

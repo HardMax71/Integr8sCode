@@ -1,18 +1,19 @@
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Union
+from uuid import uuid4
 
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
 
-from app.api.dependencies import AuthService
-from app.api.rate_limit import DynamicRateLimiter
 from app.core.logging import logger
 from app.core.security import security_service
-from app.core.service_dependencies import UserRepositoryDep
 from app.core.utils import get_client_ip
-from app.schemas_pydantic.user import UserCreate, UserInDB, UserResponse
+from app.db.repositories import UserRepository
+from app.domain.user import User as DomainAdminUser
+from app.schemas_pydantic.user import UserCreate, UserResponse
+from app.services.auth_service import AuthService
 from app.settings import get_settings
 
 router = APIRouter(prefix="/auth",
@@ -20,11 +21,11 @@ router = APIRouter(prefix="/auth",
                    route_class=DishkaRoute)
 
 
-@router.post("/login", dependencies=[Depends(DynamicRateLimiter)])
+@router.post("/login")
 async def login(
         request: Request,
         response: Response,
-        user_repo: UserRepositoryDep,
+        user_repo: FromDishka[UserRepository],
         form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> Dict[str, str]:
     logger.info(
@@ -121,11 +122,11 @@ async def login(
     }
 
 
-@router.post("/register", response_model=UserResponse, dependencies=[Depends(DynamicRateLimiter)])
+@router.post("/register", response_model=UserResponse)
 async def register(
         request: Request,
         user: UserCreate,
-        user_repo: UserRepositoryDep,
+        user_repo: FromDishka[UserRepository],
 ) -> UserResponse:
     logger.info(
         "Registration attempt",
@@ -151,11 +152,19 @@ async def register(
 
     try:
         hashed_password = security_service.get_password_hash(user.password)
-        db_user = UserInDB(
-            **user.model_dump(exclude={"password"}),
-            hashed_password=hashed_password
+        now = datetime.now(timezone.utc)
+        domain_user = DomainAdminUser(
+            user_id=str(uuid4()),
+            username=user.username,
+            email=str(user.email),
+            role=user.role,
+            is_active=True,
+            is_superuser=False,
+            hashed_password=hashed_password,
+            created_at=now,
+            updated_at=now,
         )
-        created_user = await user_repo.create_user(db_user)
+        created_user = await user_repo.create_user(domain_user)
 
         logger.info(
             "Registration successful",
@@ -166,7 +175,15 @@ async def register(
             },
         )
 
-        return UserResponse.model_validate(created_user.model_dump())
+        return UserResponse(
+            user_id=created_user.user_id,
+            username=created_user.username,
+            email=created_user.email,
+            role=created_user.role,
+            is_superuser=created_user.is_superuser,
+            created_at=created_user.created_at,
+            updated_at=created_user.updated_at,
+        )
 
     except Exception as e:
         logger.error(
@@ -183,7 +200,7 @@ async def register(
         raise HTTPException(status_code=500, detail="Error creating user") from e
 
 
-@router.get("/me", response_model=UserResponse, dependencies=[Depends(DynamicRateLimiter)])
+@router.get("/me", response_model=UserResponse)
 async def get_current_user_profile(
         request: Request,
         response: Response,
@@ -207,7 +224,7 @@ async def get_current_user_profile(
     return current_user
 
 
-@router.get("/verify-token", dependencies=[Depends(DynamicRateLimiter)])
+@router.get("/verify-token")
 async def verify_token(
         request: Request,
         auth_service: FromDishka[AuthService],
@@ -261,7 +278,7 @@ async def verify_token(
 
 
 
-@router.post("/logout", dependencies=[Depends(DynamicRateLimiter)])
+@router.post("/logout")
 async def logout(
         request: Request,
         response: Response,

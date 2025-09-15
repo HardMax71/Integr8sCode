@@ -1,33 +1,45 @@
 import re
 import uuid
+from datetime import datetime, timezone
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
 
 from app.domain.enums.user import UserRole
-from app.schemas_pydantic.user import UserInDB
+from app.domain.events.event_models import CollectionNames
+from app.domain.user import User as DomainAdminUser
+from app.domain.user import UserFields
+from app.domain.user import UserUpdate as DomainUserUpdate
+from app.infrastructure.mappers import UserMapper
 
 
 class UserRepository:
     def __init__(self, db: AsyncIOMotorDatabase):
         self.db = db
+        self.collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.USERS)
+        self.mapper = UserMapper()
 
-    async def get_user(self, username: str) -> UserInDB | None:
-        user = await self.db.users.find_one({"username": username})
+    async def get_user(self, username: str) -> DomainAdminUser | None:
+        user = await self.collection.find_one({UserFields.USERNAME: username})
         if user:
-            return UserInDB(**user)
+            return self.mapper.from_mongo_document(user)
         return None
 
-    async def create_user(self, user: UserInDB) -> UserInDB:
+    async def create_user(self, user: DomainAdminUser) -> DomainAdminUser:
         if not user.user_id:
             user.user_id = str(uuid.uuid4())
-        user_dict = user.model_dump()
-        await self.db.users.insert_one(user_dict)
+        # Ensure timestamps
+        if not getattr(user, "created_at", None):
+            user.created_at = datetime.now(timezone.utc)
+        if not getattr(user, "updated_at", None):
+            user.updated_at = user.created_at
+        user_dict = self.mapper.to_mongo_document(user)
+        await self.collection.insert_one(user_dict)
         return user
 
-    async def get_user_by_id(self, user_id: str) -> UserInDB | None:
-        user = await self.db.users.find_one({"user_id": user_id})
+    async def get_user_by_id(self, user_id: str) -> DomainAdminUser | None:
+        user = await self.collection.find_one({UserFields.USER_ID: user_id})
         if user:
-            return UserInDB(**user)
+            return self.mapper.from_mongo_document(user)
         return None
 
     async def list_users(
@@ -36,7 +48,7 @@ class UserRepository:
             offset: int = 0,
             search: str | None = None,
             role: UserRole | None = None
-    ) -> list[UserInDB]:
+    ) -> list[DomainAdminUser]:
         query: dict[str, object] = {}
 
         if search:
@@ -50,24 +62,29 @@ class UserRepository:
         if role:
             query["role"] = role.value
 
-        cursor = self.db.users.find(query).skip(offset).limit(limit)
-        users = []
+        cursor = self.collection.find(query).skip(offset).limit(limit)
+        users: list[DomainAdminUser] = []
         async for user in cursor:
-            users.append(UserInDB(**user))
+            users.append(self.mapper.from_mongo_document(user))
 
         return users
 
-    async def update_user(self, user_id: str, update_data: UserInDB) -> UserInDB | None:
-        result = await self.db.users.update_one(
-            {"user_id": user_id},
-            {"$set": update_data.model_dump()}
+    async def update_user(self, user_id: str, update_data: DomainUserUpdate) -> DomainAdminUser | None:
+        update_dict = self.mapper.to_update_dict(update_data)
+        if not update_dict and update_data.password is None:
+            return await self.get_user_by_id(user_id)
+        # Handle password update separately if provided
+        if update_data.password:
+            update_dict[UserFields.HASHED_PASSWORD] = update_data.password  # caller should pass hashed if desired
+        update_dict[UserFields.UPDATED_AT] = datetime.now(timezone.utc)
+        result = await self.collection.update_one(
+            {UserFields.USER_ID: user_id},
+            {"$set": update_dict}
         )
-
         if result.modified_count > 0:
             return await self.get_user_by_id(user_id)
-
         return None
 
     async def delete_user(self, user_id: str) -> bool:
-        result = await self.db.users.delete_one({"user_id": user_id})
+        result = await self.collection.delete_one({UserFields.USER_ID: user_id})
         return result.deleted_count > 0

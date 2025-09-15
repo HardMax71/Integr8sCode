@@ -453,8 +453,9 @@
             executionId = executeData.execution_id;
             result = {status: 'running', execution_id: executionId};
 
-            // Use Kafka-based SSE for real-time execution updates
-            const timeout = ((k8sLimits?.execution_timeout || 5) + 10) * 1000; // Convert to milliseconds
+            // Compute a strict timeout: 2x execution limit (seconds -> ms)
+            const execLimitSec = (k8sLimits?.execution_timeout || 5);
+            const timeout = (2 * execLimitSec) * 1000;
             
             result = await new Promise((resolve, reject) => {
                 // Use the SSE endpoint for real-time events from Kafka
@@ -478,6 +479,10 @@
                 eventSource.onmessage = async (event) => {
                     try {
                         const data = JSON.parse(event.data);
+                        const et = data?.event_type;
+                        if (et === 'heartbeat' || et === 'connected') {
+                            return;
+                        }
                         console.log('Execution update:', data);
                         
                         // Update result with the latest status
@@ -486,6 +491,21 @@
                             clearTimeout(timeoutId);
                             eventSource.close();
                             resolve(result);
+                        } else if (
+                            data.event_type === 'execution_failed' || data.type === 'execution_failed' || data.status === 'failed' || data.status === 'error' ||
+                            data.event_type === 'execution_timeout' || data.type === 'execution_timeout' || data.status === 'timeout'
+                        ) {
+                            // Close immediately on any terminal error
+                            clearTimeout(timeoutId);
+                            try { eventSource.close(); } catch {}
+                            // Attempt one final fetch to ensure we return full payload
+                            try {
+                                const r = await fetchWithRetry(`/api/v1/result/${executionId}`, { method: 'GET' });
+                                const finalData = await r.json();
+                                resolve(finalData);
+                            } catch {
+                                resolve({ status: 'error', errors: data?.error || 'Execution failed', execution_id: executionId });
+                            }
                         } else if (data.event_type === 'execution_completed' || data.type === 'execution_completed' || data.status === 'completed') {
                             result = { ...(result || {}), status: 'completed' };
                         } else if (data.event_type === 'execution_failed' || data.type === 'execution_failed' || data.status === 'failed' || data.status === 'error') {
@@ -519,7 +539,7 @@
                 };
             });
 
-            if (result?.status !== 'completed' && result?.status !== 'error' && result?.status !== 'failed') {
+            if (result?.status !== 'completed' && result?.status !== 'error' && result?.status !== 'failed' && result?.status !== 'timeout') {
                 const timeoutMessage = `Execution timed out waiting for a final status.`;
                 result = {status: 'error', errors: timeoutMessage, execution_id: executionId};
                 addNotification(timeoutMessage, 'warning');
@@ -991,16 +1011,16 @@
                             {/if}
                         </div>
 
-                        {#if result.output}
+                        {#if result.stdout}
                             <div class="output-section">
                                 <h4 class="text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1 uppercase tracking-wider">
                                     Output:</h4>
                                 <div class="relative">
-                                    <pre class="output-pre custom-scrollbar">{@html sanitizeOutput(ansiConverter.toHtml(result.output || ''))}</pre>
+                                    <pre class="output-pre custom-scrollbar">{@html sanitizeOutput(ansiConverter.toHtml(result.stdout || ''))}</pre>
                                     <div class="absolute bottom-2 right-2 group">
                                         <button class="inline-flex items-center p-1.5 rounded-lg text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
                                                 aria-label="Copy output to clipboard"
-                                                on:click={() => copyOutput(result.output)}>
+                                                on:click={() => copyOutput(result.stdout)}>
                                             {@html copyIcon}
                                         </button>
                                         <div class="absolute bottom-8 right-0 z-10 px-2 py-1 text-xs bg-neutral-800 dark:bg-neutral-200 text-white dark:text-neutral-800 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap">
@@ -1011,18 +1031,18 @@
                             </div>
                         {/if}
 
-                        {#if result.errors}
+                        {#if result.stderr}
                             <div class="error-section">
                                 <h4 class="text-xs font-medium text-red-700 dark:text-red-300 mb-1 uppercase tracking-wider">
                                     Errors:</h4>
                                 <div class="relative">
                                     <div class="p-3 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800">
-                                        <pre class="text-xs text-red-600 dark:text-red-300 whitespace-pre-wrap break-words font-mono bg-transparent p-0 pr-8">{@html sanitizeOutput(ansiConverter.toHtml(result.errors || ''))}</pre>
+                                        <pre class="text-xs text-red-600 dark:text-red-300 whitespace-pre-wrap break-words font-mono bg-transparent p-0 pr-8">{@html sanitizeOutput(ansiConverter.toHtml(result.stderr || ''))}</pre>
                                     </div>
                                     <div class="absolute bottom-2 right-2 group">
                                         <button class="inline-flex items-center p-1.5 rounded-lg text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 hover:bg-red-100 dark:hover:bg-red-900 transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
                                                 aria-label="Copy error text to clipboard"
-                                                on:click={() => copyErrors(result.errors)}>
+                                                on:click={() => copyErrors(result.stderr)}>
                                             {@html copyIcon}
                                         </button>
                                         <div class="absolute bottom-8 right-0 z-10 px-2 py-1 text-xs bg-neutral-800 dark:bg-neutral-200 text-white dark:text-neutral-800 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap">

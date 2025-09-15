@@ -1,10 +1,9 @@
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Awaitable, Callable, Dict
+from typing import Any, Dict
 
-from fastapi import Request
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import Response
+from starlette.datastructures import MutableHeaders
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.core.logging import correlation_id_context, logger, request_metadata_context
 
@@ -40,18 +39,26 @@ class CorrelationContext:
         logger.debug("Cleared correlation context")
 
 
-class CorrelationMiddleware(BaseHTTPMiddleware):
+class CorrelationMiddleware:
     CORRELATION_HEADER = "X-Correlation-ID"
     REQUEST_ID_HEADER = "X-Request-ID"
 
-    async def dispatch(self, request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
         # Try to get correlation ID from headers
-        correlation_id = (
-                request.headers.get(self.CORRELATION_HEADER) or
-                request.headers.get(self.REQUEST_ID_HEADER) or
-                request.headers.get("x-correlation-id") or
-                request.headers.get("x-request-id")
-        )
+        headers = dict(scope["headers"])
+        correlation_id = None
+        
+        for header_name in [b"x-correlation-id", b"x-request-id"]:
+            if header_name in headers:
+                correlation_id = headers[header_name].decode("latin-1")
+                break
 
         # Generate correlation ID if not provided
         if not correlation_id:
@@ -61,25 +68,27 @@ class CorrelationMiddleware(BaseHTTPMiddleware):
         correlation_id = CorrelationContext.set_correlation_id(correlation_id)
 
         # Set request metadata
-        client_ip = request.client.host if request.client else None
+        client = scope.get("client")
+        client_ip = client[0] if client else None
         
         metadata = {
-            "method": request.method,
-            "path": request.url.path,
+            "method": scope["method"],
+            "path": scope["path"],
             "client": {
                 "host": client_ip
             } if client_ip else None
         }
         CorrelationContext.set_request_metadata(metadata)
 
+        # Add correlation ID to response headers
+        async def send_wrapper(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                headers[self.CORRELATION_HEADER] = correlation_id
+            await send(message)
+
         # Process request
-        try:
-            response = await call_next(request)
-
-            # Add correlation ID to response headers
-            response.headers[self.CORRELATION_HEADER] = correlation_id
-
-            return response
-        finally:
-            # Clear context after request
-            CorrelationContext.clear()
+        await self.app(scope, receive, send_wrapper)
+        
+        # Clear context after request
+        CorrelationContext.clear()

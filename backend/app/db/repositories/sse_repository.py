@@ -1,18 +1,17 @@
-from datetime import datetime, timezone
-from typing import Any, Dict
-
 from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
 
-from app.domain.enums.execution import ExecutionStatus
-from app.domain.execution.models import DomainExecution, ResourceUsageDomain
-from app.domain.sse.models import SSEEventDomain, SSEExecutionStatusDomain
+from app.domain.events.event_models import CollectionNames
+from app.domain.execution import DomainExecution
+from app.domain.sse import SSEEventDomain, SSEExecutionStatusDomain
+from app.infrastructure.mappers import SSEMapper
 
 
 class SSERepository:
     def __init__(self, database: AsyncIOMotorDatabase):
         self.db = database
-        self.executions_collection: AsyncIOMotorCollection = self.db.get_collection("executions")
-        self.events_collection: AsyncIOMotorCollection = self.db.get_collection("events")
+        self.executions_collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.EXECUTIONS)
+        self.events_collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.EVENTS)
+        self.mapper = SSEMapper()
 
     async def get_execution_status(self, execution_id: str) -> SSEExecutionStatusDomain | None:
         execution = await self.executions_collection.find_one(
@@ -21,11 +20,7 @@ class SSERepository:
         )
 
         if execution:
-            return SSEExecutionStatusDomain(
-                execution_id=execution_id,
-                status=str(execution.get("status", "unknown")),
-                timestamp=datetime.now(timezone.utc).isoformat(),
-            )
+            return self.mapper.to_execution_status(execution_id, execution.get("status", "unknown"))
         return None
 
     async def get_execution_events(
@@ -40,10 +35,7 @@ class SSERepository:
 
         events: list[SSEEventDomain] = []
         async for event in cursor:
-            events.append(SSEEventDomain(
-                aggregate_id=str(event.get("aggregate_id", "")),
-                timestamp=event.get("timestamp"),
-            ))
+            events.append(self.mapper.event_from_mongo_document(event))
         return events
 
     async def get_execution_for_user(self, execution_id: str, user_id: str) -> DomainExecution | None:
@@ -53,7 +45,7 @@ class SSERepository:
         })
         if not doc:
             return None
-        return self._doc_to_execution(doc)
+        return self.mapper.execution_from_mongo_document(doc)
 
     async def get_execution(self, execution_id: str) -> DomainExecution | None:
         doc = await self.executions_collection.find_one({
@@ -61,26 +53,4 @@ class SSERepository:
         })
         if not doc:
             return None
-        return self._doc_to_execution(doc)
-
-    def _doc_to_execution(self, doc: Dict[str, Any]) -> DomainExecution:
-        sv = doc.get("status")
-        try:
-            st = sv if isinstance(sv, ExecutionStatus) else ExecutionStatus(str(sv))
-        except Exception:
-            st = ExecutionStatus.QUEUED
-        return DomainExecution(
-            execution_id=str(doc.get("execution_id")),
-            script=str(doc.get("script", "")),
-            status=st,
-            output=doc.get("output"),
-            errors=doc.get("errors"),
-            lang=str(doc.get("lang", "python")),
-            lang_version=str(doc.get("lang_version", "3.11")),
-            created_at=doc.get("created_at", datetime.now(timezone.utc)),
-            updated_at=doc.get("updated_at", datetime.now(timezone.utc)),
-            resource_usage=ResourceUsageDomain.from_dict(doc.get("resource_usage") or {}),
-            user_id=doc.get("user_id"),
-            exit_code=doc.get("exit_code"),
-            error_type=doc.get("error_type"),
-        )
+        return self.mapper.execution_from_mongo_document(doc)

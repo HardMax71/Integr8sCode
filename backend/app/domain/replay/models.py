@@ -2,16 +2,17 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
+from pydantic import BaseModel, Field, PrivateAttr
+
 from app.domain.enums.events import EventType
 from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
-from pydantic import BaseModel, Field, PrivateAttr
 
 
 class ReplayFilter(BaseModel):
     execution_id: str | None = None
     event_types: List[EventType] | None = None
-    start_time: float | None = None
-    end_time: float | None = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
     user_id: str | None = None
     service_name: str | None = None
     custom_query: Dict[str, Any] | None = None

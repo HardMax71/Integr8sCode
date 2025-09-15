@@ -3,7 +3,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from app.dlq.models import DLQMessageStatus, RetryStrategy
+from app.dlq import DLQMessageStatus, RetryStrategy
 
 
 class DLQStats(BaseModel):

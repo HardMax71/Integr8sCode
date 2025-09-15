@@ -3,7 +3,9 @@ import signal
 import time
 from collections.abc import Coroutine
 from typing import Any, TypeAlias
+from uuid import uuid4
 
+import redis.asyncio as redis
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from app.core.logging import logger
@@ -13,10 +15,8 @@ from app.db.schema.schema_manager import SchemaManager
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.domain.enums.storage import ExecutionErrorType
-from app.domain.execution.models import ResourceUsageDomain
-from app.events.core.consumer import ConsumerConfig, UnifiedConsumer
-from app.events.core.dispatcher import EventDispatcher
-from app.events.core.producer import ProducerConfig, UnifiedProducer
+from app.domain.execution import ResourceUsageDomain
+from app.events.core import ConsumerConfig, EventDispatcher, ProducerConfig, UnifiedConsumer, UnifiedProducer
 from app.events.event_store import EventStore, create_event_store
 from app.events.schema.schema_registry import (
     SchemaRegistryManager,
@@ -32,10 +32,13 @@ from app.infrastructure.kafka.events.execution import (
     ExecutionRequestedEvent,
 )
 from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.infrastructure.kafka.events.saga import CreatePodCommandEvent
 from app.services.coordinator.queue_manager import QueueManager, QueuePriority
 from app.services.coordinator.resource_manager import ResourceAllocation, ResourceManager
-from app.services.idempotency import IdempotencyManager, create_idempotency_manager
+from app.services.idempotency import IdempotencyManager
+from app.services.idempotency.idempotency_manager import IdempotencyConfig, create_idempotency_manager
 from app.services.idempotency.middleware import IdempotentConsumerWrapper
+from app.services.idempotency.redis_repository import RedisIdempotencyRepository
 from app.settings import get_settings
 
 EventHandler: TypeAlias = Coroutine[Any, Any, None]
@@ -431,10 +434,6 @@ class ExecutionCoordinator:
             request: ExecutionRequestedEvent
     ) -> None:
         """Send CreatePodCommandEvent to k8s-worker via SAGA_COMMANDS topic"""
-        from uuid import uuid4
-
-        from app.infrastructure.kafka.events.saga import CreatePodCommandEvent
-
         metadata = await self._build_command_metadata(request)
 
         create_pod_cmd = CreatePodCommandEvent(
@@ -575,7 +574,19 @@ async def run_coordinator() -> None:
 
     # Build repositories and idempotency manager
     exec_repo = ExecutionRepository(database)
-    idem_manager = create_idempotency_manager(database)
+    r = redis.Redis(
+        host=settings.REDIS_HOST,
+        port=settings.REDIS_PORT,
+        db=settings.REDIS_DB,
+        password=settings.REDIS_PASSWORD,
+        ssl=settings.REDIS_SSL,
+        max_connections=settings.REDIS_MAX_CONNECTIONS,
+        decode_responses=settings.REDIS_DECODE_RESPONSES,
+        socket_connect_timeout=5,
+        socket_timeout=5,
+    )
+    idem_repo = RedisIdempotencyRepository(r, key_prefix="idempotency")
+    idem_manager = create_idempotency_manager(repository=idem_repo, config=IdempotencyConfig())
     await idem_manager.initialize()
 
     coordinator = ExecutionCoordinator(

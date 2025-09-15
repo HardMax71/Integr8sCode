@@ -1,14 +1,17 @@
 import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
+from opentelemetry.trace import SpanKind
+
+from app.core.tracing import EventAttributes
+from app.core.tracing.utils import get_tracer
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.db.repositories.saga_repository import SagaRepository
 from app.domain.enums.saga import SagaState
 from app.domain.saga.models import Saga, SagaConfig
-from app.events.core.consumer import ConsumerConfig, UnifiedConsumer
-from app.events.core.dispatcher import EventDispatcher
-from app.events.core.producer import UnifiedProducer
+from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
 from app.events.event_store import EventStore
 from app.infrastructure.kafka.events.base import BaseEvent
 from app.infrastructure.kafka.events.metadata import EventMetadata
@@ -16,10 +19,11 @@ from app.infrastructure.kafka.events.saga import SagaCancelledEvent
 from app.infrastructure.kafka.mappings import get_topic_for_event
 from app.services.idempotency import IdempotentConsumerWrapper
 from app.services.idempotency.idempotency_manager import IdempotencyManager
-from app.services.saga import ExecutionSaga
-from app.services.saga.base_saga import BaseSaga
-from app.services.saga.saga_step import SagaContext
 from app.settings import get_settings
+
+from .base_saga import BaseSaga
+from .execution_saga import ExecutionSaga
+from .saga_step import SagaContext
 
 logger = logging.getLogger(__name__)
 
@@ -32,15 +36,14 @@ class SagaOrchestrator:
             config: SagaConfig,
             saga_repository: SagaRepository,
             producer: UnifiedProducer,
-        event_store: EventStore,
-        idempotency_manager: IdempotencyManager,
-        resource_allocation_repository: ResourceAllocationRepository,
+            event_store: EventStore,
+            idempotency_manager: IdempotencyManager,
+            resource_allocation_repository: ResourceAllocationRepository,
     ):
         self.config = config
         self._sagas: dict[str, type[BaseSaga]] = {}
         self._running_instances: dict[str, Saga] = {}
-        from typing import Optional
-        self._consumer: Optional[IdempotentConsumerWrapper] = None
+        self._consumer: IdempotentConsumerWrapper | None = None
         self._idempotency_manager: IdempotencyManager = idempotency_manager
         self._producer = producer
         self._event_store = event_store
@@ -189,7 +192,6 @@ class SagaOrchestrator:
             logger.info(f"Saga {saga_name} already exists for execution {execution_id}")
             return existing.saga_id
 
-        from uuid import uuid4
         instance = Saga(
             saga_id=str(uuid4()),
             saga_name=saga_name,
@@ -228,6 +230,7 @@ class SagaOrchestrator:
             trigger_event: BaseEvent,
     ) -> None:
         """Execute saga steps"""
+        tracer = get_tracer()
         try:
             # Get saga steps
             steps = saga.get_steps()
@@ -243,8 +246,18 @@ class SagaOrchestrator:
 
                 logger.info(f"Executing saga step: {step.name} for saga {instance.saga_id}")
 
-                # Execute step
-                success = await step.execute(context, trigger_event)
+                # Execute step within a span
+                with tracer.start_as_current_span(
+                    name="saga.step",
+                    kind=SpanKind.INTERNAL,
+                    attributes={
+                        str(EventAttributes.SAGA_NAME): instance.saga_name,
+                        str(EventAttributes.SAGA_ID): instance.saga_id,
+                        str(EventAttributes.SAGA_STEP): step.name,
+                        str(EventAttributes.EXECUTION_ID): instance.execution_id,
+                    },
+                ):
+                    success = await step.execute(context, trigger_event)
 
                 if success:
                     instance.completed_steps.append(step.name)

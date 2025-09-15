@@ -97,7 +97,6 @@ __all__ = [
     "UserDeletedEvent",
     "UserSettingsUpdatedEvent",
     "UserThemeChangedEvent",
-    "UserLanguageChangedEvent",
     "UserNotificationSettingsUpdatedEvent",
     "UserEditorSettingsUpdatedEvent",
     # Notification

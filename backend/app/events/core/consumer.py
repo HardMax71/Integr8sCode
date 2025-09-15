@@ -5,14 +5,18 @@ from datetime import datetime, timezone
 
 from confluent_kafka import OFFSET_BEGINNING, OFFSET_END, Consumer, Message, TopicPartition
 from confluent_kafka.error import KafkaError
+from opentelemetry.trace import SpanKind
 
 from app.core.logging import logger
 from app.core.metrics.context import get_event_metrics
+from app.core.tracing import EventAttributes
+from app.core.tracing.utils import extract_trace_context, get_tracer
 from app.domain.enums.kafka import KafkaTopic
-from app.events.core.dispatcher import EventDispatcher
-from app.events.core.types import ConsumerConfig, ConsumerMetrics, ConsumerState
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.events.base import BaseEvent
+
+from .dispatcher import EventDispatcher
+from .types import ConsumerConfig, ConsumerMetrics, ConsumerState
 
 
 class UnifiedConsumer:
@@ -80,15 +84,15 @@ class UnifiedConsumer:
         logger.info(f"Consumer loop started for group {self._config.group_id}")
         poll_count = 0
         message_count = 0
-        
+
         while self._running and self._consumer:
             poll_count += 1
             if poll_count % 100 == 0:  # Log every 100 polls
                 logger.debug(f"Consumer loop active: polls={poll_count}, messages={message_count}")
-            
+
             msg = await asyncio.to_thread(self._consumer.poll, timeout=0.1)
 
-            if msg:
+            if msg is not None:
                 error = msg.error()
                 if error:
                     if error.code() != KafkaError._PARTITION_EOF:
@@ -122,10 +126,34 @@ class UnifiedConsumer:
         event = self._schema_registry.deserialize_event(raw_value, topic)
         logger.info(f"Deserialized event: type={event.event_type}, id={event.event_id}")
 
+        # Extract trace context from Kafka headers and start a consumer span
+        header_list = message.headers() or []
+        headers: dict[str, str] = {}
+        for k, v in header_list:
+            headers[str(k)] = v.decode("utf-8") if isinstance(v, (bytes, bytearray)) else (v or "")
+        ctx = extract_trace_context(headers)
+        tracer = get_tracer()
+
         # Dispatch event through EventDispatcher
         try:
             logger.debug(f"Dispatching {event.event_type} to handlers")
-            await self._dispatcher.dispatch(event)
+            partition_val = message.partition()
+            offset_val = message.offset()
+            part_attr = partition_val if partition_val is not None else -1
+            off_attr = offset_val if offset_val is not None else -1
+            with tracer.start_as_current_span(
+                name="kafka.consume",
+                context=ctx,
+                kind=SpanKind.CONSUMER,
+                attributes={
+                    EventAttributes.KAFKA_TOPIC: topic,
+                    EventAttributes.KAFKA_PARTITION: part_attr,
+                    EventAttributes.KAFKA_OFFSET: off_attr,
+                    EventAttributes.EVENT_TYPE: event.event_type,
+                    EventAttributes.EVENT_ID: event.event_id,
+                },
+            ):
+                await self._dispatcher.dispatch(event)
             logger.debug(f"Successfully dispatched {event.event_type}")
             # Update metrics on successful dispatch
             self._metrics.messages_consumed += 1

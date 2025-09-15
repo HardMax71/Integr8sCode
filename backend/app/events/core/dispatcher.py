@@ -6,6 +6,7 @@ from typing import TypeVar
 from app.core.logging import logger
 from app.domain.enums.events import EventType
 from app.infrastructure.kafka.events.base import BaseEvent
+from app.infrastructure.kafka.mappings import get_event_class_for_type
 
 T = TypeVar('T', bound=BaseEvent)
 
@@ -152,7 +153,6 @@ class EventDispatcher:
         topics = set()
         for event_type in self._handlers.keys():
             # Find event class for this type
-            from app.infrastructure.kafka.mappings import get_event_class_for_type
             event_class = get_event_class_for_type(event_type)
             if event_class and hasattr(event_class, 'topic'):
                 topics.add(str(event_class.topic))

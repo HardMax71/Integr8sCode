@@ -5,15 +5,15 @@ from uuid import uuid4
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
-from app.domain.replay.models import ReplayConfig as DomainReplayConfig
-from app.domain.replay.models import ReplayFilter as DomainReplayFilter
+from app.domain.replay import ReplayConfig as DomainReplayConfig
+from app.domain.replay import ReplayFilter as DomainReplayFilter
 
 
 class ReplayFilterSchema(BaseModel):
     execution_id: str | None = None
     event_types: List[str] | None = None
-    start_time: float | None = None
-    end_time: float | None = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
     user_id: str | None = None
     service_name: str | None = None
     custom_query: Dict[str, Any] | None = None

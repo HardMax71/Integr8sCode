@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import asyncio
-import json
 import random
 import re
 import string
@@ -13,7 +11,6 @@ import httpx
 
 from .config import LoadConfig
 from .stats import StatsCollector
-
 
 UUID_RE = re.compile(r"[0-9a-fA-F-]{36}")
 

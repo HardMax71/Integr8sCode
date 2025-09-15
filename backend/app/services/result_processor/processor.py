@@ -1,5 +1,4 @@
 import asyncio
-from datetime import UTC, datetime
 from enum import auto
 from typing import Any
 
@@ -15,10 +14,8 @@ from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.kafka import GroupId, KafkaTopic
 from app.domain.enums.storage import ExecutionErrorType, StorageType
-from app.domain.execution.models import ExecutionResultDomain
-from app.events.core.consumer import ConsumerConfig, UnifiedConsumer
-from app.events.core.dispatcher import EventDispatcher
-from app.events.core.producer import UnifiedProducer
+from app.domain.execution import ExecutionResultDomain
+from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
 from app.infrastructure.kafka import BaseEvent
 from app.infrastructure.kafka.events.execution import (
     ExecutionCompletedEvent,
@@ -205,8 +202,7 @@ class ResultProcessor:
         )
 
         try:
-            await self._execution_repo.upsert_result(result)
-            await self._update_execution_status(ExecutionStatus.COMPLETED, result)
+            await self._execution_repo.write_terminal_result(result)
             await self._publish_result_stored(result)
         except Exception as e:
             logger.error(f"Failed to handle ExecutionCompletedEvent: {e}", exc_info=True)
@@ -236,8 +232,7 @@ class ResultProcessor:
             error_type=event.error_type,
         )
         try:
-            await self._execution_repo.upsert_result(result)
-            await self._update_execution_status(ExecutionStatus.FAILED, result)
+            await self._execution_repo.write_terminal_result(result)
             await self._publish_result_stored(result)
         except Exception as e:
             logger.error(f"Failed to handle ExecutionFailedEvent: {e}", exc_info=True)
@@ -269,27 +264,11 @@ class ResultProcessor:
             error_type=ExecutionErrorType.TIMEOUT,
         )
         try:
-            await self._execution_repo.upsert_result(result)
-            await self._update_execution_status(ExecutionStatus.TIMEOUT, result)
+            await self._execution_repo.write_terminal_result(result)
             await self._publish_result_stored(result)
         except Exception as e:
             logger.error(f"Failed to handle ExecutionTimeoutEvent: {e}", exc_info=True)
             await self._publish_result_failed(event.execution_id, str(e))
-
-    async def _update_execution_status(self, status: ExecutionStatus, result: ExecutionResultDomain) -> None:
-        """Update execution status in database."""
-        update_data: dict[str, Any] = {
-            "status": status.value,
-            "updated_at": datetime.now(UTC),
-            "output": result.stdout,
-            "errors": result.stderr,
-            "exit_code": result.exit_code,
-            "resource_usage": result.resource_usage.to_dict(),
-        }
-
-        ok = await self._execution_repo.update_execution(result.execution_id, update_data)
-        if not ok:
-            logger.warning(f"No execution found with ID {result.execution_id}")
 
     async def _publish_result_stored(self, result: ExecutionResultDomain) -> None:
         """Publish result stored event."""

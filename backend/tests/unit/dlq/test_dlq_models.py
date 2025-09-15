@@ -1,24 +1,23 @@
 from datetime import datetime, timezone
-from types import SimpleNamespace
+import json
 
-import pytest
-
-from app.dlq.models import (
+from app.dlq import (
     AgeStatistics,
     DLQFields,
     DLQMessage,
     DLQMessageFilter,
     DLQMessageStatus,
-    DLQRetryResult,
-    DLQTopicSummary,
     EventTypeStatistic,
     RetryPolicy,
     RetryStrategy,
     TopicStatistic,
+    DLQStatistics,
 )
-from app.infrastructure.kafka.events.metadata import EventMetadata
-from app.infrastructure.kafka.events.user import UserLoggedInEvent
 from app.domain.enums.auth import LoginMethod
+from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.infrastructure.mappers.dlq_mapper import DLQMapper
+from app.infrastructure.kafka.events.user import UserLoggedInEvent
+from app.events.schema.schema_registry import SchemaRegistryManager
 
 
 def make_event():
@@ -40,8 +39,7 @@ def test_dlqmessage_to_from_dict_roundtrip():
         status=DLQMessageStatus.PENDING,
         producer_id="p1",
     )
-    doc = msg.to_dict()
-    # from_dict uses SchemaRegistryManager.deserialize_json; build minimal doc expected
+    # Build minimal doc expected by mapper
     data = {
         DLQFields.EVENT: ev.to_dict(),
         DLQFields.ORIGINAL_TOPIC: "t",
@@ -51,7 +49,7 @@ def test_dlqmessage_to_from_dict_roundtrip():
         DLQFields.STATUS: DLQMessageStatus.PENDING,
         DLQFields.PRODUCER_ID: "p1",
     }
-    parsed = DLQMessage.from_dict(data)
+    parsed = DLQMapper.from_mongo_document(data)
     assert parsed.original_topic == "t" and parsed.event_type == str(ev.event_type)
 
 
@@ -68,20 +66,21 @@ def test_from_kafka_message_and_headers():
 
     class Msg:
         def value(self):
-            import json
             return json.dumps(payload).encode()
+
         def headers(self):
             return [("k", b"v")]
+
         def offset(self): return 10
+
         def partition(self): return 0
 
-    from app.events.schema.schema_registry import SchemaRegistryManager
-    m = DLQMessage.from_kafka_message(Msg(), SchemaRegistryManager())
+    m = DLQMapper.from_kafka_message(Msg(), SchemaRegistryManager())
     assert m.original_topic == "t" and m.headers.get("k") == "v" and m.dlq_offset == 10
 
 
 def test_retry_policy_should_retry_and_next_time_bounds(monkeypatch):
-    msg = DLQMessage.from_failed_event(make_event(), "t", "e", "p", retry_count=0)
+    msg = DLQMapper.from_failed_event(make_event(), "t", "e", "p", retry_count=0)
     # Immediate
     p1 = RetryPolicy(topic="t", strategy=RetryStrategy.IMMEDIATE)
     assert p1.should_retry(msg) is True
@@ -101,16 +100,13 @@ def test_retry_policy_should_retry_and_next_time_bounds(monkeypatch):
 
 def test_filter_and_stats_models_to_dict():
     f = DLQMessageFilter(status=DLQMessageStatus.PENDING, topic="t", event_type="X")
-    q = f.to_query()
+    q = DLQMapper.filter_to_query(f)
     assert q[DLQFields.STATUS] == DLQMessageStatus.PENDING and q[DLQFields.ORIGINAL_TOPIC] == "t"
 
     ts = TopicStatistic(topic="t", count=2, avg_retry_count=1.5)
     es = EventTypeStatistic(event_type="X", count=3)
     ages = AgeStatistics(min_age_seconds=1, max_age_seconds=10, avg_age_seconds=5)
-    assert ts.to_dict()["topic"] == "t" and es.to_dict()["event_type"] == "X" and ages.to_dict()["min_age"] == 1
+    assert ts.topic == "t" and es.event_type == "X" and ages.min_age_seconds == 1
 
-    from app.dlq.models import DLQStatistics
     stats = DLQStatistics(by_status={"pending": 1}, by_topic=[ts], by_event_type=[es], age_stats=ages)
-    d = stats.to_dict()
-    assert d["by_status"]["pending"] == 1 and isinstance(d["timestamp"], datetime)
-
+    assert stats.by_status["pending"] == 1 and isinstance(stats.timestamp, datetime)

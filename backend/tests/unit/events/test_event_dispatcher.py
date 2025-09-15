@@ -1,7 +1,5 @@
-import asyncio
-
 from app.domain.enums.events import EventType
-from app.events.core.dispatcher import EventDispatcher
+from app.events.core import EventDispatcher
 from app.infrastructure.kafka.events.base import BaseEvent
 from app.infrastructure.kafka.events.execution import ExecutionRequestedEvent
 from app.infrastructure.kafka.events.metadata import EventMetadata
@@ -75,4 +73,3 @@ def test_dispatch_metrics_processed_and_skipped(event_loop) -> None:  # type: ig
     assert called["n"] == 1
     assert metrics[EventType.EXECUTION_REQUESTED.value]["processed"] >= 1
     assert metrics[EventType.EXECUTION_FAILED.value]["skipped"] >= 1
-

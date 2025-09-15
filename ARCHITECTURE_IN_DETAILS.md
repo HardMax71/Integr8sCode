@@ -7,12 +7,8 @@ This document sketches the system as it actually exists in this repo, using ASCI
 
 ```plantuml
 @startuml
-skinparam monochrome true
-skinparam shadowing false
-
 rectangle "Public Internet\n(Browser SPA)" as Browser
 rectangle "Frontend\n(Nginx + Svelte)" as Frontend
-
 node "Backend" as Backend {
   [FastAPI / Uvicorn\n(routers, Dishka DI, middlewares)] as FastAPI
   [SSE Service\n(Partitioned router + Redis bus)] as SSE
@@ -21,12 +17,11 @@ node "Backend" as Backend {
   cloud "Kafka" as Kafka
   [Schema Registry] as Schema
   cloud "Kubernetes API" as K8s
-  [Prometheus] as Prom
+  [OTel Collector] as OTel
+  [VictoriaMetrics] as VM
   [Jaeger] as Jaeger
 }
-
 rectangle "Cert Generator\n(setup-k8s.sh, TLS)" as CertGen
-
 Browser --> Frontend : HTTPS 443\nSPA + static assets
 Frontend --> FastAPI : HTTPS /api/v1/*\nCookies/CSRF
 FastAPI <--> SSE     : /api/v1/events/*\nJSON frames
@@ -36,10 +31,10 @@ FastAPI --> Kafka    : UnifiedProducer\n(events)
 Kafka --> FastAPI    : UnifiedConsumer\n(dispatch)
 Kafka -- Schema
 FastAPI <--> K8s     : pod create/monitor\nworker + pod monitor
-FastAPI --> Prom     : metrics (pull)
+FastAPI --> OTel     : metrics/traces (export)
+OTel --> VM          : remote_write (metrics)
 FastAPI --> Jaeger   : traces (export)
 CertGen .. K8s       : cluster setup / certs
-
 @enduml
 ```
 
@@ -76,7 +71,7 @@ Frontend serves the SPA; the SPA calls FastAPI over HTTPS. Backend exposes REST 
 *** /admin/users (api/routes/admin/users.py)
 *** /admin/events (api/routes/admin/events.py)
 *** /admin/settings (api/routes/admin/settings.py)
-*** /alertmanager (api/routes/alertmanager.py)
+*** /alerts (api/routes/grafana_alerts.py)
 ** DI & Providers (Dishka)
 *** Container (core/container.py, core/providers.py)
 *** Exception handlers (core/exceptions/handlers.py)
@@ -89,7 +84,7 @@ Frontend serves the SPA; the SPA calls FastAPI over HTTPS. Backend exposes REST 
 *** SSEService (services/sse/sse_service.py)
 **** SSERedisBus, PartitionedSSERouter, SSEShutdownManager, EventBuffer
 *** NotificationService (services/notification_service.py)
-**** UnifiedConsumer handlers (completed/failed/timeout), templates, throttle
+**** UnifiedConsumer handlers (completed/failed/timeout), SSE, throttle
 *** UserSettingsService (services/user_settings_service.py)
 **** LRU cache, USER_* events to EventStore/Kafka
 *** SavedScriptService (services/saved_script_service.py)
@@ -134,7 +129,7 @@ Frontend serves the SPA; the SPA calls FastAPI over HTTPS. Backend exposes REST 
 *** Redis (rate limit, SSE bus)
 *** Kafka + Schema Registry
 *** Kubernetes API (pods)
-*** Prometheus (metrics)
+*** OTel Collector + VictoriaMetrics (metrics)
 *** Jaeger (traces)
 ** Settings (app/settings.py)
 *** Runtimes/limits, Kafka/Redis/Mongo endpoints, SSE, rate limiting
@@ -266,7 +261,7 @@ Sagas use explicit DI (no context-based injection). Only serializable public dat
             v
   NotificationService (private)
      |-- UnifiedConsumer (typed handlers for completed/failed/timeout)
-     |-- Repository: templates, notifications (Mongo)
+     |-- Repository: notifications + subscriptions (Mongo)
      |-- Channels:
      |     - IN_APP: persist + publish SSE bus (Redis)
      |     - WEBHOOK: httpx POST
@@ -331,7 +326,7 @@ Saved scripts are simple CRUD per user. User settings are reconstructed from sna
 ## DLQ and admin tooling
 
 ```
-  Kafka DLQ topic <-> DLQ consumer/manager (retry/backoff, thresholds)
+  Kafka DLQ topic <-> DLQ manager (retry/backoff, thresholds)
   /api/v1/admin/events/* -> admin repos (Mongo) for events query/delete
   /api/v1/admin/users/* -> users repo (Mongo) + rate limit config
   /api/v1/admin/settings/* -> system settings (Mongo)

@@ -61,14 +61,20 @@ class CollectionNames(StringEnum):
     EVENT_STORE = "event_store"
     REPLAY_SESSIONS = "replay_sessions"
     EVENTS_ARCHIVE = "events_archive"
+    RESOURCE_ALLOCATIONS = "resource_allocations"
+    USERS = "users"
+    EXECUTIONS = "executions"
+    EXECUTION_RESULTS = "execution_results"
+    SAVED_SCRIPTS = "saved_scripts"
+    NOTIFICATIONS = "notifications"
+    NOTIFICATION_SUBSCRIPTIONS = "notification_subscriptions"
+    USER_SETTINGS = "user_settings"
+    USER_SETTINGS_SNAPSHOTS = "user_settings_snapshots"
+    SAGAS = "sagas"
+    DLQ_MESSAGES = "dlq_messages"
 
 
-class ReplaySessionStatus(StringEnum):
-    SCHEDULED = "scheduled"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
+ 
 
 
 @dataclass
@@ -88,7 +94,7 @@ class Event:
 
     @property
     def correlation_id(self) -> str | None:
-        return self.metadata.correlation_id if self.metadata else None
+        return self.metadata.correlation_id
 
 
 @dataclass
@@ -98,15 +104,6 @@ class EventSummary:
     event_type: str
     timestamp: datetime
     aggregate_id: str | None = None
-
-    @classmethod
-    def from_event(cls, event: Event) -> "EventSummary":
-        return cls(
-            event_id=event.event_id,
-            event_type=event.event_type,
-            timestamp=event.timestamp,
-            aggregate_id=event.aggregate_id
-        )
 
 
 @dataclass
@@ -122,37 +119,6 @@ class EventFilter:
     search_text: str | None = None
     text_search: str | None = None
     status: str | None = None
-
-    def to_query(self) -> MongoQuery:
-        """Build MongoDB query from filter."""
-        query: MongoQuery = {}
-
-        if self.event_types:
-            query[EventFields.EVENT_TYPE] = {"$in": self.event_types}
-        if self.aggregate_id:
-            query[EventFields.AGGREGATE_ID] = self.aggregate_id
-        if self.correlation_id:
-            query[EventFields.METADATA_CORRELATION_ID] = self.correlation_id
-        if self.user_id:
-            query[EventFields.METADATA_USER_ID] = self.user_id
-        if self.service_name:
-            query[EventFields.METADATA_SERVICE_NAME] = self.service_name
-        if self.status:
-            query[EventFields.STATUS] = self.status
-
-        if self.start_time or self.end_time:
-            time_query: dict[str, Any] = {}
-            if self.start_time:
-                time_query["$gte"] = self.start_time
-            if self.end_time:
-                time_query["$lte"] = self.end_time
-            query[EventFields.TIMESTAMP] = time_query
-
-        search = self.text_search or self.search_text
-        if search:
-            query["$text"] = {"$search": search}
-
-        return query
 
 
 @dataclass
@@ -286,33 +252,6 @@ class EventExportRow:
     status: str
     error: str
 
-    def to_csv_dict(self) -> dict[str, str]:
-        return {
-            "Event ID": self.event_id,
-            "Event Type": self.event_type,
-            "Timestamp": self.timestamp,
-            "Correlation ID": self.correlation_id,
-            "Aggregate ID": self.aggregate_id,
-            "User ID": self.user_id,
-            "Service": self.service,
-            "Status": self.status,
-            "Error": self.error
-        }
-
-    @classmethod
-    def from_event(cls, event: Event) -> "EventExportRow":
-        return cls(
-            event_id=event.event_id,
-            event_type=event.event_type,
-            timestamp=event.timestamp.isoformat(),
-            correlation_id=event.metadata.correlation_id or "",
-            aggregate_id=event.aggregate_id or "",
-            user_id=event.metadata.user_id or "",
-            service=event.metadata.service_name,
-            status=event.status or "",
-            error=event.error or ""
-        )
-
 
 @dataclass
 class EventAggregationResult:
@@ -320,6 +259,3 @@ class EventAggregationResult:
     results: list[dict[str, Any]]
     pipeline: list[dict[str, Any]]
     execution_time_ms: float | None = None
-
-    def to_list(self) -> list[dict[str, Any]]:
-        return self.results

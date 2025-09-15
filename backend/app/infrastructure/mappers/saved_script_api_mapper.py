@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import List
 
-from app.domain.saved_script.models import (
+from app.domain.saved_script import (
     DomainSavedScript,
     DomainSavedScriptCreate,
     DomainSavedScriptUpdate,
@@ -50,4 +50,3 @@ class SavedScriptApiMapper:
     @staticmethod
     def list_to_response(items: List[DomainSavedScript]) -> List[SavedScriptResponse]:
         return [SavedScriptApiMapper.to_response(i) for i in items]
-

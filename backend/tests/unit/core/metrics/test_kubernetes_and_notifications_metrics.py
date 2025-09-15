@@ -38,7 +38,7 @@ def test_notification_metrics_methods() -> None:
     """Test with no-op metrics."""
     
     m = NotificationMetrics()
-    m.record_notification_sent("welcome", channel="email", priority="high")
+    m.record_notification_sent("welcome", channel="email", severity="high")
     m.record_notification_failed("welcome", "smtp_error", channel="email")
     m.record_notification_delivery_time(0.5, "welcome", channel="email")
     m.record_notification_status_change("n1", "pending", "queued")
@@ -55,4 +55,3 @@ def test_notification_metrics_methods() -> None:
     m.record_subscription_change("u1", "welcome", "subscribe")
     m.increment_pending_notifications(); m.decrement_pending_notifications()
     m.increment_queued_notifications(); m.decrement_queued_notifications()
-

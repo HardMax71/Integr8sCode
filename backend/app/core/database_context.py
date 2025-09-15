@@ -4,7 +4,11 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any, AsyncContextManager, Protocol, TypeVar, runtime_checkable
 
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorClientSession, AsyncIOMotorDatabase
+from motor.motor_asyncio import (
+    AsyncIOMotorClient,
+    AsyncIOMotorClientSession,
+    AsyncIOMotorDatabase,
+)
 from pymongo.errors import ServerSelectionTimeoutError
 
 from app.core.logging import logger
@@ -95,7 +99,9 @@ class AsyncDatabaseConnection:
 
         logger.info(f"Connecting to MongoDB database: {self._db_name}")
 
-        # Create client with configuration
+        # Always explicitly bind to current event loop for consistency
+        import asyncio
+        
         client: AsyncIOMotorClient = AsyncIOMotorClient(
             self._config.mongodb_url,
             serverSelectionTimeoutMS=self._config.server_selection_timeout_ms,
@@ -106,6 +112,7 @@ class AsyncDatabaseConnection:
             retryReads=self._config.retry_reads,
             w=self._config.write_concern,
             journal=self._config.journal,
+            io_loop=asyncio.get_running_loop()  # Always bind to current loop
         )
 
         # Verify connection
@@ -202,6 +209,9 @@ class ContextualDatabaseProvider(DatabaseProvider):
 
     def session(self) -> AsyncContextManager[DBSession]:
         return self._connection.session()
+
+
+ 
 
 
 class DatabaseConnectionPool:

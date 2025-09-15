@@ -3,9 +3,9 @@ from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Request
 from sse_starlette.sse import EventSourceResponse
 
-from app.api.dependencies import AuthService
-from app.domain.sse.models import SSEHealthDomain
+from app.domain.sse import SSEHealthDomain
 from app.schemas_pydantic.sse import SSEHealthResponse
+from app.services.auth_service import AuthService
 from app.services.sse.sse_service import SSEService
 
 router = APIRouter(

@@ -1,9 +1,8 @@
-import asyncio
 import pytest
 
-from app.services.coordinator.queue_manager import QueueManager, QueuePriority
 from app.infrastructure.kafka.events.execution import ExecutionRequestedEvent
 from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.services.coordinator.queue_manager import QueueManager, QueuePriority
 
 
 def ev(execution_id: str, priority: int = QueuePriority.NORMAL.value) -> ExecutionRequestedEvent:
@@ -48,4 +47,3 @@ async def test_queue_stats_empty_and_after_add():
     st = await qm.get_queue_stats()
     assert st["total_size"] == 1
     await qm.stop()
-

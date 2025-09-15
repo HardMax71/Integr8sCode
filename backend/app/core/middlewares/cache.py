@@ -1,13 +1,12 @@
-from typing import Awaitable, Callable, Dict
+from typing import Dict
 
-from fastapi import Request, Response
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.types import ASGIApp
+from starlette.datastructures import MutableHeaders
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 
-class CacheControlMiddleware(BaseHTTPMiddleware):
+class CacheControlMiddleware:
     def __init__(self, app: ASGIApp):
-        super().__init__(app)
+        self.app = app
         self.cache_policies: Dict[str, str] = {
             "/api/v1/k8s-limits": "public, max-age=300",  # 5 minutes
             "/api/v1/example-scripts": "public, max-age=600",  # 10 minutes
@@ -16,23 +15,39 @@ class CacheControlMiddleware(BaseHTTPMiddleware):
             "/api/v1/notifications/unread-count": "private, no-cache",  # Always revalidate
         }
 
-    async def dispatch(self, request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
-        response: Response = await call_next(request)
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
 
-        # Only add cache headers for successful GET requests
-        if request.method == "GET" and response.status_code == 200:
-            path = request.url.path
+        method = scope["method"]
+        path = scope["path"]
+        
+        # Only modify headers for GET requests
+        if method != "GET":
+            await self.app(scope, receive, send)
+            return
 
-            # Find matching cache policy
-            cache_control = self._get_cache_policy(path)
-            if cache_control:
-                response.headers["Cache-Control"] = cache_control
+        cache_control = self._get_cache_policy(path)
+        if not cache_control:
+            await self.app(scope, receive, send)
+            return
 
-                # Add ETag support for better caching
-                if "public" in cache_control:
-                    response.headers["Vary"] = "Accept-Encoding"
+        async def send_wrapper(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                # Only add cache headers for successful responses
+                status_code = message.get("status", 200)
+                if status_code == 200:
+                    headers = MutableHeaders(scope=message)
+                    headers["Cache-Control"] = cache_control
+                    
+                    # Add ETag support for better caching
+                    if "public" in cache_control:
+                        headers["Vary"] = "Accept-Encoding"
+            
+            await send(message)
 
-        return response
+        await self.app(scope, receive, send_wrapper)
 
     def _get_cache_policy(self, path: str) -> str | None:
         # Exact match first

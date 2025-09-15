@@ -10,6 +10,9 @@ class ReplayType(StringEnum):
 
 
 class ReplayStatus(StringEnum):
+    # Unified replay lifecycle across admin + services
+    # "scheduled" retained for admin flows (alias of initial state semantics)
+    SCHEDULED = "scheduled"
     CREATED = "created"
     RUNNING = "running"
     PAUSED = "paused"

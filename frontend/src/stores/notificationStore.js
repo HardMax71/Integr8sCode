@@ -13,10 +13,19 @@ function createNotificationStore() {
         subscribe,
         
         // Load notifications from API
-        async load(limit = 20) {
+        async load(limit = 20, options = {}) {
             update(state => ({ ...state, loading: true, error: null }));
             try {
-                const response = await api.get(`/api/v1/notifications?limit=${limit}`);
+                const params = new URLSearchParams({ limit: String(limit) });
+                if (options.include_tags && Array.isArray(options.include_tags)) {
+                    for (const t of options.include_tags.filter(Boolean)) params.append('include_tags', t);
+                }
+                if (options.exclude_tags && Array.isArray(options.exclude_tags)) {
+                    for (const t of options.exclude_tags.filter(Boolean)) params.append('exclude_tags', t);
+                }
+                if (options.tag_prefix) params.append('tag_prefix', options.tag_prefix);
+                const qs = params.toString();
+                const response = await api.get(`/api/v1/notifications?${qs}`);
                 set({
                     notifications: response.notifications || [],
                     loading: false,

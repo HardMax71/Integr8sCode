@@ -5,6 +5,8 @@ import re
 from datetime import datetime, timezone
 from typing import Any, Dict
 
+from opentelemetry import trace
+
 from app.settings import get_settings
 
 correlation_id_context: contextvars.ContextVar[str | None] = contextvars.ContextVar(
@@ -83,6 +85,12 @@ class JSONFormatter(logging.Formatter):
         if hasattr(record, 'client_host'):
             log_data['client_host'] = record.client_host
 
+        # OpenTelemetry trace context (hexadecimal ids)
+        if hasattr(record, 'trace_id'):
+            log_data['trace_id'] = record.trace_id
+        if hasattr(record, 'span_id'):
+            log_data['span_id'] = record.span_id
+
         if record.exc_info:
             exc_text = self.formatException(record.exc_info)
             log_data['exc_info'] = self._sanitize_sensitive_data(exc_text)
@@ -105,6 +113,25 @@ def setup_logger() -> logging.Logger:
 
     correlation_filter = CorrelationFilter()
     console_handler.addFilter(correlation_filter)
+
+    class TracingFilter(logging.Filter):
+        def filter(self, record: logging.LogRecord) -> bool:
+            # Inline minimal helpers to avoid circular import on tracing.utils
+            span = trace.get_current_span()
+            trace_id = None
+            span_id = None
+            if span and span.is_recording():
+                span_context = span.get_span_context()
+                if span_context.is_valid:
+                    trace_id = format(span_context.trace_id, '032x')
+                    span_id = format(span_context.span_id, '016x')
+            if trace_id:
+                record.trace_id = trace_id
+            if span_id:
+                record.span_id = span_id
+            return True
+
+    console_handler.addFilter(TracingFilter())
 
     logger.addHandler(console_handler)
 

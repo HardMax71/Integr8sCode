@@ -5,9 +5,10 @@ from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.api.dependencies import require_auth_guard
-from app.core.service_dependencies import DLQRepositoryDep
-from app.dlq.manager import DLQManager, RetryPolicy
+from app.api.dependencies import CurrentUser
+from app.db.repositories.dlq_repository import DLQRepository
+from app.dlq import RetryPolicy
+from app.dlq.manager import DLQManager
 from app.schemas_pydantic.dlq import (
     DLQBatchRetryResponse,
     DLQMessageDetail,
@@ -25,28 +26,31 @@ router = APIRouter(
     prefix="/dlq",
     tags=["Dead Letter Queue"],
     route_class=DishkaRoute,
-    dependencies=[Depends(require_auth_guard)]
+    dependencies=[Depends(CurrentUser)]
 )
 
 
 @router.get("/stats", response_model=DLQStats)
 async def get_dlq_statistics(
-        repository: DLQRepositoryDep
+        repository: FromDishka[DLQRepository]
 ) -> DLQStats:
     stats = await repository.get_dlq_stats()
-    # Convert DLQStatistics to DLQStats
     return DLQStats(
         by_status=stats.by_status,
-        by_topic=[item.to_dict() for item in stats.by_topic],
-        by_event_type=[item.to_dict() for item in stats.by_event_type],
-        age_stats=stats.age_stats.to_dict() if stats.age_stats else {},
-        timestamp=stats.timestamp
+        by_topic=[{"topic": t.topic, "count": t.count, "avg_retry_count": t.avg_retry_count} for t in stats.by_topic],
+        by_event_type=[{"event_type": e.event_type, "count": e.count} for e in stats.by_event_type],
+        age_stats={
+            "min_age": stats.age_stats.min_age_seconds,
+            "max_age": stats.age_stats.max_age_seconds,
+            "avg_age": stats.age_stats.avg_age_seconds,
+        } if stats.age_stats else {},
+        timestamp=stats.timestamp,
     )
 
 
 @router.get("/messages", response_model=DLQMessagesResponse)
 async def get_dlq_messages(
-        repository: DLQRepositoryDep,
+        repository: FromDishka[DLQRepository],
         status: DLQMessageStatus | None = Query(None),
         topic: str | None = None,
         event_type: str | None = None,
@@ -94,7 +98,7 @@ async def get_dlq_messages(
 @router.get("/messages/{event_id}", response_model=DLQMessageDetail)
 async def get_dlq_message(
         event_id: str,
-        repository: DLQRepositoryDep
+        repository: FromDishka[DLQRepository]
 ) -> DLQMessageDetail:
     message = await repository.get_message_by_id(event_id)
     if not message:
@@ -125,7 +129,7 @@ async def get_dlq_message(
 @router.post("/retry", response_model=DLQBatchRetryResponse)
 async def retry_dlq_messages(
         retry_request: ManualRetryRequest,
-        repository: DLQRepositoryDep,
+        repository: FromDishka[DLQRepository],
         dlq_manager: FromDishka[DLQManager]
 ) -> DLQBatchRetryResponse:
     result = await repository.retry_messages_batch(retry_request.event_ids, dlq_manager)
@@ -133,7 +137,8 @@ async def retry_dlq_messages(
         total=result.total,
         successful=result.successful,
         failed=result.failed,
-        details=[d.to_dict() for d in result.details]
+        details=[{"event_id": d.event_id, "status": d.status, **({"error": d.error} if d.error else {})} for d in
+                 result.details],
     )
 
 
@@ -161,7 +166,7 @@ async def set_retry_policy(
 @router.delete("/messages/{event_id}", response_model=MessageResponse)
 async def discard_dlq_message(
         event_id: str,
-        repository: DLQRepositoryDep,
+        repository: FromDishka[DLQRepository],
         dlq_manager: FromDishka[DLQManager],
         reason: str = Query(..., description="Reason for discarding")
 ) -> MessageResponse:
@@ -176,7 +181,7 @@ async def discard_dlq_message(
 
 @router.get("/topics", response_model=List[DLQTopicSummaryResponse])
 async def get_dlq_topics(
-        repository: DLQRepositoryDep
+        repository: FromDishka[DLQRepository]
 ) -> List[DLQTopicSummaryResponse]:
     topics = await repository.get_topics_summary()
     return [

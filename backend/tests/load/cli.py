@@ -7,7 +7,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from .config import LoadConfig
+from .http_client import APIClient
 from .monkey_runner import run_monkey_swarm
+from .plot_report import generate_plots
 from .stats import StatsCollector
 from .user_runner import run_user_swarm
 
@@ -19,7 +21,6 @@ async def _run(cfg: LoadConfig) -> int:
         f"mode={cfg.mode} clients={cfg.clients} concurrency={cfg.concurrency} duration={cfg.duration_seconds}s verify_tls={cfg.verify_tls}"
     )
     # Quick preflight to catch prefix/port mistakes early
-    from .http_client import APIClient
     pre_stats = StatsCollector()
     pre = APIClient(cfg, pre_stats)
     try:
@@ -50,7 +51,6 @@ async def _run(cfg: LoadConfig) -> int:
     # Optional plots
     if getattr(cfg, "generate_plots", False):
         try:
-            from .plot_report import generate_plots
             generated = generate_plots(str(stats_path))
             for pth in generated:
                 print(f"Plot saved: {pth}")

@@ -5,6 +5,7 @@ from .rate_limit_models import (
     RateLimitRule,
     RateLimitStatus,
     UserRateLimit,
+    UserRateLimitSummary,
 )
 
 __all__ = [
@@ -13,5 +14,6 @@ __all__ = [
     "RateLimitConfig",
     "RateLimitRule",
     "RateLimitStatus",
-    "UserRateLimit"
+    "UserRateLimit",
+    "UserRateLimitSummary",
 ]

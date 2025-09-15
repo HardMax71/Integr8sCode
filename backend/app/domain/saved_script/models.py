@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import KW_ONLY, dataclass, field
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 
@@ -8,21 +8,23 @@ from datetime import datetime, timezone
 class DomainSavedScriptBase:
     name: str
     script: str
-    _: KW_ONLY
+
+
+@dataclass
+class DomainSavedScriptCreate(DomainSavedScriptBase):
     lang: str = "python"
     lang_version: str = "3.11"
     description: str | None = None
 
 
 @dataclass
-class DomainSavedScriptCreate(DomainSavedScriptBase):
-    pass
-
-
-@dataclass
 class DomainSavedScript(DomainSavedScriptBase):
     script_id: str
     user_id: str
+    # Optional/defaultable fields must come after non-defaults
+    lang: str = "python"
+    lang_version: str = "3.11"
+    description: str | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 

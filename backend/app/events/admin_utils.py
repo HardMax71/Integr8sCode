@@ -1,4 +1,3 @@
-"""Minimal Kafka admin utilities using native AdminClient."""
 import asyncio
 from typing import Dict, List
 

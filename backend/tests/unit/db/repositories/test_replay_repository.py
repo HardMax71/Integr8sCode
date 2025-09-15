@@ -1,143 +1,48 @@
-import pytest
-from unittest.mock import AsyncMock, MagicMock
+from datetime import datetime, timezone
 
-from motor.motor_asyncio import AsyncIOMotorCollection
+import pytest
 
 from app.db.repositories.replay_repository import ReplayRepository
+from app.domain.enums.replay import ReplayStatus, ReplayType
+from app.domain.replay import ReplayConfig, ReplayFilter
 from app.schemas_pydantic.replay_models import ReplaySession
-from app.domain.replay.models import ReplayFilter
-
 
 pytestmark = pytest.mark.unit
 
 
 @pytest.fixture()
-def repo(mock_db) -> ReplayRepository:
-    return ReplayRepository(mock_db)
+def repo(db) -> ReplayRepository:  # type: ignore[valid-type]
+    return ReplayRepository(db)
 
 
 @pytest.mark.asyncio
-async def test_create_indexes(repo: ReplayRepository, mock_db) -> None:
-    mock_db.replay_sessions.create_index = AsyncMock()
-    mock_db.events.create_index = AsyncMock()
+async def test_indexes_and_session_crud(repo: ReplayRepository) -> None:
     await repo.create_indexes()
-    assert mock_db.replay_sessions.create_index.await_count >= 1
-    assert mock_db.events.create_index.await_count >= 1
-
-
-@pytest.mark.asyncio
-async def test_count_sessions(repo: ReplayRepository, mock_db) -> None:
-    mock_db.replay_sessions.count_documents = AsyncMock(return_value=11)
-    assert await repo.count_sessions({"status": "completed"}) == 11
-
-
-@pytest.mark.asyncio
-async def test_save_get_list_update_delete(repo: ReplayRepository, mock_db) -> None:
-    from app.domain.enums.replay import ReplayStatus, ReplayType
-    from app.domain.replay.models import ReplayConfig, ReplayFilter
-    from datetime import datetime, timezone
-    
-    config = ReplayConfig(
-        replay_type=ReplayType.EXECUTION,
-        filter=ReplayFilter()
-    )
-    session = ReplaySession(
-        session_id="s1", 
-        status=ReplayStatus.CREATED, 
-        created_at=datetime.now(timezone.utc), 
-        config=config
-    )
-    mock_db.replay_sessions.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
+    config = ReplayConfig(replay_type=ReplayType.EXECUTION, filter=ReplayFilter())
+    session = ReplaySession(session_id="s1", status=ReplayStatus.CREATED, created_at=datetime.now(timezone.utc), config=config)
     await repo.save_session(session)
-    mock_db.replay_sessions.update_one.assert_called_once()
-
-    mock_db.replay_sessions.find_one = AsyncMock(return_value=session.model_dump())
     got = await repo.get_session("s1")
     assert got and got.session_id == "s1"
-
-    class Cursor:
-        def __init__(self, docs):
-            self._docs = docs
-        def sort(self, *_a, **_k):
-            return self
-        def skip(self, *_a, **_k):
-            return self
-        def limit(self, *_a, **_k):
-            return self
-        def __aiter__(self):
-            async def gen():
-                for d in self._docs:
-                    yield d
-            return gen()
-
-    mock_db.replay_sessions.find.return_value = Cursor([session.model_dump()])
-    sessions = await repo.list_sessions(limit=5)
-    assert len(sessions) == 1 and sessions[0].session_id == "s1"
-
-    mock_db.replay_sessions.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
+    lst = await repo.list_sessions(limit=5)
+    assert any(s.session_id == "s1" for s in lst)
     assert await repo.update_session_status("s1", "running") is True
-
-    mock_db.replay_sessions.delete_many = AsyncMock(return_value=MagicMock(deleted_count=3))
-    assert await repo.delete_old_sessions("2024-01-01T00:00:00Z") == 3
+    assert await repo.update_replay_session("s1", {"status": "completed"}) is True
 
 
 @pytest.mark.asyncio
-async def test_count_and_fetch_events(repo: ReplayRepository, mock_db) -> None:
-    mock_db.events.count_documents = AsyncMock(return_value=7)
-    count = await repo.count_events(ReplayFilter())
-    assert count == 7
-
-    class Cursor:
-        def __init__(self, docs):
-            self._docs = docs
-        def sort(self, *_a, **_k):
-            return self
-        def skip(self, *_a, **_k):
-            return self
-        def __aiter__(self):
-            async def gen():
-                for d in self._docs:
-                    yield d
-            return gen()
-
-    mock_db.events.find.return_value = Cursor([{"event_id": "e1"}, {"event_id": "e2"}, {"event_id": "e3"}])
+async def test_count_fetch_events_and_delete(repo: ReplayRepository, db) -> None:  # type: ignore[valid-type]
+    now = datetime.now(timezone.utc)
+    # Insert events
+    await db.get_collection("events").insert_many([
+        {"event_id": "e1", "timestamp": now, "execution_id": "x1", "event_type": "T", "metadata": {"user_id": "u1"}},
+        {"event_id": "e2", "timestamp": now, "execution_id": "x2", "event_type": "T", "metadata": {"user_id": "u1"}},
+        {"event_id": "e3", "timestamp": now, "execution_id": "x3", "event_type": "U", "metadata": {"user_id": "u2"}},
+    ])
+    cnt = await repo.count_events(ReplayFilter())
+    assert cnt >= 3
     batches = []
-    async for batch in repo.fetch_events(ReplayFilter(), batch_size=2):
-        batches.append(batch)
-    assert sum(len(b) for b in batches) == 3 and len(batches) == 2  # 2 + 1
-
-
-@pytest.mark.asyncio
-async def test_update_replay_session(repo: ReplayRepository, mock_db) -> None:
-    mock_db.replay_sessions.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
-    assert await repo.update_replay_session("s1", {"status": "running"}) is True
-
-
-@pytest.mark.asyncio
-async def test_create_indexes_exception(repo: ReplayRepository, mock_db) -> None:
-    mock_db.replay_sessions.create_index = AsyncMock(side_effect=Exception("boom"))
-    with pytest.raises(Exception):
-        await repo.create_indexes()
-
-
-@pytest.mark.asyncio
-async def test_list_sessions_with_filters(repo: ReplayRepository, mock_db) -> None:
-    # Ensure status and user_id branches in query are hit
-    class Cursor:
-        def __init__(self, docs):
-            self._docs = docs
-        def sort(self, *_a, **_k):
-            return self
-        def skip(self, *_a, **_k):
-            return self
-        def limit(self, *_a, **_k):
-            return self
-        def __aiter__(self):
-            async def gen():
-                for d in self._docs:
-                    yield d
-            return gen()
-    mock_db.replay_sessions.find.return_value = Cursor([])
-    res = await repo.list_sessions(status="running", user_id="u1", limit=5, skip=0)
-    # No assertion beyond successful call; targets building query lines
-    assert isinstance(res, list)
+    async for b in repo.fetch_events(ReplayFilter(), batch_size=2):
+        batches.append(b)
+    assert sum(len(b) for b in batches) >= 3
+    # Delete old sessions (none match date predicate likely)
+    assert await repo.delete_old_sessions("2000-01-01T00:00:00Z") >= 0

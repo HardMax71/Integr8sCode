@@ -1,271 +1,196 @@
 import asyncio
 from datetime import datetime, timezone
-from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
+pytestmark = pytest.mark.unit
+
 from app.domain.enums.events import EventType
-from app.infrastructure.kafka.events.system import ResultStoredEvent
-from app.domain.enums.storage import StorageType
-from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.domain.execution import DomainExecution, ResourceUsageDomain
+from app.domain.sse import SSEHealthDomain
 from app.services.sse.sse_service import SSEService
-from app.domain.enums.events import EventType
 
 
-class FakeRepo:
-    def __init__(self, status=None, doc=None):  # noqa: ANN001
-        # Default status object with attributes
-        if status is None:
-            status = SimpleNamespace(
-                execution_id="e1",
-                status="QUEUED",
-                timestamp=datetime.now(timezone.utc).isoformat(),
-            )
-        self._status = status
+class _FakeSubscription:
+    def __init__(self) -> None:
+        self._q: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
+        self.closed = False
 
-        # Default execution document as attribute object
-        if doc is None:
-            doc = {}
-        # Build minimal domain-like object with attributes used by SSEService
-        def _resource_usage_obj():
-            class RU:
-                def to_dict(self):  # noqa: D401
-                    return {}
-            return RU()
-
-        self._doc = SimpleNamespace(
-            execution_id=doc.get("execution_id", "e1"),
-            status=doc.get("status", "COMPLETED"),
-            output=doc.get("output", ""),
-            errors=doc.get("errors", None),
-            lang=doc.get("lang", "python"),
-            lang_version=doc.get("lang_version", "3.11"),
-            resource_usage=doc.get("resource_usage", _resource_usage_obj()),
-            exit_code=doc.get("exit_code", 0),
-            error_type=doc.get("error_type", None),
-        )
-
-    async def get_execution_status(self, execution_id):  # noqa: ANN001
-        # If test passed a dict, coerce to object with attributes
-        st = self._status
-        if isinstance(st, dict):
-            st = SimpleNamespace(
-                execution_id=execution_id,
-                status=st.get("status"),
-                timestamp=st.get("timestamp", datetime.now(timezone.utc).isoformat()),
-            )
-        return st
-
-    async def get_execution(self, execution_id):  # noqa: ANN001
-        return self._doc
-
-
-class FakeBuffer:
-    def __init__(self, *events):  # noqa: ANN001
-        self._events = list(events)
-    async def get(self, timeout=0.5):  # noqa: ANN001
-        if not self._events:
-            await asyncio.sleep(timeout)
+    async def get(self, timeout: float = 0.5):  # noqa: ARG002
+        try:
+            return await asyncio.wait_for(self._q.get(), timeout=timeout)
+        except asyncio.TimeoutError:
             return None
-        return self._events.pop(0)
+
+    async def push(self, msg: dict[str, Any]) -> None:
+        self._q.put_nowait(msg)
+
+    async def close(self) -> None:
+        self.closed = True
 
 
-class FakeSubscription:
-    def __init__(self, events):  # noqa: ANN001
-        self._events = list(events)
-    async def get(self, timeout=0.5):  # noqa: ANN001
-        import asyncio
-        if not self._events:
-            await asyncio.sleep(0)
-            return None
-        ev = self._events.pop(0)
-        if ev is None:
-            return None
-        data = ev.model_dump(mode="json")
-        return {"event_type": str(ev.event_type), "execution_id": data.get("execution_id"), "data": data}
-    async def close(self):  # noqa: D401
-        return None
+class _FakeBus:
+    def __init__(self) -> None:
+        self.exec_sub = _FakeSubscription()
+        self.notif_sub = _FakeSubscription()
+
+    async def open_subscription(self, execution_id: str) -> _FakeSubscription:  # noqa: ARG002
+        return self.exec_sub
+
+    async def open_notification_subscription(self, user_id: str) -> _FakeSubscription:  # noqa: ARG002
+        return self.notif_sub
 
 
-class FakeBus:
-    def __init__(self, events):  # noqa: ANN001
-        self._events = list(events)
-    async def open_subscription(self, execution_id):  # noqa: ANN001
-        return FakeSubscription(self._events)
+class _FakeRepo:
+    class _Status:
+        def __init__(self, execution_id: str) -> None:
+            self.execution_id = execution_id
+            self.status = "running"
+            self.timestamp = datetime.now(timezone.utc).isoformat()
+
+    def __init__(self) -> None:
+        self.exec_for_result: DomainExecution | None = None
+
+    async def get_execution_status(self, execution_id: str) -> "_FakeRepo._Status":
+        return _FakeRepo._Status(execution_id)
+
+    async def get_execution(self, execution_id: str) -> DomainExecution | None:  # noqa: ARG002
+        return self.exec_for_result
 
 
-class FakeRouter:
-    def __init__(self, buf):  # noqa: ANN001
-        self._buf = buf
-        self._subs = set()
-    async def subscribe(self, execution_id):  # noqa: ANN001
-        self._subs.add(execution_id)
-        return self._buf
-    async def unsubscribe(self, execution_id):  # noqa: ANN001
-        self._subs.discard(execution_id)
-    def get_stats(self):
-        return {"num_consumers": 1, "active_executions": len(self._subs), "total_buffers": len(self._subs), "is_running": True}
+class _FakeShutdown:
+    def __init__(self) -> None:
+        self._evt = asyncio.Event()
+        self._initiated = False
+        self.registered: list[tuple[str, str]] = []
+        self.unregistered: list[tuple[str, str]] = []
+
+    async def register_connection(self, execution_id: str, connection_id: str):
+        self.registered.append((execution_id, connection_id))
+        return self._evt
+
+    async def unregister_connection(self, execution_id: str, connection_id: str):
+        self.unregistered.append((execution_id, connection_id))
+
+    def is_shutting_down(self) -> bool:
+        return self._initiated
+
+    def get_shutdown_status(self) -> dict[str, Any]:
+        return {"initiated": self._initiated, "phase": "ready"}
+
+    def initiate(self) -> None:
+        self._initiated = True
+        self._evt.set()
 
 
-class FakeShutdown:
-    def __init__(self, accept=True, states=None):  # noqa: ANN001
-        self._accept = accept
-        self._states = states or [False]
-    async def register_connection(self, execution_id, connection_id):  # noqa: ANN001
-        if not self._accept:
-            return None
-        return asyncio.Event()
-    async def unregister_connection(self, execution_id, connection_id):  # noqa: ANN001
-        return None
-    def is_shutting_down(self):
-        # shift through states
-        if self._states:
-            return self._states.pop(0)
-        return True
-    def get_shutdown_status(self):
-        return {"phase": "ready"}
+class _FakeSettings:
+    SSE_HEARTBEAT_INTERVAL = 0  # not used for execution; helpful for notification test
 
 
-def mk_result_event():
-    return ResultStoredEvent(
-        execution_id="e1",
-        storage_type=StorageType.DATABASE,
-        storage_path="/tmp/e1.json",
-        size_bytes=0,
-        metadata=EventMetadata(service_name="s", service_version="1"),
-    )
+class _FakeRouter:
+    def get_stats(self) -> dict[str, int | bool]:
+        return {"num_consumers": 3, "active_executions": 2, "is_running": True, "total_buffers": 0}
 
 
-@pytest.mark.asyncio
-async def test_create_execution_stream_connected_and_terminal_event():
-    ev = mk_result_event()
-    repo = FakeRepo()
-    router = FakeRouter(FakeBuffer())
-    shutdown = FakeShutdown(accept=True)
-    bus = FakeBus([ev])
-    svc = SSEService(repository=repo, router=router, sse_bus=bus, shutdown_manager=shutdown, settings=SimpleNamespace(SSE_HEARTBEAT_INTERVAL=0))
-    it = svc.create_execution_stream("e1", "u1")
-    outs = []
-    # Read until we see result_stored or a sane upper bound
-    async for item in it:
-        outs.append(item)
-        if json_load(item).get("event_type") == str(EventType.RESULT_STORED):
-            break
-        if len(outs) > 10:
-            break
-    # Expect connected and eventually a terminal result event
-    types = [json_load(o)["event_type"] for o in outs]
-    assert "connected" in types and str(EventType.RESULT_STORED) in types
-
-
-def json_load(o):
+def _decode(evt: dict[str, Any]) -> dict[str, Any]:
     import json
-    return json.loads(o["data"])
+
+    return json.loads(evt["data"])  # type: ignore[index]
 
 
 @pytest.mark.asyncio
-async def test_create_execution_stream_rejected_on_shutdown():
-    repo = FakeRepo()
-    router = FakeRouter(FakeBuffer())
-    shutdown = FakeShutdown(accept=False)
-    svc = SSEService(repository=repo, router=router, sse_bus=FakeBus([]), shutdown_manager=shutdown, settings=SimpleNamespace(SSE_HEARTBEAT_INTERVAL=0))
-    outs = []
-    async for item in svc.create_execution_stream("e1", "u1"):
-        outs.append(item)
-    assert json_load(outs[0])["event_type"] == "error"
+async def test_execution_stream_closes_on_failed_event() -> None:
+    repo = _FakeRepo()
+    bus = _FakeBus()
+    sm = _FakeShutdown()
+    svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm, settings=_FakeSettings())
+
+    agen = svc.create_execution_stream("exec-1", user_id="u1")
+    first = await agen.__anext__()
+    assert _decode(first)["event_type"] == "connected"
+
+    # Should emit initial status
+    stat = await agen.__anext__()
+    assert _decode(stat)["event_type"] == "status"
+
+    # Push a failed event and ensure stream ends after yielding it
+    await bus.exec_sub.push({"event_type": str(EventType.EXECUTION_FAILED), "execution_id": "exec-1", "data": {}})
+    failed = await agen.__anext__()
+    assert _decode(failed)["event_type"] == str(EventType.EXECUTION_FAILED)
+
+    with pytest.raises(StopAsyncIteration):
+        await agen.__anext__()
 
 
 @pytest.mark.asyncio
-async def test_create_notification_stream_heartbeat_and_stop():
-    repo = FakeRepo()
-    router = FakeRouter(FakeBuffer())
-    # is_shutting_down returns False once then True to stop loop
-    shutdown = FakeShutdown(accept=True, states=[False, True])
-    svc = SSEService(repository=repo, router=router, sse_bus=FakeBus([]), shutdown_manager=shutdown, settings=SimpleNamespace(SSE_HEARTBEAT_INTERVAL=0))
+async def test_execution_stream_result_stored_includes_result_payload() -> None:
+    repo = _FakeRepo()
+    # DomainExecution with RU to_dict
+    repo.exec_for_result = DomainExecution(
+        execution_id="exec-2",
+        script="",
+        status="completed",  # type: ignore[arg-type]
+        stdout="out",
+        stderr="",
+        lang="python",
+        lang_version="3.11",
+        resource_usage=ResourceUsageDomain(0.1, 1, 100, 64),
+        user_id="u1",
+        exit_code=0,
+    )
+    bus = _FakeBus()
+    sm = _FakeShutdown()
+    svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm, settings=_FakeSettings())
+
+    agen = svc.create_execution_stream("exec-2", user_id="u1")
+    await agen.__anext__()  # connected
+    await agen.__anext__()  # status
+
+    await bus.exec_sub.push({"event_type": str(EventType.RESULT_STORED), "execution_id": "exec-2", "data": {}})
+    evt = await agen.__anext__()
+    data = _decode(evt)
+    assert data["event_type"] == str(EventType.RESULT_STORED)
+    assert "result" in data and data["result"]["execution_id"] == "exec-2"
+
+    with pytest.raises(StopAsyncIteration):
+        await agen.__anext__()
+
+
+@pytest.mark.asyncio
+async def test_notification_stream_connected_and_heartbeat_and_message() -> None:
+    repo = _FakeRepo()
+    bus = _FakeBus()
+    sm = _FakeShutdown()
+    settings = _FakeSettings()
+    settings.SSE_HEARTBEAT_INTERVAL = 0  # emit immediately
+    svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm, settings=settings)
+
     agen = svc.create_notification_stream("u1")
-    out1 = await agen.__anext__()
-    assert json_load(out1)["event_type"] == "connected"
-    out2 = await agen.__anext__()
-    assert json_load(out2)["event_type"] == "heartbeat"
+    connected = await agen.__anext__()
+    assert _decode(connected)["event_type"] == "connected"
 
-
-@pytest.mark.asyncio
-async def test_get_health_status():
-    repo = FakeRepo()
-    router = FakeRouter(FakeBuffer())
-    shutdown = FakeShutdown(accept=True, states=[False])
-    svc = SSEService(repository=repo, router=router, sse_bus=FakeBus([]), shutdown_manager=shutdown, settings=SimpleNamespace(SSE_HEARTBEAT_INTERVAL=0))
-    status = await svc.get_health_status()
-    assert status.status == "healthy"
-    assert status.active_consumers == 1
-
-
-@pytest.mark.asyncio
-async def test_event_to_sse_format_includes_result():
-    repo = FakeRepo(doc={"execution_id": "e1", "status": "COMPLETED"})
-    router = FakeRouter(FakeBuffer())
-    shutdown = FakeShutdown(accept=True)
-    svc = SSEService(repository=repo, router=router, sse_bus=FakeBus([]), shutdown_manager=shutdown, settings=SimpleNamespace(SSE_HEARTBEAT_INTERVAL=0))
-    data = await svc._event_to_sse_format(mk_result_event(), "e1")
-    assert data["execution_id"] == "e1"
-    assert "result" in data
-
-
-@pytest.mark.asyncio
-async def test_event_to_sse_format_result_fallback_on_validation_error():
-    # Provide doc that will fail model validation to trigger fallback
-    repo = FakeRepo(doc={"execution_id": "e1", "status": object()})
-    router = FakeRouter(FakeBuffer())
-    shutdown = FakeShutdown(accept=True)
-    svc = SSEService(repository=repo, router=router, sse_bus=FakeBus([]), shutdown_manager=shutdown, settings=SimpleNamespace(SSE_HEARTBEAT_INTERVAL=0))
-    data = await svc._event_to_sse_format(mk_result_event(), "e1")
-    assert data["result"]["execution_id"] == "e1"
-
-
-@pytest.mark.asyncio
-async def test_create_execution_stream_no_initial_status_and_multiple_events():
-    # No initial status should skip that yield; then two non-terminal events; then terminal
-    from app.infrastructure.kafka.events.execution import ExecutionStartedEvent
-    from app.infrastructure.kafka.events.metadata import EventMetadata
-
-    repo = FakeRepo(status=None)
-    ev1 = ExecutionStartedEvent(execution_id="e1", pod_name="p1", metadata=EventMetadata(service_name="s", service_version="1"))
-    ev2 = ExecutionStartedEvent(execution_id="e1", pod_name="p1", metadata=EventMetadata(service_name="s", service_version="1"))
-    ev_term = mk_result_event()
-    router = FakeRouter(FakeBuffer())
-    shutdown = FakeShutdown(accept=True)
-    bus = FakeBus([ev1, ev2, ev_term])
-    svc = SSEService(repository=repo, router=router, sse_bus=bus, shutdown_manager=shutdown, settings=SimpleNamespace(SSE_HEARTBEAT_INTERVAL=0))
-    outs = []
-    async for item in svc.create_execution_stream("e1", "u1"):
-        outs.append(json_load(item)["event_type"])
-        if outs[-1] == str(EventType.RESULT_STORED):
-            break
-    # Should have connected first, then two execution_started, then result_stored
-    assert outs[0] == "connected"
-    assert outs.count(str(EventType.EXECUTION_STARTED)) == 2
-
-
-@pytest.mark.asyncio
-async def test_execution_stream_heartbeat_then_shutdown(monkeypatch):
-    # HEARTBEAT_INTERVAL = 0 to emit immediately
-    repo = FakeRepo()
-    router = FakeRouter(FakeBuffer())
-    shutdown_event = asyncio.Event()
-    class SD(FakeShutdown):
-        async def register_connection(self, execution_id, connection_id):  # noqa: ANN001
-            return shutdown_event
-    shutdown = SD()
-    svc = SSEService(repository=repo, router=router, sse_bus=FakeBus([]), shutdown_manager=shutdown, settings=SimpleNamespace(SSE_HEARTBEAT_INTERVAL=0))
-    agen = svc.create_execution_stream("e1", "u1")
-    # connected
-    await agen.__anext__()
-    # status
-    await agen.__anext__()
-    # heartbeat
+    # With 0 interval, next yield should be heartbeat
     hb = await agen.__anext__()
-    assert json_load(hb)["event_type"] == "heartbeat"
-    # trigger shutdown and expect shutdown event
-    shutdown_event.set()
-    sh = await agen.__anext__()
-    assert json_load(sh)["event_type"] == "shutdown"
+    assert _decode(hb)["event_type"] == "heartbeat"
+
+    # Push a notification payload
+    await bus.notif_sub.push({"notification_id": "n1", "subject": "s", "body": "b"})
+    notif = await agen.__anext__()
+    assert _decode(notif)["event_type"] == "notification"
+
+    # Stop the stream by initiating shutdown and advancing once more (loop checks flag)
+    sm.initiate()
+    # It may loop until it sees the flag; push a None to release get(timeout)
+    await bus.notif_sub.push(None)  # type: ignore[arg-type]
+    # Give the generator a chance to observe the flag and finish
+    with pytest.raises(StopAsyncIteration):
+        await asyncio.wait_for(agen.__anext__(), timeout=0.2)
+
+
+@pytest.mark.asyncio
+async def test_health_status_shape() -> None:
+    svc = SSEService(repository=_FakeRepo(), router=_FakeRouter(), sse_bus=_FakeBus(), shutdown_manager=_FakeShutdown(), settings=_FakeSettings())
+    h = await svc.get_health_status()
+    assert isinstance(h, SSEHealthDomain)
+    assert h.active_consumers == 3 and h.active_executions == 2

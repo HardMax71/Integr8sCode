@@ -11,6 +11,7 @@ from app.core.providers import (
     EventProvider,
     MessagingProvider,
     RedisProvider,
+    ResultProcessorProvider,
     SettingsProvider,
     UserServicesProvider,
 )
@@ -41,17 +42,12 @@ def create_result_processor_container() -> AsyncContainer:
     Create a minimal DI container for the ResultProcessor worker.
     Includes only settings, database, event/kafka, and required repositories.
     """
-    from app.core.providers import (
-        DatabaseProvider,
-        EventProvider,
-        MessagingProvider,
-        ResultProcessorProvider,
-        SettingsProvider,
-    )
-
     return make_async_container(
         SettingsProvider(),
         DatabaseProvider(),
+        CoreServicesProvider(),
+        ConnectionProvider(),
+        RedisProvider(),
         EventProvider(),
         MessagingProvider(),
         ResultProcessorProvider(),

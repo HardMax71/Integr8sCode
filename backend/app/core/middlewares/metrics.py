@@ -1,27 +1,26 @@
-"""OpenTelemetry metrics configuration and setup."""
 import os
+import re
 import time
-from typing import Callable, cast
 
 import psutil
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI
 from opentelemetry import metrics
 from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
 from opentelemetry.metrics import CallbackOptions, Observation
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import SERVICE_NAME, SERVICE_VERSION, Resource
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.core.logging import logger
 from app.settings import get_settings
 
 
-class MetricsMiddleware(BaseHTTPMiddleware):
+class MetricsMiddleware:
     """Middleware to collect HTTP metrics using OpenTelemetry."""
 
-    def __init__(self, app: FastAPI) -> None:
-        super().__init__(app)
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
         self.meter = metrics.get_meter(__name__)
 
         # Create metrics instruments
@@ -55,26 +54,27 @@ class MetricsMiddleware(BaseHTTPMiddleware):
             unit="requests"
         )
 
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """Process request and collect metrics."""
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path = scope["path"]
+        
         # Skip metrics endpoint to avoid recursion
-        if request.url.path == "/metrics":
-            response = await call_next(request)
-            return cast(Response, response)
+        if path == "/metrics":
+            await self.app(scope, receive, send)
+            return
 
-        # Extract labels
-        method = request.method
-        path = request.url.path
-
-        # Clean path for cardinality (remove IDs)
-        # e.g., /api/v1/users/123 -> /api/v1/users/{id}
+        method = scope["method"]
         path_template = self._get_path_template(path)
 
         # Increment active requests
         self.active_requests.add(1, {"method": method, "path": path_template})
 
         # Record request size
-        content_length = request.headers.get("content-length")
+        headers = dict(scope["headers"])
+        content_length = headers.get(b"content-length")
         if content_length:
             self.request_size.record(
                 int(content_length),
@@ -83,57 +83,45 @@ class MetricsMiddleware(BaseHTTPMiddleware):
 
         # Time the request
         start_time = time.time()
+        status_code = 500  # Default to error if not set
+        response_content_length = None
 
-        try:
-            response = await call_next(request)
-            status_code = response.status_code
+        async def send_wrapper(message: Message) -> None:
+            nonlocal status_code, response_content_length
+            
+            if message["type"] == "http.response.start":
+                status_code = message["status"]
+                response_headers = dict(message.get("headers", []))
+                content_length_header = response_headers.get(b"content-length")
+                if content_length_header:
+                    response_content_length = int(content_length_header)
+            
+            await send(message)
 
-            # Record metrics
-            duration = time.time() - start_time
+        await self.app(scope, receive, send_wrapper)
 
-            labels = {
-                "method": method,
-                "path": path_template,
-                "status": str(status_code)
-            }
+        # Record metrics after response
+        duration = time.time() - start_time
 
-            self.request_counter.add(1, labels)
-            self.request_duration.record(duration, labels)
+        labels = {
+            "method": method,
+            "path": path_template,
+            "status": str(status_code)
+        }
 
-            # Record response size if available
-            response_headers = getattr(response, "headers", None)
-            if response_headers and "content-length" in response_headers:
-                self.response_size.record(
-                    int(response_headers["content-length"]),
-                    labels
-                )
+        self.request_counter.add(1, labels)
+        self.request_duration.record(duration, labels)
 
-            return cast(Response, response)
+        if response_content_length is not None:
+            self.response_size.record(response_content_length, labels)
 
-        except Exception:
-            # Record error metrics
-            duration = time.time() - start_time
-
-            labels = {
-                "method": method,
-                "path": path_template,
-                "status": "500"
-            }
-
-            self.request_counter.add(1, labels)
-            self.request_duration.record(duration, labels)
-
-            raise
-
-        finally:
-            # Decrement active requests
-            self.active_requests.add(-1, {"method": method, "path": path_template})
+        # Decrement active requests
+        self.active_requests.add(-1, {"method": method, "path": path_template})
 
     @staticmethod
     def _get_path_template(path: str) -> str:
         """Convert path to template for lower cardinality."""
         # Common patterns to replace
-        import re
 
         # UUID pattern
         path = re.sub(

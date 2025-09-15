@@ -5,7 +5,7 @@ from typing import Any, Dict, Set
 
 from app.core.logging import logger
 from app.core.metrics.context import get_connection_metrics
-from app.services.sse.partitioned_event_router import PartitionedSSERouter
+from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
 
 
 class ShutdownPhase(Enum):
@@ -21,7 +21,7 @@ class SSEShutdownManager:
     """
     Manages graceful shutdown of SSE connections.
     
-    Works alongside PartitionedSSERouter to:
+    Works alongside the SSEKafkaRedisBridge to:
     - Track active SSE connections
     - Notify clients about shutdown
     - Coordinate graceful disconnection
@@ -53,7 +53,7 @@ class SSEShutdownManager:
         self._draining_connections: Set[str] = set()
 
         # Router reference (set during initialization)
-        self._router: PartitionedSSERouter | None = None
+        self._router: SSEKafkaRedisBridge | None = None
 
         # Synchronization
         self._lock = asyncio.Lock()
@@ -66,7 +66,7 @@ class SSEShutdownManager:
             f"notification_timeout={notification_timeout}s"
         )
 
-    def set_router(self, router: "PartitionedSSERouter") -> None:
+    def set_router(self, router: "SSEKafkaRedisBridge") -> None:
         """Set the router reference for shutdown coordination."""
         self._router = router
 

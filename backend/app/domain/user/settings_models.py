@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from app.domain.enums.common import Theme
 from app.domain.enums.events import EventType
+from app.domain.enums.notification import NotificationChannel
 
 
 @dataclass
@@ -14,7 +15,7 @@ class DomainNotificationSettings:
     execution_failed: bool = True
     system_updates: bool = True
     security_alerts: bool = True
-    channels: List[Any] = field(default_factory=list)
+    channels: List[NotificationChannel] = field(default_factory=list)
 
 
 @dataclass

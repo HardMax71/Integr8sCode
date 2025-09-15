@@ -1,8 +1,9 @@
 from typing import Awaitable, Callable
 
 from app.core.logging import logger
-from app.events.core.producer import UnifiedProducer
 from app.infrastructure.kafka.events.base import BaseEvent
+
+from .producer import UnifiedProducer
 
 
 def create_dlq_error_handler(
@@ -93,10 +94,8 @@ def create_immediate_dlq_handler(
             error: The exception that occurred
             event: The event that failed processing
         """
-        event_id = event.event_id or "unknown"
-
         logger.error(
-            f"Critical error processing event {event_id} ({event.event_type}): {error}. "
+            f"Critical error processing event {event.event_id} ({event.event_type}): {error}. "
             f"Sending immediately to DLQ.",
             exc_info=True
         )

@@ -4,15 +4,16 @@ import asyncio
 import json
 import random
 import string
+import secrets
 from typing import Any
 
 from .config import LoadConfig
 from .http_client import APIClient
 from .stats import StatsCollector
+from .strategies import json_value
 
 
 def _rand(n: int = 8) -> str:
-    import secrets
     alphabet = string.ascii_letters + string.digits
     return ''.join(secrets.choice(alphabet) for _ in range(n))
 
@@ -95,7 +96,6 @@ async def run_monkey_swarm(cfg: LoadConfig, stats: StatsCollector, clients: int)
                 if method in ("POST", "PUT") and random.random() < 0.8:
                     # Prefer Hypothesis-generated JSON payloads when available
                     try:
-                        from .strategies import json_value  # type: ignore
                         body = json_value.example()
                     except Exception:
                         body = _random_body()

@@ -2,11 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from app.domain.admin.overview_models import (
-    AdminUserOverviewDomain,
-)
-from app.infrastructure.mappers.admin_mapper import UserMapper
-from app.infrastructure.mappers.event_mapper import EventMapper, EventStatisticsMapper
+from app.domain.admin import AdminUserOverviewDomain
 from app.schemas_pydantic.admin_user_overview import (
     AdminUserOverview,
     DerivedCounts,
@@ -14,6 +10,9 @@ from app.schemas_pydantic.admin_user_overview import (
 )
 from app.schemas_pydantic.events import EventStatistics as EventStatisticsSchema
 from app.schemas_pydantic.user import UserResponse
+
+from .admin_mapper import UserMapper
+from .event_mapper import EventMapper, EventStatisticsMapper
 
 
 class AdminOverviewApiMapper:
@@ -46,4 +45,3 @@ class AdminOverviewApiMapper:
             rate_limit_summary=rl,
             recent_events=recent_events,
         )
-

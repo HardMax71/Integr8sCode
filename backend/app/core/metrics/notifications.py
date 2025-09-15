@@ -43,10 +43,10 @@ class NotificationMetrics(BaseMetrics):
             unit="1"
         )
         
-        # Priority metrics
-        self.notifications_by_priority = self._meter.create_counter(
-            name="notifications.by.priority.total",
-            description="Total notifications by priority level",
+        # Severity metrics
+        self.notifications_by_severity = self._meter.create_counter(
+            name="notifications.by.severity.total",
+            description="Total notifications by severity level",
             unit="1"
         )
         
@@ -192,25 +192,25 @@ class NotificationMetrics(BaseMetrics):
         )
     
     def record_notification_sent(self, notification_type: str, channel: str = "in_app",
-                                 priority: str = "medium") -> None:
+                                 severity: str = "medium") -> None:
         self.notifications_sent.add(
             1,
-            attributes={"type": notification_type}
+            attributes={"category": notification_type}
         )
         
         self.notifications_by_channel.add(
             1,
             attributes={
                 "channel": channel,
-                "type": notification_type
+                "category": notification_type
             }
         )
         
-        self.notifications_by_priority.add(
+        self.notifications_by_severity.add(
             1,
             attributes={
-                "priority": priority,
-                "type": notification_type
+                "severity": severity,
+                "category": notification_type
             }
         )
     
@@ -218,7 +218,7 @@ class NotificationMetrics(BaseMetrics):
         self.notifications_failed.add(
             1,
             attributes={
-                "type": notification_type,
+                "category": notification_type,
                 "error": error
             }
         )
@@ -235,14 +235,14 @@ class NotificationMetrics(BaseMetrics):
                                          channel: str = "in_app") -> None:
         self.notification_delivery_time.record(
             duration_seconds,
-            attributes={"type": notification_type}
+            attributes={"category": notification_type}
         )
         
         self.channel_delivery_time.record(
             duration_seconds,
             attributes={
                 "channel": channel,
-                "type": notification_type
+                "category": notification_type
             }
         )
     
@@ -269,18 +269,18 @@ class NotificationMetrics(BaseMetrics):
     def record_notification_read(self, notification_type: str, time_to_read_seconds: float) -> None:
         self.notifications_read.add(
             1,
-            attributes={"type": notification_type}
+            attributes={"category": notification_type}
         )
         
         self.time_to_read.record(
             time_to_read_seconds,
-            attributes={"type": notification_type}
+            attributes={"category": notification_type}
         )
     
     def record_notification_clicked(self, notification_type: str) -> None:
         self.notifications_clicked.add(
             1,
-            attributes={"type": notification_type}
+            attributes={"category": notification_type}
         )
     
     def update_unread_count(self, user_id: str, count: int) -> None:
@@ -299,7 +299,7 @@ class NotificationMetrics(BaseMetrics):
         self.notifications_throttled.add(
             1,
             attributes={
-                "type": notification_type,
+                "category": notification_type,
                 "user_id": user_id
             }
         )
@@ -314,7 +314,7 @@ class NotificationMetrics(BaseMetrics):
         self.notification_retries.add(
             1,
             attributes={
-                "type": notification_type,
+                "category": notification_type,
                 "attempt": str(attempt_number),
                 "success": str(success)
             }
@@ -323,24 +323,24 @@ class NotificationMetrics(BaseMetrics):
         if attempt_number > 1:  # Only record retry success rate for actual retries
             self.retry_success_rate.record(
                 100.0 if success else 0.0,
-                attributes={"type": notification_type}
+                attributes={"category": notification_type}
             )
     
     def record_batch_processed(self, batch_size_count: int, processing_time_seconds: float,
                               notification_type: str = "mixed") -> None:
         self.batch_notifications_processed.add(
             batch_size_count,
-            attributes={"type": notification_type}
+            attributes={"category": notification_type}
         )
         
         self.batch_processing_time.record(
             processing_time_seconds,
-            attributes={"type": notification_type}
+            attributes={"category": notification_type}
         )
         
         self.batch_size.record(
             batch_size_count,
-            attributes={"type": notification_type}
+            attributes={"category": notification_type}
         )
     
     def record_template_render(self, duration_seconds: float, template_name: str, success: bool) -> None:
@@ -411,7 +411,7 @@ class NotificationMetrics(BaseMetrics):
             1,
             attributes={
                 "user_id": user_id,
-                "type": notification_type,
+                "category": notification_type,
                 "action": action  # "subscribe" or "unsubscribe"
             }
         )

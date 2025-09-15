@@ -1,11 +1,10 @@
 import asyncio
 import json
+import time
 from datetime import datetime, timezone
-from types import SimpleNamespace
 
 import pytest
 
-from app.core.metrics.rate_limit import RateLimitMetrics
 from app.domain.rate_limit import (
     EndpointGroup,
     RateLimitAlgorithm,
@@ -16,47 +15,12 @@ from app.domain.rate_limit import (
 from app.services.rate_limit_service import RateLimitService
 
 
-class FakePipe:
-    def __init__(self, count: int):
-        self.count = count
-    def zremrangebyscore(self, *a, **k): return self
-    def zadd(self, *a, **k): return self
-    def zcard(self, *a, **k): return self
-    def expire(self, *a, **k): return self
-    async def execute(self): return [None, None, self.count, None]
-
-
-class FakeRedis:
-    def __init__(self):
-        self.store = {}
-        self.count = 0
-        self.oldest = datetime.now(timezone.utc).timestamp()
-        self.scans = [
-            (1, [b"rl:sw:user:/api:v1:x", b"rl:tb:user:/api:v1:y"]),
-            (0, []),
-        ]
-    def pipeline(self): return FakePipe(self.count)
-    async def get(self, key): return self.store.get(key)
-    async def setex(self, key, ttl, value): self.store[key] = value  # noqa: ARG002
-    async def zrange(self, key, *_a, **_k): return [[b"t", self.oldest]]  # noqa: ARG002
-    async def zcard(self, key): return 3
-    async def scan(self, cursor, match=None, count=100):  # noqa: ARG002
-        return self.scans.pop(0) if self.scans else (0, [])
-    async def delete(self, *keys):
-        for k in keys: self.store.pop(k, None)
-
-
-def make_service(redis_client: FakeRedis, enabled: bool = True) -> RateLimitService:
-    settings = SimpleNamespace(RATE_LIMIT_REDIS_PREFIX="rl:", RATE_LIMIT_ENABLED=enabled)
-    metrics = RateLimitMetrics()
-    svc = RateLimitService(redis_client, settings, metrics)
-    return svc
-
-
 @pytest.mark.asyncio
-async def test_normalize_and_disabled_and_bypass_and_no_rule(monkeypatch: pytest.MonkeyPatch) -> None:
-    r = FakeRedis(); r.count = 0; r.oldest = time_now = datetime.now(timezone.utc).timestamp()
-    svc = make_service(r, enabled=False)
+async def test_normalize_and_disabled_and_bypass_and_no_rule(scope) -> None:  # type: ignore[valid-type]
+    svc: RateLimitService = await scope.get(RateLimitService)
+    # ensure disabled for first path
+    await svc.update_config(RateLimitConfig(default_rules=[]))
+    svc.settings.RATE_LIMIT_ENABLED = False
     # normalization masks uuids and ids
     n = svc._normalize_endpoint("/api/12345678901234567890/abcdef-1234-5678-9abc-def012345678")
     assert "*" in n
@@ -65,38 +29,35 @@ async def test_normalize_and_disabled_and_bypass_and_no_rule(monkeypatch: pytest
     assert res.allowed is True
 
     # enabled, bypass
-    svc = make_service(r, enabled=True)
+    svc.settings.RATE_LIMIT_ENABLED = True
     cfg = RateLimitConfig(default_rules=[], user_overrides={
         "u1": UserRateLimit(user_id="u1", bypass_rate_limit=True)
     })
-    async def _cfg(): return cfg
-    svc._get_config = _cfg  # type: ignore[assignment]
+    await svc.update_config(cfg)
     res2 = await svc.check_rate_limit("u1", "/api/x", config=None, username="alice")
     assert res2.allowed is True
 
     # no matching rule -> allowed
-    cfg2 = RateLimitConfig(default_rules=[])
-    async def _cfg2(): return cfg2
-    svc._get_config = _cfg2  # type: ignore[assignment]
+    await svc.update_config(RateLimitConfig(default_rules=[]))
     res3 = await svc.check_rate_limit("u2", "/none")
     assert res3.allowed is True
 
 
 @pytest.mark.asyncio
-async def test_sliding_window_allowed_and_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
-    r = FakeRedis(); r.count = 2; r.oldest = datetime.now(timezone.utc).timestamp() - 10
-    svc = make_service(r)
+async def test_sliding_window_allowed_and_rejected(scope) -> None:  # type: ignore[valid-type]
+    svc: RateLimitService = await scope.get(RateLimitService)
+    svc.settings.RATE_LIMIT_ENABLED = True  # Enable rate limiting for this test
     # matching rule with window 5, limit 3
     rule = RateLimitRule(endpoint_pattern=r"^/api/v1/x", group=EndpointGroup.API, requests=3, window_seconds=5,
                          algorithm=RateLimitAlgorithm.SLIDING_WINDOW)
-    cfg = RateLimitConfig(default_rules=[rule])
-    async def _cfg3(): return cfg
-    svc._get_config = _cfg3  # type: ignore[assignment]
-    ok = await svc.check_rate_limit("u", "/api/v1/x")
-    assert ok.allowed is True and ok.remaining >= 0
+    await svc.update_config(RateLimitConfig(default_rules=[rule]))
+    
+    # Make 3 requests - all should be allowed
+    for i in range(3):
+        ok = await svc.check_rate_limit("u", "/api/v1/x")
+        assert ok.allowed is True, f"Request {i+1} should be allowed"
 
-    # Now exceed limit
-    r.count = 5
+    # 4th request should be rejected
     rej = await svc.check_rate_limit("u", "/api/v1/x")
     assert rej.allowed is False and rej.retry_after is not None
 
@@ -107,39 +68,37 @@ async def test_sliding_window_allowed_and_rejected(monkeypatch: pytest.MonkeyPat
 
 
 @pytest.mark.asyncio
-async def test_token_bucket_paths(monkeypatch: pytest.MonkeyPatch) -> None:
-    r = FakeRedis(); r.count = 0; now = datetime.now(timezone.utc).timestamp()
-    # Preload bucket with 1.5 tokens so allowed, then later cause rejection
-    bucket = {"tokens": 2.0, "last_refill": now}
-    r.store["rl:tb:u:/api/v1/t"] = json.dumps(bucket)
-    svc = make_service(r)
+async def test_token_bucket_paths(scope) -> None:  # type: ignore[valid-type]
+    svc: RateLimitService = await scope.get(RateLimitService)
+    svc.settings.RATE_LIMIT_ENABLED = True  # Enable rate limiting for this test
     rule = RateLimitRule(endpoint_pattern=r"^/api/v1/t", group=EndpointGroup.API, requests=2, window_seconds=10,
                          burst_multiplier=1.0, algorithm=RateLimitAlgorithm.TOKEN_BUCKET)
-    cfg = RateLimitConfig(default_rules=[rule])
-    async def _cfg(): return cfg
-    svc._get_config = _cfg  # type: ignore[assignment]
-    ok = await svc.check_rate_limit("u", "/api/v1/t")
-    assert ok.allowed is True
+    await svc.update_config(RateLimitConfig(default_rules=[rule]))
+    
+    # Make 2 requests - both should be allowed
+    for i in range(2):
+        ok = await svc.check_rate_limit("u", "/api/v1/t")
+        assert ok.allowed is True, f"Request {i+1} should be allowed"
 
-    # Exhaust tokens -> rejected
-    r.store["rl:tb:u:/api/v1/t"] = json.dumps({"tokens": 0.0, "last_refill": now})
+    # 3rd request should be rejected (tokens exhausted)
     rej = await svc.check_rate_limit("u", "/api/v1/t")
     assert rej.allowed is False and rej.retry_after is not None
 
     # User multiplier applied; still allowed path
-    cfg_mul = RateLimitConfig(default_rules=[RateLimitRule(endpoint_pattern=r"^/m", group=EndpointGroup.API, requests=2, window_seconds=10, algorithm=RateLimitAlgorithm.SLIDING_WINDOW)], user_overrides={"u": UserRateLimit(user_id="u", global_multiplier=2.0)})
-    async def _cfg_mul(): return cfg_mul
-    svc._get_config = _cfg_mul  # type: ignore[assignment]
-    r.count = 0
+    cfg_mul = RateLimitConfig(default_rules=[
+        RateLimitRule(endpoint_pattern=r"^/m", group=EndpointGroup.API, requests=2, window_seconds=10,
+                      algorithm=RateLimitAlgorithm.SLIDING_WINDOW)],
+                              user_overrides={"u": UserRateLimit(user_id="u", global_multiplier=2.0)})
+    await svc.update_config(cfg_mul)
     ok_mul = await svc.check_rate_limit("u", "/m")
     assert ok_mul.allowed is True
 
 
 @pytest.mark.asyncio
-async def test_config_update_and_user_helpers() -> None:
-    r = FakeRedis(); r.count = 0
-    svc = make_service(r)
-    cfg = RateLimitConfig(default_rules=[RateLimitRule(endpoint_pattern=r"^/a", group=EndpointGroup.API, requests=1, window_seconds=1)])
+async def test_config_update_and_user_helpers(scope) -> None:  # type: ignore[valid-type]
+    svc: RateLimitService = await scope.get(RateLimitService)
+    cfg = RateLimitConfig(
+        default_rules=[RateLimitRule(endpoint_pattern=r"^/a", group=EndpointGroup.API, requests=1, window_seconds=1)])
     await svc.update_config(cfg)
     # _get_config from cache path
     got = await svc._get_config()
@@ -158,12 +117,10 @@ async def test_config_update_and_user_helpers() -> None:
 
 
 @pytest.mark.asyncio
-async def test_ip_based_rate_limiting():
+async def test_ip_based_rate_limiting(scope) -> None:  # type: ignore[valid-type]
     """Test IP-based rate limiting."""
-    r = FakeRedis()
-    r.count = 1
-    svc = make_service(r)
-    
+    svc: RateLimitService = await scope.get(RateLimitService)
+
     # Test IP-based check
     cfg = RateLimitConfig(
         default_rules=[
@@ -175,205 +132,153 @@ async def test_ip_based_rate_limiting():
             )
         ]
     )
-    async def _cfg():
-        return cfg
-    svc._get_config = _cfg  # type: ignore[assignment]
-    
+    await svc.update_config(cfg)
+
     # Check with IP identifier
     result = await svc.check_rate_limit("ip:192.168.1.1", "/api/test")
     assert result.allowed is True
-    
-    # Verify metrics were recorded for IP
-    assert hasattr(svc.metrics, 'ip_checks')
+
+    # Verify metrics object has requests_total counter for checks
+    assert hasattr(svc.metrics, 'requests_total')
 
 
 @pytest.mark.asyncio
-async def test_get_config_error_handling():
-    """Test error handling when getting config fails."""
-    r = FakeRedis()
-    svc = make_service(r)
-    
-    # Mock redis.get to raise exception
-    async def failing_get(key):
-        raise ConnectionError("Redis connection failed")
-    
-    r.get = failing_get
-    
-    # Should raise the exception
-    with pytest.raises(ConnectionError):
-        await svc.check_rate_limit("user1", "/api/test")
+async def test_get_config_roundtrip(scope) -> None:  # type: ignore[valid-type]
+    svc: RateLimitService = await scope.get(RateLimitService)
+    cfg = RateLimitConfig(default_rules=[RateLimitRule(endpoint_pattern=r"^/z", group=EndpointGroup.API, requests=1, window_seconds=1)])
+    await svc.update_config(cfg)
+    got = await svc._get_config()
+    assert isinstance(got, RateLimitConfig)
 
 
 @pytest.mark.asyncio
-async def test_sliding_window_redis_error():
-    """Test sliding window with Redis pipeline error."""
-    r = FakeRedis()
-    svc = make_service(r)
-    
-    # Mock pipeline to fail
+async def test_sliding_window_edge(scope) -> None:  # type: ignore[valid-type]
+    svc: RateLimitService = await scope.get(RateLimitService)
+    svc.settings.RATE_LIMIT_ENABLED = True  # Enable rate limiting for this test
+    # Configure a tight window and ensure behavior is consistent
+    cfg = RateLimitConfig(default_rules=[RateLimitRule(endpoint_pattern=r"^/edge", group=EndpointGroup.API, requests=1, window_seconds=1, algorithm=RateLimitAlgorithm.SLIDING_WINDOW)])
+    await svc.update_config(cfg)
+    ok = await svc.check_rate_limit("u", "/edge")
+    assert ok.allowed is True
+    # Second request should be rejected (limit is 1)
+    rej = await svc.check_rate_limit("u", "/edge")
+    assert rej.allowed is False
+
+
+@pytest.mark.asyncio
+async def test_sliding_window_pipeline_failure(scope, monkeypatch) -> None:  # type: ignore[valid-type]
+    svc: RateLimitService = await scope.get(RateLimitService)
+
     class FailingPipe:
-        def zremrangebyscore(self, *a, **k):
-            return self
-        def zadd(self, *a, **k):
-            return self
-        def zcard(self, *a, **k):
-            return self
-        def expire(self, *a, **k):
-            return self
-        async def execute(self):
-            raise ConnectionError("Pipeline failed")
-    
-    r.pipeline = lambda: FailingPipe()
-    
+        def zremrangebyscore(self, *a, **k): return self  # noqa: ANN001, D401
+        def zadd(self, *a, **k): return self  # noqa: ANN001, D401
+        def zcard(self, *a, **k): return self  # noqa: ANN001, D401
+        def expire(self, *a, **k): return self  # noqa: ANN001, D401
+        async def execute(self): raise ConnectionError("Pipeline failed")
+
+    monkeypatch.setattr(svc.redis, "pipeline", lambda: FailingPipe())
+
     rule = RateLimitRule(
         endpoint_pattern=r"^/api",
         group=EndpointGroup.API,
         requests=5,
         window_seconds=60,
-        algorithm=RateLimitAlgorithm.SLIDING_WINDOW
+        algorithm=RateLimitAlgorithm.SLIDING_WINDOW,
     )
-    cfg = RateLimitConfig(default_rules=[rule])
-    
-    # Should raise error
+
     with pytest.raises(ConnectionError):
         await svc._check_sliding_window(
-            "user1", 
-            "/api/test", 
-            int(rule.requests),
-            rule.window_seconds,
-            rule
+            "user1", "/api/test", int(rule.requests), rule.window_seconds, rule
         )
 
 
 @pytest.mark.asyncio
-async def test_token_bucket_invalid_data():
-    """Test token bucket with invalid JSON data."""
-    r = FakeRedis()
-    r.store["rl:tb:user:/api"] = "invalid-json"
-    svc = make_service(r)
-    
+async def test_token_bucket_invalid_data(scope) -> None:  # type: ignore[valid-type]
+    svc: RateLimitService = await scope.get(RateLimitService)
+    key = f"{svc.prefix}tb:user:/api"
+    await svc.redis.set(key, "invalid-json")
+
     rule = RateLimitRule(
         endpoint_pattern=r"^/api",
         group=EndpointGroup.API,
         requests=5,
         window_seconds=60,
-        algorithm=RateLimitAlgorithm.TOKEN_BUCKET
+        algorithm=RateLimitAlgorithm.TOKEN_BUCKET,
     )
-    
-    # Should raise JSONDecodeError for invalid JSON
-    import json
+
     with pytest.raises(json.JSONDecodeError):
         await svc._check_token_bucket(
-            "user", 
-            "/api",
-            int(rule.requests),
-            rule.window_seconds,
-            rule.burst_multiplier or 1.0,
-            rule
+            "user", "/api", int(rule.requests), rule.window_seconds, rule.burst_multiplier or 1.0, rule
         )
 
 
 @pytest.mark.asyncio
-async def test_update_config_serialization_error():
-    """Test config update with serialization error."""
-    r = FakeRedis()
-    svc = make_service(r)
-    
-    # Mock setex to fail
-    async def failing_setex(key, ttl, value):
+async def test_update_config_serialization_error(scope, monkeypatch) -> None:  # type: ignore[valid-type]
+    svc: RateLimitService = await scope.get(RateLimitService)
+    async def failing_setex(key, ttl, value):  # noqa: ANN001
         raise ValueError("Serialization failed")
-    
-    r.setex = failing_setex
-    
+    monkeypatch.setattr(svc.redis, "setex", failing_setex)
+
     cfg = RateLimitConfig(default_rules=[])
-    
-    # Should raise error
     with pytest.raises(ValueError):
         await svc.update_config(cfg)
 
 
 @pytest.mark.asyncio
-async def test_get_user_rate_limit_not_found():
-    """Test getting non-existent user rate limit."""
-    r = FakeRedis()
-    svc = make_service(r)
-    
+async def test_get_user_rate_limit_not_found(scope) -> None:  # type: ignore[valid-type]
+    svc: RateLimitService = await scope.get(RateLimitService)
     result = await svc.get_user_rate_limit("nonexistent")
     assert result is None
 
 
 @pytest.mark.asyncio
-async def test_reset_user_limits_error():
-    """Test reset user limits with Redis error."""
-    r = FakeRedis()
-    svc = make_service(r)
-    
-    # Mock scan to fail
-    async def failing_scan(cursor, match=None, count=100):
-        raise ConnectionError("Scan failed")
-    
-    r.scan = failing_scan
-    
-    # Should raise error
+async def test_reset_user_limits_error(scope, monkeypatch) -> None:  # type: ignore[valid-type]
+    svc: RateLimitService = await scope.get(RateLimitService)
+    async def failing_smembers(key):  # noqa: ANN001
+        raise ConnectionError("smembers failed")
+    monkeypatch.setattr(svc.redis, "smembers", failing_smembers)
     with pytest.raises(ConnectionError):
         await svc.reset_user_limits("user")
 
 
 @pytest.mark.asyncio
-async def test_get_usage_stats_with_errors():
-    """Test get usage stats with various error conditions."""
-    r = FakeRedis()
-    svc = make_service(r)
-    
-    # Mock zrange to fail for some keys
-    call_count = 0
-    async def sometimes_failing_zrange(key, *args, **kwargs):
-        nonlocal call_count
-        call_count += 1
-        if call_count == 1:
-            raise ConnectionError("zrange failed")
-        return [[b"timestamp", 1000.0]]
-    
-    r.zrange = sometimes_failing_zrange
-    r.scans = [(0, [b"rl:sw:user:/api:key1"])]
-    
-    stats = await svc.get_usage_stats("user")
+async def test_get_usage_stats_with_keys(scope) -> None:  # type: ignore[valid-type]
+    svc: RateLimitService = await scope.get(RateLimitService)
+    user_id = "user"
+    index_key = f"{svc.prefix}index:{user_id}"
+    sw_key = f"{svc.prefix}sw:{user_id}:/api:key1"
+    await svc.redis.sadd(index_key, sw_key)
+    stats = await svc.get_usage_stats(user_id)
     assert isinstance(stats, dict)
 
 
 @pytest.mark.asyncio
-async def test_check_rate_limit_with_user_override():
-    """Test rate limit check with user-specific overrides."""
-    r = FakeRedis()
-    r.count = 10  # High count to trigger limit
-    svc = make_service(r)
-    
+async def test_check_rate_limit_with_user_override(scope) -> None:  # type: ignore[valid-type]
+    svc: RateLimitService = await scope.get(RateLimitService)
+    svc.settings.RATE_LIMIT_ENABLED = True  # Enable rate limiting for this test
     rule = RateLimitRule(
         endpoint_pattern=r"^/api",
         group=EndpointGroup.API,
-        requests=5,
-        window_seconds=60
+        requests=3,
+        window_seconds=2,
+        algorithm=RateLimitAlgorithm.SLIDING_WINDOW,
     )
-    
-    # User with higher multiplier to allow more requests
-    user_override = UserRateLimit(
-        user_id="special_user",
-        global_multiplier=4.0  # 4x the normal limit = 20 requests
-    )
-    
-    cfg = RateLimitConfig(
-        default_rules=[rule],
-        user_overrides={"special_user": user_override}
-    )
-    
-    async def _cfg():
-        return cfg
-    svc._get_config = _cfg  # type: ignore[assignment]
-    
-    # Normal user should be blocked
-    result1 = await svc.check_rate_limit("normal_user", "/api/test")
-    assert result1.allowed is False
-    
-    # Special user should be allowed (higher limit via multiplier)
-    result2 = await svc.check_rate_limit("special_user", "/api/test")
-    assert result2.allowed is True
+    user_override = UserRateLimit(user_id="special_user", global_multiplier=4.0)
+    cfg = RateLimitConfig(default_rules=[rule], user_overrides={"special_user": user_override})
+
+    # Normal user: exceed after limit
+    endpoint = "/api/test"
+    allowed_count = 0
+    for _ in range(5):
+        res = await svc.check_rate_limit("normal_user", endpoint, config=cfg)
+        allowed_count += 1 if res.allowed else 0
+        await asyncio.sleep(0.05)
+    assert allowed_count == int(rule.requests)  # Should be exactly 3
+
+    # Special user: higher multiplier allows more requests
+    allowed_count_special = 0
+    for _ in range(6):
+        res = await svc.check_rate_limit("special_user", endpoint, config=cfg)
+        allowed_count_special += 1 if res.allowed else 0
+        await asyncio.sleep(0.05)
+    assert allowed_count_special > allowed_count

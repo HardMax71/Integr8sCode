@@ -1,7 +1,7 @@
-from contextlib import suppress
+from contextlib import contextmanager
 from datetime import datetime
 from time import time
-from typing import Any, TypeAlias
+from typing import Any, Generator, TypeAlias
 
 from app.core.correlation import CorrelationContext
 from app.core.exceptions import IntegrationException, ServiceError
@@ -10,8 +10,8 @@ from app.core.metrics.context import get_execution_metrics
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
-from app.domain.execution.models import DomainExecution
-from app.events.core.producer import UnifiedProducer
+from app.domain.execution import DomainExecution, ExecutionResultDomain, ResourceUsageDomain
+from app.events.core import UnifiedProducer
 from app.events.event_store import EventStore
 from app.infrastructure.kafka.events.base import BaseEvent
 from app.infrastructure.kafka.events.execution import (
@@ -60,6 +60,15 @@ class ExecutionService:
         self.event_store = event_store
         self.settings = settings
         self.metrics = get_execution_metrics()
+
+    @contextmanager
+    def _track_active_execution(self) -> Generator[None, None, None]:  # noqa: D401
+        """Increment active executions on enter and decrement on exit."""
+        self.metrics.increment_active_executions()
+        try:
+            yield
+        finally:
+            self.metrics.decrement_active_executions()
 
     async def get_k8s_resource_limits(self) -> dict[str, Any]:
         return {
@@ -146,14 +155,9 @@ class ExecutionService:
             }
         )
 
-        # Track metrics
-        self.metrics.increment_active_executions()
-        created_execution: DomainExecution | None = None
-
-        # Runtime selection relies on API schema validation
         runtime_cfg = RUNTIME_REGISTRY[lang][lang_version]
 
-        try:
+        with self._track_active_execution():
             # Create execution record
             created_execution = await self.execution_repo.create_execution(
                 DomainExecution(
@@ -196,18 +200,16 @@ class ExecutionService:
                 metadata=metadata,
             )
 
-            with suppress(Exception):
-                await self.event_store.store_event(event)
-
             # Publish to Kafka; on failure, mark error and raise
             try:
                 await self.producer.produce(event_to_produce=event)
-            except Exception as e:
+            except Exception as e:  # pragma: no cover - mapped behavior
                 self.metrics.record_script_execution(ExecutionStatus.ERROR, lang_and_version)
                 self.metrics.record_error(type(e).__name__)
-                if created_execution:
-                    await self._update_execution_error(created_execution.execution_id,
-                                                       f"Failed to submit execution: {str(e)}")
+                await self._update_execution_error(
+                    created_execution.execution_id,
+                    f"Failed to submit execution: {str(e)}",
+                )
                 raise IntegrationException(status_code=500, detail="Failed to submit execution request") from e
 
             # Success metrics and return
@@ -223,34 +225,22 @@ class ExecutionService:
                 }
             )
             return created_execution
-        finally:
-            self.metrics.decrement_active_executions()
 
     async def _update_execution_error(
             self,
             execution_id: str,
             error_message: str
     ) -> None:
-        """
-        Update execution status to error.
-        
-        Args:
-            execution_id: Execution identifier.
-            error_message: Error message to set.
-        """
-        try:
-            await self.execution_repo.update_execution(
-                execution_id,
-                {
-                    "status": ExecutionStatus.ERROR,
-                    "errors": error_message,
-                }
-            )
-        except Exception as update_error:
-            logger.error(
-                f"Failed to update execution status: {update_error}",
-                extra={"execution_id": execution_id}
-            )
+        result = ExecutionResultDomain(
+            execution_id=execution_id,
+            status=ExecutionStatus.ERROR,
+            exit_code=-1,
+            stdout="",
+            stderr=error_message,
+            resource_usage=ResourceUsageDomain(0.0, 0, 0, 0),
+            metadata={},
+        )
+        await self.execution_repo.write_terminal_result(result)
 
     async def get_execution_result(self, execution_id: str) -> DomainExecution:
         """
@@ -287,8 +277,8 @@ class ExecutionService:
                 "status": execution.status,
                 "lang": execution.lang,
                 "lang_version": execution.lang_version,
-                "has_output": bool(execution.output),
-                "has_errors": bool(execution.errors),
+                "has_output": bool(execution.stdout),
+                "has_errors": bool(execution.stderr),
                 "resource_usage": execution.resource_usage,
             }
         )
@@ -464,7 +454,6 @@ class ExecutionService:
             extra={"execution_id": execution_id}
         )
 
-        # Publish deletion event
         await self._publish_deletion_event(execution_id)
 
         return True
@@ -476,44 +465,27 @@ class ExecutionService:
         Args:
             execution_id: UUID of deleted execution.
         """
-        try:
-            metadata = self._create_event_metadata()
+        metadata = self._create_event_metadata()
 
-            # Create proper cancellation event instead of raw dict
-            event = ExecutionCancelledEvent(
-                execution_id=execution_id,
-                reason="user_requested",
-                cancelled_by=metadata.user_id,
-                metadata=metadata
-            )
+        event = ExecutionCancelledEvent(
+            execution_id=execution_id,
+            reason="user_requested",
+            cancelled_by=metadata.user_id,
+            metadata=metadata
+        )
 
-            # Store in event store
-            with suppress(Exception):
-                await self.event_store.store_event(event)
+        await self.producer.produce(
+            event_to_produce=event,
+            key=execution_id
+        )
 
-            await self.producer.produce(
-                event_to_produce=event,
-                key=execution_id
-            )
-
-            logger.info(
-                "Published cancellation event",
-                extra={
-                    "execution_id": execution_id,
-                    "event_id": str(event.event_id),
-                }
-            )
-
-        except Exception as e:
-            # Log but don't fail the deletion
-            logger.error(
-                "Failed to publish deletion event",
-                extra={
-                    "execution_id": execution_id,
-                    "error": str(e)
-                },
-                exc_info=True
-            )
+        logger.info(
+            "Published cancellation event",
+            extra={
+                "execution_id": execution_id,
+                "event_id": str(event.event_id),
+            }
+        )
 
     async def get_execution_stats(
             self,

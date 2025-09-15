@@ -35,8 +35,8 @@ jobs:
       - name: Modify Docker Compose for CI
         run: |
           cp docker-compose.yaml docker-compose.ci.yaml
-          # For the backend service
-          yq eval '.services.backend.extra_hosts += ["host.docker.internal:host-gateway"]' -i docker-compose.ci.yaml
+          # For the backend service (extra_hosts already exists, skip it)
+          # Note: backend.environment is a list in docker-compose.yaml
           yq eval '.services.backend.environment += ["TESTING=true"]' -i docker-compose.ci.yaml
           yq eval '.services.backend.environment += ["MONGO_ROOT_USER=testroot"]' -i docker-compose.ci.yaml
           yq eval '.services.backend.environment += ["MONGO_ROOT_PASSWORD=testpassword"]' -i docker-compose.ci.yaml
@@ -48,9 +48,11 @@ jobs:
           yq eval '.services.mongo.environment.MONGO_INITDB_ROOT_PASSWORD = "testpassword"' -i docker-compose.ci.yaml
 
           # For the cert-generator service
-          yq eval '.services.cert-generator.extra_hosts += ["host.docker.internal:host-gateway"]' -i docker-compose.ci.yaml
-          yq eval '.services.cert-generator.environment += ["CI=true"]' -i docker-compose.ci.yaml
-          yq eval '.services.cert-generator.volumes += ["$HOME/.kube/config:/root/.kube/config:ro"]' -i docker-compose.ci.yaml
+          # Check if extra_hosts exists, if not create it as a list
+          yq eval 'select(.services."cert-generator".extra_hosts == null).services."cert-generator".extra_hosts = []' -i docker-compose.ci.yaml
+          yq eval '.services."cert-generator".extra_hosts += ["host.docker.internal:host-gateway"]' -i docker-compose.ci.yaml
+          yq eval '.services."cert-generator".environment += ["CI=true"]' -i docker-compose.ci.yaml
+          yq eval '.services."cert-generator".volumes += [env(HOME) + "/.kube/config:/root/.kube/config:ro"]' -i docker-compose.ci.yaml
 
           echo "--- Modified docker-compose.ci.yaml ---"
           cat docker-compose.ci.yaml

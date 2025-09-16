@@ -17,12 +17,13 @@
     
     const bellIcon = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>`;
     
-    const notificationIcons = {
-        execution_completed: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`,
-        execution_failed: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`,
-        security_alert: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>`,
-        system_update: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`
-    };
+    function getNotificationIcon(tags = []) {
+        const set = new Set(tags || []);
+        if (set.has('failed') || set.has('error') || set.has('security')) return errorIcon;
+        if (set.has('timeout') || set.has('warning')) return warningIcon;
+        if (set.has('completed') || set.has('success')) return checkCircleIcon;
+        return infoIcon;
+    }
     
     const priorityColors = {
         low: 'text-gray-600 dark:text-gray-400',
@@ -93,7 +94,6 @@
                 
                 // Ignore heartbeat and connection messages
                 if (data.event === 'heartbeat' || data.event === 'connected') {
-                    console.debug('SSE heartbeat/connection:', data);
                     return;
                 }
                 
@@ -199,9 +199,7 @@
         return date.toLocaleDateString();
     }
     
-    function getNotificationIcon(type) {
-        return notificationIcons[type] || notificationIcons.system_update;
-    }
+    // getNotificationIcon now based on tags above
     
     // Request notification permission
     if ('Notification' in window && Notification.permission === 'default') {
@@ -265,8 +263,8 @@
                             }}
                         >
                             <div class="flex items-start space-x-3">
-                                <div class={`mt-1 ${priorityColors[notification.priority]}`}>
-                                    {@html getNotificationIcon(notification.notification_type)}
+                                <div class={`mt-1 ${priorityColors[notification.severity || 'medium']}`}>
+                                    {@html getNotificationIcon(notification.tags)}
                                 </div>
                                 <div class="flex-1 min-w-0">
                                     <p class="font-medium text-sm">

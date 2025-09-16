@@ -1,5 +1,3 @@
-"""Domain models for event store."""
-
 from app.domain.events.event_models import (
     ArchivedEvent,
     Event,

@@ -54,7 +54,7 @@ things safe and efficient. You'll get the results back in no time.
 - Backend: `https://127.0.0.1:443/`
   - To check if it works, you can use `curl -k https://127.0.0.1/api/v1/k8s-limits`, should return JSON with current limits
 - Grafana: `http://127.0.0.1:3000` (login - `admin`, pw - `admin123`)
-- Prometheus: `http://127.0.0.1:9090/targets` (`integr8scode` must be `1/1 up`)
+  
 
 You may also find out that k8s doesn't capture metrics (`CPU` and `Memory` params are `null`), it may well be that metrics server
 for k8s is turned off/not enabled. To enable, execute:
@@ -126,8 +126,7 @@ cause `match-case` was introduced first in `Python 3.10`.
 ## Architecture Overview
 
 > [!WARNING]
-> Version 2.0 is underway. Detailed, up-to-date architecture diagrams are in
-> [this file](./ARCHITECTURE_IN_DETAILS.md).
+> Detailed, up-to-date architecture diagrams are in [this file](files_for_readme/ARCHITECTURE_IN_DETAILS.md).
 
 [//]: # (<img src="./files_for_readme/system_diagram.png">)
 
@@ -175,6 +174,5 @@ The platform is built on three main pillars:
 - **Monitoring Tools**: Using OpenTelemetry and Grafana to keep an eye on system health.
 - **Alerts**: Set up notifications for when things go wrong.
 
-Link for accessing Prometheus is shown in `/editor` web page. 
-
+  
 

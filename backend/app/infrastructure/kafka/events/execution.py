@@ -6,7 +6,7 @@ from pydantic import ConfigDict
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.domain.enums.storage import ExecutionErrorType
-from app.domain.execution.models import ResourceUsageDomain
+from app.domain.execution import ResourceUsageDomain
 from app.infrastructure.kafka.events.base import BaseEvent
 
 

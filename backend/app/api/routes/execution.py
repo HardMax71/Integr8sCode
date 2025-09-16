@@ -6,8 +6,7 @@ from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute, inject
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Request
 
-from app.api.dependencies import AuthService
-from app.api.rate_limit import DynamicRateLimiter
+from app.api.dependencies import admin_user, current_user
 from app.core.exceptions import IntegrationException
 from app.core.tracing import EventAttributes, add_span_attributes
 from app.core.utils import get_client_ip
@@ -18,7 +17,7 @@ from app.domain.enums.storage import ExecutionErrorType
 from app.domain.enums.user import UserRole
 from app.infrastructure.kafka.events.base import BaseEvent
 from app.infrastructure.kafka.events.metadata import EventMetadata
-from app.infrastructure.mappers.execution_api_mapper import ExecutionApiMapper
+from app.infrastructure.mappers import ExecutionApiMapper
 from app.schemas_pydantic.execution import (
     CancelExecutionRequest,
     CancelResponse,
@@ -33,10 +32,12 @@ from app.schemas_pydantic.execution import (
     ResourceLimits,
     RetryExecutionRequest,
 )
+from app.schemas_pydantic.user import UserResponse
 from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
 from app.services.idempotency import IdempotencyManager
 from app.services.kafka_event_service import KafkaEventService
+from app.settings import get_settings
 
 router = APIRouter(route_class=DishkaRoute)
 
@@ -44,11 +45,9 @@ router = APIRouter(route_class=DishkaRoute)
 @inject
 async def get_execution_with_access(
         execution_id: Annotated[str, Path()],
-        request: Request,
+        current_user: Annotated[UserResponse, Depends(current_user)],
         execution_service: FromDishka[ExecutionService],
-        auth_service: FromDishka[AuthService],
 ) -> ExecutionInDB:
-    current_user = await auth_service.get_current_user(request)
     domain_exec = await execution_service.get_execution_result(execution_id)
 
     if domain_exec.user_id and domain_exec.user_id != current_user.user_id and current_user.role != UserRole.ADMIN:
@@ -65,8 +64,8 @@ async def get_execution_with_access(
         execution_id=domain_exec.execution_id,
         script=domain_exec.script,
         status=domain_exec.status,
-        output=domain_exec.output,
-        errors=domain_exec.errors,
+        stdout=domain_exec.stdout,
+        stderr=domain_exec.stderr,
         lang=domain_exec.lang,
         lang_version=domain_exec.lang_version,
         resource_usage=ru,
@@ -78,17 +77,15 @@ async def get_execution_with_access(
     )
 
 
-@router.post("/execute", response_model=ExecutionResponse, dependencies=[Depends(DynamicRateLimiter)])
+@router.post("/execute", response_model=ExecutionResponse)
 async def create_execution(
         request: Request,
+        current_user: Annotated[UserResponse, Depends(current_user)],
         execution: ExecutionRequest,
         execution_service: FromDishka[ExecutionService],
-        auth_service: FromDishka[AuthService],
         idempotency_manager: FromDishka[IdempotencyManager],
         idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> ExecutionResponse:
-    current_user = await auth_service.get_current_user(request)
-
     add_span_attributes(
         **{
             "http.method": "POST",
@@ -125,14 +122,13 @@ async def create_execution(
             ttl_seconds=86400  # 24 hours TTL for HTTP idempotency
         )
 
-        if idempotency_result.is_duplicate and idempotency_result.result:
-            # Return cached result if available
-            cached_result = idempotency_result.result
-            if isinstance(cached_result, dict):
-                return ExecutionResponse(
-                    execution_id=cached_result.get("execution_id", ""),
-                    status=cached_result.get("status", ExecutionStatus.QUEUED)
-                )
+        if idempotency_result.is_duplicate:
+            cached_json = await idempotency_manager.get_cached_json(
+                event=pseudo_event,
+                key_strategy="custom",
+                custom_key=f"http:{current_user.user_id}:{idempotency_key}",
+            )
+            return ExecutionResponse.model_validate_json(cached_json)
 
     try:
         client_ip = get_client_ip(request)
@@ -148,12 +144,10 @@ async def create_execution(
 
         # Store result for idempotency if key was provided
         if idempotency_key and pseudo_event:
-            await idempotency_manager.mark_completed(
+            response_model = ExecutionApiMapper.to_response(exec_result)
+            await idempotency_manager.mark_completed_with_json(
                 event=pseudo_event,
-                result={
-                    "execution_id": exec_result.execution_id,
-                    "status": exec_result.status
-                },
+                cached_json=response_model.model_dump_json(),
                 key_strategy="custom",
                 custom_key=f"http:{current_user.user_id}:{idempotency_key}"
             )
@@ -185,24 +179,20 @@ async def create_execution(
         ) from e
 
 
-@router.get("/result/{execution_id}", response_model=ExecutionResult, dependencies=[Depends(DynamicRateLimiter)])
+@router.get("/result/{execution_id}", response_model=ExecutionResult)
 async def get_result(
         execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
-        request: Request,
 ) -> ExecutionResult:
     return ExecutionResult.model_validate(execution)
 
 
-@router.post("/{execution_id}/cancel", response_model=CancelResponse, dependencies=[Depends(DynamicRateLimiter)])
+@router.post("/{execution_id}/cancel", response_model=CancelResponse)
 async def cancel_execution(
         execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
+        current_user: Annotated[UserResponse, Depends(current_user)],
         cancel_request: CancelExecutionRequest,
-        request: Request,
         event_service: FromDishka[KafkaEventService],
-        auth_service: FromDishka[AuthService],
 ) -> CancelResponse:
-    current_user = await auth_service.get_current_user(request)
-
     # Handle terminal states
     terminal_states = [ExecutionStatus.COMPLETED, ExecutionStatus.FAILED, ExecutionStatus.TIMEOUT]
 
@@ -221,15 +211,23 @@ async def cancel_execution(
             event_id="-1"  # exact event_id unknown
         )
 
-    event_id = await event_service.publish_execution_event(
-        event_type=EventType.EXECUTION_CANCELLED,
-        execution_id=execution.execution_id,
-        status=ExecutionStatus.CANCELLED,
+    settings = get_settings()
+    payload = {
+        "execution_id": execution.execution_id,
+        "status": str(ExecutionStatus.CANCELLED),
+        "reason": cancel_request.reason or "User requested cancellation",
+        "previous_status": str(execution.status),
+    }
+    meta = EventMetadata(
+        service_name=settings.SERVICE_NAME,
+        service_version=settings.SERVICE_VERSION,
         user_id=current_user.user_id,
-        metadata={
-            "reason": cancel_request.reason or "User requested cancellation",
-            "previous_status": execution.status,
-        }
+    )
+    event_id = await event_service.publish_event(
+        event_type=EventType.EXECUTION_CANCELLED,
+        payload=payload,
+        aggregate_id=execution.execution_id,
+        metadata=meta,
     )
 
     return CancelResponse(
@@ -240,16 +238,15 @@ async def cancel_execution(
     )
 
 
-@router.post("/{execution_id}/retry", response_model=ExecutionResponse, dependencies=[Depends(DynamicRateLimiter)])
+@router.post("/{execution_id}/retry", response_model=ExecutionResponse)
 async def retry_execution(
         original_execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
+        current_user: Annotated[UserResponse, Depends(current_user)],
         retry_request: RetryExecutionRequest,
         request: Request,
         execution_service: FromDishka[ExecutionService],
-        auth_service: FromDishka[AuthService],
 ) -> ExecutionResponse:
     """Retry a failed or completed execution."""
-    current_user = await auth_service.get_current_user(request)
 
     if original_execution.status in [ExecutionStatus.RUNNING, ExecutionStatus.QUEUED]:
         raise HTTPException(
@@ -272,12 +269,10 @@ async def retry_execution(
 
 
 @router.get("/executions/{execution_id}/events",
-            response_model=list[ExecutionEventResponse],
-            dependencies=[Depends(DynamicRateLimiter)])
+            response_model=list[ExecutionEventResponse])
 async def get_execution_events(
         execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
         event_service: FromDishka[EventService],
-        request: Request,
         event_types: str | None = Query(
             None, description="Comma-separated event types to filter"
         ),
@@ -305,11 +300,10 @@ async def get_execution_events(
     ]
 
 
-@router.get("/user/executions", response_model=ExecutionListResponse, dependencies=[Depends(DynamicRateLimiter)])
+@router.get("/user/executions", response_model=ExecutionListResponse)
 async def get_user_executions(
-        request: Request,
+        current_user: Annotated[UserResponse, Depends(current_user)],
         execution_service: FromDishka[ExecutionService],
-        auth_service: FromDishka[AuthService],
         status: ExecutionStatus | None = Query(None),
         lang: str | None = Query(None),
         start_time: datetime | None = Query(None),
@@ -318,7 +312,6 @@ async def get_user_executions(
         skip: int = Query(0, ge=0),
 ) -> ExecutionListResponse:
     """Get executions for the current user."""
-    current_user = await auth_service.get_current_user(request)
 
     executions = await execution_service.get_user_executions(
         user_id=current_user.user_id,
@@ -370,15 +363,13 @@ async def get_k8s_resource_limits(
         ) from e
 
 
-@router.delete("/{execution_id}", response_model=DeleteResponse, dependencies=[Depends(DynamicRateLimiter)])
+@router.delete("/{execution_id}", response_model=DeleteResponse)
 async def delete_execution(
         execution_id: str,
-        request: Request,
+        admin: Annotated[UserResponse, Depends(admin_user)],
         execution_service: FromDishka[ExecutionService],
-        auth_service: FromDishka[AuthService],
 ) -> DeleteResponse:
     """Delete an execution and its associated data (admin only)."""
-    _ = await auth_service.require_admin(request)
     await execution_service.delete_execution(execution_id)
     return DeleteResponse(
         message="Execution deleted successfully",

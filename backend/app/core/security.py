@@ -6,7 +6,7 @@ from fastapi import HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 
-from app.schemas_pydantic.user import UserInDB
+from app.domain.user import User as DomainAdminUser
 from app.settings import get_settings
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/login")
@@ -49,7 +49,7 @@ class SecurityService:
             self,
             token: str,
             user_repo: Any,  # Avoid circular import by using Any
-    ) -> UserInDB:
+    ) -> DomainAdminUser:
         credentials_exception = HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",

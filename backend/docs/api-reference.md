@@ -153,6 +153,10 @@ Notifications (/notifications)
 - DELETE /notifications/{notification_id}
   - Auth: cookie; X-CSRF-Token for write ops
 
+Notification Model
+- Fields: `channel`, `severity` (low|medium|high|urgent), `subject`, `body`, `tags: string[]`, `status`.
+- Producers choose tags; UI/icons derive from `tags` + `severity`. No NotificationType/levels.
+
 Sagas (/sagas)
 - GET /sagas/{saga_id}
 - GET /sagas/execution/{execution_id}
@@ -205,13 +209,23 @@ Replay (/replay) [admin]
 - GET /replay/sessions/{session_id}
 - POST /replay/cleanup?older_than_hours=24
 
-Alertmanager (/alertmanager)
-- POST /alertmanager/webhook
-  - Body: AlertmanagerWebhook (Prometheus Alertmanager format)
+Grafana Alerting (/alerts)
+- POST /alerts/grafana
+  - Body: GrafanaWebhook (minimal Grafana schema)
   - 200: { message, alerts_received, alerts_processed, errors[] }
   - Processes alerts into notifications; no auth (designed for internal webhook).
+  
+  Grafana configuration notes:
+  - Create a contact point of type "Webhook" with URL: `https://<your-host>/api/v1/alerts/grafana`.
+  - Optional HTTP method: POST (default). No auth headers required by default.
+  - Map severity: set label `severity` on your alert rules (e.g., critical|error|warning). The backend maps:
+    - critical|error → severity=high
+    - resolved/ok status → severity=low
+    - otherwise → severity=medium
+  - Tags are set to `["external_alert","grafana"]` in notifications; add more via labels if desired.
+  - The title is taken from `labels.alertname` or `annotations.title`; the body is built from `annotations.summary` and `annotations.description`.
 
-- GET /alertmanager/test
+- GET /alerts/grafana/test
   - Returns static readiness info.
 
 Health (no prefix)

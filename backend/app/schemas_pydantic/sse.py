@@ -30,8 +30,8 @@ class ExecutionStreamEvent(BaseModel):
     execution_id: str = Field(description="Execution ID")
     status: str | None = Field(None, description="Execution status")
     payload: Dict[str, Any] = Field(default_factory=dict, description="Event payload")
-    output: str | None = Field(None, description="Execution output")
-    errors: str | None = Field(None, description="Execution errors")
+    stdout: str | None = Field(None, description="Execution stdout")
+    stderr: str | None = Field(None, description="Execution stderr")
 
 
 class NotificationStreamEvent(BaseModel):

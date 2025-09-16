@@ -5,37 +5,57 @@ set -e
 WRITABLE_KUBECONFIG_DIR="/tmp/kube"
 mkdir -p "$WRITABLE_KUBECONFIG_DIR"
 
-# --- CI-Specific Kubeconfig Patching ---
+# --- Docker Kubeconfig Patching ---
 echo "--- Cert-Generator Debug Info ---"
-echo "CI environment variable is: [${CI}]"
 echo "Checking for original kubeconfig at /root/.kube/config..."
 if [ -f /root/.kube/config ]; then
   ls -l /root/.kube/config
 else
   echo "Original kubeconfig not found."
+  echo "ERROR: No kubeconfig found. Cannot proceed."
+  exit 1
 fi
 echo "--- End Debug Info ---"
 
-if [ "$CI" = "true" ] && [ -f /root/.kube/config ]; then
-  echo "CI environment detected. Creating a patched kubeconfig..."
-  # Read from the read-only original and write the patched version to our new file
-  sed 's|server: https://127.0.0.1:6443|server: https://host.docker.internal:6443|g' /root/.kube/config > "${WRITABLE_KUBECONFIG_DIR}/config"
+# Always patch kubeconfig when running in Docker container
+if [ -f /root/.kube/config ]; then
+  echo "Patching kubeconfig for Docker container access..."
+
+  # Test which IP can reach k3s from container
+  K8S_PORT=6443
+  WORKING_IP=""
+
+  # List of potential IPs to test - prefer host.docker.internal for container access
+  GATEWAY_IP=$(ip route | awk '/default/ {print $3; exit}')
+  # Try host.docker.internal first for Docker container compatibility
+  for TEST_IP in host.docker.internal ${GATEWAY_IP} 172.18.0.1 172.17.0.1 192.168.0.16 192.168.1.1 10.0.0.1 127.0.0.1; do
+    echo -n "Testing ${TEST_IP}:${K8S_PORT}... "
+    if nc -zv -w2 ${TEST_IP} ${K8S_PORT} 2>/dev/null; then
+      WORKING_IP=${TEST_IP}
+      echo "✓ SUCCESS"
+      break
+    fi
+    echo "✗ failed"
+  done
+
+  if [ -z "$WORKING_IP" ]; then
+    echo "ERROR: Cannot find working IP to reach k3s from container"
+    echo "Tested IPs: 127.0.0.1, ${GATEWAY_IP}, 192.168.0.16, 192.168.1.1, 10.0.0.1, 172.17.0.1, 172.18.0.1, host.docker.internal"
+    exit 1
+  fi
+
+  # Read original and patch the server URL to use working IP
+  sed "s|server: https://[^:]*:6443|server: https://${WORKING_IP}:6443|g" /root/.kube/config > "${WRITABLE_KUBECONFIG_DIR}/config"
 
   # Point the KUBECONFIG variable to our new, writable, and patched file
   export KUBECONFIG="${WRITABLE_KUBECONFIG_DIR}/config"
 
-  echo "Kubeconfig patched and new config is at ${KUBECONFIG}."
-  echo "--- Patched Kubeconfig Contents ---"
-  cat "${KUBECONFIG}"
-  echo "--- End Patched Kubeconfig ---"
+  echo "Kubeconfig patched to use ${WORKING_IP}:6443"
 else
-  echo "Not a CI environment or required conditions not met, proceeding with default setup."
-  # If not in CI, we still want kubectl to work if a default config is mounted
-  if [ -f /root/.kube/config ]; then
-    export KUBECONFIG=/root/.kube/config
-  fi
+  echo "ERROR: kubeconfig not found at /root/.kube/config"
+  exit 1
 fi
-# --- End of CI Patching ---
+# --- End of Docker Patching ---
 
 # From this point on, all `kubectl` commands will automatically use the correct config
 # because the KUBECONFIG environment variable is set.
@@ -74,9 +94,14 @@ if [ -d /backend ]; then
     echo "Checking if Kubernetes is available..."
     echo "Using KUBECONFIG: ${KUBECONFIG}"
     
-    # Try to connect to Kubernetes, but don't fail if it's not available
-    if kubectl version --request-timeout=5s >/dev/null 2>&1; then
-        echo "Kubernetes cluster detected. Setting up kubeconfig..."
+    # Try to connect to Kubernetes - MUST succeed
+    if ! kubectl version --request-timeout=5s >/dev/null 2>&1; then
+        echo "ERROR: Cannot connect to Kubernetes cluster!"
+        echo "  Ensure k3s/k8s is running and accessible"
+        exit 1
+    fi
+
+    echo "Kubernetes cluster detected. Setting up kubeconfig..."
         if ! kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' > /dev/null 2>&1; then
             echo "ERROR: kubectl is not configured to connect to a cluster."
             exit 1
@@ -154,17 +179,42 @@ EOF
     TOKEN=$(kubectl create token integr8scode-sa -n default --duration=24h)
     K8S_SERVER=$(kubectl config view --raw -o jsonpath='{.clusters[0].cluster.server}')
     
-    # In CI, ensure the generated kubeconfig also uses host.docker.internal
-    if [ "$CI" = "true" ]; then
-        K8S_SERVER=$(echo "$K8S_SERVER" | sed 's|https://127.0.0.1:|https://host.docker.internal:|')
-        echo "CI: Patched K8S_SERVER to ${K8S_SERVER}"
+    # Get the original server URL from kubectl
+    echo "Original K8S_SERVER from kubectl: ${K8S_SERVER}"
+
+    # Extract just the port from the original URL
+    K8S_PORT=$(echo "$K8S_SERVER" | grep -oE ':[0-9]+' | tr -d ':')
+    K8S_PORT=${K8S_PORT:-6443}
+
+    # Prefer host.docker.internal and gateway IPs for Docker container access
+    GATEWAY_IP=$(ip route | grep default | awk '{print $3}')
+    POTENTIAL_IPS="host.docker.internal ${GATEWAY_IP} 172.18.0.1 172.17.0.1 127.0.0.1"
+
+    echo "Environment info:"
+    echo "  K8S_PORT: ${K8S_PORT}"
+    echo "  Gateway IP: ${GATEWAY_IP:-none}"
+    echo "  Testing endpoints: ${POTENTIAL_IPS}"
+
+    CHOSEN_URL=""
+    for IP in $POTENTIAL_IPS; do
+        TEST_URL="https://${IP}:${K8S_PORT}"
+        echo -n "  Trying ${TEST_URL}... "
+        if nc -z -w2 ${IP} ${K8S_PORT} 2>/dev/null; then
+            CHOSEN_URL="${TEST_URL}"
+            echo "✓ SUCCESS"
+            break
+        fi
+        echo "✗ failed"
+    done
+
+    # If none of the alternative endpoints worked, keep the original server URL
+    if [ -z "$CHOSEN_URL" ]; then
+        echo "No alternative endpoint worked; keeping original K8S_SERVER: ${K8S_SERVER}"
+    else
+        K8S_SERVER="$CHOSEN_URL"
     fi
-    
-    if [ "$USE_DOCKER_HOST" = "true" ]; then
-        # Containers in app-network need host.docker.internal to reach the host
-        K8S_SERVER="https://host.docker.internal:6443"
-        echo "Docker: Set K8S_SERVER to ${K8S_SERVER} (for container access)"
-    fi
+
+    echo "Using K8S_SERVER: ${K8S_SERVER}"
     
     cat > /backend/kubeconfig.yaml <<EOF
 apiVersion: v1
@@ -223,8 +273,6 @@ EOF
         echo "   sudo systemctl daemon-reload && sudo systemctl restart k3s"
     else
         echo "⚠️  WARNING: Failed to create NetworkPolicy"
-    fi
-    
     fi
 fi
 

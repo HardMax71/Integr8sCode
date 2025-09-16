@@ -1,13 +1,12 @@
 import asyncio
 
+from opentelemetry.trace import SpanKind
+
 from app.core.logging import logger
-from app.db.schema.schema_manager import SchemaManager
+from app.core.tracing.utils import trace_span
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import GroupId, KafkaTopic
-from app.events.core.consumer import ConsumerConfig, UnifiedConsumer
-from app.events.core.dispatcher import EventDispatcher
-from app.events.core.dlq_handler import create_dlq_error_handler
-from app.events.core.producer import UnifiedProducer
+from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer, create_dlq_error_handler
 from app.events.event_store import EventStore
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.events.base import BaseEvent
@@ -46,8 +45,6 @@ class EventStoreConsumer:
         """Start consuming and storing events."""
         if self._running:
             return
-
-        await SchemaManager(self.event_store.db).apply_all()
 
         settings = get_settings()
         config = ConsumerConfig(
@@ -149,8 +146,12 @@ class EventStoreConsumer:
         self._last_batch_time = asyncio.get_event_loop().time()
 
         logger.info(f"Event store flushing batch of {len(batch)} events")
-
-        results = await self.event_store.store_batch(batch)
+        with trace_span(
+            name="event_store.flush_batch",
+            kind=SpanKind.CONSUMER,
+            attributes={"events.batch.count": len(batch)},
+        ):
+            results = await self.event_store.store_batch(batch)
 
         logger.info(
             f"Stored event batch: total={results['total']}, "

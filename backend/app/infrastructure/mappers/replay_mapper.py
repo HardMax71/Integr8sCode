@@ -1,16 +1,19 @@
 from datetime import datetime, timezone
 from typing import Any
 
-from app.domain.admin.replay_models import (
+from app.domain.admin import (
     ReplayQuery,
     ReplaySession,
     ReplaySessionData,
     ReplaySessionFields,
-    ReplaySessionStatus,
     ReplaySessionStatusDetail,
     ReplaySessionStatusInfo,
 )
+from app.domain.enums.replay import ReplayStatus
 from app.domain.events.event_models import EventFields
+from app.domain.replay import ReplayConfig as DomainReplayConfig
+from app.domain.replay import ReplaySessionState
+from app.schemas_pydantic.admin_events import EventReplayRequest
 
 
 class ReplaySessionMapper:
@@ -29,7 +32,7 @@ class ReplaySessionMapper:
             ReplaySessionFields.DRY_RUN: session.dry_run,
             "triggered_executions": session.triggered_executions
         }
-        
+
         if session.started_at:
             doc[ReplaySessionFields.STARTED_AT] = session.started_at
         if session.completed_at:
@@ -40,15 +43,15 @@ class ReplaySessionMapper:
             doc[ReplaySessionFields.CREATED_BY] = session.created_by
         if session.target_service:
             doc[ReplaySessionFields.TARGET_SERVICE] = session.target_service
-        
+
         return doc
-    
+
     @staticmethod
     def from_dict(data: dict[str, Any]) -> ReplaySession:
         return ReplaySession(
             session_id=data.get(ReplaySessionFields.SESSION_ID, ""),
             type=data.get(ReplaySessionFields.TYPE, "replay_session"),
-            status=ReplaySessionStatus(data.get(ReplaySessionFields.STATUS, ReplaySessionStatus.SCHEDULED)),
+            status=ReplayStatus(data.get(ReplaySessionFields.STATUS, ReplayStatus.SCHEDULED)),
             total_events=data.get(ReplaySessionFields.TOTAL_EVENTS, 0),
             replayed_events=data.get(ReplaySessionFields.REPLAYED_EVENTS, 0),
             failed_events=data.get(ReplaySessionFields.FAILED_EVENTS, 0),
@@ -63,7 +66,7 @@ class ReplaySessionMapper:
             dry_run=data.get(ReplaySessionFields.DRY_RUN, False),
             triggered_executions=data.get("triggered_executions", [])
         )
-    
+
     @staticmethod
     def status_detail_to_dict(detail: ReplaySessionStatusDetail) -> dict[str, Any]:
         result = {
@@ -81,10 +84,10 @@ class ReplaySessionMapper:
             "progress_percentage": detail.session.progress_percentage,
             "execution_results": detail.execution_results
         }
-        
+
         if detail.estimated_completion:
             result["estimated_completion"] = detail.estimated_completion
-        
+
         return result
 
     @staticmethod
@@ -126,16 +129,16 @@ class ReplayQueryMapper:
     @staticmethod
     def to_mongodb_query(query: ReplayQuery) -> dict[str, Any]:
         mongo_query: dict[str, Any] = {}
-        
+
         if query.event_ids:
             mongo_query[EventFields.EVENT_ID] = {"$in": query.event_ids}
-        
+
         if query.correlation_id:
             mongo_query[EventFields.METADATA_CORRELATION_ID] = query.correlation_id
-        
+
         if query.aggregate_id:
             mongo_query[EventFields.AGGREGATE_ID] = query.aggregate_id
-        
+
         if query.start_time or query.end_time:
             time_query = {}
             if query.start_time:
@@ -143,7 +146,7 @@ class ReplayQueryMapper:
             if query.end_time:
                 time_query["$lte"] = query.end_time
             mongo_query[EventFields.TIMESTAMP] = time_query
-        
+
         return mongo_query
 
 
@@ -156,7 +159,7 @@ class ReplaySessionDataMapper:
             "replay_correlation_id": data.replay_correlation_id,
             "query": data.query
         }
-        
+
         if data.dry_run and data.events_preview:
             result["events_preview"] = [
                 {
@@ -167,5 +170,68 @@ class ReplaySessionDataMapper:
                 }
                 for e in data.events_preview
             ]
-        
+
         return result
+
+
+class ReplayApiMapper:
+    """API-level mapper for converting replay requests to domain queries."""
+
+    @staticmethod
+    def request_to_query(req: EventReplayRequest) -> ReplayQuery:
+        return ReplayQuery(
+            event_ids=req.event_ids,
+            correlation_id=req.correlation_id,
+            aggregate_id=req.aggregate_id,
+            start_time=req.start_time,
+            end_time=req.end_time,
+        )
+
+
+class ReplayStateMapper:
+    """Mapper for service-level replay session state (domain.replay.models).
+
+    Moves all domain↔Mongo conversion out of the repository.
+    Assumes datetimes are stored as datetimes (no epoch/ISO fallback logic).
+    """
+
+    @staticmethod
+    def to_mongo_document(session: ReplaySessionState | Any) -> dict[str, Any]:  # noqa: ANN401
+        cfg = session.config
+        # Both DomainReplayConfig and schema config are Pydantic models; use model_dump
+        cfg_dict = cfg.model_dump()
+        return {
+            "session_id": session.session_id,
+            "status": session.status,
+            "total_events": getattr(session, "total_events", 0),
+            "replayed_events": getattr(session, "replayed_events", 0),
+            "failed_events": getattr(session, "failed_events", 0),
+            "skipped_events": getattr(session, "skipped_events", 0),
+            "created_at": session.created_at,
+            "started_at": getattr(session, "started_at", None),
+            "completed_at": getattr(session, "completed_at", None),
+            "last_event_at": getattr(session, "last_event_at", None),
+            "errors": getattr(session, "errors", []),
+            "config": cfg_dict,
+        }
+
+    @staticmethod
+    def from_mongo_document(doc: dict[str, Any]) -> ReplaySessionState:
+        cfg_dict = doc.get("config", {})
+        cfg = DomainReplayConfig(**cfg_dict)
+        raw_status = doc.get("status", ReplayStatus.SCHEDULED)
+        status = raw_status if isinstance(raw_status, ReplayStatus) else ReplayStatus(str(raw_status))
+
+        return ReplaySessionState(
+            session_id=doc.get("session_id", ""),
+            config=cfg,
+            status=status,
+            total_events=doc.get("total_events", 0),
+            replayed_events=doc.get("replayed_events", 0),
+            failed_events=doc.get("failed_events", 0),
+            skipped_events=doc.get("skipped_events", 0),
+            started_at=doc.get("started_at"),
+            completed_at=doc.get("completed_at"),
+            last_event_at=doc.get("last_event_at"),
+            errors=doc.get("errors", []),
+        )

@@ -8,6 +8,7 @@ from app.domain.events.event_models import (
     EventDetail,
     EventExportRow,
     EventFields,
+    EventFilter,
     EventListResult,
     EventProjection,
     EventReplayInfo,
@@ -16,6 +17,7 @@ from app.domain.events.event_models import (
     HourlyEventCount,
 )
 from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.schemas_pydantic.admin_events import EventFilter as AdminEventFilter
 
 
 class EventMapper:
@@ -291,6 +293,72 @@ class EventExportRowMapper:
             "Status": row.status,
             "Error": row.error
         }
+
+    @staticmethod
+    def from_event(event: Event) -> EventExportRow:
+        return EventExportRow(
+            event_id=event.event_id,
+            event_type=event.event_type,
+            timestamp=event.timestamp.isoformat(),
+            correlation_id=event.metadata.correlation_id or "",
+            aggregate_id=event.aggregate_id or "",
+            user_id=event.metadata.user_id or "",
+            service=event.metadata.service_name,
+            status=event.status or "",
+            error=event.error or "",
+        )
+
+
+class EventFilterMapper:
+    """Converts EventFilter domain model into MongoDB queries."""
+
+    @staticmethod
+    def to_mongo_query(flt: EventFilter) -> dict[str, Any]:
+        query: dict[str, Any] = {}
+
+        if flt.event_types:
+            query[EventFields.EVENT_TYPE] = {"$in": flt.event_types}
+        if flt.aggregate_id:
+            query[EventFields.AGGREGATE_ID] = flt.aggregate_id
+        if flt.correlation_id:
+            query[EventFields.METADATA_CORRELATION_ID] = flt.correlation_id
+        if flt.user_id:
+            query[EventFields.METADATA_USER_ID] = flt.user_id
+        if flt.service_name:
+            query[EventFields.METADATA_SERVICE_NAME] = flt.service_name
+        if getattr(flt, "status", None):
+            query[EventFields.STATUS] = flt.status
+
+        if flt.start_time or flt.end_time:
+            time_query: dict[str, Any] = {}
+            if flt.start_time:
+                time_query["$gte"] = flt.start_time
+            if flt.end_time:
+                time_query["$lte"] = flt.end_time
+            query[EventFields.TIMESTAMP] = time_query
+
+        search = getattr(flt, "text_search", None) or getattr(flt, "search_text", None)
+        if search:
+            query["$text"] = {"$search": search}
+
+        return query
+
+    @staticmethod
+    def from_admin_pydantic(pflt: AdminEventFilter) -> EventFilter:
+        ev_types: list[str] | None = None
+        if pflt.event_types is not None:
+            ev_types = [str(et) for et in pflt.event_types]
+        return EventFilter(
+            event_types=ev_types,
+            aggregate_id=pflt.aggregate_id,
+            correlation_id=pflt.correlation_id,
+            user_id=pflt.user_id,
+            service_name=pflt.service_name,
+            start_time=pflt.start_time,
+            end_time=pflt.end_time,
+            search_text=pflt.search_text,
+            text_search=pflt.search_text,
+        )
 
 
 class EventReplayInfoMapper:

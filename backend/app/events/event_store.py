@@ -9,6 +9,8 @@ from pymongo.errors import BulkWriteError, DuplicateKeyError
 
 from app.core.logging import logger
 from app.core.metrics.context import get_event_metrics
+from app.core.tracing import EventAttributes
+from app.core.tracing.utils import add_span_attributes
 from app.domain.enums.events import EventType
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.events.base import BaseEvent
@@ -79,6 +81,14 @@ class EventStore:
             doc["stored_at"] = datetime.now(timezone.utc)
             await self.collection.insert_one(doc)
 
+            add_span_attributes(
+                **{
+                    str(EventAttributes.EVENT_TYPE): str(event.event_type),
+                    str(EventAttributes.EVENT_ID): event.event_id,
+                    str(EventAttributes.EXECUTION_ID): event.aggregate_id or "",
+                }
+            )
+
             duration = asyncio.get_event_loop().time() - start
             self.metrics.record_event_store_duration(duration, "store_single", self.collection_name)
             self.metrics.record_event_stored(event.event_type, self.collection_name)
@@ -122,6 +132,7 @@ class EventStore:
 
             duration = asyncio.get_event_loop().time() - start
             self.metrics.record_event_store_duration(duration, "store_batch", self.collection_name)
+            add_span_attributes(**{"events.batch.count": len(events)})
             if results["stored"] > 0:
                 for event in events:
                     self.metrics.record_event_stored(event.event_type, self.collection_name)

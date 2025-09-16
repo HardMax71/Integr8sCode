@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.domain.enums.replay import ReplayStatus
-from app.domain.replay.models import ReplayConfig, ReplayFilter, ReplaySessionState
+from app.domain.replay import ReplayConfig, ReplayFilter, ReplaySessionState
 from app.schemas_pydantic.replay import CleanupResponse, ReplayRequest, ReplayResponse, SessionSummary
 from app.schemas_pydantic.replay_models import (
     ReplayConfigSchema,
@@ -90,8 +90,8 @@ class ReplayApiMapper:
         return ReplayFilter(
             execution_id=req.execution_id,
             event_types=req.event_types,
-            start_time=req.start_time.timestamp() if req.start_time else None,
-            end_time=req.end_time.timestamp() if req.end_time else None,
+            start_time=req.start_time if req.start_time else None,
+            end_time=req.end_time if req.end_time else None,
             user_id=req.user_id,
             service_name=req.service_name,
         )

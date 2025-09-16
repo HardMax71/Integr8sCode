@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Dict, List
 
-from app.domain.notification.models import (
+from app.domain.notification import (
     DomainNotification,
     DomainNotificationListResult,
     DomainNotificationSubscription,
@@ -20,7 +20,6 @@ class NotificationApiMapper:
     def to_response(n: DomainNotification) -> NotificationResponse:
         return NotificationResponse(
             notification_id=n.notification_id,
-            notification_type=n.notification_type,
             channel=n.channel,
             status=n.status,
             subject=n.subject,
@@ -28,7 +27,8 @@ class NotificationApiMapper:
             action_url=n.action_url,
             created_at=n.created_at,
             read_at=n.read_at,
-            priority=n.priority.value if hasattr(n.priority, "value") else str(n.priority),
+            severity=n.severity,
+            tags=n.tags,
         )
 
     @staticmethod
@@ -45,7 +45,9 @@ class NotificationApiMapper:
             user_id=s.user_id,
             channel=s.channel,
             enabled=s.enabled,
-            notification_types=s.notification_types,
+            severities=s.severities,
+            include_tags=s.include_tags,
+            exclude_tags=s.exclude_tags,
             webhook_url=s.webhook_url,
             slack_webhook=s.slack_webhook,
             quiet_hours_enabled=s.quiet_hours_enabled,
@@ -63,4 +65,3 @@ class NotificationApiMapper:
             NotificationApiMapper.subscription_to_pydantic(s) for s in subs.values()
         ]
         return SubscriptionsResponse(subscriptions=py_subs)
-

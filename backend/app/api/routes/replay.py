@@ -1,10 +1,10 @@
+from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, Query
 
-from app.api.dependencies import require_admin_guard
-from app.core.service_dependencies import FromDishka
+from app.api.dependencies import admin_user
 from app.domain.enums.replay import ReplayStatus
-from app.infrastructure.mappers.replay_api_mapper import ReplayApiMapper
+from app.infrastructure.mappers import ReplayApiMapper
 from app.schemas_pydantic.replay import (
     CleanupResponse,
     ReplayRequest,
@@ -17,7 +17,7 @@ from app.services.replay_service import ReplayService
 router = APIRouter(prefix="/replay",
                    tags=["Event Replay"],
                    route_class=DishkaRoute,
-                   dependencies=[Depends(require_admin_guard)])
+                   dependencies=[Depends(admin_user)])
 
 
 @router.post("/sessions", response_model=ReplayResponse)
@@ -26,7 +26,7 @@ async def create_replay_session(
         service: FromDishka[ReplayService],
 ) -> ReplayResponse:
     cfg = ReplayApiMapper.request_to_config(replay_request)
-    result = await service.create_session(cfg)
+    result = await service.create_session_from_config(cfg)
     return ReplayApiMapper.op_to_response(result.session_id, result.status, result.message)
 
 

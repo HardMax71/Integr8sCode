@@ -6,40 +6,26 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.domain.enums.notification import (
     NotificationChannel,
-    NotificationPriority,
+    NotificationSeverity,
     NotificationStatus,
-    NotificationType,
 )
 
-
-class NotificationTemplate(BaseModel):
-    """Notification template for different types"""
-    notification_type: NotificationType
-    channels: list[NotificationChannel]
-    priority: NotificationPriority = NotificationPriority.MEDIUM
-    subject_template: str
-    body_template: str
-    action_url_template: str | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-    model_config = ConfigDict(
-        from_attributes=True
-    )
+# Templates are removed in the unified model
 
 
 class Notification(BaseModel):
     """Individual notification instance"""
     notification_id: str = Field(default_factory=lambda: str(uuid4()))
     user_id: str
-    notification_type: NotificationType
     channel: NotificationChannel
-    priority: NotificationPriority = NotificationPriority.MEDIUM
+    severity: NotificationSeverity = NotificationSeverity.MEDIUM
     status: NotificationStatus = NotificationStatus.PENDING
 
     # Content
     subject: str
     body: str
     action_url: str | None = None
+    tags: list[str] = Field(default_factory=list)
 
     # Tracking
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
@@ -56,9 +42,7 @@ class Notification(BaseModel):
     error_message: str | None = None
 
     # Context
-    correlation_id: str | None = None
-    related_entity_id: str | None = None
-    related_entity_type: str | None = None
+    # Removed correlation_id and related_entity_*; use tags/metadata for correlation
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     # Webhook specific
@@ -99,50 +83,16 @@ class NotificationBatch(BaseModel):
     )
 
 
-class NotificationRule(BaseModel):
-    """Rule for automatic notification generation"""
-    rule_id: str = Field(default_factory=lambda: str(uuid4()))
-    name: str
-    description: str | None = None
-    enabled: bool = True
-
-    # Trigger conditions
-    event_types: list[str]
-    conditions: dict[str, Any] = Field(default_factory=dict)
-
-    # Actions
-    notification_type: NotificationType
-    channels: list[NotificationChannel]
-    priority: NotificationPriority = NotificationPriority.MEDIUM
-    template_id: str | None = None
-
-    # Throttling
-    throttle_minutes: int | None = None
-    max_per_hour: int | None = None
-    max_per_day: int | None = None
-
-    # Metadata
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    created_by: str | None = None
-
-    model_config = ConfigDict(
-        from_attributes=True
-    )
-
-    @field_validator("event_types")
-    @classmethod
-    def validate_event_types(cls, v: list[str]) -> list[str]:
-        if not v:
-            raise ValueError("At least one event type must be specified")
-        return v
+# Rules removed in unified model
 
 
 class NotificationSubscription(BaseModel):
     """User subscription preferences for notifications"""
     user_id: str
     channel: NotificationChannel
-    notification_types: list[NotificationType]
+    severities: list[NotificationSeverity] = Field(default_factory=list)
+    include_tags: list[str] = Field(default_factory=list)
+    exclude_tags: list[str] = Field(default_factory=list)
     enabled: bool = True
 
     # Channel-specific settings
@@ -170,7 +120,8 @@ class NotificationStats(BaseModel):
     """Statistics for notification delivery"""
     user_id: str | None = None
     channel: NotificationChannel | None = None
-    notification_type: NotificationType | None = None
+    tags: list[str] | None = None
+    severity: NotificationSeverity | None = None
 
     # Time range
     start_date: datetime
@@ -200,7 +151,6 @@ class NotificationStats(BaseModel):
 class NotificationResponse(BaseModel):
     """Response schema for notification endpoints"""
     notification_id: str
-    notification_type: NotificationType
     channel: NotificationChannel
     status: NotificationStatus
     subject: str
@@ -208,7 +158,8 @@ class NotificationResponse(BaseModel):
     action_url: str | None
     created_at: datetime
     read_at: datetime | None
-    priority: str
+    severity: NotificationSeverity
+    tags: list[str]
 
     model_config = ConfigDict(
         from_attributes=True
@@ -229,7 +180,9 @@ class NotificationListResponse(BaseModel):
 class SubscriptionUpdate(BaseModel):
     """Request schema for updating notification subscriptions"""
     enabled: bool
-    notification_types: list[NotificationType]
+    severities: list[NotificationSeverity] = Field(default_factory=list)
+    include_tags: list[str] = Field(default_factory=list)
+    exclude_tags: list[str] = Field(default_factory=list)
     webhook_url: str | None = None
     slack_webhook: str | None = None
     quiet_hours_enabled: bool = False
@@ -243,14 +196,7 @@ class SubscriptionUpdate(BaseModel):
     )
 
 
-class TestNotificationRequest(BaseModel):
-    """Request schema for sending test notifications"""
-    notification_type: NotificationType
-    channel: NotificationChannel
-
-    model_config = ConfigDict(
-        from_attributes=True
-    )
+# TestNotificationRequest removed in unified model; use Notification schema directly for test endpoints
 
 
 class SubscriptionsResponse(BaseModel):

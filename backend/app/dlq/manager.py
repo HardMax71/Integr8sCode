@@ -3,20 +3,26 @@ import json
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Mapping, Sequence
 
-from confluent_kafka import Consumer, KafkaError, Producer
+from confluent_kafka import Consumer, KafkaError, Message, Producer
 from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
+from opentelemetry.trace import SpanKind
 
 from app.core.logging import logger
 from app.core.metrics.context import get_dlq_metrics
+from app.core.tracing import EventAttributes
+from app.core.tracing.utils import extract_trace_context, get_tracer, inject_trace_context
 from app.dlq.models import (
     DLQFields,
     DLQMessage,
     DLQMessageStatus,
+    DLQMessageUpdate,
     RetryPolicy,
     RetryStrategy,
 )
 from app.domain.enums.kafka import GroupId, KafkaTopic
+from app.domain.events.event_models import CollectionNames
 from app.events.schema.schema_registry import SchemaRegistryManager
+from app.infrastructure.mappers.dlq_mapper import DLQMapper
 from app.settings import get_settings
 
 
@@ -24,11 +30,12 @@ class DLQManager:
     def __init__(
             self,
             database: AsyncIOMotorDatabase,
+            consumer: Consumer,
+            producer: Producer,
             dlq_topic: KafkaTopic = KafkaTopic.DEAD_LETTER_QUEUE,
             retry_topic_suffix: str = "-retry",
             default_retry_policy: RetryPolicy | None = None,
     ):
-        self.database = database
         self.metrics = get_dlq_metrics()
         self.dlq_topic = dlq_topic
         self.retry_topic_suffix = retry_topic_suffix
@@ -36,10 +43,9 @@ class DLQManager:
             topic="default",
             strategy=RetryStrategy.EXPONENTIAL_BACKOFF
         )
-
-        self.consumer: Consumer | None = None
-        self.producer: Producer | None = None
-        self.dlq_collection: AsyncIOMotorCollection[Any] = database.dlq_messages
+        self.consumer: Consumer = consumer
+        self.producer: Producer = producer
+        self.dlq_collection: AsyncIOMotorCollection[Any] = database.get_collection(CollectionNames.DLQ_MESSAGES)
 
         self._running = False
         self._process_task: asyncio.Task | None = None
@@ -63,33 +69,7 @@ class DLQManager:
         if self._running:
             return
 
-        if self.database is None:
-            raise RuntimeError("Database not provided to DLQManager")
-
-        settings = get_settings()
-
-        # Initialize consumer
-        self.consumer = Consumer({
-            'bootstrap.servers': settings.KAFKA_BOOTSTRAP_SERVERS,
-            'group.id': GroupId.DLQ_MANAGER,
-            'enable.auto.commit': False,
-            'auto.offset.reset': 'earliest',
-            'client.id': 'dlq-manager-consumer'
-        })
         self.consumer.subscribe([self.dlq_topic])
-
-        # Initialize producer for retries
-        self.producer = Producer({
-            'bootstrap.servers': settings.KAFKA_BOOTSTRAP_SERVERS,
-            'client.id': 'dlq-manager-producer',
-            'acks': 'all',
-            'enable.idempotence': True,
-            'compression.type': 'gzip',
-            'batch.size': 16384,
-            'linger.ms': 10
-        })
-
-        # Indexes ensured by SchemaManager at startup
 
         self._running = True
 
@@ -116,63 +96,90 @@ class DLQManager:
                     pass
 
         # Stop Kafka clients
-        if self.consumer:
-            self.consumer.close()
-
-        if self.producer:
-            self.producer.flush(10)  # Wait up to 10 seconds for pending messages
+        self.consumer.close()
+        self.producer.flush(10)
 
         logger.info("DLQ Manager stopped")
-
-    # Index creation handled by SchemaManager
 
     async def _process_messages(self) -> None:
         while self._running:
             try:
-                # Fetch messages using confluent-kafka poll
-                if not self.consumer:
-                    logger.error("Consumer not initialized")
-                    continue
-
-                # Poll for messages (non-blocking with asyncio)
-                msg = await asyncio.to_thread(self.consumer.poll, timeout=1.0)
-
+                msg = await self._poll_message()
                 if msg is None:
                     continue
 
-                if msg.error():
-                    error = msg.error()
-                    if error and error.code() == KafkaError._PARTITION_EOF:
-                        continue
-                    logger.error(f"Consumer error: {error}")
+                if not await self._validate_message(msg):
                     continue
 
                 start_time = asyncio.get_event_loop().time()
+                dlq_message = await self._parse_message(msg)
 
-                schema_registry = SchemaRegistryManager()
-                dlq_message = DLQMessage.from_kafka_message(msg, schema_registry)
-
-                # Update metrics
-                self.metrics.record_dlq_message_received(
-                    dlq_message.original_topic,
-                    dlq_message.event_type
-                )
-
-                self.metrics.record_dlq_message_age(dlq_message.age_seconds)
-
-                # Process message
-                await self._process_dlq_message(dlq_message)
-
-                # Commit offset after successful processing
-                await asyncio.to_thread(self.consumer.commit, asynchronous=False)
-
-                # Record processing time
-                duration = asyncio.get_event_loop().time() - start_time
-                self.metrics.record_dlq_processing_duration(duration, "process")
+                await self._record_message_metrics(dlq_message)
+                await self._process_message_with_tracing(msg, dlq_message)
+                await self._commit_and_record_duration(start_time)
 
             except Exception as e:
                 logger.error(f"Error in DLQ processing loop: {e}")
                 await asyncio.sleep(5)
+
+    async def _poll_message(self) -> Message | None:
+        """Poll for a message from Kafka."""
+        return await asyncio.to_thread(self.consumer.poll, timeout=1.0)
+
+    async def _validate_message(self, msg: Message) -> bool:
+        """Validate the Kafka message."""
+        if msg.error():
+            error = msg.error()
+            if error and error.code() == KafkaError._PARTITION_EOF:
+                return False
+            logger.error(f"Consumer error: {error}")
+            return False
+        return True
+
+    async def _parse_message(self, msg: Message) -> DLQMessage:
+        """Parse Kafka message into DLQMessage."""
+        schema_registry = SchemaRegistryManager()
+        return DLQMapper.from_kafka_message(msg, schema_registry)
+
+    def _extract_headers(self, msg: Message) -> dict[str, str]:
+        """Extract headers from Kafka message."""
+        headers_list = msg.headers() or []
+        headers: dict[str, str] = {}
+        for k, v in headers_list:
+            headers[str(k)] = v.decode("utf-8") if isinstance(v, (bytes, bytearray)) else (v or "")
+        return headers
+
+    async def _record_message_metrics(self, dlq_message: DLQMessage) -> None:
+        """Record metrics for received DLQ message."""
+        self.metrics.record_dlq_message_received(
+            dlq_message.original_topic,
+            dlq_message.event_type
+        )
+        self.metrics.record_dlq_message_age(dlq_message.age_seconds)
+
+    async def _process_message_with_tracing(self, msg: Message, dlq_message: DLQMessage) -> None:
+        """Process message with distributed tracing."""
+        headers = self._extract_headers(msg)
+        ctx = extract_trace_context(headers)
+        tracer = get_tracer()
+
+        with tracer.start_as_current_span(
+            name="dlq.consume",
+            context=ctx,
+            kind=SpanKind.CONSUMER,
+            attributes={
+                str(EventAttributes.KAFKA_TOPIC): str(self.dlq_topic),
+                str(EventAttributes.EVENT_TYPE): dlq_message.event_type,
+                str(EventAttributes.EVENT_ID): dlq_message.event_id or "",
+            },
+        ):
+            await self._process_dlq_message(dlq_message)
+
+    async def _commit_and_record_duration(self, start_time: float) -> None:
+        """Commit offset and record processing duration."""
+        await asyncio.to_thread(self.consumer.commit, asynchronous=False)
+        duration = asyncio.get_event_loop().time() - start_time
+        self.metrics.record_dlq_processing_duration(duration, "process")
 
     async def _process_dlq_message(self, message: DLQMessage) -> None:
         # Apply filters
@@ -199,12 +206,10 @@ class DLQManager:
         next_retry = retry_policy.get_next_retry_time(message)
 
         # Update message status
-        if message.event_id:
-            await self._update_message_status(
-                message.event_id,
-                DLQMessageStatus.SCHEDULED,
-                next_retry_at=next_retry
-            )
+        await self._update_message_status(
+            message.event_id,
+            DLQMessageUpdate(status=DLQMessageStatus.SCHEDULED, next_retry_at=next_retry),
+        )
 
         # If immediate retry, process now
         if retry_policy.strategy == RetryStrategy.IMMEDIATE:
@@ -215,7 +220,7 @@ class DLQManager:
         message.status = DLQMessageStatus.PENDING
         message.last_updated = datetime.now(timezone.utc)
 
-        doc = message.to_dict()
+        doc = DLQMapper.to_mongo_document(message)
 
         await self.dlq_collection.update_one(
             {DLQFields.EVENT_ID: message.event_id},
@@ -223,38 +228,9 @@ class DLQManager:
             upsert=True
         )
 
-    async def _update_message_status(
-            self,
-            event_id: str,
-            status: DLQMessageStatus,
-            **kwargs: Any
-    ) -> None:
-        update_doc = {
-            str(DLQFields.STATUS): status,
-            str(DLQFields.LAST_UPDATED): datetime.now(timezone.utc)
-        }
-
-        # Add any additional fields
-        for key, value in kwargs.items():
-            if key == "next_retry_at":
-                update_doc[str(DLQFields.NEXT_RETRY_AT)] = value
-            elif key == "retried_at":
-                update_doc[str(DLQFields.RETRIED_AT)] = value
-            elif key == "discarded_at":
-                update_doc[str(DLQFields.DISCARDED_AT)] = value
-            elif key == "retry_count":
-                update_doc[str(DLQFields.RETRY_COUNT)] = value
-            elif key == "discard_reason":
-                update_doc[str(DLQFields.DISCARD_REASON)] = value
-            elif key == "last_error":
-                update_doc[str(DLQFields.LAST_ERROR)] = value
-            else:
-                update_doc[key] = value
-
-        await self.dlq_collection.update_one(
-            {DLQFields.EVENT_ID: event_id},
-            {"$set": update_doc}
-        )
+    async def _update_message_status(self, event_id: str, update: DLQMessageUpdate) -> None:
+        update_doc = DLQMapper.update_to_mongo(update)
+        await self.dlq_collection.update_one({DLQFields.EVENT_ID: event_id}, {"$set": update_doc})
 
     async def _retry_message(self, message: DLQMessage) -> None:
         # Trigger before_retry callbacks
@@ -263,27 +239,14 @@ class DLQManager:
         # Send to retry topic first (for monitoring)
         retry_topic = f"{message.original_topic}{self.retry_topic_suffix}"
 
-        # Prepare headers
-        headers = [
-            ("dlq_retry_count", str(message.retry_count + 1).encode()),
-            ("dlq_original_error", message.error.encode()),
-            ("dlq_retry_timestamp", datetime.now(timezone.utc).isoformat().encode()),
-        ]
-
-        # Send to retry topic
-        if not self.producer:
-            raise RuntimeError("Producer not initialized")
-
-        if not message.event_id:
-            raise ValueError("Message event_id is required")
-
-        # Send to retry topic using confluent-kafka producer
-        def delivery_callback(err: Any, msg: Any) -> None:
-            if err:
-                logger.error(f"Failed to deliver message to retry topic: {err}")
-
-        # Convert headers to the format expected by confluent-kafka
-        kafka_headers: list[tuple[str, str | bytes]] = [(k, v) for k, v in headers]
+        hdrs: dict[str, str] = {
+            "dlq_retry_count": str(message.retry_count + 1),
+            "dlq_original_error": message.error,
+            "dlq_retry_timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        hdrs = inject_trace_context(hdrs)
+        from typing import cast
+        kafka_headers = cast(list[tuple[str, str | bytes]], [(k, v.encode()) for k, v in hdrs.items()])
 
         # Get the original event
         event = message.event
@@ -294,7 +257,6 @@ class DLQManager:
             value=json.dumps(event.to_dict()).encode(),
             key=message.event_id.encode(),
             headers=kafka_headers,
-            callback=delivery_callback
         )
 
         # Send to original topic
@@ -304,7 +266,6 @@ class DLQManager:
             value=json.dumps(event.to_dict()).encode(),
             key=message.event_id.encode(),
             headers=kafka_headers,
-            callback=delivery_callback
         )
 
         # Flush to ensure messages are sent
@@ -318,13 +279,14 @@ class DLQManager:
         )
 
         # Update status
-        if message.event_id:
-            await self._update_message_status(
-                message.event_id,
-                DLQMessageStatus.RETRIED,
+        await self._update_message_status(
+            message.event_id,
+            DLQMessageUpdate(
+                status=DLQMessageStatus.RETRIED,
                 retried_at=datetime.now(timezone.utc),
-                retry_count=message.retry_count + 1
-            )
+                retry_count=message.retry_count + 1,
+            ),
+        )
 
         # Trigger after_retry callbacks
         await self._trigger_callbacks("after_retry", message, success=True)
@@ -340,13 +302,14 @@ class DLQManager:
         )
 
         # Update status
-        if message.event_id:
-            await self._update_message_status(
-                message.event_id,
-                DLQMessageStatus.DISCARDED,
+        await self._update_message_status(
+            message.event_id,
+            DLQMessageUpdate(
+                status=DLQMessageStatus.DISCARDED,
                 discarded_at=datetime.now(timezone.utc),
-                discard_reason=reason
-            )
+                discard_reason=reason,
+            ),
+        )
 
         # Trigger callbacks
         await self._trigger_callbacks("on_discard", message, reason)
@@ -366,7 +329,7 @@ class DLQManager:
 
                 async for doc in cursor:
                     # Recreate DLQ message from MongoDB document
-                    message = DLQMessage.from_dict(doc)
+                    message = DLQMapper.from_mongo_document(doc)
 
                     # Retry message
                     await self._retry_message(message)
@@ -419,68 +382,16 @@ class DLQManager:
             logger.error(f"Message {event_id} not found in DLQ")
             return False
 
-        message = DLQMessage.from_dict(doc)
+        # Guard against invalid states
+        status = doc.get(str(DLQFields.STATUS))
+        if status in {DLQMessageStatus.DISCARDED, DLQMessageStatus.RETRIED}:
+            logger.info(f"Skipping manual retry for {event_id}: status={status}")
+            return False
+
+        message = DLQMapper.from_mongo_document(doc)
 
         await self._retry_message(message)
         return True
-
-    async def get_dlq_stats(self) -> dict[str, Any]:
-        pipeline = [
-            {"$facet": {
-                "by_status": [
-                    {"$group": {
-                        "_id": f"${DLQFields.STATUS}",
-                        "count": {"$sum": 1}
-                    }}
-                ],
-                "by_topic": [
-                    {"$group": {
-                        "_id": f"${DLQFields.ORIGINAL_TOPIC}",
-                        "count": {"$sum": 1},
-                        "avg_retry_count": {"$avg": f"${DLQFields.RETRY_COUNT}"},
-                        "max_retry_count": {"$max": f"${DLQFields.RETRY_COUNT}"}
-                    }}
-                ],
-                "by_event_type": [
-                    {"$group": {
-                        "_id": f"${DLQFields.EVENT_TYPE}",
-                        "count": {"$sum": 1}
-                    }}
-                ],
-                "age_stats": [
-                    {"$group": {
-                        "_id": None,
-                        "oldest_message": {"$min": f"${DLQFields.FAILED_AT}"},
-                        "newest_message": {"$max": f"${DLQFields.FAILED_AT}"},
-                        "total_count": {"$sum": 1}
-                    }}
-                ]
-            }}
-        ]
-
-        cursor = self.dlq_collection.aggregate(pipeline)
-        results = await cursor.to_list(1)
-
-        # Handle empty collection case
-        if not results:
-            return {
-                "by_status": {},
-                "by_topic": [],
-                "by_event_type": [],
-                "age_stats": {},
-                "timestamp": datetime.now(timezone.utc)
-            }
-
-        result = results[0]
-
-        return {
-            "by_status": {item["_id"]: item["count"] for item in result["by_status"]},
-            "by_topic": result["by_topic"],
-            "by_event_type": result["by_event_type"],
-            "age_stats": result["age_stats"][0] if result["age_stats"] else {},
-            "timestamp": datetime.now(timezone.utc)
-        }
-
 
 def create_dlq_manager(
         database: AsyncIOMotorDatabase,
@@ -488,14 +399,32 @@ def create_dlq_manager(
         retry_topic_suffix: str = "-retry",
         default_retry_policy: RetryPolicy | None = None,
 ) -> DLQManager:
+    settings = get_settings()
+    consumer = Consumer({
+        'bootstrap.servers': settings.KAFKA_BOOTSTRAP_SERVERS,
+        'group.id': GroupId.DLQ_MANAGER,
+        'enable.auto.commit': False,
+        'auto.offset.reset': 'earliest',
+        'client.id': 'dlq-manager-consumer'
+    })
+    producer = Producer({
+        'bootstrap.servers': settings.KAFKA_BOOTSTRAP_SERVERS,
+        'client.id': 'dlq-manager-producer',
+        'acks': 'all',
+        'enable.idempotence': True,
+        'compression.type': 'gzip',
+        'batch.size': 16384,
+        'linger.ms': 10
+    })
     if default_retry_policy is None:
         default_retry_policy = RetryPolicy(
             topic="default",
             strategy=RetryStrategy.EXPONENTIAL_BACKOFF
         )
-    
     return DLQManager(
         database=database,
+        consumer=consumer,
+        producer=producer,
         dlq_topic=dlq_topic,
         retry_topic_suffix=retry_topic_suffix,
         default_retry_policy=default_retry_policy,

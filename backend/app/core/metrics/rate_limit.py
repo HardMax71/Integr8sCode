@@ -103,14 +103,5 @@ class RateLimitMetrics(BaseMetrics):
             unit="1",
         )
         
-        # IP vs User metrics
-        self.ip_checks = self._meter.create_counter(
-            name="rate_limit.ip.checks.total",
-            description="Number of IP-based rate limit checks",
-            unit="1",
-        )
-        self.user_checks = self._meter.create_counter(
-            name="rate_limit.user.checks.total",
-            description="Number of user-based rate limit checks",
-            unit="1",
-        )
+        # Authenticated vs anonymous checks can be derived from labels on requests_total
+        # No separate ip/user counters to avoid duplication and complexity.

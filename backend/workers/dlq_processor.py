@@ -4,7 +4,8 @@ import sys
 from typing import Any, Optional
 
 from app.core.logging import logger
-from app.dlq.manager import DLQManager, DLQMessage, RetryPolicy, RetryStrategy, create_dlq_manager
+from app.dlq import DLQMessage, RetryPolicy, RetryStrategy
+from app.dlq.manager import DLQManager, create_dlq_manager
 from app.domain.enums.kafka import KafkaTopic
 from app.settings import get_settings
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase

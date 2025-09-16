@@ -11,7 +11,7 @@ from app.core.startup import initialize_metrics_context, initialize_rate_limits
 from app.core.tracing import init_tracing
 from app.db.schema.schema_manager import SchemaManager
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
-from app.services.sse.partitioned_event_router import PartitionedSSERouter
+from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
 from app.settings import get_settings
 
 
@@ -34,8 +34,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         },
     )
 
-    # Metrics are now initialized directly by each service that needs them
-    logger.info("OpenTelemetry metrics will be initialized by individual services")
+    # Metrics setup moved to app creation to allow middleware registration
+    logger.info("Lifespan start: tracing and services initialization")
 
     # Initialize tracing
     instrumentation_report = init_tracing(
@@ -62,7 +62,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     schema_registry = await container.get(SchemaRegistryManager)
     await initialize_event_schemas(schema_registry)
 
-    # Initialize database schema once per app startup
+    # Initialize database schema at application scope using app-scoped DB
     database = await container.get(AsyncIOMotorDatabase)
     schema_manager = SchemaManager(database)
     await schema_manager.apply_all()
@@ -78,14 +78,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await initialize_rate_limits(redis_client, settings)
     logger.info("Rate limits initialized in Redis")
 
-    # Start SSE router to ensure consumers are running before any events are published
-    _ = await container.get(PartitionedSSERouter)
-    logger.info("SSE router started with consumer pool")
+    # Rate limit middleware added during app creation; service resolved lazily at runtime
+
+    # Start SSE Kafka→Redis bridge to ensure consumers are running before any events are published
+    _ = await container.get(SSEKafkaRedisBridge)
+    logger.info("SSE Kafka→Redis bridge started with consumer pool")
 
     # All services initialized by dishka providers
     logger.info("All services initialized by dishka providers")
-
-    # Note: Daemonset creation is now handled by k8s_worker service
 
     try:
         yield

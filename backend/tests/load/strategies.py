@@ -44,7 +44,7 @@ user_create = st.fixed_dictionaries(
 )
 
 
-# AlertmanagerWebhook strategy (approximate schema)
+# Grafana webhook strategy (approximate schema)
 severity = st.sampled_from(["info", "warning", "error", "critical"])  # common values
 label_key = st.text(min_size=1, max_size=24)
 label_val = st.text(min_size=0, max_size=64)
@@ -69,7 +69,7 @@ alert = st.fixed_dictionaries(
     }
 )
 
-alertmanager_webhook = st.fixed_dictionaries(
+grafana_webhook = st.fixed_dictionaries(
     {
         "receiver": st.text(min_size=1, max_size=64),
         "status": st.sampled_from(["firing", "resolved"]),
@@ -82,4 +82,3 @@ alertmanager_webhook = st.fixed_dictionaries(
         "version": st.text(min_size=1, max_size=16),
     }
 )
-

@@ -6,8 +6,7 @@ from typing import Any, Awaitable, Callable, Dict, Set
 from app.core.logging import logger
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
-from app.events.core.consumer import UnifiedConsumer
-from app.events.core.dispatcher import EventDispatcher
+from app.events.core import EventDispatcher, UnifiedConsumer
 from app.infrastructure.kafka.events.base import BaseEvent
 from app.services.idempotency.idempotency_manager import IdempotencyManager
 
@@ -78,7 +77,6 @@ class IdempotentEventHandler:
             # Mark as completed
             await self.idempotency_manager.mark_completed(
                 event=event,
-                result=None,  # Handlers return None
                 key_strategy=self.key_strategy,
                 custom_key=custom_key,
                 fields=self.fields

@@ -1,16 +1,3 @@
-"""
-Metrics package for application monitoring and observability.
-
-This package provides a modular metrics collection system organized by domain:
-- execution: Script execution metrics
-- events: Event processing and Kafka metrics
-- health: Health check metrics
-- connections: SSE/WebSocket connection metrics
-- database: Database operation metrics
-- kubernetes: Kubernetes and pod metrics
-- security: Security-related metrics
-"""
-
 from app.core.metrics.base import BaseMetrics, MetricsConfig
 from app.core.metrics.connections import ConnectionMetrics
 from app.core.metrics.coordinator import CoordinatorMetrics

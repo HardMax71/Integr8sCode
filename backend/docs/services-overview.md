@@ -48,7 +48,7 @@ Directory Tour: `backend/app/services/`
 - resource_cleaner.py: Deletes the per‑execution pod and ConfigMap. NetworkPolicies are no longer deleted here — isolation is cluster‑level static policy.
 
 6) sse/
-- partitioned_event_router.py + sse_shutdown_manager.py: Binds Kafka consumers to execution IDs and buffers events per execution for Server‑Sent Events streams with graceful shutdown.
+- kafka_redis_bridge.py + sse_shutdown_manager.py: Bridges Kafka events to Redis channels for Server‑Sent Events across workers, with graceful shutdown.
 - Why: Keeps SSE robust under load, isolates a slow client from blocking others, and implements backpressure.
 
 7) execution_service.py
@@ -153,4 +153,3 @@ Troubleshooting Pointers
 - “Why do I still see TCP egress?” Ensure Cilium is installed and the CNP is applied in the same namespace. The code no longer creates per‑execution NetworkPolicies; it expects cluster‑level enforcement.
 - “Why do I see 422/405 in load?” That’s the monkey test fuzzing invalid or wrong endpoints. Use `--mode user` for clean runs.
 - “Why do I get 599 in load?” Client timeouts due to saturation. Scale with Gunicorn workers (WEB_CONCURRENCY), and avoid TLS during load if acceptable.
-

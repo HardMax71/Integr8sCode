@@ -1,3 +1,4 @@
+import logging
 import threading
 import time
 from collections import deque
@@ -8,7 +9,6 @@ from opentelemetry.sdk.trace.sampling import Decision, Sampler, SamplingResult
 from opentelemetry.trace import Link, SpanKind, TraceState, get_current_span
 from opentelemetry.util.types import Attributes
 
-from app.core.logging import logger
 from app.settings import get_settings
 
 
@@ -67,7 +67,9 @@ class AdaptiveSampler(Sampler):
         self._adjustment_thread = threading.Thread(target=self._adjustment_loop, daemon=True)
         self._adjustment_thread.start()
 
-        logger.info(f"Adaptive sampler initialized with base rate: {base_rate}")
+        logging.getLogger("integr8scode").info(
+            f"Adaptive sampler initialized with base rate: {base_rate}"
+        )
 
     def should_sample(
             self,
@@ -208,7 +210,7 @@ class AdaptiveSampler(Sampler):
             # Scale up based on error rate
             error_multiplier: float = min(10.0, 1 + (error_rate / self.error_rate_threshold))
             new_rate = min(self.max_rate, self.base_rate * error_multiplier)
-            logger.warning(
+            logging.getLogger("integr8scode").warning(
                 f"High error rate detected ({error_rate:.1%}), "
                 f"increasing sampling to {new_rate:.1%}"
             )
@@ -218,7 +220,7 @@ class AdaptiveSampler(Sampler):
             # Scale down based on traffic
             traffic_divisor = request_rate / self.high_traffic_threshold
             new_rate = max(self.min_rate, self.base_rate / traffic_divisor)
-            logger.info(
+            logging.getLogger("integr8scode").info(
                 f"High traffic detected ({request_rate} req/min), "
                 f"decreasing sampling to {new_rate:.1%}"
             )
@@ -231,7 +233,7 @@ class AdaptiveSampler(Sampler):
                     self._current_rate + (new_rate - self._current_rate) * change_rate
             )
 
-            logger.info(
+            logging.getLogger("integr8scode").info(
                 f"Adjusted sampling rate to {self._current_rate:.1%} "
                 f"(error_rate: {error_rate:.1%}, request_rate: {request_rate} req/min)"
             )
@@ -244,7 +246,9 @@ class AdaptiveSampler(Sampler):
             try:
                 self._adjust_sampling_rate()
             except Exception as e:
-                logger.error(f"Error adjusting sampling rate: {e}")
+                logging.getLogger("integr8scode").error(
+                    f"Error adjusting sampling rate: {e}"
+                )
 
     def shutdown(self) -> None:
         """Shutdown the sampler"""

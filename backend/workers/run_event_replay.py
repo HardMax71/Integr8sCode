@@ -5,7 +5,7 @@ from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
 from app.db.repositories.replay_repository import ReplayRepository
 from app.db.schema.schema_manager import SchemaManager
-from app.events.core.producer import ProducerConfig, UnifiedProducer
+from app.events.core import ProducerConfig, UnifiedProducer
 from app.events.event_store import create_event_store
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.event_replay.replay_service import EventReplayService

@@ -1,4 +1,3 @@
-import asyncio
 import pytest
 
 from app.services.coordinator.resource_manager import ResourceManager
@@ -11,6 +10,7 @@ async def test_request_allocation_defaults_and_limits() -> None:
     # Default for python
     alloc = await rm.request_allocation("e1", "python")
     assert alloc is not None
+
     assert alloc.cpu_cores > 0
     assert alloc.memory_mb > 0
 
@@ -47,7 +47,7 @@ async def test_resource_stats() -> None:
     # Make sure the allocation succeeds
     alloc = await rm.request_allocation("e1", "python", requested_cpu=0.5, requested_memory_mb=256)
     assert alloc is not None, "Allocation should have succeeded"
-    
+
     stats = await rm.get_resource_stats()
 
     assert stats.total.cpu_cores > 0

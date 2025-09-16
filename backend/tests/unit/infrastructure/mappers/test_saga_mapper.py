@@ -1,16 +1,16 @@
-import pytest
 from datetime import datetime, timezone
 
-from app.infrastructure.mappers.saga_mapper import (
+import pytest
+
+from app.domain.enums.saga import SagaState
+from app.domain.saga.models import Saga, SagaFilter, SagaInstance
+from app.infrastructure.mappers import (
     SagaEventMapper,
     SagaFilterMapper,
     SagaInstanceMapper,
     SagaMapper,
     SagaResponseMapper,
 )
-from app.domain.enums.saga import SagaState
-from app.domain.saga.models import Saga, SagaFilter, SagaInstance
-
 
 pytestmark = pytest.mark.unit
 
@@ -83,5 +83,5 @@ def test_saga_event_mapper_to_cancelled_event() -> None:
 def test_saga_filter_mapper_to_query() -> None:
     f = SagaFilter(state=SagaState.COMPLETED, execution_ids=["e1"], saga_name="demo", error_status=False)
     fq = SagaFilterMapper().to_mongodb_query(f)
-    assert fq["state"] == SagaState.COMPLETED.value and fq["execution_id"]["$in"] == ["e1"] and fq["error_message"] is None
-
+    assert fq["state"] == SagaState.COMPLETED.value and fq["execution_id"]["$in"] == ["e1"] and fq[
+        "error_message"] is None

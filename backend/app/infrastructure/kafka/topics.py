@@ -1,5 +1,3 @@
-"""Kafka topic configuration and utilities."""
-
 from typing import Any
 
 from app.domain.enums.kafka import KafkaTopic
@@ -125,6 +123,30 @@ def get_topic_configs() -> dict[KafkaTopic, dict[str, Any]]:
             }
         },
         KafkaTopic.USER_SETTINGS_EVENTS: {
+            "num_partitions": 3,
+            "replication_factor": 1,
+            "config": {
+                "retention.ms": "2592000000",  # 30 days
+                "compression.type": "gzip",
+            }
+        },
+        KafkaTopic.USER_SETTINGS_THEME_EVENTS: {
+            "num_partitions": 3,
+            "replication_factor": 1,
+            "config": {
+                "retention.ms": "2592000000",  # 30 days
+                "compression.type": "gzip",
+            }
+        },
+        KafkaTopic.USER_SETTINGS_NOTIFICATION_EVENTS: {
+            "num_partitions": 3,
+            "replication_factor": 1,
+            "config": {
+                "retention.ms": "2592000000",  # 30 days
+                "compression.type": "gzip",
+            }
+        },
+        KafkaTopic.USER_SETTINGS_EDITOR_EVENTS: {
             "num_partitions": 3,
             "replication_factor": 1,
             "config": {

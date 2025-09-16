@@ -1,6 +1,6 @@
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
-from app.events.core.types import ConsumerConfig, ProducerConfig
+from app.events.core import ConsumerConfig, ProducerConfig
 from app.infrastructure.kafka.mappings import (
     get_event_class_for_type,
     get_event_types_for_topic,
@@ -38,4 +38,3 @@ def test_event_mappings_topics() -> None:
     # All event types for a topic include at least one of the checked types
     ev_types = get_event_types_for_topic(KafkaTopic.EXECUTION_EVENTS)
     assert EventType.EXECUTION_REQUESTED in ev_types
-

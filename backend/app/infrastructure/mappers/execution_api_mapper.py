@@ -4,7 +4,7 @@ from typing import Optional
 
 from app.domain.enums.common import ErrorType
 from app.domain.enums.storage import ExecutionErrorType
-from app.domain.execution.models import DomainExecution, ResourceUsageDomain
+from app.domain.execution import DomainExecution, ResourceUsageDomain
 from app.schemas_pydantic.execution import ExecutionResponse, ExecutionResult
 from app.schemas_pydantic.execution import ResourceUsage as ResourceUsageSchema
 
@@ -33,8 +33,8 @@ class ExecutionApiMapper:
         return ExecutionResult(
             execution_id=e.execution_id,
             status=e.status,
-            output=e.output,
-            errors=e.errors,
+            stdout=e.stdout,
+            stderr=e.stderr,
             lang=e.lang,
             lang_version=e.lang_version,
             resource_usage=ru,

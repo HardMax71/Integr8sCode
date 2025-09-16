@@ -1,10 +1,8 @@
-"""Notification-related Kafka events."""
-
 from typing import ClassVar, Literal
 
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
-from app.domain.enums.notification import NotificationChannel, NotificationPriority
+from app.domain.enums.notification import NotificationChannel, NotificationSeverity
 from app.infrastructure.kafka.events.base import BaseEvent
 
 
@@ -13,9 +11,10 @@ class NotificationCreatedEvent(BaseEvent):
     topic: ClassVar[KafkaTopic] = KafkaTopic.NOTIFICATION_EVENTS
     notification_id: str
     user_id: str
-    title: str
-    message: str
-    priority: NotificationPriority
+    subject: str
+    body: str
+    severity: NotificationSeverity
+    tags: list[str]
     channels: list[NotificationChannel]
 
 

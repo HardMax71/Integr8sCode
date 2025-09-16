@@ -11,27 +11,14 @@
     
     let loading = false;
     let deleting = {};
+    let includeTagsInput = '';
+    let excludeTagsInput = '';
+    let prefixInput = '';
     
     const bellIcon = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>`;
     const trashIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>`;
     const clockIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
     
-    const notificationIcons = {
-        execution_completed: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`,
-        execution_failed: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`,
-        execution_timeout: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`,
-        system_update: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>`,
-        security_alert: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>`,
-        resource_limit: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>`,
-        account_update: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>`,
-        settings_changed: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>`
-    };
-    
-    const priorityColors = {
-        low: 'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30',
-        medium: 'text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/30',
-        high: 'text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30'
-    };
     
     onMount(async () => {
         // Check cached auth state first
@@ -86,6 +73,22 @@
             addNotification('Failed to mark all as read', 'error');
         }
     }
+
+    function parseTags(input) {
+        return input
+            .split(/[\s,]+/)
+            .map(s => s.trim())
+            .filter(Boolean);
+    }
+
+    async function applyFilters() {
+        loading = true;
+        const include_tags = parseTags(includeTagsInput);
+        const exclude_tags = parseTags(excludeTagsInput);
+        const tag_prefix = prefixInput.trim() || undefined;
+        await notificationStore.load(100, { include_tags, exclude_tags, tag_prefix });
+        loading = false;
+    }
     
     function formatTimestamp(timestamp) {
         const date = new Date(timestamp);
@@ -103,27 +106,51 @@
         return date.toLocaleDateString();
     }
     
-    function getNotificationIcon(type) {
-        return notificationIcons[type] || bellIcon;
-    }
-    
-    function getNotificationColor(type) {
-        const colorMap = {
-            execution_completed: 'text-green-600 dark:text-green-400',
-            execution_failed: 'text-red-600 dark:text-red-400',
-            execution_timeout: 'text-yellow-600 dark:text-yellow-400',
-            system_update: 'text-blue-600 dark:text-blue-400',
-            security_alert: 'text-red-600 dark:text-red-400',
-            resource_limit: 'text-orange-600 dark:text-orange-400',
-            account_update: 'text-purple-600 dark:text-purple-400',
-            settings_changed: 'text-gray-600 dark:text-gray-400'
-        };
-        return colorMap[type] || 'text-gray-600 dark:text-gray-400';
+    // New unified notification rendering: derive icons from tags and colors from severity
+    const severityColors = {
+        low: 'text-gray-600 dark:text-gray-400',
+        medium: 'text-blue-600 dark:text-blue-400',
+        high: 'text-orange-600 dark:text-orange-400',
+        urgent: 'text-red-600 dark:text-red-400'
+    };
+
+    function getNotificationIcon(tags = []) {
+        const set = new Set(tags || []);
+        const check = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+        const warn = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+        const clock = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+        const info = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z" /></svg>`;
+        if (set.has('failed') || set.has('error') || set.has('security')) return warn;
+        if (set.has('timeout') || set.has('warning')) return clock;
+        if (set.has('completed') || set.has('success')) return check;
+        return info;
     }
 </script>
 
 <div class="min-h-screen bg-bg-default dark:bg-dark-bg-default">
     <div class="container mx-auto px-4 py-8 max-w-5xl">
+        <div class="card p-4 mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div>
+                    <label class="block text-sm text-fg-muted dark:text-dark-fg-muted mb-1">Include tags</label>
+                    <input class="input input-bordered w-full" placeholder="e.g. execution,completed"
+                           bind:value={includeTagsInput}>
+                </div>
+                <div>
+                    <label class="block text-sm text-fg-muted dark:text-dark-fg-muted mb-1">Exclude tags</label>
+                    <input class="input input-bordered w-full" placeholder="e.g. external_alert"
+                           bind:value={excludeTagsInput}>
+                </div>
+                <div>
+                    <label class="block text-sm text-fg-muted dark:text-dark-fg-muted mb-1">Tag prefix</label>
+                    <input class="input input-bordered w-full" placeholder="e.g. exec:"
+                           bind:value={prefixInput}>
+                </div>
+                <div class="flex items-end">
+                    <button class="btn btn-primary w-full" on:click={applyFilters}>Filter</button>
+                </div>
+            </div>
+        </div>
         <div class="flex justify-between items-center mb-8">
             <h1 class="text-3xl font-bold text-fg-default dark:text-dark-fg-default">Notifications</h1>
             {#if $notifications.length > 0 && $unreadCount > 0}
@@ -168,8 +195,8 @@
                     >
                         <div class="p-4">
                             <div class="flex items-start gap-4">
-                                <div class="{getNotificationColor(notification.notification_type || 'default')} mt-1">
-                                    {@html getNotificationIcon(notification.notification_type || 'default')}
+                                <div class="mt-1 {severityColors[notification.severity || 'medium']}">
+                                    {@html getNotificationIcon(notification.tags)}
                                 </div>
                                 
                                 <div class="flex-1">
@@ -194,6 +221,21 @@
                                                 {@html trashIcon}
                                             {/if}
                                         </button>
+                                        {#if (notification.tags || []).some(t => t.startsWith('exec:'))}
+                                            {#if (notification.tags || []).find(t => t.startsWith('exec:'))}
+                                                {#key notification.notification_id}
+                                                    <a
+                                                        href={`/api/v1/result/${(notification.tags || []).find(t => t.startsWith('exec:')).split(':')[1]}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        class="btn btn-ghost btn-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 dark:hover:bg-opacity-20 ml-2"
+                                                        on:click|stopPropagation
+                                                    >
+                                                        View result
+                                                    </a>
+                                                {/key}
+                                            {/if}
+                                        {/if}
                                     </div>
                                     
                                     <div class="flex items-center gap-4 mt-3">
@@ -206,9 +248,17 @@
                                             {notification.channel}
                                         </span>
                                         
-                                        {#if notification.priority}
-                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {priorityColors[notification.priority] || priorityColors.medium}">
-                                                {notification.priority}
+                                        {#if notification.severity}
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-neutral-100 dark:bg-neutral-800 {severityColors[notification.severity] || severityColors.medium}">
+                                                {notification.severity}
+                                            </span>
+                                        {/if}
+                                        
+                                        {#if notification.tags && notification.tags.length}
+                                            <span class="flex flex-wrap gap-1">
+                                                {#each notification.tags.slice(0,6) as tag}
+                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-neutral-100 dark:bg-neutral-800 text-fg-muted dark:text-dark-fg-muted border border-neutral-200 dark:border-neutral-700">{tag}</span>
+                                                {/each}
                                             </span>
                                         {/if}
                                         
@@ -227,3 +277,10 @@
         {/if}
     </div>
 </div>
+
+<style>
+    /* Ensure dropdown is above other content */
+    .relative {
+        z-index: 40;
+    }
+</style>

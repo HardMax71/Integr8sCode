@@ -1,13 +1,8 @@
 import pytest
 from datetime import datetime, timezone
 
-from app.infrastructure.mappers.admin_mapper import (
-    AuditLogMapper,
-    SettingsMapper,
-    UserListResultMapper,
-    UserMapper,
-)
-from app.domain.admin.settings_models import (
+from app.infrastructure.mappers import AuditLogMapper, SettingsMapper, UserListResultMapper, UserMapper
+from app.domain.admin import (
     AuditAction,
     AuditLogEntry,
     ExecutionLimits,
@@ -15,8 +10,8 @@ from app.domain.admin.settings_models import (
     SecuritySettings,
     SystemSettings,
 )
-from app.domain.admin.user_models import User as DomainAdminUser
-from app.domain.admin.user_models import UserListResult, UserRole, UserUpdate, UserCreation
+from app.domain.user import User as DomainAdminUser
+from app.domain.user import UserListResult, UserRole, UserUpdate, UserCreation
 from app.schemas_pydantic.user import User as ServiceUser
 
 
@@ -132,4 +127,3 @@ def test_audit_log_mapper_roundtrip() -> None:
     d = AuditLogMapper.to_dict(entry)
     e2 = AuditLogMapper.from_dict(d)
     assert e2.action == entry.action and e2.reason == "init"
-

@@ -27,6 +27,9 @@ class KafkaTopic(StringEnum):
     USER_EVENTS = "user_events"
     USER_NOTIFICATIONS = "user_notifications"
     USER_SETTINGS_EVENTS = "user_settings_events"
+    USER_SETTINGS_THEME_EVENTS = "user_settings_theme_events"
+    USER_SETTINGS_NOTIFICATION_EVENTS = "user_settings_notification_events"
+    USER_SETTINGS_EDITOR_EVENTS = "user_settings_editor_events"
 
     # Script topics
     SCRIPT_EVENTS = "script_events"

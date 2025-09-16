@@ -6,7 +6,6 @@
     import { addNotification } from '../stores/notifications';
     import { get } from 'svelte/store';
     import { fly } from 'svelte/transition';
-    import { requireAuth } from '../lib/route-guard';
     import { setCachedSettings, updateCachedSetting } from '../lib/settings-cache';
     import Spinner from '../components/Spinner.svelte';
     
@@ -69,9 +68,7 @@
     
     onMount(async () => {
         // First verify if user is authenticated
-        const isAuth = await requireAuth();
-        
-        if (!isAuth) {
+        if (!get(isAuthenticated)) {
             return;
         }
         
@@ -324,9 +321,18 @@
         }
     }
     
-    function formatTimestamp(timestamp) {
-        // Backend sends Unix timestamps (seconds since epoch)
-        const date = new Date(timestamp * 1000);
+    function formatTimestamp(ts) {
+        // Support ISO 8601 strings or epoch seconds/ms
+        let date;
+        if (typeof ts === 'string') {
+            date = new Date(ts);
+        } else if (typeof ts === 'number') {
+            // Heuristic: seconds vs ms
+            date = ts < 1e12 ? new Date(ts * 1000) : new Date(ts);
+        } else {
+            return '';
+        }
+        if (isNaN(date.getTime())) return '';
         const day = String(date.getDate()).padStart(2, '0');
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const year = date.getFullYear();

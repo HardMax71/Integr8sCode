@@ -2,7 +2,7 @@ import re
 from datetime import datetime, timezone
 from typing import Any, Dict
 
-from app.domain.admin.settings_models import (
+from app.domain.admin import (
     AuditAction,
     AuditLogEntry,
     AuditLogFields,
@@ -13,14 +13,15 @@ from app.domain.admin.settings_models import (
     SettingsFields,
     SystemSettings,
 )
-from app.domain.admin.user_models import (
+from app.domain.user import (
     User as DomainAdminUser,
 )
-from app.domain.admin.user_models import (
+from app.domain.user import (
     UserCreation,
     UserFields,
     UserListResult,
     UserRole,
+    UserSearchFilter,
     UserUpdate,
 )
 from app.schemas_pydantic.user import User as ServiceUser
@@ -42,18 +43,18 @@ class UserMapper:
             UserFields.CREATED_AT: user.created_at,
             UserFields.UPDATED_AT: user.updated_at
         }
-    
+
     @staticmethod
     def from_mongo_document(data: Dict[str, Any]) -> DomainAdminUser:
         required_fields = [UserFields.USER_ID, UserFields.USERNAME, UserFields.EMAIL]
         for field in required_fields:
             if field not in data or not data[field]:
                 raise ValueError(f"Missing required field: {field}")
-        
+
         email = data[UserFields.EMAIL]
         if not EMAIL_PATTERN.match(email):
             raise ValueError(f"Invalid email format: {email}")
-        
+
         return DomainAdminUser(
             user_id=data[UserFields.USER_ID],
             username=data[UserFields.USERNAME],
@@ -65,12 +66,12 @@ class UserMapper:
             created_at=data.get(UserFields.CREATED_AT, datetime.now(timezone.utc)),
             updated_at=data.get(UserFields.UPDATED_AT, datetime.now(timezone.utc))
         )
-    
+
     @staticmethod
     def to_response_dict(user: DomainAdminUser) -> Dict[str, Any]:
         created_at_ts = user.created_at.timestamp() if user.created_at else 0.0
         updated_at_ts = user.updated_at.timestamp() if user.updated_at else 0.0
-        
+
         return {
             "user_id": user.user_id,
             "username": user.username,
@@ -96,11 +97,11 @@ class UserMapper:
             created_at=user.created_at or datetime.now(timezone.utc),
             updated_at=user.updated_at or datetime.now(timezone.utc),
         )
-    
+
     @staticmethod
     def to_update_dict(update: UserUpdate) -> Dict[str, Any]:
         update_dict: Dict[str, Any] = {}
-        
+
         if update.username is not None:
             update_dict[UserFields.USERNAME] = update.username
         if update.email is not None:
@@ -111,9 +112,21 @@ class UserMapper:
             update_dict[UserFields.ROLE] = update.role.value
         if update.is_active is not None:
             update_dict[UserFields.IS_ACTIVE] = update.is_active
-        
+
         return update_dict
-    
+
+    @staticmethod
+    def search_filter_to_query(f: UserSearchFilter) -> Dict[str, Any]:
+        query: Dict[str, Any] = {}
+        if f.search_text:
+            query["$or"] = [
+                {UserFields.USERNAME.value: {"$regex": f.search_text, "$options": "i"}},
+                {UserFields.EMAIL.value: {"$regex": f.search_text, "$options": "i"}},
+            ]
+        if f.role:
+            query[UserFields.ROLE] = f.role
+        return query
+
     @staticmethod
     def user_creation_to_dict(creation: UserCreation) -> Dict[str, Any]:
         return {
@@ -148,7 +161,7 @@ class SettingsMapper:
             "max_cpu_cores": limits.max_cpu_cores,
             "max_concurrent_executions": limits.max_concurrent_executions
         }
-    
+
     @staticmethod
     def execution_limits_from_dict(data: dict[str, Any] | None) -> ExecutionLimits:
         if not data:
@@ -159,7 +172,7 @@ class SettingsMapper:
             max_cpu_cores=data.get("max_cpu_cores", 2),
             max_concurrent_executions=data.get("max_concurrent_executions", 10)
         )
-    
+
     @staticmethod
     def security_settings_to_dict(settings: SecuritySettings) -> dict[str, int]:
         return {
@@ -168,7 +181,7 @@ class SettingsMapper:
             "max_login_attempts": settings.max_login_attempts,
             "lockout_duration_minutes": settings.lockout_duration_minutes
         }
-    
+
     @staticmethod
     def security_settings_from_dict(data: dict[str, Any] | None) -> SecuritySettings:
         if not data:
@@ -179,7 +192,7 @@ class SettingsMapper:
             max_login_attempts=data.get("max_login_attempts", 5),
             lockout_duration_minutes=data.get("lockout_duration_minutes", 15)
         )
-    
+
     @staticmethod
     def monitoring_settings_to_dict(settings: MonitoringSettings) -> dict[str, Any]:
         return {
@@ -188,7 +201,7 @@ class SettingsMapper:
             "enable_tracing": settings.enable_tracing,
             "sampling_rate": settings.sampling_rate
         }
-    
+
     @staticmethod
     def monitoring_settings_from_dict(data: dict[str, Any] | None) -> MonitoringSettings:
         if not data:
@@ -199,7 +212,7 @@ class SettingsMapper:
             enable_tracing=data.get("enable_tracing", True),
             sampling_rate=data.get("sampling_rate", 0.1)
         )
-    
+
     @staticmethod
     def system_settings_to_dict(settings: SystemSettings) -> dict[str, Any]:
         mapper = SettingsMapper()
@@ -210,7 +223,7 @@ class SettingsMapper:
             SettingsFields.CREATED_AT: settings.created_at,
             SettingsFields.UPDATED_AT: settings.updated_at
         }
-    
+
     @staticmethod
     def system_settings_from_dict(data: dict[str, Any] | None) -> SystemSettings:
         if not data:
@@ -223,7 +236,7 @@ class SettingsMapper:
             created_at=data.get(SettingsFields.CREATED_AT, datetime.now(timezone.utc)),
             updated_at=data.get(SettingsFields.UPDATED_AT, datetime.now(timezone.utc))
         )
-    
+
     @staticmethod
     def system_settings_to_pydantic_dict(settings: SystemSettings) -> dict[str, Any]:
         mapper = SettingsMapper()
@@ -232,7 +245,7 @@ class SettingsMapper:
             "security_settings": mapper.security_settings_to_dict(settings.security_settings),
             "monitoring_settings": mapper.monitoring_settings_to_dict(settings.monitoring_settings)
         }
-    
+
     @staticmethod
     def system_settings_from_pydantic(data: dict[str, Any]) -> SystemSettings:
         mapper = SettingsMapper()
@@ -254,7 +267,7 @@ class AuditLogMapper:
             AuditLogFields.CHANGES: entry.changes,
             "reason": entry.reason  # reason is not in the enum but used as additional field
         }
-    
+
     @staticmethod
     def from_dict(data: dict[str, Any]) -> AuditLogEntry:
         return AuditLogEntry(

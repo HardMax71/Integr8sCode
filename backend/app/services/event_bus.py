@@ -1,10 +1,9 @@
 import asyncio
 import fnmatch
 import json
-from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, AsyncGenerator, Callable, Optional
+from typing import Any, Callable, Optional
 from uuid import uuid4
 
 from confluent_kafka import Consumer, KafkaError, Producer
@@ -58,7 +57,6 @@ class EventBus:
         self._running = True
         logger.info("Event bus started with Kafka backing")
 
-
     async def _initialize_kafka(self) -> None:
         """Initialize Kafka producer and consumer."""
         # Producer setup
@@ -78,7 +76,7 @@ class EventBus:
             'client.id': f'event-bus-consumer-{uuid4()}'
         })
         self.consumer.subscribe([self._topic])
-        
+
         # Store the executor function for sync operations
         loop = asyncio.get_event_loop()
         self._executor = loop.run_in_executor
@@ -131,10 +129,10 @@ class EventBus:
                 # Serialize and send message asynchronously
                 value = json.dumps(event).encode('utf-8')
                 key = event_type.encode('utf-8') if event_type else None
-                
+
                 # Use executor to avoid blocking
                 if self._executor:
-                    await self._executor(None, self.producer.produce, self._topic, value=value, key=key)
+                    await self._executor(None, self.producer.produce, self._topic, value, key)
                     # Poll to handle delivery callbacks
                     await self._executor(None, self.producer.poll, 0)
                 else:
@@ -273,10 +271,10 @@ class EventBus:
                     # Fallback to sync operation if executor not available
                     await asyncio.sleep(0.1)
                     continue
-                
+
                 if msg is None:
                     continue
-                    
+
                 if msg.error():
                     if msg.error().code() != KafkaError._PARTITION_EOF:
                         logger.error(f"Consumer error: {msg.error()}")
@@ -335,15 +333,6 @@ class EventBusManager:
             if self._event_bus:
                 await self._event_bus.stop()
                 self._event_bus = None
-
-    @asynccontextmanager
-    async def event_bus_context(self) -> AsyncGenerator[EventBus, None]:
-        """Context manager for event bus lifecycle."""
-        bus = await self.get_event_bus()
-        try:
-            yield bus
-        finally:
-            await self.close()
 
 
 async def get_event_bus(request: Request) -> EventBus:

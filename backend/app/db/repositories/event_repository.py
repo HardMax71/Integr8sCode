@@ -1,13 +1,14 @@
-import time
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from types import MappingProxyType
 from typing import Any, AsyncIterator, Mapping
 
 from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
 from pymongo import ASCENDING, DESCENDING
-from pymongo.errors import DuplicateKeyError
 
 from app.core.logging import logger
+from app.core.tracing import EventAttributes
+from app.core.tracing.utils import add_span_attributes
 from app.domain.enums.user import UserRole
 from app.domain.events import (
     ArchivedEvent,
@@ -19,26 +20,20 @@ from app.domain.events import (
     EventReplayInfo,
     EventStatistics,
 )
-from app.infrastructure.mappers.event_mapper import ArchivedEventMapper, EventMapper
+from app.domain.events.event_models import CollectionNames
+from app.infrastructure.mappers import ArchivedEventMapper, EventFilterMapper, EventMapper
 
 
 class EventRepository:
     def __init__(self, database: AsyncIOMotorDatabase) -> None:
         self.database = database
-        self._collection: AsyncIOMotorCollection | None = None
         self.mapper = EventMapper()
-
-    @property
-    def collection(self) -> AsyncIOMotorCollection:
-        if self._collection is None:
-            self._collection = self.database.events
-        return self._collection
-
+        self._collection: AsyncIOMotorCollection = self.database.get_collection(CollectionNames.EVENTS)
 
     def _build_time_filter(
             self,
-            start_time: datetime | float | None,
-            end_time: datetime | float | None
+            start_time: datetime | None,
+            end_time: datetime | None
     ) -> dict[str, object]:
         """Build time range filter, eliminating if-else branching."""
         return {
@@ -47,28 +42,6 @@ class EventRepository:
                 "$lte": end_time
             }.items() if value is not None
         }
-
-    def _build_query(self, **filters: object) -> dict[str, object]:
-        """Build MongoDB query from non-None filters, eliminating if-else branching."""
-        query: dict[str, object] = {}
-
-        # Handle special cases
-        for key, value in filters.items():
-            if value is None:
-                continue
-
-            if key == "time_range" and isinstance(value, tuple):
-                start_time, end_time = value
-                time_filter = self._build_time_filter(start_time, end_time)
-                if time_filter:
-                    query[EventFields.TIMESTAMP] = time_filter
-            elif key == "event_types" and isinstance(value, list):
-                query[EventFields.EVENT_TYPE] = {"$in": value}
-            else:
-                # Direct field mapping
-                query[key] = value
-
-        return query
 
     async def store_event(self, event: Event) -> str:
         """
@@ -83,22 +56,21 @@ class EventRepository:
         Raises:
             DuplicateKeyError: If event with same ID already exists
         """
-        try:
-            if not event.stored_at:
-                event = replace(event, stored_at=datetime.now(timezone.utc))
+        if not event.stored_at:
+            event = replace(event, stored_at=datetime.now(timezone.utc))
 
-            event_doc = self.mapper.to_mongo_document(event)
-            _ = await self.collection.insert_one(event_doc)
+        event_doc = self.mapper.to_mongo_document(event)
+        add_span_attributes(
+            **{
+                str(EventAttributes.EVENT_TYPE): event.event_type,
+                str(EventAttributes.EVENT_ID): event.event_id,
+                str(EventAttributes.EXECUTION_ID): event.aggregate_id or "",
+            }
+        )
+        _ = await self._collection.insert_one(event_doc)
 
-            logger.debug(f"Stored event {event.event_id} of type {event.event_type}")
-            return event.event_id
-
-        except DuplicateKeyError:
-            logger.warning(f"Duplicate event ID: {event.event_id}")
-            raise
-        except Exception as e:
-            logger.error(f"Failed to store event: {e}")
-            raise
+        logger.debug(f"Stored event {event.event_id} of type {event.event_type}")
+        return event.event_id
 
     async def store_events_batch(self, events: list[Event]) -> list[str]:
         """
@@ -112,38 +84,26 @@ class EventRepository:
         """
         if not events:
             return []
+        now = datetime.now(timezone.utc)
+        event_docs = []
+        for event in events:
+            if not event.stored_at:
+                event = replace(event, stored_at=now)
+            event_docs.append(self.mapper.to_mongo_document(event))
 
-        try:
-            now = datetime.now(timezone.utc)
-            event_docs = []
-            for event in events:
-                if not event.stored_at:
-                    event = replace(event, stored_at=now)
-                event_docs.append(self.mapper.to_mongo_document(event))
+        result = await self._collection.insert_many(event_docs, ordered=False)
+        add_span_attributes(
+            **{
+                "events.batch.count": len(event_docs),
+            }
+        )
 
-            result = await self.collection.insert_many(event_docs, ordered=False)
-
-            logger.info(f"Stored {len(result.inserted_ids)} events in batch")
-            return [event.event_id for event in events]
-
-        except Exception as e:
-            logger.error(f"Failed to store event batch: {e}")
-            stored_ids = []
-            for event in events:
-                try:
-                    await self.store_event(event)
-                    stored_ids.append(event.event_id)
-                except DuplicateKeyError:
-                    continue
-            return stored_ids
+        logger.info(f"Stored {len(result.inserted_ids)} events in batch")
+        return [event.event_id for event in events]
 
     async def get_event(self, event_id: str) -> Event | None:
-        try:
-            result = await self.collection.find_one({EventFields.EVENT_ID: event_id})
-            return self.mapper.from_mongo_document(result) if result else None
-        except Exception as e:
-            logger.error(f"Failed to get event: {e}")
-            return None
+        result = await self._collection.find_one({EventFields.EVENT_ID: event_id})
+        return self.mapper.from_mongo_document(result) if result else None
 
     async def get_events_by_type(
             self,
@@ -158,7 +118,7 @@ class EventRepository:
         if time_filter:
             query[EventFields.TIMESTAMP] = time_filter
 
-        cursor = self.collection.find(query).sort(EventFields.TIMESTAMP, DESCENDING).skip(skip).limit(limit)
+        cursor = self._collection.find(query).sort(EventFields.TIMESTAMP, DESCENDING).skip(skip).limit(limit)
         docs = await cursor.to_list(length=limit)
         return [self.mapper.from_mongo_document(doc) for doc in docs]
 
@@ -168,24 +128,20 @@ class EventRepository:
             event_types: list[str] | None = None,
             limit: int = 100
     ) -> list[Event]:
-        try:
-            query: dict[str, Any] = {EventFields.AGGREGATE_ID: aggregate_id}
-            if event_types:
-                query[EventFields.EVENT_TYPE] = {"$in": event_types}
+        query: dict[str, Any] = {EventFields.AGGREGATE_ID: aggregate_id}
+        if event_types:
+            query[EventFields.EVENT_TYPE] = {"$in": event_types}
 
-            cursor = self.collection.find(query).sort(EventFields.TIMESTAMP, ASCENDING).limit(limit)
-            docs = await cursor.to_list(length=limit)
-            return [self.mapper.from_mongo_document(doc) for doc in docs]
-        except Exception as e:
-            logger.error(f"Failed to get events by aggregate: {e}")
-            return []
+        cursor = self._collection.find(query).sort(EventFields.TIMESTAMP, ASCENDING).limit(limit)
+        docs = await cursor.to_list(length=limit)
+        return [self.mapper.from_mongo_document(doc) for doc in docs]
 
     async def get_events_by_correlation(
             self,
             correlation_id: str,
             limit: int = 100
     ) -> list[Event]:
-        cursor = (self.collection.find({EventFields.METADATA_CORRELATION_ID: correlation_id})
+        cursor = (self._collection.find({EventFields.METADATA_CORRELATION_ID: correlation_id})
                   .sort(EventFields.TIMESTAMP, ASCENDING).limit(limit))
         docs = await cursor.to_list(length=limit)
         return [self.mapper.from_mongo_document(doc) for doc in docs]
@@ -206,7 +162,7 @@ class EventRepository:
         if time_filter:
             query[EventFields.TIMESTAMP] = time_filter
 
-        cursor = self.collection.find(query).sort(EventFields.TIMESTAMP, DESCENDING).skip(skip).limit(limit)
+        cursor = self._collection.find(query).sort(EventFields.TIMESTAMP, DESCENDING).skip(skip).limit(limit)
         docs = await cursor.to_list(length=limit)
         return [self.mapper.from_mongo_document(doc) for doc in docs]
 
@@ -222,7 +178,7 @@ class EventRepository:
             ]
         }
 
-        cursor = self.collection.find(query).sort(EventFields.TIMESTAMP, ASCENDING).limit(limit)
+        cursor = self._collection.find(query).sort(EventFields.TIMESTAMP, ASCENDING).limit(limit)
         docs = await cursor.to_list(length=limit)
         return [self.mapper.from_mongo_document(doc) for doc in docs]
 
@@ -237,14 +193,14 @@ class EventRepository:
         if filters:
             query.update(filters)
 
-        cursor = self.collection.find(query).sort(EventFields.TIMESTAMP, DESCENDING).skip(skip).limit(limit)
+        cursor = self._collection.find(query).sort(EventFields.TIMESTAMP, DESCENDING).skip(skip).limit(limit)
         docs = await cursor.to_list(length=limit)
         return [self.mapper.from_mongo_document(doc) for doc in docs]
 
     async def get_event_statistics(
             self,
-            start_time: float | None = None,
-            end_time: float | None = None
+            start_time: datetime | None = None,
+            end_time: datetime | None = None
     ) -> EventStatistics:
         pipeline: list[Mapping[str, object]] = []
 
@@ -284,7 +240,7 @@ class EventRepository:
             }
         ])
 
-        result = await self.collection.aggregate(pipeline).to_list(length=1)
+        result = await self._collection.aggregate(pipeline).to_list(length=1)
 
         if result:
             stats = result[0]
@@ -304,7 +260,7 @@ class EventRepository:
 
     async def get_event_statistics_filtered(
             self,
-            match: dict[str, object] | None = None,
+            match: Mapping[str, object] = MappingProxyType({}),
             start_time: datetime | None = None,
             end_time: datetime | None = None,
     ) -> EventStatistics:
@@ -312,7 +268,7 @@ class EventRepository:
 
         and_clauses: list[dict[str, object]] = []
         if match:
-            and_clauses.append(match)
+            and_clauses.append(dict(match))
         time_filter = self._build_time_filter(start_time, end_time)
         if time_filter:
             and_clauses.append({EventFields.TIMESTAMP: time_filter})
@@ -351,7 +307,7 @@ class EventRepository:
             }
         ])
 
-        result = await self.collection.aggregate(pipeline).to_list(length=1)
+        result = await self._collection.aggregate(pipeline).to_list(length=1)
         if result:
             stats = result[0]
             return EventStatistics(
@@ -378,7 +334,7 @@ class EventRepository:
         if filters:
             pipeline.append({"$match": filters})
 
-        async with self.collection.watch(
+        async with self._collection.watch(
                 pipeline,
                 start_after=start_after,
                 full_document="updateLookup"
@@ -404,18 +360,18 @@ class EventRepository:
         Returns:
             Number of events deleted (or would be deleted if dry_run)
         """
-        cutoff_timestamp = time.time() - (older_than_days * 24 * 60 * 60)
+        cutoff_dt = datetime.now(timezone.utc) - timedelta(days=older_than_days)
 
-        query: dict[str, Any] = {EventFields.TIMESTAMP: {"$lt": cutoff_timestamp}}
+        query: dict[str, Any] = {EventFields.TIMESTAMP: {"$lt": cutoff_dt}}
         if event_types:
             query[EventFields.EVENT_TYPE] = {"$in": event_types}
 
         if dry_run:
-            count = await self.collection.count_documents(query)
+            count = await self._collection.count_documents(query)
             logger.info(f"Would delete {count} events older than {older_than_days} days")
             return count
 
-        result = await self.collection.delete_many(query)
+        result = await self._collection.delete_many(query)
         logger.info(f"Deleted {result.deleted_count} events older than {older_than_days} days")
         return result.deleted_count
 
@@ -439,10 +395,10 @@ class EventRepository:
         if time_filter:
             query[EventFields.TIMESTAMP] = time_filter
 
-        total_count = await self.collection.count_documents(query)
+        total_count = await self._collection.count_documents(query)
 
         sort_direction = DESCENDING if sort_order == "desc" else ASCENDING
-        cursor = self.collection.find(query)
+        cursor = self._collection.find(query)
         cursor = cursor.sort(EventFields.TIMESTAMP, sort_direction)
         cursor = cursor.skip(skip).limit(limit)
 
@@ -475,16 +431,16 @@ class EventRepository:
         elif user_role != UserRole.ADMIN:
             query[EventFields.METADATA_USER_ID] = user_id
 
-        # Apply filters using EventFilter's to_query method
-        base_query = filters.to_query()
+        # Apply filters using mapper from domain filter
+        base_query = EventFilterMapper.to_mongo_query(filters)
         query.update(base_query)
 
-        total_count = await self.collection.count_documents(query)
+        total_count = await self._collection.count_documents(query)
 
         sort_field = EventFields.TIMESTAMP
         sort_direction = DESCENDING
 
-        cursor = self.collection.find(query)
+        cursor = self._collection.find(query)
         cursor = cursor.sort(sort_field, sort_direction)
         cursor = cursor.skip(0).limit(100)
 
@@ -492,21 +448,15 @@ class EventRepository:
         async for doc in cursor:
             docs.append(doc)
 
-        return EventListResult(
+        result_obj = EventListResult(
             events=[self.mapper.from_mongo_document(doc) for doc in docs],
             total=total_count,
             skip=0,
             limit=100,
             has_more=100 < total_count
         )
-
-    # Access checks are handled in the service layer.
-
-    # Access checks are handled in the service layer.
-
-    # Access checks are handled in the service layer.
-
-    # Access checks are handled in the service layer.
+        add_span_attributes(**{"events.query.total": total_count})
+        return result_obj
 
     async def aggregate_events(
             self,
@@ -517,25 +467,23 @@ class EventRepository:
         pipeline.append({"$limit": limit})
 
         results = []
-        async for doc in self.collection.aggregate(pipeline):
+        async for doc in self._collection.aggregate(pipeline):
             if "_id" in doc and isinstance(doc["_id"], dict):
                 doc["_id"] = str(doc["_id"])
             results.append(doc)
 
         return EventAggregationResult(results=results, pipeline=pipeline)
 
-    # Access checks are handled in the service layer.
-
-    async def list_event_types(self, match: dict[str, object] | None = None) -> list[str]:
+    async def list_event_types(self, match: Mapping[str, object] = MappingProxyType({})) -> list[str]:
         pipeline: list[Mapping[str, object]] = []
         if match:
-            pipeline.append({"$match": match})
+            pipeline.append({"$match": dict(match)})
         pipeline.extend([
             {"$group": {"_id": f"${EventFields.EVENT_TYPE}"}},
             {"$sort": {"_id": 1}}
         ])
         event_types: list[str] = []
-        async for doc in self.collection.aggregate(pipeline):
+        async for doc in self._collection.aggregate(pipeline):
             event_types.append(doc["_id"])
         return event_types
 
@@ -547,9 +495,9 @@ class EventRepository:
             skip: int,
             limit: int,
     ) -> EventListResult:
-        total_count = await self.collection.count_documents(query)
+        total_count = await self._collection.count_documents(query)
 
-        cursor = self.collection.find(query)
+        cursor = self._collection.find(query)
         cursor = cursor.sort(sort_field, sort_direction)
         cursor = cursor.skip(skip).limit(limit)
 
@@ -596,12 +544,12 @@ class EventRepository:
         )
 
         # Archive the event
-        archive_collection = self.database["events_archive"]
+        archive_collection = self.database.get_collection(CollectionNames.EVENTS_ARCHIVE)
         archived_mapper = ArchivedEventMapper()
         await archive_collection.insert_one(archived_mapper.to_mongo_document(archived_event))
 
         # Delete from main collection
-        result = await self.collection.delete_one({EventFields.EVENT_ID: event_id})
+        result = await self._collection.delete_one({EventFields.EVENT_ID: event_id})
 
         if result.deleted_count == 0:
             raise Exception("Failed to delete event")

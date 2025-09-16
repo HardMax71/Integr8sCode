@@ -5,13 +5,16 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, AsyncIterator, Callable, Dict, List
 from uuid import uuid4
 
+from opentelemetry.trace import SpanKind
+
 from app.core.logging import logger
 from app.core.metrics import ReplayMetrics
-from app.core.tracing import SpanKind, trace_span
+from app.core.tracing.utils import trace_span
 from app.db.repositories.replay_repository import ReplayRepository
+from app.domain.admin.replay_updates import ReplaySessionUpdate
 from app.domain.enums.replay import ReplayStatus, ReplayTarget
-from app.domain.replay.models import ReplayConfig, ReplaySessionState
-from app.events.core.producer import UnifiedProducer
+from app.domain.replay import ReplayConfig, ReplaySessionState
+from app.events.core import UnifiedProducer
 from app.events.event_store import EventStore
 from app.infrastructure.kafka.events.base import BaseEvent
 
@@ -254,23 +257,32 @@ class EventReplayService:
             session: ReplaySessionState,
             batch: List[BaseEvent]
     ) -> None:
-        for event in batch:
-            if session.status != ReplayStatus.RUNNING:
-                break
+        with trace_span(
+                name="event_replay.process_batch",
+                kind=SpanKind.INTERNAL,
+                attributes={
+                    "replay.session_id": str(session.session_id),
+                    "replay.batch.count": len(batch),
+                    "replay.target": session.config.target,
+                },
+        ):
+            for event in batch:
+                if session.status != ReplayStatus.RUNNING:
+                    break
 
-            # Apply delay before external I/O
-            await self._apply_replay_delay(session, event)
-            try:
-                success = await self._replay_event(session, event)
-            except Exception as e:
-                await self._handle_replay_error(session, event, e)
-                if not session.config.skip_errors:
-                    raise
-                continue
+                # Apply delay before external I/O
+                await self._apply_replay_delay(session, event)
+                try:
+                    success = await self._replay_event(session, event)
+                except Exception as e:
+                    await self._handle_replay_error(session, event, e)
+                    if not session.config.skip_errors:
+                        raise
+                    continue
 
-            self._update_replay_metrics(session, event, success)
-            session.last_event_at = event.timestamp
-            await self._update_session_in_db(session)
+                self._update_replay_metrics(session, event, success)
+                session.last_event_at = event.timestamp
+                await self._update_session_in_db(session)
 
     async def _replay_event(
             self,
@@ -408,16 +420,18 @@ class EventReplayService:
     async def _update_session_in_db(self, session: ReplaySessionState) -> None:
         """Update session progress in the database."""
         try:
+            session_update = ReplaySessionUpdate(
+                status=session.status,
+                replayed_events=session.replayed_events,
+                failed_events=session.failed_events,
+                skipped_events=session.skipped_events,
+                completed_at=session.completed_at,
+            )
+            # Note: last_event_at is not in ReplaySessionUpdate
+            # If needed, add it to the domain model
             await self._repository.update_replay_session(
                 session_id=session.session_id,
-                updates={
-                    "status": session.status,
-                    "replayed_events": session.replayed_events,
-                    "failed_events": session.failed_events,
-                    "skipped_events": session.skipped_events,
-                    "completed_at": session.completed_at,
-                    "last_event_at": session.last_event_at
-                }
+                updates=session_update
             )
         except Exception as e:
             logger.error(f"Failed to update session in database: {e}")

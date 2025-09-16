@@ -14,8 +14,8 @@ class DomainExecution:
     execution_id: str = field(default_factory=lambda: str(uuid4()))
     script: str = ""
     status: ExecutionStatus = ExecutionStatus.QUEUED
-    output: Optional[str] = None
-    errors: Optional[str] = None
+    stdout: Optional[str] = None
+    stderr: Optional[str] = None
     lang: str = "python"
     lang_version: str = "3.11"
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))

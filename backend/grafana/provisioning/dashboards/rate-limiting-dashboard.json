@@ -388,8 +388,8 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "sum(rate(rate_limit_requests_total[5m])) by (identifier_type)",
-          "legendFormat": "{{identifier_type}}",
+          "expr": "sum(rate(rate_limit_requests_total[5m])) by (authenticated)",
+          "legendFormat": "{{authenticated}}",
           "refId": "A"
         }
       ],

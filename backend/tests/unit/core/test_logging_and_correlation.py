@@ -1,6 +1,6 @@
 import json
 import logging
-from types import SimpleNamespace
+import io
 from typing import Any
 
 import pytest
@@ -14,33 +14,32 @@ from app.core.logging import CorrelationFilter, JSONFormatter, setup_logger
 
 
 def capture_log(formatter: logging.Formatter, msg: str, extra: dict[str, Any] | None = None) -> dict[str, Any]:
-    import io
     logger = logging.getLogger("t")
-    
+
     # Use StringIO to capture output
     string_io = io.StringIO()
     stream = logging.StreamHandler(string_io)
     stream.setFormatter(formatter)
-    
+
     # Add the correlation filter
     correlation_filter = CorrelationFilter()
     stream.addFilter(correlation_filter)
-    
+
     logger.handlers = [stream]
     logger.setLevel(logging.INFO)
     logger.propagate = False
-    
+
     # Log the message
     logger.info(msg, extra=extra or {})
     stream.flush()
-    
+
     # Get the formatted output
     output = string_io.getvalue()
     string_io.close()
-    
+
     if output:
         return json.loads(output)
-    
+
     # Fallback: create and format record manually
     lr = logging.LogRecord("t", logging.INFO, __file__, 1, msg, (), None, None)
     # Apply the filter manually

@@ -1,20 +1,19 @@
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Request
 
-from app.api.dependencies import AuthService
-from app.api.rate_limit import DynamicRateLimiter
-from app.infrastructure.mappers.saved_script_api_mapper import SavedScriptApiMapper
+from app.infrastructure.mappers import SavedScriptApiMapper
 from app.schemas_pydantic.saved_script import (
     SavedScriptCreateRequest,
     SavedScriptResponse,
 )
+from app.services.auth_service import AuthService
 from app.services.saved_script_service import SavedScriptService
 
 router = APIRouter(route_class=DishkaRoute)
 
 
-@router.post("/scripts", response_model=SavedScriptResponse, dependencies=[Depends(DynamicRateLimiter)])
+@router.post("/scripts", response_model=SavedScriptResponse)
 async def create_saved_script(
         request: Request,
         saved_script: SavedScriptCreateRequest,
@@ -30,7 +29,7 @@ async def create_saved_script(
     return SavedScriptApiMapper.to_response(domain)
 
 
-@router.get("/scripts", response_model=list[SavedScriptResponse], dependencies=[Depends(DynamicRateLimiter)])
+@router.get("/scripts", response_model=list[SavedScriptResponse])
 async def list_saved_scripts(
         request: Request,
         saved_script_service: FromDishka[SavedScriptService],
@@ -41,7 +40,7 @@ async def list_saved_scripts(
     return SavedScriptApiMapper.list_to_response(items)
 
 
-@router.get("/scripts/{script_id}", response_model=SavedScriptResponse, dependencies=[Depends(DynamicRateLimiter)])
+@router.get("/scripts/{script_id}", response_model=SavedScriptResponse)
 async def get_saved_script(
         request: Request,
         script_id: str,
@@ -57,7 +56,7 @@ async def get_saved_script(
     return SavedScriptApiMapper.to_response(domain)
 
 
-@router.put("/scripts/{script_id}", response_model=SavedScriptResponse, dependencies=[Depends(DynamicRateLimiter)])
+@router.put("/scripts/{script_id}", response_model=SavedScriptResponse)
 async def update_saved_script(
         request: Request,
         script_id: str,
@@ -76,7 +75,7 @@ async def update_saved_script(
     return SavedScriptApiMapper.to_response(domain)
 
 
-@router.delete("/scripts/{script_id}", status_code=204, dependencies=[Depends(DynamicRateLimiter)])
+@router.delete("/scripts/{script_id}", status_code=204)
 async def delete_saved_script(
         request: Request,
         script_id: str,

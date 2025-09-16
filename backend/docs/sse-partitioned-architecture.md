@@ -24,7 +24,7 @@ Each SSE connection subscribes to events through the router, which maintains an 
 
 ## Implementation Details
 
-The PartitionedSSERouter class serves as the central component of the new architecture. It manages a configurable pool of consumers (defaulting to 10 instances) that operate within a single consumer group. The router maintains a dictionary of event buffers, one per active execution, and handles subscription management for SSE connections.
+The SSEKafkaRedisBridge component serves as the central piece. It manages a configurable pool of consumers (defaulting to 10 instances) that operate within a single consumer group. The bridge deserializes Kafka events and publishes them to Redis channels keyed by execution_id. In-process event buffers and per-execution subscriptions have been removed in favor of Redis-only fan-out.
 
 Event routing occurs through the EventDispatcher pattern. Each consumer in the pool has an EventDispatcher configured with handlers that route events to appropriate execution buffers based on the execution_id field. The routing logic checks each incoming event for an execution_id, determines if there's an active subscription for that execution, and places the event in the corresponding buffer if one exists.
 
@@ -82,7 +82,7 @@ The SSEShutdownManager remains an essential component even with the partitioned 
 
 ### Separation of Concerns
 
-The PartitionedSSERouter manages the data plane - Kafka consumers, event routing, and buffer management. It ensures events flow from Kafka to the appropriate execution buffers efficiently.
+The SSEKafkaRedisBridge manages the data plane—Kafka consumers and event routing—to ensure events flow from Kafka to Redis efficiently for SSE delivery across workers.
 
 The SSEShutdownManager manages the control plane for client connections - tracking active SSE connections, coordinating graceful shutdown, and ensuring clients are properly notified before disconnection.
 

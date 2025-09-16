@@ -1,17 +1,18 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from typing import Annotated, Any, Dict, List
 
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
-from app.api.dependencies import AuthService
-from app.api.rate_limit import check_rate_limit
+from app.api.dependencies import admin_user, current_user
 from app.core.correlation import CorrelationContext
 from app.core.logging import logger
+from app.core.utils import get_client_ip
 from app.domain.events.event_models import EventFilter
-from app.infrastructure.mappers.event_mapper import EventMapper, EventStatisticsMapper
+from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.infrastructure.mappers import EventMapper, EventStatisticsMapper
 from app.schemas_pydantic.events import (
     DeleteEventResponse,
     EventAggregationRequest,
@@ -24,8 +25,10 @@ from app.schemas_pydantic.events import (
     ReplayAggregateResponse,
     SortOrder,
 )
+from app.schemas_pydantic.user import UserResponse
 from app.services.event_service import EventService
 from app.services.kafka_event_service import KafkaEventService
+from app.settings import get_settings
 
 router = APIRouter(prefix="/events",
                    tags=["events"],
@@ -33,19 +36,16 @@ router = APIRouter(prefix="/events",
 
 
 @router.get("/executions/{execution_id}/events",
-            response_model=EventListResponse,
-            dependencies=[Depends(check_rate_limit)])
+            response_model=EventListResponse)
 async def get_execution_events(
         execution_id: str,
+        current_user: Annotated[UserResponse, Depends(current_user)],
         event_service: FromDishka[EventService],
-        request: Request,
-        auth_service: FromDishka[AuthService],
         include_system_events: bool = Query(
             False,
             description="Include system-generated events"
         )
 ) -> EventListResponse:
-    current_user = await auth_service.get_current_user(request)
     mapper = EventMapper()
     events = await event_service.get_execution_events(
         execution_id=execution_id,
@@ -70,9 +70,8 @@ async def get_execution_events(
 
 @router.get("/user", response_model=EventListResponse)
 async def get_user_events(
+        current_user: Annotated[UserResponse, Depends(current_user)],
         event_service: FromDishka[EventService],
-        request: Request,
-        auth_service: FromDishka[AuthService],
         event_types: List[str] | None = Query(None),
         start_time: datetime | None = Query(None),
         end_time: datetime | None = Query(None),
@@ -81,7 +80,6 @@ async def get_user_events(
         sort_order: SortOrder = Query(SortOrder.DESC)
 ) -> EventListResponse:
     """Get events for the current user"""
-    current_user = await auth_service.get_current_user(request)
     mapper = EventMapper()
     result = await event_service.get_user_events_paginated(
         user_id=current_user.user_id,
@@ -106,12 +104,10 @@ async def get_user_events(
 
 @router.post("/query", response_model=EventListResponse)
 async def query_events(
-        event_service: FromDishka[EventService],
+        current_user: Annotated[UserResponse, Depends(current_user)],
         filter_request: EventFilterRequest,
-        request: Request,
-        auth_service: FromDishka[AuthService],
+        event_service: FromDishka[EventService],
 ) -> EventListResponse:
-    current_user = await auth_service.get_current_user(request)
     mapper = EventMapper()
     event_filter = EventFilter(
         event_types=[str(et) for et in filter_request.event_types] if filter_request.event_types else None,
@@ -153,16 +149,14 @@ async def query_events(
 @router.get("/correlation/{correlation_id}", response_model=EventListResponse)
 async def get_events_by_correlation(
         correlation_id: str,
+        current_user: Annotated[UserResponse, Depends(current_user)],
         event_service: FromDishka[EventService],
-        request: Request,
-        auth_service: FromDishka[AuthService],
         include_all_users: bool = Query(
             False,
             description="Include events from all users (admin only)"
         ),
         limit: int = Query(100, ge=1, le=1000)
 ) -> EventListResponse:
-    current_user = await auth_service.get_current_user(request)
     mapper = EventMapper()
     events = await event_service.get_events_by_correlation(
         correlation_id=correlation_id,
@@ -185,12 +179,10 @@ async def get_events_by_correlation(
 
 @router.get("/current-request", response_model=EventListResponse)
 async def get_current_request_events(
-        request: Request,
+        current_user: Annotated[UserResponse, Depends(current_user)],
         event_service: FromDishka[EventService],
-        auth_service: FromDishka[AuthService],
         limit: int = Query(100, ge=1, le=1000),
 ) -> EventListResponse:
-    current_user = await auth_service.get_current_user(request)
     mapper = EventMapper()
     correlation_id = CorrelationContext.get_correlation_id()
     if not correlation_id:
@@ -223,9 +215,8 @@ async def get_current_request_events(
 
 @router.get("/statistics", response_model=EventStatistics)
 async def get_event_statistics(
-        request: Request,
+        current_user: Annotated[UserResponse, Depends(current_user)],
         event_service: FromDishka[EventService],
-        auth_service: FromDishka[AuthService],
         start_time: datetime | None = Query(
             None,
             description="Start time for statistics (defaults to 24 hours ago)"
@@ -239,7 +230,6 @@ async def get_event_statistics(
             description="Include stats from all users (admin only)"
         ),
 ) -> EventStatistics:
-    current_user = await auth_service.get_current_user(request)
     if not start_time:
         start_time = datetime.now(timezone.utc) - timedelta(days=1)  # 24 hours ago
     if not end_time:
@@ -260,12 +250,10 @@ async def get_event_statistics(
 @router.get("/{event_id}", response_model=EventResponse)
 async def get_event(
         event_id: str,
-        event_service: FromDishka[EventService],
-        request: Request,
-        auth_service: FromDishka[AuthService]
+        current_user: Annotated[UserResponse, Depends(current_user)],
+        event_service: FromDishka[EventService]
 ) -> EventResponse:
     """Get a specific event by ID"""
-    current_user = await auth_service.get_current_user(request)
     mapper = EventMapper()
     event = await event_service.get_event(
         event_id=event_id,
@@ -279,21 +267,29 @@ async def get_event(
 
 @router.post("/publish", response_model=PublishEventResponse)
 async def publish_custom_event(
+        admin: Annotated[UserResponse, Depends(admin_user)],
         event_request: PublishEventRequest,
         request: Request,
-        event_service: FromDishka[KafkaEventService],
-        auth_service: FromDishka[AuthService]
+        event_service: FromDishka[KafkaEventService]
 ) -> PublishEventResponse:
-    current_user = await auth_service.require_admin(request)
+    settings = get_settings()
+    base_meta = EventMetadata(
+        service_name=settings.SERVICE_NAME,
+        service_version=settings.SERVICE_VERSION,
+        user_id=admin.user_id,
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    # Merge any additional metadata provided in request (extra allowed)
+    if event_request.metadata:
+        base_meta = base_meta.model_copy(update=event_request.metadata)
 
     event_id = await event_service.publish_event(
         event_type=event_request.event_type,
         payload=event_request.payload,
         aggregate_id=event_request.aggregate_id,
         correlation_id=event_request.correlation_id,
-        metadata=event_request.metadata,
-        user_id=current_user.user_id,
-        request=request
+        metadata=base_meta,
     )
 
     return PublishEventResponse(
@@ -305,12 +301,10 @@ async def publish_custom_event(
 
 @router.post("/aggregate", response_model=List[Dict[str, Any]])
 async def aggregate_events(
+        current_user: Annotated[UserResponse, Depends(current_user)],
         aggregation: EventAggregationRequest,
         event_service: FromDishka[EventService],
-        request: Request,
-        auth_service: FromDishka[AuthService],
 ) -> List[Dict[str, Any]]:
-    current_user = await auth_service.get_current_user(request)
     result = await event_service.aggregate_events(
         user_id=current_user.user_id,
         user_role=current_user.role,
@@ -323,11 +317,9 @@ async def aggregate_events(
 
 @router.get("/types/list", response_model=List[str])
 async def list_event_types(
-        event_service: FromDishka[EventService],
-        request: Request,
-        auth_service: FromDishka[AuthService]
+        current_user: Annotated[UserResponse, Depends(current_user)],
+        event_service: FromDishka[EventService]
 ) -> List[str]:
-    current_user = await auth_service.get_current_user(request)
     event_types = await event_service.list_event_types(
         user_id=current_user.user_id,
         user_role=current_user.role
@@ -338,21 +330,19 @@ async def list_event_types(
 @router.delete("/{event_id}", response_model=DeleteEventResponse)
 async def delete_event(
         event_id: str,
+        admin: Annotated[UserResponse, Depends(admin_user)],
         event_service: FromDishka[EventService],
-        request: Request,
-        auth_service: FromDishka[AuthService],
 ) -> DeleteEventResponse:
-    current_user = await auth_service.require_admin(request)
     result = await event_service.delete_event_with_archival(
         event_id=event_id,
-        deleted_by=str(current_user.email)
+        deleted_by=str(admin.email)
     )
 
     if result is None:
         raise HTTPException(status_code=404, detail="Event not found")
 
     logger.warning(
-        f"Event {event_id} deleted by admin {current_user.email}",
+        f"Event {event_id} deleted by admin {admin.email}",
         extra={
             "event_type": result.event_type,
             "aggregate_id": result.aggregate_id,
@@ -370,10 +360,9 @@ async def delete_event(
 @router.post("/replay/{aggregate_id}", response_model=ReplayAggregateResponse)
 async def replay_aggregate_events(
         aggregate_id: str,
-        request: Request,
+        admin: Annotated[UserResponse, Depends(admin_user)],
         event_service: FromDishka[EventService],
         kafka_event_service: FromDishka[KafkaEventService],
-        auth_service: FromDishka[AuthService],
         target_service: str | None = Query(
             None,
             description="Service to replay events to"
@@ -383,7 +372,6 @@ async def replay_aggregate_events(
             description="If true, only show what would be replayed"
         ),
 ) -> ReplayAggregateResponse:
-    current_user = await auth_service.require_admin(request)
     replay_info = await event_service.get_aggregate_replay_info(aggregate_id)
     if not replay_info:
         raise HTTPException(
@@ -411,18 +399,18 @@ async def replay_aggregate_events(
             await asyncio.sleep(0.1)
 
         try:
+            settings = get_settings()
+            meta = EventMetadata(
+                service_name=settings.SERVICE_NAME,
+                service_version=settings.SERVICE_VERSION,
+                user_id=admin.user_id,
+            )
             await kafka_event_service.publish_event(
                 event_type=f"replay.{event.event_type}",
                 payload=event.payload,
                 aggregate_id=aggregate_id,
                 correlation_id=replay_correlation_id,
-                metadata={
-                    "original_event_id": event.event_id,
-                    "replay_target": target_service,
-                    "replayed_by": current_user.email,
-                    "replayed_at": datetime.now(timezone.utc)
-                },
-                user_id=current_user.user_id
+                metadata=meta,
             )
             replayed_count += 1
         except Exception as e:

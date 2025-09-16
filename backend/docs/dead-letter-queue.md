@@ -8,7 +8,7 @@ The DLQ acts as a safety net. When an event fails processing after a reasonable 
 
 ## How It Works in Our System
 
-The DLQ implementation in Integr8sCode follows a producer-agnostic pattern. This means consumers don't directly know about or depend on the DLQ infrastructure - they just report errors through callbacks. Here's how the pieces fit together:
+The DLQ implementation in Integr8sCode follows a producer-agnostic pattern. Producers can route failed events to the DLQ; a dedicated DLQ manager/processor consumes DLQ messages, persists them, and applies retry/discard policies. Here's how the pieces fit together:
 
 ### The Producer Side
 
@@ -18,7 +18,7 @@ The beauty here is that the producer doesn't make decisions about *when* to send
 
 ### The Consumer Side  
 
-Consumers use an error callback pattern. When you create a consumer, you can register an error handler that gets called whenever event processing fails. We provide pre-built DLQ handlers through the `create_dlq_error_handler()` function that implement common retry strategies.
+When event handling fails in normal consumers, producers may call `send_to_dlq()` to persist failure context. The DLQ manager is the single component that reads the DLQ topic and orchestrates retries according to policy.
 
 For example, the event store consumer sets up its error handling like this:
 

@@ -6,9 +6,9 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.mark.asyncio
-async def test_alertmanager_endpoints(client):
+async def test_grafana_alert_endpoints(client):
     # Test endpoint
-    r_test = await client.get("/api/v1/alertmanager/test")
+    r_test = await client.get("/api/v1/alerts/grafana/test")
     assert r_test.status_code == 200
     assert "webhook_url" in r_test.json()
 
@@ -34,8 +34,7 @@ async def test_alertmanager_endpoints(client):
         "version": "4",
         "groupKey": "{}:{}",
     }
-    r_webhook = await client.post("/api/v1/alertmanager/webhook", json=payload)
+    r_webhook = await client.post("/api/v1/alerts/grafana", json=payload)
     assert r_webhook.status_code == 200
     body = r_webhook.json()
     assert body.get("alerts_received") == 1
-

@@ -3,9 +3,8 @@ from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.health import AlertSeverity, AlertStatus, ComponentStatus
 from app.domain.enums.notification import (
     NotificationChannel,
-    NotificationPriority,
+    NotificationSeverity,
     NotificationStatus,
-    NotificationType,
 )
 from app.domain.enums.saga import SagaState
 from app.domain.enums.user import UserRole
@@ -23,9 +22,8 @@ __all__ = [
     "ComponentStatus",
     # Notification
     "NotificationChannel",
-    "NotificationPriority",
+    "NotificationSeverity",
     "NotificationStatus",
-    "NotificationType",
     # Saga
     "SagaState",
     # User

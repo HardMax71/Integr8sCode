@@ -4,7 +4,7 @@ from functools import lru_cache
 from typing import Any, Dict, Type, TypeVar
 
 import httpx
-from confluent_kafka.schema_registry import Schema, SchemaRegistryClient
+from confluent_kafka.schema_registry import Schema, SchemaRegistryClient, record_subject_name_strategy
 from confluent_kafka.schema_registry.avro import AvroDeserializer, AvroSerializer
 from confluent_kafka.serialization import MessageField, SerializationContext
 
@@ -118,7 +118,12 @@ class SchemaRegistryManager:
         subject = f"{event.__class__.__name__}-value"
         if subject not in self._serializers:
             schema_str = json.dumps(event.__class__.avro_schema(namespace=self.namespace))
-            self._serializers[subject] = AvroSerializer(self.client, schema_str)
+            # Use record_subject_name_strategy to ensure subject is based on record name, not topic
+            self._serializers[subject] = AvroSerializer(
+                self.client,
+                schema_str,
+                conf={'subject.name.strategy': record_subject_name_strategy}
+            )
 
         # Prepare payload dict (exclude event_type: schema id implies the concrete record)
         # Don't use mode="json" as it converts datetime to string, breaking Avro timestamp-micros

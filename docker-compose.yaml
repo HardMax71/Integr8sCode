@@ -21,7 +21,6 @@ services:
        - SHARED_CA_DIR=/shared_ca
        - BACKEND_CERT_DIR=/backend-certs
        - FRONTEND_CERT_DIR=/frontend-certs
-       - USE_DOCKER_HOST=true
     restart: "no"
     network_mode: host
     depends_on:
@@ -132,18 +131,6 @@ services:
       - NODE_EXTRA_CA_CERTS=/shared_ca/mkcert-ca.pem
 
 
-  alertmanager:
-    container_name: alertmanager
-    image: prom/alertmanager:v0.25.0
-    ports:
-      - "9093:9093"
-    volumes:
-      - ./backend/alertmanager:/etc/alertmanager
-    command:
-      - '--config.file=/etc/alertmanager/alertmanager.yml'
-      - '--storage.path=/alertmanager'
-    networks:
-      - app-network
 
   grafana:
     container_name: grafana

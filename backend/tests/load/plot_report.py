@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -121,8 +122,6 @@ def generate_plots(report_path: str | Path, output_dir: str | Path | None = None
 
 
 def main(argv: List[str] | None = None) -> int:
-    import argparse
-
     p = argparse.ArgumentParser(description="Generate plots from a load report JSON")
     p.add_argument("report", help="Path to JSON report")
     p.add_argument("--out", default=None, help="Output directory for PNGs (default: report dir)")
@@ -136,4 +135,3 @@ def main(argv: List[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

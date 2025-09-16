@@ -31,7 +31,7 @@ Property-based fuzz tests (Hypothesis)
 
 - Tests included:
   - test_register_never_500: Random valid user payloads must not yield 5xx.
-  - test_alertmanager_webhook_never_500: Random (schema-like) Alertmanager payloads must not yield 5xx.
+  - test_grafana_webhook_never_500: Random (schema-like) Grafana payloads must not yield 5xx.
 
 These tests provide minimal counterexamples if a 5xx occurs.
 

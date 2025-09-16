@@ -1,5 +1,3 @@
-from enum import auto
-
 from starlette.requests import Request
 
 from app.core.utils import StringEnum, get_client_ip
@@ -35,4 +33,3 @@ def test_get_client_ip_header_precedence() -> None:
     assert get_client_ip(r2) == "7.7.7.7"
     r3 = make_request({}, client_ip="1.2.3.4")
     assert get_client_ip(r3) == "1.2.3.4"
-

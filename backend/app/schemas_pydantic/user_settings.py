@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.domain.enums.common import Theme
 from app.domain.enums.events import EventType
@@ -31,6 +31,20 @@ class EditorSettings(BaseModel):
     bracket_matching: bool = True
     highlight_active_line: bool = True
     default_language: str = "python"
+    
+    @field_validator("font_size")
+    @classmethod
+    def validate_font_size(cls, v: int) -> int:
+        if v < 8 or v > 32:
+            raise ValueError("Font size must be between 8 and 32")
+        return v
+    
+    @field_validator("tab_size")
+    @classmethod
+    def validate_tab_size(cls, v: int) -> int:
+        if v not in (2, 4, 8):
+            raise ValueError("Tab size must be 2, 4, or 8")
+        return v
 
 
 class UserSettings(BaseModel):

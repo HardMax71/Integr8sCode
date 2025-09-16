@@ -1,6 +1,7 @@
 import asyncio
 import logging
 
+import redis.asyncio as redis
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
@@ -8,10 +9,12 @@ from app.db.repositories.saga_repository import SagaRepository
 from app.db.schema.schema_manager import SchemaManager
 from app.domain.enums.kafka import GroupId
 from app.domain.saga.models import SagaConfig
-from app.events.core.producer import ProducerConfig, UnifiedProducer
+from app.events.core import ProducerConfig, UnifiedProducer
+from app.events.event_store import create_event_store
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.services.idempotency import create_idempotency_manager
-from app.services.saga.saga_orchestrator import create_saga_orchestrator
+from app.services.idempotency import IdempotencyConfig, create_idempotency_manager
+from app.services.idempotency.redis_repository import RedisIdempotencyRepository
+from app.services.saga import create_saga_orchestrator
 from app.settings import get_settings
 from motor.motor_asyncio import AsyncIOMotorClient
 
@@ -53,16 +56,27 @@ async def run_saga_orchestrator() -> None:
 
     # Create event store (schema ensured separately)
     logger.info("Creating event store...")
-    from app.events.event_store import create_event_store
     event_store = create_event_store(
         db=database,
         schema_registry=schema_registry_manager,
         ttl_days=90
     )
 
-    # Create repository and idempotency manager
+    # Create repository and idempotency manager (Redis-backed)
     saga_repository = SagaRepository(database)
-    idempotency_manager = create_idempotency_manager(database)
+    r = redis.Redis(
+        host=settings.REDIS_HOST,
+        port=settings.REDIS_PORT,
+        db=settings.REDIS_DB,
+        password=settings.REDIS_PASSWORD,
+        ssl=settings.REDIS_SSL,
+        max_connections=settings.REDIS_MAX_CONNECTIONS,
+        decode_responses=settings.REDIS_DECODE_RESPONSES,
+        socket_connect_timeout=5,
+        socket_timeout=5,
+    )
+    idem_repo = RedisIdempotencyRepository(r, key_prefix="idempotency")
+    idempotency_manager = create_idempotency_manager(repository=idem_repo, config=IdempotencyConfig())
     resource_allocation_repository = ResourceAllocationRepository(database)
 
     # Create saga orchestrator

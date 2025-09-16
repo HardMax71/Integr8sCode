@@ -67,4 +67,3 @@ def test_other_metrics_classes_smoke():
     RateLimitMetrics().requests_total.add(1)
     ReplayMetrics().record_session_created("by_id", "kafka")
     SecurityMetrics().record_security_event("scan", severity="low")
-

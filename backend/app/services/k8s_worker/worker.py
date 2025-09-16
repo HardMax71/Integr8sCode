@@ -5,10 +5,11 @@ import time
 from pathlib import Path
 from typing import Any
 
+import redis.asyncio as redis
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
 from kubernetes.client.rest import ApiException
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 
 from app.core.logging import logger
 from app.core.metrics import ExecutionMetrics, KubernetesMetrics
@@ -16,12 +17,14 @@ from app.db.schema.schema_manager import SchemaManager
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.domain.enums.storage import ExecutionErrorType
-from app.domain.execution.models import ResourceUsageDomain
-from app.events.core.consumer import ConsumerConfig, UnifiedConsumer
-from app.events.core.dispatcher import EventDispatcher
-from app.events.core.producer import ProducerConfig, UnifiedProducer
-from app.events.event_store import EventStore
-from app.events.schema.schema_registry import SchemaRegistryManager
+from app.domain.execution import ResourceUsageDomain
+from app.events.core import ConsumerConfig, EventDispatcher, ProducerConfig, UnifiedConsumer, UnifiedProducer
+from app.events.event_store import EventStore, create_event_store
+from app.events.schema.schema_registry import (
+    SchemaRegistryManager,
+    create_schema_registry_manager,
+    initialize_event_schemas,
+)
 from app.infrastructure.kafka.events.base import BaseEvent
 from app.infrastructure.kafka.events.execution import (
     ExecutionFailedEvent,
@@ -29,8 +32,11 @@ from app.infrastructure.kafka.events.execution import (
 )
 from app.infrastructure.kafka.events.pod import PodCreatedEvent
 from app.infrastructure.kafka.events.saga import CreatePodCommandEvent, DeletePodCommandEvent
-from app.services.idempotency import IdempotencyManager, create_idempotency_manager
+from app.runtime_registry import RUNTIME_REGISTRY
+from app.services.idempotency import IdempotencyManager
+from app.services.idempotency.idempotency_manager import IdempotencyConfig, create_idempotency_manager
 from app.services.idempotency.middleware import IdempotentConsumerWrapper
+from app.services.idempotency.redis_repository import RedisIdempotencyRepository
 from app.services.k8s_worker.config import K8sWorkerConfig
 from app.services.k8s_worker.pod_builder import PodBuilder
 from app.settings import get_settings
@@ -112,8 +118,21 @@ class KubernetesWorker:
         else:
             logger.info("Using existing producer")
 
-        # Initialize idempotency manager
-        self.idempotency_manager = create_idempotency_manager(self._db)
+        # Initialize idempotency manager (Redis-backed)
+        settings = get_settings()
+        r = redis.Redis(
+            host=settings.REDIS_HOST,
+            port=settings.REDIS_PORT,
+            db=settings.REDIS_DB,
+            password=settings.REDIS_PASSWORD,
+            ssl=settings.REDIS_SSL,
+            max_connections=settings.REDIS_MAX_CONNECTIONS,
+            decode_responses=settings.REDIS_DECODE_RESPONSES,
+            socket_connect_timeout=5,
+            socket_timeout=5,
+        )
+        idem_repo = RedisIdempotencyRepository(r, key_prefix="idempotency")
+        self.idempotency_manager = create_idempotency_manager(repository=idem_repo, config=IdempotencyConfig())
         await self.idempotency_manager.initialize()
         logger.info("Idempotency manager initialized for K8s Worker")
 
@@ -412,7 +431,6 @@ exec "$@"
             else:
                 raise
 
-
     async def _publish_execution_started(
             self,
             command: CreatePodCommandEvent,
@@ -489,8 +507,6 @@ exec "$@"
             logger.warning("Kubernetes AppsV1Api client not initialized. Skipping DaemonSet creation.")
             return
 
-        from app.runtime_registry import RUNTIME_REGISTRY
-        
         daemonset_name = "runtime-image-pre-puller"
         namespace = self.config.namespace
         await asyncio.sleep(5)
@@ -562,11 +578,6 @@ exec "$@"
 
 async def run_kubernetes_worker() -> None:
     """Run the Kubernetes worker service"""
-    from motor.motor_asyncio import AsyncIOMotorClient
-
-    from app.events.event_store import create_event_store
-    from app.settings import get_settings
-
     # Initialize variables
     db_client = None
     worker = None
@@ -596,7 +607,6 @@ async def run_kubernetes_worker() -> None:
 
         # Initialize schema registry manager
         logger.info("Initializing schema registry...")
-        from app.events.schema.schema_registry import create_schema_registry_manager, initialize_event_schemas
         schema_registry_manager = create_schema_registry_manager()
         await initialize_event_schemas(schema_registry_manager)
 

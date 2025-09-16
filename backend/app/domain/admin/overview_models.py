@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List
 
-from app.domain.admin.user_models import User as DomainAdminUser
 from app.domain.events import Event, EventStatistics
+from app.domain.user import User as DomainAdminUser
 
 
 @dataclass
@@ -30,4 +30,3 @@ class AdminUserOverviewDomain:
     derived_counts: DerivedCountsDomain
     rate_limit_summary: RateLimitSummaryDomain
     recent_events: List[Event] = field(default_factory=list)
-

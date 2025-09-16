@@ -44,7 +44,6 @@ class Settings(BaseSettings):
         default_factory=lambda: EXEC_EXAMPLE_SCRIPTS
     )
 
-    PROMETHEUS_URL: str = "http://prometheus:9090"
 
     TESTING: bool = False
 
@@ -63,7 +62,14 @@ class Settings(BaseSettings):
     
     # SSE Configuration
     SSE_CONSUMER_POOL_SIZE: int = 10  # Number of consumers in the partitioned pool
-    SSE_HEARTBEAT_INTERVAL: int = 2  # Heartbeat interval in seconds for SSE - keep connection alive
+    SSE_HEARTBEAT_INTERVAL: int = 30  # Heartbeat interval in seconds for SSE - keep connection alive
+
+    # Notification configuration
+    NOTIF_THROTTLE_WINDOW_HOURS: int = 1
+    NOTIF_THROTTLE_MAX_PER_HOUR: int = 5
+    NOTIF_PENDING_BATCH_SIZE: int = 10
+    NOTIF_OLD_DAYS: int = 30
+    NOTIF_RETRY_DELAY_MINUTES: int = 5
 
     # Schema Configuration
     SCHEMA_BASE_PATH: str = "app/schemas_avro"

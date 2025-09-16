@@ -3,12 +3,13 @@ from typing import Optional
 
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.domain.enums.events import EventType
-from app.events.core.producer import UnifiedProducer
+from app.events.core import UnifiedProducer
 from app.infrastructure.kafka.events.execution import ExecutionRequestedEvent
 from app.infrastructure.kafka.events.metadata import EventMetadata
 from app.infrastructure.kafka.events.saga import CreatePodCommandEvent, DeletePodCommandEvent
-from app.services.saga.base_saga import BaseSaga
-from app.services.saga.saga_step import CompensationStep, SagaContext, SagaStep
+
+from .base_saga import BaseSaga
+from .saga_step import CompensationStep, SagaContext, SagaStep
 
 logger = logging.getLogger(__name__)
 

@@ -2,6 +2,8 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any, Generic, Optional, TypeVar
 
+from fastapi.encoders import jsonable_encoder
+
 from app.infrastructure.kafka.events import BaseEvent
 
 logger = logging.getLogger(__name__)
@@ -47,12 +49,6 @@ class SagaContext:
         - Excludes private/ephemeral keys (prefixed with "_")
         - Encodes values to JSON-friendly types using FastAPI's jsonable_encoder
         """
-        try:
-            from fastapi.encoders import jsonable_encoder
-        except Exception:  # pragma: no cover - defensive import guard
-            def _jsonable_encoder_fallback(x: Any, **_: Any) -> Any:
-                return x
-            jsonable_encoder = _jsonable_encoder_fallback  # type: ignore
 
         def _is_simple(val: Any) -> bool:
             if isinstance(val, (str, int, float, bool)) or val is None:

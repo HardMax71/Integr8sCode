@@ -126,8 +126,7 @@ cause `match-case` was introduced first in `Python 3.10`.
 ## Architecture Overview
 
 > [!WARNING]
-> Version 2.0 is underway. Detailed, up-to-date architecture diagrams are in
-> [this file](./ARCHITECTURE_IN_DETAILS.md).
+> Detailed, up-to-date architecture diagrams are in [this file](files_for_readme/ARCHITECTURE_IN_DETAILS.md).
 
 [//]: # (<img src="./files_for_readme/system_diagram.png">)
 

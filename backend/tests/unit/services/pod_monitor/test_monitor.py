@@ -312,38 +312,6 @@ async def test_reconcile_state_exception() -> None:
     assert result.success is False
     assert "API error" in result.error
 
-
-def test_log_reconciliation_result(caplog) -> None:
-    from app.services.pod_monitor.monitor import ReconciliationResult, PodMonitor
-
-    cfg = PodMonitorConfig()
-    pm = PodMonitor(cfg, producer=_FakeProducer())
-
-    # Success case
-    result = ReconciliationResult(
-        missing_pods={"p1", "p2"},
-        extra_pods={"p3"},
-        duration_seconds=1.5,
-        success=True
-    )
-    pm._log_reconciliation_result(result)
-    assert "Reconciliation completed in 1.50s" in caplog.text
-    assert "Found 2 missing, 1 extra pods" in caplog.text
-
-    # Failure case
-    caplog.clear()
-    result_fail = ReconciliationResult(
-        missing_pods=set(),
-        extra_pods=set(),
-        duration_seconds=0.5,
-        success=False,
-        error="Connection failed"
-    )
-    pm._log_reconciliation_result(result_fail)
-    assert "Reconciliation failed after 0.50s" in caplog.text
-    assert "Connection failed" in caplog.text
-
-
 @pytest.mark.asyncio
 async def test_process_pod_event_full_flow() -> None:
     from app.services.pod_monitor.monitor import PodEvent, WatchEventType

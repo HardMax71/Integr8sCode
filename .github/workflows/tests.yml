@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
 
       - name: Install yq
         run: |
@@ -31,6 +31,42 @@ jobs:
           timeout 90 bash -c 'until sudo k3s kubectl cluster-info; do sleep 5; done'
           kubectl version
           kubectl get nodes
+
+      - name: Create dummy kubeconfig for CI
+        run: |
+          # Create a dummy kubeconfig so backend can start without real k8s connection
+          cat > backend/kubeconfig.yaml <<EOF
+          apiVersion: v1
+          kind: Config
+          clusters:
+          - name: ci-cluster
+            cluster:
+              server: https://host.docker.internal:6443
+              insecure-skip-tls-verify: true
+          users:
+          - name: ci-user
+            user:
+              token: "ci-token"
+          contexts:
+          - name: ci
+            context:
+              cluster: ci-cluster
+              user: ci-user
+          current-context: ci
+          EOF
+          echo "Created dummy kubeconfig for CI"
+
+      - name: Pre-pull base images in parallel
+        run: |
+          echo "Pre-pulling base images to speed up builds..."
+          docker pull python:3.12-slim &
+          docker pull alpine:latest &
+          docker pull confluentinc/cp-kafka:7.5.0 &
+          docker pull confluentinc/cp-zookeeper:7.5.0 &
+          docker pull mongo:7 &
+          docker pull redis:7-alpine &
+          wait
+          echo "Base images pulled successfully"
 
       - name: Modify Docker Compose for CI
         run: |
@@ -73,23 +109,42 @@ jobs:
           cat docker-compose.ci.yaml
           echo "------------------------------------"
 
-      - name: Start services and check status
+      - name: Build services with optimized cache
+        uses: docker/bake-action@v6
+        with:
+          source: .
+          files: docker-compose.ci.yaml
+          load: true
+          set: |
+            *.cache-from=type=gha,scope=buildkit-${{ github.repository }}-${{ github.ref_name }}
+            *.cache-from=type=gha,scope=buildkit-${{ github.repository }}-main
+            *.cache-to=type=gha,mode=max,scope=buildkit-${{ github.repository }}-${{ github.ref_name }}
+            *.pull=true
+
+      - name: Start services
         run: |
-            echo "Attempting to start services..."
-            # Try to start services. If the command fails...
-            docker compose -f docker-compose.ci.yaml up --build -d --remove-orphans || \
+            echo "Starting services (images already built with cache)..."
+            docker compose -f docker-compose.ci.yaml up -d --remove-orphans || \
             (
-              # ...then execute this block of code.
               echo "::error::Docker Compose failed to start. Dumping all logs..."
               docker compose -f docker-compose.ci.yaml logs
-              exit 1 # Ensure the job fails
+              exit 1
             )
             
             echo "Services started. Waiting for stabilization..."
             sleep 45
-            
+
             echo "Final status of all containers:"
             docker compose -f docker-compose.ci.yaml ps
+
+            echo "Checking cert-generator logs:"
+            docker compose -f docker-compose.ci.yaml logs cert-generator || echo "cert-generator not found or exited"
+
+            echo "Checking backend container status:"
+            docker compose -f docker-compose.ci.yaml ps backend
+
+            echo "Checking backend logs:"
+            docker compose -f docker-compose.ci.yaml logs backend || echo "backend not found"
             
             # Explicitly check for containers that have exited
             if docker compose -f docker-compose.ci.yaml ps | grep -q 'Exit'; then
@@ -130,6 +185,7 @@ jobs:
           pip3 install -r requirements-dev.txt
 
       - name: Run backend tests with coverage
+        timeout-minutes: 5
         env:
           BACKEND_BASE_URL: https://127.0.0.1:443
           # Use default MongoDB credentials for CI

@@ -5,7 +5,6 @@ from enum import auto
 from typing import Awaitable, Callable, Mapping
 
 import httpx
-from backend.app.settings import get_settings
 
 from app.core.exceptions import ServiceError
 from app.core.logging import logger
@@ -38,7 +37,7 @@ from app.infrastructure.kafka.mappings import get_topic_for_event
 from app.services.event_bus import EventBusManager
 from app.services.kafka_event_service import KafkaEventService
 from app.services.sse.redis_bus import SSERedisBus
-from app.settings import Settings
+from app.settings import Settings, get_settings
 
 # Constants
 ENTITY_EXECUTION_TAG = "entity:execution"

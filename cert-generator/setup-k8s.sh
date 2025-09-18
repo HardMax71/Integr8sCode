@@ -9,6 +9,7 @@ if [ -n "$CI" ]; then
     if ! kubectl version --request-timeout=5s >/dev/null 2>&1; then
         echo "WARNING: Cannot connect to Kubernetes in CI - skipping k8s setup"
         echo "Creating dummy kubeconfig for CI..."
+        mkdir -p /backend
         cat > /backend/kubeconfig.yaml <<EOF
 apiVersion: v1
 kind: Config

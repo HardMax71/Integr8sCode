@@ -8,6 +8,7 @@ from uuid import uuid4
 import redis.asyncio as redis
 from motor.motor_asyncio import AsyncIOMotorClient
 
+from app.core.lifecycle import LifecycleEnabled
 from app.core.logging import logger
 from app.core.metrics.context import get_coordinator_metrics
 from app.db.repositories.execution_repository import ExecutionRepository
@@ -45,7 +46,7 @@ EventHandler: TypeAlias = Coroutine[Any, Any, None]
 ExecutionMap: TypeAlias = dict[str, ResourceAllocation]
 
 
-class ExecutionCoordinator:
+class ExecutionCoordinator(LifecycleEnabled):
     """
     Coordinates execution scheduling across the system.
     
@@ -125,7 +126,7 @@ class ExecutionCoordinator:
 
         consumer_config = ConsumerConfig(
             bootstrap_servers=self.kafka_servers,
-            group_id=self.consumer_group,
+            group_id= f"{self.consumer_group}.{settings.KAFKA_GROUP_SUFFIX}",
             enable_auto_commit=False,
             session_timeout_ms=30000,  # 30 seconds
             heartbeat_interval_ms=10000,  # 10 seconds (must be < session_timeout / 3)
@@ -537,22 +538,16 @@ class ExecutionCoordinator:
 
 async def run_coordinator() -> None:
     """Run the execution coordinator service"""
-    # Initialize schema registry
+    from contextlib import AsyncExitStack
+
     logger.info("Initializing schema registry for coordinator...")
     schema_registry_manager = create_schema_registry_manager()
     await initialize_event_schemas(schema_registry_manager)
 
-    # Initialize producer
-    logger.info("Initializing Kafka producer for coordinator...")
     settings = get_settings()
-    config = ProducerConfig(
-        bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS
-    )
+    config = ProducerConfig(bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS)
     producer = UnifiedProducer(config, schema_registry_manager)
-    await producer.start()
 
-    # Initialize database and event store
-    settings = get_settings()
     db_client: AsyncIOMotorClient = AsyncIOMotorClient(
         settings.MONGODB_URL,
         tz_aware=True,
@@ -561,10 +556,8 @@ async def run_coordinator() -> None:
     db_name = settings.PROJECT_NAME + "_test" if settings.TESTING else settings.PROJECT_NAME
     database = db_client[db_name]
 
-    # Ensure DB schema (indexes/validators)
     await SchemaManager(database).apply_all()
 
-    # Initialize event store (schema ensured separately)
     logger.info("Creating event store for coordinator...")
     event_store = create_event_store(
         db=database,
@@ -572,7 +565,6 @@ async def run_coordinator() -> None:
         ttl_days=90
     )
 
-    # Build repositories and idempotency manager
     exec_repo = ExecutionRepository(database)
     r = redis.Redis(
         host=settings.REDIS_HOST,
@@ -597,7 +589,6 @@ async def run_coordinator() -> None:
         idempotency_manager=idem_manager,
     )
 
-    # Setup signal handlers
     def signal_handler(sig: int, frame: Any) -> None:
         logger.info(f"Received signal {sig}, initiating shutdown...")
         asyncio.create_task(coordinator.stop())
@@ -605,23 +596,17 @@ async def run_coordinator() -> None:
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    try:
-        await coordinator.start()
+    async with AsyncExitStack() as stack:
+        await stack.enter_async_context(producer)
+        await stack.enter_async_context(coordinator)
+        stack.push_async_callback(idem_manager.close)
+        stack.push_async_callback(r.aclose)
+        stack.callback(db_client.close)
 
-        # Keep running until stopped
         while coordinator._running:
             await asyncio.sleep(60)
-
-            # Log status periodically
             status = await coordinator.get_status()
             logger.info(f"Coordinator status: {status}")
-
-    except Exception as e:
-        logger.error(f"Coordinator error: {e}", exc_info=True)
-    finally:
-        await coordinator.stop()
-        await producer.stop()
-        db_client.close()
 
 
 if __name__ == "__main__":

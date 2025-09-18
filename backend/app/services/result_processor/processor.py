@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.container import create_result_processor_container
 from app.core.exceptions import ServiceError
+from app.core.lifecycle import LifecycleEnabled
 from app.core.logging import logger
 from app.core.metrics.context import get_execution_metrics
 from app.core.utils import StringEnum
@@ -57,7 +58,7 @@ class ResultProcessorConfig(BaseModel):
     processing_timeout: int = Field(default=300)
 
 
-class ResultProcessor:
+class ResultProcessor(LifecycleEnabled):
     """Service for processing execution completion events and storing results."""
 
     def __init__(
@@ -124,7 +125,7 @@ class ResultProcessor:
         settings = get_settings()
         consumer_config = ConsumerConfig(
             bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=self.config.consumer_group,
+            group_id=f"{self.config.consumer_group}.{settings.KAFKA_GROUP_SUFFIX}",
             max_poll_records=1,
             enable_auto_commit=True,
             auto_offset_reset="earliest"
@@ -320,32 +321,24 @@ class ResultProcessor:
 
 
 async def run_result_processor() -> None:
-    """Run result processor as standalone service using DI container."""
-    # Create minimal DI container for result processor
+    from contextlib import AsyncExitStack
+
     container = create_result_processor_container()
-    processor = None
+    producer = await container.get(UnifiedProducer)
+    idempotency_manager = await container.get(IdempotencyManager)
+    execution_repo = await container.get(ExecutionRepository)
 
-    try:
-        producer = await container.get(UnifiedProducer)
-        idempotency_manager = await container.get(IdempotencyManager)
-        execution_repo = await container.get(ExecutionRepository)
+    processor = ResultProcessor(
+        execution_repo=execution_repo,
+        producer=producer,
+        idempotency_manager=idempotency_manager,
+    )
 
-        processor = ResultProcessor(
-            execution_repo=execution_repo,
-            producer=producer,
-            idempotency_manager=idempotency_manager,
-        )
-
-        await processor.start()
+    async with AsyncExitStack() as stack:
+        await stack.enter_async_context(processor)
+        stack.push_async_callback(container.close)
 
         while True:
             await asyncio.sleep(60)
             status = await processor.get_status()
             logger.info(f"ResultProcessor status: {status}")
-
-    except asyncio.CancelledError:
-        logger.info("ResultProcessor cancelled")
-    finally:
-        if processor is not None:
-            await processor.stop()
-        await container.close()

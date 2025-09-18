@@ -5,7 +5,7 @@ import pytest
 from kubernetes import client as k8s_client, config as k8s_config
 
 from app.services.result_processor.resource_cleaner import ResourceCleaner
-
+from tests.helpers.eventually import eventually
 
 pytestmark = [pytest.mark.integration, pytest.mark.k8s]
 
@@ -36,13 +36,17 @@ async def test_cleanup_orphaned_configmaps_dry_run():
         cleaner = ResourceCleaner()
         # Force as orphaned by using a large cutoff
         cleaned = await cleaner.cleanup_orphaned_resources(namespace=ns, max_age_hours=0, dry_run=True)
-        # We expect our configmap to be a candidate; allow eventual consistency
-        await asyncio.sleep(0.2)
-        assert any(name == cm for cm in cleaned.get("configmaps", []))
+
+        # We expect our configmap to be a candidate; poll the response
+        async def _has_cm():
+            # If cleaner is non-deterministic across runs, re-invoke to reflect current state
+            res = await cleaner.cleanup_orphaned_resources(namespace=ns, max_age_hours=0, dry_run=True)
+            assert any(name == cm for cm in res.get("configmaps", []))
+
+        await eventually(_has_cm, timeout=2.0, interval=0.1)
     finally:
         # Cleanup resource
         try:
             v1.delete_namespaced_config_map(name=name, namespace=ns)
         except Exception:
             pass
-

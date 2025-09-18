@@ -105,23 +105,21 @@ async def run_saga_orchestrator() -> None:
     logger.info("Saga orchestrator started and running")
 
     try:
-        # Keep running
         while True:
             await asyncio.sleep(60)
 
-            # Log status periodically
             if saga_orchestrator.is_running:
                 logger.info("Saga orchestrator is running...")
             else:
                 logger.warning("Saga orchestrator stopped unexpectedly")
                 break
 
-    except asyncio.CancelledError:
-        logger.info("Saga orchestrator cancelled")
     finally:
         logger.info("Shutting down saga orchestrator...")
         await saga_orchestrator.stop()
         await producer.stop()
+        await idempotency_manager.close()
+        await r.aclose()
         db_client.close()
         logger.info("Saga orchestrator shutdown complete")
 
@@ -151,14 +149,7 @@ def main() -> None:
         )
         logger.info("Tracing initialized for Saga Orchestrator Service")
 
-    try:
-        # Run orchestrator
-        asyncio.run(run_saga_orchestrator())
-    except KeyboardInterrupt:
-        logger.info("Saga orchestrator worker interrupted by user")
-    except Exception as e:
-        logger.error(f"Saga orchestrator worker failed: {e}", exc_info=True)
-        raise
+    asyncio.run(run_saga_orchestrator())
 
 
 if __name__ == "__main__":

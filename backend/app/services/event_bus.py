@@ -9,8 +9,10 @@ from uuid import uuid4
 from confluent_kafka import Consumer, KafkaError, Producer
 from fastapi import Request
 
+from app.core.lifecycle import LifecycleEnabled
 from app.core.logging import logger
 from app.core.metrics.context import get_connection_metrics
+from app.domain.enums.kafka import KafkaTopic
 from app.settings import get_settings
 
 
@@ -22,7 +24,7 @@ class Subscription:
     handler: Callable = field(default=lambda: None)
 
 
-class EventBus:
+class EventBus(LifecycleEnabled):
     """
     Hybrid event bus with Kafka backing and local in-memory distribution.
     
@@ -42,7 +44,7 @@ class EventBus:
         self._running = False
         self._consumer_task: Optional[asyncio.Task] = None
         self._lock = asyncio.Lock()
-        self._topic = "event_bus_stream"
+        self._topic = f"{self.settings.KAFKA_TOPIC_PREFIX}{KafkaTopic.EVENT_BUS_STREAM}"
         self._executor: Optional[Callable] = None  # Will store the executor function
 
     async def start(self) -> None:

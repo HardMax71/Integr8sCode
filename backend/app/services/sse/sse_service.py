@@ -59,6 +59,7 @@ class SSEService:
             })
             return
 
+        subscription = None
         try:
             # Start opening subscription concurrently, then yield handshake
             sub_task = asyncio.create_task(self.sse_bus.open_subscription(execution_id))
@@ -92,12 +93,8 @@ class SSEService:
                 yield event_data
                 
         finally:
-            # Close subscription and unregister
-            try:
-                if 'subscription' in locals() and subscription is not None:
-                    await subscription.close()
-            except Exception:
-                pass
+            if subscription is not None:
+                await subscription.close()
             await self.shutdown_manager.unregister_connection(execution_id, connection_id)
             logger.info(f"SSE connection closed: execution_id={execution_id}")
 

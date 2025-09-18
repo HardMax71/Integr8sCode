@@ -10,30 +10,14 @@ from app.services.saga.execution_saga import (
     DeletePodCompensation,
 )
 from app.services.saga.saga_step import SagaContext
-from app.infrastructure.kafka.events.execution import ExecutionRequestedEvent
-from app.infrastructure.kafka.events.metadata import EventMetadata
+from tests.helpers import make_execution_requested_event
 
 
 pytestmark = pytest.mark.unit
 
 
-def _req(timeout: int = 30, script: str = "print('x')") -> ExecutionRequestedEvent:
-    return ExecutionRequestedEvent(
-        execution_id="e1",
-        script=script,
-        language="python",
-        language_version="3.11",
-        runtime_image="python:3.11",
-        runtime_command=["python"],
-        runtime_filename="main.py",
-        timeout_seconds=timeout,
-        cpu_limit="100m",
-        memory_limit="128Mi",
-        cpu_request="50m",
-        memory_request="64Mi",
-        priority=5,
-        metadata=EventMetadata(service_name="t", service_version="1"),
-    )
+def _req(timeout: int = 30, script: str = "print('x')"):
+    return make_execution_requested_event(execution_id="e1", script=script, timeout_seconds=timeout)
 
 
 @pytest.mark.asyncio

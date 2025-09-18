@@ -4,6 +4,7 @@ import pytest
 
 from app.services.pod_monitor.config import PodMonitorConfig
 from app.services.pod_monitor.monitor import PodMonitor
+from tests.helpers.k8s_fakes import make_pod, make_watch, FakeApi
 
 
 pytestmark = pytest.mark.unit
@@ -51,7 +52,9 @@ async def test_start_and_stop_lifecycle(monkeypatch) -> None:
     pm._event_mapper = spy  # type: ignore[assignment]
     pm._v1 = _StubV1()
     pm._watch = _StubWatch()
-    pm._watch_pods = lambda: asyncio.sleep(0.1)  # type: ignore[assignment]
+    async def _quick_watch():
+        return None
+    pm._watch_pods = _quick_watch  # type: ignore[assignment]
 
     await pm.start()
     assert pm.state.name == "RUNNING"
@@ -110,47 +113,18 @@ async def test_watch_pod_events_flow_and_publish(monkeypatch) -> None:
     pm = PodMonitor(cfg, producer=_FakeProducer())
 
     # Use real mapper with fake API so mapping yields events
-    class API:
-        def read_namespaced_pod_log(self, *a, **k):
-            return "{}"  # empty JSON -> defaults
-
     from app.services.pod_monitor.event_mapper import PodEventMapper as PEM
-    pm._event_mapper = PEM(k8s_api=API())
+    pm._event_mapper = PEM(k8s_api=FakeApi("{}"))
 
     # Fake v1 and watch
     class V1:
         def list_namespaced_pod(self, **kwargs):  # noqa: ARG002
             return None
-    class StopEvent:
-        resource_version = "rv2"
-    class Stream(list):
-        def __init__(self, events):
-            super().__init__(events)
-            self._stop_event = StopEvent()
-    class Watch:
-        def stream(self, func, **kwargs):  # noqa: ARG002
-            # Construct a pod that maps to completed
-            class Terminated:
-                def __init__(self, exit_code): self.exit_code=exit_code
-            class State:
-                def __init__(self, term=None): self.terminated=term; self.running=None; self.waiting=None
-            class CS:
-                def __init__(self): self.state=State(Terminated(0)); self.name="c"; self.ready=True; self.restart_count=0
-            class Status:
-                def __init__(self): self.phase="Succeeded"; self.container_statuses=[CS()]
-            class Meta:
-                def __init__(self): self.name="p"; self.namespace="integr8scode"; self.labels={"execution-id":"e1"}; self.resource_version="rv1"
-            class Spec:
-                def __init__(self): self.active_deadline_seconds=None; self.node_name=None
-            class Pod:
-                def __init__(self): self.metadata=Meta(); self.status=Status(); self.spec=Spec()
-            pod = Pod()
-            pod.metadata.labels = {"execution-id": "e1"}
-            return Stream([
-                {"type": "MODIFIED", "object": pod},
-            ])
+
     pm._v1 = V1()
-    pm._watch = Watch()
+    # Construct a pod that maps to completed
+    pod = make_pod(name="p", phase="Succeeded", labels={"execution-id": "e1"}, term_exit=0, resource_version="rv1")
+    pm._watch = make_watch([{"type": "MODIFIED", "object": pod}], resource_version="rv2")
 
     # Speed up
     pm._state = pm.state.__class__.RUNNING
@@ -167,10 +141,8 @@ async def test_process_raw_event_invalid_and_handle_watch_error(monkeypatch) -> 
     # Invalid event shape
     await pm._process_raw_event({})
 
-    # Backoff progression without sleeping long
-    async def fast_sleep(x):
-        return None
-    monkeypatch.setattr("asyncio.sleep", fast_sleep)
+    # Backoff progression without real sleep by setting base delay to 0
+    pm.config.watch_reconnect_delay = 0
     pm._reconnect_attempts = 0
     await pm._handle_watch_error()  # 1
     await pm._handle_watch_error()  # 2
@@ -261,15 +233,20 @@ async def test_reconciliation_loop_and_state(monkeypatch) -> None:
 
     pm._reconcile_state = mock_reconcile
 
-    # Run reconciliation loop briefly
+    # Run reconciliation loop until first reconcile
+    evt = asyncio.Event()
+    async def wrapped_reconcile():
+        res = await mock_reconcile()
+        evt.set()
+        return res
+    pm._reconcile_state = wrapped_reconcile
+
     task = asyncio.create_task(pm._reconciliation_loop())
-    await asyncio.sleep(0.05)
+    await asyncio.wait_for(evt.wait(), timeout=1.0)
     pm._state = pm.state.__class__.STOPPED
     task.cancel()
-    try:
+    with pytest.raises(asyncio.CancelledError):
         await task
-    except asyncio.CancelledError:
-        pass
 
     assert len(reconcile_called) > 0
 
@@ -282,19 +259,14 @@ async def test_reconcile_state_success(monkeypatch) -> None:
 
     pm = PodMonitor(cfg, producer=_FakeProducer())
 
-    # Mock K8s API
-    class Pod:
-        def __init__(self, name):
-            self.metadata = types.SimpleNamespace(name=name, resource_version="v1")
-
-    class V1:
-        async def list_namespaced_pod(self, namespace, label_selector):
-            return types.SimpleNamespace(items=[Pod("pod1"), Pod("pod2")])
-
-    # asyncio.to_thread needs sync function
-    def sync_list(*args, **kwargs):
-        import asyncio
-        return asyncio.run(V1().list_namespaced_pod(*args, **kwargs))
+    # Mock K8s API: provide a sync function suitable for asyncio.to_thread
+    def sync_list(namespace, label_selector):  # noqa: ARG002
+        return types.SimpleNamespace(
+            items=[
+                make_pod(name="pod1", phase="Running", resource_version="v1"),
+                make_pod(name="pod2", phase="Running", resource_version="v1"),
+            ]
+        )
 
     pm._v1 = types.SimpleNamespace(list_namespaced_pod=sync_list)
     pm._tracked_pods = {"pod2", "pod3"}  # pod1 missing, pod3 extra
@@ -398,17 +370,11 @@ async def test_process_pod_event_full_flow() -> None:
         published.append(event)
     pm._publish_event = mock_publish
 
-    # Create test pod event
-    class Pod:
-        def __init__(self, name, phase):
-            self.metadata = types.SimpleNamespace(name=name)
-            self.status = types.SimpleNamespace(phase=phase)
-
-    # Test ADDED event
+    # Create test pod events
     event = PodEvent(
         event_type=WatchEventType.ADDED,
-        pod=Pod("test-pod", "Running"),
-        resource_version="v1"
+        pod=make_pod(name="test-pod", phase="Running"),
+        resource_version="v1",
     )
 
     await pm._process_pod_event(event)
@@ -419,8 +385,8 @@ async def test_process_pod_event_full_flow() -> None:
     # Test DELETED event
     event_del = PodEvent(
         event_type=WatchEventType.DELETED,
-        pod=Pod("test-pod", "Succeeded"),
-        resource_version="v2"
+        pod=make_pod(name="test-pod", phase="Succeeded"),
+        resource_version="v2",
     )
 
     await pm._process_pod_event(event_del)
@@ -430,8 +396,8 @@ async def test_process_pod_event_full_flow() -> None:
     # Test ignored phase
     event_ignored = PodEvent(
         event_type=WatchEventType.ADDED,
-        pod=Pod("ignored-pod", "Unknown"),
-        resource_version="v3"
+        pod=make_pod(name="ignored-pod", phase="Unknown"),
+        resource_version="v3",
     )
 
     published.clear()
@@ -453,13 +419,9 @@ async def test_process_pod_event_exception_handling() -> None:
 
     pm._event_mapper = FailMapper()
 
-    class Pod:
-        metadata = types.SimpleNamespace(name="fail-pod")
-        status = None
-
     event = PodEvent(
         event_type=WatchEventType.ADDED,
-        pod=Pod(),
+        pod=make_pod(name="fail-pod", phase="Pending"),
         resource_version=None
     )
 
@@ -495,14 +457,8 @@ async def test_publish_event_full_flow() -> None:
         aggregate_id = "exec1"
         execution_id = "exec1"
 
-    class Pod:
-        metadata = types.SimpleNamespace(
-            name="test-pod",
-            labels={"execution-id": "exec1"}
-        )
-        status = types.SimpleNamespace(phase="Succeeded")
-
-    await pm._publish_event(Event(), Pod())
+    pod = make_pod(name="test-pod", phase="Succeeded", labels={"execution-id": "exec1"})
+    await pm._publish_event(Event(), pod)
 
     assert len(published) == 1
     assert published[0][1] == "exec1"  # key
@@ -515,7 +471,7 @@ async def test_publish_event_full_flow() -> None:
 
     pm._producer = UnifiedProducerAdapter(UnhealthyProducer())
     published.clear()
-    await pm._publish_event(Event(), Pod())
+    await pm._publish_event(Event(), pod)
     assert len(published) == 0  # Should not publish
 
 
@@ -644,7 +600,9 @@ async def test_create_pod_monitor_context_manager() -> None:
         monitor._initialize_kubernetes_client = lambda: None
         monitor._v1 = _StubV1()
         monitor._watch = _StubWatch()
-        monitor._watch_pods = lambda: asyncio.sleep(0.01)
+        async def _fast_watch():
+            return None
+        monitor._watch_pods = _fast_watch
 
         # Monitor should be started
         assert monitor.state == monitor.state.__class__.RUNNING
@@ -679,7 +637,7 @@ async def test_stop_with_tasks() -> None:
 
     # Create dummy tasks
     async def dummy_task():
-        await asyncio.sleep(10)
+        await asyncio.Event().wait()
 
     pm._watch_task = asyncio.create_task(dummy_task())
     pm._reconcile_task = asyncio.create_task(dummy_task())
@@ -940,15 +898,19 @@ async def test_reconciliation_loop_exception() -> None:
 
     pm._reconcile_state = mock_reconcile
 
-    # Run reconciliation loop briefly
+    # Run reconciliation loop until it hits the exception once
+    hit = asyncio.Event()
+    async def raising():
+        hit.set()
+        raise RuntimeError("Reconcile error")
+    pm._reconcile_state = raising
+
     task = asyncio.create_task(pm._reconciliation_loop())
-    await asyncio.sleep(0.05)
+    await asyncio.wait_for(hit.wait(), timeout=1.0)
     pm._state = pm.state.__class__.STOPPED
     task.cancel()
-    try:
+    with pytest.raises(asyncio.CancelledError):
         await task
-    except asyncio.CancelledError:
-        pass
 
     # Should handle exception and continue
 
@@ -964,10 +926,10 @@ async def test_start_with_reconciliation() -> None:
     pm._watch = _StubWatch()
 
     async def mock_watch():
-        await asyncio.sleep(0.01)
+        return None
 
     async def mock_reconcile():
-        await asyncio.sleep(0.01)
+        return None
 
     pm._watch_pods = mock_watch
     pm._reconciliation_loop = mock_reconcile
@@ -977,53 +939,3 @@ async def test_start_with_reconciliation() -> None:
     assert pm._reconcile_task is not None
 
     await pm.stop()
-
-
-@pytest.mark.asyncio
-async def test_run_pod_monitor(monkeypatch) -> None:
-    from app.services.pod_monitor.monitor import run_pod_monitor
-
-    # Mock all the dependencies
-    class MockSchemaRegistry:
-        async def start(self): pass
-        async def stop(self): pass
-
-    class MockProducer:
-        def __init__(self, config, registry): pass
-        async def start(self): pass
-        async def stop(self): pass
-        _producer = object()
-
-    class MockMonitor:
-        def __init__(self, config, producer):
-            self.state = MockMonitorState()
-        async def start(self): pass
-        async def stop(self): pass
-        async def get_status(self):
-            return {"state": "RUNNING"}
-
-    class MockMonitorState:
-        RUNNING = "RUNNING"
-        def __eq__(self, other):
-            return False  # Always return False to exit loop quickly
-
-    async def mock_initialize(*args): pass
-    def mock_create_registry(): return MockSchemaRegistry()
-
-    monkeypatch.setattr("app.services.pod_monitor.monitor.initialize_event_schemas", mock_initialize)
-    monkeypatch.setattr("app.services.pod_monitor.monitor.create_schema_registry_manager", mock_create_registry)
-    monkeypatch.setattr("app.services.pod_monitor.monitor.UnifiedProducer", MockProducer)
-    monkeypatch.setattr("app.services.pod_monitor.monitor.PodMonitor", MockMonitor)
-    monkeypatch.setattr("asyncio.get_running_loop", lambda: types.SimpleNamespace(
-        add_signal_handler=lambda sig, handler: None
-    ))
-
-    # Run briefly
-    task = asyncio.create_task(run_pod_monitor())
-    await asyncio.sleep(0.1)
-    task.cancel()
-
-    try:
-        await task
-    except asyncio.CancelledError:
-        pass

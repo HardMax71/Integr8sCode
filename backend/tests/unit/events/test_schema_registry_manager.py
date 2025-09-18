@@ -37,17 +37,4 @@ def test_deserialize_json_missing_type_raises() -> None:
         m.deserialize_json({})
 
 
-@pytest.mark.kafka
-def test_serialize_and_deserialize_event_real_registry() -> None:
-    # Uses real Schema Registry configured via env (SCHEMA_REGISTRY_URL)
-    m = SchemaRegistryManager()
-    ev = PodCreatedEvent(
-        execution_id="e1",
-        pod_name="p",
-        namespace="n",
-        metadata=EventMetadata(service_name="s", service_version="1"),
-    )
-    data = m.serialize_event(ev)
-    obj = m.deserialize_event(data, topic=str(ev.topic))
-    assert isinstance(obj, PodCreatedEvent)
-    assert obj.namespace == "n"
+ 

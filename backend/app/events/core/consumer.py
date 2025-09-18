@@ -14,6 +14,7 @@ from app.core.tracing.utils import extract_trace_context, get_tracer
 from app.domain.enums.kafka import KafkaTopic
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.events.base import BaseEvent
+from app.settings import get_settings
 
 from .dispatcher import EventDispatcher
 from .types import ConsumerConfig, ConsumerMetrics, ConsumerState
@@ -37,6 +38,7 @@ class UnifiedConsumer:
         self._event_metrics = get_event_metrics()  # Singleton for Kafka metrics
         self._error_callback: "Callable[[Exception, BaseEvent], Awaitable[None]] | None" = None
         self._consume_task: asyncio.Task[None] | None = None
+        self._topic_prefix = get_settings().KAFKA_TOPIC_PREFIX
 
     async def start(self, topics: list[KafkaTopic]) -> None:
         self._state = (
@@ -49,7 +51,7 @@ class UnifiedConsumer:
             consumer_config['stats_cb'] = self._handle_stats
 
         self._consumer = Consumer(consumer_config)
-        topic_strings = [str(topic) for topic in topics]
+        topic_strings = [f"{self._topic_prefix}{str(topic)}" for topic in topics]
         self._consumer.subscribe(topic_strings)
         self._running = True
         self._consume_task = asyncio.create_task(self._consume_loop())

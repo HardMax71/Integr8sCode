@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from contextlib import AsyncExitStack
 
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
@@ -55,7 +56,6 @@ async def run_replay_service() -> None:
         bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS
     )
     producer = UnifiedProducer(producer_config, schema_registry)
-    await producer.start()
 
     # Create event store
     event_store = create_event_store(db=database, schema_registry=schema_registry)
@@ -75,22 +75,20 @@ async def run_replay_service() -> None:
     )
     logger.info("Event replay service initialized")
 
-    # Start cleanup task
-    cleanup = asyncio.create_task(cleanup_task(replay_service))
+    async with AsyncExitStack() as stack:
+        await stack.enter_async_context(producer)
+        stack.callback(db_client.close)
 
-    try:
-        # Keep service running
+        task = asyncio.create_task(cleanup_task(replay_service))
+        async def _cancel_task() -> None:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+        stack.push_async_callback(_cancel_task)
+
         await asyncio.Event().wait()
-    except asyncio.CancelledError:
-        logger.info("Replay service shutting down...")
-        cleanup.cancel()
-        try:
-            await cleanup
-        except asyncio.CancelledError:
-            pass
-    finally:
-        await producer.stop()
-        db_client.close()
 
 
 def main() -> None:
@@ -118,14 +116,7 @@ def main() -> None:
         )
         logger.info("Tracing initialized for Event Replay Service")
 
-    try:
-        # Run service
-        asyncio.run(run_replay_service())
-    except KeyboardInterrupt:
-        logger.info("Event replay service interrupted by user")
-    except Exception as e:
-        logger.error(f"Event replay service failed: {e}", exc_info=True)
-        raise
+    asyncio.run(run_replay_service())
 
 
 if __name__ == "__main__":

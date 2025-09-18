@@ -9,8 +9,13 @@ from app.infrastructure.kafka.events.saga import CreatePodCommandEvent
 from app.services.k8s_worker.config import K8sWorkerConfig
 from app.services.k8s_worker.worker import KubernetesWorker
 
+from motor.motor_asyncio import AsyncIOMotorDatabase
+from app.events.event_store import EventStore
+from app.events.schema.schema_registry import SchemaRegistryManager
+from app.events.core import UnifiedProducer
+from app.services.idempotency import IdempotencyManager
 
-pytestmark = [pytest.mark.k8s]
+pytestmark = [pytest.mark.integration, pytest.mark.k8s]
 
 
 @pytest.mark.asyncio
@@ -21,16 +26,11 @@ async def test_worker_creates_configmap_and_pod(scope, monkeypatch):  # type: ig
         ns = "integr8scode"
         monkeypatch.setenv("K8S_NAMESPACE", ns)
 
-    # Resolve DI deps for DB, schema registry, event store, and producer
-    from motor.motor_asyncio import AsyncIOMotorDatabase
-    from app.events.event_store import EventStore
-    from app.events.schema.schema_registry import SchemaRegistryManager
-    from app.events.core import UnifiedProducer
-
     database: AsyncIOMotorDatabase = await scope.get(AsyncIOMotorDatabase)
     schema: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
     store: EventStore = await scope.get(EventStore)
     producer: UnifiedProducer = await scope.get(UnifiedProducer)
+    idem: IdempotencyManager = await scope.get(IdempotencyManager)
 
     cfg = K8sWorkerConfig(namespace=ns, max_concurrent_pods=1)
     worker = KubernetesWorker(
@@ -39,6 +39,7 @@ async def test_worker_creates_configmap_and_pod(scope, monkeypatch):  # type: ig
         producer=producer,
         schema_registry_manager=schema,
         event_store=store,
+        idempotency_manager=idem,
     )
 
     # Initialize k8s clients using worker's own method
@@ -90,4 +91,3 @@ async def test_worker_creates_configmap_and_pod(scope, monkeypatch):  # type: ig
     # Cleanup
     worker.v1.delete_namespaced_pod(name=f"executor-{exec_id}", namespace=ns)
     worker.v1.delete_namespaced_config_map(name=f"script-{exec_id}", namespace=ns)
-

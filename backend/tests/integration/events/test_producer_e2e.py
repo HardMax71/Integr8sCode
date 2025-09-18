@@ -6,8 +6,7 @@ import pytest
 
 from app.events.core import UnifiedProducer, ProducerConfig
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.infrastructure.kafka.events.execution import ExecutionRequestedEvent
-from app.infrastructure.kafka.events.metadata import EventMetadata
+from tests.helpers import make_execution_requested_event
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.kafka]
@@ -20,28 +19,11 @@ async def test_unified_producer_start_produce_send_to_dlq_stop(scope):  # type: 
     await prod.start()
 
     try:
-        ev = ExecutionRequestedEvent(
-            execution_id=f"exec-{uuid4().hex[:8]}",
-            script="print('x')",
-            language="python",
-            language_version="3.11",
-            runtime_image="python:3.11-slim",
-            runtime_command=["python", "-c"],
-            runtime_filename="main.py",
-            timeout_seconds=5,
-            cpu_limit="100m",
-            memory_limit="128Mi",
-            cpu_request="50m",
-            memory_request="64Mi",
-            metadata=EventMetadata(service_name="tests", service_version="1.0"),
-        )
+        ev = make_execution_requested_event(execution_id=f"exec-{uuid4().hex[:8]}")
         await prod.produce(ev)
 
         # Exercise send_to_dlq path
         await prod.send_to_dlq(ev, original_topic=str(ev.topic), error=RuntimeError("forced"), retry_count=1)
-
-        # Nudge the poll loop to deliver
-        await asyncio.sleep(0.5)
 
         st = prod.get_status()
         assert st["running"] is True and st["state"] == "running"
@@ -65,4 +47,3 @@ def test_producer_handle_stats_path():
     })
     UP._handle_stats(p, payload)  # type: ignore[misc]
     assert m.queue_size == 1 and m.avg_latency_ms > 0
-

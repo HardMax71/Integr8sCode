@@ -21,19 +21,9 @@ if test_env_path.exists():
 
 # IMPORTANT: avoid importing app.main at module import time because it
 # constructs the FastAPI app immediately (reading settings from .env).
-# We import lazily inside the fixture after test env vars are set.
-from tests.helpers.eventually import eventually as _eventually
+# We import lazily inside the fixture after test env vars are set.y
 # DO NOT import any app.* modules at import time here, as it would
 # construct global singletons (logger, settings) before we set test env.
-
-
-# Let pytest-asyncio handle the event loop
-# The asyncio_default_fixture_loop_scope = "session" in pyproject.toml handles this
-# Motor and Redis now explicitly bind to the current loop in providers.py
-
-
-# Note: pytest-asyncio (auto mode) manages event loops per test.
-
 
 # ===== Early, host-friendly defaults (applied at import time) =====
 # Ensure tests connect to localhost services when run outside Docker.
@@ -47,6 +37,7 @@ os.environ.setdefault("OTEL_TRACES_EXPORTER", "none")
 # Do not override if MONGODB_URL is already provided in the environment.
 if "MONGODB_URL" not in os.environ:
     from urllib.parse import quote_plus
+
     user = os.environ.get("MONGO_ROOT_USER", "root")
     pwd = os.environ.get("MONGO_ROOT_PASSWORD", "rootpassword")
     host = os.environ.get("MONGODB_HOST", "127.0.0.1")
@@ -112,52 +103,14 @@ def _test_env() -> None:
     # Use a single shared test topic prefix for all tests
     # This avoids creating unique topics per worker/session
     os.environ.setdefault("KAFKA_TOPIC_PREFIX", "test.")
-    try:
-        from app.domain.enums.kafka import KafkaTopic  # local import to avoid import-time side effects
 
-        def _prefixed_str(self: object) -> str:  # type: ignore[no-redef]
-            prefix = os.environ.get("KAFKA_TOPIC_PREFIX", "")
-            # Enum instance has .value
-            val = getattr(self, "value", None)
-            return f"{prefix}{val}" if isinstance(val, str) else str(val)
-
-        # Patch string conversion so all producers/consumers use prefixed topics in tests
-        KafkaTopic.__str__ = _prefixed_str  # type: ignore[assignment]
-        KafkaTopic.__repr__ = _prefixed_str  # type: ignore[assignment]
-        # Also patch EventBus topic name
-        try:
-            from app.services.event_bus import EventBus
-
-            _orig_init = EventBus.__init__
-
-            def _init_with_prefix(self) -> None:  # type: ignore[no-redef]
-                _orig_init(self)
-                prefix = os.environ.get("KAFKA_TOPIC_PREFIX", "")
-                self._topic = f"{prefix}{self._topic}"
-
-            EventBus.__init__ = _init_with_prefix  # type: ignore[assignment]
-        except Exception:
-            pass
-    except Exception:
-        # If topic patching fails, tests still run with unique consumer groups
-        pass
+    # Schema Registry subject prefix for isolation across local runs/workers
+    # Example: test.<session>.<worker>.
+    os.environ.setdefault("SCHEMA_SUBJECT_PREFIX", f"test.{session_id}.{worker_id}.")
 
     # Keep unique consumer groups per worker to avoid conflicts
-    # But all workers will consume from the same test topics
+    # Code under test reads this suffix and appends it to base group IDs.
     os.environ.setdefault("KAFKA_GROUP_SUFFIX", f"{session_id}.{worker_id}")
-    try:
-        from app.domain.enums.kafka import GroupId  # local import
-
-        def _group_with_suffix(self: object) -> str:  # type: ignore[no-redef]
-            suffix = os.environ.get("KAFKA_GROUP_SUFFIX", "")
-            val = getattr(self, "value", None)
-            base = str(val) if not isinstance(val, str) else val
-            return f"{base}.{suffix}" if suffix else base
-
-        GroupId.__str__ = _group_with_suffix  # type: ignore[assignment]
-        GroupId.__repr__ = _group_with_suffix  # type: ignore[assignment]
-    except Exception:
-        pass
 
 
 # ===== App creation for tests =====
@@ -166,7 +119,7 @@ def create_test_app():
     # Clear settings cache to ensure .env.test values are used
     from app.settings import get_settings
     get_settings.cache_clear()
-    
+
     from importlib import import_module
     mainmod = import_module("app.main")
     return getattr(mainmod, "create_app")()
@@ -177,11 +130,9 @@ def create_test_app():
 async def app():
     """Create FastAPI app for the function without starting lifespan."""
     application = create_test_app()
-    # Don't use LifespanManager - it tries to start Kafka consumers etc which hang in tests
-    
+
     yield application
-    
-    # Clean up Dishka container to stop background tasks
+
     if hasattr(application.state, 'dishka_container'):
         container: AsyncContainer = application.state.dishka_container
         await container.close()
@@ -194,9 +145,6 @@ async def app_container(app):  # type: ignore[valid-type]
     return container
 
 
-## No prewarm: resources are created within the test's event loop
-
-
 # ===== Client (function-scoped for clean cookies per test) =====
 @pytest_asyncio.fixture(scope="function")
 async def client(app) -> AsyncGenerator[httpx.AsyncClient, None]:  # type: ignore[valid-type]
@@ -205,10 +153,10 @@ async def client(app) -> AsyncGenerator[httpx.AsyncClient, None]:  # type: ignor
     # Use HTTPS scheme so 'Secure' cookies set by the app (access_token, csrf_token)
     # are accepted and sent by the client during tests.
     async with httpx.AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="https://test",
-        timeout=30.0,
-        follow_redirects=True
+            transport=ASGITransport(app=app),
+            base_url="https://test",
+            timeout=30.0,
+            follow_redirects=True
     ) as c:
         yield c
 
@@ -247,9 +195,9 @@ async def _cleanup(db: AsyncIOMotorDatabase, redis_client: redis.Redis):
         if not name.startswith("system."):
             await db.drop_collection(name)
     await redis_client.flushdb()
-    
+
     yield
-    
+
     # Post-test: cleanup for next test
     collections = await db.list_collection_names()
     for name in collections:
@@ -322,54 +270,5 @@ async def another_user(client: httpx.AsyncClient):
         "role": "user",
     })
     csrf = await _http_login(client, username, password)
-    return {"username": username, "email": email, "password": password, "csrf_token": csrf, "headers": {"X-CSRF-Token": csrf}}
-
-
-@pytest_asyncio.fixture(scope="function")
-async def make_user(client: httpx.AsyncClient) -> Callable[[str, str, str], Awaitable[dict[str, str]]]:
-    async def _create(username: str, email: str, password: str, *, admin: bool = False) -> dict[str, str]:
-        payload = {"username": username, "email": email, "password": password, "role": "admin" if admin else "user"}
-        r = await client.post("/api/v1/auth/register", json=payload)
-        if r.status_code not in (200, 201, 400):
-            pytest.skip(f"Cannot create user via API (status {r.status_code}).")
-        return payload
-    return _create
-
-
-@pytest_asyncio.fixture(scope="function")
-async def login_user(client: httpx.AsyncClient) -> Callable[[str, str], Awaitable[str]]:
-    async def _login(username: str, password: str) -> str:
-        return await _http_login(client, username, password)
-    return _login
-
-
-def pytest_configure(config):
-    config.addinivalue_line("markers", "integration: mark test as integration test")
-    config.addinivalue_line("markers", "performance: mark test as performance test")
-    config.addinivalue_line("markers", "load: mark test as load/property test")
-    config.addinivalue_line("markers", "slow: mark test as slow running")
-    config.addinivalue_line("markers", "kafka: mark test as requiring Kafka")
-    config.addinivalue_line("markers", "mongodb: mark test as requiring MongoDB")
-    config.addinivalue_line("markers", "k8s: mark test as requiring Kubernetes cluster")
-
-
-@pytest_asyncio.fixture(scope="function")
-async def producer(scope):  # type: ignore[valid-type]
-    # Lazy import to avoid early settings initialization
-    from app.events.core import UnifiedProducer
-    return await scope.get(UnifiedProducer)
-
-
-@pytest.fixture(scope="function")
-def send_event(producer):  # type: ignore[valid-type]
-    from app.infrastructure.kafka.events.base import BaseEvent  # noqa: F401
-
-    async def _send(ev):  # noqa: ANN001
-        await producer.produce(ev)
-
-    return _send
-
-
-@pytest.fixture(scope="function")
-def eventually():
-    return _eventually
+    return {"username": username, "email": email, "password": password, "csrf_token": csrf,
+            "headers": {"X-CSRF-Token": csrf}}

@@ -12,7 +12,7 @@ from app.schemas_pydantic.saga import (
 )
 
 
-class TestSagaRoutesReal:
+class TestSagaRoutes:
     """Test saga routes against the real backend."""
 
     @pytest.mark.asyncio

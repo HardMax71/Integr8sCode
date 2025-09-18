@@ -16,7 +16,7 @@ from app.schemas_pydantic.user import MessageResponse
 
 
 @pytest.mark.integration
-class TestDLQRoutesReal:
+class TestDLQRoutes:
     """Test DLQ endpoints against real backend."""
 
     @pytest.mark.asyncio

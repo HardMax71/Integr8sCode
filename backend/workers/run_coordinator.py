@@ -35,14 +35,7 @@ def main() -> None:
         )
         logger.info("Tracing initialized for ExecutionCoordinator")
 
-    try:
-        # Run coordinator
-        asyncio.run(run_coordinator())
-    except KeyboardInterrupt:
-        logger.info("Coordinator worker interrupted by user")
-    except Exception as e:
-        logger.error(f"Coordinator worker failed: {e}", exc_info=True)
-        raise
+    asyncio.run(run_coordinator())
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ from confluent_kafka import Consumer, KafkaError, Message, Producer
 from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
 from opentelemetry.trace import SpanKind
 
+from app.core.lifecycle import LifecycleEnabled
 from app.core.logging import logger
 from app.core.metrics.context import get_dlq_metrics
 from app.core.tracing import EventAttributes
@@ -26,7 +27,7 @@ from app.infrastructure.mappers.dlq_mapper import DLQMapper
 from app.settings import get_settings
 
 
-class DLQManager:
+class DLQManager(LifecycleEnabled):
     def __init__(
             self,
             database: AsyncIOMotorDatabase,
@@ -69,7 +70,8 @@ class DLQManager:
         if self._running:
             return
 
-        self.consumer.subscribe([self.dlq_topic])
+        topic_name = f"{get_settings().KAFKA_TOPIC_PREFIX}{str(self.dlq_topic)}"
+        self.consumer.subscribe([topic_name])
 
         self._running = True
 
@@ -399,10 +401,11 @@ def create_dlq_manager(
         retry_topic_suffix: str = "-retry",
         default_retry_policy: RetryPolicy | None = None,
 ) -> DLQManager:
+
     settings = get_settings()
     consumer = Consumer({
         'bootstrap.servers': settings.KAFKA_BOOTSTRAP_SERVERS,
-        'group.id': GroupId.DLQ_MANAGER,
+        'group.id': f"{GroupId.DLQ_MANAGER}.{settings.KAFKA_GROUP_SUFFIX}",
         'enable.auto.commit': False,
         'auto.offset.reset': 'earliest',
         'client.id': 'dlq-manager-consumer'

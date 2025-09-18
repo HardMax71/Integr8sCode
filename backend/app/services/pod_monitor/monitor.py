@@ -2,7 +2,7 @@ import asyncio
 import signal
 import time
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
 from enum import auto
 from typing import Any, Protocol
@@ -12,6 +12,8 @@ from kubernetes import config as k8s_config
 from kubernetes import watch
 from kubernetes.client.rest import ApiException
 
+from app.core.k8s_clients import K8sClients, close_k8s_clients, create_k8s_clients
+from app.core.lifecycle import LifecycleEnabled
 from app.core.logging import logger
 from app.core.metrics.context import get_kubernetes_metrics
 from app.core.utils import StringEnum
@@ -131,7 +133,7 @@ class UnifiedProducerAdapter:
         return self._producer._producer is not None
 
 
-class PodMonitor:
+class PodMonitor(LifecycleEnabled):
     """
     Monitors Kubernetes pods and publishes lifecycle events.
     
@@ -139,7 +141,8 @@ class PodMonitor:
     maps Kubernetes events to application events, and publishes them to Kafka.
     """
 
-    def __init__(self, config: PodMonitorConfig, producer: UnifiedProducer) -> None:
+    def __init__(self, config: PodMonitorConfig, producer: UnifiedProducer,
+                 k8s_clients: K8sClients | None = None) -> None:
         """Initialize the pod monitor."""
         self.config = config or PodMonitorConfig()
         settings = get_settings()
@@ -153,6 +156,7 @@ class PodMonitor:
         # Kubernetes clients (initialized on start)
         self._v1: k8s_client.CoreV1Api | None = None
         self._watch: watch.Watch | None = None
+        self._clients: K8sClients | None = k8s_clients
 
         # Components - producer is required
         self._event_mapper = PodEventMapper()
@@ -227,8 +231,7 @@ class PodMonitor:
 
     def _initialize_kubernetes_client(self) -> None:
         """Initialize Kubernetes API clients."""
-        try:
-            # Load configuration
+        if self._clients is None:
             match (self.config.in_cluster, self.config.kubeconfig_path):
                 case (True, _):
                     logger.info("Using in-cluster Kubernetes configuration")
@@ -240,28 +243,19 @@ class PodMonitor:
                     logger.info("Using default kubeconfig")
                     k8s_config.load_kube_config()
 
-            # Get configuration
             configuration = k8s_client.Configuration.get_default_copy()
-
-            # Log configuration
             logger.info(f"Kubernetes API host: {configuration.host}")
             logger.info(f"SSL CA cert configured: {configuration.ssl_ca_cert is not None}")
 
-            # Create API clients
             api_client = k8s_client.ApiClient(configuration)
             self._v1 = k8s_client.CoreV1Api(api_client)
-            self._watch = watch.Watch()
+        else:
+            self._v1 = self._clients.v1
 
-            # Test connection
-            self._v1.get_api_resources()
-            logger.info("Successfully connected to Kubernetes API")
-            # Recreate event mapper with k8s API client
-            self._event_mapper = PodEventMapper(k8s_api=self._v1)
-
-
-        except Exception as e:
-            logger.error(f"Failed to initialize Kubernetes client: {e}")
-            raise
+        self._watch = watch.Watch()
+        self._v1.get_api_resources()
+        logger.info("Successfully connected to Kubernetes API")
+        self._event_mapper = PodEventMapper(k8s_api=self._v1)
 
     async def _watch_pods(self) -> None:
         """Main watch loop for pods."""
@@ -607,9 +601,10 @@ class PodMonitor:
 async def create_pod_monitor(
         config: PodMonitorConfig,
         producer: UnifiedProducer,
+        k8s_clients: K8sClients | None = None,
 ) -> AsyncIterator[PodMonitor]:
     """Create and manage a pod monitor instance."""
-    monitor = PodMonitor(config=config, producer=producer)
+    monitor = PodMonitor(config=config, producer=producer, k8s_clients=k8s_clients)
 
     try:
         await monitor.start()
@@ -624,16 +619,13 @@ async def run_pod_monitor() -> None:
     schema_registry_manager = create_schema_registry_manager()
     await initialize_event_schemas(schema_registry_manager)
 
-    # Create producer
+    # Create producer and monitor
     settings = get_settings()
-    producer_config = ProducerConfig(
-        bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS
-    )
+    producer_config = ProducerConfig(bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS)
     producer = UnifiedProducer(producer_config, schema_registry_manager)
-    await producer.start()
-
     monitor_config = PodMonitorConfig()
-    monitor = PodMonitor(config=monitor_config, producer=producer)
+    clients = create_k8s_clients()
+    monitor = PodMonitor(config=monitor_config, producer=producer, k8s_clients=clients)
 
     # Setup signal handlers
     loop = asyncio.get_running_loop()
@@ -648,22 +640,16 @@ async def run_pod_monitor() -> None:
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, lambda: asyncio.create_task(shutdown()))
 
-    try:
-        await monitor.start()
+    async with AsyncExitStack() as stack:
+        # Ensure Kubernetes clients are always closed, even on exceptions
+        stack.callback(close_k8s_clients, clients)
+        await stack.enter_async_context(producer)
+        await stack.enter_async_context(monitor)
 
-        # Keep running until stopped
         while monitor.state == MonitorState.RUNNING:
             await asyncio.sleep(RECONCILIATION_LOG_INTERVAL)
-
-            # Log status periodically
             status = await monitor.get_status()
             logger.info(f"Pod monitor status: {status}")
-
-    except Exception as e:
-        logger.error(f"Pod monitor error: {e}", exc_info=True)
-    finally:
-        await monitor.stop()
-        await producer.stop()
 
 
 if __name__ == "__main__":

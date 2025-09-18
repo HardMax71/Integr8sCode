@@ -16,28 +16,16 @@ from app.dlq.models import (
     DLQMessageUpdate,
     DLQRetryResult,
 )
-from app.infrastructure.kafka.events.execution import ExecutionRequestedEvent
-from app.infrastructure.kafka.events.metadata import EventMetadata
+from tests.helpers import make_execution_requested_event
 from app.infrastructure.mappers.dlq_mapper import DLQMapper
 
 
 @pytest.fixture
 def sample_event():
     """Create a sample event for testing."""
-    return ExecutionRequestedEvent(
+    return make_execution_requested_event(
         execution_id="exec-123",
         script="print('test')",
-        language="python",
-        language_version="3.11",
-        runtime_image="python:3.11-slim",
-        runtime_command=["python"],
-        runtime_filename="main.py",
-        timeout_seconds=30,
-        cpu_limit="100m",
-        memory_limit="128Mi",
-        cpu_request="50m",
-        memory_request="64Mi",
-        metadata=EventMetadata(service_name="test", service_version="1.0.0"),
     )
 
 

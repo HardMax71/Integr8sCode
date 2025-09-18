@@ -7,7 +7,7 @@ from httpx import AsyncClient
 
 
 @pytest.mark.integration
-class TestHealthRoutesReal:
+class TestHealthRoutes:
     """Backend availability checks (no dedicated health endpoints)."""
 
     @pytest.mark.asyncio

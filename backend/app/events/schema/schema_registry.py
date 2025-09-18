@@ -1,4 +1,5 @@
 import json
+import os
 import struct
 from functools import lru_cache
 from typing import Any, Dict, Type, TypeVar
@@ -57,6 +58,9 @@ class SchemaRegistryManager:
         settings = get_settings()
         self.url = schema_registry_url or settings.SCHEMA_REGISTRY_URL
         self.namespace = "com.integr8scode.events"
+        # Optional per-session/worker subject prefix for tests/local isolation
+        # e.g., "test.<session>.<worker>." -> subjects become "test.x.y.ExecutionRequestedEvent-value"
+        self.subject_prefix = os.getenv("SCHEMA_SUBJECT_PREFIX", "")
 
         config = {"url": self.url}
         if settings.SCHEMA_REGISTRY_AUTH:
@@ -84,8 +88,8 @@ class SchemaRegistryManager:
         """Get or register schema ID for event class."""
         if event_class in self._schema_id_cache:
             return self._schema_id_cache[event_class]
-        # Use event class name in subject to avoid conflicts on shared topics
-        subject = f"{event_class.__name__}-value"
+        # Use event class name in subject with optional prefix for test isolation
+        subject = f"{self.subject_prefix}{event_class.__name__}-value"
         return self.register_schema(subject, event_class)
 
     def _get_event_class_by_id(self, schema_id: int) -> Type[BaseEvent] | None:
@@ -114,12 +118,12 @@ class SchemaRegistryManager:
         # Ensure schema is registered & id cached (keeps id<->class mapping warm)
         self._get_schema_id(event.__class__)
 
-        # Subject and AvroSerializer (cached by subject)
-        subject = f"{event.__class__.__name__}-value"
-        if subject not in self._serializers:
+        # Subject-key for serializer cache (include optional prefix for isolation)
+        subject_key = f"{self.subject_prefix}{event.__class__.__name__}-value"
+        if subject_key not in self._serializers:
             schema_str = json.dumps(event.__class__.avro_schema(namespace=self.namespace))
             # Use record_subject_name_strategy to ensure subject is based on record name, not topic
-            self._serializers[subject] = AvroSerializer(
+            self._serializers[subject_key] = AvroSerializer(
                 self.client,
                 schema_str,
                 conf={'subject.name.strategy': record_subject_name_strategy}
@@ -135,7 +139,7 @@ class SchemaRegistryManager:
             payload["timestamp"] = int(payload["timestamp"].timestamp() * 1_000_000)
 
         ctx = SerializationContext(str(event.topic), MessageField.VALUE)
-        data = self._serializers[subject](payload, ctx)  # returns framed bytes (magic+id+payload)
+        data = self._serializers[subject_key](payload, ctx)  # returns framed bytes (magic+id+payload)
         if data is None:
             raise ValueError("Serialization returned None")
         return data
@@ -214,8 +218,8 @@ class SchemaRegistryManager:
             return
 
         for event_class in _get_all_event_classes():
-            # Use event class name in subject to avoid conflicts on shared topics
-            subject = f"{event_class.__name__}-value"
+            # Use event class name with optional prefix for per-run isolation in tests
+            subject = f"{self.subject_prefix}{event_class.__name__}-value"
             self.set_compatibility(subject, "FORWARD")
             self.register_schema(subject, event_class)
 

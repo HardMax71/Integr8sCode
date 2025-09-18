@@ -49,16 +49,17 @@ class Settings(BaseSettings):
 
     # Event-Driven Design Configuration
     KAFKA_BOOTSTRAP_SERVERS: str = "kafka:29092"
+    KAFKA_GROUP_SUFFIX: str = "suff" # Suffix to append to consumer group IDs for test/parallel isolation
     SCHEMA_REGISTRY_URL: str = "http://schema-registry:8081"
     SCHEMA_REGISTRY_AUTH: str | None = None  # Format: "username:password"
     ENABLE_EVENT_STREAMING: bool = False
     EVENT_RETENTION_DAYS: int = 30
+    KAFKA_TOPIC_PREFIX: str = "pref"
     KAFKA_CONSUMER_GROUP_ID: str = "integr8scode-backend"
     KAFKA_AUTO_OFFSET_RESET: str = "earliest"
     KAFKA_ENABLE_AUTO_COMMIT: bool = True
     KAFKA_SESSION_TIMEOUT_MS: int = 30000
     KAFKA_MAX_POLL_RECORDS: int = 500
-    KAFKA_DLQ_TOPIC: str = "dead-letter-queue"
     
     # SSE Configuration
     SSE_CONSUMER_POOL_SIZE: int = 10  # Number of consumers in the partitioned pool

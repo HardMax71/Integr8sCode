@@ -27,9 +27,16 @@ async def test_register_unregister_and_shutdown_flow() -> None:
     # Start shutdown concurrently
     task = asyncio.create_task(mgr.initiate_shutdown())
 
-    # After notify phase starts, set connection events and unregister to drain
-    await asyncio.sleep(0.05)
-    e1.set()  # tell client 1
+    # Wait until manager enters NOTIFYING phase (event-driven)
+    from tests.helpers.eventually import eventually
+
+    async def _is_notifying():
+        return mgr.get_shutdown_status()["phase"] == "notifying"
+
+    await eventually(_is_notifying, timeout=1.0, interval=0.02)
+
+    # Simulate clients acknowledging and disconnecting
+    e1.set()
     await mgr.unregister_connection("exec-1", "c1")
     e2.set()
     await mgr.unregister_connection("exec-1", "c2")
@@ -41,11 +48,20 @@ async def test_register_unregister_and_shutdown_flow() -> None:
 @pytest.mark.asyncio
 async def test_reject_new_connection_during_shutdown() -> None:
     mgr = SSEShutdownManager(drain_timeout=0.1, notification_timeout=0.01, force_close_timeout=0.01)
-    # Start shutdown
-    t = asyncio.create_task(mgr.initiate_shutdown())
-    await asyncio.sleep(0.01)
+    # Pre-register one active connection to reflect realistic state
+    e = await mgr.register_connection("e", "c0")
+    assert e is not None
 
-    # New registrations rejected
-    denied = await mgr.register_connection("e", "c")
+    # Start shutdown and wait until initiated
+    t = asyncio.create_task(mgr.initiate_shutdown())
+    from tests.helpers.eventually import eventually
+
+    async def _initiated():
+        assert mgr.is_shutting_down() is True
+
+    await eventually(_initiated, timeout=1.0, interval=0.02)
+
+    # New registrations rejected once shutdown initiated
+    denied = await mgr.register_connection("e", "c1")
     assert denied is None
     await t

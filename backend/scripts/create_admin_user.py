@@ -11,9 +11,11 @@ from passlib.context import CryptContext
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+
 async def create_admin_user() -> None:
     # Connect to MongoDB
-    client: AsyncIOMotorClient = AsyncIOMotorClient("mongodb://root:rootpassword@mongo:27017/integr8scode?authSource=admin")
+    client: AsyncIOMotorClient = AsyncIOMotorClient(
+        "mongodb://root:rootpassword@mongo:27017/integr8scode?authSource=admin")
     db = client.integr8scode
 
     # User details
@@ -60,6 +62,7 @@ async def create_admin_user() -> None:
     print(f"Email: {email}")
 
     client.close()
+
 
 if __name__ == "__main__":
     asyncio.run(create_admin_user())

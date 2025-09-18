@@ -31,7 +31,7 @@ def has_k8s_workers() -> bool:
 
 
 @pytest.mark.integration
-class TestExecutionReal:
+class TestExecution:
     """Test execution endpoints against real backend."""
 
     @pytest.mark.asyncio

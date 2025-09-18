@@ -49,6 +49,7 @@ markers = [
     "slow: marks tests as slow running",
     "kafka: marks tests as requiring Kafka",
     "mongodb: marks tests as requiring MongoDB",
+    "redis: marks tests as requiring Redis",
     "k8s: marks tests as requiring Kubernetes",
     "performance: marks tests as performance tests"
 ]

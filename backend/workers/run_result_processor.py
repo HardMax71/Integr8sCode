@@ -33,14 +33,7 @@ def main() -> None:
         )
         logger.info("Tracing initialized for ResultProcessor Service")
 
-    try:
-        # Run processor
-        asyncio.run(run_result_processor())
-    except KeyboardInterrupt:
-        logger.info("Result processor worker interrupted by user")
-    except Exception as e:
-        logger.error(f"Result processor worker failed: {e}", exc_info=True)
-        raise
+    asyncio.run(run_result_processor())
 
 
 if __name__ == "__main__":

@@ -15,10 +15,11 @@ from app.schemas_pydantic.replay import (
     CleanupResponse
 )
 from app.schemas_pydantic.replay_models import ReplaySession
+from tests.helpers.eventually import eventually
 
 
 @pytest.mark.integration
-class TestReplayRoutesReal:
+class TestReplayRoutes:
     """Test replay endpoints against real backend."""
 
     @pytest.mark.asyncio
@@ -469,25 +470,16 @@ class TestReplayRoutesReal:
         # Start the session
         await client.post(f"/api/v1/replay/sessions/{session_id}/start")
 
-        # Check progress multiple times
-        for _ in range(3):
-            await asyncio.sleep(1)  # Wait a bit
-
+        # Poll progress without fixed sleeps
+        async def _check_progress_once() -> None:
             detail_response = await client.get(f"/api/v1/replay/sessions/{session_id}")
             assert detail_response.status_code == 200
-
             session_data = detail_response.json()
             session = ReplaySession(**session_data)
-
-            # Check progress fields
             if session.events_replayed is not None and session.events_total is not None:
                 assert 0 <= session.events_replayed <= session.events_total
-
-                # Calculate progress percentage
                 if session.events_total > 0:
                     progress = (session.events_replayed / session.events_total) * 100
                     assert 0.0 <= progress <= 100.0
 
-            # If completed, break
-            if session.status in ["completed", "failed", "cancelled"]:
-                break
+        await eventually(_check_progress_once, timeout=5.0, interval=0.5)

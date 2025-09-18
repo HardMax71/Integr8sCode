@@ -11,6 +11,7 @@ from app.infrastructure.kafka.events.pod import PodCreatedEvent
 from app.infrastructure.kafka.events.metadata import EventMetadata
 from app.services.sse.redis_bus import SSERedisBus
 from app.services.sse.sse_service import SSEService
+from tests.helpers.eventually import eventually
 
 
 # Note: httpx with ASGITransport doesn't support SSE streaming
@@ -18,7 +19,7 @@ from app.services.sse.sse_service import SSEService
 
 
 @pytest.mark.integration
-class TestSSERoutesReal:
+class TestSSERoutes:
     """SSE routes tested with deterministic event-driven reads (no polling)."""
 
     @pytest.mark.asyncio
@@ -48,7 +49,7 @@ class TestSSERoutesReal:
         """Test SSE notification stream directly through service (httpx doesn't support SSE streaming)."""
         sse_service: SSEService = await scope.get(SSEService)
         bus: SSERedisBus = await scope.get(SSERedisBus)
-        user_id = "test-user-id"
+        user_id = f"user-{uuid4().hex[:8]}"
         
         # Create notification stream generator
         stream_gen = sse_service.create_notification_stream(user_id)
@@ -66,10 +67,10 @@ class TestSSERoutesReal:
         # Start collecting events
         collect_task = asyncio.create_task(collect_events())
         
-        # Wait for connected event
-        await asyncio.sleep(0.1)
-        assert len(events) > 0
-        assert events[0]["event_type"] == "connected"
+        # Wait until the initial 'connected' event is received
+        async def _connected() -> None:
+            assert len(events) > 0 and events[0].get("event_type") == "connected"
+        await eventually(_connected, timeout=2.0, interval=0.05)
         
         # Publish a notification
         await bus.publish_notification(user_id, {"subject": "Hello", "body": "World", "event_type": "notification"})
@@ -109,10 +110,10 @@ class TestSSERoutesReal:
         # Start collecting
         collect_task = asyncio.create_task(collect_events())
         
-        # Wait for connected
-        await asyncio.sleep(0.1)
-        assert len(events) > 0
-        assert events[0]["event_type"] == "connected"
+        # Wait until the initial 'connected' event is received
+        async def _connected() -> None:
+            assert len(events) > 0 and events[0].get("event_type") == "connected"
+        await eventually(_connected, timeout=2.0, interval=0.05)
         
         # Publish pod event
         ev = PodCreatedEvent(
@@ -148,7 +149,11 @@ class TestSSERoutesReal:
     @pytest.mark.asyncio
     async def test_sse_endpoint_returns_correct_headers(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
         task = asyncio.create_task(client.get("/api/v1/events/notifications/stream"))
-        await asyncio.sleep(0.01)
+        
+        async def _tick() -> None:
+            return None
+        await eventually(_tick, timeout=0.1, interval=0.01)
+        
         task.cancel()
         try:
             await task

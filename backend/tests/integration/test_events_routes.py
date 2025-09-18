@@ -16,7 +16,7 @@ from app.schemas_pydantic.events import (
 
 
 @pytest.mark.integration
-class TestEventsRoutesReal:
+class TestEventsRoutes:
     """Test events endpoints against real backend."""
 
     @pytest.mark.asyncio

@@ -35,14 +35,7 @@ def main() -> None:
         )
         logger.info("Tracing initialized for PodMonitor Service")
 
-    try:
-        # Run monitor
-        asyncio.run(run_pod_monitor())
-    except KeyboardInterrupt:
-        logger.info("Pod monitor worker interrupted by user")
-    except Exception as e:
-        logger.error(f"Pod monitor worker failed: {e}", exc_info=True)
-        raise
+    asyncio.run(run_pod_monitor())
 
 
 if __name__ == "__main__":

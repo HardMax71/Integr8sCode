@@ -22,6 +22,6 @@ async def test_consumer_start_status_seek_and_stop():
         # Exercise seek functions; don't force specific partition offsets
         await c.seek_to_beginning()
         await c.seek_to_end()
-        await asyncio.sleep(0.2)
+        # No need to sleep; just ensure we can call seek APIs while running
     finally:
         await c.stop()

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 
+from app.core.lifecycle import LifecycleEnabled
 from app.core.logging import logger
 from app.core.metrics.events import EventMetrics
 from app.domain.enums.events import EventType
@@ -14,7 +15,7 @@ from app.services.sse.redis_bus import SSERedisBus
 from app.settings import Settings
 
 
-class SSEKafkaRedisBridge:
+class SSEKafkaRedisBridge(LifecycleEnabled):
     """
     Bridges Kafka events to Redis channels for SSE delivery.
 
@@ -171,4 +172,3 @@ def create_sse_kafka_redis_bridge(
         event_metrics=event_metrics,
         sse_bus=sse_bus,
     )
-

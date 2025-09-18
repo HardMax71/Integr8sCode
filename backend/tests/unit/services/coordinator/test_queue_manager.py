@@ -1,27 +1,11 @@
 import pytest
 
-from app.infrastructure.kafka.events.execution import ExecutionRequestedEvent
-from app.infrastructure.kafka.events.metadata import EventMetadata
 from app.services.coordinator.queue_manager import QueueManager, QueuePriority
+from tests.helpers import make_execution_requested_event
 
 
-def ev(execution_id: str, priority: int = QueuePriority.NORMAL.value) -> ExecutionRequestedEvent:
-    return ExecutionRequestedEvent(
-        execution_id=execution_id,
-        script="print(1)",
-        language="python",
-        language_version="3.11",
-        runtime_image="python:3.11-slim",
-        runtime_command=["python"],
-        runtime_filename="main.py",
-        timeout_seconds=30,
-        cpu_limit="100m",
-        memory_limit="128Mi",
-        cpu_request="50m",
-        memory_request="64Mi",
-        priority=priority,
-        metadata=EventMetadata(service_name="t", service_version="1", user_id="u1"),
-    )
+def ev(execution_id: str, priority: int = QueuePriority.NORMAL.value):
+    return make_execution_requested_event(execution_id=execution_id, priority=priority)
 
 
 @pytest.mark.asyncio

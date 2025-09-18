@@ -35,14 +35,7 @@ def main() -> None:
         )
         logger.info("Tracing initialized for KubernetesWorker")
 
-    try:
-        # Run worker
-        asyncio.run(run_kubernetes_worker())
-    except KeyboardInterrupt:
-        logger.info("Kubernetes worker interrupted by user")
-    except Exception as e:
-        logger.error(f"Kubernetes worker failed: {e}", exc_info=True)
-        raise
+    asyncio.run(run_kubernetes_worker())
 
 
 if __name__ == "__main__":

@@ -11,7 +11,7 @@ from app.schemas_pydantic.user_settings import (
     UserSettings,
     SettingsHistoryResponse
 )
-
+from tests.helpers.eventually import eventually
 
 # Force these tests to run sequentially on a single worker to avoid state conflicts
 pytestmark = pytest.mark.xdist_group(name="user_settings")
@@ -24,7 +24,7 @@ async def test_user(client: AsyncClient) -> Dict[str, str]:
     username = f"test_user_{uid}"
     email = f"{username}@example.com"
     password = "TestPass123!"
-    
+
     # Register the user
     await client.post("/api/v1/auth/register", json={
         "username": username,
@@ -32,14 +32,14 @@ async def test_user(client: AsyncClient) -> Dict[str, str]:
         "password": password,
         "role": "user"
     })
-    
+
     # Login to get CSRF token
     login_resp = await client.post("/api/v1/auth/login", data={
         "username": username,
         "password": password
     })
     csrf = login_resp.json().get("csrf_token", "")
-    
+
     return {
         "username": username,
         "email": email,
@@ -56,7 +56,7 @@ async def test_user2(client: AsyncClient) -> Dict[str, str]:
     username = f"test_user2_{uid}"
     email = f"{username}@example.com"
     password = "TestPass123!"
-    
+
     # Register the user
     await client.post("/api/v1/auth/register", json={
         "username": username,
@@ -64,14 +64,14 @@ async def test_user2(client: AsyncClient) -> Dict[str, str]:
         "password": password,
         "role": "user"
     })
-    
+
     # Login to get CSRF token
     login_resp = await client.post("/api/v1/auth/login", data={
         "username": username,
         "password": password
     })
     csrf = login_resp.json().get("csrf_token", "")
-    
+
     return {
         "username": username,
         "email": email,
@@ -81,10 +81,8 @@ async def test_user2(client: AsyncClient) -> Dict[str, str]:
     }
 
 
-
-
 @pytest.mark.integration
-class TestUserSettingsRoutesReal:
+class TestUserSettingsRoutes:
     """Test user settings endpoints against real backend."""
 
     @pytest.mark.asyncio
@@ -319,7 +317,7 @@ class TestUserSettingsRoutesReal:
         }
         login_resp = await client.post("/api/v1/auth/login", data=login_data)
         assert login_resp.status_code == 200
-        
+
         # Make some changes to build history (theme change)
         theme_update = {"theme": "dark"}
         response = await client.put("/api/v1/user/settings/theme", json=theme_update)
@@ -359,8 +357,14 @@ class TestUserSettingsRoutesReal:
         new_theme = "dark" if original_theme != "dark" else "light"
         await client.put("/api/v1/user/settings/theme", json={"theme": new_theme})
 
-        # Wait a moment for timestamp resolution
-        await asyncio.sleep(0.1)
+        # Ensure restore point is distinct by checking time monotonicity
+        prev = datetime.now(timezone.utc)
+
+        async def _tick():
+            now = datetime.now(timezone.utc)
+            assert (now - prev).total_seconds() >= 0
+
+        await eventually(_tick, timeout=0.5, interval=0.05)
 
         # Get restore point (before the change)
         restore_point = datetime.now(timezone.utc).isoformat()
@@ -422,7 +426,7 @@ class TestUserSettingsRoutesReal:
                                                     test_user: Dict[str, str],
                                                     test_user2: Dict[str, str]) -> None:
         """Test that settings are isolated between users."""
-        
+
         # Login as first user
         login_data = {
             "username": test_user["username"],

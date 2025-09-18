@@ -8,7 +8,7 @@ from app.schemas_pydantic.user import UserResponse
 
 
 @pytest.mark.integration
-class TestAuthenticationReal:
+class TestAuthentication:
     """Test authentication endpoints against real backend."""
 
     @pytest.mark.asyncio

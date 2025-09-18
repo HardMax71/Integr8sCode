@@ -6,8 +6,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.domain.enums.events import EventType
 from app.events.event_store import EventStore
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.infrastructure.kafka.events.execution import ExecutionRequestedEvent
-from app.infrastructure.kafka.events.metadata import EventMetadata
+from tests.helpers import make_execution_requested_event
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.mongodb]
@@ -21,21 +20,7 @@ async def test_event_store_initialize_and_crud(scope):  # type: ignore[valid-typ
     await store.initialize()
 
     # Store single event
-    ev = ExecutionRequestedEvent(
-        execution_id="e-1",
-        script="print('x')",
-        language="python",
-        language_version="3.11",
-        runtime_image="python:3.11-slim",
-        runtime_command=["python", "-c"],
-        runtime_filename="main.py",
-        timeout_seconds=5,
-        cpu_limit="100m",
-        memory_limit="128Mi",
-        cpu_request="50m",
-        memory_request="64Mi",
-        metadata=EventMetadata(service_name="tests", service_version="1.0"),
-    )
+    ev = make_execution_requested_event(execution_id="e-1")
     assert await store.store_event(ev) is True
 
     # Duplicate insert should be treated as success True (DuplicateKey swallowed)
@@ -58,4 +43,3 @@ async def test_event_store_initialize_and_crud(scope):  # type: ignore[valid-typ
 
     by_user = await store.get_user_events("u-unknown", limit=10)
     assert isinstance(by_user, list)
-

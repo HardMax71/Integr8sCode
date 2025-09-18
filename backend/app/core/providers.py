@@ -9,6 +9,8 @@ from app.core.database_context import (
     DatabaseConfig,
     create_database_connection,
 )
+from app.core.k8s_clients import K8sClients, close_k8s_clients, create_k8s_clients
+from app.core.logging import logger
 from app.core.metrics import (
     CoordinatorMetrics,
     DatabaseMetrics,
@@ -126,6 +128,9 @@ class RedisProvider(Provider):
         )
         # Test connection
         await client.ping()
+        logger.info(
+            f"Redis connected: {settings.REDIS_HOST}:{settings.REDIS_PORT}/{settings.REDIS_DB}"
+        )
         try:
             yield client
         finally:
@@ -221,24 +226,34 @@ class EventProvider(Provider):
             event_store: EventStore,
             schema_registry: SchemaRegistryManager,
             kafka_producer: UnifiedProducer
-    ) -> AsyncIterator[EventStoreConsumer]:
+    ) -> EventStoreConsumer:
         topics = get_all_topics()
-        consumer = create_event_store_consumer(
+        return create_event_store_consumer(
             event_store=event_store,
             topics=list(topics),
             schema_registry_manager=schema_registry,
             producer=kafka_producer
         )
-        await consumer.start()
-        try:
-            yield consumer
-        finally:
-            await consumer.stop()
 
     @provide
-    def get_event_bus_manager(self) -> EventBusManager:
-        # Don't start the event bus here - let it start lazily when needed
-        return EventBusManager()
+    async def get_event_bus_manager(self) -> AsyncIterator[EventBusManager]:
+        manager = EventBusManager()
+        try:
+            yield manager
+        finally:
+            await manager.close()
+
+
+class KubernetesProvider(Provider):
+    scope = Scope.APP
+
+    @provide
+    async def get_k8s_clients(self, settings: Settings) -> AsyncIterator[K8sClients]:
+        clients = create_k8s_clients()
+        try:
+            yield clients
+        finally:
+            close_k8s_clients(clients)
 
 
 class ConnectionProvider(Provider):
@@ -306,18 +321,13 @@ class ConnectionProvider(Provider):
             settings: Settings,
             event_metrics: EventMetrics,
             sse_redis_bus: SSERedisBus,
-    ) -> AsyncIterator[SSEKafkaRedisBridge]:
-        router = create_sse_kafka_redis_bridge(
+    ) -> SSEKafkaRedisBridge:
+        return create_sse_kafka_redis_bridge(
             schema_registry=schema_registry,
             settings=settings,
             event_metrics=event_metrics,
             sse_bus=sse_redis_bus,
         )
-        await router.start()
-        try:
-            yield router
-        finally:
-            await router.stop()
 
     @provide
     def get_sse_repository(

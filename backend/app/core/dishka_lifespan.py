@@ -1,4 +1,4 @@
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from typing import AsyncGenerator
 
 import redis.asyncio as redis
@@ -10,6 +10,7 @@ from app.core.logging import logger
 from app.core.startup import initialize_metrics_context, initialize_rate_limits
 from app.core.tracing import init_tracing
 from app.db.schema.schema_manager import SchemaManager
+from app.events.event_store_consumer import EventStoreConsumer
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
 from app.settings import get_settings
@@ -80,15 +81,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Rate limit middleware added during app creation; service resolved lazily at runtime
 
-    # Start SSE Kafka→Redis bridge to ensure consumers are running before any events are published
-    _ = await container.get(SSEKafkaRedisBridge)
-    logger.info("SSE Kafka→Redis bridge started with consumer pool")
+    # Acquire long-lived services and manage lifecycle via AsyncExitStack
+    sse_bridge = await container.get(SSEKafkaRedisBridge)
+    event_store_consumer = await container.get(EventStoreConsumer)
 
-    # All services initialized by dishka providers
-    logger.info("All services initialized by dishka providers")
-
-    try:
+    async with AsyncExitStack() as stack:
+        await stack.enter_async_context(sse_bridge)
+        logger.info("SSE Kafka→Redis bridge started with consumer pool")
+        await stack.enter_async_context(event_store_consumer)
+        logger.info("EventStoreConsumer started - events will be persisted to MongoDB")
+        logger.info("All services initialized by DI and managed by AsyncExitStack")
         yield
-    finally:
-        # Dishka automatically handles cleanup of all resources!
-        logger.info("Application shutdown complete")

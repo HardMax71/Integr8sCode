@@ -11,7 +11,7 @@ from app.schemas_pydantic.saved_script import (
 
 
 @pytest.mark.integration
-class TestSavedScriptsReal:
+class TestSavedScripts:
     """Test saved scripts endpoints against real backend."""
 
     @pytest.mark.asyncio

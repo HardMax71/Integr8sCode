@@ -4,75 +4,20 @@ import pytest
 from app.domain.enums.storage import ExecutionErrorType
 from app.infrastructure.kafka.events.metadata import EventMetadata
 from app.services.pod_monitor.event_mapper import PodContext, PodEventMapper
+from tests.helpers.k8s_fakes import (
+    Meta,
+    Terminated,
+    Waiting,
+    State,
+    ContainerStatus,
+    Spec,
+    Status,
+    Pod,
+    FakeApi,
+)
 
 
 pytestmark = pytest.mark.unit
-
-
-class Meta:
-    def __init__(self, name: str, namespace: str = "integr8scode", labels=None, annotations=None) -> None:
-        self.name = name
-        self.namespace = namespace
-        self.labels = labels or {}
-        self.annotations = annotations or {}
-
-
-class Terminated:
-    def __init__(self, exit_code: int, reason: str | None = None, message: str | None = None) -> None:
-        self.exit_code = exit_code
-        self.reason = reason
-        self.message = message
-
-
-class Waiting:
-    def __init__(self, reason: str, message: str | None = None) -> None:
-        self.reason = reason
-        self.message = message
-
-
-class State:
-    def __init__(self, terminated: Terminated | None = None, waiting: Waiting | None = None, running=None) -> None:
-        self.terminated = terminated
-        self.waiting = waiting
-        self.running = running
-
-
-class ContainerStatus:
-    def __init__(self, state: State | None, name: str = "c", ready: bool = True, restart_count: int = 0) -> None:
-        self.state = state
-        self.name = name
-        self.ready = ready
-        self.restart_count = restart_count
-
-
-class Spec:
-    def __init__(self, adl: int | None = None, node_name: str | None = None) -> None:
-        self.active_deadline_seconds = adl
-        self.node_name = node_name
-
-
-class Status:
-    def __init__(self, phase: str | None, reason: str | None = None, message: str | None = None, cs=None) -> None:
-        self.phase = phase
-        self.reason = reason
-        self.message = message
-        self.container_statuses = cs or []
-        self.conditions = None
-
-
-class Pod:
-    def __init__(self, name: str, phase: str, cs=None, reason: str | None = None, msg: str | None = None, adl: int | None = None) -> None:
-        self.metadata = Meta(name)
-        self.status = Status(phase, reason, msg, cs)
-        self.spec = Spec(adl)
-
-
-class _FakeAPI:
-    def __init__(self, logs: str) -> None:
-        self._logs = logs
-
-    def read_namespaced_pod_log(self, name: str, namespace: str, tail_lines: int = 10000):  # noqa: ARG002
-        return self._logs
 
 
 def _ctx(pod: Pod, event_type: str = "ADDED") -> PodContext:
@@ -80,7 +25,7 @@ def _ctx(pod: Pod, event_type: str = "ADDED") -> PodContext:
 
 
 def test_pending_running_and_succeeded_mapping() -> None:
-    pem = PodEventMapper(k8s_api=_FakeAPI(json.dumps({"stdout": "ok", "stderr": "", "exit_code": 0, "resource_usage": {"execution_time_wall_seconds": 0, "cpu_time_jiffies": 0, "clk_tck_hertz": 0, "peak_memory_kb": 0}})))
+    pem = PodEventMapper(k8s_api=FakeApi(json.dumps({"stdout": "ok", "stderr": "", "exit_code": 0, "resource_usage": {"execution_time_wall_seconds": 0, "cpu_time_jiffies": 0, "clk_tck_hertz": 0, "peak_memory_kb": 0}})))
 
     # Pending -> scheduled (set execution-id label and PodScheduled condition)
     pend = Pod("p", "Pending")
@@ -115,7 +60,7 @@ def test_pending_running_and_succeeded_mapping() -> None:
 
 
 def test_failed_timeout_and_deleted() -> None:
-    pem = PodEventMapper(k8s_api=_FakeAPI(""))
+    pem = PodEventMapper(k8s_api=FakeApi(""))
 
     # Timeout via DeadlineExceeded
     pod_to = Pod("p", "Failed", cs=[ContainerStatus(State(terminated=Terminated(137)))], reason="DeadlineExceeded", adl=5)
@@ -138,7 +83,7 @@ def test_failed_timeout_and_deleted() -> None:
 
 
 def test_extract_id_and_metadata_priority_and_duplicates() -> None:
-    pem = PodEventMapper(k8s_api=_FakeAPI(""))
+    pem = PodEventMapper(k8s_api=FakeApi(""))
 
     # From label
     p = Pod("any", "Pending")
@@ -168,7 +113,7 @@ def test_scheduled_requires_condition() -> None:
     class Cond:
         def __init__(self, t, s): self.type=t; self.status=s
 
-    pem = PodEventMapper(k8s_api=_FakeAPI(""))
+    pem = PodEventMapper(k8s_api=FakeApi(""))
     pod = Pod("p", "Pending")
     # No conditions -> None
     assert pem._map_scheduled(_ctx(pod)) is None
@@ -184,7 +129,7 @@ def test_scheduled_requires_condition() -> None:
 def test_parse_and_log_paths_and_analyze_failure_variants(caplog) -> None:
     # _parse_executor_output line-by-line
     line_json = '{"stdout":"x","stderr":"","exit_code":3,"resource_usage":{}}'
-    pem = PodEventMapper(k8s_api=_FakeAPI("junk\n" + line_json))
+    pem = PodEventMapper(k8s_api=FakeApi("junk\n" + line_json))
     pod = Pod("p", "Succeeded", cs=[ContainerStatus(State(terminated=Terminated(0)))])
     logs = pem._extract_logs(pod)
     assert logs.exit_code == 3 and logs.stdout == "x"
@@ -194,11 +139,11 @@ def test_parse_and_log_paths_and_analyze_failure_variants(caplog) -> None:
     assert pem2._extract_logs(pod).exit_code is None
 
     # _extract_logs exceptions -> 404/400/generic branches
-    class _API404(_FakeAPI):
+    class _API404(FakeApi):
         def read_namespaced_pod_log(self, *a, **k): raise Exception("404 Not Found")
-    class _API400(_FakeAPI):
+    class _API400(FakeApi):
         def read_namespaced_pod_log(self, *a, **k): raise Exception("400 Bad Request")
-    class _APIGen(_FakeAPI):
+    class _APIGen(FakeApi):
         def read_namespaced_pod_log(self, *a, **k): raise Exception("boom")
 
     pem404 = PodEventMapper(k8s_api=_API404(""))
@@ -228,7 +173,7 @@ def test_parse_and_log_paths_and_analyze_failure_variants(caplog) -> None:
 
 
 def test_all_containers_succeeded_and_cache_behavior() -> None:
-    pem = PodEventMapper(k8s_api=_FakeAPI(""))
+    pem = PodEventMapper(k8s_api=FakeApi(""))
     term0 = ContainerStatus(State(terminated=Terminated(0)))
     term0b = ContainerStatus(State(terminated=Terminated(0)))
     pod = Pod("p", "Failed", cs=[term0, term0b])

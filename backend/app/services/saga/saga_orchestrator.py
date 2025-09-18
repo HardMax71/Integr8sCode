@@ -5,6 +5,7 @@ from uuid import uuid4
 
 from opentelemetry.trace import SpanKind
 
+from app.core.lifecycle import LifecycleEnabled
 from app.core.tracing import EventAttributes
 from app.core.tracing.utils import get_tracer
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
@@ -28,7 +29,7 @@ from .saga_step import SagaContext
 logger = logging.getLogger(__name__)
 
 
-class SagaOrchestrator:
+class SagaOrchestrator(LifecycleEnabled):
     """Orchestrates saga execution and compensation"""
 
     def __init__(
@@ -119,7 +120,7 @@ class SagaOrchestrator:
         settings = get_settings()
         consumer_config = ConsumerConfig(
             bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=f"saga-{self.config.name}",
+            group_id=f"saga-{self.config.name}.{settings.KAFKA_GROUP_SUFFIX}",
             enable_auto_commit=False,
         )
 

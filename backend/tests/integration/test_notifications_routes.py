@@ -15,7 +15,7 @@ from app.schemas_pydantic.notification import (
 
 
 @pytest.mark.integration
-class TestNotificationRoutesReal:
+class TestNotificationRoutes:
     """Test notification endpoints against real backend."""
 
     @pytest.mark.asyncio

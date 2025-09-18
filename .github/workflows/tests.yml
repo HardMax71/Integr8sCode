@@ -139,9 +139,12 @@ jobs:
           MONGODB_PORT: 27017
           # Explicit URL with default credentials
           MONGODB_URL: mongodb://root:rootpassword@127.0.0.1:27017/?authSource=admin
+          # Optional isolation for Schema Registry subjects (fresh registry in CI, but safe to set)
+          SCHEMA_SUBJECT_PREFIX: "ci.${{ github.run_id }}."
         run: |
           cd backend
           echo "Using BACKEND_BASE_URL=$BACKEND_BASE_URL"
+          echo "Using SCHEMA_SUBJECT_PREFIX=$SCHEMA_SUBJECT_PREFIX"
           echo "MongoDB connection will use default CI credentials"
           python -m pytest tests/integration tests/unit -v --cov=app --cov-branch --cov-report=xml --cov-report=term --cov-report=term-missing
 

@@ -11,6 +11,7 @@ from kubernetes import config as k8s_config
 from kubernetes.client.rest import ApiException
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 
+from app.core.lifecycle import LifecycleEnabled
 from app.core.logging import logger
 from app.core.metrics import ExecutionMetrics, KubernetesMetrics
 from app.db.schema.schema_manager import SchemaManager
@@ -42,7 +43,7 @@ from app.services.k8s_worker.pod_builder import PodBuilder
 from app.settings import get_settings
 
 
-class KubernetesWorker:
+class KubernetesWorker(LifecycleEnabled):
     """
     Worker service that creates Kubernetes pods from execution events.
     
@@ -59,7 +60,8 @@ class KubernetesWorker:
                  database: AsyncIOMotorDatabase,
                  producer: UnifiedProducer,
                  schema_registry_manager: SchemaRegistryManager,
-                 event_store: EventStore):
+                 event_store: EventStore,
+                 idempotency_manager: IdempotencyManager):
         self.metrics = KubernetesMetrics()
         self.execution_metrics = ExecutionMetrics()
         self.config = config or K8sWorkerConfig()
@@ -78,7 +80,7 @@ class KubernetesWorker:
         self.pod_builder = PodBuilder(namespace=self.config.namespace, config=self.config)
         self.consumer: UnifiedConsumer | None = None
         self.idempotent_consumer: IdempotentConsumerWrapper | None = None
-        self.idempotency_manager: IdempotencyManager | None = None
+        self.idempotency_manager: IdempotencyManager = idempotency_manager
         self.dispatcher: EventDispatcher | None = None
         self.producer: UnifiedProducer = producer
 
@@ -105,41 +107,14 @@ class KubernetesWorker:
         self._initialize_kubernetes_client()
         logger.info("DEBUG: Kubernetes client initialized")
 
-        # Create producer if not provided
-        if not self.producer:
-            logger.info("Creating new producer with schema registry manager")
-            settings = get_settings()
-            config = ProducerConfig(
-                bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS
-            )
-            self.producer = UnifiedProducer(config, self._schema_registry_manager)
-            await self.producer.start()
-            logger.info("Producer created and started")
-        else:
-            logger.info("Using existing producer")
+        logger.info("Using provided producer")
 
-        # Initialize idempotency manager (Redis-backed)
-        settings = get_settings()
-        r = redis.Redis(
-            host=settings.REDIS_HOST,
-            port=settings.REDIS_PORT,
-            db=settings.REDIS_DB,
-            password=settings.REDIS_PASSWORD,
-            ssl=settings.REDIS_SSL,
-            max_connections=settings.REDIS_MAX_CONNECTIONS,
-            decode_responses=settings.REDIS_DECODE_RESPONSES,
-            socket_connect_timeout=5,
-            socket_timeout=5,
-        )
-        idem_repo = RedisIdempotencyRepository(r, key_prefix="idempotency")
-        self.idempotency_manager = create_idempotency_manager(repository=idem_repo, config=IdempotencyConfig())
-        await self.idempotency_manager.initialize()
-        logger.info("Idempotency manager initialized for K8s Worker")
+        logger.info("Idempotency manager provided")
 
         # Create consumer configuration
         consumer_config = ConsumerConfig(
             bootstrap_servers=self.kafka_servers,
-            group_id=self.config.consumer_group,
+            group_id=f"{self.config.consumer_group}.{get_settings().KAFKA_GROUP_SUFFIX}",
             enable_auto_commit=False
         )
 
@@ -199,8 +174,7 @@ class KubernetesWorker:
             await self.idempotent_consumer.stop()
 
         # Close idempotency manager
-        if self.idempotency_manager:
-            await self.idempotency_manager.close()
+        await self.idempotency_manager.close()
 
         # Stop producer if we created it
         if self.producer:
@@ -578,87 +552,76 @@ exec "$@"
 
 async def run_kubernetes_worker() -> None:
     """Run the Kubernetes worker service"""
-    # Initialize variables
-    db_client = None
-    worker = None
-    producer = None
+    from contextlib import AsyncExitStack
 
-    try:
-        # Initialize database
-        logger.info("Initializing database connection...")
-        settings = get_settings()
-        db_client = AsyncIOMotorClient(
-            settings.MONGODB_URL,
-            tz_aware=True,
-            serverSelectionTimeoutMS=5000
-        )
-        db_name = settings.PROJECT_NAME + "_test" if settings.TESTING else settings.PROJECT_NAME
-        if db_client:
-            database = db_client[db_name]
+    logger.info("Initializing database connection...")
+    settings = get_settings()
+    db_client: AsyncIOMotorClient = AsyncIOMotorClient(
+        settings.MONGODB_URL,
+        tz_aware=True,
+        serverSelectionTimeoutMS=5000
+    )
+    db_name = settings.PROJECT_NAME + "_test" if settings.TESTING else settings.PROJECT_NAME
+    database = db_client[db_name]
+    await db_client.admin.command("ping")
+    logger.info(f"Connected to database: {db_name}")
 
-            # Verify connection
-            await db_client.admin.command("ping")
-        else:
-            raise RuntimeError("Failed to create database client")
-        logger.info(f"Connected to database: {db_name}")
+    await SchemaManager(database).apply_all()
 
-        # Ensure DB schema
-        await SchemaManager(database).apply_all()
+    logger.info("Initializing schema registry...")
+    schema_registry_manager = create_schema_registry_manager()
+    await initialize_event_schemas(schema_registry_manager)
 
-        # Initialize schema registry manager
-        logger.info("Initializing schema registry...")
-        schema_registry_manager = create_schema_registry_manager()
-        await initialize_event_schemas(schema_registry_manager)
+    logger.info("Creating event store...")
+    event_store = create_event_store(database, schema_registry_manager)
 
-        logger.info("Creating event store...")
-        event_store = create_event_store(database, schema_registry_manager)
+    logger.info("Creating producer for Kubernetes worker...")
+    producer_config = ProducerConfig(bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS)
+    producer = UnifiedProducer(producer_config, schema_registry_manager)
 
-        # Create producer
-        logger.info("Creating producer for Kubernetes worker...")
-        producer_config = ProducerConfig(
-            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS
-        )
-        producer = UnifiedProducer(producer_config, schema_registry_manager)
-        await producer.start()
-        logger.info("Producer started successfully")
+    config = K8sWorkerConfig()
+    r = redis.Redis(
+        host=settings.REDIS_HOST,
+        port=settings.REDIS_PORT,
+        db=settings.REDIS_DB,
+        password=settings.REDIS_PASSWORD,
+        ssl=settings.REDIS_SSL,
+        max_connections=settings.REDIS_MAX_CONNECTIONS,
+        decode_responses=settings.REDIS_DECODE_RESPONSES,
+        socket_connect_timeout=5,
+        socket_timeout=5,
+    )
+    idem_repo = RedisIdempotencyRepository(r, key_prefix="idempotency")
+    idem_manager = create_idempotency_manager(repository=idem_repo, config=IdempotencyConfig())
+    await idem_manager.initialize()
 
-        config = K8sWorkerConfig()
-        worker = KubernetesWorker(
-            config=config,
-            database=database,
-            producer=producer,
-            schema_registry_manager=schema_registry_manager,
-            event_store=event_store
-        )
+    worker = KubernetesWorker(
+        config=config,
+        database=database,
+        producer=producer,
+        schema_registry_manager=schema_registry_manager,
+        event_store=event_store,
+        idempotency_manager=idem_manager
+    )
 
-        # Setup signal handlers
-        def signal_handler(sig: int, frame: Any) -> None:
-            logger.info(f"Received signal {sig}, initiating shutdown...")
-            if worker:
-                asyncio.create_task(worker.stop())
+    def signal_handler(sig: int, frame: Any) -> None:
+        logger.info(f"Received signal {sig}, initiating shutdown...")
+        asyncio.create_task(worker.stop())
 
-        signal.signal(signal.SIGINT, signal_handler)
-        signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
-        await worker.start()
+    async with AsyncExitStack() as stack:
+        await stack.enter_async_context(producer)
+        await stack.enter_async_context(worker)
+        stack.push_async_callback(idem_manager.close)
+        stack.push_async_callback(r.aclose)
+        stack.callback(db_client.close)
 
-        # Keep running until stopped
         while worker._running:
             await asyncio.sleep(60)
-
-            # Log status periodically
             status = await worker.get_status()
             logger.info(f"Kubernetes worker status: {status}")
-
-    except Exception as e:
-        logger.error(f"Kubernetes worker error: {e}", exc_info=True)
-    finally:
-        if worker:
-            await worker.stop()
-        if producer and not worker:  # Stop producer if worker wasn't created
-            await producer.stop()
-        if db_client:
-            db_client.close()
 
 
 if __name__ == "__main__":

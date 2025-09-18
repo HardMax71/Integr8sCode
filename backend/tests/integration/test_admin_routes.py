@@ -14,7 +14,7 @@ from app.schemas_pydantic.admin_user_overview import AdminUserOverview
 
 
 @pytest.mark.integration
-class TestAdminSettingsReal:
+class TestAdminSettings:
     """Test admin settings endpoints against real backend."""
 
     @pytest.mark.asyncio
@@ -146,7 +146,7 @@ class TestAdminSettingsReal:
 
 
 @pytest.mark.integration
-class TestAdminUsersReal:
+class TestAdminUsers:
     """Test admin user management endpoints against real backend."""
 
     @pytest.mark.asyncio
@@ -254,7 +254,7 @@ class TestAdminUsersReal:
 
 
 @pytest.mark.integration
-class TestAdminEventsReal:
+class TestAdminEvents:
     """Test admin event management endpoints against real backend."""
 
     @pytest.mark.asyncio

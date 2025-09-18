@@ -6,7 +6,7 @@ import pytest
 from app.services.result_processor.resource_cleaner import ResourceCleaner
 
 
-pytestmark = [pytest.mark.k8s]
+pytestmark = [pytest.mark.integration, pytest.mark.k8s]
 
 
 @pytest.mark.asyncio

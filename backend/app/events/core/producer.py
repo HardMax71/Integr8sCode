@@ -7,12 +7,14 @@ from typing import Any, Callable, TypeAlias
 from confluent_kafka import Message, Producer
 from confluent_kafka.error import KafkaError
 
+from app.core.lifecycle import LifecycleEnabled
 from app.core.logging import logger
 from app.core.metrics.context import get_event_metrics
 from app.domain.enums.kafka import KafkaTopic
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.events import BaseEvent
 from app.infrastructure.mappers.dlq_mapper import DLQMapper
+from app.settings import get_settings
 
 from .types import ProducerConfig, ProducerMetrics, ProducerState
 
@@ -20,7 +22,7 @@ DeliveryCallback: TypeAlias = Callable[[KafkaError | None, Message], None]
 StatsCallback: TypeAlias = Callable[[dict[str, Any]], None]
 
 
-class UnifiedProducer:
+class UnifiedProducer(LifecycleEnabled):
     def __init__(
             self,
             config: ProducerConfig,
@@ -36,6 +38,8 @@ class UnifiedProducer:
         self._metrics = ProducerMetrics()
         self._event_metrics = get_event_metrics()  # Singleton for Kafka metrics
         self._poll_task: asyncio.Task | None = None
+        # Topic prefix (for tests/local isolation); cached on init
+        self._topic_prefix = get_settings().KAFKA_TOPIC_PREFIX
 
     @property
     def is_running(self) -> bool:
@@ -190,7 +194,7 @@ class UnifiedProducer:
         # Serialize value
         serialized_value = self._schema_registry.serialize_event(event_to_produce)
 
-        topic = str(event_to_produce.topic)
+        topic = f"{self._topic_prefix}{str(event_to_produce.topic)}"
         self._producer.produce(
             topic=topic,
             value=serialized_value,
@@ -257,7 +261,7 @@ class UnifiedProducer:
 
             # Send to DLQ topic
             self._producer.produce(
-                topic=str(KafkaTopic.DEAD_LETTER_QUEUE),
+                topic=f"{self._topic_prefix}{str(KafkaTopic.DEAD_LETTER_QUEUE)}",
                 value=serialized_value,
                 key=original_event.event_id.encode() if original_event.event_id else None,
                 headers=[
@@ -269,7 +273,9 @@ class UnifiedProducer:
             )
 
             # Record metrics
-            self._event_metrics.record_kafka_message_produced(str(KafkaTopic.DEAD_LETTER_QUEUE))
+            self._event_metrics.record_kafka_message_produced(
+                f"{self._topic_prefix}{str(KafkaTopic.DEAD_LETTER_QUEUE)}"
+            )
             self._metrics.messages_sent += 1
 
             logger.warning(

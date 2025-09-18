@@ -5,6 +5,7 @@ from enum import auto
 from typing import Awaitable, Callable, Mapping
 
 import httpx
+from backend.app.settings import get_settings
 
 from app.core.exceptions import ServiceError
 from app.core.logging import logger
@@ -211,7 +212,7 @@ class NotificationService:
         # Configure consumer for notification-relevant events
         consumer_config = ConsumerConfig(
             bootstrap_servers=self.settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=GroupId.NOTIFICATION_SERVICE,
+            group_id=f"{GroupId.NOTIFICATION_SERVICE}.{get_settings().KAFKA_GROUP_SUFFIX}",
             max_poll_records=10,
             enable_auto_commit=True,
             auto_offset_reset="latest"  # Only process new events

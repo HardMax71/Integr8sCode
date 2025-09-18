@@ -22,13 +22,14 @@ RUN apk add --no-cache wget ca-certificates openssl curl dos2unix netcat-openbsd
 # Create shared directory for root CA
 RUN mkdir -p /shared_ca
 
-# Copy and prepare setup script
+# Copy and prepare setup scripts
 COPY setup-k8s.sh /setup-k8s.sh
-RUN dos2unix /setup-k8s.sh && chmod +x /setup-k8s.sh
+COPY setup-certs.sh /setup-certs.sh
+RUN dos2unix /setup-k8s.sh /setup-certs.sh && chmod +x /setup-k8s.sh /setup-certs.sh
 
 # Add a health check script for CI debugging
 RUN echo '#!/bin/sh\necho "Cert Generator Health Check: OK"\n' > /health.sh && \
     chmod +x /health.sh
 
-# By default, run the setup script but accept CI=true from environment
-ENTRYPOINT ["/bin/sh", "-c", "/setup-k8s.sh || { echo 'Certificate generation failed'; cat /certs/setup-complete 2>/dev/null || echo 'No setup-complete file'; exit 1; }"]
+# Run both setup scripts
+ENTRYPOINT ["/bin/sh", "-c", "/setup-k8s.sh && /setup-certs.sh"]

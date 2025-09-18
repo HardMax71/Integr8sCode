@@ -2,6 +2,7 @@ import asyncio
 
 from opentelemetry.trace import SpanKind
 
+from app.core.lifecycle import LifecycleEnabled
 from app.core.logging import logger
 from app.core.tracing.utils import trace_span
 from app.domain.enums.events import EventType
@@ -13,7 +14,7 @@ from app.infrastructure.kafka.events.base import BaseEvent
 from app.settings import get_settings
 
 
-class EventStoreConsumer:
+class EventStoreConsumer(LifecycleEnabled):
     """Consumes events from Kafka and stores them in MongoDB."""
 
     def __init__(
@@ -49,7 +50,7 @@ class EventStoreConsumer:
         settings = get_settings()
         config = ConsumerConfig(
             bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=self.group_id,
+            group_id=f"{self.group_id}.{settings.KAFKA_GROUP_SUFFIX}",
             enable_auto_commit=False,
             max_poll_records=self.batch_size
         )

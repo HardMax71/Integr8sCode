@@ -26,4 +26,6 @@ jobs:
       - name: Run mypy
         env:
           SECRET_KEY: ${{ secrets.TEST_SECRET_KEY }}
-        run: mypy --config-file backend/pyproject.toml backend/
+        run: |
+          cd backend
+          mypy --config-file pyproject.toml .

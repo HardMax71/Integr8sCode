@@ -128,7 +128,7 @@ cause `match-case` was introduced first in `Python 3.10`.
 > [!WARNING]
 > Detailed, up-to-date architecture diagrams are in [this file](files_for_readme/ARCHITECTURE_IN_DETAILS.md).
 
-[//]: # (<img src="./files_for_readme/system_diagram.png">)
+<img src="./files_for_readme/system_diagram.svg" alt="system diagram">
 
 The platform is built on three main pillars:
 
@@ -162,17 +162,6 @@ The platform is built on three main pillars:
 
 - **Network Restrictions**: Pods can't make external network calls.
 - **No Privileged Access**: Pods run without elevated permissions.
-
-## User Authentication
-
-- **Accounts**: Users need to sign up to execute and save scripts.
-- **Security**: We use JWT tokens to secure API endpoints.
-
-## Logging and Monitoring
-
-- **Logs**: Centralized logging helps us track what's happening across pods.
-- **Monitoring Tools**: Using OpenTelemetry and Grafana to keep an eye on system health.
-- **Alerts**: Set up notifications for when things go wrong.
 
   
 

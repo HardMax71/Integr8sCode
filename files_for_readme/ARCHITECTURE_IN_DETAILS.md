@@ -1,213 +1,97 @@
 # Architecture overview
 
-This document sketches the system as it actually exists in this repo, using ASCII block diagrams. Each diagram includes labeled arrows (protocols, topics, APIs) and marks public vs private surfaces. Short captions (1–3 sentences) follow each diagram.
-
+In this file, you can find broad description of main components of project architecture. 
+Preciser info about peculiarities of separate components (SSE, Kafka topics, DLQ, ..) are in 
+[docs](./../backend/docs).
 
 ## Top-level system (containers/services)
 
-```mermaid
-%%{init: {'theme': 'neutral'}}%%
-graph TD
-    subgraph "Public Internet"
-        Browser["Browser SPA"]
-    end
+<img src="./system_diagram.svg" alt="System diagram">
 
-    subgraph "Frontend"
-        Frontend_service["Nginx + Svelte"]
-    end
-
-    subgraph "Backend"
-        FastAPI["FastAPI / Uvicorn<br/>(routers, Dishka DI, middlewares)"]
-        SSE["SSE Service<br/>(Partitioned router + Redis bus)"]
-        Mongo[(MongoDB)]
-        Redis[(Redis)]
-        Kafka[Kafka]
-        Schema["Schema Registry"]
-        K8s[Kubernetes API]
-        OTel["OTel Collector"]
-        VM["VictoriaMetrics"]
-        Jaeger["Jaeger"]
-    end
-
-    subgraph "Cert Generator"
-        CertGen["setup-k8s.sh, TLS"]
-    end
-
-    Browser -- "HTTPS 443<br/>SPA + static assets" --> Frontend_service
-    Frontend_service -- "HTTPS /api/v1/*<br/>Cookies/CSRF" --> FastAPI
-    FastAPI -- "/api/v1/events/*<br/>JSON frames" <--> SSE
-    FastAPI -- "Repos CRUD<br/>executions, settings, events" --> Mongo
-    FastAPI -- "Rate limiting keys<br/>SSE pub/sub channels" <--> Redis
-    FastAPI -- "UnifiedProducer<br/>(events)" --> Kafka
-    Kafka -- "UnifiedConsumer<br/>(dispatch)" --> FastAPI
-    Kafka --- Schema
-    FastAPI -- "pod create/monitor<br/>worker + pod monitor" <--> K8s
-    FastAPI -- "metrics/traces (export)" --> OTel
-    OTel -- "remote_write (metrics)" --> VM
-    FastAPI -- "traces (export)" --> Jaeger
-    CertGen -. "cluster setup / certs" .-> K8s
-```
-
-Frontend serves the SPA; the SPA calls FastAPI over HTTPS. Backend exposes REST + SSE; Mongo persists state, Redis backs rate limiting and the SSE bus, Kafka carries domain events (with schema registry), and Kubernetes runs/monitors execution pods.
+The SPA hits the frontend, which proxies to the API over HTTPS; the API
+serves both REST and SSE. Kafka carries events with Schema Registry and Zookeeper backing it; kafka-
+init seeds topics. All workers are separate containers subscribed to Kafka; the k8s-worker talks to the
+Kubernetes API to run code, the pod-monitor watches pods, the result-processor writes results to Mongo
+and nudges Redis for SSE fanout, and the saga-orchestrator coordinates long flows with Mongo and Redis.
+Traces and metrics from every service go to the OpenTelemetry Collector, which exports traces to Jaeger
+and metrics to VictoriaMetrics; Grafana reads from VictoriaMetrics, and Kafdrop gives you a quick Kafka
+UI. The cert generator and shared CA provide TLS for frontend and backend and help bootstrap kube access.
 
 
 ## Backend composition (app/main.py wiring)
 
 ```mermaid
-%%{init: {'theme': 'neutral'}}%%
-graph TD
-    subgraph "Backend (FastAPI app)"
-        direction TB
-        B0("Backend (FastAPI app)")
+  %%{init: {'theme': 'neutral'}}%%
+  graph LR
+      subgraph "Backend (FastAPI app)"
+          direction LR
+          App["FastAPI / Uvicorn"]
+          Middlewares["Middlewares"]
+          Routers["Routers (REST + SSE)"]
+          DI["DI & Providers (Dishka)"]
+          Services["Core Services (Execution, Events, SSE, Idempotency, Notifications, User Settings, Rate
+  Limit, Saved Scripts, Replay, Saga API)"]
+          Events["Kafka plumbing (Producer, Consumer, Dispatcher, EventStore, SchemaRegistryManager)"]
+          Repos["Repositories"]
+      end
 
-        subgraph "Middlewares"
-            B1("Middlewares")
-            M1("CorrelationMiddleware (request ID)")
-            M2("RequestSizeLimitMiddleware")
-            M3("CacheControlMiddleware")
-            M4("OTel Metrics (setup_metrics)")
-        end
+          Mongo[(MongoDB)]
+          Redis[(Redis)]
+          Kafka[Kafka]
+          Schema["Schema Registry"]
+          K8s["Kubernetes API"]
+          OTel["OTel Collector"]
+          VM["VictoriaMetrics"]
+          Jaeger["Jaeger"]
 
-        subgraph "Routers (public)"
-            B2("Routers (public)")
-            R1("/auth")
-            R2("/execute")
-            R2_1("/result/{id}, /executions/{id}/events")
-            R2_2("/user/executions, /example-scripts, /k8s-limits")
-            R2_3("/{execution_id}/cancel, /{execution_id}/retry, DELETE /{execution_id}")
-            R3("/scripts")
-            R4("/replay")
-            R5("/health")
-            R6("/dlq")
-            R7("/events")
-            R8("/events (SSE)")
-            R8_1("/events/notifications/stream")
-            R8_2("/events/executions/{id}")
-            R9("/notifications")
-            R10("/saga")
-            R11("/user/settings")
-            R12("/admin/users")
-            R13("/admin/events")
-            R14("/admin/settings")
-            R15("/alerts")
-        end
 
-        subgraph "DI & Providers (Dishka)"
-            B3("DI & Providers (Dishka)")
-            D1("Container")
-            D2("Exception handlers")
-        end
+      %% App internals
+      App --> Middlewares
+      App --> Routers
+      App --> DI
+      App --> Services
+      Services --> Repos
+      Services --> Events
 
-        subgraph "Services (private)"
-            B4("Services (private)")
-            S1("ExecutionService")
-            S2("KafkaEventService")
-            S3("EventService")
-            S4("IdempotencyManager")
-            S5("SSEService")
-            S6("NotificationService")
-            S7("UserSettingsService")
-            S8("SavedScriptService")
-            S9("RateLimitService")
-            S10("ReplayService")
-            S11("SagaService")
-            S12("K8s Worker")
-            S13("Pod Monitor")
-            S14("Result Processor")
-            S15("Coordinator")
-            S16("EventBusManager")
-        end
-        
-        subgraph "Repositories (Mongo, private)"
-            B5("Repositories (Mongo, private)")
-            DB1("ExecutionRepository")
-            DB2("EventRepository")
-            DB3("NotificationRepository")
-            DB4("UserRepository")
-            DB5("UserSettingsRepository")
-            DB6("SavedScriptRepository")
-            DB7("SagaRepository")
-            DB8("ReplayRepository")
-            DB9("IdempotencyRepository")
-            DB10("SSERepository")
-            DB11("ResourceAllocationRepository")
-            DB12("Admin repositories")
-        end
+      %% Infra edges (high level only)
+      Repos --> Mongo
+      Services <-->|"keys + SSE bus"| Redis
+      Events <-->|"produce/consume"| Kafka
+      Events ---|"subjects/IDs"| Schema
+      Services -->|"read limits"| K8s
 
-        subgraph "Events (Kafka plumbing)"
-            B6("Events (Kafka plumbing)")
-            E1("UnifiedProducer, UnifiedConsumer, EventDispatcher")
-            E2("EventStore")
-            E3("SchemaRegistryManager")
-            E4("Topics mapping")
-            E5("Event models")
-        end
-
-        subgraph "Mappers (API/domain)"
-            B7("Mappers (API/domain)")
-            MAP1("execution_api_mapper, saved_script_api_mapper, ...")
-            MAP2("notification_api_mapper, saga_mapper, replay_api_mapper, ...")
-            MAP3("admin_mapper, admin_overview_api_mapper, ...")
-        end
-        
-        subgraph "Domain"
-            B8("Domain")
-            DOM1("Enums")
-            DOM2("Models")
-            DOM3("Admin models")
-        end
-        
-        subgraph "External dependencies (private)"
-            B9("External dependencies (private)")
-            EXT1("MongoDB (db)")
-            EXT2("Redis (rate limit, SSE bus)")
-            EXT3("Kafka + Schema Registry")
-            EXT4("Kubernetes API (pods)")
-            EXT5("OTel Collector + VictoriaMetrics (metrics)")
-            EXT6("Jaeger (traces)")
-        end
-        
-        subgraph "Settings"
-            B10("Settings (app/settings.py)")
-            SET1("Runtimes/limits, Kafka/Redis/Mongo endpoints, ...")
-        end
-    end
-    
-    B0 --> B1 & B2 & B3 & B4 & B5 & B6 & B7 & B8 & B9 & B10
-    
-    B1 --> M1 & M2 & M3 & M4
-    
-    B2 --> R1 & R2 & R3 & R4 & R5 & R6 & R7 & R8 & R9 & R10 & R11 & R12 & R13 & R14 & R15
-    R2 --> R2_1 & R2_2 & R2_3
-    R8 --> R8_1 & R8_2
-    
-    B3 --> D1 & D2
-    
-    B4 --> S1 & S2 & S3 & S4 & S5 & S6 & S7 & S8 & S9 & S10 & S11 & S12 & S13 & S14 & S15 & S16
-
-    B5 --> DB1 & DB2 & DB3 & DB4 & DB5 & DB6 & DB7 & DB8 & DB9 & DB10 & DB11 & DB12
-
-    B6 --> E1 & E2 & E3 & E4 & E5
-
-    B7 --> MAP1 & MAP2 & MAP3
-    
-    B8 --> DOM1 & DOM2 & DOM3
-
-    B9 --> EXT1 & EXT2 & EXT3 & EXT4 & EXT5 & EXT6
-    
-    B10 --> SET1
+      %% Telemetry edges
+      App -->|"OTLP traces + metrics"| OTel
+      OTel -->|"remote_write (metrics)"| VM
+      OTel -->|"OTLP gRPC (traces)"| Jaeger
 ```
 
-This outlines backend internals: public routers, DI and services, repositories, event stack, and external dependencies, grounded in the actual modules and paths.
-
+FastAPI under Uvicorn exposes REST and SSE routes, with middleware and DI wiring the core services.
+Those services use Mongo-backed repositories for state and a unified Kafka layer to publish and react
+to events, with the schema registry ensuring compatibility. Redis handles rate limiting and SSE fanout. 
+Telemetry flows through the OpenTelemetry Collector—metrics to VictoriaMetrics for Grafana and traces
+to Jaeger. Kubernetes interactions are read via the API. This view focuses on the app’s building blocks;
+event workers live in the system diagram.
 
 ## HTTP request path (representative)
 
-```
-Browser (SPA) --HTTPS--> FastAPI Router --DI--> Service --Repo--> MongoDB
-                                       \--DI--> Service --Redis--> rate limit (keys)
-                                       \--DI--> KafkaEventService --Kafka--> topic
-                                       \--SSE-> SSEService --Redis pub/sub--> broadcast
+```mermaid
+%%{init: {'theme': 'neutral'}}%%
+  graph TD
+    Browser["Browser (SPA)"] -->|"HTTPS"| Router["FastAPI Router"]
+
+    Router -->|"DI"| Svc1["Service"]
+    Svc1 -->|"Repo"| MongoDB[(MongoDB)]
+
+    Router -->|"DI"| Svc2["Service"]
+    Svc2 -->|"rate limit (keys)"| Redis[(Redis)]
+
+    Router -->|"DI"| KafkaSvc["KafkaEventService"]
+    KafkaSvc -->|"Kafka"| Kafka[(Kafka)]
+    Kafka -->|"topic"| Topic["topic"]
+
+    Router -->|"SSE"| SSESvc["SSEService"]
+    SSESvc -->|"Redis pub/sub"| Broadcast["broadcast"]
 ```
 
 Routers resolve dependencies via Dishka and call services. Services talk to Mongo, Redis, Kafka based on the route; SSE streams push via Redis bus to all workers.
@@ -235,25 +119,25 @@ sequenceDiagram
     participant ApiSSE as API (SSE Route)<br/>/events/executions/{id}
     participant SSE as SSEService
 
-    Client->>ApiExec: POST /execute {script, lang, version}
+    Client->>ApiExec: POST /execute<br>{script, lang, version}
     ApiExec->>Auth: get_current_user()
     Auth-->>ApiExec: UserResponse
     ApiExec->>Idem: check_and_reserve(http:{user}:{key})
     Idem-->>ApiExec: IdempotencyResult
     ApiExec->>ExecSvc: execute_script(script, lang, v, user, ip, UA)
-    ExecSvc->>ExecRepo: create execution (queued)
+    ExecSvc->>ExecRepo: create execution<br>(queued)
     ExecRepo-->>ExecSvc: created(id)
-    ExecSvc->>EStore: persist ExecutionRequested
-    ExecSvc->>Kafka: publish execution.requested
-    Kafka->>K8sWorker: consume execution.requested
-    K8sWorker->>K8sAPI: create pod, run script
-    K8sWorker-->>K8sAPI: stream logs/status
+    ExecSvc->>EStore: persist<br>ExecutionRequested
+    ExecSvc->>Kafka: publish<br>execution.requested
+    Kafka->>K8sWorker: consume<br>execution.requested
+    K8sWorker->>K8sAPI: create pod,<br>run script
+    K8sWorker-->>K8sAPI: stream<br>logs/status
     K8sAPI->>PodMon: pod events/logs
     PodMon->>EStore: persist Execution{Completed|Failed|Timeout}
     PodMon->>Kafka: publish execution.{completed|failed|timeout}
     Kafka->>ResProc: consume execution result
-    ResProc->>ExecRepo: update result (status/output/errors/usage)
-    ResProc->>RedisBus: publish result_stored(execution_id)
+    ResProc->>ExecRepo: update result<br>(status/output/errors/usage)
+    ResProc->>RedisBus: publish<br>result_stored(execution_id)
     ApiExec-->>Client: 200 {execution_id}
 
     rect rgb(230, 230, 230)
@@ -274,32 +158,32 @@ Execution is event-driven end-to-end. The request records an execution and emits
 ## SSE architecture (execution and notifications)
 
 ```mermaid
-%%{init: {'theme': 'neutral'}}%%
-graph TD
-    subgraph " "
-        SSEService["SSEService<br/>(per-request Gen)"]
-        subgraph "Redis Pub/Sub (private)"
-            RedisBus["SSERedisBus"]
-        end
-    end
+ %%{init: {'theme': 'neutral'}}%%
+  sequenceDiagram
+      autonumber
+      actor Client
+      participant Api as FastAPI Route
+      participant Router as PartitionedSSERouter
+      participant SSE as SSEService (per-request)
+      participant Bus as SSERedisBus (Redis Pub/Sub)
 
-    Router["PartitionedSSERouter<br/>(N partitions)<br/>(manages consumers/subs)"]
+      Client->>Api: GET /events/...<br>(Accept: text/event-stream)
+      Api->>Router: handle(request)
+      Router->>SSE: create stream<br>(execution_id / user)
+      SSE->>Bus: SUBSCRIBE channel:{...}
+      Api-->>Client: 200 OK + SSE headers (stream open)
 
-    subgraph "FastAPI routes (public)" as ApiRoutes
-        direction LR
-        RouteExec["/events/executions/{id}"]
-        RouteNotify["/events/notifications/stream"]
-    end
+      loop until closed
+          Bus-->>SSE: message (JSON)
+          SSE-->>Client: SSE frame (data: {...})
+      end
 
-    %% ---- Connections ----
-
-    %% Control/Request Flow
-    ApiRoutes -- "Request" --> Router
-    Router --> SSEService
-    SSEService <--> |"sub/pub"| RedisBus
-
-    %% Data Stream Flow
-    RedisBus -.-> |"stream JSON frames"| ApiRoutes
+      alt terminal event / timeout / shutdown
+          SSE->>Bus: UNSUBSCRIBE
+          SSE-->>Client: event: end/close
+      else client disconnect
+          SSE->>Bus: UNSUBSCRIBE
+      end
 ```
 
 All app workers publish/consume via Redis so SSE works across processes; streams end on result_stored (executions) and on client close or shutdown (notifications).
@@ -333,28 +217,38 @@ Sagas use explicit DI (no context-based injection). Only serializable public dat
 
 ```mermaid
 %%{init: {'theme': 'neutral'}}%%
-graph TD
-    Kafka["[Execution events]<br/>(Kafka topics)"]
+  graph TD
+      Kafka["[Execution events]<br/>(Kafka topics)"]
 
-    subgraph "NotificationService (private)"
-        NotificationSvc["
-            <b>NotificationService</b><br/>
-            - UnifiedConsumer (typed handlers for completed/failed/timeout)<br/>
-            - Repository: notifications + subscriptions (Mongo)<br/>
-            - Channels:<br/>
-              &nbsp;&nbsp;- IN_APP: persist + publish SSE bus (Redis)<br/>
-              &nbsp;&nbsp;- WEBHOOK: httpx POST<br/>
-              &nbsp;&nbsp;- SLACK: httpx POST to slack_webhook<br/>
-            - Throttle cache (in-memory) per user/type
-        "]
-    end
+      NotificationSvc["NotificationService"]
 
-    ApiNotifications["/api/v1/notifications (public)<br/>(list, mark read, mark all read, subscriptions, unread-count)"]
-    ApiSSE["/events/notifications/stream (SSE, public)"]
+      subgraph "SSE (delivery path)"
+          SSESvc["SSEService"]
+          RedisBus["SSERedisBus (Redis Pub/Sub)"]
+      end
 
-    Kafka --> NotificationSvc
-    NotificationSvc --> ApiNotifications
-    NotificationSvc --> ApiSSE
+      ApiNotifications["/api/v1/notifications (REST)"]
+      ApiSSE["/events/notifications/stream (SSE)"]
+
+      %% Event ingress
+      Kafka -- "(1) execution result events (completed/failed/timeout)" --> NotificationSvc
+
+      %% In‑app channel delivery
+      NotificationSvc -- "(2) publish in-app notification" --> RedisBus
+      SSESvc -- "(3) subscribe by user_id" --> RedisBus
+      RedisBus -. "(4) JSON events to SSEService" .-> SSESvc
+      SSESvc -- "(5) SSE frames to client" --> ApiSSE
+
+      %% REST control plane
+      ApiNotifications -- "(6) fetch / mark-read / manage-subscriptions" --> NotificationSvc
+
+      %% Other channels
+      Webhook["3rd party webhook endpoint"]:::ext
+      Slack["Slack incoming webhook"]:::ext
+      NotificationSvc -- "(2) HTTP POST (webhook)" --> Webhook
+      NotificationSvc -- "(2) HTTP POST (Slack)" --> Slack
+
+      classDef ext fill:#f6f6f6,stroke:#aaa,color:#333;
 ```
 
 NotificationService processes execution events; in-app notifications are stored and streamed to users; webhooks/Slack are sent via httpx.
@@ -390,20 +284,6 @@ Anonymous users are limited by IP with a 0.5 multiplier; authenticated users by 
 ```
 
 Replay builds a session from filters and re-emits historical events to Kafka; API exposes session lifecycle and progress.
-
-
-## Saved scripts & user settings (event-sourced settings)
-
-```
- /api/v1/scripts/*  -> SavedScriptService -> SavedScriptRepository (Mongo)
-
- /api/v1/user/settings/* -> UserSettingsService
-        |-- UserSettingsRepository (snapshot + events in Mongo)
-        |-- KafkaEventService (USER_* events) to EventStore/Kafka
-        |-- Cache (LRU) in process
-```
-
-Saved scripts are simple CRUD per user. User settings are reconstructed from snapshots plus events, with periodic snapshotting.
 
 
 ## DLQ and admin tooling

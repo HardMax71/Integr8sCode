@@ -6,7 +6,7 @@ Preciser info about peculiarities of separate components (SSE, Kafka topics, DLQ
 
 ## Top-level system (containers/services)
 
-<img src="./system_diagram.svg" alt="System diagram">
+<img src="./system_diagram.png" alt="System diagram">
 
 The SPA hits the frontend, which proxies to the API over HTTPS; the API
 serves both REST and SSE. Kafka carries events with Schema Registry and Zookeeper backing it; kafka-

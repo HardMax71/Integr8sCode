@@ -128,7 +128,7 @@ cause `match-case` was introduced first in `Python 3.10`.
 > [!WARNING]
 > Detailed, up-to-date architecture diagrams are in [this file](files_for_readme/ARCHITECTURE_IN_DETAILS.md).
 
-<img src="./files_for_readme/system_diagram.svg" alt="system diagram">
+<img src="./files_for_readme/system_diagram.png" alt="system diagram">
 
 The platform is built on three main pillars:
 

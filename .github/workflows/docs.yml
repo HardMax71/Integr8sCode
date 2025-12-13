@@ -2,7 +2,7 @@ name: docs
 
 on:
   push:
-    branches: [ main , adding-docs ]
+    branches: [ main ]
     paths:
       - 'docs/**'
       - 'backend/docs/**'

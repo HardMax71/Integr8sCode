@@ -1,0 +1,133 @@
+site_name: Integr8sCode
+site_description: Run Python scripts online in isolated Kubernetes pods
+site_url: https://hardmax71.github.io/Integr8sCode/
+repo_url: https://github.com/HardMax71/Integr8sCode
+repo_name: HardMax71/Integr8sCode
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.code.annotate
+    - content.action.edit
+    - toc.follow
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search
+  - mermaid2
+
+markdown_extensions:
+  # Python Markdown
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+      toc_depth: 3
+
+  # PyMdown Extensions
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/HardMax71/Integr8sCode
+  generator: false
+
+extra_css:
+  - stylesheets/extra.css
+
+nav:
+  - Home: index.md
+
+  - Architecture:
+    - Overview: architecture/overview.md
+    - Services: architecture/services-overview.md
+    - Kafka Topics: architecture/kafka-topic-architecture.md
+    - Service Lifecycle: architecture/lifecycle.md
+
+  - API Reference: reference/api-reference.md
+
+  - Components:
+    - Services Overview: components/services-overview.md
+    - SSE:
+      - Partitioned Architecture: components/sse/sse-partitioned-architecture.md
+      - Execution Flow: components/sse/execution-sse-flow.md
+      - Worker Architecture: components/sse/sse-architecture.md
+    - Workers:
+      - Pod Monitor: components/workers/pod_monitor.md
+      - Result Processor: components/workers/result_processor.md
+    - Dead Letter Queue: components/dead-letter-queue.md
+    - Schema Manager: components/schema-manager.md
+
+  - Operations:
+    - Tracing: operations/tracing.md
+    - Metrics:
+      - Context Variables: operations/metrics-contextvars.md
+      - CPU Time Measurement: operations/cpu-time-measurement.md
+    - Notifications: operations/notification-types.md
+    - Troubleshooting: operations/troubleshooting-result-processor-di-crash.md
+
+  - Security: security/policies.md
+
+  - Testing:
+    - Load Testing: testing/load-testing.md

@@ -5,29 +5,21 @@ on:
     branches: [ main ]
     paths:
       - 'docs/**'
-      - 'backend/docs/**'
-      - 'files_for_readme/ARCHITECTURE_IN_DETAILS.md'
-      - 'backend/tests/load/README.md'
       - 'mkdocs.yml'
       - '.github/workflows/docs.yml'
   pull_request:
-    branches:
-      - main
+    branches: [ main ]
     paths:
       - 'docs/**'
-      - 'backend/docs/**'
-      - 'files_for_readme/ARCHITECTURE_IN_DETAILS.md'
-      - 'backend/tests/load/README.md'
       - 'mkdocs.yml'
       - '.github/workflows/docs.yml'
-  workflow_dispatch:  # Allow manual trigger
+  workflow_dispatch:
 
 permissions:
   contents: write
   pages: write
   id-token: write
 
-# Allow only one concurrent deployment
 concurrency:
   group: pages
   cancel-in-progress: false
@@ -38,8 +30,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Full history for git info
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -51,77 +41,10 @@ jobs:
         with:
           key: mkdocs-${{ hashFiles('mkdocs.yml') }}
           path: ~/.cache/pip
-          restore-keys: |
-            mkdocs-
+          restore-keys: mkdocs-
 
-      - name: Install MkDocs and dependencies
-        run: |
-          pip install --upgrade pip
-          pip install \
-            mkdocs-material \
-            mkdocs-mermaid2-plugin \
-            pymdown-extensions
-
-      - name: Prepare documentation structure
-        run: |
-          # Create directory structure for docs
-          mkdir -p docs/architecture
-          mkdir -p docs/reference
-          mkdir -p docs/components/sse
-          mkdir -p docs/components/workers
-          mkdir -p docs/operations
-          mkdir -p docs/security
-          mkdir -p docs/testing
-          mkdir -p docs/stylesheets
-          mkdir -p docs/assets/images
-
-          # Copy images and assets
-          cp files_for_readme/*.png docs/architecture/
-          cp files_for_readme/*.svg docs/architecture/ 2>/dev/null || true
-          cp files_for_readme/logo.png docs/assets/images/
-
-          # Copy architecture docs
-          cp files_for_readme/ARCHITECTURE_IN_DETAILS.md docs/architecture/overview.md
-          cp backend/docs/services-overview.md docs/architecture/
-          cp backend/docs/kafka-topic-architecture.md docs/architecture/
-          cp backend/docs/lifecycle.md docs/architecture/
-
-          # Copy API reference
-          cp backend/docs/api-reference.md docs/reference/
-
-          # Copy component docs - services overview
-          cp backend/docs/services-overview.md docs/components/
-
-          # Copy SSE docs
-          cp backend/docs/sse-partitioned-architecture.md docs/components/sse/
-          cp backend/docs/execution-sse-flow.md docs/components/sse/
-          cp backend/docs/workers/sse-architecture.md docs/components/sse/
-
-          # Copy worker docs
-          cp backend/docs/workers/pod_monitor.md docs/components/workers/
-          cp backend/docs/workers/result_processor.md docs/components/workers/
-
-          # Copy other component docs
-          cp backend/docs/dead-letter-queue.md docs/components/
-          cp backend/docs/schema-manager.md docs/components/
-
-          # Copy operations docs
-          cp backend/docs/tracing.md docs/operations/
-          cp backend/docs/metrics-contextvars.md docs/operations/
-          cp backend/docs/cpu-time-measurement.md docs/operations/
-          cp backend/docs/notification-types.md docs/operations/
-          cp backend/docs/troubleshooting-result-processor-di-crash.md docs/operations/
-
-          # Copy security docs
-          cp backend/docs/security/policies.md docs/security/
-
-          # Copy testing docs
-          cp backend/tests/load/README.md docs/testing/load-testing.md
-
-          # Create minimal extra.css if not exists
-          if [ ! -f docs/stylesheets/extra.css ]; then
-            echo "/* Custom styles for Integr8sCode docs */" > docs/stylesheets/extra.css
-          fi
+      - name: Install MkDocs
+        run: pip install mkdocs-material mkdocs-mermaid2-plugin
 
       - name: Build documentation
         run: mkdocs build --strict
@@ -132,7 +55,6 @@ jobs:
           path: site/
 
   deploy:
-    # Only deploy on push to main (not PRs)
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest

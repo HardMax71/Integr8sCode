@@ -5,6 +5,10 @@ repo_url: https://github.com/HardMax71/Integr8sCode
 repo_name: HardMax71/Integr8sCode
 edit_uri: edit/main/docs/
 
+validation:
+  links:
+    absolute_links: relative_to_docs
+
 theme:
   name: material
   palette:
@@ -43,7 +47,6 @@ theme:
 
 plugins:
   - search
-  - mermaid2
 
 markdown_extensions:
   # Python Markdown
@@ -108,7 +111,6 @@ nav:
   - API Reference: reference/api-reference.md
 
   - Components:
-    - Services Overview: components/services-overview.md
     - SSE:
       - Partitioned Architecture: components/sse/sse-partitioned-architecture.md
       - Execution Flow: components/sse/execution-sse-flow.md

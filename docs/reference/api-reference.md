@@ -233,6 +233,12 @@ Health (no prefix)
 - GET /health/readyz → readiness with dependency checks (Mongo, Kafka, Event Store, K8s)
 - GET /health/health → simple status summary
 
+Rate limiting
+
+Every request passes through the rate limiter before reaching the handler. The limiter resolves the caller's identity (user_id for authenticated requests, IP address for anonymous) and checks against Redis using a sliding window algorithm. Anonymous users get a 0.5x multiplier on limits compared to authenticated users.
+
+When a request is allowed, the response includes `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` headers so clients can track their quota. When denied, the API returns 429 with the same headers plus `Retry-After`. Admins can configure per-user limits through the admin UI and view usage stats.
+
 Notes on security
 - Auth required for most endpoints; admin‑only routes enforce role checks server‑side.
 - CSRF double‑submit cookie pattern is enforced for state‑changing routes.

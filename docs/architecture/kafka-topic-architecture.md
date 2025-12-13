@@ -55,3 +55,59 @@ This architectural pattern also provides flexibility for future evolution. If we
 We might also introduce more sophisticated processing stages. Perhaps certain executions need security scanning before processing, or we want to batch similar executions for efficiency. These additional stages can be inserted between execution_events and execution_tasks without disrupting existing consumers.
 
 The pattern we've established here - separating event streams from task queues - can be applied to other domains in our system. If we add support for scheduled executions, we might have schedule_events for audit and schedule_tasks for the actual scheduling work. If we implement distributed training jobs, we might have training_events and training_tasks.
+
+## Saga orchestration
+
+```mermaid
+graph TD
+    SagaService[SagaService]
+    Orchestrator[SagaOrchestrator]
+    ExecutionSaga["ExecutionSaga<br/>(steps/compensations)"]
+    SagaRepo[(SagaRepository<br/>Mongo)]
+    EventStore[(EventStore + Kafka topics)]
+
+    SagaService -- starts --> Orchestrator
+    SagaService --> SagaRepo
+
+    Orchestrator -- "binds explicit dependencies<br/>(producers, repos, command publisher)" --> ExecutionSaga
+    Orchestrator --> EventStore
+
+    ExecutionSaga -- "step.run(...) -> publish commands (Kafka)" --> EventStore
+    ExecutionSaga -- "compensation() -> publish compensations" --> EventStore
+```
+
+Sagas coordinate multi-step workflows where each step publishes commands to Kafka and the orchestrator tracks progress in MongoDB. If a step fails, compensation actions roll back previous steps by publishing compensating events. The saga pattern keeps long-running operations reliable without distributed transactions. Dependencies like producers and repositories are injected explicitly rather than pulled from context, and only serializable data gets persisted so sagas can resume after restarts.
+
+## Event replay
+
+```
+  /api/v1/replay/sessions (admin) --> ReplayService
+         |                               |
+         |                               |-- ReplayRepository (Mongo) for sessions
+         |                               |-- EventStore queries filters/time ranges
+         |                               |-- UnifiedProducer to Kafka (target topic)
+         v                               v
+    JSON summaries                    Kafka topics (private)
+```
+
+The replay system lets admins re-emit historical events from the EventStore back to Kafka. This is useful for rebuilding projections, testing new consumers, or recovering from data issues. You create a replay session with filters like time range or event type, and the ReplayService reads matching events from MongoDB and publishes them to the target topic. The session tracks progress so you can pause and resume long replays.
+
+## Dead letter queue
+
+```
+  Kafka DLQ topic <-> DLQ manager (retry/backoff, thresholds)
+  /api/v1/admin/events/* -> admin repos (Mongo) for events query/delete
+```
+
+When a consumer fails to process an event after multiple retries, the event lands in the dead letter queue topic. The DLQ manager handles retry logic with exponential backoff and configurable thresholds. Admins can inspect failed events through the API, fix the underlying issue, and replay them back to the original topic. Events that repeatedly fail can be manually deleted or archived after investigation.
+
+## Topic and event structure
+
+```
+infrastructure/kafka/events/* : Pydantic event models
+infrastructure/kafka/mappings.py: event -> topic mapping
+events/schema/schema_registry.py: schema manager
+events/core/{producer,consumer,dispatcher}.py: unified Kafka plumbing
+```
+
+All events are defined as Pydantic models with strict typing. The mappings module routes each event type to its destination topic. Schema Registry integration ensures producers and consumers agree on event structure, catching incompatible changes before they cause runtime failures. The unified producer and consumer classes handle serialization, error handling, and observability so individual services don't reinvent the wheel.

@@ -1,5 +1,5 @@
 <p align="center">
- <img src="./files_for_readme/logo.png" alt="Integr8sCode Logo" width="250" height="250">
+ <img src="./docs/assets/images/logo.png" alt="Integr8sCode Logo" width="250" height="250">
  <h1 align="center"><b>Integr8sCode</b></h1>
 </p>
 <p align="center">
@@ -128,7 +128,7 @@ cause `match-case` was introduced first in `Python 3.10`.
 > [!TIP]
 > Full documentation is available at https://hardmax71.github.io/Integr8sCode/
 
-<img src="./files_for_readme/system_diagram.png" alt="system diagram">
+<img src="./docs/assets/images/system_diagram.png" alt="system diagram">
 
 The platform is built on three main pillars:
 

@@ -54,7 +54,7 @@ things safe and efficient. You'll get the results back in no time.
 - Backend: `https://127.0.0.1:443/`
   - To check if it works, you can use `curl -k https://127.0.0.1/api/v1/k8s-limits`, should return JSON with current limits
 - Grafana: `http://127.0.0.1:3000` (login - `admin`, pw - `admin123`)
-  
+
 
 You may also find out that k8s doesn't capture metrics (`CPU` and `Memory` params are `null`), it may well be that metrics server
 for k8s is turned off/not enabled. To enable, execute:
@@ -63,9 +63,9 @@ kubectl create -f https://raw.githubusercontent.com/pythianarora/total-practice/
 ```
 
 and test output by writing `kubectl top node` in console, should output sth like:
-``` 
-PS C:\Users\User\Desktop\Integr8sCode> kubectl top node                                                                                                                 
-NAME             CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%   
+```
+PS C:\Users\User\Desktop\Integr8sCode> kubectl top node
+NAME             CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%
 docker-desktop   267m         3%     4732Mi          29%
 ```
 
@@ -77,7 +77,7 @@ docker-desktop   267m         3%     4732Mi          29%
 You can check correctness of start by running a sample test script:
 1. Open website at `https://127.0.0.1:5001/`, go to Editor
 2. In code window, paste following code:
-```python 
+```python
 from typing import TypeGuard
 
 def is_string(value: object) -> TypeGuard[str]:
@@ -97,8 +97,8 @@ example_function("hello")
 example_function([1, 2, 3])
 ```
 
-First, select `>= Python 3.10` and run script, will output: 
-``` 
+First, select `>= Python 3.10` and run script, will output:
+```
 Status: completed
 Execution ID: <some hex number>
 Output:
@@ -107,8 +107,8 @@ Output:
   Something else
 ```
 
-Then, select `< Python 3.10` and do the same: 
-``` 
+Then, select `< Python 3.10` and do the same:
+```
 Status: completed
 Execution ID: <some other hex number>
 Output:
@@ -117,7 +117,7 @@ Output:
           ^
 SyntaxError: invalid syntax
 ```
-This shows that pods with specified python versions are creating and working as expected. Btw, the latter throws error 
+This shows that pods with specified python versions are creating and working as expected. Btw, the latter throws error
 cause `match-case` was introduced first in `Python 3.10`.
 
 </details>
@@ -125,43 +125,17 @@ cause `match-case` was introduced first in `Python 3.10`.
 
 ## Architecture Overview
 
-> [!WARNING]
-> Detailed, up-to-date architecture diagrams are in [this file](files_for_readme/ARCHITECTURE_IN_DETAILS.md).
+> [!TIP]
+> Full documentation is available at https://hardmax71.github.io/Integr8sCode/
 
 <img src="./files_for_readme/system_diagram.png" alt="system diagram">
 
 The platform is built on three main pillars:
 
-- **Frontend**: A sleek Svelte app that users interact with.
-- **Backend**: Powered by FastAPI, Python, and MongoDB to handle all the heavy lifting.
-- **Kubernetes Cluster**: Each script runs in its own pod, ensuring isolation and resource control.
+- Frontend: A sleek Svelte app that users interact with.
+- Backend: Powered by FastAPI, Python, and MongoDB to handle all the heavy lifting.
+- Kubernetes Cluster: Each script runs in its own pod, ensuring isolation and resource control.
 
-## Kubernetes Integration
+## License
 
-### Pod Setup
-
-- **Docker Image**:Lightweight Python image with just what we need is used.
-- **Isolation**: Every script gets its own pod for security and reliability.
-- **Cleanup**: Once your script is done, the pod goes away to keep things tidy.
-
-### Resource Management
-
-> [!TIP]
-> By limiting resources, we ensure fair usage and prevent any single script from hogging the system.
-
-- **CPU & Memory Limits**: Each pod has caps to prevent overuse (128 Mi for RAM and 1000m for CPU).
-- **Timeouts**: Scripts can't run forever—they'll stop after a set time (default: 5s).
-- **Disk Space**: Limited to prevent excessive storage use.
-
-> You can find actual limits in dropdown above execution output. 
-
-### Security Considerations
-
-> [!CAUTION]
-> Running user-provided code is risky. We take security seriously to protect both our system and other users.
-
-- **Network Restrictions**: Pods can't make external network calls.
-- **No Privileged Access**: Pods run without elevated permissions.
-
-  
-
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

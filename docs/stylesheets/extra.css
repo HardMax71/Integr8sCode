@@ -1,0 +1,59 @@
+/* Custom styles for Integr8sCode documentation */
+
+/* Improve code block appearance */
+.md-typeset code {
+  font-size: 0.85em;
+}
+
+/* Mermaid diagram styling */
+.mermaid {
+  text-align: center;
+  margin: 1em 0;
+}
+
+/* Grid cards for homepage */
+.md-typeset .grid.cards > ul > li {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+
+.md-typeset .grid.cards > ul > li:hover {
+  border-color: var(--md-accent-fg-color);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Improve table appearance */
+.md-typeset table:not([class]) {
+  font-size: 0.85rem;
+}
+
+.md-typeset table:not([class]) th {
+  background-color: var(--md-default-fg-color--lightest);
+}
+
+/* Better admonition styling */
+.md-typeset .admonition {
+  margin: 1.5em 0;
+}
+
+/* Navigation improvements */
+.md-nav__link {
+  font-size: 0.75rem;
+}
+
+/* Content width adjustment */
+.md-content {
+  max-width: 100%;
+}
+
+/* Syntax highlighting improvements */
+.highlight .hll {
+  background-color: var(--md-code-hl-color);
+}
+
+/* Footer styling */
+.md-footer-meta {
+  background-color: var(--md-default-bg-color--light);
+}

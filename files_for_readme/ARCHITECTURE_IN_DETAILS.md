@@ -1,8 +1,8 @@
 # Architecture overview
 
-In this file, you can find broad description of main components of project architecture. 
-Preciser info about peculiarities of separate components (SSE, Kafka topics, DLQ, ..) are in 
-[docs](./../backend/docs).
+In this file, you can find broad description of main components of project architecture.
+Preciser info about peculiarities of separate components (SSE, Kafka topics, DLQ, ..) are in
+the [Components](../components/services-overview.md) section.
 
 ## Top-level system (containers/services)
 

@@ -2,7 +2,6 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import uuid4
 
-from bson import ObjectId
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.domain.enums.user import UserRole
@@ -69,9 +68,6 @@ class UserResponse(UserBase):
 
     model_config = ConfigDict(
         from_attributes=True,
-        json_encoders={
-            ObjectId: str
-        }
     )
 
 
@@ -89,9 +85,6 @@ class User(BaseModel):
     model_config = ConfigDict(
         from_attributes=True,
         arbitrary_types_allowed=True,
-        json_encoders={
-            ObjectId: str
-        }
     )
 
     @classmethod

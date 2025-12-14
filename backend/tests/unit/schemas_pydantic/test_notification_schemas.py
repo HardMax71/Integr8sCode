@@ -1,7 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
-
 from app.domain.enums.notification import NotificationChannel, NotificationSeverity, NotificationStatus
 from app.schemas_pydantic.notification import (
     Notification,
@@ -45,7 +44,7 @@ def test_notification_batch_validation_limits():
         NotificationBatch(notifications=[])
 
     # Upper bound: >1000 should fail
-    many = [n1.copy() for _ in range(1001)]
+    many = [n1.model_copy() for _ in range(1001)]
     with pytest.raises(ValueError):
         NotificationBatch(notifications=many)
 

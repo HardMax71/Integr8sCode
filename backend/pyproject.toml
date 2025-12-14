@@ -226,6 +226,5 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 log_cli = false
 log_cli_level = "ERROR"
-log_capture = true
 log_level = "ERROR"
 addopts = "-n 4 --dist loadfile --tb=short -q --no-header -q"

@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Any, ClassVar
 from uuid import uuid4
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, field_serializer
 from pydantic_avro import AvroBase
 
 from app.domain.enums.events import EventType
@@ -22,11 +22,11 @@ class BaseEvent(AvroBase):
     # Each subclass must define its topic
     topic: ClassVar[KafkaTopic]
 
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat()
-        }
-    )
+    model_config = ConfigDict()
+
+    @field_serializer('timestamp')
+    def serialize_timestamp(self, dt: datetime) -> str:
+        return dt.isoformat()
 
     def to_dict(self) -> dict[str, Any]:
         # Use mode='json' to properly serialize datetime objects to ISO strings

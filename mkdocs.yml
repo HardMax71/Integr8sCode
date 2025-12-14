@@ -120,6 +120,7 @@ nav:
     - Schema Manager: components/schema-manager.md
 
   - Operations:
+    - CI/CD Pipeline: operations/cicd.md
     - Tracing: operations/tracing.md
     - Metrics:
       - Context Variables: operations/metrics-contextvars.md

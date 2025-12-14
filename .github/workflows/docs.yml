@@ -37,7 +37,7 @@ jobs:
           enable-cache: true
 
       - name: Install MkDocs
-        run: uv tool install mkdocs-material --with mkdocs-mermaid2-plugin --with mkdocs-swagger-ui-tag
+        run: uv tool install mkdocs --with mkdocs-material --with mkdocs-mermaid2-plugin --with mkdocs-swagger-ui-tag
 
       - name: Download OpenAPI spec
         run: |

@@ -46,7 +46,7 @@ jobs:
           > docs/reference/openapi.json
 
       - name: Build documentation
-        run: mkdocs build --strict
+        run: uv tool run mkdocs build --strict
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

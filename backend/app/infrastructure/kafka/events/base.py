@@ -24,7 +24,7 @@ class BaseEvent(AvroBase):
 
     model_config = ConfigDict()
 
-    @field_serializer('timestamp')
+    @field_serializer('timestamp', when_used='json')
     def serialize_timestamp(self, dt: datetime) -> str:
         return dt.isoformat()
 

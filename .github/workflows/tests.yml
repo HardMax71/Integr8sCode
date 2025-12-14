@@ -66,6 +66,12 @@ jobs:
           docker pull confluentinc/cp-schema-registry:7.5.0 &
           docker pull mongo:8.0 &
           docker pull redis:7-alpine &
+          docker pull grafana/grafana:latest &
+          docker pull jaegertracing/all-in-one:1.52 &
+          docker pull victoriametrics/victoria-metrics:v1.96.0 &
+          docker pull otel/opentelemetry-collector-contrib:0.91.0 &
+          docker pull obsidiandynamics/kafdrop:3.31.0 &
+          docker pull danielqsj/kafka-exporter:latest &
           wait
           echo "Base images pulled successfully"
 
@@ -123,6 +129,8 @@ jobs:
             *.cache-from=type=gha,scope=buildkit-${{ github.repository }}-main
             *.cache-to=type=gha,mode=max,scope=buildkit-${{ github.repository }}-${{ github.ref_name }}
             *.pull=true
+        env:
+          BUILDKIT_PROGRESS: plain
 
       - name: Start services
         run: |

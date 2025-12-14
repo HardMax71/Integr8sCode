@@ -130,7 +130,7 @@ jobs:
               docker compose -f docker-compose.ci.yaml logs
               exit 1
             )
-            
+
             echo "Services started. Waiting for stabilization..."
             sleep 45
 
@@ -145,7 +145,7 @@ jobs:
 
             echo "Checking backend logs:"
             docker compose -f docker-compose.ci.yaml logs backend || echo "backend not found"
-            
+
             # Explicitly check for containers that have exited
             if docker compose -f docker-compose.ci.yaml ps | grep -q 'Exit'; then
               echo "::error::One or more containers have exited unexpectedly. See logs above."
@@ -171,18 +171,16 @@ jobs:
           kubectl get roles -n default
           kubectl get rolebindings -n default
 
-      - name: Set up Python for Tests
-        uses: actions/setup-python@v4
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: '3.12'
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
 
       - name: Install Python test dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y python3 python3-pip
           cd backend
-          pip3 install -r requirements.txt
-          pip3 install -r requirements-dev.txt
+          uv sync --frozen
 
       - name: Run backend tests with coverage
         timeout-minutes: 5
@@ -202,7 +200,7 @@ jobs:
           echo "Using BACKEND_BASE_URL=$BACKEND_BASE_URL"
           echo "Using SCHEMA_SUBJECT_PREFIX=$SCHEMA_SUBJECT_PREFIX"
           echo "MongoDB connection will use default CI credentials"
-          python -m pytest tests/integration tests/unit -v --cov=app --cov-branch --cov-report=xml --cov-report=term --cov-report=term-missing
+          uv run pytest tests/integration tests/unit -v --cov=app --cov-branch --cov-report=xml --cov-report=term --cov-report=term-missing
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5

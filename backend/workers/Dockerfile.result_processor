@@ -8,9 +8,14 @@ RUN apt-get update && apt-get install -y \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# Copy dependency files
+COPY pyproject.toml uv.lock ./
+
+# Install Python dependencies
+RUN uv sync --frozen --no-dev
 
 # Copy application code
 COPY . .
@@ -25,4 +30,4 @@ RUN useradd -m -u 1000 worker && \
 USER worker
 
 # Run result processor
-CMD ["python", "workers/run_result_processor.py"]
+CMD ["uv", "run", "python", "workers/run_result_processor.py"]

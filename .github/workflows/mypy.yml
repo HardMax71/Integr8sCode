@@ -13,19 +13,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: '3.12'
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
+
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install mypy
-          pip install -r backend/requirements.txt
-          pip install -r backend/requirements-dev.txt
+          cd backend
+          uv sync --frozen
+
       - name: Run mypy
         env:
           SECRET_KEY: ${{ secrets.TEST_SECRET_KEY }}
         run: |
           cd backend
-          mypy --config-file pyproject.toml .
+          uv run mypy --config-file pyproject.toml .

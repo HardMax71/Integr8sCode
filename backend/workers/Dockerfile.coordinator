@@ -9,12 +9,14 @@ RUN apt-get update && apt-get install -y \
     libsnappy-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-# Install Kafka client tools
-RUN pip install confluent-kafka[avro]==2.3.0
+# Copy dependency files
+COPY pyproject.toml uv.lock ./
+
+# Install Python dependencies
+RUN uv sync --frozen --no-dev
 
 # Copy application code
 COPY . .
@@ -23,4 +25,4 @@ COPY . .
 ENV PYTHONPATH=/app
 
 # Run the coordinator service
-CMD ["python", "-m", "workers.run_coordinator"]
+CMD ["uv", "run", "python", "-m", "workers.run_coordinator"]

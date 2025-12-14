@@ -1,22 +1,5 @@
-FROM python:3.12-slim
-WORKDIR /app
-
-# Install required packages
-RUN apt-get update && apt-get install -y \
-    gcc \
-    libsnappy-dev \
-    liblzma-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:0.9.17 /uv /uvx /bin/
-
-# Copy dependency files
-COPY pyproject.toml uv.lock ./
-
-# Install Python dependencies (production only, no dev deps)
-# --no-install-project: don't install project itself, only dependencies (source dirs don't exist yet)
-RUN uv sync --frozen --no-dev --no-install-project
+# Backend API service
+FROM base
 
 # Copy application files and configuration
 COPY ./app /app/app
@@ -27,9 +10,6 @@ COPY openssl.cnf /app/openssl.cnf
 
 # Ensure the certs directory exists
 RUN mkdir -p /app/certs
-
-# Set Python path so imports work without installing project as package
-ENV PYTHONPATH=/app
 
 # Expose metrics port
 EXPOSE 9090

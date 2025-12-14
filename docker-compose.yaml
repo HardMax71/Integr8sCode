@@ -1,4 +1,11 @@
 services:
+  # Shared base image for all Python backend services
+  base:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.base
+    image: integr8scode-base:latest
+
   shared-ca:
     image: alpine:latest
     volumes:
@@ -68,7 +75,11 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      additional_contexts:
+        base: service:base
     depends_on:
+      base:
+        condition: service_completed_successfully
       cert-generator:
         condition: service_completed_successfully
       mongo:
@@ -339,8 +350,12 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      additional_contexts:
+        base: service:base
     container_name: kafka-init
     depends_on:
+      base:
+        condition: service_completed_successfully
       kafka:
         condition: service_healthy
       schema-registry:
@@ -359,8 +374,12 @@ services:
     build:
       context: ./backend
       dockerfile: workers/Dockerfile.coordinator
+      additional_contexts:
+        base: service:base
     container_name: coordinator
     depends_on:
+      base:
+        condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
       mongo:
@@ -386,8 +405,12 @@ services:
     build:
       context: ./backend
       dockerfile: workers/Dockerfile.k8s_worker
+      additional_contexts:
+        base: service:base
     container_name: k8s-worker
     depends_on:
+      base:
+        condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
       mongo:
@@ -419,8 +442,12 @@ services:
     build:
       context: ./backend
       dockerfile: workers/Dockerfile.pod_monitor
+      additional_contexts:
+        base: service:base
     container_name: pod-monitor
     depends_on:
+      base:
+        condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
       jaeger:
@@ -449,8 +476,12 @@ services:
     build:
       context: ./backend
       dockerfile: workers/Dockerfile.result_processor
+      additional_contexts:
+        base: service:base
     container_name: result-processor
     depends_on:
+      base:
+        condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
       mongo:
@@ -481,8 +512,12 @@ services:
     build:
       context: ./backend
       dockerfile: workers/Dockerfile.saga_orchestrator
+      additional_contexts:
+        base: service:base
     container_name: saga-orchestrator
     depends_on:
+      base:
+        condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
       mongo:
@@ -527,8 +562,12 @@ services:
     build:
       context: ./backend
       dockerfile: workers/Dockerfile.event_replay
+      additional_contexts:
+        base: service:base
     container_name: event-replay
     depends_on:
+      base:
+        condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
       mongo:
@@ -554,8 +593,12 @@ services:
     build:
       context: ./backend
       dockerfile: workers/Dockerfile.dlq_processor
+      additional_contexts:
+        base: service:base
     container_name: dlq-processor
     depends_on:
+      base:
+        condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
       mongo:

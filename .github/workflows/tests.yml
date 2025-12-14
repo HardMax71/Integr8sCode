@@ -81,6 +81,8 @@ jobs:
           yq eval '.services.backend.environment += ["MONGO_ROOT_PASSWORD=rootpassword"]' -i docker-compose.ci.yaml
           # Disable OpenTelemetry SDK during tests to avoid exporter retries
           yq eval '.services.backend.environment += ["OTEL_SDK_DISABLED=true"]' -i docker-compose.ci.yaml
+          # Remove ./backend:/app volume mount - CI doesn't need hot-reload and it creates .venv permission conflicts
+          yq eval '.services.backend.volumes = [.services.backend.volumes[] | select(. != "./backend:/app")]' -i docker-compose.ci.yaml
 
           # MongoDB service already has defaults in docker-compose.yaml (root/rootpassword)
           # No need to override them

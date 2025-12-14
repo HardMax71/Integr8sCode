@@ -20,9 +20,10 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "backend/uv.lock"
 
-      - name: Install dependencies
+      - name: Install Python and dependencies
         run: |
           cd backend
+          uv python install 3.12
           uv sync --frozen
 
       - name: Run mypy

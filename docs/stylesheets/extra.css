@@ -5,10 +5,117 @@
   font-size: 0.85em;
 }
 
-/* Mermaid diagram styling */
+/* Mermaid diagram styling - grey-white-black theme */
 .mermaid {
   text-align: center;
   margin: 1em 0;
+}
+
+/* Override Mermaid default blue colors to black/grey */
+.mermaid .node rect,
+.mermaid .node circle,
+.mermaid .node ellipse,
+.mermaid .node polygon,
+.mermaid .node path {
+  fill: #f5f5f5 !important;
+  stroke: #333 !important;
+}
+
+.mermaid .node .label,
+.mermaid .nodeLabel {
+  color: #000 !important;
+  fill: #000 !important;
+}
+
+/* Flowchart edges/arrows */
+.mermaid .flowchart-link,
+.mermaid .edge-pattern-solid,
+.mermaid path.path {
+  stroke: #333 !important;
+}
+
+.mermaid .arrowheadPath,
+.mermaid marker path {
+  fill: #333 !important;
+  stroke: #333 !important;
+}
+
+.mermaid .edgeLabel,
+.mermaid .edgeLabel rect {
+  background-color: #fff !important;
+  fill: #fff !important;
+}
+
+.mermaid .edgeLabel span,
+.mermaid .edgeLabel p {
+  color: #000 !important;
+  fill: #000 !important;
+}
+
+/* Sequence diagram actors */
+.mermaid .actor {
+  fill: #f5f5f5 !important;
+  stroke: #333 !important;
+}
+
+.mermaid .actor-line {
+  stroke: #333 !important;
+}
+
+.mermaid text.actor {
+  fill: #000 !important;
+}
+
+/* Sequence diagram signals/messages */
+.mermaid .messageLine0,
+.mermaid .messageLine1 {
+  stroke: #333 !important;
+}
+
+.mermaid .messageText {
+  fill: #000 !important;
+}
+
+/* Sequence diagram notes */
+.mermaid .note {
+  fill: #fff !important;
+  stroke: #333 !important;
+}
+
+.mermaid .noteText {
+  fill: #000 !important;
+}
+
+/* Sequence diagram loops/rects */
+.mermaid .loopLine {
+  stroke: #333 !important;
+}
+
+.mermaid .loopText,
+.mermaid .loopText span {
+  fill: #000 !important;
+  color: #000 !important;
+}
+
+.mermaid rect.rect {
+  fill: #e8e8e8 !important;
+  stroke: #333 !important;
+}
+
+/* Subgraphs */
+.mermaid .cluster rect {
+  fill: #fafafa !important;
+  stroke: #333 !important;
+}
+
+.mermaid .cluster-label .nodeLabel {
+  color: #000 !important;
+  fill: #000 !important;
+}
+
+/* Labels on lines */
+.mermaid .labelText {
+  fill: #000 !important;
 }
 
 /* Grid cards for homepage */
@@ -53,7 +160,7 @@
   background-color: var(--md-code-hl-color);
 }
 
-/* Footer styling */
+/* Hide footer meta block (grey bar) */
 .md-footer-meta {
-  background-color: var(--md-default-bg-color--light);
+  display: none;
 }

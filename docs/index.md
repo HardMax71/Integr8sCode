@@ -1,18 +1,22 @@
 # Integr8sCode
 
-**Run Python scripts online in isolated Kubernetes pods with resource limits and real-time feedback.**
+[GitHub :material-github:](https://github.com/HardMax71/Integr8sCode){ .md-button }
+[Live Demo :material-play:](https://app.integr8scode.cc/){ .md-button .md-button--primary }
 
-Integr8sCode is a platform where you can run Python scripts online with ease. Just paste your script, and the platform runs it in an isolated environment within its own Kubernetes pod, complete with resource limits to keep things safe and efficient. You'll get the results back in no time.
-
-## Quick Start
+## Quick start
 
 ### Deployment
 
-1. Clone the repository
-2. Ensure Docker is enabled, Kubernetes is running, and kubectl is installed
-3. Run `docker-compose up --build`
+```bash
+# 1. Clone the repo
+git clone https://github.com/HardMax71/Integr8sCode.git
+cd Integr8sCode
 
-**Access points:**
+# 2. Start containers
+docker-compose up --build
+```
+
+Access points:
 
 | Service | URL |
 |---------|-----|
@@ -20,7 +24,7 @@ Integr8sCode is a platform where you can run Python scripts online with ease. Ju
 | Backend API | `https://127.0.0.1:443/` |
 | Grafana | `http://127.0.0.1:3000` (admin/admin123) |
 
-### Verify Installation
+### Verify installation
 
 Check if the backend is running:
 
@@ -28,9 +32,17 @@ Check if the backend is running:
 curl -k https://127.0.0.1/api/v1/k8s-limits
 ```
 
-This should return JSON with current resource limits.
+Example response:
 
-### Enable Kubernetes Metrics
+```json
+{
+  "cpu_limit": "1000m",
+  "memory_limit": "128Mi",
+  "timeout_seconds": 5
+}
+```
+
+### Enable Kubernetes metrics
 
 If CPU and Memory metrics show as `null`, enable the metrics server:
 
@@ -44,43 +56,59 @@ Verify with:
 kubectl top node
 ```
 
-## Core Features
-
-- **Isolated Execution**: Every script runs in its own Kubernetes pod
-- **Resource Limits**: CPU (1000m), Memory (128Mi), configurable timeouts
-- **Multi-version Python**: Support for Python 3.10+ and earlier versions
-- **Real-time Updates**: Server-Sent Events for live execution status
-- **Event Sourcing**: Complete audit trail via Kafka event streams
-- **Dead Letter Queue**: Automatic retry and recovery for failed events
-
-## Architecture Overview
-
-The platform is built on three main pillars:
-
-- **Frontend**: Svelte application for user interaction
-- **Backend**: FastAPI with MongoDB, Kafka, and Redis
-- **Kubernetes**: Isolated pod execution with Cilium network policies
+Example output:
 
 ```
-User → Frontend → API → Coordinator → Saga → K8s Worker → Pod
-                                                  ↓
-                              Pod Monitor → Result Processor → SSE → User
+NAME             CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%
+docker-desktop   267m         3%     4732Mi          29%
+```
+
+## Core features
+
+- Every script runs in its own Kubernetes pod, fully isolated from others
+- Resource limits keep things in check: 1000m CPU, 128Mi memory, configurable timeouts
+- Multiple Python versions supported (3.9, 3.10, 3.11, 3.12)
+- Real-time updates via Server-Sent Events so you see what's happening as it happens
+- Full audit trail through Kafka event streams
+- Failed events get retried automatically via dead letter queue
+
+## Architecture
+
+The platform has three main parts:
+
+- A Svelte frontend that users interact with
+- FastAPI backend handling the heavy lifting, backed by MongoDB, Kafka, and Redis
+- Kubernetes cluster where each script runs in its own pod with Cilium network policies
+
+```mermaid
+flowchart TB
+    User:::userStyle --> Frontend
+    Frontend --> API
+    API --> Coordinator
+    Coordinator --> Saga
+    Saga --> K8sWorker[K8s Worker]
+    K8sWorker --> Pod
+    K8sWorker --> ResultProcessor[Result Processor]
+    PodMonitor[Pod Monitor] --> ResultProcessor
+    ResultProcessor --> SSE
+    SSE --> User
+    classDef userStyle fill:#e0e0e0,stroke:#333,stroke-width:2px
 ```
 
 For detailed architecture diagrams, see the [Architecture](architecture/overview.md) section.
 
 ## Security
 
-- **Network Isolation**: Pods cannot make external network calls (Cilium deny-all policy)
-- **No Privileged Access**: Pods run as non-root with dropped capabilities
-- **Read-only Filesystem**: Containers use read-only root filesystem
-- **No Service Account**: Pods have no access to Kubernetes API
+- Pods can't make external network calls (Cilium deny-all policy)
+- Everything runs as non-root with dropped capabilities
+- Read-only root filesystem on containers
+- No service account access to Kubernetes API
 
-## Documentation Sections
+## Documentation
 
 <div class="grid cards" markdown>
 
--   :material-architecture-outline: **[Architecture](architecture/overview.md)**
+-   :material-sitemap: **[Architecture](architecture/overview.md)**
 
     ---
 
@@ -92,7 +120,7 @@ For detailed architecture diagrams, see the [Architecture](architecture/overview
 
     Complete REST and SSE endpoint documentation
 
--   :material-cog: **[Components](components/services-overview.md)**
+-   :material-cog: **[Components](components/dead-letter-queue.md)**
 
     ---
 
@@ -106,7 +134,7 @@ For detailed architecture diagrams, see the [Architecture](architecture/overview
 
 </div>
 
-## Sample Test
+## Sample test
 
 Verify your installation by running this Python 3.10+ code:
 
@@ -137,8 +165,3 @@ An integer greater than 10
 A string: hello
 Something else
 ```
-
-## Links
-
-- [GitHub Repository](https://github.com/HardMax71/Integr8sCode)
-- [Live Demo](https://app.integr8scode.cc/)

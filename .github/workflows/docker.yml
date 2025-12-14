@@ -14,16 +14,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build base image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile.base
+          push: false
+          load: true
+          tags: integr8scode-base:latest
+          cache-from: type=gha,scope=base
+          cache-to: type=gha,mode=max,scope=base
+
       - name: Build Docker image
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v6
         with:
           context: ./backend
           push: false
           load: true
           tags: integr8scode:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          build-contexts: |
+            base=docker-image://integr8scode-base:latest
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:

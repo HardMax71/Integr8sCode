@@ -1,43 +1,41 @@
-# Notification Model (Unified)
+# Notifications
 
 Notifications are producer-driven with minimal core fields. Types and legacy levels have been removed.
 
-Core fields:
-- subject: short title
-- body: text content
-- channel: in_app | webhook | slack
-- severity: low | medium | high | urgent
-- tags: list of strings, e.g. ['execution','failed'], ['external_alert','grafana']
-- status: pending | sending | delivered | failed | skipped | read | clicked
+## Core fields
 
-What changed:
-- Removed NotificationType, SystemNotificationLevel, templates and rules.
-- Producers decide content and tags; UI renders icons/colors from tags+severity.
-- Subscriptions filter by severities and include/exclude tags.
+- `subject`: short title
+- `body`: text content
+- `channel`: in_app | webhook | slack
+- `severity`: low | medium | high | urgent
+- `tags`: list of strings, e.g. `['execution','failed']`, `['external_alert','grafana']`
+- `status`: pending | sending | delivered | failed | skipped | read | clicked
 
-Rationale:
-- Fewer brittle mappings, simpler flow, better extensibility.
+## Tag conventions
 
-## Tag Conventions
+Producers should include small, structured tags to enable filtering, UI actions, and correlation (replacing old related fields).
 
-Producers should include small, structured tags to enable filtering, UI actions, and correlation (replacing old related fields):
+**Category tags** indicate what the notification is about: `execution` for code executions, `external_alert` and `grafana` for notifications from Grafana Alerting.
 
-- Category tags:
-  - `execution` — notifications about code executions
-  - `external_alert`, `grafana` — notifications from Grafana Alerting
+**Entity tags** specify the type: `entity:execution`, `entity:external_alert`.
 
-- Entity tags (type):
-  - `entity:execution`
-  - `entity:external_alert`
+**Reference tags** link to specific resources: `exec:<execution_id>` references a specific execution (used by UI to provide "View result"). For external alerts, include relevant context in `metadata` rather than unstable IDs in tags.
 
-- Reference tags (IDs):
-  - `exec:<execution_id>` — references a specific execution (used by UI to provide "View result")
-  - For external alerts, include any relevant context in `metadata`; tags should avoid unstable IDs unless necessary
+**Outcome tags** describe what happened: `completed`, `failed`, `timeout`, `warning`, `error`, `success`.
 
-- Outcome tags:
-  - `completed`, `failed`, `timeout`, `warning`, `error`, `success`
+## Examples
 
-Examples:
-- Execution completed: `["execution","completed","entity:execution","exec:2c1b...e8"]`
-- Execution failed: `["execution","failed","entity:execution","exec:2c1b...e8"]`
-- Grafana alert: `["external_alert","grafana","entity:external_alert"]`
+Execution completed:
+```json
+["execution", "completed", "entity:execution", "exec:2c1b...e8"]
+```
+
+Execution failed:
+```json
+["execution", "failed", "entity:execution", "exec:2c1b...e8"]
+```
+
+Grafana alert:
+```json
+["external_alert", "grafana", "entity:external_alert"]
+```

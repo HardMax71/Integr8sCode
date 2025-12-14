@@ -44,7 +44,7 @@ jobs:
           restore-keys: mkdocs-
 
       - name: Install MkDocs
-        run: pip install mkdocs-material mkdocs-mermaid2-plugin
+        run: pip install mkdocs-material mkdocs-mermaid2-plugin mkdocs-swagger-ui-tag
 
       - name: Build documentation
         run: mkdocs build --strict

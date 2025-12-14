@@ -1,62 +1,84 @@
-# Kafka Topic Architecture: Execution Events vs Execution Tasks
+# Kafka topic architecture
 
-## The Design Decision
+## Why two topics?
 
-In our event-driven architecture, we faced a critical design decision about how to handle execution requests flowing through the system. Should we publish ExecutionRequestedEvent to the general execution_events topic where all execution-related events live, or should we use a dedicated execution_tasks topic specifically for work that needs to be processed by the Kubernetes worker? After considerable analysis and real-world testing, we chose to maintain separate topics, and this document explains why this separation is not just beneficial but essential for our system's scalability and maintainability.
+The system uses *two separate Kafka topics* for execution flow: `execution_events` and `execution_tasks`. This might seem redundant since both can contain the same `ExecutionRequestedEvent`, but the separation is essential for scalability and maintainability.
 
-## Understanding the Fundamental Difference
+## Events vs tasks
 
-At first glance, it might seem redundant to have both execution_events and execution_tasks topics, especially since they can contain the same ExecutionRequestedEvent. However, these topics serve fundamentally different purposes in our architecture, and understanding this distinction is crucial.
+**execution_events** is the system's *event stream* — an append-only log capturing everything that happens to executions throughout their lifecycle:
 
-The execution_events topic is our system's event stream. It's an append-only log that captures everything that happens to executions throughout their lifecycle. When a user requests an execution, when it starts, when it completes or fails, when pods are created or terminated - all these events flow through execution_events. This topic is consumed by multiple services that need to react to these state changes: the SSE service streams updates to users, the projection service maintains read-optimized views, the saga orchestrator manages complex workflows, and monitoring services track system health. These consumers care about the completeness and ordering of events because they're building a comprehensive picture of the system's state.
+- User requests an execution
+- Execution starts, completes, or fails
+- Pods are created or terminated
+- Status updates and log entries
 
-The execution_tasks topic, on the other hand, is a work queue. It contains only those events that represent actual work to be done - specifically, executions that have been validated, authorized, rate-limited, and scheduled for processing. When the coordinator publishes an ExecutionRequestedEvent to execution_tasks, it's not saying "this happened" but rather "this needs to be done now." The Kubernetes worker, the sole consumer of this topic, doesn't care about the broader context or history; it just needs to know what pods to create.
+Multiple services consume this topic: SSE streams updates to users, projection service maintains read-optimized views, saga orchestrator manages workflows, monitoring tracks health. These consumers care about *completeness and ordering* because they're building a comprehensive picture of system state.
 
-## The Flow of an Execution Request
+**execution_tasks** is a *work queue*. It contains only events representing actual work to be done — executions that have been validated, authorized, rate-limited, and scheduled. When the coordinator publishes to `execution_tasks`, it's saying "this needs to be done now" rather than "this happened." The Kubernetes worker, the *sole consumer* of this topic, just needs to know what pods to create.
 
-To understand why this separation matters, let's trace the journey of an execution request through our system. When a user submits code to be executed, the API creates an ExecutionRequestedEvent and publishes it to execution_events. This is the system acknowledging that a request has been made - it's now part of the permanent record.
+## Request flow
 
-The coordinator service, which subscribes to execution_events, picks up this event and begins its validation process. It checks whether the user has exceeded their rate limit, whether there are sufficient resources available, whether the execution should be prioritized or queued. This processing takes time and involves complex business logic. Some requests might be rejected immediately due to rate limiting. Others might sit in a priority queue for minutes waiting for resources. Still others might be cancelled before they ever start.
+When a user submits code, the API creates an `ExecutionRequestedEvent` and publishes it to `execution_events`. This acknowledges the request and makes it part of the permanent record.
 
-Only when the coordinator determines that an execution is ready to proceed does it republish the ExecutionRequestedEvent to execution_tasks. This republishing represents a crucial state transition. The event has moved from being a request to being scheduled work. The coordinator has essentially blessed this execution and allocated resources for it.
+The coordinator subscribes to `execution_events` and begins validation:
 
-The Kubernetes worker, meanwhile, has a simple job. It consumes from execution_tasks, creates the appropriate Kubernetes resources (ConfigMaps, Pods, NetworkPolicies), and publishes a PodCreatedEvent back to execution_events to inform the system that the work has begun. It doesn't need to know about rate limits, queuing, or resource allocation - all that complexity has been handled upstream.
+- Has the user exceeded their rate limit?
+- Are sufficient resources available?
+- Should this execution be prioritized or queued?
 
-## Performance and Scaling Implications
+Some requests get rejected immediately. Others sit in a priority queue waiting for resources. Still others get cancelled before starting.
 
-The performance benefits of this separation become apparent when we consider the volume and nature of events in each topic. The execution_events topic is incredibly busy. For every execution, we might see a dozen or more events: requested, queued, started, multiple pod status updates, log entries, completion or failure, and cleanup. If we're processing hundreds of executions per minute, that's thousands of events flowing through execution_events.
+Only when the coordinator determines an execution is *ready to proceed* does it republish to `execution_tasks`. This represents a state transition — the event has moved from being a request to being *scheduled work*.
 
-Now imagine if the Kubernetes worker had to consume from this firehose of events. It would receive every ExecutionRequestedEvent, but also every status update, every log entry, every completion notification. It would need to filter through all of this to find just the ExecutionRequestedEvents, and then further filter to identify which ones are actually ready for processing versus which ones are still queued or have been rejected. This filtering would consume CPU cycles and network bandwidth, and more critically, it would couple the worker's performance to the overall event volume in the system.
+The Kubernetes worker then consumes from `execution_tasks`, creates resources (ConfigMaps, Pods), and publishes a `PodCreatedEvent` back to `execution_events`. It doesn't need to know about rate limits or queuing — all that complexity has been handled upstream.
 
-With separate topics, the Kubernetes worker receives only what it needs: validated, scheduled execution requests ready for processing. If execution_events is processing 1000 events per minute but only 50 executions are actually being scheduled, the worker sees only those 50 events. This dramatic reduction in processing overhead allows the worker to focus on its core responsibility: creating and managing Kubernetes pods.
+## Performance and scaling
 
-The separation also enables independent scaling strategies. The execution_events topic might be configured with many partitions to handle high throughput and support numerous concurrent consumers. Each service that subscribes to execution_events can consume from multiple partitions in parallel, spreading the load. The execution_tasks topic, however, might have fewer partitions optimized for the Kubernetes worker's consumption pattern. Since pod creation is relatively expensive and we want to control the rate at which pods are created, we might actually want less parallelism here.
+The `execution_events` topic is busy. For every execution, there might be a dozen or more events: requested, queued, started, pod status updates, log entries, completion, cleanup. Hundreds of executions per minute means *thousands* of events flowing through.
 
-## Operational Advantages
+If the Kubernetes worker had to consume from this firehose, it would receive every event type and need to filter down to just the ready-to-process `ExecutionRequestedEvents`. This filtering would consume CPU and bandwidth, and couple worker performance to overall event volume.
 
-From an operational perspective, separate topics provide crucial isolation and control. When troubleshooting issues, operators can examine the depth of the execution_tasks queue to understand exactly how many executions are waiting to be processed. This is a clear, actionable metric. If execution_tasks is backing up, we know the Kubernetes worker is struggling. If execution_events is backing up, we need to look at all consumers to identify the bottleneck.
+With separate topics, the worker receives *only what it needs*. If `execution_events` processes 1000 events/minute but only 50 executions are scheduled, the worker sees only those 50. This allows focus on the core responsibility: creating and managing pods.
 
-The separation also allows for different retention policies. The execution_events topic needs long retention - perhaps 90 days or more - because it's our audit log and source of truth for system state. We might need to look back weeks to understand a pattern of failures or investigate a user complaint. The execution_tasks topic, however, can have much shorter retention. Once an execution has been processed, there's no need to keep it in the queue for long. A few days of retention might be sufficient for recovery scenarios.
+The separation enables independent scaling:
 
-Monitoring and alerting become more precise with separate topics. We can set different SLAs for different stages of processing. Perhaps we expect ExecutionRequestedEvents to appear in execution_events within 100ms of API receipt, but we're comfortable with up to 30 seconds of queuing before they appear in execution_tasks. These different expectations reflect the different purposes of the topics.
+- `execution_events`: many partitions for high throughput, numerous concurrent consumers
+- `execution_tasks`: fewer partitions optimized for the worker's pattern (pod creation is expensive, less parallelism is sometimes better)
 
-## Handling Failure Scenarios
+## Operations
 
-The separated architecture also provides better failure handling. If the Kubernetes worker crashes or needs maintenance, execution_tasks will accumulate messages, but the rest of the system continues functioning normally. Users can still submit executions, the coordinator can still validate and queue them, and other services can continue processing execution_events. When the worker comes back online, it picks up where it left off, processing the backlog of tasks.
+Separate topics provide crucial isolation. When troubleshooting:
 
-Consider what would happen in a single-topic architecture if the Kubernetes worker fell behind. It would slow down consumption from execution_events, potentially causing backpressure that affects all other consumers. The SSE service might delay sending updates to users. The projection service might fall behind in updating read models. The entire system would degrade because one component couldn't keep up.
+- If `execution_tasks` is backing up → the Kubernetes worker is struggling
+- If `execution_events` is backing up → need to identify which consumer is the bottleneck
 
-The coordinator acts as a shock absorber between user requests and pod creation. It can implement sophisticated queuing strategies, prioritization, and resource management without affecting either the upstream event producers or the downstream Kubernetes worker. If we need to temporarily slow down pod creation due to cluster capacity issues, the coordinator can hold executions in its internal queue while still acknowledging receipt by publishing to execution_events.
+Different retention policies make sense too. `execution_events` needs long retention (90+ days) as the audit log and source of truth. `execution_tasks` can have short retention — once processed, a few days is enough for recovery scenarios.
 
-## Future Evolution
+Monitoring becomes more precise. Different SLAs for different stages:
 
-This architectural pattern also provides flexibility for future evolution. If we decide to add different types of workers - perhaps one for GPU workloads, another for long-running jobs - we could introduce additional task topics without modifying the core event flow. The coordinator could route different types of executions to different task topics based on their requirements.
+- `ExecutionRequestedEvent` in `execution_events` within 100ms of API receipt
+- Up to 30 seconds acceptable before appearing in `execution_tasks`
 
-We might also introduce more sophisticated processing stages. Perhaps certain executions need security scanning before processing, or we want to batch similar executions for efficiency. These additional stages can be inserted between execution_events and execution_tasks without disrupting existing consumers.
+## Failure handling
 
-The pattern we've established here - separating event streams from task queues - can be applied to other domains in our system. If we add support for scheduled executions, we might have schedule_events for audit and schedule_tasks for the actual scheduling work. If we implement distributed training jobs, we might have training_events and training_tasks.
+If the Kubernetes worker crashes, `execution_tasks` accumulates messages but the rest of the system continues normally. Users can submit executions, the coordinator validates and queues them, other services process `execution_events`. When the worker recovers, it picks up where it left off.
 
-## Saga orchestration
+In a single-topic architecture, a slow worker would cause backpressure affecting *all* consumers. SSE might delay updates. Projections might fall behind. The entire system degrades because one component can't keep up.
+
+The coordinator acts as a *shock absorber* between user requests and pod creation. It can implement queuing, prioritization, and resource management without affecting upstream producers or downstream workers. During cluster capacity issues, the coordinator holds executions in its internal queue while still acknowledging receipt.
+
+## Extensibility
+
+This pattern provides flexibility for evolution:
+
+- Add GPU workers or long-running job workers → introduce additional task topics without modifying core event flow
+- Add security scanning or batch processing stages → insert between `execution_events` and `execution_tasks`
+- Add scheduled executions → `schedule_events` for audit, `schedule_tasks` for scheduling work
+
+The pattern of separating *event streams* from *task queues* applies broadly.
+
+## Sagas
 
 ```mermaid
 graph TD
@@ -76,38 +98,58 @@ graph TD
     ExecutionSaga -- "compensation() -> publish compensations" --> EventStore
 ```
 
-Sagas coordinate multi-step workflows where each step publishes commands to Kafka and the orchestrator tracks progress in MongoDB. If a step fails, compensation actions roll back previous steps by publishing compensating events. The saga pattern keeps long-running operations reliable without distributed transactions. Dependencies like producers and repositories are injected explicitly rather than pulled from context, and only serializable data gets persisted so sagas can resume after restarts.
+Sagas coordinate multi-step workflows where each step publishes commands to Kafka and the orchestrator tracks progress in MongoDB. If a step fails, *compensation actions* roll back previous steps by publishing compensating events. This keeps long-running operations reliable without distributed transactions.
 
-## Event replay
+Key design choices:
 
-```
-  /api/v1/replay/sessions (admin) --> ReplayService
-         |                               |
-         |                               |-- ReplayRepository (Mongo) for sessions
-         |                               |-- EventStore queries filters/time ranges
-         |                               |-- UnifiedProducer to Kafka (target topic)
-         v                               v
-    JSON summaries                    Kafka topics (private)
-```
+- Dependencies injected *explicitly* rather than pulled from context
+- Only *serializable* data persisted — sagas can resume after restarts
 
-The replay system lets admins re-emit historical events from the EventStore back to Kafka. This is useful for rebuilding projections, testing new consumers, or recovering from data issues. You create a replay session with filters like time range or event type, and the ReplayService reads matching events from MongoDB and publishes them to the target topic. The session tracks progress so you can pause and resume long replays.
+## Replay
 
-## Dead letter queue
-
-```
-  Kafka DLQ topic <-> DLQ manager (retry/backoff, thresholds)
-  /api/v1/admin/events/* -> admin repos (Mongo) for events query/delete
+```mermaid
+graph LR
+    Admin[Admin API] --> ReplayService
+    ReplayService --> ReplayRepo[(ReplayRepository)]
+    ReplayService --> EventStore[(EventStore)]
+    ReplayService --> Producer[UnifiedProducer]
+    Producer --> Kafka[(Kafka)]
 ```
 
-When a consumer fails to process an event after multiple retries, the event lands in the dead letter queue topic. The DLQ manager handles retry logic with exponential backoff and configurable thresholds. Admins can inspect failed events through the API, fix the underlying issue, and replay them back to the original topic. Events that repeatedly fail can be manually deleted or archived after investigation.
+The replay system re-emits historical events from EventStore back to Kafka. Useful for:
 
-## Topic and event structure
+- Rebuilding projections
+- Testing new consumers
+- Recovering from data issues
 
+Create a replay session with filters (time range, event type), and ReplayService reads matching events from MongoDB and publishes to the target topic. Sessions track progress — pause and resume long replays as needed.
+
+## Dead letters
+
+```mermaid
+graph LR
+    Consumer[Consumer] -->|"failure"| DLQ[(DLQ Topic)]
+    DLQ <--> Manager[DLQ Manager]
+    Manager -->|"retry"| Original[(Original Topic)]
+    Admin[Admin API] --> Manager
 ```
-infrastructure/kafka/events/* : Pydantic event models
-infrastructure/kafka/mappings.py: event -> topic mapping
-events/schema/schema_registry.py: schema manager
-events/core/{producer,consumer,dispatcher}.py: unified Kafka plumbing
-```
 
-All events are defined as Pydantic models with strict typing. The mappings module routes each event type to its destination topic. Schema Registry integration ensures producers and consumers agree on event structure, catching incompatible changes before they cause runtime failures. The unified producer and consumer classes handle serialization, error handling, and observability so individual services don't reinvent the wheel.
+When a consumer fails to process an event after multiple retries, it lands in the dead letter queue. The DLQ manager handles retry logic with *exponential backoff* and configurable thresholds.
+
+Admins can:
+
+- Inspect failed events through the API
+- Fix the underlying issue
+- Replay events back to the original topic
+- Delete or archive events that repeatedly fail
+
+## Event schemas
+
+Key files:
+
+- `infrastructure/kafka/events/*` — Pydantic event models
+- `infrastructure/kafka/mappings.py` — event to topic mapping
+- `events/schema/schema_registry.py` — schema manager
+- `events/core/{producer,consumer,dispatcher}.py` — unified Kafka plumbing
+
+All events are Pydantic models with *strict typing*. The mappings module routes each event type to its destination topic. Schema Registry integration ensures producers and consumers agree on structure, catching incompatible changes *before* runtime failures. The unified producer and consumer classes handle serialization, error handling, and observability.

@@ -1,21 +1,24 @@
-Executor Pod Network Isolation (Cilium)
+# Network isolation
 
-Overview
-- Executor pods are hardened (non-root, no caps, read-only root FS, no service account, DNS disabled).
-- Network isolation is enforced exclusively via a static CiliumNetworkPolicy.
-- Per-execution NetworkPolicy creation has been removed from the worker.
-- Using the 'default' namespace is forbidden; apply policies and run pods in a dedicated namespace.
+Executor pods run user code in a hardened environment: non-root user, no capabilities, read-only root filesystem, no service account token, and DNS disabled. Network isolation is enforced via a static CiliumNetworkPolicy that denies all egress traffic from executor pods.
 
-Apply deny-all Cilium policy
-- File: backend/k8s/policies/executor-deny-all-cnp.yaml
-- Use the setup script (namespace required):
-  - ./backend/scripts/setup_k8s.sh <namespace>
-  - This creates the namespace if needed and applies the CNP there.
+## Setup
 
-Labels matched
-- app=integr8s
-- component=executor
+The deny-all Cilium policy is defined in `backend/k8s/policies/executor-deny-all-cnp.yaml`. Apply it using the setup script:
 
-Notes
-- Ensure Cilium is installed and policy enforcement is active.
-- To allow in-cluster traffic later, modify egress rules (e.g., toEntities: ["cluster"]).
+```bash
+./backend/scripts/setup_k8s.sh <namespace>
+```
+
+This creates the namespace if needed and applies the CiliumNetworkPolicy there. Using the `default` namespace is forbidden — always run executor pods in a dedicated namespace.
+
+## Pod labels
+
+The policy matches pods with these labels:
+
+- `app=integr8s`
+- `component=executor`
+
+## Notes
+
+Cilium must be installed with policy enforcement active. To allow in-cluster traffic later (for example, accessing internal services), modify the egress rules in the CNP to include `toEntities: ["cluster"]`.

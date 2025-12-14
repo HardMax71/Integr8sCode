@@ -1,33 +1,30 @@
-# Result Processor Worker
+# Result processor
 
-## Purpose
-Consumes execution completion events from Kafka and persists results to MongoDB.
+## Overview
 
-## Event Flow
+The result processor consumes execution completion events from Kafka and persists results to MongoDB. It's the final step in the execution pipeline — once a pod finishes and the pod monitor publishes the outcome, the result processor stores everything and notifies downstream consumers.
+
+```mermaid
+graph LR
+    PodMon[Pod Monitor] --> Kafka[(Kafka)]
+    Kafka --> Processor[Result Processor]
+    Processor --> Mongo[(MongoDB)]
+    Processor --> Event[ResultStoredEvent]
+    Event --> Kafka
 ```
-pod-monitor → ExecutionCompletedEvent → Kafka → result-processor → MongoDB
-```
 
-## Responsibilities
-- Store execution output (stdout, stderr, exit codes) in execution_results collection
-- Update execution status in executions collection
-- Record execution metrics (duration, memory usage)
-- Publish ResultStoredEvent for downstream consumers
+## What it does
 
-## Configuration
-- Consumer group: `result-processor-group`
-- Topic: `EXECUTION_RESULTS`
-- Processes events: ExecutionCompletedEvent, ExecutionFailedEvent, ExecutionTimeoutEvent
+When an `ExecutionCompletedEvent`, `ExecutionFailedEvent`, or `ExecutionTimeoutEvent` arrives, the processor stores the execution output (stdout, stderr, exit codes) in the `execution_results` collection and updates the execution status in the `executions` collection. It also records metrics like duration and memory usage.
+
+After persisting, the processor publishes a `ResultStoredEvent` so downstream consumers (like SSE streams) know the execution has finished and results are available.
 
 ## Deployment
-Runs as standalone container via docker-compose:
+
+The processor runs as a standalone container in the `result-processor-group` consumer group, subscribing to the `EXECUTION_RESULTS` topic. It depends on Kafka for event consumption, MongoDB for storage, and Schema Registry for event deserialization.
+
 ```yaml
 result-processor:
   build:
     dockerfile: workers/Dockerfile.result_processor
 ```
-
-## Dependencies
-- Kafka for event consumption
-- MongoDB for result storage
-- Schema registry for event deserialization

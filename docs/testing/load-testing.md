@@ -1,71 +1,65 @@
-# Backend Load & Monkey Test Suite
+# Load testing
 
-This suite provides two complementary stress tools:
+This suite provides two complementary stress tools. Monkey tests fuzz endpoints with random methods, bodies, and parameters to test durability and correctness under garbage requests (with and without auth/CSRF). User load tests authenticate as normal users and exercise the user-accessible API with realistic flows, avoiding admin routes.
 
-- Monkey tests: fuzz endpoints with random methods, bodies, and parameters to test durability and correctness under garbage requests (with and without auth/CSRF).
-- User load tests: authenticate as normal users and exercise the user‑accessible API (no admin routes) with realistic flows.
+## Quick start
 
-Quick start
+Ensure the backend is running locally at `https://localhost:443` (self-signed cert is fine). Run the CLI with default settings for a ~3 minute test:
 
-1) Ensure backend is running locally at https://localhost:443 (self‑signed cert OK).
+```bash
+python -m tests.load.cli --mode both --clients 30 --concurrency 10 --duration 180
+```
 
-2) Run the CLI (uses env vars for config). By default it runs ~3 minutes:
+Available options:
 
-   python -m tests.load.cli --mode both --clients 30 --concurrency 10 --duration 180
+| Option | Description |
+|--------|-------------|
+| `--base-url` | Target URL (default: `https://localhost:443`) |
+| `--mode` | `monkey`, `user`, or `both` |
+| `--clients` | Number of virtual clients |
+| `--concurrency` | Parallel tasks |
+| `--duration` | Test duration in seconds (default: 180) |
+| `--output` | Output directory (default: `tests/load/out`) |
 
-   Options:
-   - --base-url https://localhost:443
-   - --mode monkey|user|both
-   - --clients N (virtual clients)
-   - --concurrency M (parallel tasks)
-   - --duration seconds (default 180)
-   - --output tests/load/out
+Reports are saved as JSON under `backend/tests/load/out/report_<mode>_<timestamp>.json`.
 
-3) Reports are saved as JSON under backend/tests/load/out/report_<mode>_<timestamp>.json
+## Property-based fuzz tests
 
-Property-based fuzz tests (Hypothesis)
+Run Hypothesis-powered property tests that shrink failing inputs to minimal counterexamples:
 
-- Run pytest to exercise property tests that shrink failing inputs:
+```bash
+pytest -q backend/tests/load/test_property_monkey.py
+```
 
-  pytest -q backend/tests/load/test_property_monkey.py
+Tests included:
 
-- Tests included:
-  - test_register_never_500: Random valid user payloads must not yield 5xx.
-  - test_grafana_webhook_never_500: Random (schema-like) Grafana payloads must not yield 5xx.
+- `test_register_never_500` — random valid user payloads must not yield 5xx
+- `test_grafana_webhook_never_500` — random Grafana-like payloads must not yield 5xx
 
-These tests provide minimal counterexamples if a 5xx occurs.
+## Environment variables
 
-Environment variables (optional)
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LOAD_BASE_URL` | `https://localhost:443` | Target URL |
+| `LOAD_API_PREFIX` | `/api/v1` | API prefix |
+| `LOAD_VERIFY_TLS` | `false` | Verify TLS certificates |
+| `LOAD_MODE` | `both` | Test mode |
+| `LOAD_CLIENTS` | `25` | Virtual clients |
+| `LOAD_CONCURRENCY` | `10` | Parallel tasks |
+| `LOAD_DURATION` | `180` | Duration in seconds |
+| `LOAD_AUTO_REGISTER` | `true` | Auto-register users |
+| `LOAD_USER_PREFIX` | `loaduser` | Username prefix |
+| `LOAD_USER_DOMAIN` | `example.com` | Email domain |
+| `LOAD_USER_PASSWORD` | `testpass123!` | User password |
 
-- LOAD_BASE_URL (default https://localhost:443)
-- LOAD_API_PREFIX (default /api/v1)
-- LOAD_VERIFY_TLS (true/false; default false)
-- LOAD_MODE (monkey|user|both; default both)
-- LOAD_CLIENTS (default 25)
-- LOAD_CONCURRENCY (default 10)
-- LOAD_DURATION (seconds; default 180)
-- LOAD_RAMP (seconds; reserved for future)
+## What it tests
 
-- LOAD_AUTO_REGISTER (true/false; default true)
-- LOAD_USER_PREFIX (default loaduser)
-- LOAD_USER_DOMAIN (default example.com)
-- LOAD_USER_PASSWORD (default testpass123!)
+The suite covers authentication (register/login with cookies and CSRF tokens), executions (submit scripts, stream SSE or poll results, fetch events), saved scripts (CRUD operations), user settings (get/update), and notifications (list/mark-all-read).
 
-What it does
+## Metrics
 
-- Auth: register/login and keep cookies+CSRF token per client.
-- Executions: submit scripts (valid/invalid), stream SSE or poll results, fetch events.
-- Saved scripts: create/list/update/delete.
-- User settings: get/update.
-- Notifications: list/mark‑all‑read.
+Each endpoint reports count, error count, status code distribution, latency percentiles (p50/p90/p99), and bytes received. Global metrics include total requests, total errors, exception types, and runtime.
 
-Metrics
+## Notes
 
-- Per endpoint: count, error count, status code distribution, latency p50/p90/p99, bytes received.
-- Global: total requests, total errors, exception types, runtime.
-
-Notes
-
-- For write endpoints, the client sends X‑CSRF‑Token from the csrf_token cookie (double‑submit pattern).
-- SSE streams are sampled with a short read window (default ~8–10s) to avoid lingering connections.
-- The suite intentionally avoids admin routes in user mode.
+For write endpoints, the client sends `X-CSRF-Token` from the `csrf_token` cookie (double-submit pattern). SSE streams are sampled with a short read window (~8-10s) to avoid lingering connections.

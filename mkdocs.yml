@@ -47,6 +47,7 @@ theme:
 
 plugins:
   - search
+  - swagger-ui-tag
 
 markdown_extensions:
   # Python Markdown
@@ -91,9 +92,6 @@ markdown_extensions:
   - pymdownx.tilde
 
 extra:
-  social:
-    - icon: fontawesome/brands/github
-      link: https://github.com/HardMax71/Integr8sCode
   generator: false
 
 extra_css:
@@ -112,9 +110,9 @@ nav:
 
   - Components:
     - SSE:
-      - Partitioned Architecture: components/sse/sse-partitioned-architecture.md
+      - Architecture: components/sse/sse-architecture.md
+      - Partitioned Router: components/sse/sse-partitioned-architecture.md
       - Execution Flow: components/sse/execution-sse-flow.md
-      - Worker Architecture: components/sse/sse-architecture.md
     - Workers:
       - Pod Monitor: components/workers/pod_monitor.md
       - Result Processor: components/workers/result_processor.md
@@ -127,9 +125,8 @@ nav:
       - Context Variables: operations/metrics-contextvars.md
       - CPU Time Measurement: operations/cpu-time-measurement.md
     - Notifications: operations/notification-types.md
-    - Troubleshooting: operations/troubleshooting-result-processor-di-crash.md
 
-  - Security: security/policies.md
+  - Network Isolation: security/policies.md
 
   - Testing:
     - Load Testing: testing/load-testing.md

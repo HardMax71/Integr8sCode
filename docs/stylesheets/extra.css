@@ -160,7 +160,7 @@
   background-color: var(--md-code-hl-color);
 }
 
-/* Footer styling */
+/* Hide footer meta block (grey bar) */
 .md-footer-meta {
-  background-color: var(--md-default-bg-color--light);
+  display: none;
 }

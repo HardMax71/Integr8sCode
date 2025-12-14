@@ -1,22 +1,22 @@
-# Dead Letter Queue in Integr8sCode
+# Dead letter queue
 
-## What Problem Does This Solve?
+## Why it exists
 
 Picture this: your Kafka consumer is happily processing events when suddenly it hits a poison pill - maybe a malformed event, a database outage, or just a bug in your code. Without a Dead Letter Queue (DLQ), that event would either block your entire consumer (if you keep retrying forever) or get lost forever (if you skip it). Neither option is great for an event-sourced system where events are your source of truth.
 
 The DLQ acts as a safety net. When an event fails processing after a reasonable number of retries, instead of losing it, we send it to a special "dead letter" topic where it can be examined, fixed, and potentially replayed later.
 
-## How It Works in Our System
+## How it works
 
 The DLQ implementation in Integr8sCode follows a producer-agnostic pattern. Producers can route failed events to the DLQ; a dedicated DLQ manager/processor consumes DLQ messages, persists them, and applies retry/discard policies. Here's how the pieces fit together:
 
-### The Producer Side
+### Producer side
 
 Every `UnifiedProducer` instance has a `send_to_dlq()` method that knows how to package up a failed event with all its context - the original topic, error message, retry count, and metadata about when and where it failed. When called, it creates a special DLQ message and sends it to the `dead_letter_queue` topic in Kafka.
 
 The beauty here is that the producer doesn't make decisions about *when* to send something to DLQ - it just provides the mechanism. The decision-making happens at a higher level.
 
-### The Consumer Side  
+### Consumer side  
 
 When event handling fails in normal consumers, producers may call `send_to_dlq()` to persist failure context. The DLQ manager is the single component that reads the DLQ topic and orchestrates retries according to policy.
 
@@ -34,7 +34,7 @@ if self.producer:
 
 This handler tracks retry counts per event. If an event fails 3 times, it gets sent to DLQ. The consumer itself doesn't know about any of this - it just calls the error callback and moves on.
 
-### The DLQ Processor
+### DLQ processor
 
 The `dlq_processor` is a separate service that monitors the dead letter queue topic. It's responsible for the retry orchestration. When it sees a message in the DLQ, it applies topic-specific retry policies to determine when (or if) to retry sending that message back to its original topic.
 
@@ -50,23 +50,26 @@ The processor also implements safety features like:
 - Permanent failure handling (after max retries, messages are archived)
 - Test event filtering in production
 
-## The Flow of a Failed Message
+## Message flow
 
-Let's trace what happens when an event fails processing:
+```mermaid
+graph TD
+    Consumer[Consumer] -->|event fails| Handler[Error Handler]
+    Handler -->|retries < limit| Kafka[(Kafka redeliver)]
+    Handler -->|retries >= limit| Producer[Producer]
+    Producer -->|send_to_dlq| DLQTopic[(dead_letter_queue)]
+    DLQTopic --> Processor[DLQ Processor]
+    Processor -->|check policy| Decision{retry?}
+    Decision -->|yes, after delay| Original[(Original Topic)]
+    Decision -->|max attempts| Archive[(Archive)]
+    Original -->|reprocess| Consumer
+```
 
-1. **Initial Failure**: A consumer tries to process an event and throws an exception
-2. **Error Callback**: The consumer's error callback is invoked with the exception and event
-3. **Retry Tracking**: The DLQ handler checks how many times this specific event has failed
-4. **Decision Point**: If under the retry limit, the handler logs and returns (Kafka will redeliver)
-5. **Send to DLQ**: If over the limit, the handler calls `producer.send_to_dlq()`
-6. **DLQ Message Creation**: The producer packages the event with failure context
-7. **Publish to DLQ Topic**: The message is sent to the `dead_letter_queue` topic
-8. **DLQ Processor Pickup**: The DLQ processor service consumes the message
-9. **Policy Application**: The processor checks retry policies for the original topic
-10. **Scheduled Retry**: After appropriate delay, the message is sent back to original topic
-11. **Success or Archive**: If retry succeeds, great! If not, repeat until max attempts
+When a consumer fails to process an event, it invokes the registered error callback. The DLQ handler tracks how many times this specific event has failed. If the count is under the retry limit, the handler simply logs and returns, letting Kafka redeliver the message on its next poll. Once the retry limit is exceeded, the handler calls `producer.send_to_dlq()`, which packages the event together with failure context (original topic, error message, retry count, timestamps) and publishes it to the `dead_letter_queue` topic.
 
-## Configuration and Tuning
+The DLQ processor service consumes from this topic and applies topic-specific retry policies. Depending on the policy, it either schedules the message for redelivery to its original topic after an appropriate delay, or archives it if maximum attempts have been exhausted. When redelivered, the message goes back through normal consumer processing. If it fails again, the cycle repeats until either success or final archival
+
+## Configuration
 
 The DLQ system is configured through environment variables in the `dlq-processor` service:
 
@@ -77,21 +80,7 @@ The DLQ system is configured through environment variables in the `dlq-processor
 
 Each topic can override these with custom retry policies in the DLQ processor configuration. The key is finding the balance between giving transient failures time to resolve and not keeping dead messages around forever.
 
-## Monitoring and Operations
-
-The DLQ publishes metrics that help you understand its health:
-
-- **Message counts by status** (pending, retried, discarded)
-- **Age statistics** showing how long messages have been stuck
-- **Topic breakdown** showing which services are having issues
-- **Retry rates** to identify systemic problems
-
-In production, you'd want to set up alerts for:
-- High DLQ message rates (something is systematically failing)
-- Old messages accumulating (retry isn't working)
-- Specific topics dominating the DLQ (service-specific issue)
-
-## When Things Go Wrong
+## Failure modes
 
 If the DLQ processor itself fails, messages stay safely in the `dead_letter_queue` topic - Kafka acts as the durable buffer. When the processor restarts, it picks up where it left off.
 
@@ -99,15 +88,3 @@ If sending to DLQ fails (extremely rare - would mean Kafka is down), the produce
 
 The system is designed to be resilient but not perfect. In catastrophic scenarios, you still have Kafka's built-in durability and the ability to replay topics from the beginning if needed.
 
-## Best Practices
-
-From our experience running this system:
-
-1. **Keep retry logic simple** - Complex retry strategies are hard to debug when things go wrong
-2. **Monitor actively** - A growing DLQ is always a symptom of something else
-3. **Set reasonable limits** - Retrying forever just wastes resources
-4. **Use topic-specific policies** - One size doesn't fit all for retry strategies
-5. **Clean up old messages** - Archive or delete ancient DLQ entries to prevent unbounded growth
-6. **Test failure scenarios** - Inject failures in development to verify DLQ behavior
-
-The DLQ is like insurance - you hope you never need it, but when you do, you're really glad it's there. It turns "we lost some events during the outage" into "we successfully recovered all events after the outage resolved."

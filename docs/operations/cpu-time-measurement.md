@@ -1,20 +1,12 @@
-# CPU Time Measurement in Execution Pods
-
-## Overview
+# CPU time measurement
 
 The platform measures CPU time for executed scripts using Linux's jiffy-based accounting system. This document explains the limitations and characteristics of CPU time measurement, particularly for short-running processes.
 
-## How CPU Time is Measured
+## How it works
 
-### The Entrypoint Script
+The [`entrypoint.sh`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/scripts/entrypoint.sh) script wraps all pod executions and captures resource metrics. Wall clock time is measured using `date +%s.%N` with nanosecond precision. CPU time is sampled from `/proc/$PID/stat` fields 14 (user) and 15 (system) in jiffies. Memory usage comes from peak RSS in the `/proc/$PID/status` VmHWM field.
 
-The `app/scripts/entrypoint.sh` script wraps all pod executions and captures resource metrics:
-
-1. **Wall Clock Time**: Measured using `date +%s.%N` (nanosecond precision)
-2. **CPU Time**: Sampled from `/proc/$PID/stat` fields 14 (user) and 15 (system) in jiffies
-3. **Memory Usage**: Peak RSS from `/proc/$PID/status` VmHWM field
-
-### Sampling Loop
+Main sampling loop looks like so:
 
 ```bash
 while kill -0 "$PID" 2>/dev/null; do
@@ -25,19 +17,9 @@ while kill -0 "$PID" 2>/dev/null; do
 done
 ```
 
-## The cpu_time_jiffies = 0 Problem
+## The zero jiffies problem
 
-### Root Cause: Jiffy Granularity
-
-Linux tracks CPU time in "jiffies" - discrete time units typically representing 10ms each (CLK_TCK=100Hz). This creates a fundamental limitation:
-
-- **< 10ms CPU usage** → Reports as 0 jiffies
-- **10-19ms CPU usage** → Reports as 1 jiffy
-- **20-29ms CPU usage** → Reports as 2 jiffies
-
-### Why Short Scripts Show 0 CPU Time
-
-Many simple scripts show `cpu_time_jiffies: 0` despite measurable wall time:
+Linux tracks CPU time in "jiffies" — discrete time units typically representing 10ms each (CLK_TCK=100Hz). Any script using less than 10ms of CPU time reports as 0 jiffies, 10-19ms reports as 1 jiffy, and so on. This granularity means many simple scripts show `cpu_time_jiffies: 0` despite measurable wall time:
 
 | Script Type           | Wall Time | Actual CPU | Reported Jiffies |
 |-----------------------|-----------|------------|------------------|
@@ -46,98 +28,24 @@ Many simple scripts show `cpu_time_jiffies: 0` despite measurable wall time:
 | `time.sleep(0.05)`    | ~50ms     | <1ms       | 0                |
 | Simple math operation | ~10ms     | ~2ms       | 0                |
 
-### The Disconnect: Wall Time vs CPU Time
+Wall time is total elapsed real-world time including waiting, I/O, and sleep. CPU time is actual processor cycles consumed by the process. A script can run for 100ms wall time but use only 1ms of CPU if it's waiting for I/O, sleeping, or blocked on system calls.
 
-- **Wall Time**: Total elapsed real-world time (includes waiting, I/O, sleep)
-- **CPU Time**: Actual processor cycles consumed by the process
+Beyond jiffy granularity, there are additional factors. For processes that complete in under 5ms, the sampling loop might never execute at all — the process exits before the first sample, leaving jiffies at the initial value of 0. When a process exits, the kernel performs final CPU accounting but `/proc/$PID/stat` is immediately removed, so any final CPU time accumulation is lost. Short scripts also spend proportionally more time in interpreter initialization (Python, Node.js), library loading, and process creation — overhead that often doesn't register as CPU time.
 
-A script can run for 100ms wall time but use only 1ms of CPU if it's:
-- Waiting for I/O operations
-- Sleeping/blocked
-- Waiting for system calls
+## Impact on metrics
 
-## Additional Limitations
+When `cpu_time_jiffies` is 0, the CPU utilization calculation becomes `(0 / 100) / wall_time = 0%`. This appears as if the script used no CPU, which is technically accurate from the kernel's perspective but can be confusing. It's not a bug — the measurement is accurate within Linux's accounting granularity. Short, simple scripts legitimately use less than one jiffy of CPU time, and the system simply cannot measure CPU usage for processes consuming under 10ms.
 
-### 1. Sampling Race Conditions
+## Technical details
 
-For processes that complete in < 5ms:
-- The sampling loop might never execute
-- Process exits before first sample
-- Result: JIFS remains at initial value of 0
-
-### 2. Lost Final Accounting
-
-When a process exits:
-- The kernel performs final CPU accounting
-- `/proc/$PID/stat` is immediately removed
-- Final CPU time accumulation is lost
-
-### 3. Process Startup Overhead
-
-Short scripts spend proportionally more time in:
-- Interpreter initialization (Python, Node.js)
-- Library loading
-- Process creation
-
-This overhead often doesn't register as CPU time.
-
-## Impact on Metrics
-
-### CPU Utilization Calculation
-
-With `cpu_time_jiffies = 0`:
-```
-cpu_utilization = (cpu_time_jiffies / CLK_TCK) / wall_time_seconds
-                = (0 / 100) / 0.05
-                = 0%
-```
-
-This appears as if the script used no CPU, which is technically accurate from the kernel's perspective but may be confusing to users.
-
-### What This Means
-
-- **Not a bug**: The measurement is accurate within Linux's accounting granularity
-- **Expected behavior**: Short, simple scripts legitimately use < 1 jiffy of CPU
-- **Limitation**: Cannot measure CPU usage for processes using < 10ms CPU time
-
-## Recommendations
-
-### For Users
-
-1. **Understand the metrics**:
-   - 0 CPU time doesn't mean the script didn't run
-   - Wall time shows actual duration
-   - CPU time shows processor usage
-
-2. **For CPU measurement**:
-   - Run longer or more complex scripts to see CPU usage
-   - Batch multiple operations together
-   - Use CPU-intensive operations for testing
-
-### For Developers
-
-1. **Alternative Approaches** (not currently implemented):
-   - Use `/usr/bin/time` command which uses `wait3()` system call
-   - Implement getrusage() wrapper for more accurate accounting
-   - Use cgroups v2 CPU accounting for container-level metrics
-
-2. **Display Considerations**:
-   - Show "< 0.01s" instead of "0s" for small CPU times
-   - Calculate CPU percentage only when cpu_time > 0
-   - Document this limitation in user-facing interfaces
-
-## Technical Details
-
-### Jiffy Calculation
+Jiffy calculation: 
 
 ```bash
 CLK_TCK=$(getconf CLK_TCK)  # Usually 100 Hz
 cpu_seconds = cpu_time_jiffies / CLK_TCK
 ```
 
-### Resource Usage Structure
-
-The entrypoint script outputs:
+Resource usage structure (output of Shell script):
 ```json
 {
   "resource_usage": {
@@ -149,43 +57,42 @@ The entrypoint script outputs:
 }
 ```
 
-### Event Flow
+### Event flow
 
-1. Pod executes with entrypoint.sh wrapper
-2. Script samples /proc during execution
-3. JSON output captured from pod logs
-4. PodEventMapper parses JSON via `_try_parse_json()`
-5. Resource usage attached to ExecutionCompletedEvent
-6. Metrics recorded in result processor
+```mermaid
+sequenceDiagram
+    participant Pod
+    participant Entrypoint as entrypoint.sh
+    participant Proc as /proc/$PID
+    participant Logs as Pod Logs
+    participant Mapper as PodEventMapper
+    participant Event as ExecutionCompletedEvent
+    participant Result as Result Processor
 
-## Security Considerations
+    Pod->>Entrypoint: execute script
+    loop every 5ms
+        Entrypoint->>Proc: sample CPU jiffies
+    end
+    Entrypoint->>Logs: write JSON output
+    Logs->>Mapper: capture logs
+    Mapper->>Mapper: _try_parse_json()
+    Mapper->>Event: attach resource_usage
+    Event->>Result: record metrics
+```
 
-### CLK_TCK Disclosure
+The pod executes with the entrypoint.sh wrapper, which samples `/proc` during execution. When the script finishes, JSON output is captured from pod logs. The PodEventMapper parses this JSON via `_try_parse_json()` and attaches the resource usage to an ExecutionCompletedEvent. Finally, the result processor records the metrics.
 
-The `clk_tck_hertz` value is included in resource usage metrics. From a security perspective:
+## Security considerations
 
-**Why it's included:**
-- Required to convert jiffies to seconds: `cpu_seconds = cpu_time_jiffies / clk_tck_hertz`
-- Allows proper CPU utilization calculation
-- Provides transparency about measurement precision
+The `clk_tck_hertz` value is included in resource usage metrics because it's required to convert jiffies to seconds (`cpu_seconds = cpu_time_jiffies / clk_tck_hertz`) and allows proper CPU utilization calculation.
 
-**Security assessment:**
-- **Low risk**: CLK_TCK is obtainable by any user via `getconf CLK_TCK`
-- **Not privileged**: No special permissions required to access this value
-- **Standard values**: Usually 100 Hz, occasionally 250/300/1000 Hz
-- **Already accessible**: Users executing code could obtain it themselves
+This is **low risk** — CLK_TCK is obtainable by any user via `getconf CLK_TCK`, requires no special permissions, and uses standard values (usually 100 Hz, occasionally 250/300/1000 Hz). Users executing code in the environment could obtain it themselves anyway.
 
-**Potential concerns (minimal):**
-- **System fingerprinting**: Helps identify kernel configuration
-- **Timing attacks**: Could theoretically aid in calibrating timing-based attacks
-- **Information principle**: Discloses system implementation detail
-
-**Conclusion**: The value is retained as it's necessary for metric interpretation and poses minimal security risk given that users already execute code in the environment.
+There are minimal concerns around system fingerprinting (helps identify kernel configuration) and theoretical timing attack calibration, but since users already execute arbitrary code in the environment, this disclosure adds negligible risk.
 
 ## References
 
-- Linux proc(5) man page - `/proc/[pid]/stat` documentation
-- Linux time(7) man page - Time accounting overview
-- getrusage(2) system call documentation
-- Understanding Linux CPU accounting and jiffies
-- sysconf(3) - System configuration variables
+- [proc(5)](https://man7.org/linux/man-pages/man5/proc.5.html) — `/proc/[pid]/stat` documentation
+- [time(7)](https://man7.org/linux/man-pages/man7/time.7.html) — time accounting overview
+- [getrusage(2)](https://man7.org/linux/man-pages/man2/getrusage.2.html) — system call documentation
+- [sysconf(3)](https://man7.org/linux/man-pages/man3/sysconf.3.html) — system configuration variables

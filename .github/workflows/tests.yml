@@ -63,7 +63,8 @@ jobs:
           docker pull alpine:latest &
           docker pull confluentinc/cp-kafka:7.5.0 &
           docker pull confluentinc/cp-zookeeper:7.5.0 &
-          docker pull mongo:7 &
+          docker pull confluentinc/cp-schema-registry:7.5.0 &
+          docker pull mongo:8.0 &
           docker pull redis:7-alpine &
           wait
           echo "Base images pulled successfully"

@@ -1,10 +1,12 @@
-FROM python:3.12
+FROM python:3.12-slim
 WORKDIR /app
 
 # Install required packages
-RUN apt-get update && apt-get upgrade -y liblzma-dev liblzma5 xz-utils && \
-    apt-get install -y libsnappy-dev && \
-    rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libsnappy-dev \
+    liblzma-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
@@ -13,7 +15,8 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 COPY pyproject.toml uv.lock ./
 
 # Install Python dependencies (production only, no dev deps)
-RUN uv sync --frozen --no-dev
+# --no-install-project: don't install project itself, only dependencies (source dirs don't exist yet)
+RUN uv sync --frozen --no-dev --no-install-project
 
 # Copy application files and configuration
 COPY ./app /app/app

@@ -46,6 +46,12 @@ jobs:
       - name: Install MkDocs
         run: pip install mkdocs-material mkdocs-mermaid2-plugin mkdocs-swagger-ui-tag
 
+      - name: Download OpenAPI spec
+        run: |
+          curl -s https://api.integr8scode.cc/openapi.json | \
+          jq '. + {servers: [{url: "https://api.integr8scode.cc", description: "Production"}]}' \
+          > docs/reference/openapi.json
+
       - name: Build documentation
         run: mkdocs build --strict
 

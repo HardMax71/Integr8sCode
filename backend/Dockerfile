@@ -28,6 +28,9 @@ COPY openssl.cnf /app/openssl.cnf
 # Ensure the certs directory exists
 RUN mkdir -p /app/certs
 
+# Set Python path so imports work without installing project as package
+ENV PYTHONPATH=/app
+
 # Expose metrics port
 EXPOSE 9090
 

@@ -348,7 +348,7 @@ services:
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-    command: ["python", "-m", "scripts.create_topics"]
+    command: ["uv", "run", "python", "-m", "scripts.create_topics"]
     networks:
       - app-network
     restart: "no"  # Run once and exit
@@ -533,7 +533,7 @@ services:
         condition: service_completed_successfully
       mongo:
         condition: service_started
-    command: python workers/run_event_replay.py
+    command: uv run python workers/run_event_replay.py
     env_file:
       - ./backend/.env
     environment:
@@ -560,7 +560,7 @@ services:
         condition: service_completed_successfully
       mongo:
         condition: service_started
-    command: python workers/dlq_processor.py
+    command: uv run python workers/dlq_processor.py
     env_file:
       - ./backend/.env
     environment:

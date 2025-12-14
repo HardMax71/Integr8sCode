@@ -31,20 +31,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: '3.12'
-
-      - name: Cache pip dependencies
-        uses: actions/cache@v4
-        with:
-          key: mkdocs-${{ hashFiles('mkdocs.yml') }}
-          path: ~/.cache/pip
-          restore-keys: mkdocs-
+          enable-cache: true
 
       - name: Install MkDocs
-        run: pip install mkdocs-material mkdocs-mermaid2-plugin mkdocs-swagger-ui-tag
+        run: uv tool install mkdocs --with mkdocs-material --with mkdocs-mermaid2-plugin --with mkdocs-swagger-ui-tag
 
       - name: Download OpenAPI spec
         run: |
@@ -53,7 +46,7 @@ jobs:
           > docs/reference/openapi.json
 
       - name: Build documentation
-        run: mkdocs build --strict
+        run: uv tool run mkdocs build --strict
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

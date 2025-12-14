@@ -1,26 +1,8 @@
-FROM python:3.12-slim
-
-WORKDIR /app
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    curl \
-    libsnappy-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Install Kafka client tools
-RUN pip install confluent-kafka[avro]==2.3.0
+# Coordinator worker
+FROM base
 
 # Copy application code
 COPY . .
 
-# Set Python path
-ENV PYTHONPATH=/app
-
 # Run the coordinator service
-CMD ["python", "-m", "workers.run_coordinator"]
+CMD ["uv", "run", "python", "-m", "workers.run_coordinator"]

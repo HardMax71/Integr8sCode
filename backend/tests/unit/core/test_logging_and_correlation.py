@@ -1,16 +1,16 @@
+import io
 import json
 import logging
-import io
 from typing import Any
 
 import pytest
+from app.core.correlation import CorrelationContext, CorrelationMiddleware
+from app.core.logging import CorrelationFilter, JSONFormatter, setup_logger
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse
+from starlette.routing import Route
 from starlette.testclient import TestClient
-
-from app.core.correlation import CorrelationContext, CorrelationMiddleware
-from app.core.logging import CorrelationFilter, JSONFormatter, setup_logger
 
 
 def capture_log(formatter: logging.Formatter, msg: str, extra: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -71,12 +71,10 @@ def test_correlation_context_and_filter() -> None:
 
 
 def test_correlation_middleware_sets_header() -> None:
-    app = Starlette()
-
-    @app.route("/ping")
-    async def ping(request: Request):  # type: ignore[override]
+    async def ping(request: Request) -> JSONResponse:
         return JSONResponse({"ok": True})
 
+    app = Starlette(routes=[Route("/ping", ping)])
     app.add_middleware(CorrelationMiddleware)
     with TestClient(app) as client:
         r = client.get("/ping")

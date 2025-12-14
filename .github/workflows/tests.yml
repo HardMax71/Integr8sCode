@@ -60,11 +60,19 @@ jobs:
         run: |
           echo "Pre-pulling base images to speed up builds..."
           docker pull python:3.12-slim &
+          docker pull ghcr.io/astral-sh/uv:0.9.17 &
           docker pull alpine:latest &
           docker pull confluentinc/cp-kafka:7.5.0 &
           docker pull confluentinc/cp-zookeeper:7.5.0 &
-          docker pull mongo:7 &
+          docker pull confluentinc/cp-schema-registry:7.5.0 &
+          docker pull mongo:8.0 &
           docker pull redis:7-alpine &
+          docker pull grafana/grafana:latest &
+          docker pull jaegertracing/all-in-one:1.52 &
+          docker pull victoriametrics/victoria-metrics:v1.96.0 &
+          docker pull otel/opentelemetry-collector-contrib:0.91.0 &
+          docker pull obsidiandynamics/kafdrop:3.31.0 &
+          docker pull danielqsj/kafka-exporter:latest &
           wait
           echo "Base images pulled successfully"
 
@@ -80,6 +88,8 @@ jobs:
           yq eval '.services.backend.environment += ["MONGO_ROOT_PASSWORD=rootpassword"]' -i docker-compose.ci.yaml
           # Disable OpenTelemetry SDK during tests to avoid exporter retries
           yq eval '.services.backend.environment += ["OTEL_SDK_DISABLED=true"]' -i docker-compose.ci.yaml
+          # Remove ./backend:/app volume mount - CI doesn't need hot-reload and it creates .venv permission conflicts
+          yq eval '.services.backend.volumes = [.services.backend.volumes[] | select(. != "./backend:/app")]' -i docker-compose.ci.yaml
 
           # MongoDB service already has defaults in docker-compose.yaml (root/rootpassword)
           # No need to override them
@@ -120,6 +130,8 @@ jobs:
             *.cache-from=type=gha,scope=buildkit-${{ github.repository }}-main
             *.cache-to=type=gha,mode=max,scope=buildkit-${{ github.repository }}-${{ github.ref_name }}
             *.pull=true
+        env:
+          BUILDKIT_PROGRESS: plain
 
       - name: Start services
         run: |
@@ -130,7 +142,7 @@ jobs:
               docker compose -f docker-compose.ci.yaml logs
               exit 1
             )
-            
+
             echo "Services started. Waiting for stabilization..."
             sleep 45
 
@@ -145,7 +157,7 @@ jobs:
 
             echo "Checking backend logs:"
             docker compose -f docker-compose.ci.yaml logs backend || echo "backend not found"
-            
+
             # Explicitly check for containers that have exited
             if docker compose -f docker-compose.ci.yaml ps | grep -q 'Exit'; then
               echo "::error::One or more containers have exited unexpectedly. See logs above."
@@ -171,18 +183,17 @@ jobs:
           kubectl get roles -n default
           kubectl get rolebindings -n default
 
-      - name: Set up Python for Tests
-        uses: actions/setup-python@v4
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: '3.12'
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
 
-      - name: Install Python test dependencies
+      - name: Install Python and dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y python3 python3-pip
           cd backend
-          pip3 install -r requirements.txt
-          pip3 install -r requirements-dev.txt
+          uv python install 3.12
+          uv sync --frozen
 
       - name: Run backend tests with coverage
         timeout-minutes: 5
@@ -202,7 +213,7 @@ jobs:
           echo "Using BACKEND_BASE_URL=$BACKEND_BASE_URL"
           echo "Using SCHEMA_SUBJECT_PREFIX=$SCHEMA_SUBJECT_PREFIX"
           echo "MongoDB connection will use default CI credentials"
-          python -m pytest tests/integration tests/unit -v --cov=app --cov-branch --cov-report=xml --cov-report=term --cov-report=term-missing
+          uv run pytest tests/integration tests/unit -v --cov=app --cov-branch --cov-report=xml --cov-report=term --cov-report=term-missing
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5

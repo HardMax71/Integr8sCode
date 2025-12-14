@@ -9,11 +9,14 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements
-COPY requirements.txt requirements-dev.txt ./
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:0.9.17 /uv /uvx /bin/
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
+# Copy dependency files
+COPY pyproject.toml uv.lock ./
+
+# Install Python dependencies (including dev deps for testing)
+RUN uv sync --frozen
 
 # Copy application code
 COPY . .
@@ -22,4 +25,4 @@ COPY . .
 ENV PYTHONPATH=/app
 
 # Default command runs all tests
-CMD ["pytest", "-v", "--tb=short"]
+CMD ["uv", "run", "pytest", "-v", "--tb=short"]

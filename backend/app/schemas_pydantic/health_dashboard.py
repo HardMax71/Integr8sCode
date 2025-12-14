@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.enums.health import AlertSeverity
 
@@ -160,8 +160,7 @@ class DependencyEdge(BaseModel):
     to_service: str = Field(..., alias="to")
     critical: bool
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class DependencyGraph(BaseModel):

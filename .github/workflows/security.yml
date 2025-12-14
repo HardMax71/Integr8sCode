@@ -24,4 +24,4 @@ jobs:
         run: uv tool install bandit
 
       - name: Run bandit
-        run: bandit -r backend/ -x backend/tests/ -ll
+        run: uv tool run bandit -r backend/ -x backend/tests/ -ll

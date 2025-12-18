@@ -186,7 +186,7 @@ cmd_test() {
     print_info "Checking backend health..."
     local timeout=60
     local counter=0
-    while [ $counter -lt $timeout ]; do
+    while [[ $counter -lt $timeout ]]; do
         if curl -ksfL https://localhost:443/api/v1/health -o /dev/null 2>/dev/null; then
             print_success "Backend is healthy"
             break
@@ -221,7 +221,7 @@ build_and_import_images() {
     docker build -t base:latest -f ./backend/Dockerfile.base ./backend
     docker build -t integr8scode-backend:latest -f ./backend/Dockerfile ./backend
 
-    if [ -f ./frontend/Dockerfile.prod ]; then
+    if [[ -f ./frontend/Dockerfile.prod ]]; then
         docker build -t integr8scode-frontend:latest -f ./frontend/Dockerfile.prod ./frontend
     else
         docker build -t integr8scode-frontend:latest -f ./frontend/Dockerfile ./frontend

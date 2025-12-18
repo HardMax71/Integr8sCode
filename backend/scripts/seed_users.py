@@ -23,7 +23,9 @@ from passlib.context import CryptContext
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
-async def upsert_user(db, username: str, email: str, password: str, role: str, is_superuser: bool) -> None:
+async def upsert_user(
+    db: AsyncIOMotorClient, username: str, email: str, password: str, role: str, is_superuser: bool
+) -> None:
     """Create user or update if exists."""
     existing = await db.users.find_one({"username": username})
 
@@ -56,7 +58,7 @@ async def upsert_user(db, username: str, email: str, password: str, role: str, i
 
 async def seed_users() -> None:
     mongodb_url = os.getenv("MONGODB_URL", "mongodb://mongo:27017/integr8scode")
-    print(f"Connecting to MongoDB...")
+    print("Connecting to MongoDB...")
 
     client: AsyncIOMotorClient = AsyncIOMotorClient(mongodb_url)
     db_name = mongodb_url.rstrip("/").split("/")[-1].split("?")[0] or "integr8scode"

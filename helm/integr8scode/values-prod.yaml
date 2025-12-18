@@ -1,0 +1,191 @@
+# =============================================================================
+# INTEGR8SCODE HELM CHART - PRODUCTION VALUES
+# =============================================================================
+# Production-specific overrides for the Integr8sCode Helm chart.
+# Usage: helm upgrade --install integr8scode ./helm/integr8scode -f values-prod.yaml
+
+# =============================================================================
+# ENVIRONMENT SETTINGS
+# =============================================================================
+env:
+  LOG_LEVEL: "INFO"
+  ENABLE_TRACING: "true"
+  TRACING_SAMPLING_RATE: "0.1"
+
+# =============================================================================
+# BACKEND APPLICATION
+# =============================================================================
+backend:
+  replicas: 2
+
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "2000m"
+
+  extraEnv:
+    WEB_CONCURRENCY: "4"
+    # IMPORTANT: Set SECRET_KEY via --set or external secrets management
+    # SECRET_KEY: ""
+
+# =============================================================================
+# FRONTEND APPLICATION
+# =============================================================================
+frontend:
+  replicas: 2
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "512Mi"
+      cpu: "1000m"
+
+# =============================================================================
+# WORKERS - PRODUCTION SCALING
+# =============================================================================
+workers:
+  common:
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+
+  # Scale critical workers for production load
+  k8sWorker:
+    replicas: 2
+
+  podMonitor:
+    replicas: 1  # Single instance is usually sufficient
+
+  resultProcessor:
+    replicas: 2
+
+  sagaOrchestrator:
+    replicas: 2
+
+  coordinator:
+    replicas: 2
+
+  eventReplay:
+    replicas: 1  # Low traffic service
+
+  dlqProcessor:
+    replicas: 1  # Low traffic service
+
+# =============================================================================
+# INFRASTRUCTURE - PRODUCTION SETTINGS
+# =============================================================================
+infrastructure:
+  zookeeper:
+    heapOpts: "-Xms512M -Xmx512M"
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "200m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+
+  kafka:
+    heapOpts: "-Xms1G -Xmx1G"
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+
+  schemaRegistry:
+    heapOpts: "-Xms512M -Xmx512M"
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "200m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+
+  jaeger:
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "200m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+
+# =============================================================================
+# REDIS - PRODUCTION SETTINGS
+# =============================================================================
+redis:
+  master:
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "200m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+    persistence:
+      enabled: true
+      size: 5Gi
+
+# =============================================================================
+# MONGODB - PRODUCTION SETTINGS
+# =============================================================================
+mongodb:
+  auth:
+    enabled: true
+    rootUser: "root"
+    # IMPORTANT: Set password via --set mongodb.auth.rootPassword=<password>
+    # rootPassword: ""
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "2Gi"
+      cpu: "2000m"
+  persistence:
+    enabled: true
+    size: 50Gi
+
+# =============================================================================
+# USER SEED - PRODUCTION SETTINGS
+# =============================================================================
+userSeed:
+  enabled: true
+  # IMPORTANT: Set passwords via --set for production:
+  # --set userSeed.defaultUserPassword=<secure-password>
+  # --set userSeed.adminUserPassword=<secure-password>
+  defaultUserPassword: ""  # REQUIRED: Set via --set
+  adminUserPassword: ""    # REQUIRED: Set via --set
+
+# =============================================================================
+# INGRESS - PRODUCTION SETTINGS
+# =============================================================================
+# Uncomment and configure for production ingress
+# ingress:
+#   enabled: true
+#   className: "nginx"
+#   annotations:
+#     cert-manager.io/cluster-issuer: "letsencrypt-prod"
+#     nginx.ingress.kubernetes.io/ssl-redirect: "true"
+#   hosts:
+#     - host: integr8scode.example.com
+#       paths:
+#         - path: /
+#           pathType: Prefix
+#   tls:
+#     - secretName: integr8scode-tls
+#       hosts:
+#         - integr8scode.example.com

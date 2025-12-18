@@ -124,9 +124,10 @@ class ExecutionCoordinator(LifecycleEnabled):
 
         await self.idempotency_manager.initialize()
 
+        settings = get_settings()
         consumer_config = ConsumerConfig(
             bootstrap_servers=self.kafka_servers,
-            group_id= f"{self.consumer_group}.{settings.KAFKA_GROUP_SUFFIX}",
+            group_id=f"{self.consumer_group}.{settings.KAFKA_GROUP_SUFFIX}",
             enable_auto_commit=False,
             session_timeout_ms=30000,  # 30 seconds
             heartbeat_interval_ms=10000,  # 10 seconds (must be < session_timeout / 3)

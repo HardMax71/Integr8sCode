@@ -90,3 +90,7 @@ yarn-error.log*
 
 # Build outputs
 frontend/public/build/
+
+# Helm
+helm/*/charts/*.tgz
+helm/*/Chart.lock

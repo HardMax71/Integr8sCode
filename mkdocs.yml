@@ -120,6 +120,7 @@ nav:
     - Schema Manager: components/schema-manager.md
 
   - Operations:
+    - Deployment: operations/deployment.md
     - CI/CD Pipeline: operations/cicd.md
     - Nginx Configuration: operations/nginx-configuration.md
     - Tracing: operations/tracing.md

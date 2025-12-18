@@ -368,6 +368,27 @@ services:
       - app-network
     restart: "no"  # Run once and exit
 
+  # Seed default users (runs once after mongo is ready)
+  user-seed:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      additional_contexts:
+        base: service:base
+    container_name: user-seed
+    depends_on:
+      base:
+        condition: service_completed_successfully
+      mongo:
+        condition: service_healthy
+    environment:
+      - MONGODB_URL=mongodb://${MONGO_ROOT_USER:-root}:${MONGO_ROOT_PASSWORD:-rootpassword}@mongo:27017/integr8scode?authSource=admin
+      - DEFAULT_USER_PASSWORD=${DEFAULT_USER_PASSWORD:-user123}
+      - ADMIN_USER_PASSWORD=${ADMIN_USER_PASSWORD:-admin123}
+    command: ["uv", "run", "python", "-m", "scripts.seed_users"]
+    networks:
+      - app-network
+    restart: "no"  # Run once and exit
 
   # Event-driven workers
   coordinator:

@@ -1,0 +1,98 @@
+{{- if .Values.infrastructure.zookeeper.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "integr8scode.fullname" . }}-zookeeper
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "integr8scode.labels" . | nindent 4 }}
+    app.kubernetes.io/component: zookeeper
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ include "integr8scode.fullname" . }}-zookeeper
+  template:
+    metadata:
+      labels:
+        app: {{ include "integr8scode.fullname" . }}-zookeeper
+        {{- include "integr8scode.labels" . | nindent 8 }}
+        app.kubernetes.io/component: zookeeper
+    spec:
+      containers:
+      - name: zookeeper
+        image: {{ .Values.infrastructure.zookeeper.image }}
+        imagePullPolicy: {{ .Values.global.imagePullPolicy | default "IfNotPresent" }}
+        # CRITICAL: Unset ZOOKEEPER_PORT to prevent Confluent image conflict
+        # K8s auto-generates ZOOKEEPER_PORT as tcp://IP:PORT format
+        command:
+        - bash
+        - -c
+        - |
+          unset ZOOKEEPER_PORT
+          /etc/confluent/docker/run
+        ports:
+        - containerPort: 2181
+          name: client
+        env:
+        - name: ZOOKEEPER_CLIENT_PORT
+          value: "2181"
+        - name: ZOOKEEPER_TICK_TIME
+          value: "2000"
+        - name: ZOOKEEPER_AUTH_PROVIDER_1
+          value: "org.apache.zookeeper.server.auth.DigestAuthenticationProvider"
+        - name: ZOOKEEPER_SERVER_CNXN_FACTORY
+          value: "org.apache.zookeeper.server.NettyServerCnxnFactory"
+        - name: KAFKA_OPTS
+          value: "-Djava.security.auth.login.config=/etc/kafka/secrets/kafka_jaas.conf"
+        - name: ZOOKEEPER_4LW_COMMANDS_WHITELIST
+          value: "*"
+        - name: KAFKA_HEAP_OPTS
+          value: {{ .Values.infrastructure.zookeeper.heapOpts | default "-Xms256M -Xmx256M" | quote }}
+        - name: ZOOKEEPER_LOG4J_ROOT_LOGLEVEL
+          value: "WARN"
+        resources:
+          {{- toYaml .Values.infrastructure.zookeeper.resources | nindent 10 }}
+        volumeMounts:
+        - name: jaas-config
+          mountPath: /etc/kafka/secrets
+          readOnly: true
+        readinessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - "echo ruok | nc localhost 2181 | grep imok"
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+        livenessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - "echo ruok | nc localhost 2181 | grep imok"
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+      volumes:
+      - name: jaas-config
+        secret:
+          secretName: {{ include "integr8scode.fullname" . }}-kafka-jaas
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "integr8scode.fullname" . }}-zookeeper
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "integr8scode.labels" . | nindent 4 }}
+    app.kubernetes.io/component: zookeeper
+spec:
+  selector:
+    app: {{ include "integr8scode.fullname" . }}-zookeeper
+  ports:
+  - name: client
+    port: 2181
+    targetPort: 2181
+{{- end }}

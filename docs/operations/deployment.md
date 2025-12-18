@@ -264,8 +264,8 @@ variables like `KAFKA_PORT=tcp://...` override the expected numeric values. The 
 ### Image pull failures
 
 If pods stay in ImagePullBackOff, the images aren't available to the cluster. For K3s, the deploy script imports images
-automatically. For other distributions, push images to your registry and update `values.yaml` with the correct
-repository and tag.
+automatically. For other distributions, use the pre-built images from GitHub Container Registry (see below) or push to
+your own registry and update `values.yaml` with the correct repository and tag.
 
 ```yaml
 images:
@@ -301,3 +301,57 @@ workers:
 ```
 
 Monitor resource usage with kubectl top or your cluster's metrics solution to right-size the limits.
+
+## Pre-built images
+
+For production deployments, you can skip the local build step entirely by using pre-built images from GitHub Container
+Registry. The CI pipeline automatically builds and pushes images on every merge to main.
+
+### Using registry images
+
+The `--prod` flag configures the deployment to pull images from `ghcr.io/hardmax71/integr8scode/`:
+
+```bash
+./deploy.sh prod --prod \
+    --set userSeed.defaultUserPassword=secure-pass \
+    --set userSeed.adminUserPassword=secure-admin
+```
+
+This skips the local Docker build and tells Kubernetes to pull images from the registry. The `values-prod.yaml` file
+sets `imagePullPolicy: IfNotPresent`, so images are cached locally after the first pull.
+
+### Available tags
+
+Each push to main produces multiple tags:
+
+| Tag           | Description                        |
+|---------------|------------------------------------|
+| `latest`      | Most recent build from main branch |
+| `sha-abc1234` | Specific commit SHA                |
+| `v1.0.0`      | Release version (from git tags)    |
+
+For production, pin to a specific SHA or version rather than `latest`:
+
+```yaml
+images:
+  backend:
+    repository: ghcr.io/hardmax71/integr8scode/backend
+    tag: sha-abc1234
+```
+
+### Hybrid approach
+
+If you need production resource limits but want to build locally (for testing changes before pushing):
+
+```bash
+./deploy.sh prod --prod --local
+```
+
+The `--local` flag forces a local build even when using `values-prod.yaml`.
+
+### CI/CD integration
+
+The GitHub Actions workflow in `.github/workflows/docker.yml` handles image building and publishing. On every push to
+main, it builds the base, backend, and frontend images, scans them with Trivy for vulnerabilities, and pushes to
+ghcr.io.
+Pull requests build and scan but don't push, ensuring only tested code reaches the registry.

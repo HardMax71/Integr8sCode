@@ -8,8 +8,15 @@
 # GLOBAL SETTINGS
 # =============================================================================
 global:
-  # Image pull policy - use "Never" for K3s with locally imported images
+  # Image pull policy:
+  # - "Never" for K3s with locally imported images (default for local dev)
+  # - "IfNotPresent" for registry-pulled images
+  # - "Always" for latest tags from registry
   imagePullPolicy: Never
+
+  # Container registry (leave empty for local images)
+  # Set to "ghcr.io/hardmax71/integr8scode" for GitHub Container Registry
+  imageRegistry: ""
 
 # Name overrides
 nameOverride: ""
@@ -19,11 +26,19 @@ fullnameOverride: ""
 # IMAGE CONFIGURATION
 # =============================================================================
 images:
+  # For local development (imagePullPolicy: Never):
+  #   repository: integr8scode-backend
+  # For registry (imagePullPolicy: IfNotPresent/Always):
+  #   repository: ghcr.io/hardmax71/integr8scode/backend
   backend:
     repository: integr8scode-backend
     tag: latest
   frontend:
     repository: integr8scode-frontend
+    tag: latest
+  # Base image (used by backend Dockerfile)
+  base:
+    repository: base
     tag: latest
 
 # =============================================================================

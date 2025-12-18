@@ -5,6 +5,24 @@
 # Usage: helm upgrade --install integr8scode ./helm/integr8scode -f values-prod.yaml
 
 # =============================================================================
+# IMAGE CONFIGURATION - USE REGISTRY IMAGES
+# =============================================================================
+# Pre-built images from GitHub Container Registry (no local build required)
+global:
+  imagePullPolicy: IfNotPresent
+
+images:
+  backend:
+    repository: ghcr.io/hardmax71/integr8scode/backend
+    tag: latest  # Or pin to specific version: v1.0.0, sha-abc1234
+  frontend:
+    repository: ghcr.io/hardmax71/integr8scode/frontend
+    tag: latest
+  base:
+    repository: ghcr.io/hardmax71/integr8scode/base
+    tag: latest
+
+# =============================================================================
 # ENVIRONMENT SETTINGS
 # =============================================================================
 env:

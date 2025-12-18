@@ -1,7 +1,7 @@
 # Nginx Configuration
 
 The frontend uses Nginx as a reverse proxy and static file server. This document explains the configuration in
-`frontend/nginx.conf`.
+`frontend/nginx.conf.template`.
 
 ## Architecture
 
@@ -192,16 +192,32 @@ and lets the Svelte router handle the path.
 
 ## Deployment
 
-The nginx.conf is copied into the container during build:
+The nginx configuration uses environment variable substitution via the official nginx Docker image's built-in `envsubst`
+feature. The template file is processed at container startup, allowing the same image to work in different environments.
 
 ```dockerfile
 # frontend/Dockerfile.prod
 FROM nginx:alpine
 COPY --from=builder /app/public /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 ```
 
-To apply changes:
+The nginx image automatically processes files in `/etc/nginx/templates/*.template` and outputs the result to
+`/etc/nginx/conf.d/` with the `.template` suffix removed.
+
+### Environment variables
+
+The template uses `${VARIABLE_NAME}` syntax for substitution. Currently, only `BACKEND_URL` is templated:
+
+| Variable      | Purpose                           | Example               |
+|---------------|-----------------------------------|-----------------------|
+| `BACKEND_URL` | Backend service URL for API proxy | `https://backend:443` |
+
+Set this via docker-compose environment section or Kubernetes deployment env vars.
+
+### Rebuilding
+
+To apply nginx configuration changes:
 
 ```bash
 docker build --no-cache -t integr8scode-frontend:latest \

@@ -7,9 +7,9 @@
 #   ./deploy.sh dev                 # Start local development (docker-compose)
 #   ./deploy.sh dev --build         # Rebuild and start local development
 #   ./deploy.sh down                # Stop local development
-#   ./deploy.sh prod                # Deploy to K8s with Helm (production values)
+#   ./deploy.sh prod                # Deploy to K8s (builds images locally)
+#   ./deploy.sh prod --prod         # Deploy with production values (uses registry)
 #   ./deploy.sh prod --dry-run      # Test Helm deployment without applying
-#   ./deploy.sh staging             # Deploy to K8s with Helm (default values)
 #   ./deploy.sh check               # Run local quality checks (lint, type, security)
 #   ./deploy.sh test                # Run full test suite locally
 #   ./deploy.sh logs [service]      # View logs (dev mode)
@@ -55,18 +55,27 @@ show_help() {
     echo "Commands:"
     echo "  dev [--build]      Start local development environment (docker-compose)"
     echo "  down               Stop local development environment"
-    echo "  prod [--dry-run]   Deploy to Kubernetes with Helm"
+    echo "  prod [options]     Deploy to Kubernetes with Helm"
     echo "  check              Run quality checks (ruff, mypy, bandit)"
     echo "  test               Run full test suite with docker-compose"
     echo "  logs [service]     View logs (defaults to all services)"
     echo "  status             Show status of running services"
     echo "  help               Show this help message"
     echo ""
+    echo "Prod options:"
+    echo "  --dry-run          Validate templates without applying"
+    echo "  --prod             Use production values (ghcr.io images, no local build)"
+    echo "  --local            Force local build even with --prod values"
+    echo "  --set key=value    Override Helm values"
+    echo ""
     echo "Examples:"
-    echo "  ./deploy.sh dev              # Start dev environment (auto-seeds users)"
-    echo "  ./deploy.sh dev --build      # Rebuild and start"
-    echo "  ./deploy.sh prod             # Deploy to K8s (requires password args)"
-    echo "  ./deploy.sh logs backend     # View backend logs"
+    echo "  ./deploy.sh dev                    # Start dev environment"
+    echo "  ./deploy.sh dev --build            # Rebuild and start"
+    echo "  ./deploy.sh prod                   # Deploy with local images"
+    echo "  ./deploy.sh prod --prod            # Deploy with registry images (no build)"
+    echo "  ./deploy.sh prod --prod --local    # Deploy prod values but build locally"
+    echo "  ./deploy.sh prod --set mongodb.auth.rootPassword=secret"
+    echo "  ./deploy.sh logs backend           # View backend logs"
 }
 
 # =============================================================================
@@ -237,6 +246,8 @@ cmd_prod() {
     local DRY_RUN=""
     local VALUES_FILE="values.yaml"
     local EXTRA_ARGS=""
+    local USE_REGISTRY=false
+    local FORCE_LOCAL=false
 
     # Parse arguments
     while [[ $# -gt 0 ]]; do
@@ -247,7 +258,12 @@ cmd_prod() {
                 ;;
             --prod)
                 VALUES_FILE="values-prod.yaml"
-                print_info "Using production values"
+                USE_REGISTRY=true
+                print_info "Using production values (ghcr.io images)"
+                ;;
+            --local)
+                FORCE_LOCAL=true
+                print_info "Forcing local image build"
                 ;;
             --set)
                 shift
@@ -261,17 +277,25 @@ cmd_prod() {
         shift
     done
 
-    deploy_helm "$VALUES_FILE" "$DRY_RUN" "$EXTRA_ARGS"
+    deploy_helm "$VALUES_FILE" "$DRY_RUN" "$EXTRA_ARGS" "$USE_REGISTRY" "$FORCE_LOCAL"
 }
 
 deploy_helm() {
     local VALUES_FILE="$1"
     local DRY_RUN="$2"
     local EXTRA_ARGS="$3"
+    local USE_REGISTRY="$4"
+    local FORCE_LOCAL="$5"
 
-    # Build images (skip for dry-run)
+    # Build images if:
+    # - Not dry-run AND
+    # - Not using registry OR force local build
     if [[ -z "$DRY_RUN" ]]; then
-        build_and_import_images
+        if [[ "$USE_REGISTRY" != "true" ]] || [[ "$FORCE_LOCAL" == "true" ]]; then
+            build_and_import_images
+        else
+            print_info "Using pre-built images from ghcr.io (skipping local build)"
+        fi
     fi
 
     print_info "Updating Helm dependencies..."
@@ -301,7 +325,11 @@ deploy_helm() {
         echo "Services:"
         kubectl get services -n "$NAMESPACE"
         echo ""
-        echo "Default credentials: user/user123, admin/admin123"
+        if [[ "$VALUES_FILE" == "values-prod.yaml" ]]; then
+            echo "Note: Passwords must be set via --set flags for production"
+        else
+            echo "Default credentials: user/user123, admin/admin123"
+        fi
         echo ""
         echo "Commands:"
         echo "  kubectl logs -n $NAMESPACE -l app.kubernetes.io/component=backend"

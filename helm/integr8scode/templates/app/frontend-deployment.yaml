@@ -27,6 +27,10 @@ spec:
         - containerPort: {{ .Values.frontend.containerPort | default 5001 }}
           name: http
         env:
+        # BACKEND_URL is used by nginx template (envsubst at container startup)
+        - name: BACKEND_URL
+          value: "https://{{ include "integr8scode.fullname" . }}-backend:443"
+        # VITE_BACKEND_URL is baked into JS at build time (not used in prod nginx image)
         - name: VITE_BACKEND_URL
           value: "https://{{ include "integr8scode.fullname" . }}-backend:443"
         resources:

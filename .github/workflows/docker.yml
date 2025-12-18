@@ -214,6 +214,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
           timeout: '5m0s'
           trivyignores: 'backend/.trivyignore'
+          version: 'v0.68.2'
 
       - name: Upload Trivy scan results
         if: always()
@@ -240,6 +241,7 @@ jobs:
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
           timeout: '5m0s'
+          version: 'v0.68.2'
 
       - name: Upload Trivy scan results
         if: always()

@@ -25,7 +25,7 @@ jobs:
       frontend_tag: ${{ steps.meta-frontend.outputs.tags }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # Docker image names must be lowercase - github.repository_owner preserves case
       - name: Set lowercase image prefix
@@ -59,7 +59,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build base image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: ./backend
           file: ./backend/Dockerfile.base
@@ -87,7 +87,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build backend image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: ./backend
           file: ./backend/Dockerfile
@@ -101,7 +101,7 @@ jobs:
           load: true
 
       - name: Run Trivy vulnerability scanner on backend
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.33.1
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/backend:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.number) || 'latest' }}
           format: 'sarif'
@@ -113,7 +113,7 @@ jobs:
 
       - name: Upload Trivy scan results to GitHub Security
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: 'trivy-backend-results.sarif'
           category: 'trivy-backend'
@@ -135,7 +135,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build frontend image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: ./frontend
           file: ./frontend/Dockerfile.prod
@@ -147,7 +147,7 @@ jobs:
           load: true
 
       - name: Run Trivy vulnerability scanner on frontend
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.33.1
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/frontend:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.number) || 'latest' }}
           format: 'sarif'
@@ -158,7 +158,7 @@ jobs:
 
       - name: Upload Trivy frontend scan results
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: 'trivy-frontend-results.sarif'
           category: 'trivy-frontend'

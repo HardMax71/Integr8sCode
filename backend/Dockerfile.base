@@ -1,6 +1,6 @@
 # Shared base image for all backend services
 # Contains: Python, system deps, uv, and all Python dependencies
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 WORKDIR /app
 

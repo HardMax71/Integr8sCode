@@ -35,9 +35,6 @@ spec:
         - configMapRef:
             name: {{ include "integr8scode.fullname" . }}-env
         env:
-        # CRITICAL: Override K8s auto-generated REDIS_PORT
-        - name: REDIS_PORT
-          value: "6379"
         - name: KUBECONFIG
           value: "/app/kubeconfig.yaml"
         {{- if .Values.backend.extraEnv }}

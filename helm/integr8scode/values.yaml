@@ -113,9 +113,11 @@ backend:
     requests:
       memory: "512Mi"
       cpu: "250m"
+      ephemeral-storage: "128Mi"
     limits:
       memory: "1Gi"
       cpu: "1000m"
+      ephemeral-storage: "512Mi"
 
   service:
     type: ClusterIP
@@ -149,9 +151,11 @@ frontend:
     requests:
       memory: "128Mi"
       cpu: "100m"
+      ephemeral-storage: "64Mi"
     limits:
       memory: "256Mi"
       cpu: "500m"
+      ephemeral-storage: "128Mi"
 
   service:
     type: ClusterIP
@@ -167,9 +171,11 @@ workers:
       requests:
         memory: "256Mi"
         cpu: "100m"
+        ephemeral-storage: "128Mi"
       limits:
         memory: "512Mi"
         cpu: "500m"
+        ephemeral-storage: "256Mi"
 
   # K8s Worker - Creates executor pods
   k8sWorker:
@@ -272,9 +278,11 @@ infrastructure:
       requests:
         memory: "256Mi"
         cpu: "100m"
+        ephemeral-storage: "128Mi"
       limits:
         memory: "512Mi"
         cpu: "500m"
+        ephemeral-storage: "256Mi"
 
   # Kafka
   kafka:
@@ -286,9 +294,11 @@ infrastructure:
       requests:
         memory: "384Mi"
         cpu: "200m"
+        ephemeral-storage: "256Mi"
       limits:
         memory: "768Mi"
         cpu: "1000m"
+        ephemeral-storage: "512Mi"
 
   # Schema Registry
   schemaRegistry:
@@ -299,9 +309,11 @@ infrastructure:
       requests:
         memory: "256Mi"
         cpu: "100m"
+        ephemeral-storage: "128Mi"
       limits:
         memory: "512Mi"
         cpu: "500m"
+        ephemeral-storage: "256Mi"
 
   # Jaeger (distributed tracing)
   jaeger:
@@ -311,9 +323,11 @@ infrastructure:
       requests:
         memory: "128Mi"
         cpu: "100m"
+        ephemeral-storage: "128Mi"
       limits:
         memory: "512Mi"
         cpu: "500m"
+        ephemeral-storage: "512Mi"
 
 # =============================================================================
 # REDIS (BITNAMI SUB-CHART)
@@ -364,6 +378,15 @@ kafkaInit:
   image: ""  # Leave empty to use backend image
   backoffLimit: 3
   ttlSecondsAfterFinished: 300
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+      ephemeral-storage: "64Mi"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+      ephemeral-storage: "128Mi"
 
 # =============================================================================
 # USER SEED JOB
@@ -377,6 +400,15 @@ userSeed:
   # Default user credentials (override in values-prod.yaml for production)
   defaultUserPassword: "user123"
   adminUserPassword: "admin123"
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+      ephemeral-storage: "64Mi"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+      ephemeral-storage: "128Mi"
 
 # =============================================================================
 # EXTERNAL SERVICES (when sub-charts are disabled)

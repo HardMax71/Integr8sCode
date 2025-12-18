@@ -32,9 +32,6 @@ spec:
         - configMapRef:
             name: {{ include "integr8scode.fullname" . }}-env
         env:
-        # CRITICAL: Override K8s auto-generated REDIS_PORT
-        - name: REDIS_PORT
-          value: "6379"
         - name: KAFKA_CONSUMER_GROUP_ID
           value: {{ .Values.workers.resultProcessor.consumerGroupId | quote }}
         - name: TRACING_SERVICE_NAME

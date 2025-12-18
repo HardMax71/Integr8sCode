@@ -68,10 +68,5 @@ spec:
         - name: LOG_LEVEL
           value: "INFO"
         resources:
-          requests:
-            memory: "256Mi"
-            cpu: "100m"
-          limits:
-            memory: "512Mi"
-            cpu: "500m"
+          {{- toYaml .Values.kafkaInit.resources | nindent 10 }}
 {{- end }}

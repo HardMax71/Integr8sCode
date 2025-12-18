@@ -8,8 +8,8 @@ The frontend uses Nginx as a reverse proxy and static file server. This document
 ```mermaid
 flowchart LR
     Browser --> Nginx
-    Nginx -->|/api/*| Backend[Backend :443]
-    Nginx -->|static files| Static[/usr/share/nginx/html]
+    Nginx -->|"/api/*"| Backend["Backend :443"]
+    Nginx -->|"static files"| Static["Static files"]
 ```
 
 Nginx serves two purposes:

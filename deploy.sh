@@ -177,23 +177,13 @@ cmd_check() {
 cmd_test() {
     print_header "Running Test Suite"
 
-    print_info "Starting services..."
-    docker compose up -d --build
-
-    print_info "Waiting for services to be ready..."
-    sleep 45
-
-    print_info "Checking backend health..."
-    local timeout=60
-    local counter=0
-    while [[ $counter -lt $timeout ]]; do
-        if curl -ksfL https://localhost:443/api/v1/health -o /dev/null 2>/dev/null; then
-            print_success "Backend is healthy"
-            break
-        fi
-        counter=$((counter + 5))
-        sleep 5
-    done
+    print_info "Starting services (waiting for healthy status)..."
+    if ! docker compose up -d --build --wait --wait-timeout 300; then
+        print_error "Services failed to start"
+        docker compose logs
+        exit 1
+    fi
+    print_success "All services with healthchecks are healthy"
 
     print_info "Running tests..."
     cd backend

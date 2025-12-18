@@ -158,9 +158,13 @@ It reads cache layers from previous runs and writes new layers back, so unchange
 scopes are branch-specific with a fallback to main, meaning feature branches benefit from the main branch cache even on
 their first run.
 
-Once images are built, `docker compose up` starts the stack and waits for health checks. The backend needs MongoDB,
-Redis, Kafka, Schema Registry, and the cert-generator to be ready before it can serve requests. After stabilization, the
-workflow runs pytest against the integration and unit test suites with coverage reporting. Test isolation uses
+Once images are built, `docker compose up -d --wait --wait-timeout 300` starts the stack and waits for all services with
+healthchecks to report healthy before continuing. The backend needs MongoDB, Redis, Kafka, Schema Registry, and the
+cert-generator to be ready before it can serve requests. Services define healthchecks in `docker-compose.yaml` (e.g.,
+`mongosh ping` for MongoDB, `redis-cli ping` for Redis, curl to `/api/v1/health/live` for backend). The `--wait` flag
+replaces hardcoded sleep timers, making startup both faster (no unnecessary waiting) and more reliable (won't proceed
+until services are actually ready). Once all healthchecks pass, the workflow runs pytest against the integration and
+unit test suites with coverage reporting. Test isolation uses
 per-worker database names and schema registry prefixes to avoid conflicts when pytest-xdist runs tests in parallel.
 
 Coverage reports go to [Codecov](https://codecov.io/) for tracking over time. The workflow always collects container
@@ -203,9 +207,10 @@ uv run pytest tests/unit -v
 uv run pytest tests/integration tests/unit -v
 ```
 
-For the full integration test experience, start the stack with `docker compose up -d`, wait for services to stabilize,
-then run pytest. The CI workflow's yq modifications aren't necessary locally since your environment likely has the
-expected configuration already.
+For the full integration test experience, start the stack with `docker compose up -d --wait` which waits for all
+healthchecks to pass before returning. Then run pytest. Alternatively, use `./deploy.sh test` which handles startup,
+testing, and cleanup automatically. The CI workflow's yq modifications aren't necessary locally since your environment
+likely has the expected configuration already.
 
 ## Workflow files
 

@@ -133,45 +133,18 @@ jobs:
         env:
           BUILDKIT_PROGRESS: plain
 
-      - name: Start services
+      - name: Start services and wait for healthy
         run: |
-            echo "Starting services (images already built with cache)..."
-            docker compose -f docker-compose.ci.yaml up -d --remove-orphans || \
-            (
-              echo "::error::Docker Compose failed to start. Dumping all logs..."
-              docker compose -f docker-compose.ci.yaml logs
-              exit 1
-            )
-
-            echo "Services started. Waiting for stabilization..."
-            sleep 45
-
-            echo "Final status of all containers:"
-            docker compose -f docker-compose.ci.yaml ps
-
-            echo "Checking cert-generator logs:"
-            docker compose -f docker-compose.ci.yaml logs cert-generator || echo "cert-generator not found or exited"
-
-            echo "Checking backend container status:"
-            docker compose -f docker-compose.ci.yaml ps backend
-
-            echo "Checking backend logs:"
-            docker compose -f docker-compose.ci.yaml logs backend || echo "backend not found"
-
-            # Explicitly check for containers that have exited
-            if docker compose -f docker-compose.ci.yaml ps | grep -q 'Exit'; then
-              echo "::error::One or more containers have exited unexpectedly. See logs above."
+            echo "Starting services with --wait (images already built with cache)..."
+            if ! docker compose -f docker-compose.ci.yaml up -d --remove-orphans --wait --wait-timeout 300; then
+              echo "::error::Docker Compose failed to start or services unhealthy. Dumping logs..."
               docker compose -f docker-compose.ci.yaml logs --no-color
+              docker compose -f docker-compose.ci.yaml ps
               exit 1
             fi
 
-      - name: Wait for backend to be healthy
-        run: |
-          timeout 300 bash -c 'until curl -k https://127.0.0.1:443/api/v1/health -o /dev/null; do \
-            echo "Retrying backend health check..."; \
-            sleep 5; \
-          done'
-          echo "Backend is healthy!"
+            echo "All services with healthchecks are healthy!"
+            docker compose -f docker-compose.ci.yaml ps
 
       # Frontend is excluded in backend-only CI; skip UI readiness
 

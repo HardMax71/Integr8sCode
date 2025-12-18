@@ -13,6 +13,8 @@ commands.
 ./deploy.sh dev              # Start local development stack
 ./deploy.sh dev --build      # Rebuild images and start
 ./deploy.sh down             # Stop local stack
+./deploy.sh check            # Run quality checks (ruff, mypy, bandit)
+./deploy.sh test             # Run full test suite with coverage
 ./deploy.sh prod             # Deploy to Kubernetes with Helm
 ./deploy.sh prod --dry-run   # Validate Helm templates without applying
 ./deploy.sh status           # Show running services
@@ -61,6 +63,30 @@ To stop everything and clean up volumes:
 ./deploy.sh down
 docker compose down -v  # Also removes persistent volumes
 ```
+
+### Running tests locally
+
+The `test` command runs the full integration and unit test suite:
+
+```bash
+./deploy.sh test
+```
+
+This builds images, starts services using `docker compose up --wait` (which waits for all healthchecks to pass before
+continuing), runs pytest with coverage reporting, then tears down the stack. The `--wait` flag ensures services are
+actually ready rather than relying on arbitrary sleep timers. Key services define healthchecks in `docker-compose.yaml`:
+
+| Service         | Healthcheck                                   |
+|-----------------|-----------------------------------------------|
+| MongoDB         | `mongosh ping`                                |
+| Redis           | `redis-cli ping`                              |
+| Backend         | `curl /api/v1/health/live`                    |
+| Kafka           | `kafka-broker-api-versions`                   |
+| Schema Registry | `curl /config`                                |
+| Zookeeper       | `echo ruok \| nc localhost 2181 \| grep imok` |
+
+Services without explicit healthchecks (workers, Grafana, Kafdrop) are considered "started" when their container is
+running. The test suite doesn't require worker containers since tests instantiate worker classes directly.
 
 ## Kubernetes deployment
 

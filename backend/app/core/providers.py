@@ -127,7 +127,7 @@ class RedisProvider(Provider):
             socket_timeout=5,
         )
         # Test connection
-        await client.ping()
+        await client.execute_command("PING")
         logger.info(
             f"Redis connected: {settings.REDIS_HOST}:{settings.REDIS_PORT}/{settings.REDIS_DB}"
         )

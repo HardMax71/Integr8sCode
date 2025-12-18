@@ -1,13 +1,7 @@
 {{- if .Values.userSeed.enabled }}
-{{/*
-Validate passwords - fail if empty (required for production)
-In dev (values.yaml), defaults are provided. In prod (values-prod.yaml), they must be set via --set
-*/}}
+{{/* Dev defaults provided - override via values-prod.yaml or --set for production */}}
 {{- $defaultPwd := .Values.userSeed.defaultUserPassword | default "user123" }}
 {{- $adminPwd := .Values.userSeed.adminUserPassword | default "admin123" }}
-{{- if and (eq $defaultPwd "") (eq $adminPwd "") }}
-  {{- fail "userSeed.defaultUserPassword and userSeed.adminUserPassword are required. Set via --set userSeed.defaultUserPassword=xxx --set userSeed.adminUserPassword=xxx" }}
-{{- end }}
 apiVersion: batch/v1
 kind: Job
 metadata:

@@ -27,7 +27,7 @@ spec:
         {{- include "integr8scode.labels" $root | nindent 8 }}
         app.kubernetes.io/component: {{ $name }}
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmaps/env-configmap.yaml") $root | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/secrets/env-secret.yaml") $root | sha256sum }}
     spec:
       serviceAccountName: {{ include "integr8scode.serviceAccountName" $root }}
       containers:
@@ -37,7 +37,7 @@ spec:
         command:
           {{- toYaml $config.command | nindent 10 }}
         envFrom:
-        - configMapRef:
+        - secretRef:
             name: {{ include "integr8scode.fullname" $root }}-env
         env:
         - name: KAFKA_CONSUMER_GROUP_ID

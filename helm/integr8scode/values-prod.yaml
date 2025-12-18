@@ -114,6 +114,12 @@ infrastructure:
 
   kafka:
     heapOpts: "-Xms1G -Xmx1G"
+    # IMPORTANT: Set JAAS credentials via --set for production:
+    # --set infrastructure.kafka.jaas.superPassword=<secure-password>
+    # --set infrastructure.kafka.jaas.kafkaPassword=<secure-password>
+    jaas:
+      superPassword: ""  # REQUIRED: Set via --set
+      kafkaPassword: ""  # REQUIRED: Set via --set
     resources:
       requests:
         memory: "1Gi"

@@ -290,6 +290,11 @@ infrastructure:
     image: confluentinc/cp-kafka:7.5.0
     heapOpts: "-Xms256M -Xmx256M"
     autoCreateTopics: "true"
+    # JAAS authentication credentials for Zookeeper communication
+    # Override these in production via --set or values-prod.yaml
+    jaas:
+      superPassword: "admin-secret"
+      kafkaPassword: "kafka-secret"
     resources:
       requests:
         memory: "384Mi"

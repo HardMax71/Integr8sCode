@@ -19,7 +19,7 @@ spec:
         {{- include "integr8scode.labels" . | nindent 8 }}
         app.kubernetes.io/component: backend
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmaps/env-configmap.yaml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/secrets/env-secret.yaml") . | sha256sum }}
     spec:
       serviceAccountName: {{ include "integr8scode.serviceAccountName" . }}
       containers:
@@ -32,7 +32,7 @@ spec:
         - containerPort: 9090
           name: metrics
         envFrom:
-        - configMapRef:
+        - secretRef:
             name: {{ include "integr8scode.fullname" . }}-env
         env:
         - name: KUBECONFIG

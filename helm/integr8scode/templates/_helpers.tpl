@@ -99,12 +99,12 @@ MongoDB host - uses Bitnami sub-chart naming convention
 {{- end }}
 
 {{/*
-MongoDB URL
+MongoDB URL - with URL-encoded credentials (RFC 3986)
 */}}
 {{- define "integr8scode.mongodbUrl" -}}
 {{- if .Values.mongodb.enabled }}
 {{- if .Values.mongodb.auth.enabled }}
-{{- printf "mongodb://%s:%s@%s:27017/integr8scode?authSource=admin" .Values.mongodb.auth.rootUser .Values.mongodb.auth.rootPassword (include "integr8scode.mongodbHost" .) }}
+{{- printf "mongodb://%s:%s@%s:27017/integr8scode?authSource=admin" (.Values.mongodb.auth.rootUser | urlquery) (.Values.mongodb.auth.rootPassword | urlquery) (include "integr8scode.mongodbHost" .) }}
 {{- else }}
 {{- printf "mongodb://%s:27017/integr8scode" (include "integr8scode.mongodbHost" .) }}
 {{- end }}

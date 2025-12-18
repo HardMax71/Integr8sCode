@@ -19,7 +19,7 @@ spec:
         {{- include "integr8scode.labels" . | nindent 8 }}
         app.kubernetes.io/component: saga-orchestrator
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmaps/env-configmap.yaml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/secrets/env-secret.yaml") . | sha256sum }}
     spec:
       serviceAccountName: {{ include "integr8scode.serviceAccountName" . }}
       containers:
@@ -29,7 +29,7 @@ spec:
         command:
           {{- toYaml .Values.workers.sagaOrchestrator.command | nindent 10 }}
         envFrom:
-        - configMapRef:
+        - secretRef:
             name: {{ include "integr8scode.fullname" . }}-env
         env:
         - name: KAFKA_CONSUMER_GROUP_ID

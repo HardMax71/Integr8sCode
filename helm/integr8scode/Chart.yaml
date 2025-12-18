@@ -12,9 +12,9 @@ keywords:
   - event-driven
   - microservices
 
-home: https://github.com/your-org/integr8scode
+home: https://github.com/HardMax71/Integr8sCode
 sources:
-  - https://github.com/your-org/integr8scode
+  - https://github.com/HardMax71/Integr8sCode
 
 maintainers:
   - name: Integr8sCode Team
@@ -22,13 +22,13 @@ maintainers:
 dependencies:
   # Redis using Bitnami chart
   - name: redis
-    version: "18.19.4"
+    version: "20.6.3"
     repository: "https://charts.bitnami.com/bitnami"
     condition: redis.enabled
 
   # MongoDB using Bitnami chart
   - name: mongodb
-    version: "14.13.1"
+    version: "16.4.3"
     repository: "https://charts.bitnami.com/bitnami"
     condition: mongodb.enabled
 

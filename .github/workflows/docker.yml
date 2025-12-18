@@ -32,3 +32,4 @@ jobs:
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
           timeout: '5m0s'
+          trivyignores: 'backend/.trivyignore'

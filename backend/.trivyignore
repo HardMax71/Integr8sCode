@@ -1,0 +1,11 @@
+# urllib3 1.26.x CVEs - pinned due to kubernetes client incompatibility with urllib3 2.x
+# kubernetes==31.0.0 uses HTTPResponse.getheaders() removed in urllib3 2.0
+# See: https://github.com/kubernetes-client/python/issues/2280
+
+# CVE-2025-66418 - Unbounded decompression chain (fixed in 2.6.0)
+# Mitigated: Internal service communication only, no untrusted compressed responses
+CVE-2025-66418
+
+# CVE-2025-66471 - urllib3 vulnerability (fixed in 2.6.0)
+# Mitigated: Internal service communication only
+CVE-2025-66471

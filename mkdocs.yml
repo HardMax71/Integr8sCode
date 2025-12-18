@@ -121,6 +121,7 @@ nav:
 
   - Operations:
     - CI/CD Pipeline: operations/cicd.md
+    - Nginx Configuration: operations/nginx-configuration.md
     - Tracing: operations/tracing.md
     - Metrics:
       - Context Variables: operations/metrics-contextvars.md

@@ -1,5 +1,4 @@
 import { writable, get } from 'svelte/store';
-import { backendUrl } from "../config.js";
 import { fetchWithRetry } from "../lib/fetch-utils.js";
 import { clearSettingsCache } from "../lib/auth-utils.js";
 

@@ -1,7 +1,7 @@
 <script>
     import { onMount } from 'svelte';
     import { api } from '../../lib/api';
-    import { addNotification } from '../../stores/notifications';
+    import { addToast } from '../../stores/toastStore';
     import AdminLayout from './AdminLayout.svelte';
     import Spinner from '../../components/Spinner.svelte';
     
@@ -24,7 +24,7 @@
             settings = await api.get('/api/v1/admin/settings/');
         } catch (error) {
             console.error('Failed to load settings:', error);
-            addNotification(`Failed to load settings: ${error.message}`, 'error');
+            addToast(`Failed to load settings: ${error.message}`, 'error');
         } finally {
             loading = false;
         }
@@ -34,9 +34,9 @@
         saving = true;
         try {
             await api.put('/api/v1/admin/settings/', settings);
-            addNotification('Settings saved successfully', 'success');
+            addToast('Settings saved successfully', 'success');
         } catch (error) {
-            addNotification(`Failed to save settings: ${error.message}`, 'error');
+            addToast(`Failed to save settings: ${error.message}`, 'error');
         } finally {
             saving = false;
         }
@@ -50,9 +50,9 @@
         resetting = true;
         try {
             settings = await api.post('/api/v1/admin/settings/reset', {});
-            addNotification('Settings reset to defaults', 'success');
+            addToast('Settings reset to defaults', 'success');
         } catch (error) {
-            addNotification(`Failed to reset settings: ${error.message}`, 'error');
+            addToast(`Failed to reset settings: ${error.message}`, 'error');
         } finally {
             resetting = false;
         }
@@ -82,23 +82,23 @@
                             <h4 class="text-md font-semibold text-fg-default dark:text-dark-fg-default mb-3">Execution Limits</h4>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Max Timeout (seconds)</label>
-                                    <input type="number" bind:value={settings.execution_limits.max_timeout_seconds} 
+                                    <label for="max-timeout" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Max Timeout (seconds)</label>
+                                    <input id="max-timeout" type="number" bind:value={settings.execution_limits.max_timeout_seconds}
                                         class="form-input-standard" min="10" max="600"/>
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Max Memory (MB)</label>
-                                    <input type="number" bind:value={settings.execution_limits.max_memory_mb} 
+                                    <label for="max-memory" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Max Memory (MB)</label>
+                                    <input id="max-memory" type="number" bind:value={settings.execution_limits.max_memory_mb}
                                         class="form-input-standard" min="128" max="2048"/>
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Max CPU Cores</label>
-                                    <input type="number" bind:value={settings.execution_limits.max_cpu_cores} 
+                                    <label for="max-cpu" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Max CPU Cores</label>
+                                    <input id="max-cpu" type="number" bind:value={settings.execution_limits.max_cpu_cores}
                                         class="form-input-standard" min="0.5" max="4" step="0.5"/>
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Max Concurrent Executions</label>
-                                    <input type="number" bind:value={settings.execution_limits.max_concurrent_executions} 
+                                    <label for="max-concurrent" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Max Concurrent Executions</label>
+                                    <input id="max-concurrent" type="number" bind:value={settings.execution_limits.max_concurrent_executions}
                                         class="form-input-standard" min="1" max="50"/>
                                 </div>
                             </div>
@@ -109,23 +109,23 @@
                             <h4 class="text-md font-semibold text-fg-default dark:text-dark-fg-default mb-3">Security Settings</h4>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Min Password Length</label>
-                                    <input type="number" bind:value={settings.security_settings.password_min_length} 
+                                    <label for="min-password" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Min Password Length</label>
+                                    <input id="min-password" type="number" bind:value={settings.security_settings.password_min_length}
                                         class="form-input-standard" min="6" max="32"/>
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Session Timeout (minutes)</label>
-                                    <input type="number" bind:value={settings.security_settings.session_timeout_minutes} 
+                                    <label for="session-timeout" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Session Timeout (minutes)</label>
+                                    <input id="session-timeout" type="number" bind:value={settings.security_settings.session_timeout_minutes}
                                         class="form-input-standard" min="5" max="1440"/>
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Max Login Attempts</label>
-                                    <input type="number" bind:value={settings.security_settings.max_login_attempts} 
+                                    <label for="max-login" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Max Login Attempts</label>
+                                    <input id="max-login" type="number" bind:value={settings.security_settings.max_login_attempts}
                                         class="form-input-standard" min="3" max="10"/>
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Lockout Duration (minutes)</label>
-                                    <input type="number" bind:value={settings.security_settings.lockout_duration_minutes} 
+                                    <label for="lockout-duration" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Lockout Duration (minutes)</label>
+                                    <input id="lockout-duration" type="number" bind:value={settings.security_settings.lockout_duration_minutes}
                                         class="form-input-standard" min="5" max="60"/>
                                 </div>
                             </div>
@@ -136,13 +136,13 @@
                             <h4 class="text-md font-semibold text-fg-default dark:text-dark-fg-default mb-3">Monitoring Settings</h4>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Metrics Retention Days</label>
-                                    <input type="number" bind:value={settings.monitoring_settings.metrics_retention_days} 
+                                    <label for="metrics-retention" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Metrics Retention Days</label>
+                                    <input id="metrics-retention" type="number" bind:value={settings.monitoring_settings.metrics_retention_days}
                                         class="form-input-standard" min="1" max="90"/>
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Log Level</label>
-                                    <select bind:value={settings.monitoring_settings.log_level} class="form-select-standard">
+                                    <label for="log-level" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Log Level</label>
+                                    <select id="log-level" bind:value={settings.monitoring_settings.log_level} class="form-select-standard">
                                         <option value="DEBUG">DEBUG</option>
                                         <option value="INFO">INFO</option>
                                         <option value="WARNING">WARNING</option>
@@ -150,15 +150,15 @@
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Enable Tracing</label>
-                                    <select bind:value={settings.monitoring_settings.enable_tracing} class="form-select-standard">
+                                    <label for="enable-tracing" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Enable Tracing</label>
+                                    <select id="enable-tracing" bind:value={settings.monitoring_settings.enable_tracing} class="form-select-standard">
                                         <option value={true}>Enabled</option>
                                         <option value={false}>Disabled</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Sampling Rate</label>
-                                    <input type="number" bind:value={settings.monitoring_settings.sampling_rate} 
+                                    <label for="sampling-rate" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Sampling Rate</label>
+                                    <input id="sampling-rate" type="number" bind:value={settings.monitoring_settings.sampling_rate}
                                         class="form-input-standard" min="0" max="1" step="0.1"/>
                                 </div>
                             </div>

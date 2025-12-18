@@ -14,7 +14,7 @@
     import Privacy from "./routes/Privacy.svelte";
     import Header from "./components/Header.svelte";
     import Footer from "./components/Footer.svelte";
-    import Notifications from "./components/Notifications.svelte";
+    import ToastContainer from "./components/ToastContainer.svelte";
     import ProtectedRoute from "./components/ProtectedRoute.svelte";
     import Spinner from "./components/Spinner.svelte";
     import { theme } from './stores/theme.js';
@@ -51,7 +51,7 @@
                 <div class="flex flex-col min-h-screen bg-bg-default dark:bg-dark-bg-default pt-16">
                     <Header/>
                     <div class="flex-grow flex flex-col">
-                        <Notifications/>
+                        <ToastContainer/>
                         <main class="flex-grow">
                             <AdminEvents/>
                         </main>
@@ -66,7 +66,7 @@
                 <div class="flex flex-col min-h-screen bg-bg-default dark:bg-dark-bg-default pt-16">
                     <Header/>
                     <div class="flex-grow flex flex-col">
-                        <Notifications/>
+                        <ToastContainer/>
                         <main class="flex-grow">
                             <AdminSagas/>
                         </main>
@@ -81,7 +81,7 @@
                 <div class="flex flex-col min-h-screen bg-bg-default dark:bg-dark-bg-default pt-16">
                     <Header/>
                     <div class="flex-grow flex flex-col">
-                        <Notifications/>
+                        <ToastContainer/>
                         <main class="flex-grow">
                             <AdminUsers/>
                         </main>
@@ -96,7 +96,7 @@
                 <div class="flex flex-col min-h-screen bg-bg-default dark:bg-dark-bg-default pt-16">
                     <Header/>
                     <div class="flex-grow flex flex-col">
-                        <Notifications/>
+                        <ToastContainer/>
                         <main class="flex-grow">
                             <AdminSettings/>
                         </main>
@@ -111,7 +111,7 @@
                 <div class="flex flex-col min-h-screen bg-bg-default dark:bg-dark-bg-default pt-16">
                     <Header/>
                     <div class="flex-grow flex flex-col">
-                        <Notifications/>
+                        <ToastContainer/>
                         <main class="flex-grow">
                             <AdminEvents/>
                         </main>
@@ -126,7 +126,7 @@
         <div class="flex flex-col min-h-screen bg-bg-default dark:bg-dark-bg-default pt-16">
             <Header/>
             <div class="flex-grow flex flex-col">
-                <Notifications/>
+                <ToastContainer/>
                 <main class="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                     <Home/>
                 </main>
@@ -140,7 +140,7 @@
                 <div class="flex flex-col min-h-screen bg-bg-default dark:bg-dark-bg-default pt-16">
                     <Header/>
                     <div class="flex-grow flex flex-col">
-                        <Notifications/>
+                        <ToastContainer/>
                         <main class="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                             <Editor/>
                         </main>
@@ -154,7 +154,7 @@
         <div class="flex flex-col min-h-screen bg-bg-default dark:bg-dark-bg-default pt-16">
             <Header/>
             <div class="flex-grow flex flex-col">
-                <Notifications/>
+                <ToastContainer/>
                 <main class="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                     <Login/>
                 </main>
@@ -167,7 +167,7 @@
         <div class="flex flex-col min-h-screen bg-bg-default dark:bg-dark-bg-default pt-16">
             <Header/>
             <div class="flex-grow flex flex-col">
-                <Notifications/>
+                <ToastContainer/>
                 <main class="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                     <Register/>
                 </main>
@@ -180,7 +180,7 @@
         <div class="flex flex-col min-h-screen bg-bg-default dark:bg-dark-bg-default pt-16">
             <Header/>
             <div class="flex-grow flex flex-col">
-                <Notifications/>
+                <ToastContainer/>
                 <main class="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                     <Privacy/>
                 </main>
@@ -194,7 +194,7 @@
                 <div class="flex flex-col min-h-screen bg-bg-default dark:bg-dark-bg-default pt-16">
                     <Header/>
                     <div class="flex-grow flex flex-col">
-                        <Notifications/>
+                        <ToastContainer/>
                         <main class="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                             <Settings/>
                         </main>
@@ -209,7 +209,7 @@
                 <div class="flex flex-col min-h-screen bg-bg-default dark:bg-dark-bg-default pt-16">
                     <Header/>
                     <div class="flex-grow flex flex-col">
-                        <Notifications/>
+                        <ToastContainer/>
                         <main class="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                             <NotificationsPage/>
                         </main>

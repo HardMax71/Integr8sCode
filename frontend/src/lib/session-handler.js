@@ -1,5 +1,5 @@
 import { navigate } from 'svelte-routing';
-import { addNotification } from '../stores/notifications.js';
+import { addToast } from '../stores/toastStore.js';
 import { isAuthenticated, username, userId, userRole, csrfToken } from '../stores/auth.js';
 
 
@@ -9,16 +9,16 @@ export function handleSessionExpired() {
     if (currentPath !== '/login' && currentPath !== '/register') {
         sessionStorage.setItem('redirectAfterLogin', currentPath);
     }
-    
+
     // Clear all auth state
     isAuthenticated.set(false);
     username.set(null);
     userId.set(null);
     userRole.set(null);
     csrfToken.set(null);
-    
-    // Show notification
-    addNotification('Session expired. Please log in again.', 'warning');
+
+    // Show toast notification
+    addToast('Session expired. Please log in again.', 'warning');
     
     // Redirect to login
     navigate('/login');

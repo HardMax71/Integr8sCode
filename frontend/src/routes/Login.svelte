@@ -1,7 +1,7 @@
 <script>
   import { navigate, Link } from "svelte-routing";
   import { login } from "../stores/auth.js";
-  import { addNotification } from "../stores/notifications.js";
+  import { addToast } from "../stores/toastStore.js";
   import { fade, fly } from "svelte/transition";
   import Spinner from '../components/Spinner.svelte'; // Assuming Spinner component exists
   import { onMount } from 'svelte';
@@ -19,7 +19,7 @@
     // Check for authentication message from redirect
     const authMessage = sessionStorage.getItem('authMessage');
     if (authMessage) {
-      addNotification(authMessage, "info");
+      addToast(authMessage, "info");
       sessionStorage.removeItem('authMessage');
     }
   });
@@ -33,7 +33,7 @@
       // Load and apply user settings (theme, etc)
       await loadUserSettings();
       
-      addNotification("Login successful! Welcome back.", "success");
+      addToast("Login successful! Welcome back.", "success");
       
       // Check if there's a saved redirect path
       const redirectPath = sessionStorage.getItem('redirectAfterLogin');
@@ -45,7 +45,7 @@
       }
     } catch (err) {
       error = err.message || "Login failed. Please check your credentials.";
-      addNotification(error, "error");
+      addToast(error, "error");
     } finally {
       loading = false;
     }

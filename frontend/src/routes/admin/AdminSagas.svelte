@@ -1,7 +1,7 @@
 <script>
     import { onMount, onDestroy } from 'svelte';
     import { api } from '../../lib/api';
-    import { addNotification } from '../../stores/notifications';
+    import { addToast } from '../../stores/toastStore';
     import AdminLayout from './AdminLayout.svelte';
     import Spinner from '../../components/Spinner.svelte';
     
@@ -118,7 +118,7 @@
             }
         } catch (error) {
             console.error('Failed to load sagas:', error);
-            addNotification('Failed to load sagas', 'error');
+            addToast('Failed to load sagas', 'error');
         } finally {
             loading = false;
         }
@@ -131,7 +131,7 @@
             showDetailModal = true;
         } catch (error) {
             console.error('Failed to load saga details:', error);
-            addNotification('Failed to load saga details', 'error');
+            addToast('Failed to load saga details', 'error');
         }
     }
     
@@ -144,7 +144,7 @@
             executionIdFilter = executionId;
         } catch (error) {
             console.error('Failed to load execution sagas:', error);
-            addNotification('Failed to load execution sagas', 'error');
+            addToast('Failed to load execution sagas', 'error');
         } finally {
             loading = false;
         }
@@ -247,7 +247,7 @@
                                     {count}
                                 </p>
                             </div>
-                            <div class="{info.iconColor} w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0">
+                            <div class="{info.iconColor} w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 shrink-0">
                                 {@html info.icon}
                             </div>
                         </div>
@@ -270,12 +270,13 @@
                 
                 {#if autoRefresh}
                     <div class="flex items-center gap-2 flex-1 sm:flex-initial">
-                        <label class="text-xs sm:text-sm text-fg-muted dark:text-dark-fg-muted">Every:</label>
+                        <label for="refresh-rate" class="text-xs sm:text-sm text-fg-muted dark:text-dark-fg-muted">Every:</label>
                         <select
+                            id="refresh-rate"
                             bind:value={refreshRate}
-                            class="flex-1 sm:min-w-[140px] px-3 py-1.5 pr-8 rounded-lg border border-border-default dark:border-dark-border-default 
+                            class="flex-1 sm:min-w-[140px] px-3 py-1.5 pr-8 rounded-lg border border-border-default dark:border-dark-border-default
                                    bg-bg-default dark:bg-dark-bg-default text-fg-default dark:text-dark-fg-default
-                                   focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary
+                                   focus:outline-hidden focus:ring-2 focus:ring-primary focus:border-primary
                                    appearance-none bg-no-repeat bg-[length:16px] bg-[right_0.5rem_center]"
                             style="background-image: url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 fill=%22none%22 viewBox=%220 0 20 20%22><path stroke=%22%236b7280%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22 stroke-width=%221.5%22 d=%22M6 8l4 4 4-4%22/></svg>');"
                         >
@@ -308,27 +309,29 @@
         <!-- Filters -->
         <div class="mb-6 flex flex-col lg:grid lg:grid-cols-4 gap-3">
             <div class="lg:col-span-1">
-                <label class="block text-sm font-medium mb-2 text-fg-muted dark:text-dark-fg-muted">Search</label>
+                <label for="saga-search" class="block text-sm font-medium mb-2 text-fg-muted dark:text-dark-fg-muted">Search</label>
                 <input
+                    id="saga-search"
                     type="text"
                     bind:value={searchQuery}
                     on:input={loadSagas}
                     placeholder="Search by ID, name, or error..."
-                    class="w-full px-4 py-2 border border-border-default dark:border-dark-border-default rounded-lg 
+                    class="w-full px-4 py-2 border border-border-default dark:border-dark-border-default rounded-lg
                            bg-bg-default dark:bg-dark-bg-default text-fg-default dark:text-dark-fg-default
                            placeholder-fg-subtle dark:placeholder-dark-fg-subtle
-                           focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                           focus:outline-hidden focus:ring-2 focus:ring-primary focus:border-primary"
                 />
             </div>
-            
+
             <div class="lg:col-span-1">
-                <label class="block text-sm font-medium mb-2 text-fg-muted dark:text-dark-fg-muted">State</label>
+                <label for="saga-state-filter" class="block text-sm font-medium mb-2 text-fg-muted dark:text-dark-fg-muted">State</label>
                 <select
+                    id="saga-state-filter"
                     bind:value={stateFilter}
                     on:change={loadSagas}
-                    class="w-full px-4 py-2 pr-10 border border-border-default dark:border-dark-border-default rounded-lg 
+                    class="w-full px-4 py-2 pr-10 border border-border-default dark:border-dark-border-default rounded-lg
                            bg-bg-default dark:bg-dark-bg-default text-fg-default dark:text-dark-fg-default
-                           focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary
+                           focus:outline-hidden focus:ring-2 focus:ring-primary focus:border-primary
                            appearance-none bg-no-repeat bg-[length:16px] bg-[right_0.75rem_center]"
                     style="background-image: url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 fill=%22none%22 viewBox=%220 0 20 20%22><path stroke=%22%236b7280%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22 stroke-width=%221.5%22 d=%22M6 8l4 4 4-4%22/></svg>');"
                 >
@@ -338,29 +341,30 @@
                     {/each}
                 </select>
             </div>
-            
+
             <div class="lg:col-span-1">
-                <label class="block text-sm font-medium mb-2 text-fg-muted dark:text-dark-fg-muted">Execution ID</label>
+                <label for="saga-execution-filter" class="block text-sm font-medium mb-2 text-fg-muted dark:text-dark-fg-muted">Execution ID</label>
                 <input
+                    id="saga-execution-filter"
                     type="text"
                     bind:value={executionIdFilter}
                     on:input={loadSagas}
                     placeholder="Filter by execution ID..."
-                    class="w-full px-4 py-2 border border-border-default dark:border-dark-border-default rounded-lg 
+                    class="w-full px-4 py-2 border border-border-default dark:border-dark-border-default rounded-lg
                            bg-bg-default dark:bg-dark-bg-default text-fg-default dark:text-dark-fg-default
                            placeholder-fg-subtle dark:placeholder-dark-fg-subtle
-                           focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                           focus:outline-hidden focus:ring-2 focus:ring-primary focus:border-primary"
                 />
             </div>
             
             <div class="lg:col-span-1">
-                <label class="block text-sm font-medium mb-2 text-fg-muted dark:text-dark-fg-muted">Actions</label>
+                <span class="block text-sm font-medium mb-2 text-fg-muted dark:text-dark-fg-muted">Actions</span>
                 <button
                     on:click={clearFilters}
                     class="w-full px-4 py-2 border border-border-default dark:border-dark-border-default rounded-lg 
                            bg-bg-default dark:bg-dark-bg-default text-fg-default dark:text-dark-fg-default
                            hover:bg-bg-alt dark:hover:bg-dark-bg-alt transition-colors
-                           focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                           focus:outline-hidden focus:ring-2 focus:ring-primary focus:border-primary"
                 >
                     <svg class="w-4 h-4 mr-1.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12" />
@@ -537,11 +541,12 @@
                             <div class="flex items-center gap-4">
                                 <!-- Page size selector -->
                                 <div class="flex items-center gap-2">
-                                    <label class="text-sm text-fg-muted dark:text-dark-fg-muted">Show:</label>
+                                    <label for="saga-page-size" class="text-sm text-fg-muted dark:text-dark-fg-muted">Show:</label>
                                     <select
+                                        id="saga-page-size"
                                         bind:value={itemsPerPage}
                                         on:change={() => { currentPage = 1; loadSagas(); }}
-                                        class="px-3 py-1.5 pr-8 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer"
+                                        class="px-3 py-1.5 pr-8 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer"
                                         style="background-image: url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 fill=%22none%22 viewBox=%220 0 20 20%22><path stroke=%22%236b7280%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22 stroke-width=%221.5%22 d=%22M6 8l4 4 4-4%22/></svg>'); background-repeat: no-repeat; background-position: right 0.5rem center; background-size: 16px;"
                                     >
                                         <option value={10}>10</option>
@@ -627,7 +632,7 @@
 
 <!-- Saga Detail Modal -->
 {#if showDetailModal && selectedSaga}
-    <div class="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 z-50 flex items-center justify-center p-2 sm:p-4">
+    <div class="fixed inset-0 bg-black/50 dark:bg-black/70 z-50 flex items-center justify-center p-2 sm:p-4">
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden">
             <div class="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
                 <h2 class="text-lg sm:text-xl font-semibold text-gray-900 dark:text-gray-100">Saga Details</h2>

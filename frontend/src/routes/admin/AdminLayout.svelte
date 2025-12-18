@@ -1,7 +1,7 @@
 <script>
     import { link, navigate } from 'svelte-routing';
     import { onMount } from 'svelte';
-    import { addNotification } from '../../stores/notifications';
+    import { addToast } from '../../stores/toastStore';
     import { isAuthenticated, username, userRole, verifyAuth } from '../../stores/auth';
     import { get } from 'svelte/store';
     import Spinner from '../../components/Spinner.svelte';
@@ -37,14 +37,14 @@
                 const currentPath = window.location.pathname + window.location.search + window.location.hash;
                 sessionStorage.setItem('redirectAfterLogin', currentPath);
                 
-                addNotification('Authentication required', 'error');
+                addToast('Authentication required', 'error');
                 navigate('/login');
                 return;
             }
             
             // Check for admin role
             if (currentRole !== 'admin') {
-                addNotification('Admin access required', 'error');
+                addToast('Admin access required', 'error');
                 navigate('/');
                 return;
             }
@@ -56,7 +56,7 @@
             const currentPath = window.location.pathname + window.location.search + window.location.hash;
             sessionStorage.setItem('redirectAfterLogin', currentPath);
             
-            addNotification('Authentication required', 'error');
+            addToast('Authentication required', 'error');
             navigate('/login');
         } finally {
             loading = false;

@@ -1,7 +1,7 @@
 <script>
     import { onMount, onDestroy } from 'svelte';
     import { api } from '../../lib/api';
-    import { addNotification } from '../../stores/notifications';
+    import { addToast } from '../../stores/toastStore';
     import AdminLayout from './AdminLayout.svelte';
     import Spinner from '../../components/Spinner.svelte';
     
@@ -94,7 +94,7 @@
             totalEvents = response?.total || 0;
         } catch (error) {
             console.error('Failed to load events:', error);
-            addNotification(`Failed to load events: ${error.message}`, 'error');
+            addToast(`Failed to load events: ${error.message}`, 'error');
             events = [];
             totalEvents = 0;
         } finally {
@@ -115,7 +115,7 @@
             const response = await api.get(`/api/v1/admin/events/${eventId}`);
             selectedEvent = response;
         } catch (error) {
-            addNotification(`Failed to load event detail: ${error.message}`, 'error');
+            addToast(`Failed to load event detail: ${error.message}`, 'error');
         }
     }
     
@@ -133,12 +133,12 @@
                 
                 // Show completion notification
                 if (status.status === 'completed') {
-                    addNotification(
+                    addToast(
                         `Replay completed! Processed ${status.replayed_events} events successfully.`, 
                         'success'
                     );
                 } else if (status.status === 'failed') {
-                    addNotification(
+                    addToast(
                         `Replay failed: ${status.error || 'Unknown error'}`, 
                         'error'
                     );
@@ -177,10 +177,10 @@
                     };
                     showReplayPreview = true;
                 } else {
-                    addNotification(`Dry run: ${response.total_events} events would be replayed`, 'info');
+                    addToast(`Dry run: ${response.total_events} events would be replayed`, 'info');
                 }
             } else {
-                addNotification(`Replay scheduled! Tracking progress...`, 'success');
+                addToast(`Replay scheduled! Tracking progress...`, 'success');
                 
                 // Start tracking replay progress
                 if (response.session_id) {
@@ -205,7 +205,7 @@
                 selectedEvent = null;
             }
         } catch (error) {
-            addNotification(`Failed to replay event: ${error.message}`, 'error');
+            addToast(`Failed to replay event: ${error.message}`, 'error');
         }
     }
     
@@ -216,7 +216,7 @@
         
         try {
             await api.delete(`/api/v1/admin/events/${eventId}`);
-            addNotification('Event deleted successfully', 'success');
+            addToast('Event deleted successfully', 'success');
             // Reload both events and stats to update counts
             await Promise.all([
                 loadEvents(),
@@ -224,7 +224,7 @@
             ]);
             selectedEvent = null;
         } catch (error) {
-            addNotification(`Failed to delete event: ${error.message}`, 'error');
+            addToast(`Failed to delete event: ${error.message}`, 'error');
         }
     }
     
@@ -259,9 +259,9 @@
                 window.open(`/api/v1/admin/events/export/json?${params.toString()}`, '_blank');
             }
             
-            addNotification(`Starting ${format.toUpperCase()} export...`, 'info');
+            addToast(`Starting ${format.toUpperCase()} export...`, 'info');
         } catch (error) {
-            addNotification(`Failed to export events: ${error.message}`, 'error');
+            addToast(`Failed to export events: ${error.message}`, 'error');
         }
     }
 
@@ -276,7 +276,7 @@
             userOverview = data;
         } catch (error) {
             console.error('Failed to load user overview:', error);
-            addNotification(`Failed to load user overview: ${error.message}`, 'error');
+            addToast(`Failed to load user overview: ${error.message}`, 'error');
             showUserOverview = false;
         } finally {
             userOverviewLoading = false;
@@ -685,10 +685,11 @@
                         <!-- Primary filters row -->
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                             <div class="lg:col-span-1">
-                                <label class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                                <label for="event-types-filter" class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
                                     Event Types
                                 </label>
                                 <select
+                                    id="event-types-filter"
                                     bind:value={filters.event_types}
                                     multiple
                                     class="form-select-standard text-sm h-20"
@@ -699,48 +700,52 @@
                                     {/each}
                                 </select>
                             </div>
-                            
+
                             <div>
-                                <label class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                                <label for="search-filter" class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
                                     Search
                                 </label>
                                 <input
+                                    id="search-filter"
                                     type="text"
                                     bind:value={filters.search_text}
                                     placeholder="Search events..."
                                     class="form-input-standard text-sm"
                                 />
                             </div>
-                            
+
                             <div>
-                                <label class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                                <label for="correlation-filter" class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
                                     Correlation ID
                                 </label>
                                 <input
+                                    id="correlation-filter"
                                     type="text"
                                     bind:value={filters.correlation_id}
                                     placeholder="req_abc123"
                                     class="form-input-standard text-sm font-mono"
                                 />
                             </div>
-                            
+
                             <div>
-                                <label class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                                <label for="aggregate-filter" class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
                                     Aggregate ID
                                 </label>
                                 <input
+                                    id="aggregate-filter"
                                     type="text"
                                     bind:value={filters.aggregate_id}
                                     placeholder="exec_id"
                                     class="form-input-standard text-sm font-mono"
                                 />
                             </div>
-                            
+
                             <div>
-                                <label class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                                <label for="user-filter" class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
                                     User ID
                                 </label>
                                 <input
+                                    id="user-filter"
                                     type="text"
                                     bind:value={filters.user_id}
                                     placeholder="user_123"
@@ -752,33 +757,36 @@
                         <!-- Secondary filters row - collapsible on mobile -->
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                             <div>
-                                <label class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                                <label for="service-filter" class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
                                     Service
                                 </label>
                                 <input
+                                    id="service-filter"
                                     type="text"
                                     bind:value={filters.service_name}
                                     placeholder="execution-service"
                                     class="form-input-standard text-sm"
                                 />
                             </div>
-                            
+
                             <div>
-                                <label class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                                <label for="start-time-filter" class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
                                     Start Time
                                 </label>
                                 <input
+                                    id="start-time-filter"
                                     type="datetime-local"
                                     bind:value={filters.start_time}
                                     class="form-input-standard text-sm"
                                 />
                             </div>
-                            
+
                             <div>
-                                <label class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                                <label for="end-time-filter" class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
                                     End Time
                                 </label>
                                 <input
+                                    id="end-time-filter"
                                     type="datetime-local"
                                     bind:value={filters.end_time}
                                     class="form-input-standard text-sm"
@@ -815,6 +823,10 @@
                                 <tr
                                     class="hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer transition-colors border-b border-border-default dark:border-dark-border-default"
                                     on:click={() => loadEventDetail(event.event_id)}
+                                    on:keydown={(e) => e.key === 'Enter' && loadEventDetail(event.event_id)}
+                                    tabindex="0"
+                                    role="button"
+                                    aria-label="View event details"
                                 >
                                     <td class="px-3 py-2 text-sm text-fg-default dark:text-dark-fg-default">
                                         <div class="text-xs text-fg-muted dark:text-dark-fg-muted">
@@ -826,7 +838,7 @@
                                     </td>
                                     <td class="px-3 py-2 text-sm text-fg-default dark:text-dark-fg-default">
                                         <div class="relative group">
-                                            <span class={`${getEventTypeColor(event.event_type)} flex-shrink-0 cursor-help`}>
+                                            <span class={`${getEventTypeColor(event.event_type)} shrink-0 cursor-help`}>
                                                 {@html getEventTypeIcon(event.event_type)}
                                             </span>
                                             <!-- Tooltip on hover -->
@@ -902,15 +914,19 @@
                 <!-- Mobile view - Cards -->
                 <div class="md:hidden space-y-3">
                     {#each events || [] as event}
-                        <div 
+                        <div
                             class="mobile-card"
                             on:click={() => loadEventDetail(event.event_id)}
+                            on:keydown={(e) => e.key === 'Enter' && loadEventDetail(event.event_id)}
+                            tabindex="0"
+                            role="button"
+                            aria-label="View event details"
                         >
                             <div class="flex justify-between items-start mb-2">
                                 <div class="flex-1 min-w-0">
                                     <div class="flex items-center gap-2">
                                         <div class="relative group">
-                                            <span class={`${getEventTypeColor(event.event_type)} flex-shrink-0 cursor-help`}>
+                                            <span class={`${getEventTypeColor(event.event_type)} shrink-0 cursor-help`}>
                                                 {@html getEventTypeIcon(event.event_type)}
                                             </span>
                                             <!-- Mobile tooltip -->
@@ -1005,11 +1021,12 @@
                             <div class="flex items-center gap-4">
                                 <!-- Page size selector -->
                                 <div class="flex items-center gap-2">
-                                    <label class="text-sm text-fg-muted dark:text-dark-fg-muted">Show:</label>
+                                    <label for="events-page-size" class="text-sm text-fg-muted dark:text-dark-fg-muted">Show:</label>
                                     <select
+                                        id="events-page-size"
                                         bind:value={pageSize}
                                         on:change={() => { currentPage = 1; loadEvents(); }}
-                                        class="px-3 py-1.5 pr-8 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer"
+                                        class="px-3 py-1.5 pr-8 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer"
                                         style="background-image: url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 fill=%22none%22 viewBox=%220 0 20 20%22><path stroke=%22%236b7280%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22 stroke-width=%221.5%22 d=%22M6 8l4 4 4-4%22/></svg>'); background-repeat: no-repeat; background-position: right 0.5rem center; background-size: 16px;"
                                     >
                                         <option value={10}>10</option>
@@ -1094,7 +1111,13 @@
 
     {#if selectedEvent}
         <div class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center min-h-screen p-4 sm:p-6">
-            <div class="fixed inset-0 bg-black bg-opacity-50" on:click={() => selectedEvent = null}></div>
+            <button
+                class="fixed inset-0 bg-black/50 border-none cursor-default"
+                on:click={() => selectedEvent = null}
+                on:keydown={(e) => e.key === 'Escape' && (selectedEvent = null)}
+                aria-label="Close modal"
+                tabindex="-1"
+            ></button>
             <div class="relative inline-block align-middle bg-bg-alt dark:bg-dark-bg-alt rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:max-w-4xl sm:w-full max-h-[90vh] overflow-y-auto p-6">
                 <h3 class="font-bold text-lg mb-4">Event Details</h3>
                 
@@ -1111,7 +1134,7 @@
                                     <td class="px-4 py-2 font-semibold text-fg-default dark:text-dark-fg-default">Event Type</td>
                                     <td class="px-4 py-2">
                                         <div class="flex items-center gap-2">
-                                            <span class={`${getEventTypeColor(selectedEvent.event.event_type)} flex-shrink-0`} title={selectedEvent.event.event_type}>
+                                            <span class={`${getEventTypeColor(selectedEvent.event.event_type)} shrink-0`} title={selectedEvent.event.event_type}>
                                                 {@html getEventTypeIcon(selectedEvent.event.event_type)}
                                             </span>
                                             <span class={getEventTypeColor(selectedEvent.event.event_type)}>
@@ -1287,8 +1310,15 @@
 
     <!-- User Overview Modal -->
     {#if showUserOverview}
-        <div class="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center p-4 z-50" on:click={() => showUserOverview = false}>
-            <div class="bg-white dark:bg-neutral-900 rounded-lg shadow-xl w-full max-w-3xl" on:click|stopPropagation>
+        <div class="fixed inset-0 flex items-center justify-center p-4 z-50">
+            <button
+                class="fixed inset-0 bg-black/50 dark:bg-black/70 border-none cursor-default"
+                on:click={() => showUserOverview = false}
+                on:keydown={(e) => e.key === 'Escape' && (showUserOverview = false)}
+                aria-label="Close modal"
+                tabindex="-1"
+            ></button>
+            <div class="relative bg-white dark:bg-neutral-900 rounded-lg shadow-xl w-full max-w-3xl">
                 <div class="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
                     <h2 class="text-xl font-semibold text-gray-900 dark:text-white">User Overview</h2>
                 </div>

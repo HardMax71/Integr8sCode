@@ -95,10 +95,10 @@
 
 </script>
 
-<header class="fixed top-0 left-0 right-0 bg-bg-alt/80 dark:bg-dark-bg-alt/80 backdrop-blur-md border-b border-border-default dark:border-dark-border-default shadow-sm z-50 transition-colors duration-300 h-16">
+<header class="fixed top-0 left-0 right-0 bg-bg-alt/80 dark:bg-dark-bg-alt/80 backdrop-blur-md border-b border-border-default dark:border-dark-border-default shadow-xs z-50 transition-colors duration-300 h-16">
   <div class="app-container h-full">
     <nav class="flex items-center justify-between h-full">
-      <div class="flex items-center flex-shrink-0">
+      <div class="flex items-center shrink-0">
         <Link to="/" on:click={closeMenu} class="flex items-center space-x-2 group">
           <img src="/favicon.png" alt="Integr8sCode Logo" class={logoImgClass} />
           <span class="font-semibold text-xl tracking-tight text-fg-default dark:text-dark-fg-default group-hover:text-primary dark:group-hover:text-primary-light transition-colors duration-200">
@@ -141,12 +141,12 @@
               </button>
               
               {#if showUserDropdown}
-                <div class="absolute right-0 mt-2 w-[min(92vw,360px)] min-w-[260px] bg-bg-default dark:bg-dark-bg-default rounded-md shadow-lg ring-1 ring-black ring-opacity-5 dark:ring-white dark:ring-opacity-10 z-50"
+                <div class="absolute right-0 mt-2 w-[min(92vw,360px)] min-w-[260px] bg-bg-default dark:bg-dark-bg-default rounded-md shadow-lg ring-1 ring-black/5 dark:ring-white/10 z-50"
                      in:fade={{ duration: 150 }}
                      out:fade={{ duration: 100 }}>
                   <div class="p-3">
                     <div class="flex items-center gap-3">
-                      <div class="w-7 h-7 rounded-full bg-primary/20 dark:bg-primary/30 flex items-center justify-center flex-shrink-0">
+                      <div class="w-7 h-7 rounded-full bg-primary/20 dark:bg-primary/30 flex items-center justify-center shrink-0">
                         <span class="text-xs font-semibold text-primary dark:text-primary-light">
                           {$username.charAt(0).toUpperCase()}
                         </span>

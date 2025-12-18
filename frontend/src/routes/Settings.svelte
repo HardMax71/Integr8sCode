@@ -3,7 +3,7 @@
     import { api } from '../lib/api';
     import { isAuthenticated, username } from '../stores/auth';
     import { theme as themeStore } from '../stores/theme';
-    import { addNotification } from '../stores/notifications';
+    import { addToast } from '../stores/toastStore';
     import { get } from 'svelte/store';
     import { fly } from 'svelte/transition';
     import { setCachedSettings, updateCachedSetting } from '../lib/settings-cache';
@@ -137,9 +137,9 @@
             };
         } catch (error) {
             if (error.name === 'AbortError') {
-                addNotification('Loading settings timed out. Please refresh the page.', 'error');
+                addToast('Loading settings timed out. Please refresh the page.', 'error');
             } else {
-                addNotification('Failed to load settings. Using defaults.', 'error');
+                addToast('Failed to load settings. Using defaults.', 'error');
                 // Use default settings if load fails
                 settings = {};
             }
@@ -187,7 +187,7 @@
             }
             
             if (Object.keys(updates).length === 0) {
-                addNotification('No changes to save', 'info');
+                addToast('No changes to save', 'info');
                 return;
             }
             
@@ -209,12 +209,12 @@
             
             // Theme is already saved by the theme store when changed in dropdown
             
-            addNotification('Settings saved successfully', 'success');
+            addToast('Settings saved successfully', 'success');
             
             // Don't reload settings after save - we already have the updated data
         } catch (error) {
             console.error('Settings save error:', error);
-            addNotification('Failed to save settings', 'error');
+            addToast('Failed to save settings', 'error');
         } finally {
             saving = false;
         }
@@ -282,9 +282,9 @@
             historyCacheTime = Date.now();
         } catch (error) {
             if (error.name === 'AbortError') {
-                addNotification('Loading history timed out. Please try again.', 'error');
+                addToast('Loading history timed out. Please try again.', 'error');
             } else {
-                addNotification('Failed to load settings history', 'error');
+                addToast('Failed to load settings history', 'error');
             }
             history = [];
         } finally {
@@ -315,9 +315,9 @@
             }
             
             showHistory = false;
-            addNotification('Settings restored successfully', 'success');
+            addToast('Settings restored successfully', 'success');
         } catch (error) {
-            addNotification('Failed to restore settings', 'error');
+            addToast('Failed to restore settings', 'error');
         }
     }
     
@@ -366,7 +366,7 @@
                     class="flex-1 px-4 py-2 text-sm font-medium rounded-md transition-all duration-200"
                     class:bg-white={activeTab === tab.id}
                     class:dark:bg-neutral-700={activeTab === tab.id}
-                    class:shadow-sm={activeTab === tab.id}
+                    class:shadow-xs={activeTab === tab.id}
                     class:text-primary={activeTab === tab.id}
                     class:dark:text-primary-light={activeTab === tab.id}
                     class:text-fg-muted={activeTab !== tab.id}
@@ -386,11 +386,11 @@
                     <h2 class="text-xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">General Settings</h2>
                     
                     <div class="form-control">
-                        <label class="block mb-2">
+                        <label for="theme-select" class="block mb-2">
                             <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default">Theme</span>
                         </label>
                         <div class="relative dropdown-container">
-                            <button on:click={() => showThemeDropdown = !showThemeDropdown}
+                            <button id="theme-select" on:click={() => showThemeDropdown = !showThemeDropdown}
                                     class="form-dropdown-button"
                                     aria-expanded={showThemeDropdown}>
                                 <span class="truncate">{themes.find(t => t.value === formData.theme)?.label || 'Select theme'}</span>
@@ -430,11 +430,11 @@
                     
                     <div class="flex flex-wrap gap-4">
                         <div class="form-control flex-1 min-w-[150px]">
-                            <label class="block mb-2">
+                            <label for="editor-theme-select" class="block mb-2">
                                 <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default">Editor Theme</span>
                             </label>
                             <div class="relative dropdown-container">
-                                <button on:click={() => showEditorThemeDropdown = !showEditorThemeDropdown}
+                                <button id="editor-theme-select" on:click={() => showEditorThemeDropdown = !showEditorThemeDropdown}
                                         class="form-dropdown-button"
                                         aria-expanded={showEditorThemeDropdown}>
                                     <span class="truncate">{editorThemes.find(t => t.value === formData.editor.theme)?.label || 'Select theme'}</span>
@@ -463,10 +463,11 @@
                         </div>
                         
                         <div class="form-control flex-1 min-w-[100px]">
-                            <label class="block mb-2">
+                            <label for="font-size" class="block mb-2">
                                 <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default">Font Size</span>
                             </label>
                             <input
+                                id="font-size"
                                 type="number"
                                 bind:value={formData.editor.font_size}
                                 min="10"
@@ -476,10 +477,11 @@
                         </div>
                         
                         <div class="form-control flex-1 min-w-[100px]">
-                            <label class="block mb-2">
+                            <label for="tab-size" class="block mb-2">
                                 <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default">Tab Size</span>
                             </label>
                             <input
+                                id="tab-size"
                                 type="number"
                                 bind:value={formData.editor.tab_size}
                                 min="2"
@@ -591,7 +593,7 @@
 
 {#if showHistory}
     <div class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
-        <div class="fixed inset-0 bg-black bg-opacity-50" on:click={() => showHistory = false}></div>
+        <button class="fixed inset-0 bg-black/50 cursor-default" on:click={() => showHistory = false} aria-label="Close modal"></button>
         <div class="relative inline-block align-bottom bg-bg-alt dark:bg-dark-bg-alt rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
             <div class="p-6">
                 <h3 class="text-lg font-semibold text-fg-default dark:text-dark-fg-default mb-4">Settings History</h3>

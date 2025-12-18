@@ -1,42 +1,91 @@
 /* Import Google Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;500;600;700&display=swap');
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Tailwind CSS v4 */
+@import "tailwindcss";
+
+/* Forms plugin */
+@plugin "@tailwindcss/forms" {
+  strategy: class;
+}
+
+/* Dark mode variant (class-based) */
+@variant dark (&:where(.dark, .dark *));
+
+/* Theme configuration */
+@theme {
+  /* Primary - Blue */
+  --color-primary-light: #60a5fa;
+  --color-primary: #3b82f6;
+  --color-primary-dark: #2563eb;
+
+  /* Secondary - Teal */
+  --color-secondary-light: #5eead4;
+  --color-secondary: #14b8a6;
+  --color-secondary-dark: #0f766e;
+
+  /* Semantic Colors - Light */
+  --color-bg-default: #f8fafc;
+  --color-bg-alt: #ffffff;
+  --color-bg-sidebar: #f1f5f9;
+  --color-fg-default: #1e293b;
+  --color-fg-muted: #64748b;
+  --color-fg-subtle: #94a3b8;
+  --color-border-default: #e2e8f0;
+  --color-border-input: #cbd5e1;
+  --color-focus-ring: #93c5fd;
+
+  /* Semantic Colors - Dark */
+  --color-dark-bg-default: #0f172a;
+  --color-dark-bg-alt: #1e293b;
+  --color-dark-bg-sidebar: #020617;
+  --color-dark-fg-default: #e2e8f0;
+  --color-dark-fg-muted: #94a3b8;
+  --color-dark-fg-subtle: #64748b;
+  --color-dark-border-default: #334155;
+  --color-dark-border-input: #475569;
+  --color-dark-focus-ring: #3b82f6;
+
+  --color-code-bg: #0f172a;
+
+  /* Font Families */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+  --font-mono: 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+
+  /* Custom Shadow */
+  --shadow-input-focus: 0 0 0 3px var(--tw-shadow-color);
+
+  /* Custom Timing Function */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Animations */
+  --animate-fadeIn: fadeIn 0.3s ease-out;
+  --animate-flyIn: flyIn 0.3s var(--ease-out-expo);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes flyIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
 /* Import component styles */
 @import './styles/components.css';
 
-@layer utilities {
-  /* Animation utilities for consistent transitions */
-  .animate-fadeIn {
-    animation: fadeIn 0.3s ease-in-out;
-  }
-  
-  .animate-flyIn {
-    animation: flyIn 0.3s ease-out;
-  }
-  
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-  
-  @keyframes flyIn {
-    from {
-      opacity: 0;
-      transform: translateY(10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
+/* Import page-specific styles */
+@import './styles/pages.css';
+
+/* Custom utilities */
+@utility animate-fadeIn {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@utility animate-flyIn {
+  animation: flyIn 0.3s ease-out;
 }
 
 @layer base {
@@ -53,7 +102,7 @@
   [type='search'],
   textarea,
   select {
-    @apply form-input border-border-input dark:border-dark-border-input bg-bg-alt dark:bg-dark-bg-alt dark:text-dark-fg-default focus:border-primary dark:focus:border-primary focus:ring focus:ring-focus-ring dark:focus:ring-dark-focus-ring focus:ring-opacity-50 rounded-md shadow-sm text-sm;
+    @apply form-input border-border-input dark:border-dark-border-input bg-bg-alt dark:bg-dark-bg-alt dark:text-dark-fg-default focus:border-primary dark:focus:border-primary focus:ring-3 focus:ring-focus-ring/50 dark:focus:ring-dark-focus-ring/50 rounded-md shadow-xs text-sm;
   }
    [type='text']:disabled,
    [type='email']:disabled,
@@ -125,7 +174,7 @@
 @layer components {
   /* Reusable Button Styles */
   .btn {
-    @apply inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-dark-bg-default transition-all duration-150 ease-in-out disabled:opacity-60 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-xs focus:outline-hidden focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-dark-bg-default transition-all duration-150 ease-in-out disabled:opacity-60 disabled:cursor-not-allowed;
   }
   .btn-sm {
     @apply px-3 py-1.5 text-xs rounded; /* Smaller padding/text/radius */
@@ -175,181 +224,286 @@
   .input-group > :not(:first-child) {
      @apply rounded-l-none;
   }
-  
+
   /* Stacked Input Group (for login/register forms) */
   .input-group-stacked {
-    @apply rounded-md shadow-sm -space-y-px;
+    @apply rounded-md shadow-xs -space-y-px;
   }
-  
+
   .input-group-stacked > div:first-child input {
     @apply rounded-t-md rounded-b-none;
   }
-  
+
   .input-group-stacked > div:last-child input {
     @apply rounded-b-md rounded-t-none;
   }
-  
+
   .input-group-stacked > div:not(:first-child):not(:last-child) input {
     @apply rounded-none;
   }
-  
+
   .input-group-stacked input {
-    @apply appearance-none relative block w-full px-3 py-2 border 
+    @apply appearance-none relative block w-full px-3 py-2 border
            border-neutral-300 dark:border-dark-border-input
-           placeholder-fg-subtle dark:placeholder-dark-fg-subtle 
-           text-fg-default dark:text-dark-fg-default 
-           focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm;
+           placeholder-fg-subtle dark:placeholder-dark-fg-subtle
+           text-fg-default dark:text-dark-fg-default
+           focus:outline-hidden focus:ring-primary focus:border-primary focus:z-10 sm:text-sm;
   }
-  
+
   /* Form Control Styles */
   .form-control {
     @apply space-y-1;
   }
-  
+
   .form-control label {
     @apply block text-sm font-medium text-fg-default dark:text-dark-fg-default;
   }
-  
+
   /* Multi-select styles */
   .form-select-standard[multiple] {
     @apply overflow-y-auto;
   }
-  
+
   .form-select-standard[multiple] option {
     @apply px-2 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-700;
   }
-  
+
   .form-select-standard[multiple] option:checked {
     @apply bg-primary/20 dark:bg-primary/30 font-medium;
   }
-  
+
   /* Standard Input Styles */
   .form-input-standard {
-    @apply w-full px-3 py-1.5 text-sm border border-neutral-300 dark:border-dark-border-input 
-           bg-white dark:bg-dark-bg-alt text-fg-default dark:text-dark-fg-default 
-           rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary 
+    @apply w-full px-3 py-1.5 text-sm border border-neutral-300 dark:border-dark-border-input
+           bg-white dark:bg-dark-bg-alt text-fg-default dark:text-dark-fg-default
+           rounded-md focus:outline-hidden focus:ring-2 focus:ring-primary focus:border-primary
            hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors;
   }
-  
+
   .form-input-standard:disabled {
     @apply bg-neutral-100 dark:bg-neutral-700 opacity-70 cursor-not-allowed hover:bg-neutral-100 dark:hover:bg-neutral-700;
   }
-  
+
   /* Number Input with Spinner Controls */
   .form-input-number {
-    @apply form-input-standard;
+    @apply w-full px-3 py-1.5 text-sm border border-neutral-300 dark:border-dark-border-input
+           bg-white dark:bg-dark-bg-alt text-fg-default dark:text-dark-fg-default
+           rounded-md focus:outline-hidden focus:ring-2 focus:ring-primary focus:border-primary
+           hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors;
   }
-  
+
   /* Textarea Styles */
   .form-textarea {
-    @apply form-input-standard resize-y min-h-[80px];
+    @apply w-full px-3 py-1.5 text-sm border border-neutral-300 dark:border-dark-border-input
+           bg-white dark:bg-dark-bg-alt text-fg-default dark:text-dark-fg-default
+           rounded-md focus:outline-hidden focus:ring-2 focus:ring-primary focus:border-primary
+           hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors resize-y min-h-[80px];
   }
-  
+
   /* Select/Dropdown Styles */
   .form-select-standard {
-    @apply w-full px-3 py-1.5 text-sm border border-neutral-300 dark:border-dark-border-input 
-           bg-white dark:bg-dark-bg-alt text-fg-default dark:text-dark-fg-default 
-           rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary 
+    @apply w-full px-3 py-1.5 text-sm border border-neutral-300 dark:border-dark-border-input
+           bg-white dark:bg-dark-bg-alt text-fg-default dark:text-dark-fg-default
+           rounded-md focus:outline-hidden focus:ring-2 focus:ring-primary focus:border-primary
            hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors pr-10 cursor-pointer;
   }
-  
+
   /* Custom Dropdown Button */
   .form-dropdown-button {
     @apply w-full flex items-center justify-between text-left
-           px-3 py-1.5 text-sm border border-neutral-300 dark:border-dark-border-input 
-           bg-white dark:bg-dark-bg-alt text-fg-default dark:text-dark-fg-default 
-           rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary 
+           px-3 py-1.5 text-sm border border-neutral-300 dark:border-dark-border-input
+           bg-white dark:bg-dark-bg-alt text-fg-default dark:text-dark-fg-default
+           rounded-md focus:outline-hidden focus:ring-2 focus:ring-primary focus:border-primary
            hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors cursor-pointer;
   }
-  
+
   .form-dropdown-button svg {
-    @apply w-5 h-5 ml-2 flex-shrink-0 text-fg-muted dark:text-dark-fg-muted transform transition-transform;
+    @apply w-5 h-5 ml-2 shrink-0 text-fg-muted dark:text-dark-fg-muted transform transition-transform;
   }
-  
+
   .form-dropdown-button[aria-expanded="true"] svg {
     @apply -rotate-180;
   }
-  
+
   /* Dropdown Menu */
   .form-dropdown-menu {
-    @apply absolute top-full mt-1 w-full bg-bg-alt dark:bg-dark-bg-alt 
-           rounded-lg shadow-xl ring-1 ring-black ring-opacity-5 
-           dark:ring-white dark:ring-opacity-10 z-30;
+    @apply absolute top-full mt-1 w-full bg-bg-alt dark:bg-dark-bg-alt
+           rounded-lg shadow-xl ring-1 ring-black/5
+           dark:ring-white/10 z-30;
   }
-  
+
   .form-dropdown-menu ul {
     @apply py-1;
   }
-  
+
   .form-dropdown-menu li button {
-    @apply w-full text-left px-3 py-2 text-sm hover:bg-neutral-100 
+    @apply w-full text-left px-3 py-2 text-sm hover:bg-neutral-100
            dark:hover:bg-neutral-700/60 transition-colors duration-100
            text-fg-default dark:text-dark-fg-default;
   }
-  
+
   .form-dropdown-menu li button.selected {
     @apply text-primary dark:text-primary-light font-semibold;
   }
-  
+
   /* Checkbox and Radio Styles */
   .form-checkbox-standard,
   .form-radio-standard {
     @apply form-checkbox rounded text-primary focus:ring-primary focus:ring-2;
   }
-  
+
   .form-radio-standard {
     @apply rounded-full;
   }
-  
+
   /* Toggle/Switch Style */
   .form-toggle {
     @apply relative inline-flex h-6 w-11 items-center rounded-full transition-colors
-           focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2
+           focus:outline-hidden focus:ring-2 focus:ring-primary focus:ring-offset-2
            dark:focus:ring-offset-dark-bg-default cursor-pointer;
   }
-  
+
   .form-toggle.checked {
     @apply bg-primary;
   }
-  
+
   .form-toggle:not(.checked) {
     @apply bg-neutral-200 dark:bg-neutral-600;
   }
-  
+
   .form-toggle-handle {
-    @apply inline-block h-5 w-5 transform rounded-full bg-white transition-transform shadow-sm;
+    @apply inline-block h-5 w-5 transform rounded-full bg-white transition-transform shadow-xs;
   }
-  
+
   .form-toggle.checked .form-toggle-handle {
     @apply translate-x-5;
   }
-  
+
   .form-toggle:not(.checked) .form-toggle-handle {
     @apply translate-x-0;
   }
-  
+
   /* Date Input Styles */
   .form-input-date {
-    @apply form-input-standard;
+    @apply w-full px-3 py-1.5 text-sm border border-neutral-300 dark:border-dark-border-input
+           bg-white dark:bg-dark-bg-alt text-fg-default dark:text-dark-fg-default
+           rounded-md focus:outline-hidden focus:ring-2 focus:ring-primary focus:border-primary
+           hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors;
   }
-  
+
   /* Error State Styles */
   .form-input-error {
     @apply border-red-500 dark:border-red-400 focus:ring-red-500 focus:border-red-500;
   }
-  
+
   .form-error-message {
     @apply text-sm text-red-600 dark:text-red-400 mt-1;
   }
-  
+
   /* Helper Text */
   .form-helper-text {
     @apply text-sm text-fg-muted dark:text-dark-fg-muted mt-1;
   }
-  
+
   /* Label with Required Indicator */
   .form-label-required::after {
     content: " *";
     @apply text-red-500;
+  }
+
+  /* ==========================================================================
+     Editor Component Styles
+     ========================================================================== */
+
+  /* Bare input (no border/background) for inline editing */
+  .form-input-bare {
+    @apply bg-transparent border-0 focus:ring-0 w-full text-sm font-medium
+           text-fg-default dark:text-dark-fg-default
+           placeholder-fg-muted dark:placeholder-dark-fg-muted;
+  }
+
+  /* Output container for code execution results */
+  .output-container {
+    @apply bg-bg-alt dark:bg-dark-bg-alt border border-border-default
+           dark:border-dark-border-default rounded-lg p-4 w-full
+           overflow-hidden shadow-xs;
+  }
+
+  /* Preformatted output text */
+  .output-pre {
+    @apply bg-bg-default dark:bg-dark-bg-default p-3 rounded border
+           border-border-default dark:border-dark-border-default text-xs
+           font-mono whitespace-pre-wrap break-words max-h-[40vh] overflow-auto;
+    padding-right: 3rem; /* Space for copy button */
+  }
+
+  /* Output scrollbar styling */
+  .output-content,
+  .output-pre,
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: #9ca3af #e5e7eb; /* neutral-400 neutral-200 */
+  }
+
+  .output-content::-webkit-scrollbar,
+  .output-pre::-webkit-scrollbar,
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .output-content::-webkit-scrollbar-track,
+  .output-pre::-webkit-scrollbar-track,
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-neutral-100 dark:bg-neutral-800 rounded;
+    margin-right: 2px;
+  }
+
+  .output-content::-webkit-scrollbar-thumb,
+  .output-pre::-webkit-scrollbar-thumb,
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-neutral-300 dark:bg-neutral-600 rounded;
+  }
+
+  .output-content::-webkit-scrollbar-thumb:hover,
+  .output-pre::-webkit-scrollbar-thumb:hover,
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-neutral-400 dark:bg-neutral-500;
+  }
+
+  /* Output section positioning */
+  .output-section .relative {
+    overflow: visible;
+  }
+
+  .output-section .group,
+  .relative .group {
+    z-index: 10;
+  }
+
+  /* ==========================================================================
+     Prose/Typography Styles (Privacy, Terms, etc.)
+     ========================================================================== */
+
+  .prose-page h2 {
+    @apply mt-8 mb-4;
+  }
+
+  .prose-page p {
+    @apply mb-4;
+  }
+
+  .prose-page section {
+    @apply mb-6;
+  }
+
+  /* ==========================================================================
+     Admin Component Styles
+     ========================================================================== */
+
+  /* Small input variant for admin tables */
+  .input-sm {
+    @apply px-2 py-1 text-sm border border-gray-300 dark:border-gray-600
+           rounded bg-white dark:bg-gray-700 text-fg-default dark:text-dark-fg-default;
   }
 }

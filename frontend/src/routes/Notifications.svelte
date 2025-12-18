@@ -3,7 +3,7 @@
     import { navigate } from 'svelte-routing';
     import { api } from '../lib/api';
     import { isAuthenticated, verifyAuth } from '../stores/auth';
-    import { addNotification } from '../stores/notifications';
+    import { addToast } from '../stores/toastStore';
     import { notificationStore, notifications, unreadCount } from '../stores/notificationStore';
     import { get } from 'svelte/store';
     import { fly } from 'svelte/transition';
@@ -53,9 +53,9 @@
         deleting[id] = true;
         const success = await notificationStore.delete(id);
         if (success) {
-            addNotification('Notification deleted', 'success');
+            addToast('Notification deleted', 'success');
         } else {
-            addNotification('Failed to delete notification', 'error');
+            addToast('Failed to delete notification', 'error');
         }
         deleting[id] = false;
     }
@@ -68,9 +68,9 @@
     async function markAllAsRead() {
         const success = await notificationStore.markAllAsRead();
         if (success) {
-            addNotification('All notifications marked as read', 'success');
+            addToast('All notifications marked as read', 'success');
         } else {
-            addNotification('Failed to mark all as read', 'error');
+            addToast('Failed to mark all as read', 'error');
         }
     }
 
@@ -132,18 +132,18 @@
         <div class="card p-4 mb-6">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <div>
-                    <label class="block text-sm text-fg-muted dark:text-dark-fg-muted mb-1">Include tags</label>
-                    <input class="input input-bordered w-full" placeholder="e.g. execution,completed"
+                    <label for="include-tags" class="block text-sm text-fg-muted dark:text-dark-fg-muted mb-1">Include tags</label>
+                    <input id="include-tags" class="input input-bordered w-full" placeholder="e.g. execution,completed"
                            bind:value={includeTagsInput}>
                 </div>
                 <div>
-                    <label class="block text-sm text-fg-muted dark:text-dark-fg-muted mb-1">Exclude tags</label>
-                    <input class="input input-bordered w-full" placeholder="e.g. external_alert"
+                    <label for="exclude-tags" class="block text-sm text-fg-muted dark:text-dark-fg-muted mb-1">Exclude tags</label>
+                    <input id="exclude-tags" class="input input-bordered w-full" placeholder="e.g. external_alert"
                            bind:value={excludeTagsInput}>
                 </div>
                 <div>
-                    <label class="block text-sm text-fg-muted dark:text-dark-fg-muted mb-1">Tag prefix</label>
-                    <input class="input input-bordered w-full" placeholder="e.g. exec:"
+                    <label for="tag-prefix" class="block text-sm text-fg-muted dark:text-dark-fg-muted mb-1">Tag prefix</label>
+                    <input id="tag-prefix" class="input input-bordered w-full" placeholder="e.g. exec:"
                            bind:value={prefixInput}>
                 </div>
                 <div class="flex items-end">
@@ -212,7 +212,7 @@
                                         
                                         <button
                                             on:click|stopPropagation={() => deleteNotification(notification.notification_id)}
-                                            class="btn btn-ghost btn-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900 dark:hover:bg-opacity-20 ml-4"
+                                            class="btn btn-ghost btn-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 ml-4"
                                             disabled={deleting[notification.notification_id]}
                                         >
                                             {#if deleting[notification.notification_id]}
@@ -228,7 +228,7 @@
                                                         href={`/api/v1/result/${(notification.tags || []).find(t => t.startsWith('exec:')).split(':')[1]}`}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        class="btn btn-ghost btn-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 dark:hover:bg-opacity-20 ml-2"
+                                                        class="btn btn-ghost btn-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 ml-2"
                                                         on:click|stopPropagation
                                                     >
                                                         View result

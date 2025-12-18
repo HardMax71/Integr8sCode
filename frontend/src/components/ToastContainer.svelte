@@ -1,6 +1,6 @@
 <script>
     import { onDestroy } from 'svelte';
-    import { notifications, removeNotification, NOTIFICATION_DURATION } from "../stores/notifications.js";
+    import { toasts, removeToast, TOAST_DURATION } from "../stores/toastStore.js";
     import { fly } from "svelte/transition";
 
     const checkCircleIcon = `<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>`;
@@ -11,44 +11,44 @@
 
     let timers = {};
 
-    function startTimer(notification) {
-        if (!notification || timers[notification.id]) return;
+    function startTimer(toast) {
+        if (!toast || timers[toast.id]) return;
 
         const start = Date.now();
-        if (notification.progress === undefined || notification.progress <= 0) {
-            notification.progress = 1;
+        if (toast.progress === undefined || toast.progress <= 0) {
+            toast.progress = 1;
         }
 
         const intervalId = setInterval(() => {
             const elapsed = Date.now() - start;
-            const currentDuration = NOTIFICATION_DURATION * (notification.progress ?? 1);
-            const progress = Math.max(0, (currentDuration - elapsed) / NOTIFICATION_DURATION);
+            const currentDuration = TOAST_DURATION * (toast.progress ?? 1);
+            const progress = Math.max(0, (currentDuration - elapsed) / TOAST_DURATION);
 
-            notification.progress = progress;
-            notifications.update(n => n);
+            toast.progress = progress;
+            toasts.update(n => n);
 
             if (progress <= 0) {
-                clearTimer(notification);
-                removeNotification(notification.id);
+                clearTimer(toast);
+                removeToast(toast.id);
             }
         }, 50);
 
-        timers[notification.id] = intervalId;
-        notification.timerStarted = true;
+        timers[toast.id] = intervalId;
+        toast.timerStarted = true;
     }
 
-    function clearTimer(notification) {
-        if (notification && timers[notification.id]) {
-            clearInterval(timers[notification.id]);
-            delete timers[notification.id];
+    function clearTimer(toast) {
+        if (toast && timers[toast.id]) {
+            clearInterval(timers[toast.id]);
+            delete timers[toast.id];
         }
     }
 
     $: {
         if (typeof window !== 'undefined') {
-            $notifications.forEach(notif => {
-                if (!notif.timerStarted && !timers[notif.id]) {
-                    startTimer(notif);
+            $toasts.forEach(toast => {
+                if (!toast.timerStarted && !timers[toast.id]) {
+                    startTimer(toast);
                 }
             });
         }
@@ -59,8 +59,8 @@
         timers = {};
     });
 
-    function getNotificationClasses(type) {
-        let base = "notification";
+    function getToastClasses(type) {
+        let base = "toast";
         switch (type) {
             case 'success':
                 return `${base} bg-green-50 border-green-200 text-green-800 dark:bg-green-950 dark:border-green-800 dark:text-green-200`;
@@ -75,7 +75,7 @@
     }
 
     function getIconClasses(type) {
-        let base = "flex-shrink-0 mr-3 pt-0.5";
+        let base = "shrink-0 mr-3 pt-0.5";
         switch (type) {
             case 'success': return `${base} text-green-400`;
             case 'error':   return `${base} text-red-400`;
@@ -86,7 +86,7 @@
     }
 
     function getButtonClasses(type) {
-        let base = "ml-3 -mr-1 -my-1 p-1 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-dark-bg-alt opacity-70 hover:opacity-100 transition-opacity";
+        let base = "ml-3 -mr-1 -my-1 p-1 rounded-md focus:outline-hidden focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-dark-bg-alt opacity-70 hover:opacity-100 transition-opacity";
         switch (type) {
             case 'success': return `${base} focus:ring-green-500 focus:ring-offset-green-50 dark:focus:ring-offset-green-950`;
             case 'error':   return `${base} focus:ring-red-500 focus:ring-offset-red-50 dark:focus:ring-offset-red-950`;
@@ -108,39 +108,39 @@
     }
 </script>
 
-<div class="notifications-container">
-    {#each $notifications as notification (notification.id)}
+<div class="toasts-container">
+    {#each $toasts as toast (toast.id)}
         <div
              role="alert"
-             class={getNotificationClasses(notification.type)}
+             class={getToastClasses(toast.type)}
              in:fly={{ x: 100, duration: 300, easing: (t) => 1 - Math.pow(1 - t, 3) }}
              out:fly={{ x: 100, opacity: 0, duration: 200, easing: (t) => t * t }}
-             on:mouseenter={() => clearTimer(notification)}
-             on:mouseleave={() => startTimer(notification)}
+             on:mouseenter={() => clearTimer(toast)}
+             on:mouseleave={() => startTimer(toast)}
         >
-            <div class={getIconClasses(notification.type)}>
-               {#if notification.type === 'success'} {@html checkCircleIcon}
-               {:else if notification.type === 'error'} {@html errorIcon}
-               {:else if notification.type === 'warning'} {@html warningIcon}
+            <div class={getIconClasses(toast.type)}>
+               {#if toast.type === 'success'} {@html checkCircleIcon}
+               {:else if toast.type === 'error'} {@html errorIcon}
+               {:else if toast.type === 'warning'} {@html warningIcon}
                {:else} {@html infoIcon} {/if}
             </div>
 
             <div class="flex-grow text-sm font-medium">
-                {notification.message}
+                {toast.message}
             </div>
 
             <button
-                    class={getButtonClasses(notification.type)}
-                    on:click={() => { clearTimer(notification); removeNotification(notification.id); }}
-                    aria-label="Close notification"
+                    class={getButtonClasses(toast.type)}
+                    on:click={() => { clearTimer(toast); removeToast(toast.id); }}
+                    aria-label="Close toast"
             >
                 {@html closeIcon}
             </button>
 
-            {#if notification.progress > 0}
+            {#if toast.progress > 0}
                 <div
-                        class={getTimerClasses(notification.type)}
-                        style="transform: scaleX({notification.progress || 0});"
+                        class={getTimerClasses(toast.type)}
+                        style="transform: scaleX({toast.progress || 0});"
                 ></div>
             {/if}
         </div>
@@ -148,7 +148,7 @@
 </div>
 
 <style>
-    .notifications-container {
+    .toasts-container {
         position: fixed;
         top: 5rem;
         right: 1.5rem;
@@ -158,7 +158,7 @@
         pointer-events: none;
     }
 
-    .notification {
+    .toast {
         position: relative;
         display: flex;
         align-items: flex-start;
@@ -181,7 +181,7 @@
      }
 
     @media (max-width: 640px) {
-        .notifications-container {
+        .toasts-container {
             top: 4.5rem;
             left: 1rem;
             right: 1rem;

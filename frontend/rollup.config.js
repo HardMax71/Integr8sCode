@@ -175,7 +175,7 @@ export default {
             module: true,
             compress: {
                 passes: 2,
-                pure_funcs: ['console.log']
+                drop_console: true
             },
             format: {
                 comments: false

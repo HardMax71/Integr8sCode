@@ -2,10 +2,9 @@
     import {onDestroy, onMount} from "svelte";
     import {fade, fly, slide} from "svelte/transition";
     import {get, writable} from "svelte/store";
-    import axios from "axios";
-    import {isAuthenticated, logout as authLogout, verifyAuth, csrfToken} from "../stores/auth.js";
-    import {apiCall, fetchWithRetry} from "../lib/api.js";
-    import {addNotification} from "../stores/notifications.js";
+        import {isAuthenticated, logout as authLogout, verifyAuth, csrfToken} from "../stores/auth.js";
+    import {api} from "../lib/api.js";
+    import {addToast} from "../stores/toastStore.js";
     import Spinner from "../components/Spinner.svelte";
     import {navigate} from "svelte-routing";
     import {Compartment, EditorState, StateEffect} from "@codemirror/state";
@@ -163,7 +162,7 @@
                 // the name of the script we have loaded, clear the ID.
                 if (associatedSavedScript && associatedSavedScript.name !== currentName) {
                     currentScriptId.set(null);
-                    addNotification('Script name changed. Next save will create a new script.', 'info');
+                    addToast('Script name changed. Next save will create a new script.', 'info');
                 }
             }
         }
@@ -245,8 +244,7 @@
         });
 
         try {
-            const limitsResponse = await axios.get(`/api/v1/k8s-limits`);
-            k8sLimits = limitsResponse.data;
+            k8sLimits = await api.get(`/api/v1/k8s-limits`);
             supportedRuntimes = k8sLimits?.supported_runtimes || {"python": ["3.9", "3.10", "3.11"]};
 
             const currentLang = get(selectedLang);
@@ -265,17 +263,17 @@
             }
         } catch (err) {
             apiError = "Failed to fetch resource limits.";
-            addNotification(apiError, "error");
+            addToast(apiError, "error");
             console.error("Error fetching K8s limits:", err);
             supportedRuntimes = {"python": ["3.9", "3.10", "3.11"]};
         }
 
         try {
-            const examplesResponse = await axios.get('/api/v1/example-scripts');
-            exampleScripts = examplesResponse.data.scripts || {};
+            const examplesResponse = await api.get('/api/v1/example-scripts');
+            exampleScripts = examplesResponse.scripts || {};
         } catch (err) {
             console.error("Error fetching example scripts:", err);
-            addNotification("Could not load example scripts.", "warning");
+            addToast("Could not load example scripts.", "warning");
         }
 
         // Delay initialization to ensure DOM is ready
@@ -421,7 +419,7 @@
             });
         } catch (e) {
             console.error("Failed to initialize CodeMirror:", e);
-            addNotification("Failed to load code editor.", "error");
+            addToast("Failed to load code editor.", "error");
         }
     }
 
@@ -542,12 +540,12 @@
             if (result?.status !== 'completed' && result?.status !== 'error' && result?.status !== 'failed' && result?.status !== 'timeout') {
                 const timeoutMessage = `Execution timed out waiting for a final status.`;
                 result = {status: 'error', errors: timeoutMessage, execution_id: executionId};
-                addNotification(timeoutMessage, 'warning');
+                addToast(timeoutMessage, 'warning');
             }
 
         } catch (err) {
             apiError = err.response?.data?.detail || "Error initiating script execution.";
-            addNotification(apiError, "error");
+            addToast(apiError, "error");
             result = {status: 'error', errors: apiError, execution_id: executionId};
             console.error("Error executing script:", err.response || err);
         } finally {
@@ -571,7 +569,7 @@
             }));
         } catch (err) {
             console.error("Error loading saved scripts:", err);
-            addNotification("Failed to load saved scripts. You might need to log in again.", "error");
+            addToast("Failed to load saved scripts. You might need to log in again.", "error");
             if (err.response?.status === 401) {
                 handleLogout();
             }
@@ -600,7 +598,7 @@
             },
             selection: {anchor: 0}
         });
-        addNotification(`Loaded script: ${scriptData.name}`, "info");
+        addToast(`Loaded script: ${scriptData.name}`, "info");
         showSavedScripts = false;
         showOptions = false;
         result = null;
@@ -609,12 +607,12 @@
 
     async function saveScript() {
         if (!authenticated) {
-            addNotification("Please log in to save scripts.", "warning");
+            addToast("Please log in to save scripts.", "warning");
             return;
         }
         const nameValue = get(scriptName);
         if (!nameValue.trim()) {
-            addNotification("Please provide a name for your script.", "warning");
+            addToast("Please provide a name for your script.", "warning");
             return;
         }
         const scriptValue = get(script);
@@ -642,7 +640,7 @@
                         numOfAttempts: 3,
                         maxDelay: 5000
                     });
-                    addNotification("Script updated successfully.", "success");
+                    addToast("Script updated successfully.", "success");
                 } catch (updateErr) {
                     // If update fails with 404, the script doesn't exist anymore
                     // Clear the currentScriptId and fallback to create operation
@@ -667,7 +665,7 @@
                             maxDelay: 5000
                         });
                         currentScriptId.set(data.id);
-                        addNotification("Script saved successfully.", "success");
+                        addToast("Script saved successfully.", "success");
                     } else {
                         throw updateErr;
                     }
@@ -689,12 +687,12 @@
                     maxDelay: 5000
                 });
                 currentScriptId.set(data.id);
-                addNotification("Script saved successfully.", "success");
+                addToast("Script saved successfully.", "success");
             }
             await loadSavedScripts();
         } catch (err) {
             console.error(`Error ${operation === 'update' ? 'updating' : 'saving'} script:`, err.response || err);
-            addNotification(`Failed to ${operation} script. Please try again.`, "error");
+            addToast(`Failed to ${operation} script. Please try again.`, "error");
             if (err.response?.status === 401) {
                 handleLogout();
             }
@@ -717,14 +715,14 @@
                 numOfAttempts: 3,
                 maxDelay: 5000
             });
-            addNotification("Script deleted successfully.", "success");
+            addToast("Script deleted successfully.", "success");
             if (get(currentScriptId) === scriptIdToDelete) {
                 newScript();
             }
             await loadSavedScripts();
         } catch (err) {
             console.error("Error deleting script:", err.response || err);
-            addNotification("Failed to delete script.", "error");
+            addToast("Failed to delete script.", "error");
             if (err.response?.status === 401) {
                 handleLogout();
             }
@@ -742,7 +740,7 @@
         });
         result = null;
         apiError = null;
-        addNotification("New script started.", "info");
+        addToast("New script started.", "info");
     }
 
     function exportScript() {
@@ -766,7 +764,7 @@
         const file = event.target.files[0];
         if (!file) return;
         if (!file.name.toLowerCase().endsWith(".py")) {
-            addNotification("Only .py files are allowed.", "error");
+            addToast("Only .py files are allowed.", "error");
             return;
         }
         const reader = new FileReader();
@@ -780,11 +778,11 @@
                     changes: {from: 0, to: editorView.state.doc.length, insert: text},
                     selection: {anchor: 0}
                 });
-                addNotification(`Loaded script from ${file.name}`, "info");
+                addToast(`Loaded script from ${file.name}`, "info");
             }
         };
         reader.onerror = () => {
-            addNotification("Failed to read the selected file.", "error");
+            addToast("Failed to read the selected file.", "error");
         };
         reader.readAsText(file);
         event.target.value = null;
@@ -793,7 +791,7 @@
     function handleLogout() {
         authLogout();
         navigate("/login");
-        addNotification("You have been logged out.", "info");
+        addToast("You have been logged out.", "info");
     }
 
     function toggleLimits() {
@@ -832,41 +830,41 @@
                 },
                 selection: {anchor: 0}
             });
-            addNotification(`Loaded example script for ${lang}.`, "info");
+            addToast(`Loaded example script for ${lang}.`, "info");
             result = null;
             apiError = null;
         } else {
-            addNotification(`No example script available for ${lang}.`, "warning");
+            addToast(`No example script available for ${lang}.`, "warning");
         }
     }
 
     async function copyExecutionId(executionId) {
         try {
             await navigator.clipboard.writeText(executionId);
-            addNotification("Execution ID copied to clipboard", "success");
+            addToast("Execution ID copied to clipboard", "success");
         } catch (err) {
             console.error("Failed to copy execution ID:", err);
-            addNotification("Failed to copy execution ID", "error");
+            addToast("Failed to copy execution ID", "error");
         }
     }
 
     async function copyOutput(output) {
         try {
             await navigator.clipboard.writeText(output);
-            addNotification("Output copied to clipboard", "success");
+            addToast("Output copied to clipboard", "success");
         } catch (err) {
             console.error("Failed to copy output:", err);
-            addNotification("Failed to copy output", "error");
+            addToast("Failed to copy output", "error");
         }
     }
 
     async function copyErrors(errors) {
         try {
             await navigator.clipboard.writeText(errors);
-            addNotification("Error text copied to clipboard", "success");
+            addToast("Error text copied to clipboard", "success");
         } catch (err) {
             console.error("Failed to copy errors:", err);
-            addNotification("Failed to copy errors", "error");
+            addToast("Failed to copy errors", "error");
         }
     }
 </script>
@@ -879,7 +877,7 @@
             Code Editor
         </h2>
         {#if k8sLimits}
-            <div class="relative flex-shrink-0">
+            <div class="relative shrink-0">
                 <button class="btn btn-secondary-outline btn-sm inline-flex items-center space-x-1.5 w-full sm:w-auto justify-center"
                         on:click={toggleLimits} aria-expanded={showLimits}>
                     {@html resourceIcon}
@@ -887,7 +885,7 @@
                     {#if showLimits} {@html chevronUpIcon} {:else} {@html chevronDownIcon} {/if}
                 </button>
                 {#if showLimits}
-                    <div class="absolute right-0 top-full mt-2 w-64 sm:w-72 bg-bg-alt dark:bg-dark-bg-alt rounded-lg shadow-xl ring-1 ring-black ring-opacity-5 dark:ring-white dark:ring-opacity-10 p-5 z-30 border border-border-default dark:border-dark-border-default"
+                    <div class="absolute right-0 top-full mt-2 w-64 sm:w-72 bg-bg-alt dark:bg-dark-bg-alt rounded-lg shadow-xl ring-1 ring-black/5 dark:ring-white/10 p-5 z-30 border border-border-default dark:border-dark-border-default"
                          transition:fly={{ y: 10, duration: 200 }}>
                         <div class="space-y-4">
                             <div class="flex items-center justify-between text-sm">
@@ -916,7 +914,7 @@
     </header>
 
     <div class="editor-main-code flex flex-col rounded-lg overflow-hidden shadow-md border border-border-default dark:border-dark-border-default">
-        <div class="editor-toolbar flex items-center justify-between px-3 py-1 bg-bg-default dark:bg-dark-bg-default border-b border-border-default dark:border-dark-border-default flex-shrink-0">
+        <div class="editor-toolbar flex items-center justify-between px-3 py-1 bg-bg-default dark:bg-dark-bg-default border-b border-border-default dark:border-dark-border-default shrink-0">
             <div>
                 <label for="scriptNameInput" class="sr-only">Script Name</label>
                 <input id="scriptNameInput" type="text" class="form-input-bare"
@@ -953,7 +951,7 @@
 
     <div class="editor-main-output">
         <div class="output-container flex flex-col h-full">
-            <h3 class="text-base font-medium text-fg-default dark:text-dark-fg-default mb-3 border-b border-border-default dark:border-dark-border-default pb-3 flex-shrink-0">
+            <h3 class="text-base font-medium text-fg-default dark:text-dark-fg-default mb-3 border-b border-border-default dark:border-dark-border-default pb-3 shrink-0">
                 Execution Output
             </h3>
             <div class="output-content flex-grow overflow-auto pr-2 text-sm custom-scrollbar">
@@ -1099,14 +1097,14 @@
                     <button on:click={() => showLangOptions = !showLangOptions}
                             class="btn btn-secondary-outline btn-sm w-36 flex items-center justify-between text-left">
                         <span class="capitalize truncate">{$selectedLang} {$selectedVersion}</span>
-                        <svg class="w-5 h-5 ml-2 flex-shrink-0 text-fg-muted dark:text-dark-fg-muted transform transition-transform" class:-rotate-180={showLangOptions} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-5 h-5 ml-2 shrink-0 text-fg-muted dark:text-dark-fg-muted transform transition-transform" class:-rotate-180={showLangOptions} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                         </svg>
                     </button>
 
                     {#if showLangOptions}
                         <div transition:fly={{ y: -5, duration: 150 }}
-                             class="absolute bottom-full mb-2 w-36 bg-bg-alt dark:bg-dark-bg-alt rounded-lg shadow-xl ring-1 ring-black ring-opacity-5 dark:ring-white dark:ring-opacity-10 z-30">
+                             class="absolute bottom-full mb-2 w-36 bg-bg-alt dark:bg-dark-bg-alt rounded-lg shadow-xl ring-1 ring-black/5 dark:ring-white/10 z-30">
                             <ul class="py-1" on:mouseleave={() => hoveredLang = null}>
                                 {#each Object.entries(supportedRuntimes) as [lang, versions] (lang)}
                                     <li class="relative" on:mouseenter={() => hoveredLang = lang}>
@@ -1116,7 +1114,7 @@
                                         </div>
 
                                         {#if hoveredLang === lang && versions.length > 0}
-                                            <div class="absolute left-full top-0 -mt-1 ml-1 w-20 bg-bg-alt dark:bg-dark-bg-alt rounded-lg shadow-lg ring-1 ring-black ring-opacity-5 dark:ring-white dark:ring-opacity-10 z-40"
+                                            <div class="absolute left-full top-0 -mt-1 ml-1 w-20 bg-bg-alt dark:bg-dark-bg-alt rounded-lg shadow-lg ring-1 ring-black/5 dark:ring-white/10 z-40"
                                                  transition:fly={{ x: 5, duration: 100 }}>
                                                 <ul class="py-1 max-h-60 overflow-y-auto custom-scrollbar">
                                                     {#each versions as version (version)}
@@ -1228,7 +1226,7 @@
                                                                 </span>
                                                             </div>
                                                         </button>
-                                                        <button class="p-2 text-neutral-400 dark:text-neutral-500 hover:text-red-500 dark:hover:text-red-400 flex-shrink-0 opacity-60 group-hover:opacity-100 transition-opacity duration-150 mr-1"
+                                                        <button class="p-2 text-neutral-400 dark:text-neutral-500 hover:text-red-500 dark:hover:text-red-400 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity duration-150 mr-1"
                                                                 on:click|stopPropagation={() => deleteScript(savedItem.id)}
                                                                 title={`Delete ${savedItem.name}`}>
                                                             <span class="sr-only">Delete</span>
@@ -1260,211 +1258,3 @@
         </div>
     </div>
 </div>
-
-
-<style lang="postcss">
-    :root {
-        --font-mono: theme('fontFamily.mono');
-        --cm-background: theme('colors.bg-alt');
-        --cm-foreground: theme('colors.fg-default');
-        --cm-gutter-background: theme('colors.bg-default');
-        --cm-gutter-foreground: theme('colors.neutral.400');
-        --cm-gutter-border: theme('colors.border-default');
-        --cm-active-gutter-background: theme('colors.neutral.100');
-    }
-
-    .editor-grid-container {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: auto auto minmax(300px, 1fr) minmax(200px, 1fr) auto;
-        gap: 1rem;
-        width: 100%;
-        position: relative;
-        min-height: calc(100vh - 8rem);
-        max-height: calc(100vh - 8rem);
-        padding: 0;
-    }
-
-    .editor-header {
-        grid-row: 1 / 2;
-        margin-bottom: 0;
-        transition: margin-bottom 0.3s ease;
-        position: relative;
-        z-index: 10;
-    }
-
-    .editor-controls {
-        grid-row: 2 / 3;
-    }
-
-    .editor-main-code {
-        grid-row: 3 / 4;
-        min-height: 0;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-    }
-
-    .editor-wrapper {
-        flex: 1 1 auto;
-        min-height: 0;
-        overflow: hidden;
-        position: relative;
-    }
-
-    /* Ensure CodeMirror fills the wrapper */
-    .editor-wrapper :global(.cm-editor) {
-        height: 100% !important;
-        max-height: 100% !important;
-    }
-
-    .editor-wrapper :global(.cm-scroller) {
-        overflow: auto !important;
-    }
-
-    .editor-toolbar {
-        position: sticky;
-        top: 0;
-        z-index: 5;
-        background-color: inherit;
-    }
-
-    .editor-main-output {
-        grid-row: 4 / 5;
-        min-height: 0;
-        display: flex;
-    }
-
-    .form-input-bare {
-        @apply bg-transparent border-0 focus:ring-0 w-full text-sm font-medium text-fg-default dark:text-dark-fg-default placeholder-fg-muted dark:placeholder-dark-fg-muted;
-    }
-
-    @media (min-width: 768px) {
-        .editor-grid-container {
-            grid-template-columns: minmax(0, 1.85fr) minmax(0, 1fr);
-            grid-template-rows: auto minmax(400px, 1fr) auto;
-            gap: 1rem;
-            min-height: calc(100vh - 8rem);
-            max-height: calc(100vh - 8rem);
-        }
-
-        .editor-header {
-            grid-column: 1 / -1;
-            grid-row: 1 / 2;
-        }
-
-        .editor-main-code {
-            grid-column: 1 / 2;
-            grid-row: 2 / 3;
-        }
-
-        .editor-main-output {
-            grid-column: 2 / 3;
-            grid-row: 2 / 3;
-        }
-
-        .editor-controls {
-            grid-column: 1 / -1;
-            grid-row: 3 / 4;
-        }
-    }
-
-    .output-container {
-        @apply bg-bg-alt dark:bg-dark-bg-alt border border-border-default dark:border-dark-border-default rounded-lg p-4 w-full overflow-hidden shadow-sm;
-    }
-
-    .output-content, .output-pre, .custom-scrollbar {
-        scrollbar-width: thin;
-        scrollbar-color: theme('colors.neutral.400') theme('colors.neutral.200');
-    }
-
-    .output-pre {
-        @apply bg-bg-default dark:bg-dark-bg-default p-3 rounded border border-border-default dark:border-dark-border-default text-xs font-mono whitespace-pre-wrap break-words max-h-[40vh] overflow-auto;
-        padding-right: 3rem; /* Space for copy button */
-    }
-
-    .output-section .relative {
-        overflow: visible; /* Ensure copy button is visible */
-    }
-
-    /* Ensure copy buttons are above scrollbars */
-    .output-section .group,
-    .relative .group {
-        z-index: 10;
-    }
-
-    .editor-controls .btn {
-        @apply flex-shrink-0;
-    }
-
-    .editor-wrapper ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-    }
-
-    .editor-wrapper ::-webkit-scrollbar-track {
-        @apply bg-neutral-200 dark:bg-neutral-700 rounded-b-lg;
-    }
-
-    .editor-wrapper ::-webkit-scrollbar-thumb {
-        @apply bg-neutral-400 dark:bg-neutral-500 rounded;
-    }
-
-    .editor-wrapper ::-webkit-scrollbar-thumb:hover {
-        @apply bg-neutral-500 dark:bg-neutral-400;
-    }
-
-    .output-content::-webkit-scrollbar,
-    .output-pre::-webkit-scrollbar,
-    .custom-scrollbar::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
-    }
-
-    .output-content::-webkit-scrollbar-track,
-    .output-pre::-webkit-scrollbar-track,
-    .custom-scrollbar::-webkit-scrollbar-track {
-        @apply bg-neutral-100 dark:bg-neutral-800 rounded;
-        margin-right: 2px;
-    }
-
-    .output-content::-webkit-scrollbar-thumb,
-    .output-pre::-webkit-scrollbar-thumb,
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-        @apply bg-neutral-300 dark:bg-neutral-600 rounded;
-    }
-
-    .output-content::-webkit-scrollbar-thumb:hover,
-    .output-pre::-webkit-scrollbar-thumb:hover,
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-        @apply bg-neutral-400 dark:bg-neutral-500;
-    }
-
-    /* Saved scripts container with max 3 items visible */
-    .saved-scripts-container {
-        max-height: calc(3 * 3.5rem); /* 3 items * height of each item */
-        overflow-y: auto;
-    }
-    
-    .saved-scripts-container li {
-        min-height: 3.5rem; /* Fixed height for each item */
-    }
-    
-    /* Show scrollbar only when needed */
-    .saved-scripts-container::-webkit-scrollbar {
-        width: 6px;
-    }
-    
-    .saved-scripts-container::-webkit-scrollbar-track {
-        @apply bg-neutral-100 dark:bg-neutral-800 rounded;
-    }
-    
-    .saved-scripts-container::-webkit-scrollbar-thumb {
-        @apply bg-neutral-300 dark:bg-neutral-600 rounded;
-    }
-    
-    .saved-scripts-container::-webkit-scrollbar-thumb:hover {
-        @apply bg-neutral-400 dark:bg-neutral-500;
-    }
-
-</style>

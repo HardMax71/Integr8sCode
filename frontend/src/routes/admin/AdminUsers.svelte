@@ -1,7 +1,7 @@
 <script>
     import { onMount } from 'svelte';
     import { api } from '../../lib/api';
-    import { addNotification } from '../../stores/notifications';
+    import { addToast } from '../../stores/toastStore';
     import AdminLayout from './AdminLayout.svelte';
     import Spinner from '../../components/Spinner.svelte';
     
@@ -63,7 +63,7 @@
             users = Array.isArray(response) ? response : response?.users || [];
         } catch (error) {
             console.error('Failed to load users:', error);
-            addNotification(`Failed to load users: ${error.message}`, 'error');
+            addToast(`Failed to load users: ${error.message}`, 'error');
             users = [];
         } finally {
             loading = false;
@@ -79,7 +79,7 @@
                 `/api/v1/admin/users/${userToDelete.user_id}?cascade=${cascadeDelete}`
             );
             
-            addNotification(response.message, 'success');
+            addToast(response.message, 'success');
             
             if (response.deleted_counts) {
                 const counts = Object.entries(response.deleted_counts)
@@ -87,7 +87,7 @@
                     .map(([key, value]) => `${key}: ${value}`)
                     .join(', ');
                 if (counts) {
-                    addNotification(`Deleted data: ${counts}`, 'info');
+                    addToast(`Deleted data: ${counts}`, 'info');
                 }
             }
             
@@ -96,7 +96,7 @@
             userToDelete = null;
         } catch (error) {
             console.error('Failed to delete user:', error);
-            addNotification(`Failed to delete user: ${error.message}`, 'error');
+            addToast(`Failed to delete user: ${error.message}`, 'error');
         } finally {
             deletingUser = false;
         }
@@ -119,7 +119,7 @@
             rateLimitUsage = response.current_usage || {};
         } catch (error) {
             console.error('Failed to load rate limits:', error);
-            addNotification(`Failed to load rate limits: ${error.message}`, 'error');
+            addToast(`Failed to load rate limits: ${error.message}`, 'error');
         } finally {
             loadingRateLimits = false;
         }
@@ -135,7 +135,7 @@
                 `/api/v1/admin/users/${rateLimitUser.user_id}/rate-limits`,
                 rateLimitConfig
             );
-            addNotification('Rate limits updated successfully', 'success');
+            addToast('Rate limits updated successfully', 'success');
             showRateLimitModal = false;
         } catch (error) {
             console.error('Failed to save rate limits:', error);
@@ -152,11 +152,11 @@
             const response = await api.post(
                 `/api/v1/admin/users/${rateLimitUser.user_id}/rate-limits/reset`
             );
-            addNotification(response.message, 'success');
+            addToast(response.message, 'success');
             rateLimitUsage = {};
         } catch (error) {
             console.error('Failed to reset rate limits:', error);
-            addNotification(`Failed to reset rate limits: ${error.message}`, 'error');
+            addToast(`Failed to reset rate limits: ${error.message}`, 'error');
         }
     }
     
@@ -383,7 +383,7 @@
     
     async function saveUser() {
         if (!userForm.username) {
-            addNotification('Username is required', 'error');
+            addToast('Username is required', 'error');
             return;
         }
         
@@ -404,11 +404,11 @@
                 }
                 
                 await api.put(`/api/v1/admin/users/${editingUser.user_id}`, updateData);
-                addNotification('User updated successfully', 'success');
+                addToast('User updated successfully', 'success');
             } else {
                 // Create new user
                 if (!userForm.password) {
-                    addNotification('Password is required for new users', 'error');
+                    addToast('Password is required for new users', 'error');
                     return;
                 }
                 
@@ -419,7 +419,7 @@
                     role: userForm.role,
                     is_active: userForm.is_active
                 });
-                addNotification('User created successfully', 'success');
+                addToast('User created successfully', 'success');
             }
             
             showUserModal = false;
@@ -466,17 +466,17 @@
                         const field = err.loc && err.loc.length > 1 ? err.loc[err.loc.length - 1] : 'field';
                         return `${field}: ${err.msg}`;
                     });
-                    addNotification(`Validation failed:\n${messages.join('\n')}`, 'error');
+                    addToast(`Validation failed:\n${messages.join('\n')}`, 'error');
                 } else if (errorData.detail && typeof errorData.detail === 'string') {
-                    addNotification(`Validation failed: ${errorData.detail}`, 'error');
+                    addToast(`Validation failed: ${errorData.detail}`, 'error');
                 } else {
-                    addNotification(`Validation failed: ${JSON.stringify(errorData)}`, 'error');
+                    addToast(`Validation failed: ${JSON.stringify(errorData)}`, 'error');
                 }
             } catch (e) {
-                addNotification(`${defaultMessage}: ${error.message}`, 'error');
+                addToast(`${defaultMessage}: ${error.message}`, 'error');
             }
         } else {
-            addNotification(`${defaultMessage}: ${error.message}`, 'error');
+            addToast(`${defaultMessage}: ${error.message}`, 'error');
         }
     }
 </script>
@@ -520,10 +520,11 @@
                 <div class="flex flex-col lg:flex-row gap-3 lg:gap-4 lg:items-end">
                     <!-- Search input -->
                     <div class="w-full lg:flex-1 lg:max-w-md">
-                        <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                        <label for="user-search" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
                             Search
                         </label>
                         <input
+                            id="user-search"
                             type="text"
                             bind:value={searchQuery}
                             placeholder="Search by username, email, or ID..."
@@ -534,25 +535,25 @@
                             spellcheck="false"
                         />
                     </div>
-                    
+
                     <!-- Role filter -->
                     <div class="w-full sm:w-auto sm:min-w-[140px]">
-                        <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                        <label for="role-filter" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
                             Role
                         </label>
-                        <select bind:value={roleFilter} class="form-select-standard w-full">
+                        <select id="role-filter" bind:value={roleFilter} class="form-select-standard w-full">
                             <option value="all">All Roles</option>
                             <option value="user">User</option>
                             <option value="admin">Admin</option>
                         </select>
                     </div>
-                    
+
                     <!-- Status filter -->
                     <div class="w-full sm:w-auto sm:min-w-[140px]">
-                        <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                        <label for="status-filter" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
                             Status
                         </label>
-                        <select bind:value={statusFilter} class="form-select-standard w-full">
+                        <select id="status-filter" bind:value={statusFilter} class="form-select-standard w-full">
                             <option value="all">All Status</option>
                             <option value="active">Active</option>
                             <option value="disabled">Disabled</option>
@@ -589,32 +590,32 @@
                         <h4 class="text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-3">Rate Limit Filters</h4>
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <div>
-                                <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                                <label for="bypass-rate-limit-filter" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
                                     Bypass Rate Limit
                                 </label>
-                                <select bind:value={advancedFilters.bypassRateLimit} class="form-select-standard w-full">
+                                <select id="bypass-rate-limit-filter" bind:value={advancedFilters.bypassRateLimit} class="form-select-standard w-full">
                                     <option value="all">All</option>
                                     <option value="yes">Yes (Bypassed)</option>
                                     <option value="no">No (Limited)</option>
                                 </select>
                             </div>
-                            
+
                             <div>
-                                <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                                <label for="custom-limits-filter" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
                                     Custom Limits
                                 </label>
-                                <select bind:value={advancedFilters.hasCustomLimits} class="form-select-standard w-full">
+                                <select id="custom-limits-filter" bind:value={advancedFilters.hasCustomLimits} class="form-select-standard w-full">
                                     <option value="all">All</option>
                                     <option value="yes">Has Custom</option>
                                     <option value="no">Default Only</option>
                                 </select>
                             </div>
-                            
+
                             <div>
-                                <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                                <label for="global-multiplier-filter" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
                                     Global Multiplier
                                 </label>
-                                <select bind:value={advancedFilters.globalMultiplier} class="form-select-standard w-full">
+                                <select id="global-multiplier-filter" bind:value={advancedFilters.globalMultiplier} class="form-select-standard w-full">
                                     <option value="all">All</option>
                                     <option value="custom">Custom (≠ 1.0)</option>
                                     <option value="default">Default (= 1.0)</option>
@@ -819,11 +820,12 @@
                             
                             <!-- Page size selector -->
                             <div class="flex items-center justify-center gap-2">
-                                <label class="text-xs text-fg-muted dark:text-dark-fg-muted">Show:</label>
+                                <label for="users-page-size" class="text-xs text-fg-muted dark:text-dark-fg-muted">Show:</label>
                                 <select
+                                    id="users-page-size"
                                     bind:value={pageSize}
                                     on:change={() => currentPage = 1}
-                                    class="text-sm px-2 py-1 rounded border border-border-default dark:border-dark-border-default 
+                                    class="text-sm px-2 py-1 rounded border border-border-default dark:border-dark-border-default
                                            bg-bg-default dark:bg-dark-bg-default text-fg-default dark:text-dark-fg-default"
                                 >
                                     <option value={5}>5</option>
@@ -847,7 +849,7 @@
     
     <!-- Delete User Modal -->
     {#if showDeleteModal && userToDelete}
-        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-3 sm:p-4 z-50">
+        <div class="fixed inset-0 bg-black/50 flex items-center justify-center p-3 sm:p-4 z-50">
             <div class="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 max-w-md w-full">
                 <h3 class="text-xl font-bold mb-4 text-fg-default dark:text-dark-fg-default">
                     Delete User
@@ -908,7 +910,7 @@
     
     <!-- Rate Limit Modal -->
     {#if showRateLimitModal && rateLimitUser}
-        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-3 sm:p-4 z-50">
+        <div class="fixed inset-0 bg-black/50 flex items-center justify-center p-3 sm:p-4 z-50">
             <div class="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 max-w-4xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
                 <h3 class="text-xl font-bold mb-4 text-fg-default dark:text-dark-fg-default">
                     Rate Limits for {rateLimitUser.username}
@@ -940,10 +942,11 @@
                             
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-sm font-medium mb-1 text-fg-default dark:text-dark-fg-default">
+                                    <label for="global-multiplier" class="block text-sm font-medium mb-1 text-fg-default dark:text-dark-fg-default">
                                         Global Multiplier
                                     </label>
                                     <input
+                                        id="global-multiplier"
                                         type="number"
                                         bind:value={rateLimitConfig.global_multiplier}
                                         min="0.01"
@@ -956,10 +959,11 @@
                                     </p>
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium mb-1 text-fg-default dark:text-dark-fg-default">
+                                    <label for="admin-notes" class="block text-sm font-medium mb-1 text-fg-default dark:text-dark-fg-default">
                                         Admin Notes
                                     </label>
                                     <textarea
+                                        id="admin-notes"
                                         bind:value={rateLimitConfig.notes}
                                         rows="2"
                                         class="input w-full text-sm"
@@ -1189,7 +1193,7 @@
     
     <!-- Create/Edit User Modal -->
     {#if showUserModal}
-        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-3 sm:p-4 z-50">
+        <div class="fixed inset-0 bg-black/50 flex items-center justify-center p-3 sm:p-4 z-50">
             <div class="bg-bg-default dark:bg-dark-bg-default rounded-lg p-4 sm:p-6 max-w-md w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
                 <h2 class="text-xl font-bold mb-4 text-fg-default dark:text-dark-fg-default">
                     {editingUser ? 'Edit User' : 'Create New User'}
@@ -1198,10 +1202,11 @@
                 <form autocomplete="off" on:submit|preventDefault={saveUser}>
                 <div class="space-y-4">
                     <div>
-                        <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                        <label for="user-form-username" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
                             Username <span class="text-red-500">*</span>
                         </label>
                         <input
+                            id="user-form-username"
                             type="text"
                             bind:value={userForm.username}
                             class="form-input-standard"
@@ -1213,12 +1218,13 @@
                             spellcheck="false"
                         />
                     </div>
-                    
+
                     <div>
-                        <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                        <label for="user-form-email" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
                             Email
                         </label>
                         <input
+                            id="user-form-email"
                             type="email"
                             bind:value={userForm.email}
                             class="form-input-standard"
@@ -1230,15 +1236,16 @@
                             spellcheck="false"
                         />
                     </div>
-                    
+
                     <div>
-                        <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                        <label for="user-form-password" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
                             Password {!editingUser ? '* ' : ''}
                             {#if editingUser}
                                 <span class="text-xs text-gray-500">(leave empty to keep current)</span>
                             {/if}
                         </label>
                         <input
+                            id="user-form-password"
                             type="password"
                             bind:value={userForm.password}
                             class="form-input-standard"
@@ -1250,12 +1257,12 @@
                             spellcheck="false"
                         />
                     </div>
-                    
+
                     <div>
-                        <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                        <label for="user-form-role" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
                             Role
                         </label>
-                        <select bind:value={userForm.role} class="form-select-standard" disabled={savingUser}>
+                        <select id="user-form-role" bind:value={userForm.role} class="form-select-standard" disabled={savingUser}>
                             <option value="user">User</option>
                             <option value="admin">Admin</option>
                         </select>
@@ -1303,21 +1310,3 @@
         </div>
     {/if}
 </AdminLayout>
-
-<style>
-    .btn-danger {
-        @apply bg-red-600 hover:bg-red-700 text-white;
-    }
-    
-    .btn-sm {
-        @apply px-3 py-1 text-sm;
-    }
-    
-    .btn-secondary {
-        @apply bg-gray-500 hover:bg-gray-600 text-white dark:bg-gray-600 dark:hover:bg-gray-700;
-    }
-    
-    .input-sm {
-        @apply px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-fg-default dark:text-dark-fg-default;
-    }
-</style>

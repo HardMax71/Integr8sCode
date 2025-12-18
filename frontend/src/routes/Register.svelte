@@ -1,6 +1,6 @@
 <script>
     import { navigate, Link } from "svelte-routing";
-    import { addNotification } from "../stores/notifications.js";
+    import { addToast } from "../stores/toastStore.js";
     import { fade, fly } from "svelte/transition";
     import { api } from "../lib/api.js";
     import { onMount } from 'svelte';
@@ -22,12 +22,12 @@
     async function handleRegister() {
         if (password !== confirmPassword) {
             error = "Passwords do not match.";
-            addNotification(error, "error");
+            addToast(error, "error");
             return;
         }
         if (password.length < 8) { // Backend requires min 8 characters
             error = "Password must be at least 8 characters long.";
-            addNotification(error, "warning");
+            addToast(error, "warning");
             return;
         }
 
@@ -36,11 +36,11 @@
         try {
             // Use api module instead of axios for consistency
             await api.post(`/api/v1/auth/register`, { username, email, password });
-            addNotification("Registration successful! Please log in.", "success");
+            addToast("Registration successful! Please log in.", "success");
             navigate("/login"); // Redirect to login page
         } catch (err) {
             error = err.response?.data?.detail || err.message || "Registration failed. Please try again.";
-            addNotification(error, "error");
+            addToast(error, "error");
             console.error("Registration error:", err);
         } finally {
             loading = false;

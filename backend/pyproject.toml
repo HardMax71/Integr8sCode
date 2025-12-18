@@ -101,7 +101,7 @@ dependencies = [
     "python-multipart==0.0.18",
     "PyYAML==6.0.2",
     "pyzmq==26.2.0",
-    "redis==5.2.1",
+    "redis==7.1.0",
     "regex==2025.8.29",
     "requests==2.32.3",
     "requests-oauthlib==2.0.0",

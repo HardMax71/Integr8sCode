@@ -72,9 +72,9 @@ The `test` command runs the full integration and unit test suite:
 ./deploy.sh test
 ```
 
-This builds images, starts services using `docker compose up --wait` (which waits for all healthchecks to pass before
-continuing), runs pytest with coverage reporting, then tears down the stack. The `--wait` flag ensures services are
-actually ready rather than relying on arbitrary sleep timers. Key services define healthchecks in `docker-compose.yaml`:
+This builds images, starts services, waits for the backend health endpoint using curl's built-in retry mechanism, runs
+pytest with coverage reporting, then tears down the stack. The curl retry approach is cleaner than shell loops and
+avoids issues with Docker Compose's `--wait` flag (which fails on init containers that exit after completion). Key services define healthchecks in `docker-compose.yaml`:
 
 | Service         | Healthcheck                                   |
 |-----------------|-----------------------------------------------|

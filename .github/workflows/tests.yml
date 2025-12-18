@@ -88,8 +88,12 @@ jobs:
           yq eval '.services.backend.environment += ["MONGO_ROOT_PASSWORD=rootpassword"]' -i docker-compose.ci.yaml
           # Disable OpenTelemetry SDK during tests to avoid exporter retries
           yq eval '.services.backend.environment += ["OTEL_SDK_DISABLED=true"]' -i docker-compose.ci.yaml
-          # Remove ./backend:/app volume mount - CI doesn't need hot-reload and it creates .venv permission conflicts
+          # Remove ./backend:/app volume mounts - CI doesn't need hot-reload and it creates .venv permission conflicts
+          # Backend has ./backend:/app, workers have ./backend:/app:ro
           yq eval '.services.backend.volumes = [.services.backend.volumes[] | select(. != "./backend:/app")]' -i docker-compose.ci.yaml
+          yq eval '.services."k8s-worker".volumes = [.services."k8s-worker".volumes[] | select(. != "./backend:/app:ro")]' -i docker-compose.ci.yaml
+          yq eval '.services."pod-monitor".volumes = [.services."pod-monitor".volumes[] | select(. != "./backend:/app:ro")]' -i docker-compose.ci.yaml
+          yq eval '.services."result-processor".volumes = [.services."result-processor".volumes[] | select(. != "./backend:/app:ro")]' -i docker-compose.ci.yaml
 
           # MongoDB service already has defaults in docker-compose.yaml (root/rootpassword)
           # No need to override them
@@ -133,17 +137,17 @@ jobs:
         env:
           BUILDKIT_PROGRESS: plain
 
-      - name: Start services and wait for healthy
+      - name: Start services
         run: |
-            echo "Starting services with --wait (images already built with cache)..."
-            if ! docker compose -f docker-compose.ci.yaml up -d --remove-orphans --wait --wait-timeout 300; then
-              echo "::error::Docker Compose failed to start or services unhealthy. Dumping logs..."
-              docker compose -f docker-compose.ci.yaml logs --no-color
-              docker compose -f docker-compose.ci.yaml ps
-              exit 1
-            fi
+            echo "Starting services..."
+            docker compose -f docker-compose.ci.yaml up -d --remove-orphans
+            docker compose -f docker-compose.ci.yaml ps
 
-            echo "All services with healthchecks are healthy!"
+      - name: Wait for backend to be healthy
+        run: |
+            echo "Waiting for backend (and its dependencies) to be healthy..."
+            curl --retry 60 --retry-delay 5 --retry-all-errors -ksf https://127.0.0.1:443/api/v1/health/live
+            echo "Backend is healthy!"
             docker compose -f docker-compose.ci.yaml ps
 
       # Frontend is excluded in backend-only CI; skip UI readiness

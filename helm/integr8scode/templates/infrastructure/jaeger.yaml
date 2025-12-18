@@ -1,0 +1,75 @@
+{{- if .Values.infrastructure.jaeger.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "integr8scode.fullname" . }}-jaeger
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "integr8scode.labels" . | nindent 4 }}
+    app.kubernetes.io/component: jaeger
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ include "integr8scode.fullname" . }}-jaeger
+  template:
+    metadata:
+      labels:
+        app: {{ include "integr8scode.fullname" . }}-jaeger
+        {{- include "integr8scode.labels" . | nindent 8 }}
+        app.kubernetes.io/component: jaeger
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - name: jaeger
+        image: {{ .Values.infrastructure.jaeger.image }}
+        imagePullPolicy: {{ .Values.global.imagePullPolicy | default "IfNotPresent" }}
+        ports:
+        - containerPort: 4317
+          name: otlp-grpc
+        - containerPort: 6831
+          name: thrift
+          protocol: UDP
+        - containerPort: 16686
+          name: ui
+        env:
+        - name: COLLECTOR_OTLP_ENABLED
+          value: "true"
+        resources:
+          {{- toYaml .Values.infrastructure.jaeger.resources | nindent 10 }}
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 16686
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 16686
+          initialDelaySeconds: 30
+          periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "integr8scode.fullname" . }}-jaeger
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "integr8scode.labels" . | nindent 4 }}
+    app.kubernetes.io/component: jaeger
+spec:
+  selector:
+    app: {{ include "integr8scode.fullname" . }}-jaeger
+  ports:
+  - name: otlp-grpc
+    port: 4317
+    targetPort: 4317
+  - name: thrift
+    port: 6831
+    targetPort: 6831
+    protocol: UDP
+  - name: ui
+    port: 16686
+    targetPort: 16686
+{{- end }}

@@ -1,24 +1,53 @@
-# Network isolation
+# Network Isolation
 
-Executor pods run user code in a hardened environment: non-root user, no capabilities, read-only root filesystem, no service account token, and DNS disabled. Network isolation is enforced via a static CiliumNetworkPolicy that denies all egress traffic from executor pods.
+Executor pods run user code in a hardened environment with strict security controls. The pod builder in `backend/app/services/k8s_worker/pod_builder.py` enforces these at pod creation time.
+
+## Container Security Context
+
+Each executor container runs with:
+
+- Non-root user (UID/GID 1000)
+- Read-only root filesystem
+- No privilege escalation allowed
+- All Linux capabilities dropped
+- RuntimeDefault seccomp profile
+
+The pod spec also sets `automount_service_account_token: false`, preventing containers from accessing the Kubernetes API.
+
+## Network Policy
+
+Network isolation uses a standard Kubernetes NetworkPolicy that denies all ingress and egress traffic from executor pods. The policy is applied during cluster setup.
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: executor-deny-all
+  namespace: integr8scode
+spec:
+  podSelector:
+    matchLabels:
+      app: integr8s
+      component: executor
+  policyTypes:
+  - Ingress
+  - Egress
+```
+
+This policy matches pods with labels `app=integr8s` and `component=executor`, which the pod builder applies to all executor pods.
 
 ## Setup
 
-The deny-all Cilium policy is defined in `backend/k8s/policies/executor-deny-all-cnp.yaml`. Apply it using the setup script:
+The network policy and RBAC resources are created by the setup script during initial deployment:
 
 ```bash
-./backend/scripts/setup_k8s.sh <namespace>
+./cert-generator/setup-k8s.sh
 ```
 
-This creates the namespace if needed and applies the CiliumNetworkPolicy there. Using the `default` namespace is forbidden — always run executor pods in a dedicated namespace.
-
-## Pod labels
-
-The policy matches pods with these labels:
-
-- `app=integr8s`
-- `component=executor`
+This script creates the `integr8scode` namespace, a ServiceAccount with appropriate permissions, and the deny-all NetworkPolicy. For Helm deployments, only the ServiceAccount is managed by templates in the chart (`helm/integr8scode/templates/rbac/`). The namespace is created by `deploy.sh` before Helm runs, and the NetworkPolicy must be applied separately using the setup script or manually.
 
 ## Notes
 
-Cilium must be installed with policy enforcement active. To allow in-cluster traffic later (for example, accessing internal services), modify the egress rules in the CNP to include `toEntities: ["cluster"]`.
+The NetworkPolicy requires a CNI plugin that supports network policies (Calico, Cilium, Weave Net, etc). K3s includes Flannel by default, which does not enforce policies. For production, install a policy-capable CNI or use K3s with the `--flannel-backend=none` flag and a separate CNI.
+
+To allow specific egress traffic (for example, to internal services), create an additional NetworkPolicy with explicit egress rules rather than modifying the deny-all policy.

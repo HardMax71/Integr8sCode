@@ -1,0 +1,73 @@
+{{- if .Values.kafkaInit.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "integr8scode.fullname" . }}-kafka-init
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "integr8scode.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kafka-init
+  annotations:
+    # Helm hook: Run after install and upgrade, after all other resources are created
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    # Delete previous job before creating new one to ensure idempotency
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  ttlSecondsAfterFinished: {{ .Values.kafkaInit.ttlSecondsAfterFinished | default 300 }}
+  backoffLimit: {{ .Values.kafkaInit.backoffLimit | default 3 }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "integr8scode.fullname" . }}-kafka-init
+        {{- include "integr8scode.labels" . | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      restartPolicy: OnFailure
+      initContainers:
+      # Wait for Kafka to be ready before attempting topic creation
+      - name: wait-for-kafka
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for Kafka to be ready at {{ include "integr8scode.fullname" . }}-kafka:29092..."
+          until nc -z {{ include "integr8scode.fullname" . }}-kafka 29092; do
+            echo "Kafka not ready, waiting 5 seconds..."
+            sleep 5
+          done
+          echo "Kafka is ready!"
+      # Wait for Schema Registry to be ready
+      - name: wait-for-schema-registry
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for Schema Registry to be ready..."
+          until wget -q -O- http://{{ include "integr8scode.fullname" . }}-schema-registry:8081/config > /dev/null 2>&1; do
+            echo "Schema Registry not ready, waiting 5 seconds..."
+            sleep 5
+          done
+          echo "Schema Registry is ready!"
+      containers:
+      - name: kafka-init
+        image: {{ .Values.kafkaInit.image | default (include "integr8scode.backendImage" .) }}
+        imagePullPolicy: {{ .Values.global.imagePullPolicy | default "IfNotPresent" }}
+        command:
+        - uv
+        - run
+        - python
+        - -m
+        - scripts.create_topics
+        env:
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: {{ include "integr8scode.kafkaBootstrapServers" . | quote }}
+        - name: SCHEMA_REGISTRY_URL
+          value: {{ include "integr8scode.schemaRegistryUrl" . | quote }}
+        - name: LOG_LEVEL
+          value: "INFO"
+        resources:
+          {{- toYaml .Values.kafkaInit.resources | nindent 10 }}
+{{- end }}

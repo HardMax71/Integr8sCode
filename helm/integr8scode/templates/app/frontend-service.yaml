@@ -1,0 +1,18 @@
+{{- if .Values.frontend.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "integr8scode.fullname" . }}-frontend
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "integr8scode.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  type: {{ .Values.frontend.service.type | default "ClusterIP" }}
+  selector:
+    app: {{ include "integr8scode.fullname" . }}-frontend
+  ports:
+  - name: http
+    port: {{ .Values.frontend.service.port | default 5001 }}
+    targetPort: {{ .Values.frontend.containerPort | default 5001 }}
+{{- end }}

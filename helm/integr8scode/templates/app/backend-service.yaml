@@ -1,0 +1,21 @@
+{{- if .Values.backend.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "integr8scode.fullname" . }}-backend
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "integr8scode.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  type: {{ .Values.backend.service.type | default "ClusterIP" }}
+  selector:
+    app: {{ include "integr8scode.fullname" . }}-backend
+  ports:
+  - name: https
+    port: {{ .Values.backend.service.port | default 443 }}
+    targetPort: 443
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+{{- end }}

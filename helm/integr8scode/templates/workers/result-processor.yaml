@@ -1,0 +1,46 @@
+{{- if .Values.workers.resultProcessor.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "integr8scode.fullname" . }}-result-processor
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "integr8scode.labels" . | nindent 4 }}
+    app.kubernetes.io/component: result-processor
+spec:
+  replicas: {{ .Values.workers.resultProcessor.replicas | default 1 }}
+  selector:
+    matchLabels:
+      app: {{ include "integr8scode.fullname" . }}-result-processor
+  template:
+    metadata:
+      labels:
+        app: {{ include "integr8scode.fullname" . }}-result-processor
+        {{- include "integr8scode.labels" . | nindent 8 }}
+        app.kubernetes.io/component: result-processor
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/secrets/env-secret.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "integr8scode.serviceAccountName" . }}
+      containers:
+      - name: result-processor
+        image: {{ include "integr8scode.backendImage" . }}
+        imagePullPolicy: {{ .Values.global.imagePullPolicy | default "IfNotPresent" }}
+        command:
+          {{- toYaml .Values.workers.resultProcessor.command | nindent 10 }}
+        envFrom:
+        - secretRef:
+            name: {{ include "integr8scode.fullname" . }}-env
+        env:
+        - name: KAFKA_CONSUMER_GROUP_ID
+          value: {{ .Values.workers.resultProcessor.consumerGroupId | quote }}
+        - name: TRACING_SERVICE_NAME
+          value: "result-processor"
+        resources:
+          {{- if .Values.workers.resultProcessor.resources }}
+          {{- toYaml .Values.workers.resultProcessor.resources | nindent 10 }}
+          {{- else }}
+          {{- toYaml .Values.workers.common.resources | nindent 10 }}
+          {{- end }}
+      restartPolicy: Always
+{{- end }}

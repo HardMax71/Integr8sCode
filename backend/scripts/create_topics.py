@@ -35,13 +35,15 @@ async def create_topics() -> None:
         # Get all required topics and their configs
         all_topics = get_all_topics()
         topic_configs = get_topic_configs()
-        logger.info(f"Total required topics: {len(all_topics)}")
+        topic_prefix = settings.KAFKA_TOPIC_PREFIX
+        logger.info(f"Total required topics: {len(all_topics)} (prefix: '{topic_prefix}')")
 
         # Create topics
         topics_to_create: List[NewTopic] = []
 
         for topic in all_topics:
-            topic_name = topic.value
+            # Apply topic prefix for consistency with consumers/producers
+            topic_name = f"{topic_prefix}{topic.value}"
             if topic_name not in existing_topics:
                 # Get config from topic_configs
                 config = topic_configs.get(topic, {

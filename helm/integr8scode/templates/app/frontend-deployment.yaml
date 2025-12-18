@@ -1,0 +1,51 @@
+{{- if .Values.frontend.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "integr8scode.fullname" . }}-frontend
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "integr8scode.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  replicas: {{ .Values.frontend.replicas | default 1 }}
+  selector:
+    matchLabels:
+      app: {{ include "integr8scode.fullname" . }}-frontend
+  template:
+    metadata:
+      labels:
+        app: {{ include "integr8scode.fullname" . }}-frontend
+        {{- include "integr8scode.labels" . | nindent 8 }}
+        app.kubernetes.io/component: frontend
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - name: frontend
+        image: {{ include "integr8scode.frontendImage" . }}
+        imagePullPolicy: {{ .Values.global.imagePullPolicy | default "IfNotPresent" }}
+        ports:
+        - containerPort: {{ .Values.frontend.containerPort | default 5001 }}
+          name: http
+        env:
+        # BACKEND_URL is used by nginx template (envsubst at container startup)
+        - name: BACKEND_URL
+          value: "https://{{ include "integr8scode.fullname" . }}-backend:443"
+        # VITE_BACKEND_URL is baked into JS at build time (not used in prod nginx image)
+        - name: VITE_BACKEND_URL
+          value: "https://{{ include "integr8scode.fullname" . }}-backend:443"
+        resources:
+          {{- toYaml .Values.frontend.resources | nindent 10 }}
+        livenessProbe:
+          httpGet:
+            path: /
+            port: {{ .Values.frontend.containerPort | default 5001 }}
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /
+            port: {{ .Values.frontend.containerPort | default 5001 }}
+          initialDelaySeconds: 5
+          periodSeconds: 10
+{{- end }}

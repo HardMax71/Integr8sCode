@@ -1,0 +1,441 @@
+# =============================================================================
+# INTEGR8SCODE HELM CHART - DEFAULT VALUES
+# =============================================================================
+# This file contains default configuration values for the Integr8sCode Helm chart.
+# Override these values using --set flags or a custom values-prod.yaml file.
+
+# =============================================================================
+# GLOBAL SETTINGS
+# =============================================================================
+global:
+  # Image pull policy:
+  # - "Never" for K3s with locally imported images (default for local dev)
+  # - "IfNotPresent" for registry-pulled images
+  # - "Always" for latest tags from registry
+  imagePullPolicy: Never
+
+  # Container registry (leave empty for local images)
+  # Set to "ghcr.io/hardmax71/integr8scode" for GitHub Container Registry
+  imageRegistry: ""
+
+# Name overrides
+nameOverride: ""
+fullnameOverride: ""
+
+# =============================================================================
+# IMAGE CONFIGURATION
+# =============================================================================
+images:
+  # For local development (imagePullPolicy: Never):
+  #   repository: integr8scode-backend
+  # For registry (imagePullPolicy: IfNotPresent/Always):
+  #   repository: ghcr.io/hardmax71/integr8scode/backend
+  backend:
+    repository: integr8scode-backend
+    tag: latest
+  frontend:
+    repository: integr8scode-frontend
+    tag: latest
+  # Base image (used by backend Dockerfile)
+  base:
+    repository: base
+    tag: latest
+
+# =============================================================================
+# RBAC CONFIGURATION
+# =============================================================================
+rbac:
+  # Create ServiceAccount, Role, and RoleBinding
+  create: true
+  serviceAccount:
+    name: integr8scode-sa
+    annotations: {}
+
+# =============================================================================
+# KUBECONFIG SECRET
+# =============================================================================
+kubeconfig:
+  # Create kubeconfig secret for workers that need K8s API access
+  create: true
+  secretName: kubeconfig-secret
+  # Server URL - use in-cluster service address
+  server: "https://kubernetes.default.svc:443"
+  # Optional: Base64-encoded CA certificate (leave empty for in-cluster token)
+  caCertificate: ""
+  # Optional: ServiceAccount token (leave empty for in-cluster token)
+  token: ""
+
+# =============================================================================
+# SHARED ENVIRONMENT VARIABLES
+# =============================================================================
+env:
+  # Application settings
+  PROJECT_NAME: "integr8scode"
+  API_V1_STR: "/api/v1"
+  LOG_LEVEL: "INFO"
+  SERVICE_NAME: "integr8scode-backend"
+  SERVICE_VERSION: "1.0.0"
+
+  # Redis (explicit to override K8s auto-generated vars)
+  REDIS_DB: "0"
+
+  # Event streaming
+  ENABLE_EVENT_STREAMING: "true"
+  EVENT_RETENTION_DAYS: "30"
+
+  # Tracing
+  ENABLE_TRACING: "false"
+  TRACING_SAMPLING_RATE: "0.1"
+
+  # DLQ configuration
+  DLQ_RETRY_MAX_ATTEMPTS: "5"
+  DLQ_RETENTION_DAYS: "7"
+
+  # Rate limiting
+  RATE_LIMIT_ENABLED: "true"
+  RATE_LIMIT_DEFAULT_REQUESTS: "100"
+  RATE_LIMIT_DEFAULT_WINDOW: "60"
+
+  # WebSocket / SSE
+  WEBSOCKET_PING_INTERVAL: "30"
+  WEBSOCKET_PING_TIMEOUT: "10"
+  SSE_CONSUMER_POOL_SIZE: "10"
+  SSE_HEARTBEAT_INTERVAL: "30"
+
+# =============================================================================
+# BACKEND APPLICATION
+# =============================================================================
+backend:
+  enabled: true
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+      ephemeral-storage: "128Mi"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+      ephemeral-storage: "512Mi"
+
+  service:
+    type: ClusterIP
+    port: 443
+
+  # Health probe configuration (fixes 405 error)
+  healthProbe:
+    path: /api/v1/health/live
+    readyPath: /api/v1/health/ready
+    scheme: HTTPS
+
+  # SSL configuration
+  ssl:
+    enabled: false
+    secretName: backend-ssl
+
+  # Additional environment variables
+  extraEnv:
+    WEB_CONCURRENCY: "4"
+    # SECRET_KEY: ""  # Set in values-prod.yaml or via --set
+
+# =============================================================================
+# FRONTEND APPLICATION
+# =============================================================================
+frontend:
+  enabled: true
+  replicas: 1
+  containerPort: 5001
+
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+      ephemeral-storage: "64Mi"
+    limits:
+      memory: "256Mi"
+      cpu: "500m"
+      ephemeral-storage: "128Mi"
+
+  service:
+    type: ClusterIP
+    port: 5001
+
+# =============================================================================
+# WORKERS CONFIGURATION
+# =============================================================================
+workers:
+  # Shared settings for all workers
+  common:
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+        ephemeral-storage: "128Mi"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+        ephemeral-storage: "256Mi"
+
+  # K8s Worker - Creates executor pods
+  k8sWorker:
+    enabled: true
+    replicas: 1
+    requiresKubeconfig: true
+    command:
+      - uv
+      - run
+      - python
+      - workers/run_k8s_worker.py
+    consumerGroupId: "k8s-worker"
+
+  # Pod Monitor - Watches pod lifecycle events
+  podMonitor:
+    enabled: true
+    replicas: 1
+    requiresKubeconfig: true
+    command:
+      - uv
+      - run
+      - python
+      - workers/run_pod_monitor.py
+    consumerGroupId: "pod-monitor"
+
+  # Result Processor - Stores execution results
+  resultProcessor:
+    enabled: true
+    replicas: 1
+    requiresKubeconfig: false
+    command:
+      - uv
+      - run
+      - python
+      - workers/run_result_processor.py
+    consumerGroupId: "result-processor-group"
+
+  # Saga Orchestrator - Manages distributed transactions
+  sagaOrchestrator:
+    enabled: true
+    replicas: 1
+    requiresKubeconfig: false
+    command:
+      - uv
+      - run
+      - python
+      - workers/run_saga_orchestrator.py
+    consumerGroupId: "saga-orchestrator"
+
+  # Coordinator - Schedules executions
+  coordinator:
+    enabled: true
+    replicas: 1
+    requiresKubeconfig: false
+    command:
+      - uv
+      - run
+      - python
+      - -m
+      - workers.run_coordinator
+    consumerGroupId: "execution-coordinator"
+
+  # Event Replay - Replays historical events
+  eventReplay:
+    enabled: true
+    replicas: 1
+    requiresKubeconfig: false
+    command:
+      - uv
+      - run
+      - python
+      - workers/run_event_replay.py
+    consumerGroupId: "event-replay"
+
+  # DLQ Processor - Handles failed messages
+  dlqProcessor:
+    enabled: true
+    replicas: 1
+    requiresKubeconfig: false
+    command:
+      - uv
+      - run
+      - python
+      - workers/dlq_processor.py
+    consumerGroupId: "dlq-processor"
+
+# =============================================================================
+# INFRASTRUCTURE - CONFLUENT PLATFORM
+# =============================================================================
+# NOTE: Custom templates are used instead of Bitnami sub-charts because
+# Confluent images require `unset *_PORT` workaround for K8s compatibility
+
+infrastructure:
+  # Zookeeper
+  zookeeper:
+    enabled: true
+    image: confluentinc/cp-zookeeper:7.5.0
+    heapOpts: "-Xms256M -Xmx256M"
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+        ephemeral-storage: "128Mi"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+        ephemeral-storage: "256Mi"
+
+  # Kafka
+  kafka:
+    enabled: true
+    image: confluentinc/cp-kafka:7.5.0
+    heapOpts: "-Xms256M -Xmx256M"
+    autoCreateTopics: "true"
+    # JAAS authentication credentials for Zookeeper communication
+    # Override these in production via --set or values-prod.yaml
+    jaas:
+      superPassword: "admin-secret"
+      kafkaPassword: "kafka-secret"
+    resources:
+      requests:
+        memory: "384Mi"
+        cpu: "200m"
+        ephemeral-storage: "256Mi"
+      limits:
+        memory: "768Mi"
+        cpu: "1000m"
+        ephemeral-storage: "512Mi"
+
+  # Schema Registry
+  schemaRegistry:
+    enabled: true
+    image: confluentinc/cp-schema-registry:7.5.0
+    heapOpts: "-Xms256M -Xmx256M"
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+        ephemeral-storage: "128Mi"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+        ephemeral-storage: "256Mi"
+
+  # Jaeger (distributed tracing)
+  jaeger:
+    enabled: true
+    image: jaegertracing/all-in-one:1.52
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+        ephemeral-storage: "128Mi"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+        ephemeral-storage: "512Mi"
+
+# =============================================================================
+# REDIS (BITNAMI SUB-CHART)
+# =============================================================================
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: false
+  master:
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+    persistence:
+      enabled: false  # Disable for lightweight K3s deployment
+
+# =============================================================================
+# MONGODB (BITNAMI SUB-CHART)
+# =============================================================================
+mongodb:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: false  # Disable auth for development; enable for production
+    rootUser: "root"
+    rootPassword: ""
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  persistence:
+    enabled: true
+    size: 8Gi
+
+# =============================================================================
+# KAFKA INIT JOB
+# =============================================================================
+kafkaInit:
+  enabled: true
+  # Image to use (defaults to backend image which has create_topics.py)
+  image: ""  # Leave empty to use backend image
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 300
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+      ephemeral-storage: "64Mi"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+      ephemeral-storage: "128Mi"
+
+# =============================================================================
+# USER SEED JOB
+# =============================================================================
+userSeed:
+  enabled: true
+  # Image to use (defaults to backend image which has seed_users.py)
+  image: ""  # Leave empty to use backend image
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 300
+  # Default user credentials (override in values-prod.yaml for production)
+  defaultUserPassword: "user123"
+  adminUserPassword: "admin123"
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+      ephemeral-storage: "64Mi"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+      ephemeral-storage: "128Mi"
+
+# =============================================================================
+# EXTERNAL SERVICES (when sub-charts are disabled)
+# =============================================================================
+externalRedis:
+  host: ""
+  port: 6379
+
+externalMongodb:
+  host: ""
+  url: ""
+
+# =============================================================================
+# INGRESS (OPTIONAL)
+# =============================================================================
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: integr8scode.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []

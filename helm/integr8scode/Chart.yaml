@@ -1,0 +1,38 @@
+apiVersion: v2
+name: integr8scode
+description: A Helm chart for Integr8sCode - Kubernetes-based code execution platform
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+
+keywords:
+  - kubernetes
+  - code-execution
+  - kafka
+  - event-driven
+  - microservices
+
+home: https://github.com/HardMax71/Integr8sCode
+sources:
+  - https://github.com/HardMax71/Integr8sCode
+
+maintainers:
+  - name: Integr8sCode Team
+
+dependencies:
+  # Redis using Bitnami chart
+  - name: redis
+    version: "20.6.3"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: redis.enabled
+
+  # MongoDB using Bitnami chart
+  - name: mongodb
+    version: "16.4.3"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: mongodb.enabled
+
+# NOTE: Kafka NOT using Bitnami sub-chart
+# Reason: Confluent images have hardcoded port detection that conflicts
+# with K8s auto-generated KAFKA_PORT env vars (tcp://IP:PORT format).
+# Custom templates with `unset KAFKA_PORT` workaround are required.

@@ -1,0 +1,114 @@
+{{- if .Values.infrastructure.kafka.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "integr8scode.fullname" . }}-kafka
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "integr8scode.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kafka
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ include "integr8scode.fullname" . }}-kafka
+  template:
+    metadata:
+      labels:
+        app: {{ include "integr8scode.fullname" . }}-kafka
+        {{- include "integr8scode.labels" . | nindent 8 }}
+        app.kubernetes.io/component: kafka
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - name: kafka
+        image: {{ .Values.infrastructure.kafka.image }}
+        imagePullPolicy: {{ .Values.global.imagePullPolicy | default "IfNotPresent" }}
+        # CRITICAL: Unset KAFKA_PORT to prevent Confluent image conflict
+        # K8s auto-generates KAFKA_PORT as tcp://IP:PORT format which
+        # conflicts with Confluent's internal port detection
+        command:
+        - bash
+        - -c
+        - |
+          unset KAFKA_PORT
+          /etc/confluent/docker/run
+        ports:
+        - containerPort: 29092
+          name: broker
+        env:
+        - name: KAFKA_BROKER_ID
+          value: "1"
+        - name: KAFKA_ZOOKEEPER_CONNECT
+          value: "{{ include "integr8scode.fullname" . }}-zookeeper:2181"
+        - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
+          value: "PLAINTEXT:PLAINTEXT"
+        - name: KAFKA_LISTENERS
+          value: "PLAINTEXT://0.0.0.0:29092"
+        - name: KAFKA_ADVERTISED_LISTENERS
+          value: "PLAINTEXT://{{ include "integr8scode.fullname" . }}-kafka:29092"
+        - name: KAFKA_INTER_BROKER_LISTENER_NAME
+          value: "PLAINTEXT"
+        - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
+          value: "1"
+        - name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR
+          value: "1"
+        - name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
+          value: "1"
+        - name: KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS
+          value: "0"
+        - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
+          value: {{ .Values.infrastructure.kafka.autoCreateTopics | default "true" | quote }}
+        - name: KAFKA_DELETE_TOPIC_ENABLE
+          value: "true"
+        - name: KAFKA_OPTS
+          value: "-Dzookeeper.sasl.client=true -Dzookeeper.sasl.clientconfig=Client -Djava.security.auth.login.config=/etc/kafka/secrets/kafka_jaas.conf"
+        - name: KAFKA_ZOOKEEPER_SET_ACL
+          value: "false"
+        - name: KAFKA_HEAP_OPTS
+          value: {{ .Values.infrastructure.kafka.heapOpts | default "-Xms256M -Xmx256M" | quote }}
+        resources:
+          {{- toYaml .Values.infrastructure.kafka.resources | nindent 10 }}
+        volumeMounts:
+        - name: jaas-config
+          mountPath: /etc/kafka/secrets
+          readOnly: true
+        readinessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - "kafka-broker-api-versions --bootstrap-server localhost:29092"
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 10
+        livenessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - "kafka-broker-api-versions --bootstrap-server localhost:29092"
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+      volumes:
+      - name: jaas-config
+        secret:
+          secretName: {{ include "integr8scode.fullname" . }}-kafka-jaas
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "integr8scode.fullname" . }}-kafka
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "integr8scode.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kafka
+spec:
+  selector:
+    app: {{ include "integr8scode.fullname" . }}-kafka
+  ports:
+  - name: broker
+    port: 29092
+    targetPort: 29092
+{{- end }}

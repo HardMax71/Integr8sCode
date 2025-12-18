@@ -12,7 +12,7 @@ jobs:
     name: Backend Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -88,8 +88,12 @@ jobs:
           yq eval '.services.backend.environment += ["MONGO_ROOT_PASSWORD=rootpassword"]' -i docker-compose.ci.yaml
           # Disable OpenTelemetry SDK during tests to avoid exporter retries
           yq eval '.services.backend.environment += ["OTEL_SDK_DISABLED=true"]' -i docker-compose.ci.yaml
-          # Remove ./backend:/app volume mount - CI doesn't need hot-reload and it creates .venv permission conflicts
+          # Remove ./backend:/app volume mounts - CI doesn't need hot-reload and it creates .venv permission conflicts
+          # Backend has ./backend:/app, workers have ./backend:/app:ro
           yq eval '.services.backend.volumes = [.services.backend.volumes[] | select(. != "./backend:/app")]' -i docker-compose.ci.yaml
+          yq eval '.services."k8s-worker".volumes = [.services."k8s-worker".volumes[] | select(. != "./backend:/app:ro")]' -i docker-compose.ci.yaml
+          yq eval '.services."pod-monitor".volumes = [.services."pod-monitor".volumes[] | select(. != "./backend:/app:ro")]' -i docker-compose.ci.yaml
+          yq eval '.services."result-processor".volumes = [.services."result-processor".volumes[] | select(. != "./backend:/app:ro")]' -i docker-compose.ci.yaml
 
           # MongoDB service already has defaults in docker-compose.yaml (root/rootpassword)
           # No need to override them
@@ -135,43 +139,16 @@ jobs:
 
       - name: Start services
         run: |
-            echo "Starting services (images already built with cache)..."
-            docker compose -f docker-compose.ci.yaml up -d --remove-orphans || \
-            (
-              echo "::error::Docker Compose failed to start. Dumping all logs..."
-              docker compose -f docker-compose.ci.yaml logs
-              exit 1
-            )
-
-            echo "Services started. Waiting for stabilization..."
-            sleep 45
-
-            echo "Final status of all containers:"
+            echo "Starting services..."
+            docker compose -f docker-compose.ci.yaml up -d --remove-orphans
             docker compose -f docker-compose.ci.yaml ps
-
-            echo "Checking cert-generator logs:"
-            docker compose -f docker-compose.ci.yaml logs cert-generator || echo "cert-generator not found or exited"
-
-            echo "Checking backend container status:"
-            docker compose -f docker-compose.ci.yaml ps backend
-
-            echo "Checking backend logs:"
-            docker compose -f docker-compose.ci.yaml logs backend || echo "backend not found"
-
-            # Explicitly check for containers that have exited
-            if docker compose -f docker-compose.ci.yaml ps | grep -q 'Exit'; then
-              echo "::error::One or more containers have exited unexpectedly. See logs above."
-              docker compose -f docker-compose.ci.yaml logs --no-color
-              exit 1
-            fi
 
       - name: Wait for backend to be healthy
         run: |
-          timeout 300 bash -c 'until curl -k https://127.0.0.1:443/api/v1/health -o /dev/null; do \
-            echo "Retrying backend health check..."; \
-            sleep 5; \
-          done'
-          echo "Backend is healthy!"
+            echo "Waiting for backend (and its dependencies) to be healthy..."
+            curl --retry 60 --retry-delay 5 --retry-all-errors -ksf https://127.0.0.1:443/api/v1/health/live
+            echo "Backend is healthy!"
+            docker compose -f docker-compose.ci.yaml ps
 
       # Frontend is excluded in backend-only CI; skip UI readiness
 

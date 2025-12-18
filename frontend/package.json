@@ -50,7 +50,7 @@
   "devDependencies": {
     "@babel/runtime": "^7.24.7",
     "@tailwindcss/forms": "^0.5.7",
-    "express": "^4.21.1",
+    "express": "^5.2.1",
     "http-proxy": "^1.18.1",
     "rollup-plugin-serve": "^1.1.1"
   }

@@ -17,14 +17,19 @@ import os
 from datetime import datetime, timezone
 
 from bson import ObjectId
-from motor.motor_asyncio import AsyncIOMotorClient
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from passlib.context import CryptContext
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 async def upsert_user(
-    db: AsyncIOMotorClient, username: str, email: str, password: str, role: str, is_superuser: bool
+    db: AsyncIOMotorDatabase,
+    username: str,
+    email: str,
+    password: str,
+    role: str,
+    is_superuser: bool,
 ) -> None:
     """Create user or update if exists."""
     existing = await db.users.find_one({"username": username})

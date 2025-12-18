@@ -15,7 +15,18 @@ graph LR
 
     subgraph "Security"
         Bandit["Bandit SAST"]
-        Trivy["Trivy Container Scan"]
+    end
+
+    subgraph "Docker Build & Scan"
+        Base["Build Base"]
+        Backend["Build Backend"]
+        Frontend["Build Frontend"]
+        ScanBE["Scan Backend"]
+        ScanFE["Scan Frontend"]
+        Base --> Backend
+        Base --> Frontend
+        Backend --> ScanBE
+        Frontend --> ScanFE
     end
 
     subgraph "Testing"
@@ -30,7 +41,7 @@ graph LR
     Push["Push / PR"] --> Ruff
     Push --> MyPy
     Push --> Bandit
-    Push --> Trivy
+    Push --> Base
     Push --> Integration
     Push --> Docs
     Docs -->|main only| Pages
@@ -55,24 +66,59 @@ caching to skip reinstallation when the lockfile hasn't changed.
 
 ## Security scanning
 
-Security runs in two places. The security workflow uses [Bandit](https://bandit.readthedocs.io/) to perform static
-analysis on Python source files, flagging issues like hardcoded credentials, SQL injection patterns, and unsafe
-deserialization. It excludes the test directory and reports only medium-severity and above findings.
+The security workflow uses [Bandit](https://bandit.readthedocs.io/) to perform static analysis on Python source files,
+flagging issues like hardcoded credentials, SQL injection patterns, and unsafe deserialization. It excludes the test
+directory and reports only medium-severity and above findings. Container-level vulnerability scanning with Trivy runs
+as part of the Docker workflow (see below).
 
-The Docker workflow builds the backend image and scans it with [Trivy](https://trivy.dev/). Trivy checks the image
-layers for known vulnerabilities in OS packages and Python dependencies, failing the build if it finds any critical or
-high severity issues that have available fixes. This catches supply chain problems that static analysis would miss.
+## Docker build and scan
 
-## Docker build
+The Docker workflow is structured as multiple jobs with dependencies, enabling parallel execution and early failure
+detection. If any job fails, dependent jobs are skipped immediately.
 
-The Docker workflow builds images using a two-stage approach to optimize layer caching. First it builds a shared base
-image (`Dockerfile.base`) containing Python, system dependencies, and all pip packages. Then it builds the main backend
-image on top of that base, copying only the application code. This separation means dependency changes rebuild the base
-layer while code changes only rebuild the thin application layer.
+```mermaid
+graph TD
+    A[build-base] --> B[build-backend]
+    A --> C[build-frontend]
+    B --> D[scan-backend]
+    C --> E[scan-frontend]
+    D --> F[summary]
+    E --> F
 
-The base image includes gcc, curl, and compression libraries needed by some Python packages. It
-uses [uv](https://docs.astral.sh/uv/) to install dependencies from the lockfile, ensuring reproducible builds across
-environments. The pinned uv version (currently 0.9.17) prevents unexpected behavior from upstream changes.
+    style A fill:#e1f5fe
+    style B fill:#fff3e0
+    style C fill:#fff3e0
+    style D fill:#ffebee
+    style E fill:#ffebee
+    style F fill:#e8f5e9
+```
+
+| Job              | Depends On       | Purpose                                              |
+|------------------|------------------|------------------------------------------------------|
+| `build-base`     | -                | Build shared base image with Python and dependencies |
+| `build-backend`  | `build-base`     | Build backend image using base as build context      |
+| `build-frontend` | `build-base`     | Build frontend image (runs parallel with backend)    |
+| `scan-backend`   | `build-backend`  | Trivy vulnerability scan on backend image            |
+| `scan-frontend`  | `build-frontend` | Trivy vulnerability scan on frontend image           |
+| `summary`        | All scans        | Generate summary (main branch only)                  |
+
+### Base image
+
+The base image (`Dockerfile.base`) contains Python, system dependencies, and all pip packages. It
+uses [uv](https://docs.astral.sh/uv/) to install dependencies from the lockfile, ensuring reproducible builds. The base
+includes gcc, curl, and compression libraries needed by some Python packages. Separating base from application means
+dependency changes rebuild the base layer while code changes only rebuild the thin application layer.
+
+### Build contexts
+
+Backend and frontend builds reference the base image via Docker's `build-contexts` feature. The workflow passes the
+appropriate tag (`pr-<number>` for pull requests, `latest` for main branch) so each build uses the correct base.
+
+### Security scanning
+
+After each image builds, [Trivy](https://trivy.dev/) scans it for known vulnerabilities in OS packages and Python
+dependencies. The scan fails if it finds any critical or high severity issues with available fixes. Results upload to
+GitHub Security for tracking. The backend scan respects `.trivyignore` for acknowledged vulnerabilities.
 
 ## Integration tests
 

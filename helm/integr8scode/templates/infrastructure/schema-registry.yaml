@@ -19,6 +19,7 @@ spec:
         {{- include "integr8scode.labels" . | nindent 8 }}
         app.kubernetes.io/component: schema-registry
     spec:
+      automountServiceAccountToken: false
       containers:
       - name: schema-registry
         image: {{ .Values.infrastructure.schemaRegistry.image }}

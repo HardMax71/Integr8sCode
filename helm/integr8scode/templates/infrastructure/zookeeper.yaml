@@ -19,6 +19,7 @@ spec:
         {{- include "integr8scode.labels" . | nindent 8 }}
         app.kubernetes.io/component: zookeeper
     spec:
+      automountServiceAccountToken: false
       containers:
       - name: zookeeper
         image: {{ .Values.infrastructure.zookeeper.image }}

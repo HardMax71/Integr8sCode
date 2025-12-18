@@ -19,6 +19,7 @@ spec:
         {{- include "integr8scode.labels" . | nindent 8 }}
         app.kubernetes.io/component: jaeger
     spec:
+      automountServiceAccountToken: false
       containers:
       - name: jaeger
         image: {{ .Values.infrastructure.jaeger.image }}

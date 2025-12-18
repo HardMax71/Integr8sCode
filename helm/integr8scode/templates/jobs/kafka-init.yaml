@@ -22,6 +22,7 @@ spec:
         app: {{ include "integr8scode.fullname" . }}-kafka-init
         {{- include "integr8scode.labels" . | nindent 8 }}
     spec:
+      automountServiceAccountToken: false
       restartPolicy: OnFailure
       initContainers:
       # Wait for Kafka to be ready before attempting topic creation

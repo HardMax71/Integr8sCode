@@ -19,6 +19,7 @@ spec:
         {{- include "integr8scode.labels" . | nindent 8 }}
         app.kubernetes.io/component: kafka
     spec:
+      automountServiceAccountToken: false
       containers:
       - name: kafka
         image: {{ .Values.infrastructure.kafka.image }}

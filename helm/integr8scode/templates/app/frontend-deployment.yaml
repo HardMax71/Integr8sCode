@@ -19,6 +19,7 @@ spec:
         {{- include "integr8scode.labels" . | nindent 8 }}
         app.kubernetes.io/component: frontend
     spec:
+      automountServiceAccountToken: false
       containers:
       - name: frontend
         image: {{ include "integr8scode.frontendImage" . }}

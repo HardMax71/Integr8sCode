@@ -1,4 +1,4 @@
-FROM alpine:3.17
+FROM alpine:3.23
 
 # Install required packages and tools for all architectures
 RUN apk add --no-cache wget ca-certificates openssl curl dos2unix netcat-openbsd && \

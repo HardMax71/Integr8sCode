@@ -156,7 +156,7 @@ export default {
             minimize: production,
         }),
         typescript({
-            sourceMap: !production,
+            sourceMap: true,
             inlineSources: !production
         }),
         json(),

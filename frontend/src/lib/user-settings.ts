@@ -1,6 +1,6 @@
 import { get } from 'svelte/store';
 import { isAuthenticated } from '../stores/auth';
-import { setTheme } from '../stores/theme';
+import { setThemeLocal } from '../stores/theme';
 import { getCachedSettings, setCachedSettings, updateCachedSetting } from './settings-cache';
 import {
     getUserSettingsApiV1UserSettingsGet,
@@ -39,7 +39,7 @@ export async function loadUserSettings(): Promise<UserSettings | undefined> {
     const cached = getCachedSettings();
     if (cached) {
         if (cached.theme) {
-            setTheme(cached.theme);
+            setThemeLocal(cached.theme);
         }
         return cached;
     }
@@ -55,7 +55,7 @@ export async function loadUserSettings(): Promise<UserSettings | undefined> {
         setCachedSettings(data);
 
         if (data.theme) {
-            setTheme(data.theme);
+            setThemeLocal(data.theme);
         }
 
         return data;

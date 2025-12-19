@@ -150,13 +150,3 @@ class TokenValidationResponse(BaseModel):
     csrf_token: str
 
     model_config = ConfigDict(from_attributes=True)
-
-
-class UserProfileResponse(BaseModel):
-    """Response model for user profile"""
-    user_id: str
-    username: str
-    email: str
-    role: str
-
-    model_config = ConfigDict(from_attributes=True)

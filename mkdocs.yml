@@ -103,6 +103,7 @@ nav:
   - Architecture:
     - Overview: architecture/overview.md
     - Services: architecture/services-overview.md
+    - Frontend Build: architecture/frontend-build.md
     - Kafka Topics: architecture/kafka-topic-architecture.md
     - Service Lifecycle: architecture/lifecycle.md
 

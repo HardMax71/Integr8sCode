@@ -77,3 +77,11 @@ export function toggleTheme(): void {
 export function setTheme(newTheme: ThemeValue): void {
     theme.set(newTheme);
 }
+
+export function setThemeLocal(newTheme: ThemeValue): void {
+    internalSet(newTheme);
+    if (browser) {
+        localStorage.setItem(storageKey, newTheme);
+    }
+    applyTheme(newTheme);
+}

@@ -34,7 +34,9 @@ function createNotificationStore() {
                 }
             });
             if (error) {
-                update(s => ({ ...s, loading: false, error: String(error) }));
+                const msg = (error as { detail?: Array<{ msg?: string }> }).detail?.[0]?.msg
+                    ?? JSON.stringify(error);
+                update(s => ({ ...s, loading: false, error: msg }));
                 return [];
             }
             set({ notifications: data?.notifications ?? [], loading: false, error: null });

@@ -1,12 +1,11 @@
 <script>
     import { navigate, Link } from "svelte-routing";
-    import { addToast } from "../stores/toastStore.js";
+    import { addToast } from "../stores/toastStore";
     import { fade, fly } from "svelte/transition";
-    import { api } from "../lib/api.js";
+    import { registerApiV1AuthRegisterPost } from "../lib/api";
     import { onMount } from 'svelte';
-    import { updateMetaTags, pageMeta } from '../utils/meta.js';
+    import { updateMetaTags, pageMeta } from '../utils/meta';
     import Spinner from '../components/Spinner.svelte';
-    // import { backendUrl } from "../config.js"; // Use relative path for proxy
 
     let username = "";
     let email = "";
@@ -34,14 +33,13 @@
         loading = true;
         error = null;
         try {
-            // Use api module instead of axios for consistency
-            await api.post(`/api/v1/auth/register`, { username, email, password });
+            const { error: apiError } = await registerApiV1AuthRegisterPost({ body: { username, email, password } });
+            if (apiError) throw apiError;
             addToast("Registration successful! Please log in.", "success");
-            navigate("/login"); // Redirect to login page
+            navigate("/login");
         } catch (err) {
-            error = err.response?.data?.detail || err.message || "Registration failed. Please try again.";
+            error = err?.detail || err?.message || "Registration failed. Please try again.";
             addToast(error, "error");
-            console.error("Registration error:", err);
         } finally {
             loading = false;
         }

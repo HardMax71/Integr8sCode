@@ -1,3 +1,4 @@
+import './lib/api/setup';
 import App from './App.svelte';
 import './app.css';
 

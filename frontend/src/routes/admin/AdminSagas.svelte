@@ -1,6 +1,10 @@
 <script>
     import { onMount, onDestroy } from 'svelte';
-    import { api } from '../../lib/api';
+    import {
+        listSagasApiV1SagasGet,
+        getSagaStatusApiV1SagasSagaIdGet,
+        getExecutionSagasApiV1SagasExecutionExecutionIdGet,
+    } from '../../lib/api';
     import { addToast } from '../../stores/toastStore';
     import AdminLayout from './AdminLayout.svelte';
     import Spinner from '../../components/Spinner.svelte';
@@ -93,23 +97,24 @@
     async function loadSagas() {
         try {
             loading = true;
-            
-            const params = new URLSearchParams();
-            if (stateFilter) params.append('state', stateFilter);
-            params.append('limit', itemsPerPage);
-            params.append('offset', (currentPage - 1) * itemsPerPage);
-            
-            const response = await api.get(`/api/v1/sagas/?${params}`);
-            sagas = response.sagas;
-            totalItems = response.total;
-            
-            // Filter by execution ID and search query on client side
+
+            const { data, error } = await listSagasApiV1SagasGet({
+                query: {
+                    state: stateFilter || undefined,
+                    limit: itemsPerPage,
+                    offset: (currentPage - 1) * itemsPerPage
+                }
+            });
+            if (error) throw error;
+            sagas = data?.sagas || [];
+            totalItems = data?.total || 0;
+
             if (executionIdFilter) {
                 sagas = sagas.filter(s => s.execution_id.includes(executionIdFilter));
             }
             if (searchQuery) {
                 const query = searchQuery.toLowerCase();
-                sagas = sagas.filter(s => 
+                sagas = sagas.filter(s =>
                     s.saga_id.toLowerCase().includes(query) ||
                     s.saga_name.toLowerCase().includes(query) ||
                     s.execution_id.toLowerCase().includes(query) ||
@@ -123,24 +128,28 @@
             loading = false;
         }
     }
-    
+
     async function loadSagaDetails(sagaId) {
         try {
-            const response = await api.get(`/api/v1/sagas/${sagaId}`);
-            selectedSaga = response;
+            const { data, error } = await getSagaStatusApiV1SagasSagaIdGet({ path: { saga_id: sagaId } });
+            if (error) throw error;
+            selectedSaga = data;
             showDetailModal = true;
         } catch (error) {
             console.error('Failed to load saga details:', error);
             addToast('Failed to load saga details', 'error');
         }
     }
-    
+
     async function loadExecutionSagas(executionId) {
         try {
             loading = true;
-            const response = await api.get(`/api/v1/sagas/execution/${executionId}`);
-            sagas = response.sagas;
-            totalItems = response.total;
+            const { data, error } = await getExecutionSagasApiV1SagasExecutionExecutionIdGet({
+                path: { execution_id: executionId }
+            });
+            if (error) throw error;
+            sagas = data?.sagas || [];
+            totalItems = data?.total || 0;
             executionIdFilter = executionId;
         } catch (error) {
             console.error('Failed to load execution sagas:', error);

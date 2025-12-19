@@ -39,11 +39,11 @@ jobs:
       - name: Install MkDocs
         run: uv tool install mkdocs --with mkdocs-material --with mkdocs-mermaid2-plugin --with mkdocs-swagger-ui-tag
 
-      - name: Download OpenAPI spec
-        run: |
-          curl -s https://api.integr8scode.cc/openapi.json | \
-          jq '. + {servers: [{url: "https://api.integr8scode.cc", description: "Production"}]}' \
-          > docs/reference/openapi.json
+      - name: Install backend dependencies
+        run: cd backend && uv sync --frozen
+
+      - name: Generate OpenAPI spec
+        run: ./deploy.sh openapi
 
       - name: Build documentation
         run: uv tool run mkdocs build --strict

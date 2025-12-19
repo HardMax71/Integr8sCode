@@ -130,3 +130,33 @@ class MessageResponse(BaseModel):
     model_config = ConfigDict(
         from_attributes=True
     )
+
+
+class LoginResponse(BaseModel):
+    """Response model for successful login"""
+    message: str
+    username: str
+    role: str
+    csrf_token: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TokenValidationResponse(BaseModel):
+    """Response model for token validation"""
+    valid: bool
+    username: str
+    role: str
+    csrf_token: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UserProfileResponse(BaseModel):
+    """Response model for user profile"""
+    user_id: str
+    username: str
+    email: str
+    role: str
+
+    model_config = ConfigDict(from_attributes=True)

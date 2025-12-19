@@ -1,10 +1,14 @@
 <script>
     import { onMount } from 'svelte';
-    import { api } from '../../lib/api';
+    import {
+        getSystemSettingsApiV1AdminSettingsGet,
+        updateSystemSettingsApiV1AdminSettingsPut,
+        resetSystemSettingsApiV1AdminSettingsResetPost,
+    } from '../../lib/api';
     import { addToast } from '../../stores/toastStore';
     import AdminLayout from './AdminLayout.svelte';
     import Spinner from '../../components/Spinner.svelte';
-    
+
     let settings = {
         execution_limits: {},
         security_settings: {},
@@ -13,46 +17,51 @@
     let loading = false;
     let saving = false;
     let resetting = false;
-    
+
     onMount(() => {
         loadSettings();
     });
-    
+
     async function loadSettings() {
         loading = true;
         try {
-            settings = await api.get('/api/v1/admin/settings/');
+            const { data, error } = await getSystemSettingsApiV1AdminSettingsGet({});
+            if (error) throw error;
+            settings = data;
         } catch (error) {
             console.error('Failed to load settings:', error);
-            addToast(`Failed to load settings: ${error.message}`, 'error');
+            addToast(`Failed to load settings: ${error?.message || 'Unknown error'}`, 'error');
         } finally {
             loading = false;
         }
     }
-    
+
     async function saveSettings() {
         saving = true;
         try {
-            await api.put('/api/v1/admin/settings/', settings);
+            const { error } = await updateSystemSettingsApiV1AdminSettingsPut({ body: settings });
+            if (error) throw error;
             addToast('Settings saved successfully', 'success');
         } catch (error) {
-            addToast(`Failed to save settings: ${error.message}`, 'error');
+            addToast(`Failed to save settings: ${error?.message || 'Unknown error'}`, 'error');
         } finally {
             saving = false;
         }
     }
-    
+
     async function resetSettings() {
         if (!confirm('Are you sure you want to reset all settings to defaults?')) {
             return;
         }
-        
+
         resetting = true;
         try {
-            settings = await api.post('/api/v1/admin/settings/reset', {});
+            const { data, error } = await resetSystemSettingsApiV1AdminSettingsResetPost({});
+            if (error) throw error;
+            settings = data;
             addToast('Settings reset to defaults', 'success');
         } catch (error) {
-            addToast(`Failed to reset settings: ${error.message}`, 'error');
+            addToast(`Failed to reset settings: ${error?.message || 'Unknown error'}`, 'error');
         } finally {
             resetting = false;
         }

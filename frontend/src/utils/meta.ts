@@ -1,20 +1,25 @@
-export function updateMetaTags(title, description) {
+interface PageMetaInfo {
+    title: string;
+    description: string;
+}
+
+export function updateMetaTags(title?: string, description?: string): void {
     if (title) {
         document.title = `${title} | Integr8sCode`;
     }
-    
+
     if (description) {
         let metaDescription = document.querySelector('meta[name="description"]');
         if (!metaDescription) {
             metaDescription = document.createElement('meta');
-            metaDescription.name = 'description';
+            metaDescription.setAttribute('name', 'description');
             document.head.appendChild(metaDescription);
         }
-        metaDescription.content = description;
+        metaDescription.setAttribute('content', description);
     }
 }
 
-export const pageMeta = {
+export const pageMeta: Record<string, PageMetaInfo> = {
     home: {
         title: 'Home',
         description: 'Integr8sCode - Write, compile, and manage code directly in your browser with our powerful online development environment'

@@ -1,8 +1,8 @@
 <script>
     import { onMount } from 'svelte';
     import { navigate } from 'svelte-routing';
-    import { isAuthenticated } from '../stores/auth.js';
-    import { AuthInitializer } from '../lib/auth-init.js';
+    import { isAuthenticated } from '../stores/auth';
+    import { AuthInitializer } from '../lib/auth-init';
     import Spinner from './Spinner.svelte';
     
     export let redirectTo = '/login';

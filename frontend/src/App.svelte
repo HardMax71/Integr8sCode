@@ -17,8 +17,8 @@
     import ToastContainer from "./components/ToastContainer.svelte";
     import ProtectedRoute from "./components/ProtectedRoute.svelte";
     import Spinner from "./components/Spinner.svelte";
-    import { theme } from './stores/theme.js';
-    import { initializeAuth } from './lib/auth-init.js';
+    import { theme } from './stores/theme';
+    import { initializeAuth } from './lib/auth-init';
 
     $: themeValue = $theme;
 

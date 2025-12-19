@@ -1,6 +1,11 @@
 <script>
     import { onMount } from 'svelte';
-    import { api } from '../lib/api';
+    import {
+        getUserSettingsApiV1UserSettingsGet,
+        updateUserSettingsApiV1UserSettingsPut,
+        restoreSettingsApiV1UserSettingsRestorePost,
+        getSettingsHistoryApiV1UserSettingsHistoryGet,
+    } from '../lib/api';
     import { isAuthenticated, username } from '../stores/auth';
     import { theme as themeStore } from '../stores/theme';
     import { addToast } from '../stores/toastStore';
@@ -93,30 +98,12 @@
     async function loadSettings() {
         loading = true;
         try {
-            // Set a timeout for loading settings
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-            
-            const response = await fetch('/api/v1/user/settings/', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                credentials: 'include',
-                signal: controller.signal
-            }).finally(() => clearTimeout(timeoutId));
-            
-            if (!response.ok) {
-                throw new Error('Failed to load settings');
-            }
-            
-            settings = await response.json();
-            
-            // Cache the settings
+            const { data, error } = await getUserSettingsApiV1UserSettingsGet({});
+            if (error) throw error;
+
+            settings = data;
             setCachedSettings(settings);
-            
-            // Update form data with proper defaults
-            // Use current theme from store instead of backend to reflect local changes
+
             formData = {
                 theme: $themeStore,
                 notifications: {
@@ -136,13 +123,8 @@
                 }
             };
         } catch (error) {
-            if (error.name === 'AbortError') {
-                addToast('Loading settings timed out. Please refresh the page.', 'error');
-            } else {
-                addToast('Failed to load settings. Using defaults.', 'error');
-                // Use default settings if load fails
-                settings = {};
-            }
+            addToast('Failed to load settings. Using defaults.', 'error');
+            settings = {};
         } finally {
             loading = false;
         }
@@ -171,11 +153,9 @@
         saving = true;
         try {
             const updates = {};
-            
-            // Only include changed fields
+
             if (formData.theme !== settings.theme) updates.theme = formData.theme;
-            
-            // Compare nested objects with deep equality check
+
             if (!deepEqual(formData.notifications, settings.notifications)) {
                 updates.notifications = formData.notifications;
             }
@@ -185,33 +165,25 @@
             if (!deepEqual(formData.preferences, settings.preferences)) {
                 updates.preferences = formData.preferences;
             }
-            
+
             if (Object.keys(updates).length === 0) {
                 addToast('No changes to save', 'info');
                 return;
             }
-            
-            // Send the update request
-            const response = await api.put('/api/v1/user/settings/', updates);
-            
-            // Update local settings with the response
-            settings = response;
-            
-            // Update cache with new settings
+
+            const { data, error } = await updateUserSettingsApiV1UserSettingsPut({ body: updates });
+            if (error) throw error;
+
+            settings = data;
             setCachedSettings(settings);
-            
-            // Update formData with response to ensure consistency
+
             formData = {
                 theme: settings.theme || 'auto',
                 notifications: settings.notifications || formData.notifications,
                 editor: settings.editor || formData.editor
             };
-            
-            // Theme is already saved by the theme store when changed in dropdown
-            
+
             addToast('Settings saved successfully', 'success');
-            
-            // Don't reload settings after save - we already have the updated data
         } catch (error) {
             console.error('Settings save error:', error);
             addToast('Failed to save settings', 'error');
@@ -226,49 +198,27 @@
     const HISTORY_CACHE_DURATION = 30000; // Cache for 30 seconds
     
     async function loadHistory() {
-        // Show the modal immediately with loading state
         showHistory = true;
-        
-        // Use cached history if available and recent
+
         if (historyCache && Date.now() - historyCacheTime < HISTORY_CACHE_DURATION) {
             history = historyCache;
             historyLoading = false;
             return;
         }
-        
+
         history = [];
         historyLoading = true;
-        
+
         try {
-            // Set a timeout for the request to prevent long waits
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-            
-            const response = await fetch('/api/v1/user/settings/history?limit=10', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                credentials: 'include',
-                signal: controller.signal
-            }).finally(() => clearTimeout(timeoutId));
-            
-            if (!response.ok) {
-                throw new Error('Failed to fetch history');
-            }
-            
-            const data = await response.json();
-            history = data.history || [];
-            
-            // Process and sort history items (newest first)
-            history = history
+            const { data, error } = await getSettingsHistoryApiV1UserSettingsHistoryGet({ query: { limit: 10 } });
+            if (error) throw error;
+
+            history = (data?.history || [])
                 .map(item => {
-                    // Simplify field names by removing 'preferences.' prefix
                     let displayField = item.field;
                     if (displayField.startsWith('preferences.')) {
                         displayField = displayField.replace('preferences.', '');
                     }
-                    
                     return {
                         ...item,
                         displayField,
@@ -276,16 +226,11 @@
                     };
                 })
                 .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-            
-            // Cache the results
+
             historyCache = history;
             historyCacheTime = Date.now();
         } catch (error) {
-            if (error.name === 'AbortError') {
-                addToast('Loading history timed out. Please try again.', 'error');
-            } else {
-                addToast('Failed to load settings history', 'error');
-            }
+            addToast('Failed to load settings history', 'error');
             history = [];
         } finally {
             historyLoading = false;
@@ -296,24 +241,23 @@
         if (!confirm('Are you sure you want to restore settings to this point?')) {
             return;
         }
-        
+
         try {
-            settings = await api.post('/api/v1/user/settings/restore', {
-                timestamp,
-                reason: 'User requested restore'
+            const { data, error } = await restoreSettingsApiV1UserSettingsRestorePost({
+                body: { timestamp, reason: 'User requested restore' }
             });
-            
-            // Invalidate cache since settings have changed
+            if (error) throw error;
+
+            settings = data;
             historyCache = null;
             historyCacheTime = 0;
-            
+
             await loadSettings();
-            
-            // Apply restored theme
+
             if (settings.theme) {
                 themeStore.set(settings.theme);
             }
-            
+
             showHistory = false;
             addToast('Settings restored successfully', 'success');
         } catch (error) {

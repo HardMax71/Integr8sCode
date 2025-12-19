@@ -1,7 +1,6 @@
 <script>
     import { onMount } from 'svelte';
     import { navigate } from 'svelte-routing';
-    import { api } from '../lib/api';
     import { isAuthenticated, verifyAuth } from '../stores/auth';
     import { addToast } from '../stores/toastStore';
     import { notificationStore, notifications, unreadCount } from '../stores/notificationStore';
@@ -222,18 +221,15 @@
                                             {/if}
                                         </button>
                                         {#if (notification.tags || []).some(t => t.startsWith('exec:'))}
-                                            {#if (notification.tags || []).find(t => t.startsWith('exec:'))}
-                                                {#key notification.notification_id}
-                                                    <a
-                                                        href={`/api/v1/result/${(notification.tags || []).find(t => t.startsWith('exec:')).split(':')[1]}`}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        class="btn btn-ghost btn-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 ml-2"
-                                                        on:click|stopPropagation
-                                                    >
-                                                        View result
-                                                    </a>
-                                                {/key}
+                                            {@const execTag = (notification.tags || []).find(t => t.startsWith('exec:'))}
+                                            {#if execTag}
+                                                <a
+                                                    href={`/editor?execution=${execTag.split(':')[1]}`}
+                                                    class="btn btn-ghost btn-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 ml-2"
+                                                    on:click|stopPropagation
+                                                >
+                                                    View result
+                                                </a>
                                             {/if}
                                         {/if}
                                     </div>

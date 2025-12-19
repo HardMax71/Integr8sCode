@@ -1,6 +1,14 @@
 <script>
     import { onMount } from 'svelte';
-    import { api } from '../../lib/api';
+    import {
+        listUsersApiV1AdminUsersGet,
+        createUserApiV1AdminUsersPost,
+        updateUserApiV1AdminUsersUserIdPut,
+        deleteUserApiV1AdminUsersUserIdDelete,
+        getUserRateLimitsApiV1AdminUsersUserIdRateLimitsGet,
+        updateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPut,
+        resetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPost,
+    } from '../../lib/api';
     import { addToast } from '../../stores/toastStore';
     import AdminLayout from './AdminLayout.svelte';
     import Spinner from '../../components/Spinner.svelte';
@@ -59,29 +67,32 @@
     async function loadUsers() {
         loading = true;
         try {
-            const response = await api.get('/api/v1/admin/users/');
-            users = Array.isArray(response) ? response : response?.users || [];
+            const { data, error } = await listUsersApiV1AdminUsersGet({});
+            if (error) throw error;
+            users = Array.isArray(data) ? data : data?.users || [];
         } catch (error) {
             console.error('Failed to load users:', error);
-            addToast(`Failed to load users: ${error.message}`, 'error');
+            addToast(`Failed to load users: ${error?.message || 'Unknown error'}`, 'error');
             users = [];
         } finally {
             loading = false;
         }
     }
-    
+
     async function deleteUser() {
         if (!userToDelete) return;
-        
+
         deletingUser = true;
         try {
-            const response = await api.delete(
-                `/api/v1/admin/users/${userToDelete.user_id}?cascade=${cascadeDelete}`
-            );
-            
-            addToast(response.message, 'success');
-            
-            if (response.deleted_counts) {
+            const { data: response, error } = await deleteUserApiV1AdminUsersUserIdDelete({
+                path: { user_id: userToDelete.user_id },
+                query: { cascade: cascadeDelete }
+            });
+            if (error) throw error;
+
+            addToast(response?.message || 'User deleted', 'success');
+
+            if (response?.deleted_counts) {
                 const counts = Object.entries(response.deleted_counts)
                     .filter(([key, value]) => value > 0)
                     .map(([key, value]) => `${key}: ${value}`)
@@ -90,51 +101,54 @@
                     addToast(`Deleted data: ${counts}`, 'info');
                 }
             }
-            
+
             await loadUsers();
             showDeleteModal = false;
             userToDelete = null;
         } catch (error) {
             console.error('Failed to delete user:', error);
-            addToast(`Failed to delete user: ${error.message}`, 'error');
+            addToast(`Failed to delete user: ${error?.message || 'Unknown error'}`, 'error');
         } finally {
             deletingUser = false;
         }
     }
-    
+
     async function openRateLimitModal(user) {
         rateLimitUser = user;
         showRateLimitModal = true;
         loadingRateLimits = true;
-        
+
         try {
-            const response = await api.get(`/api/v1/admin/users/${user.user_id}/rate-limits`);
-            rateLimitConfig = response.rate_limit_config || {
+            const { data: response, error } = await getUserRateLimitsApiV1AdminUsersUserIdRateLimitsGet({
+                path: { user_id: user.user_id }
+            });
+            if (error) throw error;
+            rateLimitConfig = response?.rate_limit_config || {
                 user_id: user.user_id,
                 rules: [],
                 global_multiplier: 1.0,
                 bypass_rate_limit: false,
                 notes: ''
             };
-            rateLimitUsage = response.current_usage || {};
+            rateLimitUsage = response?.current_usage || {};
         } catch (error) {
             console.error('Failed to load rate limits:', error);
-            addToast(`Failed to load rate limits: ${error.message}`, 'error');
+            addToast(`Failed to load rate limits: ${error?.message || 'Unknown error'}`, 'error');
         } finally {
             loadingRateLimits = false;
         }
     }
-    
+
     async function saveRateLimits() {
         if (!rateLimitUser || !rateLimitConfig) return;
-        
+
         savingRateLimits = true;
         try {
-            console.log('Sending rate limit config:', rateLimitConfig);
-            await api.put(
-                `/api/v1/admin/users/${rateLimitUser.user_id}/rate-limits`,
-                rateLimitConfig
-            );
+            const { error } = await updateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPut({
+                path: { user_id: rateLimitUser.user_id },
+                body: rateLimitConfig
+            });
+            if (error) throw error;
             addToast('Rate limits updated successfully', 'success');
             showRateLimitModal = false;
         } catch (error) {
@@ -144,19 +158,20 @@
             savingRateLimits = false;
         }
     }
-    
+
     async function resetRateLimits() {
         if (!rateLimitUser) return;
-        
+
         try {
-            const response = await api.post(
-                `/api/v1/admin/users/${rateLimitUser.user_id}/rate-limits/reset`
-            );
-            addToast(response.message, 'success');
+            const { data: response, error } = await resetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPost({
+                path: { user_id: rateLimitUser.user_id }
+            });
+            if (error) throw error;
+            addToast(response?.message || 'Rate limits reset', 'success');
             rateLimitUsage = {};
         } catch (error) {
             console.error('Failed to reset rate limits:', error);
-            addToast(`Failed to reset rate limits: ${error.message}`, 'error');
+            addToast(`Failed to reset rate limits: ${error?.message || 'Unknown error'}`, 'error');
         }
     }
     
@@ -386,42 +401,46 @@
             addToast('Username is required', 'error');
             return;
         }
-        
+
         savingUser = true;
         try {
             if (editingUser) {
-                // Update existing user
                 const updateData = {
                     username: userForm.username,
                     email: userForm.email || null,
                     role: userForm.role,
                     is_active: userForm.is_active
                 };
-                
-                // Only include password if it was changed
+
                 if (userForm.password) {
                     updateData.password = userForm.password;
                 }
-                
-                await api.put(`/api/v1/admin/users/${editingUser.user_id}`, updateData);
+
+                const { error } = await updateUserApiV1AdminUsersUserIdPut({
+                    path: { user_id: editingUser.user_id },
+                    body: updateData
+                });
+                if (error) throw error;
                 addToast('User updated successfully', 'success');
             } else {
-                // Create new user
                 if (!userForm.password) {
                     addToast('Password is required for new users', 'error');
                     return;
                 }
-                
-                await api.post('/api/v1/admin/users/', {
-                    username: userForm.username,
-                    email: userForm.email || null,
-                    password: userForm.password,
-                    role: userForm.role,
-                    is_active: userForm.is_active
+
+                const { error } = await createUserApiV1AdminUsersPost({
+                    body: {
+                        username: userForm.username,
+                        email: userForm.email || null,
+                        password: userForm.password,
+                        role: userForm.role,
+                        is_active: userForm.is_active
+                    }
                 });
+                if (error) throw error;
                 addToast('User created successfully', 'success');
             }
-            
+
             showUserModal = false;
             await loadUsers();
         } catch (error) {
@@ -453,30 +472,21 @@
     // Reset to first page when filters change
     $: searchQuery, roleFilter, statusFilter, currentPage = 1;
     
-    // Helper function to extract validation error messages
-    async function handleValidationError(error, defaultMessage) {
-        if (error.response && error.response.status === 422) {
-            try {
-                const errorData = await error.response.json();
-                console.error('Validation errors:', errorData);
-                
-                // Extract all validation messages
-                if (errorData.detail && Array.isArray(errorData.detail)) {
-                    const messages = errorData.detail.map(err => {
-                        const field = err.loc && err.loc.length > 1 ? err.loc[err.loc.length - 1] : 'field';
-                        return `${field}: ${err.msg}`;
-                    });
-                    addToast(`Validation failed:\n${messages.join('\n')}`, 'error');
-                } else if (errorData.detail && typeof errorData.detail === 'string') {
-                    addToast(`Validation failed: ${errorData.detail}`, 'error');
-                } else {
-                    addToast(`Validation failed: ${JSON.stringify(errorData)}`, 'error');
-                }
-            } catch (e) {
-                addToast(`${defaultMessage}: ${error.message}`, 'error');
+    function handleValidationError(error, defaultMessage) {
+        if (error?.status === 422 && error?.detail) {
+            if (Array.isArray(error.detail)) {
+                const messages = error.detail.map(err => {
+                    const field = err.loc && err.loc.length > 1 ? err.loc[err.loc.length - 1] : 'field';
+                    return `${field}: ${err.msg}`;
+                });
+                addToast(`Validation failed:\n${messages.join('\n')}`, 'error');
+            } else if (typeof error.detail === 'string') {
+                addToast(`Validation failed: ${error.detail}`, 'error');
+            } else {
+                addToast(`Validation failed: ${JSON.stringify(error.detail)}`, 'error');
             }
         } else {
-            addToast(`${defaultMessage}: ${error.message}`, 'error');
+            addToast(`${defaultMessage}: ${error?.message || 'Unknown error'}`, 'error');
         }
     }
 </script>

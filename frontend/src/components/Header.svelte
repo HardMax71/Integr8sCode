@@ -1,7 +1,7 @@
 <script>
   import { Link, navigate } from "svelte-routing";
-  import { isAuthenticated, username, userRole, logout as authLogout, userEmail } from "../stores/auth.js";
-  import { theme, toggleTheme } from "../stores/theme.js";
+  import { isAuthenticated, username, userRole, logout as authLogout, userEmail } from "../stores/auth";
+  import { theme, toggleTheme } from "../stores/theme";
   import { fade } from 'svelte/transition';
   import { onMount, onDestroy } from 'svelte';
   import NotificationCenter from './NotificationCenter.svelte';

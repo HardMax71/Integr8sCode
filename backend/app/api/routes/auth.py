@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Union
 from uuid import uuid4
 
 from dishka import FromDishka
@@ -12,7 +11,13 @@ from app.core.security import security_service
 from app.core.utils import get_client_ip
 from app.db.repositories import UserRepository
 from app.domain.user import User as DomainAdminUser
-from app.schemas_pydantic.user import UserCreate, UserResponse
+from app.schemas_pydantic.user import (
+    UserCreate,
+    UserResponse,
+    LoginResponse,
+    TokenValidationResponse,
+    MessageResponse,
+)
 from app.services.auth_service import AuthService
 from app.settings import get_settings
 
@@ -21,13 +26,13 @@ router = APIRouter(prefix="/auth",
                    route_class=DishkaRoute)
 
 
-@router.post("/login")
+@router.post("/login", response_model=LoginResponse)
 async def login(
         request: Request,
         response: Response,
         user_repo: FromDishka[UserRepository],
         form_data: OAuth2PasswordRequestForm = Depends(),
-) -> Dict[str, str]:
+) -> LoginResponse:
     logger.info(
         "Login attempt",
         extra={
@@ -112,14 +117,12 @@ async def login(
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
 
-    # Return minimal authentication response
-    # Detailed user info should be fetched from GET /me endpoint
-    return {
-        "message": "Login successful",
-        "username": user.username,
-        "role": "admin" if user.is_superuser else "user",  # Coarse-grained role
-        "csrf_token": csrf_token
-    }
+    return LoginResponse(
+        message="Login successful",
+        username=user.username,
+        role="admin" if user.is_superuser else "user",
+        csrf_token=csrf_token
+    )
 
 
 @router.post("/register", response_model=UserResponse)
@@ -224,11 +227,11 @@ async def get_current_user_profile(
     return current_user
 
 
-@router.get("/verify-token")
+@router.get("/verify-token", response_model=TokenValidationResponse)
 async def verify_token(
         request: Request,
         auth_service: FromDishka[AuthService],
-) -> Dict[str, Union[str, bool]]:
+) -> TokenValidationResponse:
     current_user = await auth_service.get_current_user(request)
     logger.info(
         "Token verification attempt",
@@ -249,15 +252,14 @@ async def verify_token(
                 "user_agent": request.headers.get("user-agent"),
             },
         )
-        # Return existing CSRF token from cookie
         csrf_token = request.cookies.get("csrf_token", "")
 
-        return {
-            "valid": True,
-            "username": current_user.username,
-            "role": "admin" if current_user.is_superuser else "user",  # Coarse-grained role
-            "csrf_token": csrf_token
-        }
+        return TokenValidationResponse(
+            valid=True,
+            username=current_user.username,
+            role="admin" if current_user.is_superuser else "user",
+            csrf_token=csrf_token
+        )
 
     except Exception as e:
         logger.error(
@@ -278,11 +280,11 @@ async def verify_token(
 
 
 
-@router.post("/logout")
+@router.post("/logout", response_model=MessageResponse)
 async def logout(
         request: Request,
         response: Response,
-) -> Dict[str, str]:
+) -> MessageResponse:
     logger.info(
         "Logout attempt",
         extra={
@@ -312,4 +314,4 @@ async def logout(
         },
     )
 
-    return {"message": "Logout successful"}
+    return MessageResponse(message="Logout successful")

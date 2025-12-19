@@ -1,12 +1,12 @@
 <script>
   import { navigate, Link } from "svelte-routing";
-  import { login } from "../stores/auth.js";
-  import { addToast } from "../stores/toastStore.js";
+  import { login } from "../stores/auth";
+  import { addToast } from "../stores/toastStore";
   import { fade, fly } from "svelte/transition";
   import Spinner from '../components/Spinner.svelte'; // Assuming Spinner component exists
   import { onMount } from 'svelte';
-  import { updateMetaTags, pageMeta } from '../utils/meta.js';
-  import { loadUserSettings } from '../lib/user-settings.js';
+  import { updateMetaTags, pageMeta } from '../utils/meta';
+  import { loadUserSettings } from '../lib/user-settings';
 
   let username = "";
   let password = "";

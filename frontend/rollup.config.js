@@ -5,6 +5,7 @@ import terser from '@rollup/plugin-terser';
 import postcss from 'rollup-plugin-postcss';
 import sveltePreprocess from 'svelte-preprocess';
 import replace from '@rollup/plugin-replace';
+import typescript from '@rollup/plugin-typescript';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import https from 'https';
@@ -112,7 +113,7 @@ function startServer() {
 }
 
 export default {
-    input: 'src/main.js',
+    input: 'src/main.ts',
     output: {
         sourcemap: true,
         format: 'es',
@@ -153,6 +154,10 @@ export default {
         postcss({
             extract: 'bundle.css',
             minimize: production,
+        }),
+        typescript({
+            sourceMap: !production,
+            inlineSources: !production
         }),
         json(),
         resolve({

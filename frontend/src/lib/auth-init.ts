@@ -1,32 +1,32 @@
 import { get } from 'svelte/store';
-import { isAuthenticated, username, userId, userRole, userEmail, csrfToken, verifyAuth } from '../stores/auth.js';
-import { loadUserSettings } from './user-settings.js';
+import { isAuthenticated, username, userId, userRole, userEmail, csrfToken, verifyAuth } from '../stores/auth';
+import { loadUserSettings } from './user-settings';
 
-/**
- * Authentication initialization service
- * This runs before any components mount to ensure auth state is ready
- */
+interface PersistedAuth {
+    isAuthenticated: boolean;
+    username: string | null;
+    userId: string | null;
+    userRole: string | null;
+    userEmail: string | null;
+    csrfToken: string | null;
+    timestamp: number;
+}
+
 export class AuthInitializer {
     static initialized = false;
-    static initPromise = null;
+    static initPromise: Promise<boolean> | null = null;
 
-    /**
-     * Initialize authentication state from localStorage and verify with backend
-     * This should be called once at app startup
-     */
-    static async initialize() {
-        // If already initialized or initializing, return the existing promise
+    static async initialize(): Promise<boolean> {
         if (this.initialized) {
             return true;
         }
-        
+
         if (this.initPromise) {
             return this.initPromise;
         }
 
-        // Create initialization promise
         this.initPromise = this._performInitialization();
-        
+
         try {
             const result = await this.initPromise;
             this.initialized = true;
@@ -40,10 +40,9 @@ export class AuthInitializer {
         }
     }
 
-    static async _performInitialization() {
+    private static async _performInitialization(): Promise<boolean> {
         console.log('[AuthInit] Starting authentication initialization...');
 
-        // Check if we have persisted auth state
         const persistedAuth = this._getPersistedAuth();
 
         if (persistedAuth) {
@@ -53,14 +52,13 @@ export class AuthInitializer {
         return await this._handleNoPersistedAuth();
     }
 
-    static async _handlePersistedAuth(persistedAuth) {
+    private static async _handlePersistedAuth(persistedAuth: PersistedAuth): Promise<boolean> {
         console.log('[AuthInit] Found persisted auth state, verifying with backend...');
 
-        // Set stores immediately to avoid UI flicker
         this._setAuthStores(persistedAuth);
 
         try {
-            const isValid = await verifyAuth(true); // Force refresh
+            const isValid = await verifyAuth(true);
 
             if (!isValid) {
                 console.log('[AuthInit] Authentication invalid, clearing state');
@@ -78,7 +76,7 @@ export class AuthInitializer {
         }
     }
 
-    static async _handleNoPersistedAuth() {
+    private static async _handleNoPersistedAuth(): Promise<boolean> {
         console.log('[AuthInit] No persisted auth state found');
 
         try {
@@ -97,7 +95,7 @@ export class AuthInitializer {
         }
     }
 
-    static _setAuthStores(authData) {
+    private static _setAuthStores(authData: PersistedAuth): void {
         isAuthenticated.set(true);
         username.set(authData.username);
         userId.set(authData.userId);
@@ -106,18 +104,16 @@ export class AuthInitializer {
         csrfToken.set(authData.csrfToken);
     }
 
-    static async _loadUserSettingsSafely() {
+    private static async _loadUserSettingsSafely(): Promise<void> {
         try {
             await loadUserSettings();
             console.log('[AuthInit] User settings loaded');
         } catch (error) {
             console.warn('[AuthInit] Failed to load user settings:', error);
-            // Continue even if settings fail to load
         }
     }
 
-    static _handleVerificationError(persistedAuth) {
-        // On network error, keep the persisted state if it's recent
+    private static _handleVerificationError(persistedAuth: PersistedAuth): boolean {
         if (this._isRecentAuth(persistedAuth)) {
             console.log('[AuthInit] Network error but auth is recent, keeping state');
             return true;
@@ -128,19 +124,18 @@ export class AuthInitializer {
         return false;
     }
 
-    static _getPersistedAuth() {
+    private static _getPersistedAuth(): PersistedAuth | null {
         try {
             const authData = localStorage.getItem('authState');
             if (!authData) return null;
-            
-            const parsed = JSON.parse(authData);
-            
-            // Check if auth data is still fresh (24 hours)
+
+            const parsed: PersistedAuth = JSON.parse(authData);
+
             if (Date.now() - parsed.timestamp > 24 * 60 * 60 * 1000) {
                 localStorage.removeItem('authState');
                 return null;
             }
-            
+
             return parsed;
         } catch (e) {
             console.error('[AuthInit] Failed to parse persisted auth:', e);
@@ -148,12 +143,11 @@ export class AuthInitializer {
         }
     }
 
-    static _isRecentAuth(authData) {
-        // Consider auth recent if less than 5 minutes old
-        return authData && (Date.now() - authData.timestamp < 5 * 60 * 1000);
+    private static _isRecentAuth(authData: PersistedAuth): boolean {
+        return Date.now() - authData.timestamp < 5 * 60 * 1000;
     }
 
-    static _clearAuth() {
+    private static _clearAuth(): void {
         isAuthenticated.set(false);
         username.set(null);
         userId.set(null);
@@ -163,28 +157,21 @@ export class AuthInitializer {
         localStorage.removeItem('authState');
     }
 
-    /**
-     * Check if user is authenticated (after initialization)
-     */
-    static isAuthenticated() {
+    static isAuthenticated(): boolean {
         if (!this.initialized) {
             console.warn('[AuthInit] Checking auth before initialization');
             return false;
         }
-        return get(isAuthenticated);
+        return get(isAuthenticated) ?? false;
     }
 
-    /**
-     * Wait for initialization to complete
-     */
-    static async waitForInit() {
+    static async waitForInit(): Promise<boolean> {
         if (this.initialized) return true;
         if (this.initPromise) return this.initPromise;
         return this.initialize();
     }
 }
 
-// Export singleton instance methods for convenience
-export const initializeAuth = () => AuthInitializer.initialize();
-export const waitForAuth = () => AuthInitializer.waitForInit();
-export const checkAuth = () => AuthInitializer.isAuthenticated();
+export const initializeAuth = (): Promise<boolean> => AuthInitializer.initialize();
+export const waitForAuth = (): Promise<boolean> => AuthInitializer.waitForInit();
+export const checkAuth = (): boolean => AuthInitializer.isAuthenticated();

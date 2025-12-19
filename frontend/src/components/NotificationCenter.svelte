@@ -1,6 +1,5 @@
 <script>
     import { onMount, onDestroy } from 'svelte';
-    import { api } from '../lib/api';
     import { fade, fly } from 'svelte/transition';
     import { isAuthenticated, username, userId } from '../stores/auth';
     import { get } from 'svelte/store';
@@ -261,6 +260,17 @@
                                     window.location.href = notification.action_url;
                                 }
                             }}
+                            on:keydown={(e) => {
+                                if (e.key === 'Enter') {
+                                    markAsRead(notification);
+                                    if (notification.action_url) {
+                                        window.location.href = notification.action_url;
+                                    }
+                                }
+                            }}
+                            tabindex="0"
+                            role="button"
+                            aria-label="View notification: {notification.subject}"
                         >
                             <div class="flex items-start space-x-3">
                                 <div class={`mt-1 ${priorityColors[notification.severity || 'medium']}`}>

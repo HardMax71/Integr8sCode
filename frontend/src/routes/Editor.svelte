@@ -2,9 +2,18 @@
     import {onDestroy, onMount} from "svelte";
     import {fade, fly, slide} from "svelte/transition";
     import {get, writable} from "svelte/store";
-        import {isAuthenticated, logout as authLogout, verifyAuth, csrfToken} from "../stores/auth.js";
-    import {api} from "../lib/api.js";
-    import {addToast} from "../stores/toastStore.js";
+        import {isAuthenticated, logout as authLogout, verifyAuth, csrfToken} from "../stores/auth";
+    import {
+        getK8sResourceLimitsApiV1K8sLimitsGet,
+        getExampleScriptsApiV1ExampleScriptsGet,
+        createExecutionApiV1ExecutePost,
+        getResultApiV1ResultExecutionIdGet,
+        listSavedScriptsApiV1ScriptsGet,
+        createSavedScriptApiV1ScriptsPost,
+        updateSavedScriptApiV1ScriptsScriptIdPut,
+        deleteSavedScriptApiV1ScriptsScriptIdDelete,
+    } from "../lib/api";
+    import {addToast} from "../stores/toastStore";
     import Spinner from "../components/Spinner.svelte";
     import {navigate} from "svelte-routing";
     import {Compartment, EditorState, StateEffect} from "@codemirror/state";
@@ -15,12 +24,12 @@
     import {githubLight} from "@uiw/codemirror-theme-github";
     import {bracketMatching} from "@codemirror/language";
     import {autocompletion, completionKeymap} from "@codemirror/autocomplete";
-    import {theme as appTheme} from "../stores/theme.js";
+    import {theme as appTheme} from "../stores/theme";
     import AnsiToHtml from 'ansi-to-html';
     import DOMPurify from 'dompurify';
-    import { updateMetaTags, pageMeta } from '../utils/meta.js';
-    import { getCachedSettings, settingsCache } from '../lib/settings-cache.js';
-    import { loadUserSettings, saveEditorSettings } from '../lib/user-settings.js';
+    import { updateMetaTags, pageMeta } from '../utils/meta';
+    import { getCachedSettings, settingsCache } from '../lib/settings-cache';
+    import { loadUserSettings, saveEditorSettings } from '../lib/user-settings';
 
     let themeCompartment = new Compartment();
     let fontSizeCompartment = new Compartment();
@@ -244,14 +253,14 @@
         });
 
         try {
-            k8sLimits = await api.get(`/api/v1/k8s-limits`);
+            const { data, error } = await getK8sResourceLimitsApiV1K8sLimitsGet({});
+            if (error) throw error;
+            k8sLimits = data;
             supportedRuntimes = k8sLimits?.supported_runtimes || {"python": ["3.9", "3.10", "3.11"]};
 
             const currentLang = get(selectedLang);
             const currentVersion = get(selectedVersion);
-            // Validate current selection
             if (!supportedRuntimes[currentLang] || !supportedRuntimes[currentLang].includes(currentVersion)) {
-                // If invalid, reset to the first available option
                 const firstLang = Object.keys(supportedRuntimes)[0];
                 if (firstLang) {
                     const firstVersion = supportedRuntimes[firstLang][0];
@@ -269,8 +278,9 @@
         }
 
         try {
-            const examplesResponse = await api.get('/api/v1/example-scripts');
-            exampleScripts = examplesResponse.scripts || {};
+            const { data, error } = await getExampleScriptsApiV1ExampleScriptsGet({});
+            if (error) throw error;
+            exampleScripts = data?.scripts || {};
         } catch (err) {
             console.error("Error fetching example scripts:", err);
             addToast("Could not load example scripts.", "warning");
@@ -433,21 +443,14 @@
         let executionId = null;
 
         try {
-            const executeResponse = await fetchWithRetry(`/api/v1/execute`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
+            const { data: executeData, error: execError } = await createExecutionApiV1ExecutePost({
+                body: {
                     script: scriptValue,
                     lang: langValue,
                     lang_version: versionValue
-                })
-            }, {
-                numOfAttempts: 3,
-                maxDelay: 5000
+                }
             });
-            const executeData = await executeResponse.json();
+            if (execError) throw execError;
             executionId = executeData.execution_id;
             result = {status: 'running', execution_id: executionId};
 
@@ -496,10 +499,8 @@
                             // Close immediately on any terminal error
                             clearTimeout(timeoutId);
                             try { eventSource.close(); } catch {}
-                            // Attempt one final fetch to ensure we return full payload
                             try {
-                                const r = await fetchWithRetry(`/api/v1/result/${executionId}`, { method: 'GET' });
-                                const finalData = await r.json();
+                                const { data: finalData } = await getResultApiV1ResultExecutionIdGet({ path: { execution_id: executionId } });
                                 resolve(finalData);
                             } catch {
                                 resolve({ status: 'error', errors: data?.error || 'Execution failed', execution_id: executionId });
@@ -523,12 +524,9 @@
                     console.error('SSE error:', error);
                     clearTimeout(timeoutId);
                     eventSource.close();
-                    
-                    // Fall back to polling one final time to get the result
-                    fetchWithRetry(`/api/v1/result/${executionId}`, {
-                        method: 'GET'
-                    }).then(response => response.json())
-                      .then(data => resolve(data))
+
+                    getResultApiV1ResultExecutionIdGet({ path: { execution_id: executionId } })
+                      .then(({ data }) => resolve(data))
                       .catch(() => resolve({
                           status: 'error',
                           errors: 'Lost connection to execution stream',
@@ -556,13 +554,8 @@
     async function loadSavedScripts() {
         if (!authenticated) return;
         try {
-            const data = await apiCall(`/api/v1/scripts`, {
-                method: 'GET'
-            }, {
-                numOfAttempts: 3,
-                maxDelay: 5000
-            });
-            // Ensure each script has a unique ID
+            const { data, error } = await listSavedScriptsApiV1ScriptsGet({});
+            if (error) throw error;
             savedScripts = (data || []).map((script, index) => ({
                 ...script,
                 id: script.id || script._id || `temp_${index}_${Date.now()}`
@@ -570,7 +563,7 @@
         } catch (err) {
             console.error("Error loading saved scripts:", err);
             addToast("Failed to load saved scripts. You might need to log in again.", "error");
-            if (err.response?.status === 401) {
+            if (err?.status === 401) {
                 handleLogout();
             }
         }
@@ -622,78 +615,44 @@
         let operation = currentIdValue ? 'update' : 'create';
 
         try {
-            let data;
+            const scriptData = {
+                name: nameValue,
+                script: scriptValue,
+                lang: langValue,
+                lang_version: versionValue
+            };
+
             if (operation === 'update') {
-                try {
-                    await apiCall(`/api/v1/scripts/${currentIdValue}`, {
-                        method: 'PUT',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            name: nameValue, 
-                            script: scriptValue,
-                            lang: langValue,
-                            lang_version: versionValue
-                        })
-                    }, {
-                        numOfAttempts: 3,
-                        maxDelay: 5000
-                    });
-                    addToast("Script updated successfully.", "success");
-                } catch (updateErr) {
-                    // If update fails with 404, the script doesn't exist anymore
-                    // Clear the currentScriptId and fallback to create operation
-                    if (updateErr.response?.status === 404) {
+                const { error: updateErr } = await updateSavedScriptApiV1ScriptsScriptIdPut({
+                    path: { script_id: currentIdValue },
+                    body: scriptData
+                });
+                if (updateErr) {
+                    if (updateErr?.status === 404) {
                         console.log('Script not found, falling back to create operation');
                         currentScriptId.set(null);
                         operation = 'create';
-                        
-                        data = await apiCall(`/api/v1/scripts`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                name: nameValue, 
-                                script: scriptValue,
-                                lang: langValue,
-                                lang_version: versionValue
-                            })
-                        }, {
-                            numOfAttempts: 3,
-                            maxDelay: 5000
-                        });
+                        const { data, error } = await createSavedScriptApiV1ScriptsPost({ body: scriptData });
+                        if (error) throw error;
                         currentScriptId.set(data.id);
                         addToast("Script saved successfully.", "success");
                     } else {
                         throw updateErr;
                     }
+                } else {
+                    addToast("Script updated successfully.", "success");
                 }
             } else {
-                data = await apiCall(`/api/v1/scripts`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        name: nameValue, 
-                        script: scriptValue,
-                        lang: langValue,
-                        lang_version: versionValue
-                    })
-                }, {
-                    numOfAttempts: 3,
-                    maxDelay: 5000
-                });
+                const { data, error } = await createSavedScriptApiV1ScriptsPost({ body: scriptData });
+                if (error) throw error;
                 currentScriptId.set(data.id);
                 addToast("Script saved successfully.", "success");
             }
             await loadSavedScripts();
         } catch (err) {
-            console.error(`Error ${operation === 'update' ? 'updating' : 'saving'} script:`, err.response || err);
+            console.error(`Error ${operation === 'update' ? 'updating' : 'saving'} script:`, err);
             addToast(`Failed to ${operation} script. Please try again.`, "error");
-            if (err.response?.status === 401) {
+            if (err?.status === 401) {
                 handleLogout();
             }
         }
@@ -709,21 +668,19 @@
         if (!confirm(confirmMessage)) return;
 
         try {
-            await apiCall(`/api/v1/scripts/${scriptIdToDelete}`, {
-                method: 'DELETE'
-            }, {
-                numOfAttempts: 3,
-                maxDelay: 5000
+            const { error } = await deleteSavedScriptApiV1ScriptsScriptIdDelete({
+                path: { script_id: scriptIdToDelete }
             });
+            if (error) throw error;
             addToast("Script deleted successfully.", "success");
             if (get(currentScriptId) === scriptIdToDelete) {
                 newScript();
             }
             await loadSavedScripts();
         } catch (err) {
-            console.error("Error deleting script:", err.response || err);
+            console.error("Error deleting script:", err);
             addToast("Failed to delete script.", "error");
-            if (err.response?.status === 401) {
+            if (err?.status === 401) {
                 handleLogout();
             }
         }

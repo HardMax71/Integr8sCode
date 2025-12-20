@@ -27,8 +27,8 @@ export function getCachedSettings(): UserSettings | null {
         }
 
         return data;
-    } catch (error) {
-        console.error('Error reading settings cache:', error);
+    } catch (err) {
+        console.error('Error reading settings cache:', err);
         localStorage.removeItem(CACHE_KEY);
         return null;
     }
@@ -44,8 +44,8 @@ export function setCachedSettings(settings: UserSettings): void {
         };
         localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
         settingsCache.set(settings);
-    } catch (error) {
-        console.error('Error saving settings cache:', error);
+    } catch (err) {
+        console.error('Error saving settings cache:', err);
     }
 }
 

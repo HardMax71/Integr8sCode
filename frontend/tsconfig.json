@@ -12,6 +12,7 @@
     "allowJs": true,
     "checkJs": false,
     "isolatedModules": true,
+    "verbatimModuleSyntax": true,
     "outDir": "./public/build",
     "baseUrl": ".",
     "paths": {

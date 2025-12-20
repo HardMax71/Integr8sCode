@@ -4,7 +4,9 @@ This document explains how the frontend codebase is built, what libraries are in
 
 ## Overview
 
-The frontend is a Svelte single-page application bundled with Rollup. It uses TypeScript for type safety, Tailwind CSS v4 for styling, and a generated SDK for type-safe API calls. The build outputs static files to `public/build/` which are served by nginx in production or by a custom HTTPS dev server during development.
+The frontend is a Svelte 5 single-page application bundled with Rollup. It uses TypeScript for type safety, Tailwind CSS v4 for styling, and a generated SDK for type-safe API calls. The build outputs static files to `public/build/` which are served by nginx in production or by a custom HTTPS dev server during development.
+
+For details on the Svelte 5 runes API and migration patterns, see [Svelte 5 Migration](svelte5-migration.md).
 
 ```mermaid
 graph LR
@@ -46,14 +48,15 @@ The `rollup.config.js` file configures the entire build pipeline. It produces ES
 
 ### Entry point
 
-The build starts from `src/main.ts`, which imports the API client setup, mounts the Svelte `App` component, and imports global CSS:
+The build starts from `src/main.ts`, which imports the API client setup, mounts the Svelte `App` component using Svelte 5's `mount()` function, and imports global CSS:
 
 ```typescript
+import { mount } from 'svelte';
 import './lib/api/setup';
 import App from './App.svelte';
 import './app.css';
 
-const app = new App({
+const app = mount(App, {
   target: document.body,
 });
 ```
@@ -64,7 +67,7 @@ Rollup splits the bundle into chunks to improve load performance. The `manualChu
 
 | Chunk | Contents |
 |-------|----------|
-| `vendor` | Svelte, svelte-routing, axios |
+| `vendor` | Svelte, @mateothegreat/svelte5-router |
 | `codemirror` | All CodeMirror packages for the editor |
 | Application chunks | Route components and shared code |
 
@@ -75,7 +78,7 @@ This means users don't re-download vendor code when application code changes, an
 The plugin pipeline processes files in order:
 
 1. **replace** — Substitutes `process.env.VITE_BACKEND_URL` with an empty string, allowing relative API paths
-2. **svelte** — Compiles `.svelte` files with TypeScript preprocessing via `svelte-preprocess`
+2. **svelte** — Compiles `.svelte` files with TypeScript preprocessing via `svelte-preprocess`, with `runes: true` enabled for Svelte 5
 3. **postcss** — Processes CSS through PostCSS, extracting styles to `bundle.css`
 4. **typescript** — Compiles TypeScript files with source maps
 5. **json** — Allows importing JSON files
@@ -237,9 +240,11 @@ Styles are organized into Tailwind layers:
 - **base** — Element defaults, form styles, scrollbars, CodeMirror overrides
 - **components** — Reusable patterns like `.btn`, `.card`, `.form-input-standard`
 
-## Svelte stores
+## Svelte stores and runes
 
-Reactive state is managed through Svelte stores in `src/stores/`:
+The frontend uses a hybrid approach to state management:
+
+**Svelte stores** (`src/stores/`) handle global, shared state:
 
 | Store | Purpose |
 |-------|---------|
@@ -249,6 +254,30 @@ Reactive state is managed through Svelte stores in `src/stores/`:
 | `notificationStore.ts` | Server notifications with pagination |
 
 Stores use the generated SDK for API calls and persist state to localStorage where appropriate. The auth store exposes a `csrfToken` store that the API client interceptor reads for request signing.
+
+**Svelte 5 runes** (`$state`, `$derived`, `$effect`) handle component-local state:
+
+```svelte
+<script lang="ts">
+  import { isAuthenticated } from '../stores/auth';
+
+  // Component-local reactive state
+  let loading = $state(false);
+  let items = $state<Item[]>([]);
+
+  // Derived values
+  let itemCount = $derived(items.length);
+
+  // Store subscription (unchanged from Svelte 4)
+  // $isAuthenticated auto-subscribes to the store
+</script>
+
+{#if $isAuthenticated}
+  <span>Items: {itemCount}</span>
+{/if}
+```
+
+For detailed patterns and migration guidance, see [Svelte 5 Migration](svelte5-migration.md).
 
 ## Build commands
 

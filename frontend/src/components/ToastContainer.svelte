@@ -1,6 +1,6 @@
-<script>
+<script lang="ts">
     import { onDestroy } from 'svelte';
-    import { toasts, removeToast, TOAST_DURATION } from "../stores/toastStore";
+    import { toasts, removeToast, TOAST_DURATION, type Toast, type ToastType } from "../stores/toastStore";
     import { fly } from "svelte/transition";
 
     const checkCircleIcon = `<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>`;
@@ -9,9 +9,22 @@
     const infoIcon = `<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" /></svg>`;
     const closeIcon = `<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>`;
 
-    let timers = {};
+    let timers: Record<string, ReturnType<typeof setInterval>> = {};
 
-    function startTimer(toast) {
+    // Subscribe to toasts and start timers for new ones
+    let toastList = $state<Toast[]>([]);
+    const unsubscribeToasts = toasts.subscribe(value => {
+        toastList = value;
+        if (typeof window !== 'undefined') {
+            value.forEach(toast => {
+                if (!toast.timerStarted && !timers[toast.id]) {
+                    startTimer(toast);
+                }
+            });
+        }
+    });
+
+    function startTimer(toast: Toast) {
         if (!toast || timers[toast.id]) return;
 
         const start = Date.now();
@@ -37,30 +50,21 @@
         toast.timerStarted = true;
     }
 
-    function clearTimer(toast) {
+    function clearTimer(toast: Toast) {
         if (toast && timers[toast.id]) {
             clearInterval(timers[toast.id]);
             delete timers[toast.id];
         }
     }
 
-    $: {
-        if (typeof window !== 'undefined') {
-            $toasts.forEach(toast => {
-                if (!toast.timerStarted && !timers[toast.id]) {
-                    startTimer(toast);
-                }
-            });
-        }
-    }
-
     onDestroy(() => {
+        unsubscribeToasts();
         Object.values(timers).forEach(clearInterval);
         timers = {};
     });
 
-    function getToastClasses(type) {
-        let base = "toast";
+    function getToastClasses(type: ToastType): string {
+        const base = "toast";
         switch (type) {
             case 'success':
                 return `${base} bg-green-50 border-green-200 text-green-800 dark:bg-green-950 dark:border-green-800 dark:text-green-200`;
@@ -74,8 +78,8 @@
         }
     }
 
-    function getIconClasses(type) {
-        let base = "shrink-0 mr-3 pt-0.5";
+    function getIconClasses(type: ToastType): string {
+        const base = "shrink-0 mr-3 pt-0.5";
         switch (type) {
             case 'success': return `${base} text-green-400`;
             case 'error':   return `${base} text-red-400`;
@@ -85,8 +89,8 @@
         }
     }
 
-    function getButtonClasses(type) {
-        let base = "ml-3 -mr-1 -my-1 p-1 rounded-md focus:outline-hidden focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-dark-bg-alt opacity-70 hover:opacity-100 transition-opacity";
+    function getButtonClasses(type: ToastType): string {
+        const base = "ml-3 -mr-1 -my-1 p-1 rounded-md focus:outline-hidden focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-dark-bg-alt opacity-70 hover:opacity-100 transition-opacity";
         switch (type) {
             case 'success': return `${base} focus:ring-green-500 focus:ring-offset-green-50 dark:focus:ring-offset-green-950`;
             case 'error':   return `${base} focus:ring-red-500 focus:ring-offset-red-50 dark:focus:ring-offset-red-950`;
@@ -96,8 +100,8 @@
         }
     }
 
-    function getTimerClasses(type) {
-        let base = "timer";
+    function getTimerClasses(type: ToastType): string {
+        const base = "timer";
         switch (type) {
             case 'success': return `${base} bg-green-300 dark:bg-green-600`;
             case 'error':   return `${base} bg-red-300 dark:bg-red-600`;
@@ -109,14 +113,14 @@
 </script>
 
 <div class="toasts-container">
-    {#each $toasts as toast (toast.id)}
+    {#each toastList as toast (toast.id)}
         <div
              role="alert"
              class={getToastClasses(toast.type)}
              in:fly={{ x: 100, duration: 300, easing: (t) => 1 - Math.pow(1 - t, 3) }}
              out:fly={{ x: 100, opacity: 0, duration: 200, easing: (t) => t * t }}
-             on:mouseenter={() => clearTimer(toast)}
-             on:mouseleave={() => startTimer(toast)}
+             onmouseenter={() => clearTimer(toast)}
+             onmouseleave={() => startTimer(toast)}
         >
             <div class={getIconClasses(toast.type)}>
                {#if toast.type === 'success'} {@html checkCircleIcon}
@@ -131,7 +135,7 @@
 
             <button
                     class={getButtonClasses(toast.type)}
-                    on:click={() => { clearTimer(toast); removeToast(toast.id); }}
+                    onclick={() => { clearTimer(toast); removeToast(toast.id); }}
                     aria-label="Close toast"
             >
                 {@html closeIcon}

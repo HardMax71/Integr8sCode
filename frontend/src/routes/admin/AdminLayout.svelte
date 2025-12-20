@@ -1,63 +1,64 @@
-<script>
-    import { link, navigate } from 'svelte-routing';
+<script lang="ts">
+    import { route, goto } from '@mateothegreat/svelte5-router';
     import { onMount } from 'svelte';
     import { addToast } from '../../stores/toastStore';
     import { isAuthenticated, username, userRole, verifyAuth } from '../../stores/auth';
     import { get } from 'svelte/store';
     import Spinner from '../../components/Spinner.svelte';
-    
-    export let path = '';
-    
-    let user = null;
-    let loading = true;
-    
-    
+    import type { Snippet } from 'svelte';
+
+    let { path = '', children }: { path?: string; children?: Snippet } = $props();
+
+    let user = $state<{ username: string; role: string } | null>(null);
+    let loading = $state(true);
+
+
     const menuItems = [
         { href: '/admin/events', label: 'Event Browser' },
         { href: '/admin/sagas', label: 'Sagas' },
         { href: '/admin/users', label: 'Users' },
         { href: '/admin/settings', label: 'Settings' },
     ];
-    
+
     onMount(async () => {
         // First verify authentication with the backend
         try {
             loading = true;
-            
+
             // Verify auth with backend - this will update the stores
             const authValid = await verifyAuth();
-            
+
             // Now check the stores after verification
             const isAuth = get(isAuthenticated);
             const currentUsername = get(username);
             const currentRole = get(userRole);
-            
+
             if (!authValid || !isAuth || !currentUsername) {
                 // Save current path for redirect after login
                 const currentPath = window.location.pathname + window.location.search + window.location.hash;
                 sessionStorage.setItem('redirectAfterLogin', currentPath);
-                
+
                 addToast('Authentication required', 'error');
-                navigate('/login');
+                goto('/login');
                 return;
             }
-            
+
             // Check for admin role
             if (currentRole !== 'admin') {
                 addToast('Admin access required', 'error');
-                navigate('/');
+                goto('/');
                 return;
             }
-            
+
             user = { username: currentUsername, role: currentRole };
-        } catch (error) {
-            console.error('Admin auth check failed:', error);
+        } catch (err) {
+            console.error('Admin auth check failed:', err);
             // Save current path for redirect after login
             const currentPath = window.location.pathname + window.location.search + window.location.hash;
             sessionStorage.setItem('redirectAfterLogin', currentPath);
-            
+
             addToast('Authentication required', 'error');
-            navigate('/login');
+            goto('/login');
         } finally {
             loading = false;
         }
@@ -82,12 +83,12 @@
                     </svg>
                     <h2 class="text-xl font-bold text-fg-default dark:text-dark-fg-default">Admin Panel</h2>
                 </div>
-                
+
                 <nav class="space-y-2">
                     {#each menuItems as item}
                         <a
                             href={item.href}
-                            use:link
+                            use:route
                             class="flex items-center gap-3 px-4 py-2 rounded-lg transition-colors cursor-pointer"
                             class:bg-primary={path === item.href}
                             class:text-white={path === item.href}
@@ -100,7 +101,7 @@
                         </a>
                     {/each}
                 </nav>
-                
+
                 {#if user}
                     <div class="mt-8 p-4 bg-bg-alt dark:bg-dark-bg-alt rounded-lg border border-border-default dark:border-dark-border-default">
                         <p class="text-sm text-fg-muted dark:text-dark-fg-muted">Logged in as:</p>
@@ -109,10 +110,10 @@
                 {/if}
             </div>
     </div>
-    
+
         <!-- Main content -->
         <div class="flex-1 ml-64 pb-16">
-            <slot />
+            {@render children?.()}
         </div>
     </div>
 {/if}

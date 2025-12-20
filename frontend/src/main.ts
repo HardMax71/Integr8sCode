@@ -1,8 +1,9 @@
 import './lib/api/setup';
+import { mount } from 'svelte';
 import App from './App.svelte';
 import './app.css';
 
-const app = new App({
+const app = mount(App, {
   target: document.body,
 });
 

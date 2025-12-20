@@ -1,31 +1,33 @@
-<script>
+<script lang="ts">
     import { onMount, onDestroy } from 'svelte';
     import {
         listSagasApiV1SagasGet,
         getSagaStatusApiV1SagasSagaIdGet,
         getExecutionSagasApiV1SagasExecutionExecutionIdGet,
+        type SagaStatusResponse,
+        type SagaState,
     } from '../../lib/api';
     import { addToast } from '../../stores/toastStore';
     import AdminLayout from './AdminLayout.svelte';
     import Spinner from '../../components/Spinner.svelte';
-    
-    let loading = true;
-    let sagas = [];
-    let selectedSaga = null;
-    let showDetailModal = false;
-    let refreshInterval = null;
-    let autoRefresh = true;
-    let refreshRate = 5; // seconds
-    
+
+    let loading = $state(true);
+    let sagas = $state<SagaStatusResponse[]>([]);
+    let selectedSaga = $state<SagaStatusResponse | null>(null);
+    let showDetailModal = $state(false);
+    let refreshInterval: ReturnType<typeof setInterval> | null = null;
+    let autoRefresh = $state(true);
+    let refreshRate = $state(5); // seconds
+
     // Filters
-    let stateFilter = '';
-    let executionIdFilter = '';
-    let searchQuery = '';
-    
+    let stateFilter = $state('');
+    let executionIdFilter = $state('');
+    let searchQuery = $state('');
+
     // Pagination
-    let currentPage = 1;
-    let itemsPerPage = 10;
-    let totalItems = 0;
+    let currentPage = $state(1);
+    let itemsPerPage = $state(10);
+    let totalItems = $state(0);
     
     // Saga states with SVG icons
     const sagaStates = {
@@ -94,7 +96,7 @@
         { name: 'monitor_execution', label: 'Monitor', compensation: null }
     ];
     
-    async function loadSagas() {
+    async function loadSagas(): Promise<void> {
         try {
             loading = true;
 
@@ -121,27 +123,27 @@
                     (s.error_message && s.error_message.toLowerCase().includes(query))
                 );
             }
-        } catch (error) {
-            console.error('Failed to load sagas:', error);
+        } catch (err) {
+            console.error('Failed to load sagas:', err);
             addToast('Failed to load sagas', 'error');
         } finally {
             loading = false;
         }
     }
 
-    async function loadSagaDetails(sagaId) {
+    async function loadSagaDetails(sagaId: string): Promise<void> {
         try {
             const { data, error } = await getSagaStatusApiV1SagasSagaIdGet({ path: { saga_id: sagaId } });
             if (error) throw error;
-            selectedSaga = data;
+            selectedSaga = data ?? null;
             showDetailModal = true;
-        } catch (error) {
-            console.error('Failed to load saga details:', error);
+        } catch (err) {
+            console.error('Failed to load saga details:', err);
             addToast('Failed to load saga details', 'error');
         }
     }
 
-    async function loadExecutionSagas(executionId) {
+    async function loadExecutionSagas(executionId: string): Promise<void> {
         try {
             loading = true;
             const { data, error } = await getExecutionSagasApiV1SagasExecutionExecutionIdGet({
@@ -151,55 +153,63 @@
             sagas = data?.sagas || [];
             totalItems = data?.total || 0;
             executionIdFilter = executionId;
-        } catch (error) {
-            console.error('Failed to load execution sagas:', error);
+        } catch (err) {
+            console.error('Failed to load execution sagas:', err);
             addToast('Failed to load execution sagas', 'error');
         } finally {
             loading = false;
         }
     }
     
-    function formatDate(dateString) {
+    function formatDate(dateString: string | null): string {
         if (!dateString) return 'N/A';
         return new Date(dateString).toLocaleString();
     }
-    
-    function formatDuration(startDate, endDate) {
+
+    function formatDuration(startDate: string | null, endDate: string | null): string {
         if (!startDate || !endDate) return 'N/A';
         const start = new Date(startDate);
         const end = new Date(endDate);
-        const duration = end - start;
-        
+        const duration = end.getTime() - start.getTime();
+
         if (duration < 1000) return `${duration}ms`;
         if (duration < 60000) return `${(duration / 1000).toFixed(1)}s`;
         if (duration < 3600000) return `${Math.floor(duration / 60000)}m ${Math.floor((duration % 60000) / 1000)}s`;
         return `${Math.floor(duration / 3600000)}h ${Math.floor((duration % 3600000) / 60000)}m`;
     }
-    
-    function getStateInfo(state) {
-        return sagaStates[state] || { label: state, color: 'bg-gray-100 text-gray-800' };
+
+    interface StateInfo {
+        label: string;
+        color: string;
+        bgColor?: string;
+        iconColor?: string;
+        icon?: string;
     }
-    
-    function getProgressPercentage(saga) {
+
+    function getStateInfo(state: SagaState | string): StateInfo {
+        return sagaStates[state as SagaState] || { label: state, color: 'bg-gray-100 text-gray-800' };
+    }
+
+    function getProgressPercentage(saga: SagaStatusResponse): number {
         if (!saga.completed_steps || saga.completed_steps.length === 0) return 0;
         // Estimate total steps based on saga name
         const totalSteps = saga.saga_name === 'execution_saga' ? 5 : 3;
         return Math.min(100, (saga.completed_steps.length / totalSteps) * 100);
     }
-    
-    function setupAutoRefresh() {
+
+    function setupAutoRefresh(): void {
         if (refreshInterval) {
             clearInterval(refreshInterval);
         }
-        
+
         if (autoRefresh) {
             refreshInterval = setInterval(() => {
                 loadSagas();
             }, refreshRate * 1000);
         }
     }
-    
-    function clearFilters() {
+
+    function clearFilters(): void {
         stateFilter = '';
         executionIdFilter = '';
         searchQuery = '';
@@ -217,17 +227,25 @@
             clearInterval(refreshInterval);
         }
     });
-    
-    $: if (autoRefresh || refreshRate) {
-        setupAutoRefresh();
-    }
-    
-    $: if (stateFilter !== undefined) {
-        currentPage = 1;
-        loadSagas();
-    }
-    
-    $: totalPages = Math.ceil(totalItems / itemsPerPage);
+
+    // Re-setup auto refresh when settings change
+    $effect(() => {
+        if (autoRefresh || refreshRate) {
+            setupAutoRefresh();
+        }
+    });
+
+    // Reset pagination when filter changes
+    let prevStateFilter = '';
+    $effect(() => {
+        if (stateFilter !== prevStateFilter) {
+            prevStateFilter = stateFilter;
+            currentPage = 1;
+            loadSagas();
+        }
+    });
+
+    let totalPages = $derived(Math.ceil(totalItems / itemsPerPage));
 </script>
 
 <AdminLayout path="/admin/sagas">
@@ -298,7 +316,7 @@
                 {/if}
                 
                 <button
-                    on:click={loadSagas}
+                    onclick={loadSagas}
                     class="sm:ml-auto btn btn-primary btn-sm w-full sm:w-auto"
                     disabled={loading}
                 >
@@ -323,7 +341,7 @@
                     id="saga-search"
                     type="text"
                     bind:value={searchQuery}
-                    on:input={loadSagas}
+                    oninput={loadSagas}
                     placeholder="Search by ID, name, or error..."
                     class="w-full px-4 py-2 border border-border-default dark:border-dark-border-default rounded-lg
                            bg-bg-default dark:bg-dark-bg-default text-fg-default dark:text-dark-fg-default
@@ -337,7 +355,7 @@
                 <select
                     id="saga-state-filter"
                     bind:value={stateFilter}
-                    on:change={loadSagas}
+                    onchange={loadSagas}
                     class="w-full px-4 py-2 pr-10 border border-border-default dark:border-dark-border-default rounded-lg
                            bg-bg-default dark:bg-dark-bg-default text-fg-default dark:text-dark-fg-default
                            focus:outline-hidden focus:ring-2 focus:ring-primary focus:border-primary
@@ -357,7 +375,7 @@
                     id="saga-execution-filter"
                     type="text"
                     bind:value={executionIdFilter}
-                    on:input={loadSagas}
+                    oninput={loadSagas}
                     placeholder="Filter by execution ID..."
                     class="w-full px-4 py-2 border border-border-default dark:border-dark-border-default rounded-lg
                            bg-bg-default dark:bg-dark-bg-default text-fg-default dark:text-dark-fg-default
@@ -369,7 +387,7 @@
             <div class="lg:col-span-1">
                 <span class="block text-sm font-medium mb-2 text-fg-muted dark:text-dark-fg-muted">Actions</span>
                 <button
-                    on:click={clearFilters}
+                    onclick={clearFilters}
                     class="w-full px-4 py-2 border border-border-default dark:border-dark-border-default rounded-lg 
                            bg-bg-default dark:bg-dark-bg-default text-fg-default dark:text-dark-fg-default
                            hover:bg-bg-alt dark:hover:bg-dark-bg-alt transition-colors
@@ -446,13 +464,13 @@
                             
                             <div class="flex gap-2">
                                 <button
-                                    on:click={() => loadExecutionSagas(saga.execution_id)}
+                                    onclick={() => loadExecutionSagas(saga.execution_id)}
                                     class="flex-1 text-xs py-1.5 px-2 rounded border border-border-default dark:border-dark-border-default text-primary hover:bg-primary hover:text-white transition-colors"
                                 >
                                     Execution
                                 </button>
                                 <button
-                                    on:click={() => loadSagaDetails(saga.saga_id)}
+                                    onclick={() => loadSagaDetails(saga.saga_id)}
                                     class="flex-1 text-xs py-1.5 px-2 rounded bg-primary text-white hover:bg-primary-dark transition-colors"
                                 >
                                     View Details
@@ -485,7 +503,7 @@
                                                 ID: {saga.saga_id.slice(0, 8)}...
                                             </div>
                                             <button
-                                                on:click={() => loadExecutionSagas(saga.execution_id)}
+                                                onclick={() => loadExecutionSagas(saga.execution_id)}
                                                 class="text-xs text-primary hover:text-primary-dark"
                                             >
                                                 Execution: {saga.execution_id.slice(0, 8)}...
@@ -530,7 +548,7 @@
                                     </td>
                                     <td class="px-4 py-3 text-center">
                                         <button
-                                            on:click={() => loadSagaDetails(saga.saga_id)}
+                                            onclick={() => loadSagaDetails(saga.saga_id)}
                                             class="text-primary hover:text-primary-dark"
                                         >
                                             View Details
@@ -554,7 +572,7 @@
                                     <select
                                         id="saga-page-size"
                                         bind:value={itemsPerPage}
-                                        on:change={() => { currentPage = 1; loadSagas(); }}
+                                        onchange={() => { currentPage = 1; loadSagas(); }}
                                         class="px-3 py-1.5 pr-8 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer"
                                         style="background-image: url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 fill=%22none%22 viewBox=%220 0 20 20%22><path stroke=%22%236b7280%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22 stroke-width=%221.5%22 d=%22M6 8l4 4 4-4%22/></svg>'); background-repeat: no-repeat; background-position: right 0.5rem center; background-size: 16px;"
                                     >
@@ -571,7 +589,7 @@
                                 <div class="flex items-center gap-1">
                                 <!-- First page -->
                                 <button
-                                    on:click={() => { currentPage = 1; loadSagas(); }}
+                                    onclick={() => { currentPage = 1; loadSagas(); }}
                                     disabled={currentPage === 1}
                                     class="pagination-button"
                                     title="First page"
@@ -583,7 +601,7 @@
                                 
                                 <!-- Previous page -->
                                 <button
-                                    on:click={() => { currentPage--; loadSagas(); }}
+                                    onclick={() => { currentPage--; loadSagas(); }}
                                     disabled={currentPage === 1}
                                     class="pagination-button"
                                     title="Previous page"
@@ -602,7 +620,7 @@
                                 
                                 <!-- Next page -->
                                 <button
-                                    on:click={() => { currentPage++; loadSagas(); }}
+                                    onclick={() => { currentPage++; loadSagas(); }}
                                     disabled={currentPage === totalPages}
                                     class="pagination-button"
                                     title="Next page"
@@ -614,7 +632,7 @@
                                 
                                 <!-- Last page -->
                                 <button
-                                    on:click={() => { currentPage = totalPages; loadSagas(); }}
+                                    onclick={() => { currentPage = totalPages; loadSagas(); }}
                                     disabled={currentPage === totalPages}
                                     class="pagination-button"
                                     title="Last page"
@@ -646,7 +664,7 @@
             <div class="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
                 <h2 class="text-lg sm:text-xl font-semibold text-gray-900 dark:text-gray-100">Saga Details</h2>
                 <button
-                    on:click={() => showDetailModal = false}
+                    onclick={() => showDetailModal = false}
                     class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-2xl leading-none"
                 >
                     ×
@@ -671,7 +689,7 @@
                                 <dt class="text-gray-500 dark:text-gray-400">Execution ID</dt>
                                 <dd class="font-mono">
                                     <button
-                                        on:click={() => {
+                                        onclick={() => {
                                             showDetailModal = false;
                                             loadExecutionSagas(selectedSaga.execution_id);
                                         }}

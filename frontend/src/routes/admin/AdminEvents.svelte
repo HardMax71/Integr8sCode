@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
     import { onMount, onDestroy } from 'svelte';
     import {
         browseEventsApiV1AdminEventsBrowsePost,
@@ -8,35 +8,40 @@
         replayEventsApiV1AdminEventsReplayPost,
         deleteEventApiV1AdminEventsEventIdDelete,
         getUserOverviewApiV1AdminUsersUserIdOverviewGet,
+        type EventResponse,
+        type EventStatsResponse,
+        type EventDetailResponse,
+        type EventReplayStatusResponse,
+        type AdminUserOverview,
     } from '../../lib/api';
     import { addToast } from '../../stores/toastStore';
     import AdminLayout from './AdminLayout.svelte';
     import Spinner from '../../components/Spinner.svelte';
-    
-    let events = [];
-    let loading = false;
-    let totalEvents = 0;
-    let currentPage = 1;
-    let pageSize = 10;
-    let selectedEvent = null;
-    let showFilters = false;
-    let stats = null;
-    let refreshInterval = null;
-    let activeReplaySession = null;
-    let replayCheckInterval = null;
-    let replayPreview = null;
-    let showReplayPreview = false;
-    let showExportMenu = false;
-    
+
+    let events = $state<EventResponse[]>([]);
+    let loading = $state(false);
+    let totalEvents = $state(0);
+    let currentPage = $state(1);
+    let pageSize = $state(10);
+    let selectedEvent = $state<EventDetailResponse | null>(null);
+    let showFilters = $state(false);
+    let stats = $state<EventStatsResponse | null>(null);
+    let refreshInterval: ReturnType<typeof setInterval> | null = null;
+    let activeReplaySession = $state<EventReplayStatusResponse | null>(null);
+    let replayCheckInterval: ReturnType<typeof setInterval> | null = null;
+    let replayPreview = $state<{ eventId: string; total_events: number; events_preview?: EventResponse[] } | null>(null);
+    let showReplayPreview = $state(false);
+    let showExportMenu = $state(false);
+
     // User overview modal state
-    let showUserOverview = false;
-    let userOverviewLoading = false;
-    let selectedUserId = null;
-    let userOverview = null; // { user, stats, derived_counts, rate_limit_summary, recent_events }
-    
+    let showUserOverview = $state(false);
+    let userOverviewLoading = $state(false);
+    let selectedUserId = $state<string | null>(null);
+    let userOverview = $state<AdminUserOverview | null>(null);
+
     // Filters
-    let filters = {
-        event_types: [],
+    let filters = $state({
+        event_types: [] as string[],
         aggregate_id: '',
         correlation_id: '',
         user_id: '',
@@ -44,8 +49,8 @@
         search_text: '',
         start_time: '',
         end_time: ''
-    };
-    
+    });
+
     // Event type options
     const eventTypes = [
         'execution.requested',
@@ -59,9 +64,9 @@
         'pod.failed',
         'pod.terminated'
     ];
-    
-    $: totalPages = Math.ceil(totalEvents / pageSize);
-    $: skip = (currentPage - 1) * pageSize;
+
+    let totalPages = $derived(Math.ceil(totalEvents / pageSize));
+    let skip = $derived((currentPage - 1) * pageSize);
     
     onMount(() => {
         loadEvents();
@@ -101,9 +106,10 @@
             if (error) throw error;
             events = data?.events || [];
             totalEvents = data?.total || 0;
-        } catch (error) {
-            console.error('Failed to load events:', error);
-            addToast(`Failed to load events: ${error?.message || 'Unknown error'}`, 'error');
+        } catch (err) {
+            console.error('Failed to load events:', err);
+            const msg = (err as Error)?.message || 'Unknown error';
+            addToast(`Failed to load events: ${msg}`, 'error');
             events = [];
             totalEvents = 0;
         } finally {
@@ -111,27 +117,28 @@
         }
     }
 
-    async function loadStats() {
+    async function loadStats(): Promise<void> {
         try {
             const { data, error } = await getEventStatsApiV1AdminEventsStatsGet({ query: { hours: 24 } });
             if (error) throw error;
-            stats = data;
-        } catch (error) {
-            console.error('Failed to load stats:', error);
+            stats = data ?? null;
+        } catch (err) {
+            console.error('Failed to load stats:', err);
         }
     }
 
-    async function loadEventDetail(eventId) {
+    async function loadEventDetail(eventId: string): Promise<void> {
         try {
             const { data, error } = await getEventDetailApiV1AdminEventsEventIdGet({ path: { event_id: eventId } });
             if (error) throw error;
-            selectedEvent = data;
-        } catch (error) {
-            addToast(`Failed to load event detail: ${error?.message || 'Unknown error'}`, 'error');
+            selectedEvent = data ?? null;
+        } catch (err) {
+            const msg = (err as Error)?.message || 'Unknown error';
+            addToast(`Failed to load event detail: ${msg}`, 'error');
         }
     }
 
-    async function checkReplayStatus(sessionId) {
+    async function checkReplayStatus(sessionId: string): Promise<void> {
         try {
             const { data: status, error } = await getReplayStatusApiV1AdminEventsReplaySessionIdStatusGet({
                 path: { session_id: sessionId }
@@ -157,8 +164,8 @@
                     );
                 }
             }
-        } catch (error) {
-            console.error('Failed to check replay status:', error);
+        } catch (err) {
+            console.error('Failed to check replay status:', err);
             if (replayCheckInterval) {
                 clearInterval(replayCheckInterval);
                 replayCheckInterval = null;
@@ -166,7 +173,7 @@
         }
     }
 
-    async function replayEvent(eventId, dryRun = true) {
+    async function replayEvent(eventId: string, dryRun: boolean = true): Promise<void> {
         try {
             if (!dryRun && !confirm('Are you sure you want to replay this event? This will re-process the event through the system.')) {
                 return;
@@ -181,19 +188,19 @@
             if (error) throw error;
 
             if (dryRun) {
-                if (response.events_preview && response.events_preview.length > 0) {
+                if (response?.events_preview && response.events_preview.length > 0) {
                     replayPreview = {
                         ...response,
                         eventId: eventId
                     };
                     showReplayPreview = true;
                 } else {
-                    addToast(`Dry run: ${response.total_events} events would be replayed`, 'info');
+                    addToast(`Dry run: ${response?.total_events} events would be replayed`, 'info');
                 }
             } else {
                 addToast(`Replay scheduled! Tracking progress...`, 'success');
 
-                if (response.session_id) {
+                if (response?.session_id) {
                     activeReplaySession = {
                         session_id: response.session_id,
                         status: 'scheduled',
@@ -211,12 +218,13 @@
 
                 selectedEvent = null;
             }
-        } catch (error) {
-            addToast(`Failed to replay event: ${error?.message || 'Unknown error'}`, 'error');
+        } catch (err) {
+            const msg = (err as Error)?.message || 'Unknown error';
+            addToast(`Failed to replay event: ${msg}`, 'error');
         }
     }
 
-    async function deleteEvent(eventId) {
+    async function deleteEvent(eventId: string): Promise<void> {
         if (!confirm('Are you sure you want to delete this event? This action cannot be undone.')) {
             return;
         }
@@ -230,12 +238,13 @@
                 loadStats()
             ]);
             selectedEvent = null;
-        } catch (error) {
-            addToast(`Failed to delete event: ${error?.message || 'Unknown error'}`, 'error');
+        } catch (err) {
+            const msg = (err as Error)?.message || 'Unknown error';
+            addToast(`Failed to delete event: ${msg}`, 'error');
         }
     }
-    
-    async function exportEvents(format = 'csv') {
+
+    async function exportEvents(format: 'csv' | 'json' = 'csv'): Promise<void> {
         try {
             const params = new URLSearchParams();
             if (filters.event_types.length > 0) {
@@ -267,12 +276,13 @@
             }
             
             addToast(`Starting ${format.toUpperCase()} export...`, 'info');
-        } catch (error) {
-            addToast(`Failed to export events: ${error.message}`, 'error');
+        } catch (err) {
+            const msg = (err as Error)?.message || 'Unknown error';
+            addToast(`Failed to export events: ${msg}`, 'error');
         }
     }
 
-    async function openUserOverview(userId) {
+    async function openUserOverview(userId: string): Promise<void> {
         if (!userId) return;
         selectedUserId = userId;
         userOverview = null;
@@ -281,27 +291,28 @@
         try {
             const { data, error } = await getUserOverviewApiV1AdminUsersUserIdOverviewGet({ path: { user_id: userId } });
             if (error) throw error;
-            userOverview = data;
-        } catch (error) {
-            console.error('Failed to load user overview:', error);
-            addToast(`Failed to load user overview: ${error?.message || 'Unknown error'}`, 'error');
+            userOverview = data ?? null;
+        } catch (err) {
+            console.error('Failed to load user overview:', err);
+            const msg = (err as Error)?.message || 'Unknown error';
+            addToast(`Failed to load user overview: ${msg}`, 'error');
             showUserOverview = false;
         } finally {
             userOverviewLoading = false;
         }
     }
-    
-    function formatTimestamp(timestamp) {
+
+    function formatTimestamp(timestamp: string): string {
         // Backend sends ISO datetime strings
         return new Date(timestamp).toLocaleString();
     }
-    
-    function formatDuration(seconds) {
+
+    function formatDuration(seconds: number | null | undefined): string {
         if (!seconds) return '-';
         return `${seconds.toFixed(2)}s`;
     }
-    
-    function getEventTypeColor(eventType) {
+
+    function getEventTypeColor(eventType: string): string {
         if (eventType.includes('.completed') || eventType.includes('.succeeded')) return 'text-green-600 dark:text-green-400';
         if (eventType.includes('.failed') || eventType.includes('.timeout')) return 'text-red-600 dark:text-red-400';
         if (eventType.includes('.started') || eventType.includes('.running')) return 'text-blue-600 dark:text-blue-400';
@@ -310,8 +321,8 @@
         if (eventType.includes('.terminated')) return 'text-orange-600 dark:text-orange-400';
         return 'text-gray-600 dark:text-gray-400';
     }
-    
-    function getEventTypeIcon(eventType) {
+
+    function getEventTypeIcon(eventType: string): string {
         // Execution events (handle both dot and underscore notation)
         if (eventType === 'execution.requested' || eventType === 'execution_requested') {
             return `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -374,7 +385,7 @@
         </svg>`;
     }
     
-    function getEventTypeLabel(eventType) {
+    function getEventTypeLabel(eventType: string): string {
         // For execution.requested, show icon only (with tooltip)
         if (eventType === 'execution.requested') {
             return '';
@@ -388,7 +399,7 @@
         return eventType;
     }
     
-    function clearFilters() {
+    function clearFilters(): void {
         filters = {
             event_types: [],
             aggregate_id: '',
@@ -403,7 +414,7 @@
         loadEvents();
     }
     
-    function getActiveFilterCount() {
+    function getActiveFilterCount(): number {
         let count = 0;
         if (filters.event_types.length > 0) count++;
         if (filters.search_text) count++;
@@ -416,12 +427,12 @@
         return count;
     }
     
-    function hasActiveFilters() {
+    function hasActiveFilters(): boolean {
         return getActiveFilterCount() > 0;
     }
-    
-    function getActiveFilterSummary() {
-        const items = [];
+
+    function getActiveFilterSummary(): string {
+        const items: string[] = [];
         if (filters.event_types.length > 0) {
             items.push(`${filters.event_types.length} event type${filters.event_types.length > 1 ? 's' : ''}`);
         }
@@ -442,7 +453,7 @@
             
             <div class="flex flex-wrap gap-2">
                 <button
-                    on:click={() => showFilters = !showFilters}
+                    onclick={() => showFilters = !showFilters}
                     class="btn btn-sm sm:btn-md flex items-center gap-1 sm:gap-2 transition-all duration-200"
                     class:btn-primary={showFilters}
                     class:btn-secondary-outline={!showFilters}
@@ -465,8 +476,8 @@
                 <!-- Export dropdown -->
                 <div class="relative">
                     <button
-                        on:click={() => showExportMenu = !showExportMenu}
-                        on:blur={() => setTimeout(() => showExportMenu = false, 200)}
+                        onclick={() => showExportMenu = !showExportMenu}
+                        onblur={() => setTimeout(() => showExportMenu = false, 200)}
                         class="btn btn-sm sm:btn-md btn-secondary-outline flex items-center gap-1 sm:gap-2"
                     >
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -481,7 +492,7 @@
                     {#if showExportMenu}
                         <div class="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
                             <button
-                                on:click={() => { exportEvents('csv'); showExportMenu = false; }}
+                                onclick={() => { exportEvents('csv'); showExportMenu = false; }}
                                 class="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 rounded-t-lg transition-colors"
                             >
                                 <svg class="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -490,7 +501,7 @@
                                 <span>Export as CSV</span>
                             </button>
                             <button
-                                on:click={() => { exportEvents('json'); showExportMenu = false; }}
+                                onclick={() => { exportEvents('json'); showExportMenu = false; }}
                                 class="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 rounded-b-lg transition-colors"
                             >
                                 <svg class="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -503,7 +514,7 @@
                 </div>
                 
                 <button
-                    on:click={loadEvents}
+                    onclick={loadEvents}
                     class="btn btn-sm sm:btn-md btn-primary flex items-center gap-1 sm:gap-2"
                     disabled={loading}
                 >
@@ -523,7 +534,7 @@
             <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6 relative">
                 <!-- Close button in top right corner -->
                 <button
-                    on:click={() => activeReplaySession = null}
+                    onclick={() => activeReplaySession = null}
                     class="absolute top-2 right-2 p-1 hover:bg-blue-100 dark:hover:bg-blue-800 rounded-lg transition-colors"
                     title="Close"
                 >
@@ -657,7 +668,7 @@
                     </span>
                 {/each}
                 <button
-                    on:click={clearFilters}
+                    onclick={clearFilters}
                     class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
                 >
                     <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -675,13 +686,13 @@
                         <h3 class="text-sm font-semibold text-fg-default dark:text-dark-fg-default uppercase tracking-wide">Filter Events</h3>
                         <div class="flex gap-2">
                             <button
-                                on:click={clearFilters}
+                                onclick={clearFilters}
                                 class="btn btn-ghost btn-sm"
                             >
                                 Clear All
                             </button>
                             <button
-                                on:click={() => { currentPage = 1; loadEvents(); }}
+                                onclick={() => { currentPage = 1; loadEvents(); }}
                                 class="btn btn-primary btn-sm"
                             >
                                 Apply
@@ -830,8 +841,8 @@
                             {#each events || [] as event}
                                 <tr
                                     class="hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer transition-colors border-b border-border-default dark:border-dark-border-default"
-                                    on:click={() => loadEventDetail(event.event_id)}
-                                    on:keydown={(e) => e.key === 'Enter' && loadEventDetail(event.event_id)}
+                                    onclick={() => loadEventDetail(event.event_id)}
+                                    onkeydown={(e) => e.key === 'Enter' && loadEventDetail(event.event_id)}
                                     tabindex="0"
                                     role="button"
                                     aria-label="View event details"
@@ -865,7 +876,7 @@
                                             <button
                                                 class="text-blue-600 dark:text-blue-400 hover:underline text-left"
                                                 title="View user overview"
-                                                on:click|stopPropagation={() => openUserOverview(event.metadata.user_id)}
+                                                onclick={(e) => { e.stopPropagation(); openUserOverview(event.metadata.user_id); }}
                                             >
                                                 <div class="font-mono text-xs truncate">
                                                     {event.metadata.user_id}
@@ -883,7 +894,7 @@
                                     <td class="px-3 py-2 text-sm text-fg-default dark:text-dark-fg-default">
                                         <div class="flex gap-1 justify-center">
                                             <button
-                                                on:click|stopPropagation={() => replayEvent(event.event_id)}
+                                                onclick={(e) => { e.stopPropagation(); replayEvent(event.event_id); }}
                                                 class="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
                                                 title="Preview replay"
                                             >
@@ -893,7 +904,7 @@
                                                 </svg>
                                             </button>
                                             <button
-                                                on:click|stopPropagation={() => replayEvent(event.event_id, false)}
+                                                onclick={(e) => { e.stopPropagation(); replayEvent(event.event_id, false); }}
                                                 class="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-blue-600 dark:text-blue-400"
                                                 title="Replay"
                                             >
@@ -903,7 +914,7 @@
                                                 </svg>
                                             </button>
                                             <button
-                                                on:click|stopPropagation={() => deleteEvent(event.event_id)}
+                                                onclick={(e) => { e.stopPropagation(); deleteEvent(event.event_id); }}
                                                 class="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-red-600 dark:text-red-400"
                                                 title="Delete"
                                             >
@@ -924,8 +935,8 @@
                     {#each events || [] as event}
                         <div
                             class="mobile-card"
-                            on:click={() => loadEventDetail(event.event_id)}
-                            on:keydown={(e) => e.key === 'Enter' && loadEventDetail(event.event_id)}
+                            onclick={() => loadEventDetail(event.event_id)}
+                            onkeydown={(e) => e.key === 'Enter' && loadEventDetail(event.event_id)}
                             tabindex="0"
                             role="button"
                             aria-label="View event details"
@@ -953,7 +964,7 @@
                                 </div>
                                 <div class="flex gap-1 ml-2">
                                     <button
-                                        on:click|stopPropagation={() => replayEvent(event.event_id)}
+                                        onclick={(e) => { e.stopPropagation(); replayEvent(event.event_id); }}
                                         class="btn btn-ghost btn-xs p-1"
                                         title="Preview replay"
                                     >
@@ -963,7 +974,7 @@
                                         </svg>
                                     </button>
                                     <button
-                                        on:click|stopPropagation={() => replayEvent(event.event_id, false)}
+                                        onclick={(e) => { e.stopPropagation(); replayEvent(event.event_id, false); }}
                                         class="btn btn-ghost btn-xs p-1 text-blue-600 dark:text-blue-400"
                                         title="Replay"
                                     >
@@ -973,7 +984,7 @@
                                         </svg>
                                     </button>
                                     <button
-                                        on:click|stopPropagation={() => deleteEvent(event.event_id)}
+                                        onclick={(e) => { e.stopPropagation(); deleteEvent(event.event_id); }}
                                         class="btn btn-ghost btn-xs p-1 text-red-600 dark:text-red-400"
                                         title="Delete"
                                     >
@@ -990,7 +1001,7 @@
                                         <button
                                             class="ml-1 text-blue-600 dark:text-blue-400 hover:underline font-mono"
                                             title="View user overview"
-                                            on:click|stopPropagation={() => openUserOverview(event.metadata.user_id)}
+                                            onclick={(e) => { e.stopPropagation(); openUserOverview(event.metadata.user_id); }}
                                         >
                                             {event.metadata.user_id}
                                         </button>
@@ -1033,7 +1044,7 @@
                                     <select
                                         id="events-page-size"
                                         bind:value={pageSize}
-                                        on:change={() => { currentPage = 1; loadEvents(); }}
+                                        onchange={() => { currentPage = 1; loadEvents(); }}
                                         class="px-3 py-1.5 pr-8 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer"
                                         style="background-image: url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 fill=%22none%22 viewBox=%220 0 20 20%22><path stroke=%22%236b7280%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22 stroke-width=%221.5%22 d=%22M6 8l4 4 4-4%22/></svg>'); background-repeat: no-repeat; background-position: right 0.5rem center; background-size: 16px;"
                                     >
@@ -1050,7 +1061,7 @@
                                 <div class="flex items-center gap-1">
                                 <!-- First page -->
                                 <button
-                                    on:click={() => { currentPage = 1; loadEvents(); }}
+                                    onclick={() => { currentPage = 1; loadEvents(); }}
                                     disabled={currentPage === 1}
                                     class="pagination-button"
                                     title="First page"
@@ -1062,7 +1073,7 @@
                                 
                                 <!-- Previous page -->
                                 <button
-                                    on:click={() => { currentPage--; loadEvents(); }}
+                                    onclick={() => { currentPage--; loadEvents(); }}
                                     disabled={currentPage === 1}
                                     class="pagination-button"
                                     title="Previous page"
@@ -1081,7 +1092,7 @@
                                 
                                 <!-- Next page -->
                                 <button
-                                    on:click={() => { currentPage++; loadEvents(); }}
+                                    onclick={() => { currentPage++; loadEvents(); }}
                                     disabled={currentPage === totalPages}
                                     class="pagination-button"
                                     title="Next page"
@@ -1093,7 +1104,7 @@
                                 
                                 <!-- Last page -->
                                 <button
-                                    on:click={() => { currentPage = totalPages; loadEvents(); }}
+                                    onclick={() => { currentPage = totalPages; loadEvents(); }}
                                     disabled={currentPage === totalPages}
                                     class="pagination-button"
                                     title="Last page"
@@ -1121,8 +1132,8 @@
         <div class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center min-h-screen p-4 sm:p-6">
             <button
                 class="fixed inset-0 bg-black/50 border-none cursor-default"
-                on:click={() => selectedEvent = null}
-                on:keydown={(e) => e.key === 'Escape' && (selectedEvent = null)}
+                onclick={() => selectedEvent = null}
+                onkeydown={(e) => e.key === 'Escape' && (selectedEvent = null)}
                 aria-label="Close modal"
                 tabindex="-1"
             ></button>
@@ -1187,7 +1198,7 @@
                             <div class="space-y-1">
                                 {#each selectedEvent.related_events || [] as related}
                                     <button
-                                        on:click={() => loadEventDetail(related.event_id)}
+                                        onclick={() => loadEventDetail(related.event_id)}
                                         class="flex justify-between items-center w-full p-2 bg-neutral-100 dark:bg-neutral-800 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
                                     >
                                         <span class={getEventTypeColor(related.event_type)}>
@@ -1205,13 +1216,13 @@
                 
                 <div class="mt-5 sm:mt-6 flex gap-3 justify-end">
                     <button
-                        on:click={() => replayEvent(selectedEvent.event.event_id, false)}
+                        onclick={() => replayEvent(selectedEvent.event.event_id, false)}
                         class="btn btn-primary"
                     >
                         Replay Event
                     </button>
                     <button
-                        on:click={() => selectedEvent = null}
+                        onclick={() => selectedEvent = null}
                         class="btn btn-secondary-outline"
                     >
                         Close
@@ -1294,7 +1305,7 @@
                 
                 <div class="p-6 border-t border-gray-200 dark:border-gray-700 flex gap-3 justify-end">
                     <button
-                        on:click={() => {
+                        onclick={() => {
                             showReplayPreview = false;
                             replayEvent(replayPreview.eventId, false);
                         }}
@@ -1303,7 +1314,7 @@
                         Proceed with Replay
                     </button>
                     <button
-                        on:click={() => {
+                        onclick={() => {
                             showReplayPreview = false;
                             replayPreview = null;
                         }}
@@ -1321,8 +1332,8 @@
         <div class="fixed inset-0 flex items-center justify-center p-4 z-50">
             <button
                 class="fixed inset-0 bg-black/50 dark:bg-black/70 border-none cursor-default"
-                on:click={() => showUserOverview = false}
-                on:keydown={(e) => e.key === 'Escape' && (showUserOverview = false)}
+                onclick={() => showUserOverview = false}
+                onkeydown={(e) => e.key === 'Escape' && (showUserOverview = false)}
                 aria-label="Close modal"
                 tabindex="-1"
             ></button>

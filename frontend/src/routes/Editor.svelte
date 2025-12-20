@@ -1,8 +1,8 @@
-<script>
+<script lang="ts">
     import {onDestroy, onMount} from "svelte";
     import {fade, fly, slide} from "svelte/transition";
     import {get, writable} from "svelte/store";
-        import {isAuthenticated, logout as authLogout, verifyAuth, csrfToken} from "../stores/auth";
+    import {isAuthenticated, logout as authLogout, verifyAuth, csrfToken} from "../stores/auth";
     import {
         getK8sResourceLimitsApiV1K8sLimitsGet,
         getExampleScriptsApiV1ExampleScriptsGet,
@@ -12,10 +12,21 @@
         createSavedScriptApiV1ScriptsPost,
         updateSavedScriptApiV1ScriptsScriptIdPut,
         deleteSavedScriptApiV1ScriptsScriptIdDelete,
+        type K8sResourceLimits,
+        type ExecutionResult,
     } from "../lib/api";
+
+    // Local interface for saved script data used in the editor
+    interface EditorScriptData {
+        id: string;
+        name: string;
+        script: string;
+        lang?: string;
+        lang_version?: string;
+    }
     import {addToast} from "../stores/toastStore";
     import Spinner from "../components/Spinner.svelte";
-    import {navigate} from "svelte-routing";
+    import {goto} from "@mateothegreat/svelte5-router";
     import {Compartment, EditorState, StateEffect} from "@codemirror/state";
     import {EditorView, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers} from "@codemirror/view";
     import {defaultKeymap, history, historyKeymap, indentWithTab} from "@codemirror/commands";
@@ -80,31 +91,31 @@
         }
     });
 
-    function sanitizeOutput(html) {
+    function sanitizeOutput(html: string): string {
         return DOMPurify.sanitize(html, {
             ALLOWED_TAGS: ['span', 'br', 'div'],
             ALLOWED_ATTR: ['class', 'style']
         });
     }
 
-    function createPersistentStore(key, startValue) {
+    function createPersistentStore<T>(key: string, startValue: T): { subscribe: typeof store.subscribe; set: typeof store.set } {
         if (typeof localStorage === 'undefined') {
-            const store = writable(startValue);
+            const store = writable<T>(startValue);
             return {subscribe: store.subscribe, set: store.set};
         }
         const storedValue = localStorage.getItem(key);
-        let parsedValue = startValue;
-        
+        let parsedValue: T = startValue;
+
         if (storedValue) {
             try {
-                parsedValue = JSON.parse(storedValue);
+                parsedValue = JSON.parse(storedValue) as T;
             } catch (e) {
                 console.warn(`Failed to parse localStorage value for ${key}, using default:`, e);
                 localStorage.removeItem(key); // Clear corrupted value
             }
         }
-        
-        const store = writable(parsedValue);
+
+        const store = writable<T>(parsedValue);
         store.subscribe(value => {
             localStorage.setItem(key, JSON.stringify(value));
         });
@@ -112,34 +123,40 @@
     }
 
     let script = createPersistentStore("script", "# Welcome to Integr8sCode!\n\nprint('Hello, Kubernetes!')");
-    let executing = false;
-    let result = null;
-    let editorView = null;
-    let editorContainer;
-    let k8sLimits = null;
-    let exampleScripts = {};
+    let executing = $state(false);
+    let result = $state<ExecutionResult | null>(null);
+    let editorView = $state<EditorView | null>(null);
+    let editorContainer: HTMLElement;
+    let k8sLimits = $state<K8sResourceLimits | null>(null);
+    let exampleScripts: Record<string, any> = {};
 
     // Updated state for language and version selection
     let selectedLang = writable("python");
     let selectedVersion = writable("3.11");
-    let supportedRuntimes = {};
-    let showLangOptions = false;
-    let hoveredLang = null;
+    let supportedRuntimes = $state<Record<string, string[]>>({});
+    let showLangOptions = $state(false);
+    let hoveredLang = $state<string | null>(null);
 
-    let showLimits = false;
-    let showOptions = false;
-    let showSavedScripts = false;
+    let showLimits = $state(false);
+    let showOptions = $state(false);
+    let showSavedScripts = $state(false);
 
-    let authenticated = false;
-    let savedScripts = [];
+    let authenticated = $state(false);
+    let savedScripts = $state<any[]>([]);
     let scriptName = createPersistentStore("scriptName", "");
     let currentScriptId = createPersistentStore("currentScriptId", null);
 
-    let fileInput;
-    let apiError = null;
+    // Reactive state for tracking store values in $effect
+    let currentScriptIdValue = $state<string | null>(null);
+    let scriptNameValue = $state("");
+
+    let fileInput: HTMLInputElement;
+    let apiError = $state<string | null>(null);
     let unsubscribeAuth;
     let unsubscribeTheme;
     let unsubscribeSettings;
+    let unsubscribeScriptId;
+    let unsubscribeScriptName;
 
     const resourceIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l4-4z"></path></svg>`;
     const chevronDownIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
@@ -159,10 +176,13 @@
     const copyIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>`;
     const exampleIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>`;
 
-    $: {
-        if (typeof window !== 'undefined') { // Ensure this runs only in the browser
-            const currentId = get(currentScriptId);
-            const currentName = get(scriptName);
+    // Watch for script name changes and clear ID if name changed
+    // Uses reactive state variables that are kept in sync with stores via subscriptions
+    $effect(() => {
+        if (typeof window !== 'undefined') {
+            // Access reactive state variables - this creates proper dependencies
+            const currentId = currentScriptIdValue;
+            const currentName = scriptNameValue;
 
             if (currentId && savedScripts && savedScripts.length > 0) {
                 const associatedSavedScript = savedScripts.find(s => s.id === currentId);
@@ -175,12 +195,20 @@
                 }
             }
         }
-    }
+    });
 
     onMount(async () => {
         // Set meta tags
         updateMetaTags(pageMeta.editor.title, pageMeta.editor.description);
-        
+
+        // Subscribe to script stores for reactive $effect tracking
+        unsubscribeScriptId = currentScriptId.subscribe(value => {
+            currentScriptIdValue = value;
+        });
+        unsubscribeScriptName = scriptName.subscribe(value => {
+            scriptNameValue = value;
+        });
+
         // Verify authentication status on startup
         await verifyAuth();
         
@@ -312,6 +340,8 @@
         if (unsubscribeAuth) unsubscribeAuth();
         if (unsubscribeTheme) unsubscribeTheme();
         if (unsubscribeSettings) unsubscribeSettings();
+        if (unsubscribeScriptId) unsubscribeScriptId();
+        if (unsubscribeScriptName) unsubscribeScriptName();
     });
 
     function getStaticExtensions() {
@@ -402,7 +432,7 @@
         });
     }
     
-    function initializeEditor(currentTheme) {
+    function initializeEditor(currentTheme: string): void {
         if (!editorContainer || editorView) return;
 
         let initialThemeExtension;
@@ -515,8 +545,8 @@
                             // Update intermediate status
                             result = {...result, status: data.status};
                         }
-                    } catch (error) {
-                        console.error('Error processing SSE event:', error);
+                    } catch (err) {
+                        console.error('Error processing SSE event:', err);
                     }
                 };
                 
@@ -569,12 +599,12 @@
         }
     }
 
-    function loadScript(scriptData) {
+    function loadScript(scriptData: EditorScriptData): void {
         if (!editorView) return;
         script.set(scriptData.script);
         scriptName.set(scriptData.name);
         currentScriptId.set(scriptData.id);
-        
+
         // Set language and version if available in the saved script
         if (scriptData.lang) {
             selectedLang.set(scriptData.lang);
@@ -582,7 +612,7 @@
         if (scriptData.lang_version) {
             selectedVersion.set(scriptData.lang_version);
         }
-        
+
         editorView.dispatch({
             changes: {
                 from: 0,
@@ -658,7 +688,7 @@
         }
     }
 
-    async function deleteScript(scriptIdToDelete) {
+    async function deleteScript(scriptIdToDelete: string): Promise<void> {
         if (!authenticated) return;
         const scriptToDelete = savedScripts.find(s => s.id === scriptIdToDelete);
         const confirmMessage = scriptToDelete
@@ -717,16 +747,17 @@
         URL.revokeObjectURL(url);
     }
 
-    function handleFileUpload(event) {
-        const file = event.target.files[0];
+    function handleFileUpload(event: Event): void {
+        const target = event.target as HTMLInputElement;
+        const file = target.files?.[0];
         if (!file) return;
         if (!file.name.toLowerCase().endsWith(".py")) {
             addToast("Only .py files are allowed.", "error");
             return;
         }
         const reader = new FileReader();
-        reader.onload = e => {
-            const text = e.target.result;
+        reader.onload = (e: ProgressEvent<FileReader>) => {
+            const text = e.target?.result as string;
             if (editorView) {
                 newScript();
                 script.set(text);
@@ -742,41 +773,41 @@
             addToast("Failed to read the selected file.", "error");
         };
         reader.readAsText(file);
-        event.target.value = null;
+        target.value = '';
     }
 
-    function handleLogout() {
+    function handleLogout(): void {
         authLogout();
-        navigate("/login");
+        goto("/login");
         addToast("You have been logged out.", "info");
     }
 
-    function toggleLimits() {
+    function toggleLimits(): void {
         showLimits = !showLimits;
     }
 
-    function toggleOptions() {
+    function toggleOptions(): void {
         showOptions = !showOptions;
         if (!showOptions) showSavedScripts = false;
     }
 
-    function toggleSavedScripts() {
+    function toggleSavedScripts(): void {
         showSavedScripts = !showSavedScripts;
         if (showSavedScripts && authenticated) {
             loadSavedScripts();
         }
     }
 
-    function loadExampleScript() {
+    function loadExampleScript(): void {
         if (!editorView) return;
         const lang = get(selectedLang);
         const example = exampleScripts[lang];
 
         if (example) {
             const lines = example.split('\n');
-            const firstLine = lines.find(line => line.trim().length > 0);
-            const indentation = firstLine ? firstLine.match(/^\s*/)[0] : '';
-            const cleanedScript = lines.map(line => line.startsWith(indentation) ? line.substring(indentation.length) : line).join('\n').trim();
+            const firstLine = lines.find((line: string) => line.trim().length > 0);
+            const indentation = firstLine ? (firstLine.match(/^\s*/) ?? [''])[0] : '';
+            const cleanedScript = lines.map((line: string) => line.startsWith(indentation) ? line.substring(indentation.length) : line).join('\n').trim();
 
             script.set(cleanedScript);
             editorView.dispatch({
@@ -795,7 +826,7 @@
         }
     }
 
-    async function copyExecutionId(executionId) {
+    async function copyExecutionId(executionId: string): Promise<void> {
         try {
             await navigator.clipboard.writeText(executionId);
             addToast("Execution ID copied to clipboard", "success");
@@ -805,7 +836,7 @@
         }
     }
 
-    async function copyOutput(output) {
+    async function copyOutput(output: string): Promise<void> {
         try {
             await navigator.clipboard.writeText(output);
             addToast("Output copied to clipboard", "success");
@@ -815,7 +846,7 @@
         }
     }
 
-    async function copyErrors(errors) {
+    async function copyErrors(errors: string): Promise<void> {
         try {
             await navigator.clipboard.writeText(errors);
             addToast("Error text copied to clipboard", "success");
@@ -826,7 +857,7 @@
     }
 </script>
 
-<input type="file" accept=".py,text/x-python" bind:this={fileInput} class="hidden"/>
+<input type="file" accept=".py,text/x-python" bind:this={fileInput} class="hidden" onchange={handleFileUpload}/>
 
 <div class="editor-grid-container space-y-4 md:space-y-0 md:gap-6" in:fade={{ duration: 300 }}>
     <header class="editor-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -836,7 +867,7 @@
         {#if k8sLimits}
             <div class="relative shrink-0">
                 <button class="btn btn-secondary-outline btn-sm inline-flex items-center space-x-1.5 w-full sm:w-auto justify-center"
-                        on:click={toggleLimits} aria-expanded={showLimits}>
+                        onclick={toggleLimits} aria-expanded={showLimits}>
                     {@html resourceIcon}
                     <span>Resource Limits</span>
                     {#if showLimits} {@html chevronUpIcon} {:else} {@html chevronDownIcon} {/if}
@@ -879,7 +910,7 @@
             </div>
             <div class="flex items-center space-x-2">
                  <button class="btn btn-secondary-outline btn-sm inline-flex items-center space-x-1.5"
-                        on:click={loadExampleScript} title="Load an example script for the selected language">
+                        onclick={loadExampleScript} title="Load an example script for the selected language">
                     {@html exampleIcon}
                     <span class="hidden sm:inline">Example</span>
                 </button>
@@ -897,7 +928,7 @@
                     <p class="text-sm text-fg-muted dark:text-dark-fg-muted mt-1 mb-4">
                         Start typing, upload a file, or use an example to begin.
                     </p>
-                    <button class="btn btn-primary inline-flex items-center space-x-2" on:click={loadExampleScript}>
+                    <button class="btn btn-primary inline-flex items-center space-x-2" onclick={loadExampleScript}>
                         {@html exampleIcon}
                         <span>Start with an Example</span>
                     </button>
@@ -954,7 +985,7 @@
                                 <div class="relative group">
                                     <button class="inline-flex items-center p-1.5 rounded-lg text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors duration-150 cursor-pointer"
                                             aria-label="Click to copy execution ID"
-                                            on:click={() => copyExecutionId(result.execution_id)}>
+                                            onclick={() => copyExecutionId(result.execution_id)}>
                                         {@html idIcon}
                                     </button>
                                     <div class="absolute top-8 right-0 z-10 px-2 py-1 text-xs bg-neutral-800 dark:bg-neutral-200 text-white dark:text-neutral-800 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap">
@@ -975,7 +1006,7 @@
                                     <div class="absolute bottom-2 right-2 group">
                                         <button class="inline-flex items-center p-1.5 rounded-lg text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
                                                 aria-label="Copy output to clipboard"
-                                                on:click={() => copyOutput(result.stdout)}>
+                                                onclick={() => copyOutput(result.stdout)}>
                                             {@html copyIcon}
                                         </button>
                                         <div class="absolute bottom-8 right-0 z-10 px-2 py-1 text-xs bg-neutral-800 dark:bg-neutral-200 text-white dark:text-neutral-800 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap">
@@ -997,7 +1028,7 @@
                                     <div class="absolute bottom-2 right-2 group">
                                         <button class="inline-flex items-center p-1.5 rounded-lg text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 hover:bg-red-100 dark:hover:bg-red-900 transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
                                                 aria-label="Copy error text to clipboard"
-                                                on:click={() => copyErrors(result.stderr)}>
+                                                onclick={() => copyErrors(result.stderr)}>
                                             {@html copyIcon}
                                         </button>
                                         <div class="absolute bottom-8 right-0 z-10 px-2 py-1 text-xs bg-neutral-800 dark:bg-neutral-200 text-white dark:text-neutral-800 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap">
@@ -1051,7 +1082,7 @@
             <div class="flex items-center space-x-2 flex-wrap gap-y-2">
                 <!-- Language Selector Dropdown -->
                 <div class="relative">
-                    <button on:click={() => showLangOptions = !showLangOptions}
+                    <button onclick={() => showLangOptions = !showLangOptions}
                             class="btn btn-secondary-outline btn-sm w-36 flex items-center justify-between text-left">
                         <span class="capitalize truncate">{$selectedLang} {$selectedVersion}</span>
                         <svg class="w-5 h-5 ml-2 shrink-0 text-fg-muted dark:text-dark-fg-muted transform transition-transform" class:-rotate-180={showLangOptions} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1062,9 +1093,9 @@
                     {#if showLangOptions}
                         <div transition:fly={{ y: -5, duration: 150 }}
                              class="absolute bottom-full mb-2 w-36 bg-bg-alt dark:bg-dark-bg-alt rounded-lg shadow-xl ring-1 ring-black/5 dark:ring-white/10 z-30">
-                            <ul class="py-1" on:mouseleave={() => hoveredLang = null}>
+                            <ul class="py-1" onmouseleave={() => hoveredLang = null}>
                                 {#each Object.entries(supportedRuntimes) as [lang, versions] (lang)}
-                                    <li class="relative" on:mouseenter={() => hoveredLang = lang}>
+                                    <li class="relative" onmouseenter={() => hoveredLang = lang}>
                                         <div class="flex justify-between items-center w-full px-3 py-2 text-sm text-fg-default dark:text-dark-fg-default">
                                             <span class="capitalize font-medium">{lang}</span>
                                             <svg class="w-4 h-4 text-fg-muted dark:text-dark-fg-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
@@ -1076,7 +1107,7 @@
                                                 <ul class="py-1 max-h-60 overflow-y-auto custom-scrollbar">
                                                     {#each versions as version (version)}
                                                         <li>
-                                                            <button on:click={() => { selectedLang.set(lang); selectedVersion.set(version); showLangOptions = false; hoveredLang = null; }}
+                                                            <button onclick={() => { selectedLang.set(lang); selectedVersion.set(version); showLangOptions = false; hoveredLang = null; }}
                                                                     class="w-full text-left px-3 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700/60 transition-colors duration-100"
                                                                     class:text-primary={lang === $selectedLang && version === $selectedVersion}
                                                                     class:dark:text-primary-light={lang === $selectedLang && version === $selectedVersion}
@@ -1100,13 +1131,13 @@
                         </div>
                     {/if}
                 </div>
-                <button class="btn btn-primary btn-sm flex-grow sm:flex-grow-0 min-w-[130px]" on:click={executeScript}
+                <button class="btn btn-primary btn-sm flex-grow sm:flex-grow-0 min-w-[130px]" onclick={executeScript}
                         disabled={executing}>
                     {@html playIcon}
                     <span class="ml-1.5">{executing ? "Executing..." : "Run Script"}</span>
                 </button>
                 <button class="btn btn-secondary-outline btn-sm btn-icon ml-auto sm:ml-2"
-                        on:click={toggleOptions}
+                        onclick={toggleOptions}
                         aria-expanded={showOptions}
                         title={showOptions ? "Hide Options" : "Show Options"}>
                     <span class="sr-only">Toggle Script Options</span>
@@ -1127,21 +1158,21 @@
                         </h4>
                         <div class="grid grid-cols-2 gap-2">
                             <button class="btn btn-secondary-outline btn-sm inline-flex items-center justify-center space-x-1"
-                                    on:click={newScript} title="Start a new script">
+                                    onclick={newScript} title="Start a new script">
                                 {@html newFileIcon}<span>New</span>
                             </button>
                             <button class="btn btn-secondary-outline btn-sm inline-flex items-center justify-center space-x-1"
-                                    on:click={() => fileInput.click()} title="Upload a file">
+                                    onclick={() => fileInput.click()} title="Upload a file">
                                 {@html uploadIcon}<span>Upload</span>
                             </button>
                             {#if authenticated}
                                 <button class="btn btn-primary btn-sm inline-flex items-center justify-center space-x-1"
-                                        on:click={saveScript} title="Save current script">
+                                        onclick={saveScript} title="Save current script">
                                     {@html saveIcon}<span>Save</span>
                                 </button>
                             {/if}
                             <button class="btn btn-secondary-outline btn-sm inline-flex items-center justify-center space-x-1"
-                                    on:click={exportScript} title="Download current script">
+                                    onclick={exportScript} title="Download current script">
                                 {@html exportIcon}<span>Export</span>
                             </button>
                         </div>
@@ -1158,7 +1189,7 @@
                             </h4>
                             <div>
                                 <button class="btn btn-secondary-outline btn-sm w-full inline-flex items-center justify-center space-x-1.5"
-                                        on:click={toggleSavedScripts}
+                                        onclick={toggleSavedScripts}
                                         aria-expanded={showSavedScripts}
                                         title={showSavedScripts ? "Hide Saved Scripts" : "Show Saved Scripts"}>
                                     {@html listIcon}
@@ -1174,7 +1205,7 @@
                                                 {#each savedScripts as savedItem, index (savedItem.id || index)}
                                                     <li class="flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-700/50 text-sm group transition-colors duration-100">
                                                         <button class="flex-grow text-left px-3 py-2 text-fg-default dark:text-dark-fg-default hover:text-primary dark:hover:text-primary-light font-medium min-w-0"
-                                                                on:click={() => loadScript(savedItem)}
+                                                                onclick={() => loadScript(savedItem)}
                                                                 title={`Load ${savedItem.name} (${savedItem.lang || 'python'} ${savedItem.lang_version || '3.11'})`}>
                                                             <div class="flex flex-col min-w-0">
                                                                 <span class="truncate">{savedItem.name}</span>
@@ -1184,7 +1215,7 @@
                                                             </div>
                                                         </button>
                                                         <button class="p-2 text-neutral-400 dark:text-neutral-500 hover:text-red-500 dark:hover:text-red-400 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity duration-150 mr-1"
-                                                                on:click|stopPropagation={() => deleteScript(savedItem.id)}
+                                                                onclick={(e) => { e.stopPropagation(); deleteScript(savedItem.id); }}
                                                                 title={`Delete ${savedItem.name}`}>
                                                             <span class="sr-only">Delete</span>
                                                             {@html trashIcon}

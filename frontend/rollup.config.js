@@ -122,8 +122,7 @@ export default {
         manualChunks: {
             'vendor': [
                 'svelte',
-                'svelte-routing',
-                'axios'
+                '@mateothegreat/svelte5-router'
             ],
             'codemirror': [
                 '@codemirror/state',
@@ -149,7 +148,10 @@ export default {
         }),
         svelte({
             preprocess: sveltePreprocess({ postcss: true }),
-            compilerOptions: { dev: !production }
+            compilerOptions: {
+                dev: !production,
+                runes: true
+            }
         }),
         postcss({
             extract: 'bundle.css',

@@ -101,8 +101,8 @@ export async function fetchUserProfile() {
 export async function logout(): Promise<void> {
     try {
         await logoutApiV1AuthLogoutPost({});
-    } catch (error) {
-        console.error('Logout API call failed:', error);
+    } catch (err) {
+        console.error('Logout API call failed:', err);
     } finally {
         clearAuth();
         authCache = { valid: false, timestamp: Date.now() };

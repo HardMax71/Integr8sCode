@@ -31,10 +31,10 @@ export class AuthInitializer {
             const result = await this.initPromise;
             this.initialized = true;
             return result;
-        } catch (error) {
-            console.error('Auth initialization failed:', error);
+        } catch (err) {
+            console.error('Auth initialization failed:', err);
             this.initialized = false;
-            throw error;
+            throw err;
         } finally {
             this.initPromise = null;
         }
@@ -70,8 +70,8 @@ export class AuthInitializer {
             await this._loadUserSettingsSafely();
             return true;
 
-        } catch (error) {
-            console.error('[AuthInit] Verification failed:', error);
+        } catch (err) {
+            console.error('[AuthInit] Verification failed:', err);
             return this._handleVerificationError(persistedAuth);
         }
     }
@@ -88,8 +88,8 @@ export class AuthInitializer {
             }
 
             return isValid;
-        } catch (error) {
-            console.error('[AuthInit] Backend verification failed:', error);
+        } catch (err) {
+            console.error('[AuthInit] Backend verification failed:', err);
             this._clearAuth();
             return false;
         }
@@ -108,8 +108,8 @@ export class AuthInitializer {
         try {
             await loadUserSettings();
             console.log('[AuthInit] User settings loaded');
-        } catch (error) {
-            console.warn('[AuthInit] Failed to load user settings:', error);
+        } catch (err) {
+            console.warn('[AuthInit] Failed to load user settings:', err);
         }
     }
 

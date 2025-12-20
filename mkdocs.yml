@@ -104,6 +104,7 @@ nav:
     - Overview: architecture/overview.md
     - Services: architecture/services-overview.md
     - Frontend Build: architecture/frontend-build.md
+    - Svelte 5 Migration: architecture/svelte5-migration.md
     - Kafka Topics: architecture/kafka-topic-architecture.md
     - Service Lifecycle: architecture/lifecycle.md
 

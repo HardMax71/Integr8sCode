@@ -29,8 +29,8 @@ export async function saveThemeSetting(theme: string): Promise<boolean | undefin
         updateCachedSetting('theme', theme);
         console.log('Theme setting saved:', theme);
         return true;
-    } catch (error) {
-        console.error('Error saving theme setting:', error);
+    } catch (err) {
+        console.error('Error saving theme setting:', err);
         return false;
     }
 }
@@ -59,8 +59,8 @@ export async function loadUserSettings(): Promise<UserSettings | undefined> {
         }
 
         return data;
-    } catch (error) {
-        console.error('Failed to load user settings:', error);
+    } catch (err) {
+        console.error('Failed to load user settings:', err);
     }
 }
 
@@ -82,8 +82,8 @@ export async function saveEditorSettings(editorSettings: EditorSettings): Promis
         updateCachedSetting('editor', editorSettings);
         console.log('Editor settings saved');
         return true;
-    } catch (error) {
-        console.error('Error saving editor settings:', error);
+    } catch (err) {
+        console.error('Error saving editor settings:', err);
         return false;
     }
 }

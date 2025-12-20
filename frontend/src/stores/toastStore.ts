@@ -2,10 +2,12 @@ import { writable } from 'svelte/store';
 
 export type ToastType = 'info' | 'success' | 'warning' | 'error';
 
-interface Toast {
+export interface Toast {
     id: string;
     message: string;
     type: ToastType;
+    progress?: number;
+    timerStarted?: boolean;
 }
 
 export const toasts = writable<Toast[]>([]);

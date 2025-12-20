@@ -1,15 +1,15 @@
-<script>
-  import { Link, navigate } from "svelte-routing";
+<script lang="ts">
+  import { route, goto } from "@mateothegreat/svelte5-router";
   import { isAuthenticated, username, userRole, logout as authLogout, userEmail } from "../stores/auth";
   import { theme, toggleTheme } from "../stores/theme";
   import { fade } from 'svelte/transition';
   import { onMount, onDestroy } from 'svelte';
   import NotificationCenter from './NotificationCenter.svelte';
 
-  let isMenuActive = false;
-  let isMobile;
-  let resizeListener;
-  let showUserDropdown = false;
+  let isMenuActive = $state(false);
+  let isMobile = $state(false);
+  let resizeListener: (() => void) | null = null;
+  let showUserDropdown = $state(false);
 
   const sunIcon = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>`;
   const moonIcon = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>`;
@@ -25,28 +25,6 @@
   const adminIcon = `<svg class="w-5 h-5 mr-2 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>`;
 
 
-  onMount(() => {
-    const checkMobile = () => {
-      if (typeof window !== 'undefined') {
-        isMobile = window.innerWidth < 1024;
-        if (!isMobile && isMenuActive) {
-          isMenuActive = false;
-        }
-      }
-    };
-    checkMobile();
-    resizeListener = checkMobile;
-    if (typeof window !== 'undefined') {
-      window.addEventListener('resize', resizeListener);
-    }
-
-    return () => {
-      if (typeof window !== 'undefined' && resizeListener) {
-        window.removeEventListener('resize', resizeListener);
-      }
-    }
-  });
-
   function toggleMenu() {
     isMenuActive = !isMenuActive;
   }
@@ -59,25 +37,40 @@
   async function handleLogout() {
     await authLogout();
     closeMenu();
-    navigate('/login');
+    goto('/login');
   }
 
-  function handleClickOutside(event) {
-    if (showUserDropdown && !event.target.closest('.user-dropdown-container')) {
+  function handleClickOutside(event: MouseEvent) {
+    if (showUserDropdown && !(event.target as Element)?.closest('.user-dropdown-container')) {
       showUserDropdown = false;
     }
   }
 
+  // Consolidated onMount - handles both resize and click outside listeners
   onMount(() => {
-    if (typeof window !== 'undefined') {
-      document.addEventListener('click', handleClickOutside);
-    }
+    if (typeof window === 'undefined') return;
+
+    // Mobile detection and resize handling
+    const checkMobile = () => {
+      isMobile = window.innerWidth < 1024;
+      if (!isMobile && isMenuActive) {
+        isMenuActive = false;
+      }
+    };
+    checkMobile();
+    resizeListener = checkMobile;
+    window.addEventListener('resize', resizeListener);
+
+    // Click outside handling for dropdown
+    document.addEventListener('click', handleClickOutside);
   });
 
   onDestroy(() => {
-    if (typeof window !== 'undefined') {
-      document.removeEventListener('click', handleClickOutside);
+    if (typeof window === 'undefined') return;
+    if (resizeListener) {
+      window.removeEventListener('resize', resizeListener);
     }
+    document.removeEventListener('click', handleClickOutside);
   });
 
   const getLinkClasses = (isActive, isMobileLink = false) => {
@@ -99,12 +92,12 @@
   <div class="app-container h-full">
     <nav class="flex items-center justify-between h-full">
       <div class="flex items-center shrink-0">
-        <Link to="/" on:click={closeMenu} class="flex items-center space-x-2 group">
+        <a href="/" use:route onclick={closeMenu} class="flex items-center space-x-2 group">
           <img src="/favicon.png" alt="Integr8sCode Logo" class={logoImgClass} />
           <span class="font-semibold text-xl tracking-tight text-fg-default dark:text-dark-fg-default group-hover:text-primary dark:group-hover:text-primary-light transition-colors duration-200">
             Integr8sCode
           </span>
-        </Link>
+        </a>
       </div>
 
       <div class="hidden lg:flex items-center space-x-6 flex-grow justify-center">
@@ -112,7 +105,7 @@
       </div>
 
       <div class="flex items-center space-x-3">
-        <button on:click={toggleTheme} title="Toggle theme" class="btn btn-ghost btn-icon text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default">
+        <button onclick={toggleTheme} title="Toggle theme" class="btn btn-ghost btn-icon text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default">
           {#if $theme === 'light'}
             {@html sunIcon}
           {:else if $theme === 'dark'}
@@ -127,8 +120,8 @@
             <NotificationCenter />
             <!-- User dropdown for all authenticated users -->
             <div class="relative user-dropdown-container">
-              <button 
-                on:click={(e) => { e.stopPropagation(); showUserDropdown = !showUserDropdown; }}
+              <button
+                onclick={(e) => { e.stopPropagation(); showUserDropdown = !showUserDropdown; }}
                 class="flex items-center space-x-2 btn btn-ghost btn-sm"
               >
                 <div class="flex items-center space-x-2">
@@ -167,24 +160,25 @@
                     <div class="mt-3 flex flex-col sm:flex-row gap-2">
                       {#if $userRole === 'admin'}
                         <button
-                          on:click={() => {
+                          onclick={() => {
                             showUserDropdown = false;
-                            navigate('/admin/events');
+                            goto('/admin/events');
                           }}
                           class="btn btn-secondary-outline btn-sm flex-1"
                         >
                           Admin
                         </button>
                       {/if}
-                      <Link
-                        to="/settings"
-                        on:click={() => showUserDropdown = false}
+                      <a
+                        href="/settings"
+                        use:route
+                        onclick={() => showUserDropdown = false}
                         class="btn btn-secondary-outline btn-sm flex-1 text-center"
                       >
                         Settings
-                      </Link>
+                      </a>
                       <button
-                        on:click={handleLogout}
+                        onclick={handleLogout}
                         class="btn btn-danger-outline btn-sm flex-1"
                       >
                         Logout
@@ -195,17 +189,17 @@
               {/if}
             </div>
           {:else}
-            <Link to="/login" on:click={closeMenu} class="btn btn-secondary-outline btn-sm">
+            <a href="/login" use:route onclick={closeMenu} class="btn btn-secondary-outline btn-sm">
               Login
-            </Link>
-            <Link to="/register" on:click={closeMenu} class="btn btn-primary btn-sm hover:text-white">
+            </a>
+            <a href="/register" use:route onclick={closeMenu} class="btn btn-primary btn-sm hover:text-white">
               Register
-            </Link>
+            </a>
           {/if}
         </div>
 
         <div class="block lg:hidden">
-          <button on:click={toggleMenu} class="btn btn-ghost btn-icon text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default">
+          <button onclick={toggleMenu} class="btn btn-ghost btn-icon text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default">
             {@html isMenuActive ? closeIcon : menuIcon}
           </button>
         </div>
@@ -231,23 +225,23 @@
                </div>
             </div>
             {#if $userRole === 'admin'}
-              <Link to="/admin/events" on:click={closeMenu} class="block px-3 py-2 rounded-md text-base font-medium text-fg-default dark:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center">
+              <a href="/admin/events" use:route onclick={closeMenu} class="block px-3 py-2 rounded-md text-base font-medium text-fg-default dark:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center">
                 {@html adminIcon} Admin Panel
-              </Link>
+              </a>
             {/if}
-            <Link to="/settings" on:click={closeMenu} class="block px-3 py-2 rounded-md text-base font-medium text-fg-default dark:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700">
+            <a href="/settings" use:route onclick={closeMenu} class="block px-3 py-2 rounded-md text-base font-medium text-fg-default dark:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700">
               Settings
-            </Link>
-            <button on:click={handleLogout} class="w-full text-left block px-3 py-2 rounded-md text-base font-medium text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-800 dark:hover:text-red-300 flex items-center">
+            </a>
+            <button onclick={handleLogout} class="w-full text-left block px-3 py-2 rounded-md text-base font-medium text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-800 dark:hover:text-red-300 flex items-center">
               {@html logoutIcon} Logout
             </button>
           {:else}
-            <Link to="/login" on:click={closeMenu} class="block px-3 py-2 rounded-md text-base font-medium text-fg-default dark:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center">
+            <a href="/login" use:route onclick={closeMenu} class="block px-3 py-2 rounded-md text-base font-medium text-fg-default dark:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center">
               {@html loginIcon} Login
-            </Link>
-            <Link to="/register" on:click={closeMenu} class="block px-3 py-2 rounded-md text-base font-medium text-fg-default dark:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center">
+            </a>
+            <a href="/register" use:route onclick={closeMenu} class="block px-3 py-2 rounded-md text-base font-medium text-fg-default dark:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center">
               {@html registerIcon} Register
-            </Link>
+            </a>
           {/if}
         </div>
       </div>

@@ -1,5 +1,5 @@
-<script>
-    import { navigate, Link } from "svelte-routing";
+<script lang="ts">
+    import { goto, route } from "@mateothegreat/svelte5-router";
     import { addToast } from "../stores/toastStore";
     import { fade, fly } from "svelte/transition";
     import { registerApiV1AuthRegisterPost } from "../lib/api";
@@ -7,12 +7,12 @@
     import { updateMetaTags, pageMeta } from '../utils/meta';
     import Spinner from '../components/Spinner.svelte';
 
-    let username = "";
-    let email = "";
-    let password = "";
-    let confirmPassword = "";
-    let loading = false;
-    let error = null;
+    let username = $state("");
+    let email = $state("");
+    let password = $state("");
+    let confirmPassword = $state("");
+    let loading = $state(false);
+    let error = $state<string | null>(null);
     
     onMount(() => {
         updateMetaTags(pageMeta.register.title, pageMeta.register.description);
@@ -36,7 +36,7 @@
             const { error: apiError } = await registerApiV1AuthRegisterPost({ body: { username, email, password } });
             if (apiError) throw apiError;
             addToast("Registration successful! Please log in.", "success");
-            navigate("/login");
+            goto("/login");
         } catch (err) {
             error = err?.detail || err?.message || "Registration failed. Please try again.";
             addToast(error, "error");
@@ -53,11 +53,11 @@
         Create a new account
       </h2>
       <p class="mt-2 text-sm text-fg-muted dark:text-dark-fg-muted">
-        Or <Link to="/login" class="font-medium text-primary-dark hover:text-primary dark:text-primary-light dark:hover:text-primary">sign in to your existing account</Link>
+        Or <a href="/login" use:route class="font-medium text-primary-dark hover:text-primary dark:text-primary-light dark:hover:text-primary">sign in to your existing account</a>
       </p>
     </div>
 
-    <form class="mt-8 space-y-6 bg-bg-alt dark:bg-dark-bg-alt p-8 rounded-lg shadow-md border border-border-default dark:border-dark-border-default" on:submit|preventDefault={handleRegister}>
+    <form class="mt-8 space-y-6 bg-bg-alt dark:bg-dark-bg-alt p-8 rounded-lg shadow-md border border-border-default dark:border-dark-border-default" onsubmit={(e) => { e.preventDefault(); handleRegister(); }}>
       {#if error}
         <p class="mt-0 text-sm text-red-600 dark:text-red-400 text-center" in:fly={{y: -10, duration: 200}}>{error}</p>
       {/if}

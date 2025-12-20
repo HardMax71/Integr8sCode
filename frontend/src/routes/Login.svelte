@@ -1,17 +1,17 @@
-<script>
-  import { navigate, Link } from "svelte-routing";
+<script lang="ts">
+  import { goto, route } from "@mateothegreat/svelte5-router";
   import { login } from "../stores/auth";
   import { addToast } from "../stores/toastStore";
   import { fade, fly } from "svelte/transition";
-  import Spinner from '../components/Spinner.svelte'; // Assuming Spinner component exists
+  import Spinner from '../components/Spinner.svelte';
   import { onMount } from 'svelte';
   import { updateMetaTags, pageMeta } from '../utils/meta';
   import { loadUserSettings } from '../lib/user-settings';
 
-  let username = "";
-  let password = "";
-  let loading = false;
-  let error = null;
+  let username = $state("");
+  let password = $state("");
+  let loading = $state(false);
+  let error = $state<string | null>(null);
   
   onMount(() => {
     updateMetaTags(pageMeta.login.title, pageMeta.login.description);
@@ -39,9 +39,9 @@
       const redirectPath = sessionStorage.getItem('redirectAfterLogin');
       if (redirectPath) {
         sessionStorage.removeItem('redirectAfterLogin');
-        navigate(redirectPath);
+        goto(redirectPath);
       } else {
-        navigate("/editor"); // Default redirect to editor
+        goto("/editor"); // Default redirect to editor
       }
     } catch (err) {
       error = err.message || "Login failed. Please check your credentials.";
@@ -59,11 +59,11 @@
         Sign in to your account
       </h2>
       <p class="mt-2 text-sm text-fg-muted dark:text-dark-fg-muted">
-        Or <Link to="/register" class="font-medium text-primary-dark hover:text-primary dark:text-primary-light dark:hover:text-primary">create a new account</Link>
+        Or <a href="/register" use:route class="font-medium text-primary-dark hover:text-primary dark:text-primary-light dark:hover:text-primary">create a new account</a>
       </p>
     </div>
 
-    <form class="mt-8 space-y-6 bg-bg-alt dark:bg-dark-bg-alt p-8 rounded-lg shadow-md border border-border-default dark:border-dark-border-default" on:submit|preventDefault={handleLogin}>
+    <form class="mt-8 space-y-6 bg-bg-alt dark:bg-dark-bg-alt p-8 rounded-lg shadow-md border border-border-default dark:border-dark-border-default" onsubmit={(e) => { e.preventDefault(); handleLogin(); }}>
       <input type="hidden" name="remember" value="true" hidden>
 
       {#if error}

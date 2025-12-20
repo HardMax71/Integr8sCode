@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
     import { onMount } from 'svelte';
     import {
         getSystemSettingsApiV1AdminSettingsGet,
@@ -9,47 +9,53 @@
     import AdminLayout from './AdminLayout.svelte';
     import Spinner from '../../components/Spinner.svelte';
 
-    let settings = {
+    let settings = $state<{
+        execution_limits: Record<string, unknown>;
+        security_settings: Record<string, unknown>;
+        monitoring_settings: Record<string, unknown>;
+    }>({
         execution_limits: {},
         security_settings: {},
         monitoring_settings: {}
-    };
-    let loading = false;
-    let saving = false;
-    let resetting = false;
+    });
+    let loading = $state(false);
+    let saving = $state(false);
+    let resetting = $state(false);
 
     onMount(() => {
         loadSettings();
     });
 
-    async function loadSettings() {
+    async function loadSettings(): Promise<void> {
         loading = true;
         try {
             const { data, error } = await getSystemSettingsApiV1AdminSettingsGet({});
             if (error) throw error;
             settings = data;
-        } catch (error) {
-            console.error('Failed to load settings:', error);
-            addToast(`Failed to load settings: ${error?.message || 'Unknown error'}`, 'error');
+        } catch (err) {
+            console.error('Failed to load settings:', err);
+            const msg = (err as Error)?.message || 'Unknown error';
+            addToast(`Failed to load settings: ${msg}`, 'error');
         } finally {
             loading = false;
         }
     }
 
-    async function saveSettings() {
+    async function saveSettings(): Promise<void> {
         saving = true;
         try {
             const { error } = await updateSystemSettingsApiV1AdminSettingsPut({ body: settings });
             if (error) throw error;
             addToast('Settings saved successfully', 'success');
-        } catch (error) {
-            addToast(`Failed to save settings: ${error?.message || 'Unknown error'}`, 'error');
+        } catch (err) {
+            const msg = (err as Error)?.message || 'Unknown error';
+            addToast(`Failed to save settings: ${msg}`, 'error');
         } finally {
             saving = false;
         }
     }
 
-    async function resetSettings() {
+    async function resetSettings(): Promise<void> {
         if (!confirm('Are you sure you want to reset all settings to defaults?')) {
             return;
         }
@@ -60,8 +66,9 @@
             if (error) throw error;
             settings = data;
             addToast('Settings reset to defaults', 'success');
-        } catch (error) {
-            addToast(`Failed to reset settings: ${error?.message || 'Unknown error'}`, 'error');
+        } catch (err) {
+            const msg = (err as Error)?.message || 'Unknown error';
+            addToast(`Failed to reset settings: ${msg}`, 'error');
         } finally {
             resetting = false;
         }
@@ -175,15 +182,15 @@
 
                         <!-- Actions -->
                         <div class="flex justify-end gap-3 pt-4 border-t border-border-default dark:border-dark-border-default">
-                            <button 
-                                on:click={resetSettings}
+                            <button
+                                onclick={resetSettings}
                                 class="btn btn-ghost"
                                 disabled={saving || resetting}
                             >
                                 {resetting ? 'Resetting...' : 'Reset to Defaults'}
                             </button>
-                            <button 
-                                on:click={saveSettings}
+                            <button
+                                onclick={saveSettings}
                                 class="btn btn-primary"
                                 disabled={saving || resetting}
                             >

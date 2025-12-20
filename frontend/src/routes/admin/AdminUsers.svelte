@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
     import { onMount } from 'svelte';
     import {
         listUsersApiV1AdminUsersGet,
@@ -8,78 +8,83 @@
         getUserRateLimitsApiV1AdminUsersUserIdRateLimitsGet,
         updateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPut,
         resetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPost,
+        type UserResponse,
+        type UserRateLimit,
+        type RateLimitRule,
+        type EndpointGroup,
     } from '../../lib/api';
     import { addToast } from '../../stores/toastStore';
     import AdminLayout from './AdminLayout.svelte';
     import Spinner from '../../components/Spinner.svelte';
-    
-    let users = [];
-    let loading = false;
-    let selectedUser = null;
-    let showDeleteModal = false;
-    let showRateLimitModal = false;
-    let userToDelete = null;
-    let rateLimitUser = null;
-    let rateLimitConfig = null;
-    let rateLimitUsage = null;
-    let cascadeDelete = true;
-    let deletingUser = false;
-    let loadingRateLimits = false;
-    let savingRateLimits = false;
-    
+
+    let users = $state<UserResponse[]>([]);
+    let loading = $state(false);
+    let selectedUser = $state<UserResponse | null>(null);
+    let showDeleteModal = $state(false);
+    let showRateLimitModal = $state(false);
+    let userToDelete = $state<UserResponse | null>(null);
+    let rateLimitUser = $state<UserResponse | null>(null);
+    let rateLimitConfig = $state<UserRateLimit | null>(null);
+    let rateLimitUsage = $state<Record<string, number> | null>(null);
+    let cascadeDelete = $state(true);
+    let deletingUser = $state(false);
+    let loadingRateLimits = $state(false);
+    let savingRateLimits = $state(false);
+
     // Pagination
-    let currentPage = 1;
-    let pageSize = 10;
-    let totalUsers = 0;
-    
+    let currentPage = $state(1);
+    let pageSize = $state(10);
+    let totalUsers = $state(0);
+
     // Search and filters
-    let searchQuery = '';
-    let roleFilter = 'all';
-    let statusFilter = 'all';
-    let showAdvancedFilters = false;
-    let advancedFilters = {
-        bypassRateLimit: 'all',
-        hasCustomLimits: 'all',
-        globalMultiplier: 'all'
-    };
-    
+    let searchQuery = $state('');
+    let roleFilter = $state('all');
+    let statusFilter = $state('all');
+    let showAdvancedFilters = $state(false);
+    let advancedFilters = $state({
+        bypassRateLimit: 'all' as string,
+        hasCustomLimits: 'all' as string,
+        globalMultiplier: 'all' as string
+    });
+
     // User creation/editing
-    let showUserModal = false;
-    let editingUser = null;
-    let userForm = {
+    let showUserModal = $state(false);
+    let editingUser = $state<UserResponse | null>(null);
+    let userForm = $state({
         username: '',
         email: '',
         password: '',
         role: 'user',
         is_active: true
-    };
-    let savingUser = false;
-    
-    // Computed values
-    $: totalPages = Math.ceil(filteredUsers.length / pageSize);
-    $: paginatedUsers = filteredUsers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-    $: filteredUsers = filterUsers(users, searchQuery, roleFilter, statusFilter, advancedFilters);
+    });
+    let savingUser = $state(false);
+
+    // Computed values - note: order matters, filteredUsers must be defined first
+    let filteredUsers = $derived(filterUsers(users, searchQuery, roleFilter, statusFilter, advancedFilters));
+    let totalPages = $derived(Math.ceil(filteredUsers.length / pageSize));
+    let paginatedUsers = $derived(filteredUsers.slice((currentPage - 1) * pageSize, currentPage * pageSize));
     
     onMount(() => {
         loadUsers();
     });
     
-    async function loadUsers() {
+    async function loadUsers(): Promise<void> {
         loading = true;
         try {
             const { data, error } = await listUsersApiV1AdminUsersGet({});
             if (error) throw error;
             users = Array.isArray(data) ? data : data?.users || [];
-        } catch (error) {
-            console.error('Failed to load users:', error);
-            addToast(`Failed to load users: ${error?.message || 'Unknown error'}`, 'error');
+        } catch (err) {
+            console.error('Failed to load users:', err);
+            const msg = (err as Error)?.message || 'Unknown error';
+            addToast(`Failed to load users: ${msg}`, 'error');
             users = [];
         } finally {
             loading = false;
         }
     }
 
-    async function deleteUser() {
+    async function deleteUser(): Promise<void> {
         if (!userToDelete) return;
 
         deletingUser = true;
@@ -94,7 +99,7 @@
 
             if (response?.deleted_counts) {
                 const counts = Object.entries(response.deleted_counts)
-                    .filter(([key, value]) => value > 0)
+                    .filter(([, value]) => value > 0)
                     .map(([key, value]) => `${key}: ${value}`)
                     .join(', ');
                 if (counts) {
@@ -105,15 +110,16 @@
             await loadUsers();
             showDeleteModal = false;
             userToDelete = null;
-        } catch (error) {
-            console.error('Failed to delete user:', error);
-            addToast(`Failed to delete user: ${error?.message || 'Unknown error'}`, 'error');
+        } catch (err) {
+            console.error('Failed to delete user:', err);
+            const msg = (err as Error)?.message || 'Unknown error';
+            addToast(`Failed to delete user: ${msg}`, 'error');
         } finally {
             deletingUser = false;
         }
     }
 
-    async function openRateLimitModal(user) {
+    async function openRateLimitModal(user: UserResponse): Promise<void> {
         rateLimitUser = user;
         showRateLimitModal = true;
         loadingRateLimits = true;
@@ -131,15 +137,16 @@
                 notes: ''
             };
             rateLimitUsage = response?.current_usage || {};
-        } catch (error) {
-            console.error('Failed to load rate limits:', error);
-            addToast(`Failed to load rate limits: ${error?.message || 'Unknown error'}`, 'error');
+        } catch (err) {
+            console.error('Failed to load rate limits:', err);
+            const msg = (err as Error)?.message || 'Unknown error';
+            addToast(`Failed to load rate limits: ${msg}`, 'error');
         } finally {
             loadingRateLimits = false;
         }
     }
 
-    async function saveRateLimits() {
+    async function saveRateLimits(): Promise<void> {
         if (!rateLimitUser || !rateLimitConfig) return;
 
         savingRateLimits = true;
@@ -151,15 +158,15 @@
             if (error) throw error;
             addToast('Rate limits updated successfully', 'success');
             showRateLimitModal = false;
-        } catch (error) {
-            console.error('Failed to save rate limits:', error);
-            await handleValidationError(error, 'Failed to save rate limits');
+        } catch (err) {
+            console.error('Failed to save rate limits:', err);
+            handleValidationError(err as ApiError, 'Failed to save rate limits');
         } finally {
             savingRateLimits = false;
         }
     }
 
-    async function resetRateLimits() {
+    async function resetRateLimits(): Promise<void> {
         if (!rateLimitUser) return;
 
         try {
@@ -169,13 +176,14 @@
             if (error) throw error;
             addToast(response?.message || 'Rate limits reset', 'success');
             rateLimitUsage = {};
-        } catch (error) {
-            console.error('Failed to reset rate limits:', error);
-            addToast(`Failed to reset rate limits: ${error?.message || 'Unknown error'}`, 'error');
+        } catch (err) {
+            console.error('Failed to reset rate limits:', err);
+            const msg = (err as Error)?.message || 'Unknown error';
+            addToast(`Failed to reset rate limits: ${msg}`, 'error');
         }
     }
     
-    function formatDate(dateString) {
+    function formatDate(dateString: string): string {
         const date = new Date(dateString);
         const day = String(date.getDate()).padStart(2, '0');
         const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -186,9 +194,9 @@
     }
     
     // Make default rules reactive to global_multiplier changes
-    $: defaultRulesWithEffective = getDefaultRulesWithMultiplier(rateLimitConfig?.global_multiplier);
+    let defaultRulesWithEffective = $derived(getDefaultRulesWithMultiplier(rateLimitConfig?.global_multiplier));
     
-    function getDefaultRulesWithMultiplier(multiplier) {
+    function getDefaultRulesWithMultiplier(multiplier: number): RateLimitRule[] {
         // These are the default rules from the backend
         const rules = [
             {
@@ -249,8 +257,8 @@
         }));
     }
     
-    function getGroupColor(group) {
-        const colors = {
+    function getGroupColor(group: EndpointGroup | string): string {
+        const colors: Record<string, string> = {
             execution: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
             admin: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
             sse: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
@@ -282,33 +290,33 @@
         { pattern: /\/alerts\//i, group: 'api' },
     ];
     
-    function detectGroupFromEndpoint(endpoint) {
+    function detectGroupFromEndpoint(endpoint: string): string {
         // Remove regex anchors and wildcards if present
         const cleanEndpoint = endpoint.replace(/^\^?/, '').replace(/\$?/, '').replace(/\.\*/g, '');
-        
+
         // Check each pattern
         for (const { pattern, group } of endpointGroupPatterns) {
             if (pattern.test(cleanEndpoint)) {
                 return group;
             }
         }
-        
+
         // Default to 'api' if no match
         return 'api';
     }
     
-    function handleEndpointChange(rule) {
+    function handleEndpointChange(rule: RateLimitRule): void {
         // Automatically set group based on endpoint pattern
         if (rule.endpoint_pattern) {
             rule.group = detectGroupFromEndpoint(rule.endpoint_pattern);
         }
     }
     
-    function addNewRule() {
-        if (!rateLimitConfig.rules) {
-            rateLimitConfig.rules = [];
+    function addNewRule(): void {
+        if (!rateLimitConfig?.rules) {
+            rateLimitConfig!.rules = [];
         }
-        rateLimitConfig.rules = [...rateLimitConfig.rules, {
+        rateLimitConfig!.rules = [...rateLimitConfig!.rules, {
             endpoint_pattern: '',
             group: 'api',
             requests: 60,
@@ -320,35 +328,47 @@
         }];
     }
     
-    function removeRule(index) {
-        rateLimitConfig.rules = rateLimitConfig.rules.filter((_, i) => i !== index);
+    function removeRule(index: number): void {
+        rateLimitConfig!.rules = rateLimitConfig!.rules!.filter((_, i) => i !== index);
     }
     
-    function filterUsers(userList, search, role, status, advanced) {
+    interface AdvancedFilters {
+        bypassRateLimit: string;
+        hasCustomLimits: string;
+        globalMultiplier: string;
+    }
+
+    function filterUsers(
+        userList: UserResponse[],
+        search: string,
+        role: string,
+        status: string,
+        advanced: AdvancedFilters
+    ): UserResponse[] {
         let filtered = [...userList];
-        
+
         // Search filter (username, email, user_id)
         if (search) {
             const searchLower = search.toLowerCase();
-            filtered = filtered.filter(user => 
+            filtered = filtered.filter(user =>
                 user.username?.toLowerCase().includes(searchLower) ||
                 user.email?.toLowerCase().includes(searchLower) ||
                 user.user_id?.toLowerCase().includes(searchLower)
             );
         }
-        
+
         // Role filter
         if (role !== 'all') {
             filtered = filtered.filter(user => user.role === role);
         }
-        
+
         // Status filter
         if (status === 'active') {
             filtered = filtered.filter(user => !user.is_disabled);
         } else if (status === 'disabled') {
             filtered = filtered.filter(user => user.is_disabled);
         }
-        
+
         // Advanced filters - these would need rate limit data loaded for each user
         // For now, we'll add placeholders that can be connected when the data is available
         if (advanced.bypassRateLimit === 'yes') {
@@ -356,23 +376,23 @@
         } else if (advanced.bypassRateLimit === 'no') {
             filtered = filtered.filter(user => user.bypass_rate_limit !== true);
         }
-        
+
         if (advanced.hasCustomLimits === 'yes') {
             filtered = filtered.filter(user => user.has_custom_limits === true);
         } else if (advanced.hasCustomLimits === 'no') {
             filtered = filtered.filter(user => user.has_custom_limits !== true);
         }
-        
+
         if (advanced.globalMultiplier === 'custom') {
             filtered = filtered.filter(user => user.global_multiplier && user.global_multiplier !== 1.0);
         } else if (advanced.globalMultiplier === 'default') {
             filtered = filtered.filter(user => !user.global_multiplier || user.global_multiplier === 1.0);
         }
-        
+
         return filtered;
     }
     
-    function openCreateUserModal() {
+    function openCreateUserModal(): void {
         editingUser = null;
         userForm = {
             username: '',
@@ -383,8 +403,8 @@
         };
         showUserModal = true;
     }
-    
-    function openEditUserModal(user) {
+
+    function openEditUserModal(user: UserResponse): void {
         editingUser = user;
         userForm = {
             username: user.username,
@@ -396,7 +416,7 @@
         showUserModal = true;
     }
     
-    async function saveUser() {
+    async function saveUser(): Promise<void> {
         if (!userForm.username) {
             addToast('Username is required', 'error');
             return;
@@ -405,7 +425,7 @@
         savingUser = true;
         try {
             if (editingUser) {
-                const updateData = {
+                const updateData: Record<string, string | boolean | null> = {
                     username: userForm.username,
                     email: userForm.email || null,
                     role: userForm.role,
@@ -443,21 +463,21 @@
 
             showUserModal = false;
             await loadUsers();
-        } catch (error) {
-            console.error('Failed to save user:', error);
-            await handleValidationError(error, 'Failed to save user');
+        } catch (err) {
+            console.error('Failed to save user:', err);
+            handleValidationError(err as ApiError, 'Failed to save user');
         } finally {
             savingUser = false;
         }
     }
-    
-    function changePage(page) {
+
+    function changePage(page: number): void {
         if (page >= 1 && page <= totalPages) {
             currentPage = page;
         }
     }
-    
-    function resetFilters() {
+
+    function resetFilters(): void {
         searchQuery = '';
         roleFilter = 'all';
         statusFilter = 'all';
@@ -470,23 +490,45 @@
     }
     
     // Reset to first page when filters change
-    $: searchQuery, roleFilter, statusFilter, currentPage = 1;
+    let prevFilters = { searchQuery: '', roleFilter: 'all', statusFilter: 'all' };
+    $effect(() => {
+        if (searchQuery !== prevFilters.searchQuery ||
+            roleFilter !== prevFilters.roleFilter ||
+            statusFilter !== prevFilters.statusFilter) {
+            prevFilters = { searchQuery, roleFilter, statusFilter };
+            currentPage = 1;
+        }
+    });
     
-    function handleValidationError(error, defaultMessage) {
-        if (error?.status === 422 && error?.detail) {
-            if (Array.isArray(error.detail)) {
-                const messages = error.detail.map(err => {
+    interface ValidationErrorDetail {
+        loc: (string | number)[];
+        msg: string;
+        type: string;
+    }
+
+    interface ApiError {
+        status?: number;
+        detail?: ValidationErrorDetail[] | string;
+        message?: string;
+    }
+
+    function handleValidationError(error: ApiError | Error | null, defaultMessage: string): void {
+        const apiError = error as ApiError;
+        if (apiError?.status === 422 && apiError?.detail) {
+            if (Array.isArray(apiError.detail)) {
+                const messages = apiError.detail.map((err: ValidationErrorDetail) => {
                     const field = err.loc && err.loc.length > 1 ? err.loc[err.loc.length - 1] : 'field';
                     return `${field}: ${err.msg}`;
                 });
                 addToast(`Validation failed:\n${messages.join('\n')}`, 'error');
-            } else if (typeof error.detail === 'string') {
-                addToast(`Validation failed: ${error.detail}`, 'error');
+            } else if (typeof apiError.detail === 'string') {
+                addToast(`Validation failed: ${apiError.detail}`, 'error');
             } else {
-                addToast(`Validation failed: ${JSON.stringify(error.detail)}`, 'error');
+                addToast(`Validation failed: ${JSON.stringify(apiError.detail)}`, 'error');
             }
         } else {
-            addToast(`${defaultMessage}: ${error?.message || 'Unknown error'}`, 'error');
+            const msg = (error as Error)?.message || 'Unknown error';
+            addToast(`${defaultMessage}: ${msg}`, 'error');
         }
     }
 </script>
@@ -498,7 +540,7 @@
             
             <div class="flex gap-2 w-full sm:w-auto">
                 <button
-                    on:click={openCreateUserModal}
+                    onclick={openCreateUserModal}
                     class="btn btn-primary flex items-center gap-2 flex-1 sm:flex-initial justify-center"
                 >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -508,7 +550,7 @@
                 </button>
                 
                 <button
-                    on:click={loadUsers}
+                    onclick={loadUsers}
                     class="btn btn-outline flex items-center gap-2 flex-1 sm:flex-initial justify-center"
                     disabled={loading}
                 >
@@ -572,7 +614,7 @@
                     
                     <!-- Advanced filters toggle -->
                     <button
-                        on:click={() => showAdvancedFilters = !showAdvancedFilters}
+                        onclick={() => showAdvancedFilters = !showAdvancedFilters}
                         class="btn btn-outline flex items-center gap-2 w-full sm:w-auto justify-center"
                     >
                         <svg class="w-4 h-4 transition-transform {showAdvancedFilters ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -583,7 +625,7 @@
                     
                     <!-- Reset button -->
                     <button
-                        on:click={resetFilters}
+                        onclick={resetFilters}
                         class="btn btn-outline w-full sm:w-auto"
                         disabled={!searchQuery && roleFilter === 'all' && statusFilter === 'all' && 
                                  advancedFilters.bypassRateLimit === 'all' && 
@@ -681,7 +723,7 @@
                                 
                                 <div class="flex gap-2">
                                     <button
-                                        on:click={() => openEditUserModal(user)}
+                                        onclick={() => openEditUserModal(user)}
                                         class="flex-1 btn btn-sm btn-outline flex items-center justify-center gap-1"
                                     >
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -691,7 +733,7 @@
                                     </button>
                                     
                                     <button
-                                        on:click={() => openRateLimitModal(user)}
+                                        onclick={() => openRateLimitModal(user)}
                                         class="flex-1 btn btn-sm btn-outline flex items-center justify-center gap-1"
                                     >
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -701,7 +743,7 @@
                                     </button>
                                     
                                     <button
-                                        on:click={() => {
+                                        onclick={() => {
                                             userToDelete = user;
                                             showDeleteModal = true;
                                         }}
@@ -755,7 +797,7 @@
                                         <td class="px-4 py-3 whitespace-nowrap text-sm">
                                             <div class="flex gap-2">
                                                 <button
-                                                    on:click={() => openEditUserModal(user)}
+                                                    onclick={() => openEditUserModal(user)}
                                                     class="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300"
                                                     title="Edit User"
                                                 >
@@ -765,7 +807,7 @@
                                                 </button>
                                                 
                                                 <button
-                                                    on:click={() => openRateLimitModal(user)}
+                                                    onclick={() => openRateLimitModal(user)}
                                                     class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
                                                     title="Manage Rate Limits"
                                                 >
@@ -774,7 +816,7 @@
                                                     </svg>
                                                 </button>
                                                 <button
-                                                    on:click={() => {
+                                                    onclick={() => {
                                                         userToDelete = user;
                                                         showDeleteModal = true;
                                                     }}
@@ -802,7 +844,7 @@
                             <div class="flex items-center justify-center gap-2">
                                 <!-- Previous button -->
                                 <button
-                                    on:click={() => changePage(currentPage - 1)}
+                                    onclick={() => changePage(currentPage - 1)}
                                     disabled={currentPage === 1}
                                     class="px-3 py-1 rounded border border-border-default dark:border-dark-border-default 
                                            hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed
@@ -818,7 +860,7 @@
                                 
                                 <!-- Next button -->
                                 <button
-                                    on:click={() => changePage(currentPage + 1)}
+                                    onclick={() => changePage(currentPage + 1)}
                                     disabled={currentPage === totalPages}
                                     class="px-3 py-1 rounded border border-border-default dark:border-dark-border-default 
                                            hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed
@@ -834,7 +876,7 @@
                                 <select
                                     id="users-page-size"
                                     bind:value={pageSize}
-                                    on:change={() => currentPage = 1}
+                                    onchange={() => currentPage = 1}
                                     class="text-sm px-2 py-1 rounded border border-border-default dark:border-dark-border-default
                                            bg-bg-default dark:bg-dark-bg-default text-fg-default dark:text-dark-fg-default"
                                 >
@@ -892,7 +934,7 @@
                 
                 <div class="flex gap-3 justify-end">
                     <button
-                        on:click={() => {
+                        onclick={() => {
                             showDeleteModal = false;
                             userToDelete = null;
                         }}
@@ -902,7 +944,7 @@
                         Cancel
                     </button>
                     <button
-                        on:click={deleteUser}
+                        onclick={deleteUser}
                         class="btn btn-danger flex items-center gap-2"
                         disabled={deletingUser}
                     >
@@ -978,7 +1020,7 @@
                                         rows="2"
                                         class="input w-full text-sm"
                                         placeholder="Notes about this user's rate limits..."
-                                    />
+                                    ></textarea>
                                 </div>
                             </div>
                         </div>
@@ -990,7 +1032,7 @@
                                     Endpoint Rate Limits
                                 </h4>
                                 <button
-                                    on:click={() => addNewRule()}
+                                    onclick={() => addNewRule()}
                                     class="btn btn-sm btn-primary flex items-center gap-1"
                                     disabled={rateLimitConfig.bypass_rate_limit}
                                 >
@@ -1053,7 +1095,7 @@
                                                         <input
                                                             type="text"
                                                             bind:value={rule.endpoint_pattern}
-                                                            on:input={() => handleEndpointChange(rule)}
+                                                            oninput={() => handleEndpointChange(rule)}
                                                             placeholder="Endpoint pattern (e.g., /api/v1/auth/verify)"
                                                             class="input input-sm w-full"
                                                             disabled={rateLimitConfig.bypass_rate_limit}
@@ -1122,7 +1164,7 @@
                                                     
                                                     <!-- Delete Button -->
                                                     <button
-                                                        on:click={() => removeRule(index)}
+                                                        onclick={() => removeRule(index)}
                                                         class="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 p-1"
                                                         disabled={rateLimitConfig.bypass_rate_limit}
                                                         title="Remove rule"
@@ -1147,7 +1189,7 @@
                                         Current Usage
                                     </h4>
                                     <button
-                                        on:click={resetRateLimits}
+                                        onclick={resetRateLimits}
                                         class="btn btn-sm btn-secondary"
                                     >
                                         Reset All Counters
@@ -1174,7 +1216,7 @@
                 
                 <div class="flex gap-3 justify-end mt-6">
                     <button
-                        on:click={() => {
+                        onclick={() => {
                             showRateLimitModal = false;
                             rateLimitUser = null;
                             rateLimitConfig = null;
@@ -1185,7 +1227,7 @@
                         Cancel
                     </button>
                     <button
-                        on:click={saveRateLimits}
+                        onclick={saveRateLimits}
                         class="btn btn-primary flex items-center gap-2"
                         disabled={savingRateLimits || loadingRateLimits}
                     >
@@ -1209,7 +1251,7 @@
                     {editingUser ? 'Edit User' : 'Create New User'}
                 </h2>
                 
-                <form autocomplete="off" on:submit|preventDefault={saveUser}>
+                <form autocomplete="off" onsubmit={(e) => { e.preventDefault(); saveUser(); }}>
                 <div class="space-y-4">
                     <div>
                         <label for="user-form-username" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
@@ -1296,7 +1338,7 @@
                 <div class="flex justify-end gap-2 mt-6">
                     <button
                         type="button"
-                        on:click={() => showUserModal = false}
+                        onclick={() => showUserModal = false}
                         class="btn btn-outline"
                         disabled={savingUser}
                     >

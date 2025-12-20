@@ -1,5 +1,5 @@
-<script>
-  import { Link } from "svelte-routing";
+<script lang="ts">
+  import { route } from "@mateothegreat/svelte5-router";
   import { fade, fly } from "svelte/transition";
   import { onMount } from 'svelte';
   import { updateMetaTags, pageMeta } from '../utils/meta';
@@ -14,7 +14,7 @@
     { icon: clockIcon, title: "Real-time Results", content: "Get immediate feedback with live execution status updates and detailed output upon completion." }
   ];
 
-  let ready = false;
+  let ready = $state(false);
   onMount(() => {
     ready = true;
     updateMetaTags(pageMeta.home.title, pageMeta.home.description);
@@ -39,9 +39,9 @@
             </p>
         </div>
         <div class="mt-8 sm:mt-10 hero-animate-flyIn" style="--fly-y: 15px; --fly-delay: 500ms;">
-            <Link to="/editor" class="btn btn-primary btn-lg px-6 sm:px-8 py-2.5 sm:py-3 text-sm sm:text-base font-semibold shadow-lg hover:shadow-primary/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary transition-all duration-300 ease-out-expo hover:-translate-y-0.5 hover:text-white">
+            <a href="/editor" use:route class="btn btn-primary btn-lg px-6 sm:px-8 py-2.5 sm:py-3 text-sm sm:text-base font-semibold shadow-lg hover:shadow-primary/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary transition-all duration-300 ease-out-expo hover:-translate-y-0.5 hover:text-white">
                 Start Coding Now
-            </Link>
+            </a>
         </div>
      </div>
   </section>

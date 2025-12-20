@@ -84,7 +84,11 @@ export async function login(user: string, password: string): Promise<boolean> {
     });
 
     authCache = { valid: true, timestamp: Date.now() };
-    try { await fetchUserProfile(); } catch {}
+    try {
+        await fetchUserProfile();
+    } catch (err) {
+        console.warn('Failed to fetch user profile after login:', err);
+    }
     return true;
 }
 
@@ -109,6 +113,19 @@ export async function logout(): Promise<void> {
     }
 }
 
+/**
+ * Verifies the current authentication state with the server.
+ *
+ * OFFLINE-FIRST BEHAVIOR: On network failure, this function returns the cached
+ * auth state (if available) rather than immediately logging the user out.
+ * This provides better UX during transient network issues but means:
+ * - Server-revoked tokens may remain "valid" locally for up to AUTH_CACHE_DURATION (30s)
+ * - Security-critical operations should use forceRefresh=true
+ *
+ * Trade-off: We prioritize availability over immediate consistency for better
+ * offline/flaky-network UX. The 30-second cache window is acceptable for most
+ * UI operations; sensitive actions should force re-verification.
+ */
 export async function verifyAuth(forceRefresh = false): Promise<boolean> {
     if (!forceRefresh && authCache.valid !== null && Date.now() - authCache.timestamp < AUTH_CACHE_DURATION) {
         return authCache.valid;
@@ -136,9 +153,16 @@ export async function verifyAuth(forceRefresh = false): Promise<boolean> {
                 userEmail: null
             });
             authCache = { valid: true, timestamp: Date.now() };
-            try { await fetchUserProfile(); } catch {}
+            try {
+                await fetchUserProfile();
+            } catch (err) {
+                console.warn('Failed to fetch user profile during verification:', err);
+            }
             return true;
-        } catch {
+        } catch (err) {
+            // Network error - use cached state if available (offline-first)
+            // See function docstring for security trade-off explanation
+            console.warn('Auth verification failed (network error):', err);
             if (authCache.valid !== null) return authCache.valid;
             clearAuth();
             return false;

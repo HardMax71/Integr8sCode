@@ -24,6 +24,23 @@
         lang?: string;
         lang_version?: string;
     }
+
+    // API error response type (FastAPI returns {detail: string} or {detail: ValidationError[]})
+    interface ApiErrorResponse {
+        detail?: string | Array<{ loc: (string | number)[]; msg: string; type: string }>;
+    }
+
+    function getErrorMessage(err: unknown, fallback: string): string {
+        if (err && typeof err === 'object' && 'detail' in err) {
+            const detail = (err as ApiErrorResponse).detail;
+            if (typeof detail === 'string') return detail;
+            if (Array.isArray(detail) && detail.length > 0) {
+                return detail.map(e => e.msg).join(', ');
+            }
+        }
+        if (err instanceof Error) return err.message;
+        return fallback;
+    }
     import {addToast} from "../stores/toastStore";
     import Spinner from "../components/Spinner.svelte";
     import {goto} from "@mateothegreat/svelte5-router";
@@ -572,10 +589,10 @@
             }
 
         } catch (err) {
-            apiError = err.response?.data?.detail || "Error initiating script execution.";
+            apiError = getErrorMessage(err, "Error initiating script execution.");
             addToast(apiError, "error");
             result = {status: 'error', errors: apiError, execution_id: executionId};
-            console.error("Error executing script:", err.response || err);
+            console.error("Error executing script:", err);
         } finally {
             executing = false;
         }
@@ -583,20 +600,19 @@
 
     async function loadSavedScripts() {
         if (!authenticated) return;
-        try {
-            const { data, error } = await listSavedScriptsApiV1ScriptsGet({});
-            if (error) throw error;
-            savedScripts = (data || []).map((script, index) => ({
-                ...script,
-                id: script.id || script._id || `temp_${index}_${Date.now()}`
-            }));
-        } catch (err) {
-            console.error("Error loading saved scripts:", err);
+        const { data, error, response } = await listSavedScriptsApiV1ScriptsGet({});
+        if (error) {
+            console.error("Error loading saved scripts:", error);
             addToast("Failed to load saved scripts. You might need to log in again.", "error");
-            if (err?.status === 401) {
+            if (response?.status === 401) {
                 handleLogout();
             }
+            return;
         }
+        savedScripts = (data || []).map((script, index) => ({
+            ...script,
+            id: script.id || script._id || `temp_${index}_${Date.now()}`
+        }));
     }
 
     function loadScript(scriptData: EditorScriptData): void {
@@ -644,48 +660,57 @@
         const currentIdValue = get(currentScriptId);
         let operation = currentIdValue ? 'update' : 'create';
 
-        try {
-            const scriptData = {
-                name: nameValue,
-                script: scriptValue,
-                lang: langValue,
-                lang_version: versionValue
-            };
+        const scriptData = {
+            name: nameValue,
+            script: scriptValue,
+            lang: langValue,
+            lang_version: versionValue
+        };
 
-            if (operation === 'update') {
-                const { error: updateErr } = await updateSavedScriptApiV1ScriptsScriptIdPut({
-                    path: { script_id: currentIdValue },
-                    body: scriptData
-                });
-                if (updateErr) {
-                    if (updateErr?.status === 404) {
-                        console.log('Script not found, falling back to create operation');
-                        currentScriptId.set(null);
-                        operation = 'create';
-                        const { data, error } = await createSavedScriptApiV1ScriptsPost({ body: scriptData });
-                        if (error) throw error;
-                        currentScriptId.set(data.id);
-                        addToast("Script saved successfully.", "success");
-                    } else {
-                        throw updateErr;
+        if (operation === 'update') {
+            const { error: updateErr, response: updateResp } = await updateSavedScriptApiV1ScriptsScriptIdPut({
+                path: { script_id: currentIdValue },
+                body: scriptData
+            });
+            if (updateErr) {
+                if (updateResp?.status === 404) {
+                    console.log('Script not found, falling back to create operation');
+                    currentScriptId.set(null);
+                    operation = 'create';
+                    const { data, error, response } = await createSavedScriptApiV1ScriptsPost({ body: scriptData });
+                    if (error) {
+                        console.error('Error saving script:', error);
+                        addToast('Failed to save script. Please try again.', 'error');
+                        if (response?.status === 401) handleLogout();
+                        return;
                     }
+                    currentScriptId.set(data.id);
+                    addToast("Script saved successfully.", "success");
+                } else if (updateResp?.status === 401) {
+                    console.error('Error updating script:', updateErr);
+                    addToast('Failed to update script. Please try again.', 'error');
+                    handleLogout();
+                    return;
                 } else {
-                    addToast("Script updated successfully.", "success");
+                    console.error('Error updating script:', updateErr);
+                    addToast('Failed to update script. Please try again.', 'error');
+                    return;
                 }
             } else {
-                const { data, error } = await createSavedScriptApiV1ScriptsPost({ body: scriptData });
-                if (error) throw error;
-                currentScriptId.set(data.id);
-                addToast("Script saved successfully.", "success");
+                addToast("Script updated successfully.", "success");
             }
-            await loadSavedScripts();
-        } catch (err) {
-            console.error(`Error ${operation === 'update' ? 'updating' : 'saving'} script:`, err);
-            addToast(`Failed to ${operation} script. Please try again.`, "error");
-            if (err?.status === 401) {
-                handleLogout();
+        } else {
+            const { data, error, response } = await createSavedScriptApiV1ScriptsPost({ body: scriptData });
+            if (error) {
+                console.error('Error saving script:', error);
+                addToast('Failed to save script. Please try again.', 'error');
+                if (response?.status === 401) handleLogout();
+                return;
             }
+            currentScriptId.set(data.id);
+            addToast("Script saved successfully.", "success");
         }
+        await loadSavedScripts();
     }
 
     async function deleteScript(scriptIdToDelete: string): Promise<void> {
@@ -697,23 +722,22 @@
 
         if (!confirm(confirmMessage)) return;
 
-        try {
-            const { error } = await deleteSavedScriptApiV1ScriptsScriptIdDelete({
-                path: { script_id: scriptIdToDelete }
-            });
-            if (error) throw error;
-            addToast("Script deleted successfully.", "success");
-            if (get(currentScriptId) === scriptIdToDelete) {
-                newScript();
-            }
-            await loadSavedScripts();
-        } catch (err) {
-            console.error("Error deleting script:", err);
+        const { error, response } = await deleteSavedScriptApiV1ScriptsScriptIdDelete({
+            path: { script_id: scriptIdToDelete }
+        });
+        if (error) {
+            console.error("Error deleting script:", error);
             addToast("Failed to delete script.", "error");
-            if (err?.status === 401) {
+            if (response?.status === 401) {
                 handleLogout();
             }
+            return;
         }
+        addToast("Script deleted successfully.", "success");
+        if (get(currentScriptId) === scriptIdToDelete) {
+            newScript();
+        }
+        await loadSavedScripts();
     }
 
     function newScript() {

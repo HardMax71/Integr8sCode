@@ -1,7 +1,9 @@
-FROM alpine:3.21
+FROM alpine:3.23
 
 # Pin versions for reproducible builds
-ARG KUBECTL_VERSION=v1.29.0
+# kubectl: Use supported version (N-2 policy: 1.35, 1.34, 1.33 as of Dec 2025)
+# mkcert: Latest stable release
+ARG KUBECTL_VERSION=v1.33.6
 ARG MKCERT_VERSION=v1.4.4
 
 # Install required packages and tools for all architectures

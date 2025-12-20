@@ -4,6 +4,10 @@
 /* Tailwind CSS v4 */
 @import "tailwindcss";
 
+/* Import component and page styles (after tailwindcss, before other directives) */
+@import './styles/components.css';
+@import './styles/pages.css';
+
 /* Forms plugin */
 @plugin "@tailwindcss/forms" {
   strategy: class;
@@ -72,12 +76,6 @@
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
-
-/* Import component styles */
-@import './styles/components.css';
-
-/* Import page-specific styles */
-@import './styles/pages.css';
 
 /* Custom utilities */
 @utility animate-fadeIn {

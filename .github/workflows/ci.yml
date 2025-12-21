@@ -52,9 +52,10 @@ jobs:
       - name: Setup Kubernetes (k3s)
         run: |
           curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik --tls-san host.docker.internal" sh -
-          mkdir -p $HOME/.kube
-          sudo k3s kubectl config view --raw > $HOME/.kube/config
-          sudo chmod 600 $HOME/.kube/config
+          mkdir -p /home/runner/.kube
+          sudo k3s kubectl config view --raw > /home/runner/.kube/config
+          sudo chmod 600 /home/runner/.kube/config
+          export KUBECONFIG=/home/runner/.kube/config
           timeout 90 bash -c 'until sudo k3s kubectl cluster-info; do sleep 5; done'
           kubectl version
           kubectl get nodes
@@ -84,7 +85,7 @@ jobs:
       - name: Setup CI Compose
         uses: ./.github/actions/setup-ci-compose
         with:
-          kubeconfig-path: ${{ env.HOME }}/.kube/config
+          kubeconfig-path: /home/runner/.kube/config
 
       - name: Pre-pull base images
         run: |

@@ -101,7 +101,7 @@ cmd_dev() {
     echo ""
     echo "Services:"
     echo "  Backend:   https://localhost:443"
-    echo "  Frontend:  http://localhost:5001"
+    echo "  Frontend:  https://localhost:5001"
     echo "  Kafdrop:   http://localhost:9000"
     echo "  Jaeger:    http://localhost:16686"
     echo "  Grafana:   http://localhost:3000"

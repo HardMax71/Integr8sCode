@@ -23,10 +23,11 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: {
+  // In CI, frontend runs via docker-compose; locally, start dev server if needed
+  webServer: process.env.CI ? undefined : {
     command: 'npm run dev',
     url: 'https://localhost:5001',
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: true,
     ignoreHTTPSErrors: true,
     timeout: 120000,
   },

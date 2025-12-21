@@ -1,0 +1,226 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      # ============================================================
+      # Frontend Unit Tests (no docker needed)
+      # ============================================================
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run frontend unit tests
+        working-directory: frontend
+        run: npm test
+
+      - name: Run frontend tests with coverage
+        working-directory: frontend
+        run: npm run test:coverage
+
+      - name: Upload frontend coverage
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/
+
+      # ============================================================
+      # Infrastructure Setup (for backend + E2E tests)
+      # ============================================================
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Setup Kubernetes (k3s)
+        run: |
+          curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik --tls-san host.docker.internal" sh -
+          mkdir -p $HOME/.kube
+          sudo k3s kubectl config view --raw > $HOME/.kube/config
+          sudo chmod 600 $HOME/.kube/config
+          timeout 90 bash -c 'until sudo k3s kubectl cluster-info; do sleep 5; done'
+          kubectl version
+          kubectl get nodes
+
+      - name: Create kubeconfig for CI
+        run: |
+          cat > backend/kubeconfig.yaml <<EOF
+          apiVersion: v1
+          kind: Config
+          clusters:
+          - name: ci-cluster
+            cluster:
+              server: https://host.docker.internal:6443
+              insecure-skip-tls-verify: true
+          users:
+          - name: ci-user
+            user:
+              token: "ci-token"
+          contexts:
+          - name: ci
+            context:
+              cluster: ci-cluster
+              user: ci-user
+          current-context: ci
+          EOF
+
+      - name: Setup CI Compose
+        uses: ./.github/actions/setup-ci-compose
+        with:
+          kubeconfig-path: ${{ env.HOME }}/.kube/config
+
+      - name: Pre-pull base images
+        run: |
+          docker pull python:3.12-slim &
+          docker pull ghcr.io/astral-sh/uv:0.9.18 &
+          docker pull node:22-alpine &
+          docker pull alpine:latest &
+          docker pull confluentinc/cp-kafka:7.5.0 &
+          docker pull confluentinc/cp-zookeeper:7.5.0 &
+          docker pull confluentinc/cp-schema-registry:7.5.0 &
+          docker pull mongo:8.0 &
+          docker pull redis:7-alpine &
+          docker pull grafana/grafana:latest &
+          docker pull jaegertracing/all-in-one:1.52 &
+          docker pull victoriametrics/victoria-metrics:v1.96.0 &
+          docker pull otel/opentelemetry-collector-contrib:0.91.0 &
+          docker pull obsidiandynamics/kafdrop:3.31.0 &
+          docker pull danielqsj/kafka-exporter:latest &
+          wait
+
+      - name: Build services
+        uses: docker/bake-action@v6
+        with:
+          source: .
+          files: docker-compose.ci.yaml
+          load: true
+          set: |
+            *.cache-from=type=gha,scope=buildkit-${{ github.repository }}-${{ github.ref_name }}
+            *.cache-from=type=gha,scope=buildkit-${{ github.repository }}-main
+            *.cache-to=type=gha,mode=max,scope=buildkit-${{ github.repository }}-${{ github.ref_name }}
+            *.pull=true
+        env:
+          BUILDKIT_PROGRESS: plain
+
+      - name: Start services
+        run: |
+          docker compose -f docker-compose.ci.yaml up -d --remove-orphans
+          docker compose -f docker-compose.ci.yaml ps
+
+      - name: Wait for backend
+        run: |
+          curl --retry 60 --retry-delay 5 --retry-all-errors -ksf https://127.0.0.1:443/api/v1/health/live
+          docker compose -f docker-compose.ci.yaml ps
+
+      - name: Wait for frontend
+        run: |
+          curl --retry 30 --retry-delay 5 --retry-all-errors -ksf https://127.0.0.1:5001/ || true
+
+      - name: Check K8s status
+        run: |
+          kubectl get pods -A -o wide
+          kubectl get services -A -o wide
+
+      # ============================================================
+      # Backend Tests
+      # ============================================================
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
+
+      - name: Install Python dependencies
+        run: |
+          cd backend
+          uv python install 3.12
+          uv sync --frozen
+
+      - name: Run backend tests
+        id: backend-tests
+        timeout-minutes: 5
+        env:
+          BACKEND_BASE_URL: https://127.0.0.1:443
+          MONGO_ROOT_USER: root
+          MONGO_ROOT_PASSWORD: rootpassword
+          MONGODB_HOST: 127.0.0.1
+          MONGODB_PORT: 27017
+          MONGODB_URL: mongodb://root:rootpassword@127.0.0.1:27017/?authSource=admin
+          SCHEMA_SUBJECT_PREFIX: "ci.${{ github.run_id }}."
+        run: |
+          cd backend
+          uv run pytest tests/integration tests/unit -v --cov=app --cov-branch --cov-report=xml --cov-report=term --cov-report=term-missing
+
+      - name: Upload backend coverage to Codecov
+        uses: codecov/codecov-action@v5
+        if: always()
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: backend/coverage.xml
+          flags: backend
+          name: backend-coverage
+          slug: HardMax71/Integr8sCode
+          fail_ci_if_error: false
+
+      # ============================================================
+      # E2E Tests
+      # ============================================================
+      - name: Install Playwright browsers
+        if: success() || failure()
+        working-directory: frontend
+        run: npx playwright install chromium
+
+      - name: Run E2E tests
+        id: e2e-tests
+        if: success() || failure()
+        working-directory: frontend
+        env:
+          CI: true
+        run: npx playwright test --reporter=html
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+
+      # ============================================================
+      # Cleanup & Logs
+      # ============================================================
+      - name: Collect logs
+        if: always()
+        run: |
+          mkdir -p logs
+          docker compose -f docker-compose.ci.yaml logs > logs/docker-compose.log
+          docker compose -f docker-compose.ci.yaml logs cert-generator > logs/cert-generator.log
+          docker compose -f docker-compose.ci.yaml logs backend > logs/backend.log
+          docker compose -f docker-compose.ci.yaml logs frontend > logs/frontend.log
+          docker compose -f docker-compose.ci.yaml logs mongo > logs/mongo.log
+          kubectl get events --sort-by='.metadata.creationTimestamp' > logs/k8s-events.log 2>&1 || true
+          kubectl get pods -A -o wide > logs/k8s-pods-final.log 2>&1 || true
+          kubectl describe pods -A > logs/k8s-describe-pods-final.log 2>&1 || true
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ci-logs
+          path: logs/

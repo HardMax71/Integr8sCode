@@ -1,13 +1,8 @@
 # Svelte 5 migration
 
-This document explains the migration from Svelte 4 to Svelte 5, covering the new runes API, reactivity model, and
-practical patterns used throughout the frontend. It serves as both a reference for understanding the current codebase
-and a guide for future development.
-
 ## Why Svelte 5
 
-Svelte 5 introduces **runes** — a new reactivity system that replaces Svelte 4's implicit reactivity with explicit
-declarations. The key benefits:
+Svelte 5 introduces runes — a new reactivity system that replaces Svelte 4's implicit reactivity with explicit declarations.
 
 | Svelte 4                                                            | Svelte 5                                                         |
 |---------------------------------------------------------------------|------------------------------------------------------------------|
@@ -16,13 +11,11 @@ declarations. The key benefits:
 | `$:` reactive statements mixed derivations and side effects         | `$derived` and `$effect` separate concerns                       |
 | Slots for component composition                                     | Snippets provide more flexible composition                       |
 
-The migration also updated the router from `svelte-routing` to `@mateothegreat/svelte5-router`, which is designed for
-Svelte 5's component model.
+The migration also updated the router from `svelte-routing` to `@mateothegreat/svelte5-router`, which is designed for Svelte 5's component model.
 
 ## Runes overview
 
-Runes are compiler directives that look like function calls but are processed at compile time. They're available in
-`.svelte` files and `.svelte.ts` files without imports.
+Runes are compiler directives that look like function calls but are processed at compile time. They're available in `.svelte` files and `.svelte.ts` files without imports.
 
 ### $state
 
@@ -30,14 +23,9 @@ Creates reactive state that triggers UI updates when modified:
 
 ```svelte
 <script lang="ts">
-  // Reactive primitive
-  let count = $state(0);
-
-  // Reactive object (deeply reactive)
-  let user = $state({ name: '', email: '' });
-
-  // Reactive array (deeply reactive, .push() works)
-  let items = $state<Item[]>([]);
+  let count = $state(0);                         // Reactive primitive
+  let user = $state({ name: '', email: '' });    // Reactive object (deeply reactive)
+  let items = $state<Item[]>([]);                // Reactive array (.push() works)
 
   function increment() {
     count += 1;  // Triggers update
@@ -47,34 +35,16 @@ Creates reactive state that triggers UI updates when modified:
 <button onclick={increment}>{count}</button>
 ```
 
-**When to use `$state`:**
-
-- Variables displayed in the template that can change
-- Variables controlling conditional rendering (`{#if loading}`)
-- Arrays and objects that will be mutated
-- Any state that should trigger re-renders
-
-**When NOT to use `$state`:**
-
-- DOM element references (`bind:this`)
-- Cleanup functions and subscriptions
-- Constants that never change
-- Helper variables used only inside functions
+Use `$state` for variables displayed in the template that can change, variables controlling conditional rendering, arrays and objects that will be mutated, and any state that should trigger re-renders. Don't use `$state` for DOM element references (`bind:this`), cleanup functions and subscriptions, constants that never change, or helper variables used only inside functions:
 
 ```svelte
 <script lang="ts">
-  // ✅ Needs $state - displayed and updated
-  let loading = $state(false);
-  let items = $state<Item[]>([]);
+  let loading = $state(false);           // Needs $state - displayed and updated
+  let items = $state<Item[]>([]);        // Needs $state - displayed and mutated
 
-  // ✅ Does NOT need $state - DOM reference
-  let containerEl: HTMLElement;
-
-  // ✅ Does NOT need $state - cleanup function
-  let unsubscribe: (() => void) | null = null;
-
-  // ✅ Does NOT need $state - constant
-  const API_ENDPOINT = '/api/v1';
+  let containerEl: HTMLElement;          // No $state - DOM reference
+  let unsubscribe: (() => void) | null;  // No $state - cleanup function
+  const API_ENDPOINT = '/api/v1';        // No $state - constant
 </script>
 ```
 
@@ -87,8 +57,7 @@ Creates computed values that automatically update when dependencies change:
   let items = $state<Item[]>([]);
   let filter = $state('');
 
-  // Simple derivation
-  let count = $derived(items.length);
+  let count = $derived(items.length);    // Simple derivation
 
   // Complex derivation with $derived.by
   let filteredItems = $derived.by(() => {
@@ -100,8 +69,7 @@ Creates computed values that automatically update when dependencies change:
 </script>
 ```
 
-Use `$derived` for any value computed from reactive state. Use `$derived.by` when the computation needs multiple
-statements.
+Use `$derived` for any value computed from reactive state. Use `$derived.by` when the computation needs multiple statements.
 
 ### $effect
 
@@ -112,24 +80,13 @@ Runs side effects when dependencies change:
   let theme = $state('dark');
 
   $effect(() => {
-    // Runs when theme changes
     document.documentElement.classList.toggle('dark', theme === 'dark');
-
-    // Optional cleanup function
-    return () => {
-      console.log('Cleaning up previous effect');
-    };
+    return () => console.log('Cleaning up previous effect');  // Optional cleanup
   });
 </script>
 ```
 
-!!! warning "Use $effect sparingly"
-Most reactive needs are better served by `$derived`. Use `$effect` only for:
-
-    - DOM manipulation outside Svelte's control
-    - External library integration
-    - Subscriptions and event listeners
-    - Logging and debugging
+Use `$effect` sparingly — most reactive needs are better served by `$derived`. Reserve effects for DOM manipulation outside Svelte's control, external library integration, subscriptions and event listeners, and logging/debugging.
 
 ### $props
 
@@ -137,11 +94,8 @@ Declares component props with destructuring:
 
 ```svelte
 <script lang="ts">
-  // Svelte 4
-  export let size = 'medium';
-  export let disabled = false;
-
-  // Svelte 5
+  // Svelte 4: export let size = 'medium';
+  // Svelte 5:
   let { size = 'medium', disabled = false } = $props();
 
   // With TypeScript interface
@@ -161,16 +115,12 @@ Svelte 5 uses standard DOM event attributes instead of the `on:` directive:
 ```svelte
 <!-- Svelte 4 -->
 <button on:click={handleClick}>Click</button>
-<button on:click|preventDefault={submit}>Submit</button>
 <form on:submit|preventDefault={handleSubmit}>
 
 <!-- Svelte 5 -->
 <button onclick={handleClick}>Click</button>
-<button onclick={(e) => { e.preventDefault(); submit(); }}>Submit</button>
 <form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
 ```
-
-### Event modifier migration
 
 | Svelte 4                    | Svelte 5                                                              |
 |-----------------------------|-----------------------------------------------------------------------|
@@ -180,7 +130,7 @@ Svelte 5 uses standard DOM event attributes instead of the `on:` directive:
 
 All standard DOM events follow this pattern: `on:eventname` becomes `oneventname`.
 
-## Snippets (replacing slots)
+## Snippets
 
 Snippets replace slots for component composition:
 
@@ -219,58 +169,29 @@ Snippets replace slots for component composition:
 </script>
 
 <div class="card">
-  {#if header}
-    {@render header()}
-  {/if}
+  {#if header}{@render header()}{/if}
   {@render children?.()}
 </div>
 ```
 
-For simple cases with just a default slot:
-
-```svelte
-<!-- ProtectedRoute.svelte -->
-<script lang="ts">
-  import type { Snippet } from 'svelte';
-
-  interface Props {
-    children?: Snippet;
-    redirectTo?: string;
-  }
-  let { children, redirectTo = '/login' } = $props<Props>();
-</script>
-
-{#if authenticated}
-  {@render children?.()}
-{/if}
-```
+For simple cases with just a default slot, declare `children` as a `Snippet` prop and render with `{@render children?.()}`.
 
 ## Component instantiation
 
 The `new Component()` syntax is replaced with `mount()`:
 
 ```typescript
-// Svelte 4: main.ts
-import App from './App.svelte';
+// Svelte 4
+const app = new App({ target: document.body });
 
-const app = new App({
-    target: document.body,
-});
-
-// Svelte 5: main.ts
-import {mount} from 'svelte';
-import App from './App.svelte';
-
-const app = mount(App, {
-    target: document.body,
-});
+// Svelte 5
+import { mount } from 'svelte';
+const app = mount(App, { target: document.body });
 ```
 
 ## Router migration
 
-The frontend uses `@mateothegreat/svelte5-router` instead of `svelte-routing`:
-
-### API changes
+The frontend uses `@mateothegreat/svelte5-router` instead of `svelte-routing`. The main API change is that `navigate('/path')` becomes `goto('/path')`, and `<Link to="/path">` becomes `<a href="/path" use:route>`. The `<Route>` component syntax remains the same.
 
 | svelte-routing                        | svelte5-router                        |
 |---------------------------------------|---------------------------------------|
@@ -278,57 +199,11 @@ The frontend uses `@mateothegreat/svelte5-router` instead of `svelte-routing`:
 | `<Link to="/path">`                   | `<a href="/path" use:route>`          |
 | `<Route path="/" component={Home} />` | `<Route path="/" component={Home} />` |
 
-### Route configuration
-
-```svelte
-<!-- App.svelte -->
-<script lang="ts">
-  import { Router, Route } from "@mateothegreat/svelte5-router";
-  import Home from "./routes/Home.svelte";
-  import Login from "./routes/Login.svelte";
-  import ProtectedRoute from "./components/ProtectedRoute.svelte";
-  import Editor from "./routes/Editor.svelte";
-</script>
-
-<Router>
-  <Route path="/" component={Home} />
-  <Route path="/login" component={Login} />
-  <Route path="/editor">
-    <ProtectedRoute>
-      <Editor />
-    </ProtectedRoute>
-  </Route>
-</Router>
-```
-
-### Programmatic navigation
-
-```svelte
-<script lang="ts">
-  import { goto } from "@mateothegreat/svelte5-router";
-
-  function handleLogout() {
-    // Clear auth state
-    goto('/login');
-  }
-</script>
-```
-
-### Link styling with route action
-
-```svelte
-<script lang="ts">
-  import { route } from "@mateothegreat/svelte5-router";
-</script>
-
-<a href="/settings" use:route class="nav-link">Settings</a>
-<a href="/logout" use:route onclick={handleLogout}>Logout</a>
-```
+Routes are configured in `App.svelte` by importing `Router` and `Route` from `@mateothegreat/svelte5-router`, then wrapping route definitions. Protected routes wrap their children in `ProtectedRoute`. For programmatic navigation, import `goto` from the router and call it after state changes like logout. For links, use the `route` action on anchor elements: `<a href="/settings" use:route>`.
 
 ## Stores compatibility
 
-Svelte stores (`writable`, `derived`, `readable`) work unchanged in Svelte 5. The `$store` auto-subscription syntax
-continues to work:
+Svelte stores (`writable`, `derived`, `readable`) work unchanged in Svelte 5. The `$store` auto-subscription syntax continues to work:
 
 ```svelte
 <script lang="ts">
@@ -340,287 +215,50 @@ continues to work:
   <span>Welcome, {$username}</span>
 {/if}
 
-<button onclick={() => theme.set('dark')}>
-  Current: {$theme}
-</button>
+<button onclick={() => theme.set('dark')}>Current: {$theme}</button>
 ```
 
-!!! note "When to use stores vs runes"
-- **Stores**: Shared state across components, persisted state, complex async state
-- **Runes ($state)**: Component-local state, simple reactive values
-
-    The existing stores (`auth.ts`, `theme.ts`, `toastStore.ts`) remain as stores because they manage global, shared state.
+Use stores for shared state across components, persisted state, and complex async state. Use runes (`$state`) for component-local state and simple reactive values. The existing stores (`auth.ts`, `theme.ts`, `toastStore.ts`) remain as stores because they manage global, shared state.
 
 ## Build configuration
 
-### rollup.config.js
-
-The Svelte plugin requires the `runes: true` compiler option:
+The Svelte plugin in `rollup.config.js` requires the `runes: true` compiler option to enable Svelte 5's runes mode:
 
 ```javascript
-import svelte from 'rollup-plugin-svelte';
-import sveltePreprocess from 'svelte-preprocess';
-
-export default {
-    plugins: [
-        svelte({
-            preprocess: sveltePreprocess({postcss: true}),
-            compilerOptions: {
-                dev: !production,
-                runes: true,  // Enable runes mode
-            },
-        }),
-        // ... other plugins
-    ],
-};
+svelte({
+    preprocess: sveltePreprocess({ postcss: true }),
+    compilerOptions: {
+        dev: !production,
+        runes: true,
+    },
+}),
 ```
 
-### package.json dependencies
-
-```json
-{
-  "dependencies": {
-    "svelte": "^5.46.0",
-    "@mateothegreat/svelte5-router": "^2.16.19"
-  },
-  "devDependencies": {
-    "svelte-preprocess": "^6.0.3"
-  }
-}
-```
+The key dependencies are `svelte` at `^5.46.0`, `@mateothegreat/svelte5-router` at `^2.16.19`, and `svelte-preprocess` at `^6.0.3`.
 
 ## Migration patterns
 
-### Pattern 1: Simple reactive variable
+The most common migration is converting reactive variables. A Svelte 4 variable `let count = 0` with a reactive statement `$: doubled = count * 2` becomes `let count = $state(0)` with `let doubled = $derived(count * 2)`.
 
-```svelte
-<!-- Before -->
-<script>
-  let count = 0;
-  $: doubled = count * 2;
-</script>
+For reactive statements with side effects, replace `$: if (query) { fetchResults(query); }` with an `$effect` block that runs the same logic. The effect automatically tracks `query` as a dependency.
 
-<!-- After -->
-<script lang="ts">
-  let count = $state(0);
-  let doubled = $derived(count * 2);
-</script>
-```
+Form handling changes in two ways: state variables get `$state`, and the form element uses `onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}` instead of `on:submit|preventDefault={handleSubmit}`.
 
-### Pattern 2: Reactive statement with side effect
+Component props migrate from `export let size = 'medium'` to destructuring with `$props()`. If you need computed values from props, add a `$derived` declaration.
 
-```svelte
-<!-- Before -->
-<script>
-  let query = '';
-  $: if (query) {
-    fetchResults(query);
-  }
-</script>
-
-<!-- After -->
-<script lang="ts">
-  let query = $state('');
-
-  $effect(() => {
-    if (query) {
-      fetchResults(query);
-    }
-  });
-</script>
-```
-
-### Pattern 3: Form with loading state
-
-```svelte
-<!-- Before -->
-<script>
-  let loading = false;
-  let error = null;
-
-  async function handleSubmit() {
-    loading = true;
-    error = null;
-    try {
-      await submitForm();
-    } catch (e) {
-      error = e.message;
-    } finally {
-      loading = false;
-    }
-  }
-</script>
-
-<form on:submit|preventDefault={handleSubmit}>
-
-<!-- After -->
-<script lang="ts">
-  let loading = $state(false);
-  let error = $state<string | null>(null);
-
-  async function handleSubmit() {
-    loading = true;
-    error = null;
-    try {
-      await submitForm();
-    } catch (e) {
-      error = e.message;
-    } finally {
-      loading = false;
-    }
-  }
-</script>
-
-<form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
-```
-
-### Pattern 4: Component with props and children
-
-```svelte
-<!-- Before: Spinner.svelte -->
-<script>
-  export let size = 'medium';
-  export let className = '';
-</script>
-
-<!-- After: Spinner.svelte -->
-<script lang="ts">
-  interface Props {
-    size?: 'small' | 'medium' | 'large';
-    className?: string;
-  }
-  let { size = 'medium', className = '' } = $props<Props>();
-
-  let sizeClass = $derived(
-    size === 'small' ? 'w-4 h-4' :
-    size === 'large' ? 'w-12 h-12' : 'w-8 h-8'
-  );
-</script>
-
-<div class="{sizeClass} {className}">
-  <!-- spinner SVG -->
-</div>
-```
-
-### Pattern 5: Cleanup with subscriptions
-
-```svelte
-<!-- Before -->
-<script>
-  import { onDestroy } from 'svelte';
-  import { someStore } from './stores';
-
-  let unsubscribe;
-
-  onMount(() => {
-    unsubscribe = someStore.subscribe(value => {
-      // handle value
-    });
-  });
-
-  onDestroy(() => {
-    if (unsubscribe) unsubscribe();
-  });
-</script>
-
-<!-- After (both approaches work) -->
-<script lang="ts">
-  import { onDestroy } from 'svelte';
-  import { someStore } from './stores';
-
-  // Approach 1: Keep using onDestroy (still valid)
-  let unsubscribe: (() => void) | null = null;
-
-  onMount(() => {
-    unsubscribe = someStore.subscribe(value => {
-      // handle value
-    });
-  });
-
-  onDestroy(() => {
-    unsubscribe?.();
-  });
-
-  // Approach 2: Use $effect cleanup
-  $effect(() => {
-    const unsub = someStore.subscribe(value => {
-      // handle value
-    });
-    return () => unsub();
-  });
-</script>
-```
+For cleanup patterns, both approaches work: the traditional `onMount`/`onDestroy` with an unsubscribe function, or the newer `$effect` with a cleanup return function. Choose whichever reads more clearly for your use case.
 
 ## Common pitfalls
 
-### Destructuring reactive values
+Destructuring reactive objects breaks reactivity. If you have `let user = $state({ name: 'Alice' })`, don't destructure with `let { name } = user` — access properties directly as `user.name` in the template.
 
-Destructuring breaks reactivity:
+Variables that are reassigned and displayed in the template need `$state`. A plain `let count = 0` won't update the UI when incremented; it needs to be `let count = $state(0)`.
 
-```svelte
-<script lang="ts">
-  let user = $state({ name: 'Alice', age: 30 });
+Avoid using `$effect` for derivations. If you find yourself writing `$effect(() => { total = items.reduce(...) })`, refactor to `let total = $derived(items.reduce(...))`. Effects are for side effects, not computed values.
 
-  // ❌ Bad: loses reactivity
-  let { name } = user;
-
-  // ✅ Good: access properties directly
-  // In template: {user.name}
-</script>
-```
-
-### Missing $state on mutable variables
-
-Variables that are reassigned AND displayed in the template need `$state`:
-
-```svelte
-<script lang="ts">
-  // ❌ Bad: won't update UI when changed
-  let count = 0;
-
-  // ✅ Good: UI updates on change
-  let count = $state(0);
-</script>
-
-<button onclick={() => count++}>{count}</button>
-```
-
-### Using $effect for derivations
-
-```svelte
-<script lang="ts">
-  let items = $state<Item[]>([]);
-
-  // ❌ Bad: using $effect for a derivation
-  let total = $state(0);
-  $effect(() => {
-    total = items.reduce((sum, item) => sum + item.price, 0);
-  });
-
-  // ✅ Good: use $derived
-  let total = $derived(
-    items.reduce((sum, item) => sum + item.price, 0)
-  );
-</script>
-```
-
-### Self-closing non-void elements
-
-HTML elements like `<textarea>`, `<div>`, `<span>` cannot be self-closing:
-
-```svelte
-<!-- ❌ Bad: causes parsing errors -->
-<textarea />
-<div />
-
-<!-- ✅ Good: use closing tags -->
-<textarea></textarea>
-<div></div>
-```
+HTML elements like `<textarea>`, `<div>`, and `<span>` cannot be self-closing in Svelte 5. Use `<textarea></textarea>` instead of `<textarea />`.
 
 ## File-by-file changes
-
-### Critical files
 
 | File                    | Changes                                |
 |-------------------------|----------------------------------------|
@@ -628,8 +266,6 @@ HTML elements like `<textarea>`, `<div>`, `<span>` cannot be self-closing:
 | `App.svelte`            | Router imports, `$derived` for theme   |
 | `ProtectedRoute.svelte` | `$props`, snippet children, `goto()`   |
 | `AdminLayout.svelte`    | `$props`, snippet children             |
-
-### Components with $state
 
 | File                        | State variables                                          |
 |-----------------------------|----------------------------------------------------------|
@@ -639,46 +275,10 @@ HTML elements like `<textarea>`, `<div>`, `<span>` cannot be self-closing:
 | `NotificationCenter.svelte` | `showDropdown`, `loading`, `notifications`               |
 | `Spinner.svelte`            | None (uses `$derived` for `sizeClass`)                   |
 
-### Components with event syntax updates
-
-All components using `on:click`, `on:submit`, `on:change`, etc. were updated to `onclick`, `onsubmit`, `onchange`. This
-includes all form components, buttons, and interactive elements.
+All components using `on:click`, `on:submit`, `on:change`, etc. were updated to `onclick`, `onsubmit`, `onchange`.
 
 ## Verification
 
-After migration, verify the build succeeds without warnings:
+After migration, verify the build succeeds with `npm run build`. Expected output shows only Svelte internal circular dependency notes (normal for Svelte 5). 
 
-```bash
-cd frontend
-npm run build
-```
-
-Expected output shows only Svelte internal circular dependency notes (normal for Svelte 5):
-
-```
-src/main.ts → public/build...
-(!) Circular dependencies
-node_modules/svelte/src/internal/...
-...and 34 more
-created public/build in 12.5s
-```
-
-Test the application:
-
-- [ ] All routes navigate correctly
-- [ ] Authentication flow works (login/logout)
-- [ ] Protected routes redirect properly
-- [ ] Theme switching works
-- [ ] Notifications display and update
-- [ ] Toast messages appear
-- [ ] Editor loads and executes code
-- [ ] Admin pages function correctly
-
-## References
-
-- [Svelte 5 Documentation](https://svelte.dev/docs/svelte)
-- [Svelte 5 Migration Guide](https://svelte.dev/docs/svelte/v5-migration-guide)
-- [$state Rune](https://svelte.dev/docs/svelte/$state)
-- [$derived Rune](https://svelte.dev/docs/svelte/$derived)
-- [$effect Rune](https://svelte.dev/docs/svelte/$effect)
-- [svelte5-router](https://github.com/mateothegreat/svelte5-router)
+Test that all routes navigate correctly, authentication works, protected routes redirect properly, theme switching works, notifications display, toast messages appear, the editor loads and executes code, and admin pages function correctly.

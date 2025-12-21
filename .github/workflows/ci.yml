@@ -174,7 +174,7 @@ jobs:
         if: always()
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          file: backend/coverage.xml
+          files: backend/coverage.xml
           flags: backend
           name: backend-coverage
           slug: HardMax71/Integr8sCode

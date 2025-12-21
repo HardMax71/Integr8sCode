@@ -12,7 +12,7 @@ runs:
     - name: Install yq
       shell: bash
       run: |
-        sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+        sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.50.1/yq_linux_amd64
         sudo chmod +x /usr/local/bin/yq
 
     - name: Create CI compose configuration
@@ -47,9 +47,8 @@ runs:
         yq eval '.services.kafka.depends_on.zookeeper.condition = "service_started"' -i docker-compose.ci.yaml
 
         # Cert-generator CI configuration
-        yq eval 'select(.services."cert-generator".extra_hosts == null).services."cert-generator".extra_hosts = []' -i docker-compose.ci.yaml
-        yq eval '.services."cert-generator".extra_hosts += ["host.docker.internal:host-gateway"]' -i docker-compose.ci.yaml
-        yq eval '.services."cert-generator".environment += ["CI=true"]' -i docker-compose.ci.yaml
+        yq eval '.services."cert-generator".extra_hosts = ((.services."cert-generator".extra_hosts // []) + ["host.docker.internal:host-gateway"] | unique)' -i docker-compose.ci.yaml
+        yq eval '.services."cert-generator".environment = ((.services."cert-generator".environment // []) + ["CI=true"] | unique)' -i docker-compose.ci.yaml
         yq eval ".services.\"cert-generator\".volumes += [\"${KUBECONFIG_PATH}:/root/.kube/config:ro\"]" -i docker-compose.ci.yaml
 
         echo "Created docker-compose.ci.yaml"

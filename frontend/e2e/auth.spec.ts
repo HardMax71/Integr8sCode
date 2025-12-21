@@ -31,7 +31,7 @@ test.describe('Authentication', () => {
     await page.click('button[type="submit"]');
 
     // Wait for error message to appear
-    await expect(page.locator('p.text-red-600, p.text-red-400')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('p.text-red-600, p.text-red-400')).toBeVisible();
   });
 
   test('redirects to editor on successful login', async ({ page }) => {
@@ -43,7 +43,7 @@ test.describe('Authentication', () => {
     await page.click('button[type="submit"]');
 
     // Should redirect to editor
-    await expect(page).toHaveURL(/\/editor/, { timeout: 15000 });
+    await expect(page).toHaveURL(/\/editor/);
   });
 
   test('shows loading state during login', async ({ page }) => {
@@ -65,7 +65,7 @@ test.describe('Authentication', () => {
     await page.goto('/editor');
 
     // Should redirect to login
-    await expect(page).toHaveURL(/\/login/, { timeout: 10000 });
+    await expect(page).toHaveURL(/\/login/);
   });
 
   test('preserves redirect path after login', async ({ page }) => {
@@ -73,7 +73,7 @@ test.describe('Authentication', () => {
     await page.goto('/settings');
 
     // Should redirect to login
-    await expect(page).toHaveURL(/\/login/, { timeout: 10000 });
+    await expect(page).toHaveURL(/\/login/);
 
     // Login
     await page.fill('#username', 'user');
@@ -81,7 +81,7 @@ test.describe('Authentication', () => {
     await page.click('button[type="submit"]');
 
     // Should redirect back to settings
-    await expect(page).toHaveURL(/\/settings/, { timeout: 15000 });
+    await expect(page).toHaveURL(/\/settings/);
   });
 
   test('has link to registration page', async ({ page }) => {
@@ -108,7 +108,7 @@ test.describe('Logout', () => {
     await page.fill('#username', 'user');
     await page.fill('#password', 'user123');
     await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/\/editor/, { timeout: 15000 });
+    await expect(page).toHaveURL(/\/editor/);
   });
 
   test('can logout from authenticated state', async ({ page }) => {
@@ -118,7 +118,7 @@ test.describe('Logout', () => {
     if (await logoutButton.isVisible()) {
       await logoutButton.click();
       // Should redirect to login
-      await expect(page).toHaveURL(/\/login/, { timeout: 10000 });
+      await expect(page).toHaveURL(/\/login/);
     }
   });
 });

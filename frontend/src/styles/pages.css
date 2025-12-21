@@ -1,0 +1,273 @@
+/*
+ * Page-specific component styles
+ * Centralized styles for route components to avoid scattered <style> blocks
+ */
+
+/* =============================================================================
+   EDITOR PAGE STYLES
+   ============================================================================= */
+
+/* Editor Grid Layout */
+.editor-grid-container {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(300px, 1fr) minmax(200px, 1fr) auto;
+    gap: 1rem;
+    width: 100%;
+    position: relative;
+    min-height: calc(100vh - 8rem);
+    max-height: calc(100vh - 8rem);
+    padding: 0;
+}
+
+.editor-header {
+    grid-row: 1 / 2;
+    margin-bottom: 0;
+    transition: margin-bottom 0.3s ease;
+    position: relative;
+    z-index: 10;
+}
+
+.editor-controls {
+    grid-row: 2 / 3;
+}
+
+.editor-main-code {
+    grid-row: 3 / 4;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.editor-wrapper {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    position: relative;
+}
+
+.editor-wrapper .cm-editor {
+    height: 100% !important;
+    max-height: 100% !important;
+}
+
+.editor-wrapper .cm-scroller {
+    overflow: auto !important;
+}
+
+.editor-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background-color: inherit;
+}
+
+.editor-main-output {
+    grid-row: 4 / 5;
+    min-height: 0;
+    display: flex;
+}
+
+@media (min-width: 768px) {
+    .editor-grid-container {
+        grid-template-columns: minmax(0, 1.85fr) minmax(0, 1fr);
+        grid-template-rows: auto minmax(400px, 1fr) auto;
+        gap: 1rem;
+        min-height: calc(100vh - 8rem);
+        max-height: calc(100vh - 8rem);
+    }
+
+    .editor-header {
+        grid-column: 1 / -1;
+        grid-row: 1 / 2;
+    }
+
+    .editor-main-code {
+        grid-column: 1 / 2;
+        grid-row: 2 / 3;
+    }
+
+    .editor-main-output {
+        grid-column: 2 / 3;
+        grid-row: 2 / 3;
+    }
+
+    .editor-controls {
+        grid-column: 1 / -1;
+        grid-row: 3 / 4;
+    }
+}
+
+/* Editor-specific scrollbars */
+.editor-wrapper::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.editor-wrapper::-webkit-scrollbar-track {
+    @apply bg-neutral-200 dark:bg-neutral-700 rounded-b-lg;
+}
+
+.editor-wrapper::-webkit-scrollbar-thumb {
+    @apply bg-neutral-400 dark:bg-neutral-500 rounded;
+}
+
+.editor-wrapper::-webkit-scrollbar-thumb:hover {
+    @apply bg-neutral-500 dark:bg-neutral-400;
+}
+
+/* Saved scripts container */
+.saved-scripts-container {
+    max-height: calc(3 * 3.5rem);
+    overflow-y: auto;
+}
+
+.saved-scripts-container li {
+    min-height: 3.5rem;
+}
+
+.saved-scripts-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.saved-scripts-container::-webkit-scrollbar-track {
+    @apply bg-neutral-100 dark:bg-neutral-800 rounded;
+}
+
+.saved-scripts-container::-webkit-scrollbar-thumb {
+    @apply bg-neutral-300 dark:bg-neutral-600 rounded;
+}
+
+.saved-scripts-container::-webkit-scrollbar-thumb:hover {
+    @apply bg-neutral-400 dark:bg-neutral-500;
+}
+
+/* =============================================================================
+   HOME PAGE STYLES
+   ============================================================================= */
+
+/* Hero section animated background shapes */
+@keyframes shape-float-1 {
+    0% { transform: translate(0, 0) rotate(0deg) scale(1); }
+    25% { transform: translate(-10px, 15px) rotate(10deg) scale(1.05); }
+    50% { transform: translate(5px, -10px) rotate(-5deg) scale(1); }
+    75% { transform: translate(10px, 5px) rotate(5deg) scale(0.95); }
+    100% { transform: translate(0, 0) rotate(0deg) scale(1); }
+}
+
+@keyframes shape-float-2 {
+    0% { transform: translate(0, 0) rotate(0deg) scale(1); }
+    25% { transform: translate(15px, -5px) rotate(-8deg) scale(0.98); }
+    50% { transform: translate(-5px, 10px) rotate(12deg) scale(1.02); }
+    75% { transform: translate(-10px, -15px) rotate(-3deg) scale(1); }
+    100% { transform: translate(0, 0) rotate(0deg) scale(1); }
+}
+
+/* Hero fly-in animation */
+@keyframes flyInHome {
+    from { opacity: 0; transform: translateY(var(--fly-y, 20px)); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.hero-animate-flyIn {
+    animation: flyInHome 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: var(--fly-delay, 0s);
+}
+
+[style*="--fly-delay"] {
+    opacity: 0;
+}
+
+.feature-card {
+    position: relative;
+}
+
+.hero-section::before,
+.hero-section::after {
+    content: '';
+    @apply absolute -z-10 rounded-full;
+    filter: blur(60px);
+    opacity: 0.15;
+    will-change: transform;
+}
+
+:is(.dark .hero-section)::before,
+:is(.dark .hero-section)::after {
+    opacity: 0.1;
+    filter: blur(70px);
+}
+
+.hero-section::before {
+    width: 25rem;
+    height: 25rem;
+    left: -10rem;
+    top: -10rem;
+    background-color: var(--color-primary-light);
+    animation: shape-float-1 35s ease-in-out infinite;
+}
+
+@media (min-width: 640px) {
+    .hero-section::before {
+        width: 35rem;
+        height: 35rem;
+        left: -15rem;
+        top: -15rem;
+    }
+}
+
+@media (min-width: 1024px) {
+    .hero-section::before {
+        width: 50rem;
+        height: 50rem;
+        left: -20rem;
+        top: -20rem;
+    }
+}
+
+:is(.dark .hero-section)::before {
+    background-color: var(--color-primary);
+}
+
+.hero-section::after {
+    width: 20rem;
+    height: 15rem;
+    right: -10rem;
+    bottom: -5rem;
+    border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+    background-color: var(--color-secondary);
+    animation: shape-float-2 45s ease-in-out infinite;
+}
+
+@media (min-width: 640px) {
+    .hero-section::after {
+        width: 30rem;
+        height: 22rem;
+        right: -12rem;
+        bottom: -7rem;
+    }
+}
+
+@media (min-width: 1024px) {
+    .hero-section::after {
+        width: 40rem;
+        height: 30rem;
+        right: -15rem;
+        bottom: -10rem;
+    }
+}
+
+:is(.dark .hero-section)::after {
+    background-color: var(--color-secondary-dark);
+    border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%;
+}
+
+/* Center lone last card in 2-column grid */
+@media (min-width: 640px) and (max-width: 1023.98px) {
+    .features-grid > :last-child:nth-child(2n + 1) {
+        grid-column: 1 / -1;
+        justify-self: center;
+        max-width: 36rem;
+        width: 100%;
+    }
+}

@@ -5,6 +5,7 @@ import terser from '@rollup/plugin-terser';
 import postcss from 'rollup-plugin-postcss';
 import sveltePreprocess from 'svelte-preprocess';
 import replace from '@rollup/plugin-replace';
+import typescript from '@rollup/plugin-typescript';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import https from 'https';
@@ -112,7 +113,7 @@ function startServer() {
 }
 
 export default {
-    input: 'src/main.js',
+    input: 'src/main.ts',
     output: {
         sourcemap: true,
         format: 'es',
@@ -121,8 +122,7 @@ export default {
         manualChunks: {
             'vendor': [
                 'svelte',
-                'svelte-routing',
-                'axios'
+                '@mateothegreat/svelte5-router'
             ],
             'codemirror': [
                 '@codemirror/state',
@@ -148,11 +148,18 @@ export default {
         }),
         svelte({
             preprocess: sveltePreprocess({ postcss: true }),
-            compilerOptions: { dev: !production }
+            compilerOptions: {
+                dev: !production,
+                runes: true
+            }
         }),
         postcss({
             extract: 'bundle.css',
             minimize: production,
+        }),
+        typescript({
+            sourceMap: true,
+            inlineSources: !production
         }),
         json(),
         resolve({
@@ -175,7 +182,7 @@ export default {
             module: true,
             compress: {
                 passes: 2,
-                pure_funcs: ['console.log']
+                drop_console: true
             },
             format: {
                 comments: false

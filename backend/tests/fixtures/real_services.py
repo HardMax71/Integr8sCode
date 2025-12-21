@@ -52,7 +52,7 @@ class TestServiceConnections:
             socket_timeout=5
         )
         # Verify connection
-        await self.redis_client.ping()
+        await self.redis_client.execute_command("PING")
         # Clear test namespace
         await self.redis_client.flushdb()
         return self.redis_client
@@ -328,13 +328,13 @@ async def ensure_services_running():
     # Check Redis
     try:
         r = redis.Redis(host="localhost", port=6379, socket_connect_timeout=5)
-        await r.ping()
+        await r.execute_command("PING")
         await r.aclose()
     except Exception:
         print("Starting Redis...")
         subprocess.run(["docker-compose", "up", "-d", "redis"], check=False)
         await wait_for_service(
-            lambda: redis.Redis(host="localhost", port=6379).ping(),
+            lambda: redis.Redis(host="localhost", port=6379).execute_command("PING"),
             service_name="Redis"
         )
     

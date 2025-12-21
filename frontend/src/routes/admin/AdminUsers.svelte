@@ -1,166 +1,189 @@
-<script>
+<script lang="ts">
     import { onMount } from 'svelte';
-    import { api } from '../../lib/api';
-    import { addNotification } from '../../stores/notifications';
+    import {
+        listUsersApiV1AdminUsersGet,
+        createUserApiV1AdminUsersPost,
+        updateUserApiV1AdminUsersUserIdPut,
+        deleteUserApiV1AdminUsersUserIdDelete,
+        getUserRateLimitsApiV1AdminUsersUserIdRateLimitsGet,
+        updateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPut,
+        resetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPost,
+        type UserResponse,
+        type UserRateLimit,
+        type RateLimitRule,
+        type EndpointGroup,
+    } from '../../lib/api';
+    import { addToast } from '../../stores/toastStore';
     import AdminLayout from './AdminLayout.svelte';
     import Spinner from '../../components/Spinner.svelte';
-    
-    let users = [];
-    let loading = false;
-    let selectedUser = null;
-    let showDeleteModal = false;
-    let showRateLimitModal = false;
-    let userToDelete = null;
-    let rateLimitUser = null;
-    let rateLimitConfig = null;
-    let rateLimitUsage = null;
-    let cascadeDelete = true;
-    let deletingUser = false;
-    let loadingRateLimits = false;
-    let savingRateLimits = false;
-    
+
+    let users = $state<UserResponse[]>([]);
+    let loading = $state(false);
+    let selectedUser = $state<UserResponse | null>(null);
+    let showDeleteModal = $state(false);
+    let showRateLimitModal = $state(false);
+    let userToDelete = $state<UserResponse | null>(null);
+    let rateLimitUser = $state<UserResponse | null>(null);
+    let rateLimitConfig = $state<UserRateLimit | null>(null);
+    let rateLimitUsage = $state<Record<string, number> | null>(null);
+    let cascadeDelete = $state(true);
+    let deletingUser = $state(false);
+    let loadingRateLimits = $state(false);
+    let savingRateLimits = $state(false);
+
     // Pagination
-    let currentPage = 1;
-    let pageSize = 10;
-    let totalUsers = 0;
-    
+    let currentPage = $state(1);
+    let pageSize = $state(10);
+    let totalUsers = $state(0);
+
     // Search and filters
-    let searchQuery = '';
-    let roleFilter = 'all';
-    let statusFilter = 'all';
-    let showAdvancedFilters = false;
-    let advancedFilters = {
-        bypassRateLimit: 'all',
-        hasCustomLimits: 'all',
-        globalMultiplier: 'all'
-    };
-    
+    let searchQuery = $state('');
+    let roleFilter = $state('all');
+    let statusFilter = $state('all');
+    let showAdvancedFilters = $state(false);
+    let advancedFilters = $state({
+        bypassRateLimit: 'all' as string,
+        hasCustomLimits: 'all' as string,
+        globalMultiplier: 'all' as string
+    });
+
     // User creation/editing
-    let showUserModal = false;
-    let editingUser = null;
-    let userForm = {
+    let showUserModal = $state(false);
+    let editingUser = $state<UserResponse | null>(null);
+    let userForm = $state({
         username: '',
         email: '',
         password: '',
         role: 'user',
         is_active: true
-    };
-    let savingUser = false;
-    
-    // Computed values
-    $: totalPages = Math.ceil(filteredUsers.length / pageSize);
-    $: paginatedUsers = filteredUsers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-    $: filteredUsers = filterUsers(users, searchQuery, roleFilter, statusFilter, advancedFilters);
+    });
+    let savingUser = $state(false);
+
+    // Computed values - note: order matters, filteredUsers must be defined first
+    let filteredUsers = $derived(filterUsers(users, searchQuery, roleFilter, statusFilter, advancedFilters));
+    let totalPages = $derived(Math.ceil(filteredUsers.length / pageSize));
+    let paginatedUsers = $derived(filteredUsers.slice((currentPage - 1) * pageSize, currentPage * pageSize));
     
     onMount(() => {
         loadUsers();
     });
     
-    async function loadUsers() {
+    async function loadUsers(): Promise<void> {
         loading = true;
         try {
-            const response = await api.get('/api/v1/admin/users/');
-            users = Array.isArray(response) ? response : response?.users || [];
-        } catch (error) {
-            console.error('Failed to load users:', error);
-            addNotification(`Failed to load users: ${error.message}`, 'error');
+            const { data, error } = await listUsersApiV1AdminUsersGet({});
+            if (error) throw error;
+            users = Array.isArray(data) ? data : data?.users || [];
+        } catch (err) {
+            console.error('Failed to load users:', err);
+            const msg = (err as Error)?.message || 'Unknown error';
+            addToast(`Failed to load users: ${msg}`, 'error');
             users = [];
         } finally {
             loading = false;
         }
     }
-    
-    async function deleteUser() {
+
+    async function deleteUser(): Promise<void> {
         if (!userToDelete) return;
-        
+
         deletingUser = true;
         try {
-            const response = await api.delete(
-                `/api/v1/admin/users/${userToDelete.user_id}?cascade=${cascadeDelete}`
-            );
-            
-            addNotification(response.message, 'success');
-            
-            if (response.deleted_counts) {
+            const { data: response, error } = await deleteUserApiV1AdminUsersUserIdDelete({
+                path: { user_id: userToDelete.user_id },
+                query: { cascade: cascadeDelete }
+            });
+            if (error) throw error;
+
+            addToast(response?.message || 'User deleted', 'success');
+
+            if (response?.deleted_counts) {
                 const counts = Object.entries(response.deleted_counts)
-                    .filter(([key, value]) => value > 0)
+                    .filter(([, value]) => value > 0)
                     .map(([key, value]) => `${key}: ${value}`)
                     .join(', ');
                 if (counts) {
-                    addNotification(`Deleted data: ${counts}`, 'info');
+                    addToast(`Deleted data: ${counts}`, 'info');
                 }
             }
-            
+
             await loadUsers();
             showDeleteModal = false;
             userToDelete = null;
-        } catch (error) {
-            console.error('Failed to delete user:', error);
-            addNotification(`Failed to delete user: ${error.message}`, 'error');
+        } catch (err) {
+            console.error('Failed to delete user:', err);
+            const msg = (err as Error)?.message || 'Unknown error';
+            addToast(`Failed to delete user: ${msg}`, 'error');
         } finally {
             deletingUser = false;
         }
     }
-    
-    async function openRateLimitModal(user) {
+
+    async function openRateLimitModal(user: UserResponse): Promise<void> {
         rateLimitUser = user;
         showRateLimitModal = true;
         loadingRateLimits = true;
-        
+
         try {
-            const response = await api.get(`/api/v1/admin/users/${user.user_id}/rate-limits`);
-            rateLimitConfig = response.rate_limit_config || {
+            const { data: response, error } = await getUserRateLimitsApiV1AdminUsersUserIdRateLimitsGet({
+                path: { user_id: user.user_id }
+            });
+            if (error) throw error;
+            rateLimitConfig = response?.rate_limit_config || {
                 user_id: user.user_id,
                 rules: [],
                 global_multiplier: 1.0,
                 bypass_rate_limit: false,
                 notes: ''
             };
-            rateLimitUsage = response.current_usage || {};
-        } catch (error) {
-            console.error('Failed to load rate limits:', error);
-            addNotification(`Failed to load rate limits: ${error.message}`, 'error');
+            rateLimitUsage = response?.current_usage || {};
+        } catch (err) {
+            console.error('Failed to load rate limits:', err);
+            const msg = (err as Error)?.message || 'Unknown error';
+            addToast(`Failed to load rate limits: ${msg}`, 'error');
         } finally {
             loadingRateLimits = false;
         }
     }
-    
-    async function saveRateLimits() {
+
+    async function saveRateLimits(): Promise<void> {
         if (!rateLimitUser || !rateLimitConfig) return;
-        
+
         savingRateLimits = true;
         try {
-            console.log('Sending rate limit config:', rateLimitConfig);
-            await api.put(
-                `/api/v1/admin/users/${rateLimitUser.user_id}/rate-limits`,
-                rateLimitConfig
-            );
-            addNotification('Rate limits updated successfully', 'success');
+            const { error } = await updateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPut({
+                path: { user_id: rateLimitUser.user_id },
+                body: rateLimitConfig
+            });
+            if (error) throw error;
+            addToast('Rate limits updated successfully', 'success');
             showRateLimitModal = false;
-        } catch (error) {
-            console.error('Failed to save rate limits:', error);
-            await handleValidationError(error, 'Failed to save rate limits');
+        } catch (err) {
+            console.error('Failed to save rate limits:', err);
+            handleValidationError(err as ApiError, 'Failed to save rate limits');
         } finally {
             savingRateLimits = false;
         }
     }
-    
-    async function resetRateLimits() {
+
+    async function resetRateLimits(): Promise<void> {
         if (!rateLimitUser) return;
-        
+
         try {
-            const response = await api.post(
-                `/api/v1/admin/users/${rateLimitUser.user_id}/rate-limits/reset`
-            );
-            addNotification(response.message, 'success');
+            const { data: response, error } = await resetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPost({
+                path: { user_id: rateLimitUser.user_id }
+            });
+            if (error) throw error;
+            addToast(response?.message || 'Rate limits reset', 'success');
             rateLimitUsage = {};
-        } catch (error) {
-            console.error('Failed to reset rate limits:', error);
-            addNotification(`Failed to reset rate limits: ${error.message}`, 'error');
+        } catch (err) {
+            console.error('Failed to reset rate limits:', err);
+            const msg = (err as Error)?.message || 'Unknown error';
+            addToast(`Failed to reset rate limits: ${msg}`, 'error');
         }
     }
     
-    function formatDate(dateString) {
+    function formatDate(dateString: string): string {
         const date = new Date(dateString);
         const day = String(date.getDate()).padStart(2, '0');
         const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -171,9 +194,9 @@
     }
     
     // Make default rules reactive to global_multiplier changes
-    $: defaultRulesWithEffective = getDefaultRulesWithMultiplier(rateLimitConfig?.global_multiplier);
+    let defaultRulesWithEffective = $derived(getDefaultRulesWithMultiplier(rateLimitConfig?.global_multiplier));
     
-    function getDefaultRulesWithMultiplier(multiplier) {
+    function getDefaultRulesWithMultiplier(multiplier: number): RateLimitRule[] {
         // These are the default rules from the backend
         const rules = [
             {
@@ -234,8 +257,8 @@
         }));
     }
     
-    function getGroupColor(group) {
-        const colors = {
+    function getGroupColor(group: EndpointGroup | string): string {
+        const colors: Record<string, string> = {
             execution: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
             admin: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
             sse: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
@@ -267,33 +290,33 @@
         { pattern: /\/alerts\//i, group: 'api' },
     ];
     
-    function detectGroupFromEndpoint(endpoint) {
+    function detectGroupFromEndpoint(endpoint: string): string {
         // Remove regex anchors and wildcards if present
         const cleanEndpoint = endpoint.replace(/^\^?/, '').replace(/\$?/, '').replace(/\.\*/g, '');
-        
+
         // Check each pattern
         for (const { pattern, group } of endpointGroupPatterns) {
             if (pattern.test(cleanEndpoint)) {
                 return group;
             }
         }
-        
+
         // Default to 'api' if no match
         return 'api';
     }
     
-    function handleEndpointChange(rule) {
+    function handleEndpointChange(rule: RateLimitRule): void {
         // Automatically set group based on endpoint pattern
         if (rule.endpoint_pattern) {
             rule.group = detectGroupFromEndpoint(rule.endpoint_pattern);
         }
     }
     
-    function addNewRule() {
-        if (!rateLimitConfig.rules) {
-            rateLimitConfig.rules = [];
+    function addNewRule(): void {
+        if (!rateLimitConfig?.rules) {
+            rateLimitConfig!.rules = [];
         }
-        rateLimitConfig.rules = [...rateLimitConfig.rules, {
+        rateLimitConfig!.rules = [...rateLimitConfig!.rules, {
             endpoint_pattern: '',
             group: 'api',
             requests: 60,
@@ -305,35 +328,47 @@
         }];
     }
     
-    function removeRule(index) {
-        rateLimitConfig.rules = rateLimitConfig.rules.filter((_, i) => i !== index);
+    function removeRule(index: number): void {
+        rateLimitConfig!.rules = rateLimitConfig!.rules!.filter((_, i) => i !== index);
     }
     
-    function filterUsers(userList, search, role, status, advanced) {
+    interface AdvancedFilters {
+        bypassRateLimit: string;
+        hasCustomLimits: string;
+        globalMultiplier: string;
+    }
+
+    function filterUsers(
+        userList: UserResponse[],
+        search: string,
+        role: string,
+        status: string,
+        advanced: AdvancedFilters
+    ): UserResponse[] {
         let filtered = [...userList];
-        
+
         // Search filter (username, email, user_id)
         if (search) {
             const searchLower = search.toLowerCase();
-            filtered = filtered.filter(user => 
+            filtered = filtered.filter(user =>
                 user.username?.toLowerCase().includes(searchLower) ||
                 user.email?.toLowerCase().includes(searchLower) ||
                 user.user_id?.toLowerCase().includes(searchLower)
             );
         }
-        
+
         // Role filter
         if (role !== 'all') {
             filtered = filtered.filter(user => user.role === role);
         }
-        
+
         // Status filter
         if (status === 'active') {
             filtered = filtered.filter(user => !user.is_disabled);
         } else if (status === 'disabled') {
             filtered = filtered.filter(user => user.is_disabled);
         }
-        
+
         // Advanced filters - these would need rate limit data loaded for each user
         // For now, we'll add placeholders that can be connected when the data is available
         if (advanced.bypassRateLimit === 'yes') {
@@ -341,23 +376,23 @@
         } else if (advanced.bypassRateLimit === 'no') {
             filtered = filtered.filter(user => user.bypass_rate_limit !== true);
         }
-        
+
         if (advanced.hasCustomLimits === 'yes') {
             filtered = filtered.filter(user => user.has_custom_limits === true);
         } else if (advanced.hasCustomLimits === 'no') {
             filtered = filtered.filter(user => user.has_custom_limits !== true);
         }
-        
+
         if (advanced.globalMultiplier === 'custom') {
             filtered = filtered.filter(user => user.global_multiplier && user.global_multiplier !== 1.0);
         } else if (advanced.globalMultiplier === 'default') {
             filtered = filtered.filter(user => !user.global_multiplier || user.global_multiplier === 1.0);
         }
-        
+
         return filtered;
     }
     
-    function openCreateUserModal() {
+    function openCreateUserModal(): void {
         editingUser = null;
         userForm = {
             username: '',
@@ -368,8 +403,8 @@
         };
         showUserModal = true;
     }
-    
-    function openEditUserModal(user) {
+
+    function openEditUserModal(user: UserResponse): void {
         editingUser = user;
         userForm = {
             username: user.username,
@@ -381,64 +416,68 @@
         showUserModal = true;
     }
     
-    async function saveUser() {
+    async function saveUser(): Promise<void> {
         if (!userForm.username) {
-            addNotification('Username is required', 'error');
+            addToast('Username is required', 'error');
             return;
         }
-        
+
         savingUser = true;
         try {
             if (editingUser) {
-                // Update existing user
-                const updateData = {
+                const updateData: Record<string, string | boolean | null> = {
                     username: userForm.username,
                     email: userForm.email || null,
                     role: userForm.role,
                     is_active: userForm.is_active
                 };
-                
-                // Only include password if it was changed
+
                 if (userForm.password) {
                     updateData.password = userForm.password;
                 }
-                
-                await api.put(`/api/v1/admin/users/${editingUser.user_id}`, updateData);
-                addNotification('User updated successfully', 'success');
+
+                const { error } = await updateUserApiV1AdminUsersUserIdPut({
+                    path: { user_id: editingUser.user_id },
+                    body: updateData
+                });
+                if (error) throw error;
+                addToast('User updated successfully', 'success');
             } else {
-                // Create new user
                 if (!userForm.password) {
-                    addNotification('Password is required for new users', 'error');
+                    addToast('Password is required for new users', 'error');
                     return;
                 }
-                
-                await api.post('/api/v1/admin/users/', {
-                    username: userForm.username,
-                    email: userForm.email || null,
-                    password: userForm.password,
-                    role: userForm.role,
-                    is_active: userForm.is_active
+
+                const { error } = await createUserApiV1AdminUsersPost({
+                    body: {
+                        username: userForm.username,
+                        email: userForm.email || null,
+                        password: userForm.password,
+                        role: userForm.role,
+                        is_active: userForm.is_active
+                    }
                 });
-                addNotification('User created successfully', 'success');
+                if (error) throw error;
+                addToast('User created successfully', 'success');
             }
-            
+
             showUserModal = false;
             await loadUsers();
-        } catch (error) {
-            console.error('Failed to save user:', error);
-            await handleValidationError(error, 'Failed to save user');
+        } catch (err) {
+            console.error('Failed to save user:', err);
+            handleValidationError(err as ApiError, 'Failed to save user');
         } finally {
             savingUser = false;
         }
     }
-    
-    function changePage(page) {
+
+    function changePage(page: number): void {
         if (page >= 1 && page <= totalPages) {
             currentPage = page;
         }
     }
-    
-    function resetFilters() {
+
+    function resetFilters(): void {
         searchQuery = '';
         roleFilter = 'all';
         statusFilter = 'all';
@@ -451,32 +490,45 @@
     }
     
     // Reset to first page when filters change
-    $: searchQuery, roleFilter, statusFilter, currentPage = 1;
+    let prevFilters = { searchQuery: '', roleFilter: 'all', statusFilter: 'all' };
+    $effect(() => {
+        if (searchQuery !== prevFilters.searchQuery ||
+            roleFilter !== prevFilters.roleFilter ||
+            statusFilter !== prevFilters.statusFilter) {
+            prevFilters = { searchQuery, roleFilter, statusFilter };
+            currentPage = 1;
+        }
+    });
     
-    // Helper function to extract validation error messages
-    async function handleValidationError(error, defaultMessage) {
-        if (error.response && error.response.status === 422) {
-            try {
-                const errorData = await error.response.json();
-                console.error('Validation errors:', errorData);
-                
-                // Extract all validation messages
-                if (errorData.detail && Array.isArray(errorData.detail)) {
-                    const messages = errorData.detail.map(err => {
-                        const field = err.loc && err.loc.length > 1 ? err.loc[err.loc.length - 1] : 'field';
-                        return `${field}: ${err.msg}`;
-                    });
-                    addNotification(`Validation failed:\n${messages.join('\n')}`, 'error');
-                } else if (errorData.detail && typeof errorData.detail === 'string') {
-                    addNotification(`Validation failed: ${errorData.detail}`, 'error');
-                } else {
-                    addNotification(`Validation failed: ${JSON.stringify(errorData)}`, 'error');
-                }
-            } catch (e) {
-                addNotification(`${defaultMessage}: ${error.message}`, 'error');
+    interface ValidationErrorDetail {
+        loc: (string | number)[];
+        msg: string;
+        type: string;
+    }
+
+    interface ApiError {
+        status?: number;
+        detail?: ValidationErrorDetail[] | string;
+        message?: string;
+    }
+
+    function handleValidationError(error: ApiError | Error | null, defaultMessage: string): void {
+        const apiError = error as ApiError;
+        if (apiError?.status === 422 && apiError?.detail) {
+            if (Array.isArray(apiError.detail)) {
+                const messages = apiError.detail.map((err: ValidationErrorDetail) => {
+                    const field = err.loc && err.loc.length > 1 ? err.loc[err.loc.length - 1] : 'field';
+                    return `${field}: ${err.msg}`;
+                });
+                addToast(`Validation failed:\n${messages.join('\n')}`, 'error');
+            } else if (typeof apiError.detail === 'string') {
+                addToast(`Validation failed: ${apiError.detail}`, 'error');
+            } else {
+                addToast(`Validation failed: ${JSON.stringify(apiError.detail)}`, 'error');
             }
         } else {
-            addNotification(`${defaultMessage}: ${error.message}`, 'error');
+            const msg = (error as Error)?.message || 'Unknown error';
+            addToast(`${defaultMessage}: ${msg}`, 'error');
         }
     }
 </script>
@@ -488,7 +540,7 @@
             
             <div class="flex gap-2 w-full sm:w-auto">
                 <button
-                    on:click={openCreateUserModal}
+                    onclick={openCreateUserModal}
                     class="btn btn-primary flex items-center gap-2 flex-1 sm:flex-initial justify-center"
                 >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -498,7 +550,7 @@
                 </button>
                 
                 <button
-                    on:click={loadUsers}
+                    onclick={loadUsers}
                     class="btn btn-outline flex items-center gap-2 flex-1 sm:flex-initial justify-center"
                     disabled={loading}
                 >
@@ -520,10 +572,11 @@
                 <div class="flex flex-col lg:flex-row gap-3 lg:gap-4 lg:items-end">
                     <!-- Search input -->
                     <div class="w-full lg:flex-1 lg:max-w-md">
-                        <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                        <label for="user-search" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
                             Search
                         </label>
                         <input
+                            id="user-search"
                             type="text"
                             bind:value={searchQuery}
                             placeholder="Search by username, email, or ID..."
@@ -534,25 +587,25 @@
                             spellcheck="false"
                         />
                     </div>
-                    
+
                     <!-- Role filter -->
                     <div class="w-full sm:w-auto sm:min-w-[140px]">
-                        <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                        <label for="role-filter" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
                             Role
                         </label>
-                        <select bind:value={roleFilter} class="form-select-standard w-full">
+                        <select id="role-filter" bind:value={roleFilter} class="form-select-standard w-full">
                             <option value="all">All Roles</option>
                             <option value="user">User</option>
                             <option value="admin">Admin</option>
                         </select>
                     </div>
-                    
+
                     <!-- Status filter -->
                     <div class="w-full sm:w-auto sm:min-w-[140px]">
-                        <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                        <label for="status-filter" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
                             Status
                         </label>
-                        <select bind:value={statusFilter} class="form-select-standard w-full">
+                        <select id="status-filter" bind:value={statusFilter} class="form-select-standard w-full">
                             <option value="all">All Status</option>
                             <option value="active">Active</option>
                             <option value="disabled">Disabled</option>
@@ -561,7 +614,7 @@
                     
                     <!-- Advanced filters toggle -->
                     <button
-                        on:click={() => showAdvancedFilters = !showAdvancedFilters}
+                        onclick={() => showAdvancedFilters = !showAdvancedFilters}
                         class="btn btn-outline flex items-center gap-2 w-full sm:w-auto justify-center"
                     >
                         <svg class="w-4 h-4 transition-transform {showAdvancedFilters ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -572,7 +625,7 @@
                     
                     <!-- Reset button -->
                     <button
-                        on:click={resetFilters}
+                        onclick={resetFilters}
                         class="btn btn-outline w-full sm:w-auto"
                         disabled={!searchQuery && roleFilter === 'all' && statusFilter === 'all' && 
                                  advancedFilters.bypassRateLimit === 'all' && 
@@ -589,32 +642,32 @@
                         <h4 class="text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-3">Rate Limit Filters</h4>
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <div>
-                                <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                                <label for="bypass-rate-limit-filter" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
                                     Bypass Rate Limit
                                 </label>
-                                <select bind:value={advancedFilters.bypassRateLimit} class="form-select-standard w-full">
+                                <select id="bypass-rate-limit-filter" bind:value={advancedFilters.bypassRateLimit} class="form-select-standard w-full">
                                     <option value="all">All</option>
                                     <option value="yes">Yes (Bypassed)</option>
                                     <option value="no">No (Limited)</option>
                                 </select>
                             </div>
-                            
+
                             <div>
-                                <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                                <label for="custom-limits-filter" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
                                     Custom Limits
                                 </label>
-                                <select bind:value={advancedFilters.hasCustomLimits} class="form-select-standard w-full">
+                                <select id="custom-limits-filter" bind:value={advancedFilters.hasCustomLimits} class="form-select-standard w-full">
                                     <option value="all">All</option>
                                     <option value="yes">Has Custom</option>
                                     <option value="no">Default Only</option>
                                 </select>
                             </div>
-                            
+
                             <div>
-                                <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                                <label for="global-multiplier-filter" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
                                     Global Multiplier
                                 </label>
-                                <select bind:value={advancedFilters.globalMultiplier} class="form-select-standard w-full">
+                                <select id="global-multiplier-filter" bind:value={advancedFilters.globalMultiplier} class="form-select-standard w-full">
                                     <option value="all">All</option>
                                     <option value="custom">Custom (≠ 1.0)</option>
                                     <option value="default">Default (= 1.0)</option>
@@ -670,7 +723,7 @@
                                 
                                 <div class="flex gap-2">
                                     <button
-                                        on:click={() => openEditUserModal(user)}
+                                        onclick={() => openEditUserModal(user)}
                                         class="flex-1 btn btn-sm btn-outline flex items-center justify-center gap-1"
                                     >
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -680,7 +733,7 @@
                                     </button>
                                     
                                     <button
-                                        on:click={() => openRateLimitModal(user)}
+                                        onclick={() => openRateLimitModal(user)}
                                         class="flex-1 btn btn-sm btn-outline flex items-center justify-center gap-1"
                                     >
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -690,7 +743,7 @@
                                     </button>
                                     
                                     <button
-                                        on:click={() => {
+                                        onclick={() => {
                                             userToDelete = user;
                                             showDeleteModal = true;
                                         }}
@@ -744,7 +797,7 @@
                                         <td class="px-4 py-3 whitespace-nowrap text-sm">
                                             <div class="flex gap-2">
                                                 <button
-                                                    on:click={() => openEditUserModal(user)}
+                                                    onclick={() => openEditUserModal(user)}
                                                     class="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300"
                                                     title="Edit User"
                                                 >
@@ -754,7 +807,7 @@
                                                 </button>
                                                 
                                                 <button
-                                                    on:click={() => openRateLimitModal(user)}
+                                                    onclick={() => openRateLimitModal(user)}
                                                     class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
                                                     title="Manage Rate Limits"
                                                 >
@@ -763,7 +816,7 @@
                                                     </svg>
                                                 </button>
                                                 <button
-                                                    on:click={() => {
+                                                    onclick={() => {
                                                         userToDelete = user;
                                                         showDeleteModal = true;
                                                     }}
@@ -791,7 +844,7 @@
                             <div class="flex items-center justify-center gap-2">
                                 <!-- Previous button -->
                                 <button
-                                    on:click={() => changePage(currentPage - 1)}
+                                    onclick={() => changePage(currentPage - 1)}
                                     disabled={currentPage === 1}
                                     class="px-3 py-1 rounded border border-border-default dark:border-dark-border-default 
                                            hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed
@@ -807,7 +860,7 @@
                                 
                                 <!-- Next button -->
                                 <button
-                                    on:click={() => changePage(currentPage + 1)}
+                                    onclick={() => changePage(currentPage + 1)}
                                     disabled={currentPage === totalPages}
                                     class="px-3 py-1 rounded border border-border-default dark:border-dark-border-default 
                                            hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed
@@ -819,11 +872,12 @@
                             
                             <!-- Page size selector -->
                             <div class="flex items-center justify-center gap-2">
-                                <label class="text-xs text-fg-muted dark:text-dark-fg-muted">Show:</label>
+                                <label for="users-page-size" class="text-xs text-fg-muted dark:text-dark-fg-muted">Show:</label>
                                 <select
+                                    id="users-page-size"
                                     bind:value={pageSize}
-                                    on:change={() => currentPage = 1}
-                                    class="text-sm px-2 py-1 rounded border border-border-default dark:border-dark-border-default 
+                                    onchange={() => currentPage = 1}
+                                    class="text-sm px-2 py-1 rounded border border-border-default dark:border-dark-border-default
                                            bg-bg-default dark:bg-dark-bg-default text-fg-default dark:text-dark-fg-default"
                                 >
                                     <option value={5}>5</option>
@@ -847,7 +901,7 @@
     
     <!-- Delete User Modal -->
     {#if showDeleteModal && userToDelete}
-        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-3 sm:p-4 z-50">
+        <div class="fixed inset-0 bg-black/50 flex items-center justify-center p-3 sm:p-4 z-50">
             <div class="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 max-w-md w-full">
                 <h3 class="text-xl font-bold mb-4 text-fg-default dark:text-dark-fg-default">
                     Delete User
@@ -880,7 +934,7 @@
                 
                 <div class="flex gap-3 justify-end">
                     <button
-                        on:click={() => {
+                        onclick={() => {
                             showDeleteModal = false;
                             userToDelete = null;
                         }}
@@ -890,7 +944,7 @@
                         Cancel
                     </button>
                     <button
-                        on:click={deleteUser}
+                        onclick={deleteUser}
                         class="btn btn-danger flex items-center gap-2"
                         disabled={deletingUser}
                     >
@@ -908,7 +962,7 @@
     
     <!-- Rate Limit Modal -->
     {#if showRateLimitModal && rateLimitUser}
-        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-3 sm:p-4 z-50">
+        <div class="fixed inset-0 bg-black/50 flex items-center justify-center p-3 sm:p-4 z-50">
             <div class="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 max-w-4xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
                 <h3 class="text-xl font-bold mb-4 text-fg-default dark:text-dark-fg-default">
                     Rate Limits for {rateLimitUser.username}
@@ -940,10 +994,11 @@
                             
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-sm font-medium mb-1 text-fg-default dark:text-dark-fg-default">
+                                    <label for="global-multiplier" class="block text-sm font-medium mb-1 text-fg-default dark:text-dark-fg-default">
                                         Global Multiplier
                                     </label>
                                     <input
+                                        id="global-multiplier"
                                         type="number"
                                         bind:value={rateLimitConfig.global_multiplier}
                                         min="0.01"
@@ -956,15 +1011,16 @@
                                     </p>
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium mb-1 text-fg-default dark:text-dark-fg-default">
+                                    <label for="admin-notes" class="block text-sm font-medium mb-1 text-fg-default dark:text-dark-fg-default">
                                         Admin Notes
                                     </label>
                                     <textarea
+                                        id="admin-notes"
                                         bind:value={rateLimitConfig.notes}
                                         rows="2"
                                         class="input w-full text-sm"
                                         placeholder="Notes about this user's rate limits..."
-                                    />
+                                    ></textarea>
                                 </div>
                             </div>
                         </div>
@@ -976,7 +1032,7 @@
                                     Endpoint Rate Limits
                                 </h4>
                                 <button
-                                    on:click={() => addNewRule()}
+                                    onclick={() => addNewRule()}
                                     class="btn btn-sm btn-primary flex items-center gap-1"
                                     disabled={rateLimitConfig.bypass_rate_limit}
                                 >
@@ -1039,7 +1095,7 @@
                                                         <input
                                                             type="text"
                                                             bind:value={rule.endpoint_pattern}
-                                                            on:input={() => handleEndpointChange(rule)}
+                                                            oninput={() => handleEndpointChange(rule)}
                                                             placeholder="Endpoint pattern (e.g., /api/v1/auth/verify)"
                                                             class="input input-sm w-full"
                                                             disabled={rateLimitConfig.bypass_rate_limit}
@@ -1108,7 +1164,7 @@
                                                     
                                                     <!-- Delete Button -->
                                                     <button
-                                                        on:click={() => removeRule(index)}
+                                                        onclick={() => removeRule(index)}
                                                         class="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 p-1"
                                                         disabled={rateLimitConfig.bypass_rate_limit}
                                                         title="Remove rule"
@@ -1133,7 +1189,7 @@
                                         Current Usage
                                     </h4>
                                     <button
-                                        on:click={resetRateLimits}
+                                        onclick={resetRateLimits}
                                         class="btn btn-sm btn-secondary"
                                     >
                                         Reset All Counters
@@ -1160,7 +1216,7 @@
                 
                 <div class="flex gap-3 justify-end mt-6">
                     <button
-                        on:click={() => {
+                        onclick={() => {
                             showRateLimitModal = false;
                             rateLimitUser = null;
                             rateLimitConfig = null;
@@ -1171,7 +1227,7 @@
                         Cancel
                     </button>
                     <button
-                        on:click={saveRateLimits}
+                        onclick={saveRateLimits}
                         class="btn btn-primary flex items-center gap-2"
                         disabled={savingRateLimits || loadingRateLimits}
                     >
@@ -1189,19 +1245,20 @@
     
     <!-- Create/Edit User Modal -->
     {#if showUserModal}
-        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-3 sm:p-4 z-50">
+        <div class="fixed inset-0 bg-black/50 flex items-center justify-center p-3 sm:p-4 z-50">
             <div class="bg-bg-default dark:bg-dark-bg-default rounded-lg p-4 sm:p-6 max-w-md w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
                 <h2 class="text-xl font-bold mb-4 text-fg-default dark:text-dark-fg-default">
                     {editingUser ? 'Edit User' : 'Create New User'}
                 </h2>
                 
-                <form autocomplete="off" on:submit|preventDefault={saveUser}>
+                <form autocomplete="off" onsubmit={(e) => { e.preventDefault(); saveUser(); }}>
                 <div class="space-y-4">
                     <div>
-                        <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                        <label for="user-form-username" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
                             Username <span class="text-red-500">*</span>
                         </label>
                         <input
+                            id="user-form-username"
                             type="text"
                             bind:value={userForm.username}
                             class="form-input-standard"
@@ -1213,12 +1270,13 @@
                             spellcheck="false"
                         />
                     </div>
-                    
+
                     <div>
-                        <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                        <label for="user-form-email" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
                             Email
                         </label>
                         <input
+                            id="user-form-email"
                             type="email"
                             bind:value={userForm.email}
                             class="form-input-standard"
@@ -1230,15 +1288,16 @@
                             spellcheck="false"
                         />
                     </div>
-                    
+
                     <div>
-                        <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                        <label for="user-form-password" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
                             Password {!editingUser ? '* ' : ''}
                             {#if editingUser}
                                 <span class="text-xs text-gray-500">(leave empty to keep current)</span>
                             {/if}
                         </label>
                         <input
+                            id="user-form-password"
                             type="password"
                             bind:value={userForm.password}
                             class="form-input-standard"
@@ -1250,12 +1309,12 @@
                             spellcheck="false"
                         />
                     </div>
-                    
+
                     <div>
-                        <label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                        <label for="user-form-role" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
                             Role
                         </label>
-                        <select bind:value={userForm.role} class="form-select-standard" disabled={savingUser}>
+                        <select id="user-form-role" bind:value={userForm.role} class="form-select-standard" disabled={savingUser}>
                             <option value="user">User</option>
                             <option value="admin">Admin</option>
                         </select>
@@ -1279,7 +1338,7 @@
                 <div class="flex justify-end gap-2 mt-6">
                     <button
                         type="button"
-                        on:click={() => showUserModal = false}
+                        onclick={() => showUserModal = false}
                         class="btn btn-outline"
                         disabled={savingUser}
                     >
@@ -1303,21 +1362,3 @@
         </div>
     {/if}
 </AdminLayout>
-
-<style>
-    .btn-danger {
-        @apply bg-red-600 hover:bg-red-700 text-white;
-    }
-    
-    .btn-sm {
-        @apply px-3 py-1 text-sm;
-    }
-    
-    .btn-secondary {
-        @apply bg-gray-500 hover:bg-gray-600 text-white dark:bg-gray-600 dark:hover:bg-gray-700;
-    }
-    
-    .input-sm {
-        @apply px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-fg-default dark:text-dark-fg-default;
-    }
-</style>

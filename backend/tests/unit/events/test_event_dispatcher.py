@@ -35,7 +35,7 @@ def test_decorator_registration() -> None:
     assert len(disp.get_handlers(EventType.EXECUTION_REQUESTED)) == 1
 
 
-def test_dispatch_metrics_processed_and_skipped(event_loop) -> None:  # type: ignore[no-redef]
+async def test_dispatch_metrics_processed_and_skipped() -> None:
     disp = EventDispatcher()
     called = {"n": 0}
 
@@ -43,15 +43,12 @@ def test_dispatch_metrics_processed_and_skipped(event_loop) -> None:  # type: ig
     async def handler(_: BaseEvent) -> None:
         called["n"] += 1
 
-    async def run() -> None:
-        await disp.dispatch(make_event())
-        # Dispatch event with no handlers (different type)
-        # Reuse base event but fake type by replacing value
-        e = make_event()
-        e.event_type = EventType.EXECUTION_FAILED  # type: ignore[attr-defined]
-        await disp.dispatch(e)
-
-    event_loop.run_until_complete(run())
+    await disp.dispatch(make_event())
+    # Dispatch event with no handlers (different type)
+    # Reuse base event but fake type by replacing value
+    e = make_event()
+    e.event_type = EventType.EXECUTION_FAILED  # type: ignore[attr-defined]
+    await disp.dispatch(e)
 
     metrics = disp.get_metrics()
     assert called["n"] == 1

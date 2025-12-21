@@ -138,4 +138,4 @@ class RedisIdempotencyRepository:
         return counts
 
     async def health_check(self) -> None:
-        await self._r.ping()
+        await self._r.execute_command("PING")

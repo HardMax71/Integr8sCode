@@ -20,13 +20,13 @@
 </svelte:head>
 
 <div class="container mx-auto px-4 py-8 max-w-4xl">
-    <div class="bg-bg-white dark:bg-dark-bg-alt rounded-lg shadow-sm border border-border-default dark:border-dark-border-default p-8">
+    <div class="bg-bg-white dark:bg-dark-bg-alt rounded-lg shadow-xs border border-border-default dark:border-dark-border-default p-8">
         <h1 class="text-3xl font-bold text-fg-default dark:text-dark-fg-default mb-2">Privacy Policy</h1>
         <p class="text-sm text-fg-muted dark:text-dark-fg-muted mb-8">
             Last updated: {lastUpdated}
         </p>
 
-        <div class="prose prose-lg dark:prose-invert max-w-none space-y-6 text-fg-default dark:text-dark-fg-default">
+        <div class="prose-page prose prose-lg dark:prose-invert max-w-none space-y-6 text-fg-default dark:text-dark-fg-default">
             
             <section>
                 <h2 class="text-2xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">Hi there!</h2>
@@ -176,17 +176,3 @@
         </div>
     </div>
 </div>
-
-<style>
-    .prose h2 {
-        @apply mt-8 mb-4;
-    }
-    
-    .prose p {
-        @apply mb-4;
-    }
-    
-    .prose section {
-        @apply mb-6;
-    }
-</style>

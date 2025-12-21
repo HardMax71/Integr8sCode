@@ -60,7 +60,7 @@ jobs:
         run: |
           echo "Pre-pulling base images to speed up builds..."
           docker pull python:3.12-slim &
-          docker pull ghcr.io/astral-sh/uv:0.9.17 &
+          docker pull ghcr.io/astral-sh/uv:0.9.18 &
           docker pull alpine:latest &
           docker pull confluentinc/cp-kafka:7.5.0 &
           docker pull confluentinc/cp-zookeeper:7.5.0 &
@@ -161,7 +161,7 @@ jobs:
           kubectl get rolebindings -n default
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           cache-dependency-glob: "backend/uv.lock"
@@ -216,7 +216,7 @@ jobs:
 
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: integration-test-logs
           path: logs/

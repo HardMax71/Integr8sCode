@@ -14,6 +14,8 @@
 #   ./deploy.sh test                # Run full test suite locally
 #   ./deploy.sh logs [service]      # View logs (dev mode)
 #   ./deploy.sh status              # Show status of running services
+#   ./deploy.sh openapi [path]      # Generate OpenAPI spec from backend
+#   ./deploy.sh types               # Generate TypeScript types for frontend
 #
 # =============================================================================
 
@@ -60,6 +62,8 @@ show_help() {
     echo "  test               Run full test suite with docker-compose"
     echo "  logs [service]     View logs (defaults to all services)"
     echo "  status             Show status of running services"
+    echo "  openapi [path]     Generate OpenAPI spec (default: docs/reference/openapi.json)"
+    echo "  types              Generate TypeScript types for frontend from OpenAPI spec"
     echo "  help               Show this help message"
     echo ""
     echo "Prod options:"
@@ -332,6 +336,48 @@ deploy_helm() {
 }
 
 # =============================================================================
+# OPENAPI SPEC GENERATION
+# =============================================================================
+cmd_openapi() {
+    print_header "Generating OpenAPI Spec"
+
+    local OUTPUT="${1:-docs/reference/openapi.json}"
+
+    cd backend
+    print_info "Extracting schema from FastAPI app..."
+
+    uv run python -c "
+import json
+from app.main import app
+schema = app.openapi()
+print(json.dumps(schema, indent=2))
+" > "../$OUTPUT"
+
+    cd ..
+    print_success "OpenAPI spec written to $OUTPUT"
+}
+
+# =============================================================================
+# TYPESCRIPT API CLIENT GENERATION
+# =============================================================================
+cmd_types() {
+    print_header "Generating TypeScript API Client"
+
+    # Ensure OpenAPI spec exists
+    if [[ ! -f "docs/reference/openapi.json" ]]; then
+        print_info "OpenAPI spec not found, generating first..."
+        cmd_openapi
+    fi
+
+    cd frontend
+    print_info "Generating typed API client from OpenAPI spec..."
+    npm run generate:api
+    cd ..
+
+    print_success "Typed API client generated in frontend/src/lib/api/"
+}
+
+# =============================================================================
 # MAIN
 # =============================================================================
 case "${1:-help}" in
@@ -356,6 +402,12 @@ case "${1:-help}" in
     prod)
         shift
         cmd_prod "$@"
+        ;;
+    openapi)
+        cmd_openapi "$2"
+        ;;
+    types)
+        cmd_types
         ;;
     help|--help|-h)
         show_help

@@ -1,34 +1,36 @@
-<script>
+<script lang="ts">
     import { onMount } from 'svelte';
-    import { api } from '../lib/api';
+    import {
+        getUserSettingsApiV1UserSettingsGet,
+        updateUserSettingsApiV1UserSettingsPut,
+        restoreSettingsApiV1UserSettingsRestorePost,
+        getSettingsHistoryApiV1UserSettingsHistoryGet,
+    } from '../lib/api';
     import { isAuthenticated, username } from '../stores/auth';
     import { theme as themeStore } from '../stores/theme';
-    import { addNotification } from '../stores/notifications';
+    import { addToast } from '../stores/toastStore';
     import { get } from 'svelte/store';
     import { fly } from 'svelte/transition';
     import { setCachedSettings, updateCachedSetting } from '../lib/settings-cache';
     import Spinner from '../components/Spinner.svelte';
-    
-    let settings = null;
-    let loading = true;
-    let saving = false;
-    let activeTab = 'general';
-    let showHistory = false;
-    let history = [];
-    let historyLoading = false;
-    
+
+    let settings = $state<any>(null);
+    let loading = $state(true);
+    let saving = $state(false);
+    let activeTab = $state('general');
+    let showHistory = $state(false);
+    let history = $state<any[]>([]);
+    let historyLoading = $state(false);
+
     // Dropdown states
-    let showThemeDropdown = false;
-    let showEditorThemeDropdown = false;
-    
-    // Force reactivity when formData changes
-    $: formData && formData;
-    
+    let showThemeDropdown = $state(false);
+    let showEditorThemeDropdown = $state(false);
+
     // Debounce timer for auto-save
-    let saveDebounceTimer = null;
-    
+    let saveDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
     // Local state for form
-    let formData = {
+    let formData = $state({
         theme: 'auto',
         notifications: {
             execution_completed: true,
@@ -45,7 +47,7 @@
             word_wrap: true,
             show_line_numbers: true,
         }
-    };
+    });
     
     const tabs = [
         { id: 'general', label: 'General' },
@@ -93,30 +95,12 @@
     async function loadSettings() {
         loading = true;
         try {
-            // Set a timeout for loading settings
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-            
-            const response = await fetch('/api/v1/user/settings/', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                credentials: 'include',
-                signal: controller.signal
-            }).finally(() => clearTimeout(timeoutId));
-            
-            if (!response.ok) {
-                throw new Error('Failed to load settings');
-            }
-            
-            settings = await response.json();
-            
-            // Cache the settings
+            const { data, error } = await getUserSettingsApiV1UserSettingsGet({});
+            if (error) throw error;
+
+            settings = data;
             setCachedSettings(settings);
-            
-            // Update form data with proper defaults
-            // Use current theme from store instead of backend to reflect local changes
+
             formData = {
                 theme: $themeStore,
                 notifications: {
@@ -135,47 +119,26 @@
                     show_line_numbers: settings.editor?.show_line_numbers ?? true,
                 }
             };
-        } catch (error) {
-            if (error.name === 'AbortError') {
-                addNotification('Loading settings timed out. Please refresh the page.', 'error');
-            } else {
-                addNotification('Failed to load settings. Using defaults.', 'error');
-                // Use default settings if load fails
-                settings = {};
-            }
+        } catch (err) {
+            console.error('Failed to load settings:', err);
+            addToast('Failed to load settings. Using defaults.', 'error');
+            settings = {};
         } finally {
             loading = false;
         }
     }
     
-    // Deep comparison helper for nested objects
-    function deepEqual(obj1, obj2) {
-        if (obj1 === obj2) return true;
-        if (obj1 == null || obj2 == null) return false;
-        if (typeof obj1 !== 'object' || typeof obj2 !== 'object') return obj1 === obj2;
-        
-        const keys1 = Object.keys(obj1);
-        const keys2 = Object.keys(obj2);
-        
-        if (keys1.length !== keys2.length) return false;
-        
-        for (let key of keys1) {
-            if (!keys2.includes(key)) return false;
-            if (!deepEqual(obj1[key], obj2[key])) return false;
-        }
-        
-        return true;
-    }
+    // Simple JSON-based deep equality check - sufficient for plain settings objects
+    const deepEqual = (a: object | null | undefined, b: object | null | undefined): boolean =>
+        JSON.stringify(a) === JSON.stringify(b);
     
     async function saveSettings() {
         saving = true;
         try {
             const updates = {};
-            
-            // Only include changed fields
+
             if (formData.theme !== settings.theme) updates.theme = formData.theme;
-            
-            // Compare nested objects with deep equality check
+
             if (!deepEqual(formData.notifications, settings.notifications)) {
                 updates.notifications = formData.notifications;
             }
@@ -185,36 +148,28 @@
             if (!deepEqual(formData.preferences, settings.preferences)) {
                 updates.preferences = formData.preferences;
             }
-            
+
             if (Object.keys(updates).length === 0) {
-                addNotification('No changes to save', 'info');
+                addToast('No changes to save', 'info');
                 return;
             }
-            
-            // Send the update request
-            const response = await api.put('/api/v1/user/settings/', updates);
-            
-            // Update local settings with the response
-            settings = response;
-            
-            // Update cache with new settings
+
+            const { data, error } = await updateUserSettingsApiV1UserSettingsPut({ body: updates });
+            if (error) throw error;
+
+            settings = data;
             setCachedSettings(settings);
-            
-            // Update formData with response to ensure consistency
+
             formData = {
                 theme: settings.theme || 'auto',
                 notifications: settings.notifications || formData.notifications,
                 editor: settings.editor || formData.editor
             };
-            
-            // Theme is already saved by the theme store when changed in dropdown
-            
-            addNotification('Settings saved successfully', 'success');
-            
-            // Don't reload settings after save - we already have the updated data
-        } catch (error) {
-            console.error('Settings save error:', error);
-            addNotification('Failed to save settings', 'error');
+
+            addToast('Settings saved successfully', 'success');
+        } catch (err) {
+            console.error('Settings save error:', err);
+            addToast('Failed to save settings', 'error');
         } finally {
             saving = false;
         }
@@ -226,49 +181,27 @@
     const HISTORY_CACHE_DURATION = 30000; // Cache for 30 seconds
     
     async function loadHistory() {
-        // Show the modal immediately with loading state
         showHistory = true;
-        
-        // Use cached history if available and recent
+
         if (historyCache && Date.now() - historyCacheTime < HISTORY_CACHE_DURATION) {
             history = historyCache;
             historyLoading = false;
             return;
         }
-        
+
         history = [];
         historyLoading = true;
-        
+
         try {
-            // Set a timeout for the request to prevent long waits
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-            
-            const response = await fetch('/api/v1/user/settings/history?limit=10', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                credentials: 'include',
-                signal: controller.signal
-            }).finally(() => clearTimeout(timeoutId));
-            
-            if (!response.ok) {
-                throw new Error('Failed to fetch history');
-            }
-            
-            const data = await response.json();
-            history = data.history || [];
-            
-            // Process and sort history items (newest first)
-            history = history
+            const { data, error } = await getSettingsHistoryApiV1UserSettingsHistoryGet({ query: { limit: 10 } });
+            if (error) throw error;
+
+            history = (data?.history || [])
                 .map(item => {
-                    // Simplify field names by removing 'preferences.' prefix
                     let displayField = item.field;
                     if (displayField.startsWith('preferences.')) {
                         displayField = displayField.replace('preferences.', '');
                     }
-                    
                     return {
                         ...item,
                         displayField,
@@ -276,61 +209,55 @@
                     };
                 })
                 .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-            
-            // Cache the results
+
             historyCache = history;
             historyCacheTime = Date.now();
-        } catch (error) {
-            if (error.name === 'AbortError') {
-                addNotification('Loading history timed out. Please try again.', 'error');
-            } else {
-                addNotification('Failed to load settings history', 'error');
-            }
+        } catch (err) {
+            console.error('Failed to load settings history:', err);
+            addToast('Failed to load settings history', 'error');
             history = [];
         } finally {
             historyLoading = false;
         }
     }
     
-    async function restoreSettings(timestamp) {
+    async function restoreSettings(timestamp: string): Promise<void> {
         if (!confirm('Are you sure you want to restore settings to this point?')) {
             return;
         }
-        
+
         try {
-            settings = await api.post('/api/v1/user/settings/restore', {
-                timestamp,
-                reason: 'User requested restore'
+            const { data, error } = await restoreSettingsApiV1UserSettingsRestorePost({
+                body: { timestamp, reason: 'User requested restore' }
             });
-            
-            // Invalidate cache since settings have changed
+            if (error) throw error;
+
+            settings = data;
             historyCache = null;
             historyCacheTime = 0;
-            
+
             await loadSettings();
-            
-            // Apply restored theme
+
             if (settings.theme) {
                 themeStore.set(settings.theme);
             }
-            
+
             showHistory = false;
-            addNotification('Settings restored successfully', 'success');
-        } catch (error) {
-            addNotification('Failed to restore settings', 'error');
+            addToast('Settings restored successfully', 'success');
+        } catch (err) {
+            console.error('Failed to restore settings:', err);
+            addToast('Failed to restore settings', 'error');
         }
     }
     
-    function formatTimestamp(ts) {
+    function formatTimestamp(ts: string | number): string {
         // Support ISO 8601 strings or epoch seconds/ms
-        let date;
+        let date: Date;
         if (typeof ts === 'string') {
             date = new Date(ts);
-        } else if (typeof ts === 'number') {
+        } else {
             // Heuristic: seconds vs ms
             date = ts < 1e12 ? new Date(ts * 1000) : new Date(ts);
-        } else {
-            return '';
         }
         if (isNaN(date.getTime())) return '';
         const day = String(date.getDate()).padStart(2, '0');
@@ -353,7 +280,7 @@
             <h1 class="text-3xl font-bold text-fg-default dark:text-dark-fg-default">Settings</h1>
             
             <button
-                on:click={loadHistory}
+                onclick={loadHistory}
                 class="btn btn-secondary-outline btn-sm"
             >
                 View History
@@ -366,14 +293,14 @@
                     class="flex-1 px-4 py-2 text-sm font-medium rounded-md transition-all duration-200"
                     class:bg-white={activeTab === tab.id}
                     class:dark:bg-neutral-700={activeTab === tab.id}
-                    class:shadow-sm={activeTab === tab.id}
+                    class:shadow-xs={activeTab === tab.id}
                     class:text-primary={activeTab === tab.id}
                     class:dark:text-primary-light={activeTab === tab.id}
                     class:text-fg-muted={activeTab !== tab.id}
                     class:dark:text-dark-fg-muted={activeTab !== tab.id}
                     class:hover:text-fg-default={activeTab !== tab.id}
                     class:dark:hover:text-dark-fg-default={activeTab !== tab.id}
-                    on:click={() => activeTab = tab.id}
+                    onclick={() => activeTab = tab.id}
                 >
                     {tab.label}
                 </button>
@@ -386,11 +313,11 @@
                     <h2 class="text-xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">General Settings</h2>
                     
                     <div class="form-control">
-                        <label class="block mb-2">
+                        <label for="theme-select" class="block mb-2">
                             <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default">Theme</span>
                         </label>
                         <div class="relative dropdown-container">
-                            <button on:click={() => showThemeDropdown = !showThemeDropdown}
+                            <button id="theme-select" onclick={() => showThemeDropdown = !showThemeDropdown}
                                     class="form-dropdown-button"
                                     aria-expanded={showThemeDropdown}>
                                 <span class="truncate">{themes.find(t => t.value === formData.theme)?.label || 'Select theme'}</span>
@@ -405,8 +332,8 @@
                                     <ul class="py-1">
                                         {#each themes as theme}
                                             <li>
-                                                <button on:click={() => { 
-                                    formData.theme = theme.value; 
+                                                <button onclick={() => {
+                                    formData.theme = theme.value;
                                     showThemeDropdown = false;
                                     // Apply theme immediately if it's the theme setting
                                     if (theme.value) {
@@ -430,11 +357,11 @@
                     
                     <div class="flex flex-wrap gap-4">
                         <div class="form-control flex-1 min-w-[150px]">
-                            <label class="block mb-2">
+                            <label for="editor-theme-select" class="block mb-2">
                                 <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default">Editor Theme</span>
                             </label>
                             <div class="relative dropdown-container">
-                                <button on:click={() => showEditorThemeDropdown = !showEditorThemeDropdown}
+                                <button id="editor-theme-select" onclick={() => showEditorThemeDropdown = !showEditorThemeDropdown}
                                         class="form-dropdown-button"
                                         aria-expanded={showEditorThemeDropdown}>
                                     <span class="truncate">{editorThemes.find(t => t.value === formData.editor.theme)?.label || 'Select theme'}</span>
@@ -449,7 +376,7 @@
                                         <ul class="py-1">
                                             {#each editorThemes as theme}
                                                 <li>
-                                                    <button on:click={() => { formData.editor.theme = theme.value; showEditorThemeDropdown = false; }}
+                                                    <button onclick={() => { formData.editor.theme = theme.value; showEditorThemeDropdown = false; }}
                                                             class:selected={formData.editor.theme === theme.value}
                                                     >
                                                         {theme.label}
@@ -463,10 +390,11 @@
                         </div>
                         
                         <div class="form-control flex-1 min-w-[100px]">
-                            <label class="block mb-2">
+                            <label for="font-size" class="block mb-2">
                                 <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default">Font Size</span>
                             </label>
                             <input
+                                id="font-size"
                                 type="number"
                                 bind:value={formData.editor.font_size}
                                 min="10"
@@ -476,10 +404,11 @@
                         </div>
                         
                         <div class="form-control flex-1 min-w-[100px]">
-                            <label class="block mb-2">
+                            <label for="tab-size" class="block mb-2">
                                 <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default">Tab Size</span>
                             </label>
                             <input
+                                id="tab-size"
                                 type="number"
                                 bind:value={formData.editor.tab_size}
                                 min="2"
@@ -571,7 +500,7 @@
                 
                 <div class="flex justify-end mt-6">
                     <button
-                        on:click={saveSettings}
+                        onclick={saveSettings}
                         class="btn btn-primary"
                         disabled={saving}
                     >
@@ -591,7 +520,7 @@
 
 {#if showHistory}
     <div class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
-        <div class="fixed inset-0 bg-black bg-opacity-50" on:click={() => showHistory = false}></div>
+        <button class="fixed inset-0 bg-black/50 cursor-default" onclick={() => showHistory = false} aria-label="Close modal"></button>
         <div class="relative inline-block align-bottom bg-bg-alt dark:bg-dark-bg-alt rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
             <div class="p-6">
                 <h3 class="text-lg font-semibold text-fg-default dark:text-dark-fg-default mb-4">Settings History</h3>
@@ -633,7 +562,7 @@
                                         </td>
                                         <td class="px-4 py-2">
                                             <button
-                                                on:click={() => restoreSettings(item.timestamp)}
+                                                onclick={() => restoreSettings(item.timestamp)}
                                                 class="btn btn-ghost btn-xs"
                                             >
                                                 Restore
@@ -648,7 +577,7 @@
             
                 <div class="mt-5 sm:mt-6 flex justify-end">
                     <button
-                        on:click={() => showHistory = false}
+                        onclick={() => showHistory = false}
                         class="btn btn-secondary-outline"
                     >
                         Close

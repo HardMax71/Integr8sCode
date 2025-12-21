@@ -28,7 +28,7 @@
   <section class="hero-section relative isolate bg-bg-default dark:bg-dark-bg-default min-h-[80vh] flex items-center justify-center px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-20">
      <div class="relative z-10 text-center w-full -mt-4 sm:-mt-6">
         <div class="hero-animate-flyIn" style="--fly-y: -20px; --fly-delay: 100ms;">
-             <h1 class="mx-auto max-w-full xl:max-w-7xl text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold tracking-tight text-fg-default dark:text-dark-fg-default !leading-tight px-2 sm:px-4">
+             <h1 class="mx-auto max-w-full xl:max-w-7xl text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold tracking-tight text-fg-default dark:text-dark-fg-default leading-tight! px-2 sm:px-4">
                  Code, Run, <span class="text-primary dark:text-primary-light">Integrate</span>. Instantly.
              </h1>
         </div>

@@ -140,11 +140,11 @@
 
    /* CodeMirror Base Overrides */
     .cm-editor {
-      @apply !font-mono text-sm border border-border-default dark:border-dark-border-default rounded-lg;
+      @apply font-mono! text-sm border border-border-default dark:border-dark-border-default rounded-lg;
       height: 100% !important; /* Force height */
     }
     .cm-scroller {
-      @apply !font-mono;
+      @apply font-mono!;
     }
     /* oneDark Theme specific overrides for better integration */
     .cm-theme-onedark .cm-gutters {
@@ -181,7 +181,7 @@
     @apply px-2.5 py-1 text-xs rounded;
   }
   .btn-icon {
-    @apply !p-2; /* Specific padding for icon-only buttons */
+    @apply p-2!; /* Specific padding for icon-only buttons */
   }
   .btn-primary {
     @apply text-white bg-primary hover:bg-primary-dark focus:ring-primary;

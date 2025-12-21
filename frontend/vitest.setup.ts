@@ -41,9 +41,9 @@ const sessionStorageMock = {
 };
 vi.stubGlobal('sessionStorage', sessionStorageMock);
 
-// Mock matchMedia for theme tests
+// Mock matchMedia for theme tests (defaults to light mode)
 vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
-  matches: query === '(prefers-color-scheme: dark)' ? false : false,
+  matches: false,
   media: query,
   onchange: null,
   addListener: vi.fn(),

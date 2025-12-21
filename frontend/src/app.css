@@ -79,11 +79,11 @@
 
 /* Custom utilities */
 @utility animate-fadeIn {
-  animation: fadeIn 0.3s ease-in-out;
+  animation: var(--animate-fadeIn);
 }
 
 @utility animate-flyIn {
-  animation: flyIn 0.3s ease-out;
+  animation: var(--animate-flyIn);
 }
 
 @layer base {

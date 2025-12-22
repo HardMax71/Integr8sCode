@@ -1,16 +1,15 @@
 from datetime import datetime, timezone
 
-from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
-
+from app.core.database_context import Collection, Database
 from app.domain.events.event_models import CollectionNames
 
 
 class ResourceAllocationRepository:
     """Repository for resource allocation bookkeeping used by saga steps."""
 
-    def __init__(self, database: AsyncIOMotorDatabase):
+    def __init__(self, database: Database):
         self._db = database
-        self._collection: AsyncIOMotorCollection = self._db.get_collection(CollectionNames.RESOURCE_ALLOCATIONS)
+        self._collection: Collection = self._db.get_collection(CollectionNames.RESOURCE_ALLOCATIONS)
 
     async def count_active(self, language: str) -> int:
         return await self._collection.count_documents({

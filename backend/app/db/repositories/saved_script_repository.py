@@ -1,5 +1,4 @@
-from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
-
+from app.core.database_context import Collection, Database
 from app.domain.events.event_models import CollectionNames
 from app.domain.saved_script import (
     DomainSavedScript,
@@ -10,9 +9,9 @@ from app.infrastructure.mappers import SavedScriptMapper
 
 
 class SavedScriptRepository:
-    def __init__(self, database: AsyncIOMotorDatabase):
+    def __init__(self, database: Database):
         self.db = database
-        self.collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.SAVED_SCRIPTS)
+        self.collection: Collection = self.db.get_collection(CollectionNames.SAVED_SCRIPTS)
         self.mapper = SavedScriptMapper()
 
     async def create_saved_script(self, saved_script: DomainSavedScriptCreate, user_id: str) -> DomainSavedScript:

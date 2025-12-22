@@ -7,6 +7,8 @@ from typing import Any, AsyncContextManager, Protocol, TypeVar, runtime_checkabl
 from motor.motor_asyncio import (
     AsyncIOMotorClient,
     AsyncIOMotorClientSession,
+    AsyncIOMotorCollection,
+    AsyncIOMotorCursor,
     AsyncIOMotorDatabase,
 )
 from pymongo.errors import ServerSelectionTimeoutError
@@ -14,8 +16,12 @@ from pymongo.errors import ServerSelectionTimeoutError
 from app.core.logging import logger
 
 # Python 3.12 type aliases using the new 'type' statement
-type DBClient = AsyncIOMotorClient[Any]
-type Database = AsyncIOMotorDatabase[Any]
+# MongoDocument represents the raw document type returned by Motor operations
+type MongoDocument = dict[str, Any]
+type DBClient = AsyncIOMotorClient[MongoDocument]
+type Database = AsyncIOMotorDatabase[MongoDocument]
+type Collection = AsyncIOMotorCollection[MongoDocument]
+type Cursor = AsyncIOMotorCursor[MongoDocument]
 type DBSession = AsyncIOMotorClientSession
 
 # Type variable for generic database provider
@@ -102,7 +108,7 @@ class AsyncDatabaseConnection:
         # Always explicitly bind to current event loop for consistency
         import asyncio
         
-        client: AsyncIOMotorClient = AsyncIOMotorClient(
+        client: DBClient = AsyncIOMotorClient(
             self._config.mongodb_url,
             serverSelectionTimeoutMS=self._config.server_selection_timeout_ms,
             connectTimeoutMS=self._config.connect_timeout_ms,

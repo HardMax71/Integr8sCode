@@ -9,8 +9,9 @@ import redis.asyncio as redis
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
 from kubernetes.client.rest import ApiException
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from motor.motor_asyncio import AsyncIOMotorClient
 
+from app.core.database_context import Database, DBClient
 from app.core.lifecycle import LifecycleEnabled
 from app.core.logging import logger
 from app.core.metrics import ExecutionMetrics, KubernetesMetrics
@@ -57,7 +58,7 @@ class KubernetesWorker(LifecycleEnabled):
 
     def __init__(self,
                  config: K8sWorkerConfig,
-                 database: AsyncIOMotorDatabase,
+                 database: Database,
                  producer: UnifiedProducer,
                  schema_registry_manager: SchemaRegistryManager,
                  event_store: EventStore,
@@ -68,7 +69,7 @@ class KubernetesWorker(LifecycleEnabled):
         settings = get_settings()
 
         self.kafka_servers = self.config.kafka_bootstrap_servers or settings.KAFKA_BOOTSTRAP_SERVERS
-        self._db: AsyncIOMotorDatabase = database
+        self._db: Database = database
         self._event_store = event_store
 
         # Kubernetes clients
@@ -556,7 +557,7 @@ async def run_kubernetes_worker() -> None:
 
     logger.info("Initializing database connection...")
     settings = get_settings()
-    db_client: AsyncIOMotorClient = AsyncIOMotorClient(
+    db_client: DBClient = AsyncIOMotorClient(
         settings.MONGODB_URL,
         tz_aware=True,
         serverSelectionTimeoutMS=5000

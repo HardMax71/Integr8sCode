@@ -4,8 +4,8 @@ from typing import AsyncGenerator
 import redis.asyncio as redis
 from dishka import AsyncContainer
 from fastapi import FastAPI
-from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from app.core.database_context import Database
 from app.core.logging import logger
 from app.core.startup import initialize_metrics_context, initialize_rate_limits
 from app.core.tracing import init_tracing
@@ -64,7 +64,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await initialize_event_schemas(schema_registry)
 
     # Initialize database schema at application scope using app-scoped DB
-    database = await container.get(AsyncIOMotorDatabase)
+    database = await container.get(Database)
     schema_manager = SchemaManager(database)
     await schema_manager.apply_all()
     logger.info("Database schema ensured by SchemaManager")

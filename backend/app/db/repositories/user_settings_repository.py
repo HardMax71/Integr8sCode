@@ -1,9 +1,9 @@
 from datetime import datetime
 from typing import Any, Dict, List
 
-from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
 from pymongo import ASCENDING, DESCENDING, IndexModel
 
+from app.core.database_context import Collection, Database
 from app.core.logging import logger
 from app.domain.enums.events import EventType
 from app.domain.events.event_models import CollectionNames
@@ -15,12 +15,12 @@ from app.infrastructure.mappers import UserSettingsMapper
 
 
 class UserSettingsRepository:
-    def __init__(self, database: AsyncIOMotorDatabase) -> None:
+    def __init__(self, database: Database) -> None:
         self.db = database
-        self.snapshots_collection: AsyncIOMotorCollection = self.db.get_collection(
+        self.snapshots_collection: Collection = self.db.get_collection(
             CollectionNames.USER_SETTINGS_SNAPSHOTS
         )
-        self.events_collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.EVENTS)
+        self.events_collection: Collection = self.db.get_collection(CollectionNames.EVENTS)
         self.mapper = UserSettingsMapper()
 
     async def create_indexes(self) -> None:

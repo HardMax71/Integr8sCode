@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
 
-from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
 from pymongo import DESCENDING
 
+from app.core.database_context import Collection, Database
 from app.domain.enums.saga import SagaState
 from app.domain.events.event_models import CollectionNames
 from app.domain.saga.models import Saga, SagaFilter, SagaListResult
@@ -11,16 +11,16 @@ from app.infrastructure.mappers import SagaFilterMapper, SagaMapper
 
 class SagaRepository:
     """Repository for saga data access.
-    
+
     This repository handles all database operations for sagas,
     following clean architecture principles with no business logic
     or HTTP-specific concerns.
     """
 
-    def __init__(self, database: AsyncIOMotorDatabase):
+    def __init__(self, database: Database):
         self.db = database
-        self.sagas: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.SAGAS)
-        self.executions: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.EXECUTIONS)
+        self.sagas: Collection = self.db.get_collection(CollectionNames.SAGAS)
+        self.executions: Collection = self.db.get_collection(CollectionNames.EXECUTIONS)
         self.mapper = SagaMapper()
         self.filter_mapper = SagaFilterMapper()
 

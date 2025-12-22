@@ -4,9 +4,9 @@ from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Mapping, Sequence
 
 from confluent_kafka import Consumer, KafkaError, Message, Producer
-from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
 from opentelemetry.trace import SpanKind
 
+from app.core.database_context import Collection, Database
 from app.core.lifecycle import LifecycleEnabled
 from app.core.logging import logger
 from app.core.metrics.context import get_dlq_metrics
@@ -30,7 +30,7 @@ from app.settings import get_settings
 class DLQManager(LifecycleEnabled):
     def __init__(
             self,
-            database: AsyncIOMotorDatabase,
+            database: Database,
             consumer: Consumer,
             producer: Producer,
             dlq_topic: KafkaTopic = KafkaTopic.DEAD_LETTER_QUEUE,
@@ -46,7 +46,7 @@ class DLQManager(LifecycleEnabled):
         )
         self.consumer: Consumer = consumer
         self.producer: Producer = producer
-        self.dlq_collection: AsyncIOMotorCollection[Any] = database.get_collection(CollectionNames.DLQ_MESSAGES)
+        self.dlq_collection: Collection = database.get_collection(CollectionNames.DLQ_MESSAGES)
 
         self._running = False
         self._process_task: asyncio.Task | None = None
@@ -396,7 +396,7 @@ class DLQManager(LifecycleEnabled):
         return True
 
 def create_dlq_manager(
-        database: AsyncIOMotorDatabase,
+        database: Database,
         dlq_topic: KafkaTopic = KafkaTopic.DEAD_LETTER_QUEUE,
         retry_topic_suffix: str = "-retry",
         default_retry_policy: RetryPolicy | None = None,

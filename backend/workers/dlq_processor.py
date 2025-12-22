@@ -3,11 +3,13 @@ import signal
 from typing import Optional
 
 from app.core.logging import logger
+from motor.motor_asyncio import AsyncIOMotorClient
+
+from app.core.database_context import Database, DBClient
 from app.dlq import DLQMessage, RetryPolicy, RetryStrategy
 from app.dlq.manager import DLQManager, create_dlq_manager
 from app.domain.enums.kafka import KafkaTopic
 from app.settings import get_settings
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 
 
 def _configure_retry_policies(manager: DLQManager) -> None:
@@ -96,13 +98,13 @@ def _configure_callbacks(manager: DLQManager, testing: bool) -> None:
 
 async def main() -> None:
     settings = get_settings()
-    db_client: AsyncIOMotorClient = AsyncIOMotorClient(
+    db_client: DBClient = AsyncIOMotorClient(
         settings.MONGODB_URL,
         tz_aware=True,
         serverSelectionTimeoutMS=5000,
     )
     db_name = settings.DATABASE_NAME
-    database: AsyncIOMotorDatabase = db_client[db_name]
+    database: Database = db_client[db_name]
     await db_client.admin.command("ping")
     logger.info(f"Connected to database: {db_name}")
 

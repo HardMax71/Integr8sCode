@@ -1,5 +1,4 @@
-from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
-
+from app.core.database_context import Collection, Database
 from app.domain.events.event_models import CollectionNames
 from app.domain.execution import DomainExecution
 from app.domain.sse import SSEEventDomain, SSEExecutionStatusDomain
@@ -7,10 +6,10 @@ from app.infrastructure.mappers import SSEMapper
 
 
 class SSERepository:
-    def __init__(self, database: AsyncIOMotorDatabase):
+    def __init__(self, database: Database):
         self.db = database
-        self.executions_collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.EXECUTIONS)
-        self.events_collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.EVENTS)
+        self.executions_collection: Collection = self.db.get_collection(CollectionNames.EXECUTIONS)
+        self.events_collection: Collection = self.db.get_collection(CollectionNames.EVENTS)
         self.mapper = SSEMapper()
 
     async def get_execution_status(self, execution_id: str) -> SSEExecutionStatusDomain | None:

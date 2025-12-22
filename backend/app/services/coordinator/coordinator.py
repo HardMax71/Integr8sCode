@@ -8,6 +8,7 @@ from uuid import uuid4
 import redis.asyncio as redis
 from motor.motor_asyncio import AsyncIOMotorClient
 
+from app.core.database_context import DBClient
 from app.core.lifecycle import LifecycleEnabled
 from app.core.logging import logger
 from app.core.metrics.context import get_coordinator_metrics
@@ -549,7 +550,7 @@ async def run_coordinator() -> None:
     config = ProducerConfig(bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS)
     producer = UnifiedProducer(config, schema_registry_manager)
 
-    db_client: AsyncIOMotorClient = AsyncIOMotorClient(
+    db_client: DBClient = AsyncIOMotorClient(
         settings.MONGODB_URL,
         tz_aware=True,
         serverSelectionTimeoutMS=5000

@@ -1,8 +1,8 @@
 from datetime import UTC, datetime, timedelta
 
-from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
 from pymongo import ASCENDING, DESCENDING, IndexModel
 
+from app.core.database_context import Collection, Database
 from app.core.logging import logger
 from app.domain.enums.notification import (
     NotificationChannel,
@@ -16,11 +16,11 @@ from app.infrastructure.mappers import NotificationMapper
 
 
 class NotificationRepository:
-    def __init__(self, database: AsyncIOMotorDatabase):
-        self.db: AsyncIOMotorDatabase = database
+    def __init__(self, database: Database):
+        self.db: Database = database
 
-        self.notifications_collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.NOTIFICATIONS)
-        self.subscriptions_collection: AsyncIOMotorCollection = self.db.get_collection(
+        self.notifications_collection: Collection = self.db.get_collection(CollectionNames.NOTIFICATIONS)
+        self.subscriptions_collection: Collection = self.db.get_collection(
             CollectionNames.NOTIFICATION_SUBSCRIPTIONS)
         self.mapper = NotificationMapper()
 

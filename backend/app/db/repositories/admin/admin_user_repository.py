@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 
-from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
-
+from app.core.database_context import Collection, Database
 from app.core.security import SecurityService
 from app.domain.enums import UserRole
 from app.domain.events.event_models import CollectionNames
@@ -17,17 +16,17 @@ from app.infrastructure.mappers import UserMapper
 
 
 class AdminUserRepository:
-    def __init__(self, db: AsyncIOMotorDatabase):
+    def __init__(self, db: Database):
         self.db = db
-        self.users_collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.USERS)
+        self.users_collection: Collection = self.db.get_collection(CollectionNames.USERS)
 
         # Related collections used by this repository (e.g., cascade deletes)
-        self.executions_collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.EXECUTIONS)
-        self.saved_scripts_collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.SAVED_SCRIPTS)
-        self.notifications_collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.NOTIFICATIONS)
-        self.user_settings_collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.USER_SETTINGS)
-        self.events_collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.EVENTS)
-        self.sagas_collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.SAGAS)
+        self.executions_collection: Collection = self.db.get_collection(CollectionNames.EXECUTIONS)
+        self.saved_scripts_collection: Collection = self.db.get_collection(CollectionNames.SAVED_SCRIPTS)
+        self.notifications_collection: Collection = self.db.get_collection(CollectionNames.NOTIFICATIONS)
+        self.user_settings_collection: Collection = self.db.get_collection(CollectionNames.USER_SETTINGS)
+        self.events_collection: Collection = self.db.get_collection(CollectionNames.EVENTS)
+        self.sagas_collection: Collection = self.db.get_collection(CollectionNames.SAGAS)
         self.security_service = SecurityService()
         self.mapper = UserMapper()
 

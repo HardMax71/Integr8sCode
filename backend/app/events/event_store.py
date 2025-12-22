@@ -3,10 +3,10 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
-from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorCursor, AsyncIOMotorDatabase
 from pymongo import ASCENDING, DESCENDING, IndexModel
 from pymongo.errors import BulkWriteError, DuplicateKeyError
 
+from app.core.database_context import Collection, Cursor, Database
 from app.core.logging import logger
 from app.core.metrics.context import get_event_metrics
 from app.core.tracing import EventAttributes
@@ -19,7 +19,7 @@ from app.infrastructure.kafka.events.base import BaseEvent
 class EventStore:
     def __init__(
             self,
-            db: AsyncIOMotorDatabase,
+            db: Database,
             schema_registry: SchemaRegistryManager,
             collection_name: str = "events",
             ttl_days: int = 90,
@@ -29,7 +29,7 @@ class EventStore:
         self.metrics = get_event_metrics()
         self.schema_registry = schema_registry
         self.collection_name = collection_name
-        self.collection: AsyncIOMotorCollection = db[collection_name]
+        self.collection: Collection = db[collection_name]
         self.ttl_days = ttl_days
         self.batch_size = batch_size
         self._initialized = False
@@ -307,7 +307,7 @@ class EventStore:
             stats["total_events"] += c
         return stats
 
-    async def _deserialize_cursor(self, cursor: AsyncIOMotorCursor) -> list[BaseEvent]:
+    async def _deserialize_cursor(self, cursor: Cursor) -> list[BaseEvent]:
         return [self.schema_registry.deserialize_json(doc) async for doc in cursor]
 
     def _time_range(self, start_time: datetime | None, end_time: datetime | None) -> Dict[str, Any] | None:
@@ -349,7 +349,7 @@ class EventStore:
 
 
 def create_event_store(
-        db: AsyncIOMotorDatabase,
+        db: Database,
         schema_registry: SchemaRegistryManager,
         collection_name: str = "events",
         ttl_days: int = 90,

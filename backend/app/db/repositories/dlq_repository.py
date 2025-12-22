@@ -1,8 +1,7 @@
 from datetime import datetime, timezone
 from typing import Dict, List, Mapping
 
-from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
-
+from app.core.database_context import Collection, Database
 from app.core.logging import logger
 from app.dlq import (
     AgeStatistics,
@@ -24,9 +23,9 @@ from app.infrastructure.mappers.dlq_mapper import DLQMapper
 
 
 class DLQRepository:
-    def __init__(self, db: AsyncIOMotorDatabase):
+    def __init__(self, db: Database):
         self.db = db
-        self.dlq_collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.DLQ_MESSAGES)
+        self.dlq_collection: Collection = self.db.get_collection(CollectionNames.DLQ_MESSAGES)
 
     async def get_dlq_stats(self) -> DLQStatistics:
         # Get counts by status

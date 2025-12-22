@@ -1,8 +1,8 @@
 from typing import Any, AsyncIterator, Dict, List
 
-from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
 from pymongo import ASCENDING, DESCENDING
 
+from app.core.database_context import Collection, Database
 from app.core.logging import logger
 from app.domain.admin.replay_updates import ReplaySessionUpdate
 from app.domain.events.event_models import CollectionNames
@@ -11,10 +11,10 @@ from app.infrastructure.mappers import ReplayStateMapper
 
 
 class ReplayRepository:
-    def __init__(self, database: AsyncIOMotorDatabase) -> None:
+    def __init__(self, database: Database) -> None:
         self.db = database
-        self.replay_collection: AsyncIOMotorCollection = database.get_collection(CollectionNames.REPLAY_SESSIONS)
-        self.events_collection: AsyncIOMotorCollection = database.get_collection(CollectionNames.EVENTS)
+        self.replay_collection: Collection = database.get_collection(CollectionNames.REPLAY_SESSIONS)
+        self.events_collection: Collection = database.get_collection(CollectionNames.EVENTS)
         self._mapper = ReplayStateMapper()
 
     async def create_indexes(self) -> None:

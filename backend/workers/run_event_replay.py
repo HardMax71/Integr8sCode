@@ -13,6 +13,8 @@ from app.services.event_replay.replay_service import EventReplayService
 from app.settings import get_settings
 from motor.motor_asyncio import AsyncIOMotorClient
 
+from app.core.database_context import DBClient
+
 
 async def cleanup_task(replay_service: EventReplayService, interval_hours: int = 6) -> None:
     """Periodically clean up old replay sessions"""
@@ -35,7 +37,7 @@ async def run_replay_service() -> None:
     settings = get_settings()
 
     # Create database connection
-    db_client: AsyncIOMotorClient = AsyncIOMotorClient(
+    db_client: DBClient = AsyncIOMotorClient(
         settings.MONGODB_URL,
         tz_aware=True,
         serverSelectionTimeoutMS=5000

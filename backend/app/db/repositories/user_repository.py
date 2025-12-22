@@ -2,8 +2,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 
-from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
-
+from app.core.database_context import Collection, Database
 from app.domain.enums.user import UserRole
 from app.domain.events.event_models import CollectionNames
 from app.domain.user import User as DomainAdminUser
@@ -13,9 +12,9 @@ from app.infrastructure.mappers import UserMapper
 
 
 class UserRepository:
-    def __init__(self, db: AsyncIOMotorDatabase):
+    def __init__(self, db: Database):
         self.db = db
-        self.collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.USERS)
+        self.collection: Collection = self.db.get_collection(CollectionNames.USERS)
         self.mapper = UserMapper()
 
     async def get_user(self, username: str) -> DomainAdminUser | None:

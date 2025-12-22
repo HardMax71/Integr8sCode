@@ -3,9 +3,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Awaitable, Callable, Iterable
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo import ASCENDING, DESCENDING, IndexModel
 
+from app.core.database_context import Database
 from app.core.logging import logger
 from app.domain.events.event_models import EventFields
 
@@ -13,7 +13,7 @@ from app.domain.events.event_models import EventFields
 class SchemaManager:
     """Applies idempotent, versioned MongoDB migrations per database."""
 
-    def __init__(self, database: AsyncIOMotorDatabase) -> None:
+    def __init__(self, database: Database) -> None:
         self.db = database
         self._versions = self.db["schema_versions"]
 

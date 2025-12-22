@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 
-from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
-
+from app.core.database_context import Collection, Database
 from app.core.logging import logger
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.events.event_models import CollectionNames
@@ -9,10 +8,10 @@ from app.domain.execution import DomainExecution, ExecutionResultDomain, Resourc
 
 
 class ExecutionRepository:
-    def __init__(self, db: AsyncIOMotorDatabase):
+    def __init__(self, db: Database):
         self.db = db
-        self.collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.EXECUTIONS)
-        self.results_collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.EXECUTION_RESULTS)
+        self.collection: Collection = self.db.get_collection(CollectionNames.EXECUTIONS)
+        self.results_collection: Collection = self.db.get_collection(CollectionNames.EXECUTION_RESULTS)
 
     async def create_execution(self, execution: DomainExecution) -> DomainExecution:
         execution_dict = {

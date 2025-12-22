@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 
-from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
-
+from app.core.database_context import Collection, Database
 from app.core.logging import logger
 from app.domain.admin import (
     AuditAction,
@@ -12,10 +11,10 @@ from app.infrastructure.mappers import AuditLogMapper, SettingsMapper
 
 
 class AdminSettingsRepository:
-    def __init__(self, db: AsyncIOMotorDatabase):
+    def __init__(self, db: Database):
         self.db = db
-        self.settings_collection: AsyncIOMotorCollection = self.db.get_collection("system_settings")
-        self.audit_log_collection: AsyncIOMotorCollection = self.db.get_collection("audit_log")
+        self.settings_collection: Collection = self.db.get_collection("system_settings")
+        self.audit_log_collection: Collection = self.db.get_collection("audit_log")
         self.settings_mapper = SettingsMapper()
         self.audit_mapper = AuditLogMapper()
 

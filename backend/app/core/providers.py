@@ -2,10 +2,10 @@ from typing import AsyncIterator
 
 import redis.asyncio as redis
 from dishka import Provider, Scope, provide
-from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.core.database_context import (
     AsyncDatabaseConnection,
+    Database,
     DatabaseConfig,
     create_database_connection,
 )
@@ -105,7 +105,7 @@ class DatabaseProvider(Provider):
             await db_connection.disconnect()
 
     @provide
-    def get_database(self, db_connection: AsyncDatabaseConnection) -> AsyncIOMotorDatabase:
+    def get_database(self, db_connection: AsyncDatabaseConnection) -> Database:
         return db_connection.database
 
 
@@ -174,7 +174,7 @@ class MessagingProvider(Provider):
             await producer.stop()
 
     @provide
-    async def get_dlq_manager(self, database: AsyncIOMotorDatabase) -> AsyncIterator[DLQManager]:
+    async def get_dlq_manager(self, database: Database) -> AsyncIterator[DLQManager]:
         manager = create_dlq_manager(database)
         await manager.start()
         try:
@@ -210,7 +210,7 @@ class EventProvider(Provider):
     @provide
     async def get_event_store(
             self,
-            database: AsyncIOMotorDatabase,
+            database: Database,
             schema_registry: SchemaRegistryManager
     ) -> EventStore:
         store = create_event_store(
@@ -332,7 +332,7 @@ class ConnectionProvider(Provider):
     @provide
     def get_sse_repository(
             self,
-            database: AsyncIOMotorDatabase
+            database: Database
     ) -> SSERepository:
         return SSERepository(database)
 
@@ -365,7 +365,7 @@ class AuthProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_user_repository(self, database: AsyncIOMotorDatabase) -> UserRepository:
+    def get_user_repository(self, database: Database) -> UserRepository:
         return UserRepository(database)
 
     @provide
@@ -377,11 +377,11 @@ class UserServicesProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_user_settings_repository(self, database: AsyncIOMotorDatabase) -> UserSettingsRepository:
+    def get_user_settings_repository(self, database: Database) -> UserSettingsRepository:
         return UserSettingsRepository(database)
 
     @provide
-    def get_event_repository(self, database: AsyncIOMotorDatabase) -> EventRepository:
+    def get_event_repository(self, database: Database) -> EventRepository:
         return EventRepository(database)
 
     @provide
@@ -415,7 +415,7 @@ class AdminServicesProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_admin_events_repository(self, database: AsyncIOMotorDatabase) -> AdminEventsRepository:
+    def get_admin_events_repository(self, database: Database) -> AdminEventsRepository:
         return AdminEventsRepository(database)
 
     @provide(scope=Scope.REQUEST)
@@ -427,7 +427,7 @@ class AdminServicesProvider(Provider):
         return AdminEventsService(admin_events_repository, replay_service)
 
     @provide
-    def get_admin_settings_repository(self, database: AsyncIOMotorDatabase) -> AdminSettingsRepository:
+    def get_admin_settings_repository(self, database: Database) -> AdminSettingsRepository:
         return AdminSettingsRepository(database)
 
     @provide
@@ -438,15 +438,15 @@ class AdminServicesProvider(Provider):
         return AdminSettingsService(admin_settings_repository)
 
     @provide
-    def get_admin_user_repository(self, database: AsyncIOMotorDatabase) -> AdminUserRepository:
+    def get_admin_user_repository(self, database: Database) -> AdminUserRepository:
         return AdminUserRepository(database)
 
     @provide
-    def get_saga_repository(self, database: AsyncIOMotorDatabase) -> SagaRepository:
+    def get_saga_repository(self, database: Database) -> SagaRepository:
         return SagaRepository(database)
 
     @provide
-    def get_notification_repository(self, database: AsyncIOMotorDatabase) -> NotificationRepository:
+    def get_notification_repository(self, database: Database) -> NotificationRepository:
         return NotificationRepository(database)
 
     @provide
@@ -482,23 +482,23 @@ class BusinessServicesProvider(Provider):
     scope = Scope.REQUEST
 
     @provide
-    def get_execution_repository(self, database: AsyncIOMotorDatabase) -> ExecutionRepository:
+    def get_execution_repository(self, database: Database) -> ExecutionRepository:
         return ExecutionRepository(database)
 
     @provide
-    def get_resource_allocation_repository(self, database: AsyncIOMotorDatabase) -> ResourceAllocationRepository:
+    def get_resource_allocation_repository(self, database: Database) -> ResourceAllocationRepository:
         return ResourceAllocationRepository(database)
 
     @provide
-    def get_saved_script_repository(self, database: AsyncIOMotorDatabase) -> SavedScriptRepository:
+    def get_saved_script_repository(self, database: Database) -> SavedScriptRepository:
         return SavedScriptRepository(database)
 
     @provide
-    def get_dlq_repository(self, database: AsyncIOMotorDatabase) -> DLQRepository:
+    def get_dlq_repository(self, database: Database) -> DLQRepository:
         return DLQRepository(database)
 
     @provide
-    def get_replay_repository(self, database: AsyncIOMotorDatabase) -> ReplayRepository:
+    def get_replay_repository(self, database: Database) -> ReplayRepository:
         return ReplayRepository(database)
 
     @provide
@@ -623,5 +623,5 @@ class ResultProcessorProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_execution_repository(self, database: AsyncIOMotorDatabase) -> ExecutionRepository:
+    def get_execution_repository(self, database: Database) -> ExecutionRepository:
         return ExecutionRepository(database)

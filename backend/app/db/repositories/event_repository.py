@@ -3,9 +3,9 @@ from datetime import datetime, timedelta, timezone
 from types import MappingProxyType
 from typing import Any, AsyncIterator, Mapping
 
-from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
 from pymongo import ASCENDING, DESCENDING
 
+from app.core.database_context import Collection, Database
 from app.core.logging import logger
 from app.core.tracing import EventAttributes
 from app.core.tracing.utils import add_span_attributes
@@ -25,10 +25,10 @@ from app.infrastructure.mappers import ArchivedEventMapper, EventFilterMapper, E
 
 
 class EventRepository:
-    def __init__(self, database: AsyncIOMotorDatabase) -> None:
+    def __init__(self, database: Database) -> None:
         self.database = database
         self.mapper = EventMapper()
-        self._collection: AsyncIOMotorCollection = self.database.get_collection(CollectionNames.EVENTS)
+        self._collection: Collection = self.database.get_collection(CollectionNames.EVENTS)
 
     def _build_time_filter(
             self,

@@ -1,9 +1,9 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 
-from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
 from pymongo import ReturnDocument
 
+from app.core.database_context import Collection, Database
 from app.domain.admin import (
     ReplayQuery,
     ReplaySession,
@@ -43,18 +43,18 @@ from app.infrastructure.mappers import (
 class AdminEventsRepository:
     """Repository for admin event operations using domain models."""
 
-    def __init__(self, db: AsyncIOMotorDatabase):
+    def __init__(self, db: Database):
         self.db = db
-        self.events_collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.EVENTS)
-        self.event_store_collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.EVENT_STORE)
+        self.events_collection: Collection = self.db.get_collection(CollectionNames.EVENTS)
+        self.event_store_collection: Collection = self.db.get_collection(CollectionNames.EVENT_STORE)
         # Bind related collections used by this repository
-        self.executions_collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.EXECUTIONS)
-        self.events_archive_collection: AsyncIOMotorCollection = self.db.get_collection(
+        self.executions_collection: Collection = self.db.get_collection(CollectionNames.EXECUTIONS)
+        self.events_archive_collection: Collection = self.db.get_collection(
             CollectionNames.EVENTS_ARCHIVE
         )
         self.replay_mapper = ReplaySessionMapper()
         self.replay_query_mapper = ReplayQueryMapper()
-        self.replay_sessions_collection: AsyncIOMotorCollection = self.db.get_collection(
+        self.replay_sessions_collection: Collection = self.db.get_collection(
             CollectionNames.REPLAY_SESSIONS)
         self.mapper = EventMapper()
         self.summary_mapper = EventSummaryMapper()

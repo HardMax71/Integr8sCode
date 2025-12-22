@@ -91,6 +91,11 @@ yarn-error.log*
 # Build outputs
 frontend/public/build/
 
+# Frontend testing
+frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
+
 # Helm
 helm/*/charts/*.tgz
 helm/*/Chart.lock

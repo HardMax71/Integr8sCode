@@ -35,10 +35,11 @@ async def upsert_user(
     existing = await db.users.find_one({"username": username})
 
     if existing:
-        print(f"User '{username}' exists - updating role={role}, is_superuser={is_superuser}")
+        print(f"User '{username}' exists - updating password, role={role}, is_superuser={is_superuser}")
         await db.users.update_one(
             {"username": username},
             {"$set": {
+                "hashed_password": pwd_context.hash(password),
                 "role": role,
                 "is_superuser": is_superuser,
                 "is_active": True,
@@ -63,10 +64,11 @@ async def upsert_user(
 
 async def seed_users() -> None:
     mongodb_url = os.getenv("MONGODB_URL", "mongodb://mongo:27017/integr8scode")
-    print("Connecting to MongoDB...")
+    db_name = os.getenv("DATABASE_NAME", "integr8scode_db")
+
+    print(f"Connecting to MongoDB (database: {db_name})...")
 
     client: AsyncIOMotorClient = AsyncIOMotorClient(mongodb_url)
-    db_name = mongodb_url.rstrip("/").split("/")[-1].split("?")[0] or "integr8scode"
     db = client[db_name]
 
     # Default user

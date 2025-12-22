@@ -1,0 +1,55 @@
+name: Setup CI Compose
+description: Creates docker-compose.ci.yaml with CI-specific modifications
+
+inputs:
+  kubeconfig-path:
+    description: Path to kubeconfig file for cert-generator mount
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install yq
+      shell: bash
+      run: |
+        sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.50.1/yq_linux_amd64
+        sudo chmod +x /usr/local/bin/yq
+
+    - name: Create CI compose configuration
+      shell: bash
+      env:
+        KUBECONFIG_PATH: ${{ inputs.kubeconfig-path }}
+      run: |
+        cp docker-compose.yaml docker-compose.ci.yaml
+
+        # Backend environment variables
+        yq eval '.services.backend.environment += ["TESTING=true"]' -i docker-compose.ci.yaml
+        yq eval '.services.backend.environment += ["MONGO_ROOT_USER=root"]' -i docker-compose.ci.yaml
+        yq eval '.services.backend.environment += ["MONGO_ROOT_PASSWORD=rootpassword"]' -i docker-compose.ci.yaml
+        yq eval '.services.backend.environment += ["OTEL_SDK_DISABLED=true"]' -i docker-compose.ci.yaml
+
+        # Remove hot-reload volume mounts (causes permission issues and slow rebuilds in CI)
+        yq eval '.services.backend.volumes = [.services.backend.volumes[] | select(. != "./backend:/app")]' -i docker-compose.ci.yaml
+        yq eval '.services."k8s-worker".volumes = [.services."k8s-worker".volumes[] | select(. != "./backend:/app:ro")]' -i docker-compose.ci.yaml
+        yq eval '.services."pod-monitor".volumes = [.services."pod-monitor".volumes[] | select(. != "./backend:/app:ro")]' -i docker-compose.ci.yaml
+        yq eval '.services."result-processor".volumes = [.services."result-processor".volumes[] | select(. != "./backend:/app:ro")]' -i docker-compose.ci.yaml
+        yq eval '.services.frontend.volumes = [.services.frontend.volumes[] | select(. != "./frontend:/app")]' -i docker-compose.ci.yaml
+
+        # Disable Kafka SASL authentication for CI
+        yq eval 'del(.services.kafka.environment.KAFKA_OPTS)' -i docker-compose.ci.yaml
+        yq eval 'del(.services.zookeeper.environment.KAFKA_OPTS)' -i docker-compose.ci.yaml
+        yq eval 'del(.services.zookeeper.environment.ZOOKEEPER_AUTH_PROVIDER_1)' -i docker-compose.ci.yaml
+        yq eval '.services.kafka.volumes = [.services.kafka.volumes[] | select(. | contains("jaas.conf") | not)]' -i docker-compose.ci.yaml
+        yq eval '.services.zookeeper.volumes = [.services.zookeeper.volumes[] | select(. | contains("/etc/kafka") | not)]' -i docker-compose.ci.yaml
+
+        # Simplify Zookeeper for CI
+        yq eval '.services.zookeeper.environment.ZOOKEEPER_4LW_COMMANDS_WHITELIST = "ruok,srvr"' -i docker-compose.ci.yaml
+        yq eval 'del(.services.zookeeper.healthcheck)' -i docker-compose.ci.yaml
+        yq eval '.services.kafka.depends_on.zookeeper.condition = "service_started"' -i docker-compose.ci.yaml
+
+        # Cert-generator CI configuration
+        yq eval '.services."cert-generator".extra_hosts = ((.services."cert-generator".extra_hosts // []) + ["host.docker.internal:host-gateway"] | unique)' -i docker-compose.ci.yaml
+        yq eval '.services."cert-generator".environment = ((.services."cert-generator".environment // []) + ["CI=true"] | unique)' -i docker-compose.ci.yaml
+        yq eval ".services.\"cert-generator\".volumes += [\"${KUBECONFIG_PATH}:/root/.kube/config:ro\"]" -i docker-compose.ci.yaml
+
+        echo "Created docker-compose.ci.yaml"

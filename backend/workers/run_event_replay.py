@@ -40,7 +40,7 @@ async def run_replay_service() -> None:
         tz_aware=True,
         serverSelectionTimeoutMS=5000
     )
-    db_name = settings.PROJECT_NAME + "_test" if settings.TESTING else settings.PROJECT_NAME
+    db_name = settings.DATABASE_NAME
     database = db_client[db_name]
 
     # Verify connection

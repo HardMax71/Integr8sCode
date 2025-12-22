@@ -38,7 +38,9 @@ function startServer() {
 
     const proxyAgent = new https.Agent({
         ca: fs.readFileSync(caPath),
-        rejectUnauthorized: false  // Accept self-signed certificates in development
+        rejectUnauthorized: false,  // Accept self-signed certificates in development
+        keepAlive: true,  // Reuse connections to avoid TLS handshake per request
+        keepAliveMsecs: 1000
     });
 
     server = https.createServer(httpsOptions, (req, res) => {
@@ -62,10 +64,21 @@ function startServer() {
                 proxyRes.pipe(res, { end: true });
             });
 
+            // Socket timeout prevents hanging when backend is unreachable
+            proxyReq.on('socket', (socket) => {
+                socket.setTimeout(2000);
+                socket.on('timeout', () => {
+                    console.error('Proxy socket timeout - backend unreachable');
+                    proxyReq.destroy(new Error('Socket timeout'));
+                });
+            });
+
             proxyReq.on('error', (e) => {
                 console.error(`Proxy request error: ${e.message}`);
-                res.writeHead(502);
-                res.end('Bad Gateway');
+                if (!res.headersSent) {
+                    res.writeHead(502);
+                    res.end('Bad Gateway');
+                }
             });
 
             req.pipe(proxyReq, { end: true });
@@ -190,6 +203,7 @@ export default {
         })
     ],
     watch: {
-        clearScreen: false
+        clearScreen: false,
+        exclude: ['node_modules/**', 'public/build/**', 'test-results/**', 'playwright-report/**', 'e2e/**']
     }
 };

@@ -35,10 +35,11 @@ async def upsert_user(
     existing = await db.users.find_one({"username": username})
 
     if existing:
-        print(f"User '{username}' exists - updating role={role}, is_superuser={is_superuser}")
+        print(f"User '{username}' exists - updating password, role={role}, is_superuser={is_superuser}")
         await db.users.update_one(
             {"username": username},
             {"$set": {
+                "hashed_password": pwd_context.hash(password),
                 "role": role,
                 "is_superuser": is_superuser,
                 "is_active": True,

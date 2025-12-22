@@ -503,7 +503,7 @@ describe('Header', () => {
   });
 
   describe('dropdown toggle behavior', () => {
-    it('closes dropdown when clicking the toggle button again', async () => {
+    it('closes dropdown when clicking a menu item', async () => {
       // Suppress jsdom "Not implemented: navigation" warning from link click
       const restoreConsole = suppressConsoleError();
 
@@ -521,7 +521,7 @@ describe('Header', () => {
         expect(screen.getByRole('link', { name: /Settings/i })).toBeInTheDocument();
       });
 
-      // Close dropdown by clicking Settings link (closes dropdown via onclick)
+      // Click Settings link which closes dropdown via its onclick handler
       const settingsLink = screen.getByRole('link', { name: /Settings/i });
       await user.click(settingsLink);
 

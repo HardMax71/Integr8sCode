@@ -5,6 +5,8 @@ import ToastContainer from '../ToastContainer.svelte';
 import { toasts, addToast, removeToast } from '../../stores/toastStore';
 import { setupAnimationMock } from '../../__tests__/test-utils';
 
+// Note: userEvent not needed - tests use direct click() and store manipulation
+
 describe('ToastContainer', () => {
   beforeEach(() => {
     setupAnimationMock();
@@ -227,11 +229,13 @@ describe('ToastContainer', () => {
       });
     });
 
-    it('container is fixed positioned', () => {
+    it('renders container with positioning styles', () => {
       const { container } = render(ToastContainer);
 
+      // Container uses CSS position:fixed (defined in component <style> block)
       const toastContainer = container.querySelector('.toasts-container');
       expect(toastContainer).toBeInTheDocument();
+      expect(toastContainer).toHaveClass('toasts-container');
     });
   });
 

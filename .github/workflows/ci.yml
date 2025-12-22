@@ -43,36 +43,8 @@ jobs:
           name: frontend-coverage
           path: frontend/coverage/
 
-  backend-unit:
-    name: Backend Unit Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
-          cache-dependency-glob: "backend/uv.lock"
-
-      - name: Install Python dependencies
-        run: |
-          cd backend
-          uv python install 3.12
-          uv sync --frozen
-
-      - name: Run unit tests
-        timeout-minutes: 5
-        run: |
-          cd backend
-          uv run pytest tests/unit -v --cov=app --cov-branch --cov-report=xml --cov-report=term
-
-      - name: Upload coverage
-        uses: actions/upload-artifact@v6
-        if: always()
-        with:
-          name: backend-unit-coverage
-          path: backend/coverage.xml
+  # NOTE: Backend has no pure unit tests (all tests require MongoDB/Redis)
+  # All backend tests run in backend-integration job below
 
   # ============================================================
   # Phase 2: Integration/E2E tests run in parallel after unit tests
@@ -196,7 +168,6 @@ jobs:
 
   backend-integration:
     name: Backend Integration Tests
-    needs: backend-unit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

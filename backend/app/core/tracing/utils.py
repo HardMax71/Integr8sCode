@@ -1,10 +1,14 @@
 import asyncio
 import functools
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
-from typing import Any, Callable, Dict, Generator
+from typing import Any, ParamSpec, TypeVar
 
 from opentelemetry import context, propagate, trace
 from opentelemetry.trace import SpanKind, Status, StatusCode
+
+P = ParamSpec("P")
+R = TypeVar("R")
 
 
 def get_tracer() -> trace.Tracer:
@@ -16,7 +20,7 @@ def get_tracer() -> trace.Tracer:
 def trace_span(
     name: str,
     kind: SpanKind = SpanKind.INTERNAL,
-    attributes: Dict[str, Any] | None = None,
+    attributes: dict[str, Any] | None = None,
     set_status_on_exception: bool = True,
     tracer: trace.Tracer | None = None
 ) -> Generator[trace.Span, None, None]:
@@ -53,38 +57,40 @@ def trace_span(
 def trace_method(
     name: str | None = None,
     kind: SpanKind = SpanKind.INTERNAL,
-    attributes: Dict[str, Any] | None = None
-) -> Callable:
+    attributes: dict[str, Any] | None = None
+) -> Callable[[Callable[P, R]], Callable[P, R]]:
     """
     Decorator for tracing method calls.
-    
+
     Args:
         name: Custom span name, defaults to module.method_name
         kind: Kind of span (INTERNAL, CLIENT, SERVER, etc.)
         attributes: Additional attributes to set on the span
-        
+
     Returns:
         Decorated function with tracing
     """
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[P, R]) -> Callable[P, R]:
         span_name = name or f"{func.__module__}.{func.__name__}"
 
         @functools.wraps(func)
-        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+        async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
             with trace_span(span_name, kind=kind, attributes=attributes):
-                return await func(*args, **kwargs)
+                return await func(*args, **kwargs)  # type: ignore[misc, no-any-return]
 
         @functools.wraps(func)
-        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
+        def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
             with trace_span(span_name, kind=kind, attributes=attributes):
                 return func(*args, **kwargs)
 
-        return async_wrapper if asyncio.iscoroutinefunction(func) else sync_wrapper
+        if asyncio.iscoroutinefunction(func):
+            return async_wrapper  # type: ignore[return-value]
+        return sync_wrapper
 
     return decorator
 
 
-def inject_trace_context(headers: Dict[str, str]) -> Dict[str, str]:
+def inject_trace_context(headers: dict[str, str]) -> dict[str, str]:
     """
     Inject current trace context into headers for propagation.
     
@@ -99,7 +105,7 @@ def inject_trace_context(headers: Dict[str, str]) -> Dict[str, str]:
     return propagation_headers
 
 
-def extract_trace_context(headers: Dict[str, str]) -> context.Context:
+def extract_trace_context(headers: dict[str, str]) -> context.Context:
     """
     Extract trace context from headers.
     
@@ -126,7 +132,7 @@ def add_span_attributes(**attributes: Any) -> None:
                 span.set_attribute(key, value)
 
 
-def add_span_event(name: str, attributes: Dict[str, Any] | None = None) -> None:
+def add_span_event(name: str, attributes: dict[str, Any] | None = None) -> None:
     """
     Add an event to the current span.
     

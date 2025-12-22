@@ -18,15 +18,22 @@
     import ToastContainer from "./components/ToastContainer.svelte";
     import ProtectedRoute from "./components/ProtectedRoute.svelte";
     import Spinner from "./components/Spinner.svelte";
+    import ErrorDisplay from "./components/ErrorDisplay.svelte";
     import { theme } from './stores/theme';
     import { initializeAuth } from './lib/auth-init';
+    import { appError } from './stores/errorStore';
 
     // Theme value derived from store with proper cleanup
     let themeValue = $state('auto');
     const unsubscribeTheme = theme.subscribe(value => { themeValue = value; });
 
+    // Global error state
+    let globalError = $state<{ error: Error | string; title?: string } | null>(null);
+    const unsubscribeError = appError.subscribe(value => { globalError = value; });
+
     onDestroy(() => {
         unsubscribeTheme();
+        unsubscribeError();
     });
 
     let authInitialized = $state(false);
@@ -186,7 +193,9 @@
     <AdminSettings/>
 {/snippet}
 
-{#if !authInitialized}
+{#if globalError}
+    <ErrorDisplay error={globalError.error} title={globalError.title} />
+{:else if !authInitialized}
     <div class="flex items-center justify-center min-h-screen bg-bg-default dark:bg-dark-bg-default">
         <Spinner size="large" />
     </div>

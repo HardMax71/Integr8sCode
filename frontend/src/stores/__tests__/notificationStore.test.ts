@@ -14,13 +14,17 @@ vi.mock('../../lib/api', () => ({
   deleteNotificationApiV1NotificationsNotificationIdDelete: (...args: unknown[]) => mockDeleteNotification(...args),
 }));
 
-const createMockNotification = (overrides = {}) => ({
+const createMockNotification = (overrides: Record<string, unknown> = {}) => ({
   notification_id: `notif-${Math.random().toString(36).slice(2)}`,
-  title: 'Test Notification',
-  message: 'Test message',
-  status: 'unread' as const,
+  channel: 'in_app' as const,
+  status: 'pending' as const,
+  subject: 'Test Notification',
+  body: 'Test message body',
+  action_url: null,
   created_at: new Date().toISOString(),
-  tags: [],
+  read_at: null,
+  severity: 'medium' as const,
+  tags: [] as string[],
   ...overrides,
 });
 
@@ -74,8 +78,8 @@ describe('notificationStore', () => {
 
     it('populates notifications on success', async () => {
       const notifications = [
-        createMockNotification({ notification_id: 'n1', title: 'First' }),
-        createMockNotification({ notification_id: 'n2', title: 'Second' }),
+        createMockNotification({ notification_id: 'n1', subject: 'First' }),
+        createMockNotification({ notification_id: 'n2', subject: 'Second' }),
       ];
       mockGetNotifications.mockResolvedValue({
         data: { notifications },
@@ -86,7 +90,7 @@ describe('notificationStore', () => {
       await notificationStore.load();
 
       expect(get(notificationStore).notifications).toHaveLength(2);
-      expect(get(notificationStore).notifications[0].title).toBe('First');
+      expect(get(notificationStore).notifications[0].subject).toBe('First');
     });
 
     it('sets loading false after success', async () => {
@@ -186,7 +190,7 @@ describe('notificationStore', () => {
       const { notificationStore } = await import('../notificationStore');
       await notificationStore.load();
 
-      const newNotification = createMockNotification({ notification_id: 'new', title: 'New' });
+      const newNotification = createMockNotification({ notification_id: 'new', subject: 'New' });
       notificationStore.add(newNotification);
 
       const notifications = get(notificationStore).notifications;
@@ -218,7 +222,7 @@ describe('notificationStore', () => {
       mockGetNotifications.mockResolvedValue({
         data: {
           notifications: [
-            createMockNotification({ notification_id: 'n1', status: 'unread' }),
+            createMockNotification({ notification_id: 'n1', status: 'pending' }),
           ],
         },
         error: null,
@@ -247,7 +251,7 @@ describe('notificationStore', () => {
       const result = await notificationStore.markAsRead('n1');
 
       expect(result).toBe(false);
-      expect(get(notificationStore).notifications[0].status).toBe('unread');
+      expect(get(notificationStore).notifications[0].status).toBe('pending');
     });
 
     it('calls API with correct notification ID', async () => {
@@ -267,8 +271,8 @@ describe('notificationStore', () => {
       mockGetNotifications.mockResolvedValue({
         data: {
           notifications: [
-            createMockNotification({ notification_id: 'n1', status: 'unread' }),
-            createMockNotification({ notification_id: 'n2', status: 'unread' }),
+            createMockNotification({ notification_id: 'n1', status: 'pending' }),
+            createMockNotification({ notification_id: 'n2', status: 'pending' }),
           ],
         },
         error: null,
@@ -390,9 +394,9 @@ describe('notificationStore', () => {
       mockGetNotifications.mockResolvedValue({
         data: {
           notifications: [
-            createMockNotification({ notification_id: 'n1', status: 'unread' }),
+            createMockNotification({ notification_id: 'n1', status: 'pending' }),
             createMockNotification({ notification_id: 'n2', status: 'read' }),
-            createMockNotification({ notification_id: 'n3', status: 'unread' }),
+            createMockNotification({ notification_id: 'n3', status: 'pending' }),
           ],
         },
         error: null,
@@ -424,7 +428,7 @@ describe('notificationStore', () => {
       mockGetNotifications.mockResolvedValue({
         data: {
           notifications: [
-            createMockNotification({ notification_id: 'n1', status: 'unread' }),
+            createMockNotification({ notification_id: 'n1', status: 'pending' }),
           ],
         },
         error: null,
@@ -443,8 +447,8 @@ describe('notificationStore', () => {
   describe('notifications derived store', () => {
     it('exposes notifications array', async () => {
       const notifs = [
-        createMockNotification({ notification_id: 'n1', title: 'First' }),
-        createMockNotification({ notification_id: 'n2', title: 'Second' }),
+        createMockNotification({ notification_id: 'n1', subject: 'First' }),
+        createMockNotification({ notification_id: 'n2', subject: 'Second' }),
       ];
       mockGetNotifications.mockResolvedValue({
         data: { notifications: notifs },
@@ -455,7 +459,7 @@ describe('notificationStore', () => {
       await notificationStore.load();
 
       expect(get(notifications)).toHaveLength(2);
-      expect(get(notifications)[0].title).toBe('First');
+      expect(get(notifications)[0].subject).toBe('First');
     });
   });
 });

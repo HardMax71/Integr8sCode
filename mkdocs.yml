@@ -135,3 +135,4 @@ nav:
 
   - Testing:
     - Load Testing: testing/load-testing.md
+    - Frontend Testing: testing/frontend-testing.md

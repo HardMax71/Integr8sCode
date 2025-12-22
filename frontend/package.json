@@ -63,7 +63,7 @@
     "express": "^5.2.1",
     "http-proxy": "^1.18.1",
     "jsdom": "^26.1.0",
-    "rollup-plugin-serve": "^1.1.1",
+    "rollup-plugin-serve": "^3.0.0",
     "tailwindcss": "^4.1.13",
     "tslib": "^2.8.1",
     "typescript": "^5.7.2",

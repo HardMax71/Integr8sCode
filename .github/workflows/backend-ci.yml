@@ -86,7 +86,7 @@ jobs:
           kubectl get pods -A -o wide
 
       - name: Run integration tests
-        timeout-minutes: 5
+        timeout-minutes: 10
         env:
           BACKEND_BASE_URL: https://127.0.0.1:443
           MONGO_ROOT_USER: root

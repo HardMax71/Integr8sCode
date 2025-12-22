@@ -22,12 +22,27 @@ test.describe('Authentication', () => {
     await expect(page.locator('button[type="submit"]')).toBeVisible();
   });
 
-  test('shows validation when submitting empty form', async ({ page }) => {
+  test('prevents submission and shows validation for empty form', async ({ page }) => {
     await page.goto('/login');
     await page.waitForSelector('#username');
 
+    // Click submit without filling any fields
+    await page.click('button[type="submit"]');
+
+    // Form should not submit - still on login page
+    await expect(page).toHaveURL(/\/login/);
+
+    // Browser focuses first invalid required field and shows validation
     const usernameInput = page.locator('#username');
-    await expect(usernameInput).toHaveAttribute('required', '');
+    await expect(usernameInput).toBeFocused();
+
+    // Check HTML5 validity state
+    const isInvalid = await usernameInput.evaluate((el: HTMLInputElement) => !el.validity.valid);
+    expect(isInvalid).toBe(true);
+
+    // Verify validation message exists (browser shows "Please fill out this field" or similar)
+    const validationMessage = await usernameInput.evaluate((el: HTMLInputElement) => el.validationMessage);
+    expect(validationMessage.length).toBeGreaterThan(0);
   });
 
   test('shows error with invalid credentials', async ({ page }) => {
@@ -124,12 +139,11 @@ test.describe('Logout', () => {
   });
 
   test('can logout from authenticated state', async ({ page }) => {
-    // Find and click logout button
-    const logoutButton = page.locator('button:has-text("Logout"), a:has-text("Logout"), [data-testid="logout"]');
+    // Logout button is in the header - must exist when authenticated
+    const logoutButton = page.locator('button:has-text("Logout")').first();
 
-    if (await logoutButton.isVisible()) {
-      await logoutButton.click();
-      await expect(page).toHaveURL(/\/login/);
-    }
+    await expect(logoutButton).toBeVisible();
+    await logoutButton.click();
+    await expect(page).toHaveURL(/\/login/);
   });
 });

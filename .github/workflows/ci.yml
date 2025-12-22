@@ -136,6 +136,10 @@ jobs:
           curl --retry 60 --retry-delay 5 --retry-all-errors -ksf https://127.0.0.1:443/api/v1/health/live
           echo "Waiting for frontend..."
           curl --retry 60 --retry-delay 5 --retry-all-errors -ksf https://127.0.0.1:5001/
+          echo "Testing frontend->backend proxy..."
+          docker exec frontend curl -ksf https://backend:443/api/v1/health/live || echo "WARNING: Frontend cannot reach backend!"
+          echo "Testing auth endpoint via proxy..."
+          curl -ksf https://127.0.0.1:5001/api/v1/auth/verify-token || echo "WARNING: Auth endpoint returned error (expected without cookies)"
           echo "Services ready!"
 
       - name: Run E2E tests

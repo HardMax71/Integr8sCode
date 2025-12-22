@@ -4,11 +4,11 @@ export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,  // Reduced: 1 retry is enough to catch flakes
-  workers: process.env.CI ? 2 : undefined,  // Increased: tests are independent
-  timeout: 30000,  // 30s is plenty for page operations
+  retries: process.env.CI ? 1 : 0,
+  workers: process.env.CI ? 2 : undefined,
+  timeout: 10000,  // 10s max per test
   expect: {
-    timeout: 5000,  // 5s for element expectations
+    timeout: 3000,  // 3s for assertions
   },
   reporter: process.env.CI ? [['html'], ['github']] : 'html',
   use: {

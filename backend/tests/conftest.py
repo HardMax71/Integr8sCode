@@ -90,8 +90,8 @@ def _test_env() -> None:
     worker_id = _compute_worker_id()
     os.environ["PYTEST_SESSION_ID"] = session_id
 
-    # Unique project name -> database name will be f"{PROJECT_NAME}_test"
-    os.environ["PROJECT_NAME"] = f"integr8scode_{session_id}_{worker_id}"
+    # Unique database name for test isolation
+    os.environ["DATABASE_NAME"] = f"integr8scode_test_{session_id}_{worker_id}"
 
     # Try to distribute Redis DBs across workers (0-15 by default). Fallback to 0.
     try:

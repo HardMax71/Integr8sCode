@@ -20,7 +20,7 @@ export default defineConfig({
     globals: true,
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'html'],
+      reporter: ['text', 'html', 'lcov'],
       include: ['src/**/*.{ts,svelte}'],
       exclude: ['src/lib/api/**', 'src/**/*.test.ts'],
     },

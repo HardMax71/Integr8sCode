@@ -22,6 +22,7 @@ window.onerror = (message, source, lineno, colno, error) => {
 window.onunhandledrejection = (event) => {
   console.error('[Unhandled Promise Rejection]', event.reason);
   appError.setError(event.reason, 'Unhandled Promise Error');
+  event.preventDefault(); // Prevent default handling to match onerror behavior
 };
 
 // Mount the app with error handling

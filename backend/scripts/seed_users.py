@@ -64,7 +64,7 @@ async def upsert_user(
 
 async def seed_users() -> None:
     mongodb_url = os.getenv("MONGODB_URL", "mongodb://mongo:27017/integr8scode")
-    db_name = os.getenv("PROJECT_NAME", "integr8scode")
+    db_name = os.getenv("DATABASE_NAME", "integr8scode_db")
 
     print(f"Connecting to MongoDB (database: {db_name})...")
 

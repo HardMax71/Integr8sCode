@@ -9,6 +9,7 @@ from app.runtime_registry import SUPPORTED_RUNTIMES as RUNTIME_MATRIX
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "integr8scode"
+    DATABASE_NAME: str = "integr8scode_db"
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str = Field(
         ...,  # Actual key be loaded from .env file

@@ -1,12 +1,23 @@
 <script lang="ts">
-  let { error, title = 'Application Error', showDetails = true }: {
+  let { error, title = 'Application Error' }: {
     error: Error | string;
     title?: string;
-    showDetails?: boolean;
   } = $props();
 
-  const errorMessage = $derived(error instanceof Error ? error.message : String(error));
-  const errorStack = $derived(error instanceof Error ? error.stack : null);
+  // Determine if this is a network/connection error for user-friendly messaging
+  const isNetworkError = $derived(() => {
+    const msg = error instanceof Error ? error.message : String(error);
+    return msg.toLowerCase().includes('network') ||
+           msg.toLowerCase().includes('fetch') ||
+           msg.toLowerCase().includes('connection');
+  });
+
+  // User-friendly message - never expose raw error details
+  const userMessage = $derived(
+    isNetworkError()
+      ? 'Unable to connect to the server. Please check your internet connection and try again.'
+      : 'Something went wrong. Our team has been notified and is working on it.'
+  );
 
   function reload() {
     window.location.reload();
@@ -33,20 +44,10 @@
       {title}
     </h1>
 
-    <!-- Error Message -->
-    <p class="text-center text-red-600 dark:text-red-400 mb-6">
-      {errorMessage}
+    <!-- User-friendly Error Message -->
+    <p class="text-center text-fg-muted dark:text-dark-fg-muted mb-6">
+      {userMessage}
     </p>
-
-    <!-- Stack Trace (collapsible) -->
-    {#if showDetails && errorStack}
-      <details class="mb-6">
-        <summary class="cursor-pointer text-sm text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default transition-colors">
-          Show technical details
-        </summary>
-        <pre class="mt-2 p-3 bg-code-bg rounded-lg text-xs text-gray-300 overflow-x-auto max-h-48 overflow-y-auto font-mono">{errorStack}</pre>
-      </details>
-    {/if}
 
     <!-- Actions -->
     <div class="flex flex-col sm:flex-row gap-3">
@@ -66,7 +67,7 @@
 
     <!-- Help Text -->
     <p class="mt-6 text-xs text-center text-fg-muted dark:text-dark-fg-muted">
-      If this problem persists, please check the browser console for more details.
+      If this problem persists, please contact support.
     </p>
   </div>
 </div>

@@ -50,7 +50,7 @@
   },
   "devDependencies": {
     "@babel/runtime": "^7.24.7",
-    "@hey-api/openapi-ts": "0.89.1",
+    "@hey-api/openapi-ts": "0.89.2",
     "@playwright/test": "^1.52.0",
     "@rollup/plugin-typescript": "^12.1.2",
     "@sveltejs/vite-plugin-svelte": "^5.0.3",

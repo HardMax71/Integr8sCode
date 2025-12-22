@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { get } from 'svelte/store';
+import { suppressConsoleError, suppressConsoleWarn } from '../../__tests__/test-utils';
 
 // Mock the API functions
 const mockLoginApi = vi.fn();
@@ -210,6 +211,8 @@ describe('auth store', () => {
     });
 
     it('still clears state even if API call fails', async () => {
+      const restoreConsole = suppressConsoleError();
+
       mockLoginApi.mockResolvedValue({
         data: { username: 'testuser', role: 'user', csrf_token: 'token' },
         error: null,
@@ -226,6 +229,7 @@ describe('auth store', () => {
       await logout();
 
       expect(get(isAuthenticated)).toBe(false);
+      restoreConsole();
     });
   });
 
@@ -299,6 +303,8 @@ describe('auth store', () => {
     });
 
     it('returns cached value on network error (offline-first)', async () => {
+      const restoreConsole = suppressConsoleWarn();
+
       // First successful verification
       mockVerifyTokenApi.mockResolvedValueOnce({
         data: { valid: true, username: 'testuser', role: 'user', csrf_token: 'token' },
@@ -319,6 +325,8 @@ describe('auth store', () => {
 
       const secondResult = await verifyAuth(true);
       expect(secondResult).toBe(true); // Should return cached value
+
+      restoreConsole();
     });
   });
 

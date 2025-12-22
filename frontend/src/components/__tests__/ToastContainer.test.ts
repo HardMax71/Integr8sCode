@@ -1,29 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import userEvent from '@testing-library/user-event';
 import { get } from 'svelte/store';
 import ToastContainer from '../ToastContainer.svelte';
 import { toasts, addToast, removeToast } from '../../stores/toastStore';
-
-// Mock Element.prototype.animate for Svelte transitions
-Element.prototype.animate = vi.fn().mockImplementation(() => ({
-  onfinish: null,
-  cancel: vi.fn(),
-  finish: vi.fn(),
-  pause: vi.fn(),
-  play: vi.fn(),
-  reverse: vi.fn(),
-  commitStyles: vi.fn(),
-  persist: vi.fn(),
-  get finished() {
-    return Promise.resolve(this);
-  },
-}));
+import { setupAnimationMock } from '../../__tests__/test-utils';
 
 describe('ToastContainer', () => {
   beforeEach(() => {
+    setupAnimationMock();
     vi.useFakeTimers();
-    // Clear all toasts before each test
     toasts.set([]);
   });
 

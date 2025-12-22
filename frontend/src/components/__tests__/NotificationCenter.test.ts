@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/svelte';
+import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { tick, flushSync } from 'svelte';
+import { setupAnimationMock, createMockNotification } from '../../__tests__/test-utils';
 
+// Types for mock notification state
 interface MockNotification {
   notification_id: string;
   subject: string;
@@ -14,96 +15,49 @@ interface MockNotification {
   action_url?: string;
 }
 
-interface NotificationsState {
+interface MockNotificationState {
   notifications: MockNotification[];
   loading: boolean;
   error: string | null;
 }
 
-// Use vi.hoisted to create hoisted mock variables
+// vi.hoisted must contain self-contained code - cannot import external modules
 const mocks = vi.hoisted(() => {
-  // Create a simple mock store factory
+  // Mock store factory (must be inline - vi.hoisted runs before imports)
   function createMockStore<T>(initial: T) {
     let value = initial;
     const subscribers = new Set<(v: T) => void>();
-
     return {
-      set(v: T) {
-        value = v;
-        subscribers.forEach(fn => fn(v));
-      },
-      subscribe(fn: (v: T) => void) {
-        fn(value);
-        subscribers.add(fn);
-        return () => subscribers.delete(fn);
-      },
-      update(fn: (v: T) => T) {
-        this.set(fn(value));
-      },
-      _getValue() {
-        return value;
-      },
+      set(v: T) { value = v; subscribers.forEach(fn => fn(v)); },
+      subscribe(fn: (v: T) => void) { fn(value); subscribers.add(fn); return () => subscribers.delete(fn); },
+      update(fn: (v: T) => T) { this.set(fn(value)); },
+      _getValue() { return value; },
     };
   }
 
-  // Create a derived-like store
+  // Derived store factory for computed values
   function createDerivedStore<T, R>(
     source: { subscribe: (fn: (v: T) => void) => () => void; _getValue: () => T },
     fn: (v: T) => R
   ) {
     const subscribers = new Set<(v: R) => void>();
     let currentValue = fn(source._getValue());
-
-    source.subscribe((v) => {
-      currentValue = fn(v);
-      subscribers.forEach(sub => sub(currentValue));
-    });
-
+    source.subscribe((v) => { currentValue = fn(v); subscribers.forEach(sub => sub(currentValue)); });
     return {
-      subscribe(callback: (v: R) => void) {
-        callback(currentValue);
-        subscribers.add(callback);
-        return () => subscribers.delete(callback);
-      },
+      subscribe(callback: (v: R) => void) { callback(currentValue); subscribers.add(callback); return () => subscribers.delete(callback); },
     };
   }
 
-  interface MockNotificationState {
-    notifications: Array<{
-      notification_id: string;
-      subject: string;
-      body: string;
-      status: 'unread' | 'read';
-      severity: 'low' | 'medium' | 'high' | 'urgent';
-      tags: string[];
-      created_at: string;
-      action_url?: string;
-    }>;
-    loading: boolean;
-    error: string | null;
-  }
+  type NotifState = { notifications: Array<{ notification_id: string; subject: string; body: string; status: 'unread' | 'read'; severity: 'low' | 'medium' | 'high' | 'urgent'; tags: string[]; created_at: string; action_url?: string; }>; loading: boolean; error: string | null; };
 
-  const mockIsAuthenticated = createMockStore<boolean | null>(true);
-  const mockUsername = createMockStore<string | null>('testuser');
-  const mockUserId = createMockStore<string | null>('user-123');
-  const mockNotificationsState = createMockStore<MockNotificationState>({
-    notifications: [],
-    loading: false,
-    error: null,
-  });
-
-  const mockNotifications = createDerivedStore(mockNotificationsState, s => s.notifications);
-  const mockUnreadCount = createDerivedStore(mockNotificationsState, s =>
-    s.notifications.filter(n => n.status !== 'read').length
-  );
-
+  const mockNotificationsState = createMockStore<NotifState>({ notifications: [], loading: false, error: null });
   return {
-    mockIsAuthenticated,
-    mockUsername,
-    mockUserId,
+    mockIsAuthenticated: createMockStore<boolean | null>(true),
+    mockUsername: createMockStore<string | null>('testuser'),
+    mockUserId: createMockStore<string | null>('user-123'),
     mockNotificationsState,
-    mockNotifications,
-    mockUnreadCount,
+    mockNotifications: createDerivedStore(mockNotificationsState, s => s.notifications),
+    mockUnreadCount: createDerivedStore(mockNotificationsState, s => s.notifications.filter(n => n.status !== 'read').length),
     mockGoto: (null as unknown) as ReturnType<typeof import('vitest').vi.fn>,
     mockNotificationStore: (null as unknown) as {
       subscribe: typeof mockNotificationsState.subscribe;
@@ -150,45 +104,6 @@ vi.mock('../../stores/notificationStore', () => ({
   get unreadCount() { return mocks.mockUnreadCount; },
 }));
 
-// Animation mock factory for Svelte transitions
-const createAnimationMock = () => ({
-  _onfinish: null as (() => void) | null,
-  get onfinish() { return this._onfinish; },
-  set onfinish(fn: (() => void) | null) {
-    this._onfinish = fn;
-    // Immediately call onfinish to simulate instant animation completion
-    if (fn) setTimeout(fn, 0);
-  },
-  cancel: vi.fn(),
-  finish: vi.fn(),
-  pause: vi.fn(),
-  play: vi.fn(),
-  reverse: vi.fn(),
-  commitStyles: vi.fn(),
-  persist: vi.fn(),
-  currentTime: 0,
-  playbackRate: 1,
-  pending: false,
-  playState: 'running' as AnimationPlayState,
-  replaceState: 'active' as AnimationReplaceState,
-  startTime: 0,
-  timeline: null,
-  id: '',
-  effect: null,
-  addEventListener: vi.fn(),
-  removeEventListener: vi.fn(),
-  dispatchEvent: vi.fn(() => true),
-  updatePlaybackRate: vi.fn(),
-  get finished() {
-    return Promise.resolve(this);
-  },
-  get ready() {
-    return Promise.resolve(this);
-  },
-  oncancel: null,
-  onremove: null,
-});
-
 // Mock EventSource
 class MockEventSource {
   static CONNECTING = 0;
@@ -223,20 +138,30 @@ vi.stubGlobal('Notification', {
 
 import NotificationCenter from '../NotificationCenter.svelte';
 
+// Helper to set notification state and open dropdown
+async function openDropdownWithNotifications(notifications: MockNotification[] = []) {
+  mocks.mockNotificationsState.set({ notifications, loading: false, error: null });
+  const user = userEvent.setup();
+  render(NotificationCenter);
+  const button = screen.getByRole('button', { name: /Notifications/i });
+  await user.click(button);
+  return { user, button };
+}
+
+// Helper to create a simple notification
+function notification(overrides: Partial<MockNotification> = {}): MockNotification {
+  return createMockNotification(overrides) as MockNotification;
+}
+
 describe('NotificationCenter', () => {
   beforeEach(() => {
-    // Mock Element.prototype.animate for Svelte transitions
-    Element.prototype.animate = vi.fn().mockImplementation(() => createAnimationMock());
+    setupAnimationMock();
 
-    // Reset stores
+    // Reset stores to defaults
     mocks.mockIsAuthenticated.set(true);
     mocks.mockUsername.set('testuser');
     mocks.mockUserId.set('user-123');
-    mocks.mockNotificationsState.set({
-      notifications: [],
-      loading: false,
-      error: null,
-    });
+    mocks.mockNotificationsState.set({ notifications: [], loading: false, error: null });
 
     // Reset mocks
     mocks.mockGoto.mockReset();
@@ -246,7 +171,7 @@ describe('NotificationCenter', () => {
     mocks.mockNotificationStore.clear.mockReset();
     mocks.mockNotificationStore.add.mockReset();
 
-    // Suppress console output
+    // Suppress console output from SSE/logging
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'debug').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});

@@ -1,26 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 
-// Use vi.hoisted to create hoisted mock variables
+// vi.hoisted must contain self-contained code - cannot import external modules
 const mocks = vi.hoisted(() => {
-  // Create a simple mock store factory
+  // Mock store factory (must be inline - vi.hoisted runs before imports)
   function createMockStore<T>(initial: T) {
     let value = initial;
     const subscribers = new Set<(v: T) => void>();
-
     return {
-      set(v: T) {
-        value = v;
-        subscribers.forEach(fn => fn(v));
-      },
-      subscribe(fn: (v: T) => void) {
-        fn(value);
-        subscribers.add(fn);
-        return () => subscribers.delete(fn);
-      },
-      update(fn: (v: T) => T) {
-        this.set(fn(value));
-      },
+      set(v: T) { value = v; subscribers.forEach(fn => fn(v)); },
+      subscribe(fn: (v: T) => void) { fn(value); subscribers.add(fn); return () => subscribers.delete(fn); },
+      update(fn: (v: T) => T) { this.set(fn(value)); },
     };
   }
 
@@ -59,21 +49,9 @@ vi.mock('../../lib/auth-init', () => ({
 // Mock Spinner component with Svelte 5 compatible structure
 vi.mock('../Spinner.svelte', () => {
   const MockSpinner = function() {
-    return {
-      $$: {
-        on_mount: [],
-        on_destroy: [],
-        before_update: [],
-        after_update: [],
-        context: new Map(),
-      },
-    };
+    return { $$: { on_mount: [], on_destroy: [], before_update: [], after_update: [], context: new Map() } };
   };
-  MockSpinner.render = () => ({
-    html: '<div data-testid="spinner" role="status">Loading...</div>',
-    css: { code: '', map: null },
-    head: '',
-  });
+  MockSpinner.render = () => ({ html: '<div data-testid="spinner" role="status">Loading...</div>', css: { code: '', map: null }, head: '' });
   return { default: MockSpinner };
 });
 

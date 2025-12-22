@@ -1,28 +1,18 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/svelte';
+import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { tick, flushSync } from 'svelte';
+import { setupAnimationMock, suppressConsoleError } from '../../__tests__/test-utils';
 
-// Use vi.hoisted to create hoisted mock variables
+// vi.hoisted must contain self-contained code - cannot import external modules
 const mocks = vi.hoisted(() => {
-  // Create a simple mock store factory
+  // Mock store factory (must be inline - vi.hoisted runs before imports)
   function createMockStore<T>(initial: T) {
     let value = initial;
     const subscribers = new Set<(v: T) => void>();
-
     return {
-      set(v: T) {
-        value = v;
-        subscribers.forEach(fn => fn(v));
-      },
-      subscribe(fn: (v: T) => void) {
-        fn(value);
-        subscribers.add(fn);
-        return () => subscribers.delete(fn);
-      },
-      update(fn: (v: T) => T) {
-        this.set(fn(value));
-      },
+      set(v: T) { value = v; subscribers.forEach(fn => fn(v)); },
+      subscribe(fn: (v: T) => void) { fn(value); subscribers.add(fn); return () => subscribers.delete(fn); },
+      update(fn: (v: T) => T) { this.set(fn(value)); },
     };
   }
 
@@ -62,15 +52,7 @@ vi.mock('../../stores/theme', () => ({
 // Mock NotificationCenter component with Svelte 5 compatible structure
 vi.mock('../NotificationCenter.svelte', () => {
   const MockNotificationCenter = function() {
-    return {
-      $$: {
-        on_mount: [],
-        on_destroy: [],
-        before_update: [],
-        after_update: [],
-        context: new Map(),
-      },
-    };
+    return { $$: { on_mount: [], on_destroy: [], before_update: [], after_update: [], context: new Map() } };
   };
   MockNotificationCenter.render = () => ({
     html: '<div data-testid="notification-center">NotificationCenter</div>',
@@ -80,53 +62,14 @@ vi.mock('../NotificationCenter.svelte', () => {
   return { default: MockNotificationCenter };
 });
 
-// Animation mock factory for Svelte transitions
-const createAnimationMock = () => ({
-  _onfinish: null as (() => void) | null,
-  get onfinish() { return this._onfinish; },
-  set onfinish(fn: (() => void) | null) {
-    this._onfinish = fn;
-    // Immediately call onfinish to simulate instant animation completion
-    if (fn) setTimeout(fn, 0);
-  },
-  cancel: vi.fn(),
-  finish: vi.fn(),
-  pause: vi.fn(),
-  play: vi.fn(),
-  reverse: vi.fn(),
-  commitStyles: vi.fn(),
-  persist: vi.fn(),
-  currentTime: 0,
-  playbackRate: 1,
-  pending: false,
-  playState: 'running' as AnimationPlayState,
-  replaceState: 'active' as AnimationReplaceState,
-  startTime: 0,
-  timeline: null,
-  id: '',
-  effect: null,
-  addEventListener: vi.fn(),
-  removeEventListener: vi.fn(),
-  dispatchEvent: vi.fn(() => true),
-  updatePlaybackRate: vi.fn(),
-  get finished() {
-    return Promise.resolve(this);
-  },
-  get ready() {
-    return Promise.resolve(this);
-  },
-  oncancel: null,
-  onremove: null,
-});
-
 import Header from '../Header.svelte';
 
 describe('Header', () => {
   let originalInnerWidth: number;
 
   beforeEach(() => {
-    // Mock Element.prototype.animate for Svelte transitions
-    Element.prototype.animate = vi.fn().mockImplementation(() => createAnimationMock());
+    // Setup animation mock for Svelte transitions
+    setupAnimationMock();
 
     // Reset stores
     mocks.mockIsAuthenticated.set(false);
@@ -561,6 +504,9 @@ describe('Header', () => {
 
   describe('dropdown toggle behavior', () => {
     it('closes dropdown when clicking the toggle button again', async () => {
+      // Suppress jsdom "Not implemented: navigation" warning from link click
+      const restoreConsole = suppressConsoleError();
+
       mocks.mockIsAuthenticated.set(true);
       mocks.mockUsername.set('testuser');
       mocks.mockUserRole.set('user');
@@ -568,7 +514,6 @@ describe('Header', () => {
       const user = userEvent.setup();
       render(Header);
 
-      // Open dropdown - use userEvent for full browser-like interaction
       const dropdownButton = screen.getByRole('button', { name: /testuser/i });
       await user.click(dropdownButton);
 
@@ -576,15 +521,15 @@ describe('Header', () => {
         expect(screen.getByRole('link', { name: /Settings/i })).toBeInTheDocument();
       });
 
-      // Close dropdown by clicking Settings link (which closes dropdown via onclick)
-      // This is more reliable than re-clicking the toggle button
+      // Close dropdown by clicking Settings link (closes dropdown via onclick)
       const settingsLink = screen.getByRole('link', { name: /Settings/i });
       await user.click(settingsLink);
 
-      // After clicking Settings, dropdown should close
       await waitFor(() => {
         expect(screen.queryByRole('link', { name: /Settings/i })).not.toBeInTheDocument();
       });
+
+      restoreConsole();
     });
   });
 });

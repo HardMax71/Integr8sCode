@@ -3,106 +3,61 @@ import { render, screen } from '@testing-library/svelte';
 import Spinner from '../Spinner.svelte';
 
 describe('Spinner', () => {
-  describe('rendering', () => {
-    it('renders an SVG element', () => {
-      render(Spinner);
+  const getSpinner = () => screen.getByRole('status');
 
-      const svg = screen.getByRole('status');
+  describe('rendering', () => {
+    it('renders an accessible SVG spinner', () => {
+      render(Spinner);
+      const svg = getSpinner();
       expect(svg).toBeInTheDocument();
       expect(svg.tagName.toLowerCase()).toBe('svg');
-    });
-
-    it('has accessible label', () => {
-      render(Spinner);
-
-      const spinner = screen.getByLabelText('Loading');
-      expect(spinner).toBeInTheDocument();
-    });
-
-    it('has animate-spin class', () => {
-      render(Spinner);
-
-      const svg = screen.getByRole('status');
+      expect(svg).toHaveAttribute('aria-label', 'Loading');
       expect(svg.classList.contains('animate-spin')).toBe(true);
     });
   });
 
   describe('size prop', () => {
-    it('applies small size class', () => {
-      render(Spinner, { props: { size: 'small' } });
-
-      const svg = screen.getByRole('status');
-      expect(svg.classList.contains('h-4')).toBe(true);
-      expect(svg.classList.contains('w-4')).toBe(true);
+    it.each([
+      { size: 'small', heightClass: 'h-4', widthClass: 'w-4' },
+      { size: 'medium', heightClass: 'h-6', widthClass: 'w-6' },
+      { size: 'large', heightClass: 'h-8', widthClass: 'w-8' },
+      { size: 'xlarge', heightClass: 'h-12', widthClass: 'w-12' },
+    ] as const)('applies $heightClass/$widthClass for size="$size"', ({ size, heightClass, widthClass }) => {
+      render(Spinner, { props: { size } });
+      const svg = getSpinner();
+      expect(svg.classList.contains(heightClass)).toBe(true);
+      expect(svg.classList.contains(widthClass)).toBe(true);
     });
 
-    it('applies medium size class by default', () => {
+    it('defaults to medium size', () => {
       render(Spinner);
-
-      const svg = screen.getByRole('status');
+      const svg = getSpinner();
       expect(svg.classList.contains('h-6')).toBe(true);
       expect(svg.classList.contains('w-6')).toBe(true);
-    });
-
-    it('applies large size class', () => {
-      render(Spinner, { props: { size: 'large' } });
-
-      const svg = screen.getByRole('status');
-      expect(svg.classList.contains('h-8')).toBe(true);
-      expect(svg.classList.contains('w-8')).toBe(true);
-    });
-
-    it('applies xlarge size class', () => {
-      render(Spinner, { props: { size: 'xlarge' } });
-
-      const svg = screen.getByRole('status');
-      expect(svg.classList.contains('h-12')).toBe(true);
-      expect(svg.classList.contains('w-12')).toBe(true);
     });
   });
 
   describe('color prop', () => {
-    it('applies primary color by default', () => {
+    it.each([
+      { color: 'primary', expectedClass: 'text-primary' },
+      { color: 'white', expectedClass: 'text-white' },
+      { color: 'current', expectedClass: 'text-current' },
+      { color: 'muted', expectedClass: 'text-gray-400' },
+    ] as const)('applies $expectedClass for color="$color"', ({ color, expectedClass }) => {
+      render(Spinner, { props: { color } });
+      expect(getSpinner().classList.contains(expectedClass)).toBe(true);
+    });
+
+    it('defaults to primary color', () => {
       render(Spinner);
-
-      const svg = screen.getByRole('status');
-      expect(svg.classList.contains('text-primary')).toBe(true);
-    });
-
-    it('applies white color class', () => {
-      render(Spinner, { props: { color: 'white' } });
-
-      const svg = screen.getByRole('status');
-      expect(svg.classList.contains('text-white')).toBe(true);
-    });
-
-    it('applies current color class', () => {
-      render(Spinner, { props: { color: 'current' } });
-
-      const svg = screen.getByRole('status');
-      expect(svg.classList.contains('text-current')).toBe(true);
-    });
-
-    it('applies muted color class', () => {
-      render(Spinner, { props: { color: 'muted' } });
-
-      const svg = screen.getByRole('status');
-      expect(svg.classList.contains('text-gray-400')).toBe(true);
+      expect(getSpinner().classList.contains('text-primary')).toBe(true);
     });
   });
 
   describe('className prop', () => {
-    it('applies custom className', () => {
-      render(Spinner, { props: { className: 'custom-class' } });
-
-      const svg = screen.getByRole('status');
-      expect(svg.classList.contains('custom-class')).toBe(true);
-    });
-
-    it('combines with default classes', () => {
+    it('applies and combines custom className with defaults', () => {
       render(Spinner, { props: { className: 'my-spinner', size: 'large' } });
-
-      const svg = screen.getByRole('status');
+      const svg = getSpinner();
       expect(svg.classList.contains('my-spinner')).toBe(true);
       expect(svg.classList.contains('animate-spin')).toBe(true);
       expect(svg.classList.contains('h-8')).toBe(true);
@@ -110,26 +65,11 @@ describe('Spinner', () => {
   });
 
   describe('SVG structure', () => {
-    it('contains circle element', () => {
+    it('contains required SVG elements with correct viewBox', () => {
       render(Spinner);
-
-      const svg = screen.getByRole('status');
-      const circle = svg.querySelector('circle');
-      expect(circle).toBeInTheDocument();
-    });
-
-    it('contains path element', () => {
-      render(Spinner);
-
-      const svg = screen.getByRole('status');
-      const path = svg.querySelector('path');
-      expect(path).toBeInTheDocument();
-    });
-
-    it('has correct viewBox', () => {
-      render(Spinner);
-
-      const svg = screen.getByRole('status');
+      const svg = getSpinner();
+      expect(svg.querySelector('circle')).toBeInTheDocument();
+      expect(svg.querySelector('path')).toBeInTheDocument();
       expect(svg.getAttribute('viewBox')).toBe('0 0 24 24');
     });
   });

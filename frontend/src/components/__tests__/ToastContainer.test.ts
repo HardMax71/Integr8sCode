@@ -5,8 +5,6 @@ import ToastContainer from '../ToastContainer.svelte';
 import { toasts, addToast, removeToast } from '../../stores/toastStore';
 import { setupAnimationMock } from '../../__tests__/test-utils';
 
-// Note: userEvent not needed - tests use direct click() and store manipulation
-
 describe('ToastContainer', () => {
   beforeEach(() => {
     setupAnimationMock();
@@ -22,26 +20,16 @@ describe('ToastContainer', () => {
   describe('rendering', () => {
     it('renders empty container when no toasts', () => {
       const { container } = render(ToastContainer);
-
       const toastContainer = container.querySelector('.toasts-container');
       expect(toastContainer).toBeInTheDocument();
       expect(toastContainer?.children.length).toBe(0);
     });
 
-    it('renders toast when added', async () => {
-      render(ToastContainer);
-      addToast('Test message', 'info');
-
-      await waitFor(() => {
-        expect(screen.getByRole('alert')).toBeInTheDocument();
-      });
-    });
-
-    it('displays toast message', async () => {
+    it('renders toast with message when added', async () => {
       render(ToastContainer);
       addToast('Hello World', 'success');
-
       await waitFor(() => {
+        expect(screen.getByRole('alert')).toBeInTheDocument();
         expect(screen.getByText('Hello World')).toBeInTheDocument();
       });
     });
@@ -51,188 +39,68 @@ describe('ToastContainer', () => {
       addToast('First toast', 'info');
       addToast('Second toast', 'success');
       addToast('Third toast', 'warning');
-
-      await waitFor(() => {
-        expect(screen.getAllByRole('alert')).toHaveLength(3);
-      });
+      await waitFor(() => { expect(screen.getAllByRole('alert')).toHaveLength(3); });
     });
   });
 
   describe('toast types', () => {
-    it('applies success styling', async () => {
+    it.each([
+      { type: 'success', bgClass: 'bg-green-50' },
+      { type: 'error', bgClass: 'bg-red-50' },
+      { type: 'warning', bgClass: 'bg-yellow-50' },
+      { type: 'info', bgClass: 'bg-blue-50' },
+    ] as const)('applies $bgClass styling for $type toast', async ({ type, bgClass }) => {
       render(ToastContainer);
-      addToast('Success!', 'success');
-
+      addToast(`${type} message`, type);
       await waitFor(() => {
         const alert = screen.getByRole('alert');
-        expect(alert.classList.contains('bg-green-50')).toBe(true);
-      });
-    });
-
-    it('applies error styling', async () => {
-      render(ToastContainer);
-      addToast('Error!', 'error');
-
-      await waitFor(() => {
-        const alert = screen.getByRole('alert');
-        expect(alert.classList.contains('bg-red-50')).toBe(true);
-      });
-    });
-
-    it('applies warning styling', async () => {
-      render(ToastContainer);
-      addToast('Warning!', 'warning');
-
-      await waitFor(() => {
-        const alert = screen.getByRole('alert');
-        expect(alert.classList.contains('bg-yellow-50')).toBe(true);
-      });
-    });
-
-    it('applies info styling', async () => {
-      render(ToastContainer);
-      addToast('Info', 'info');
-
-      await waitFor(() => {
-        const alert = screen.getByRole('alert');
-        expect(alert.classList.contains('bg-blue-50')).toBe(true);
+        expect(alert.classList.contains(bgClass)).toBe(true);
+        expect(alert.querySelector('svg')).toBeInTheDocument(); // icon present
       });
     });
   });
 
   describe('close button', () => {
-    it('renders close button with aria-label', async () => {
+    it('renders close button and removes toast when clicked', async () => {
+      vi.useRealTimers();
       render(ToastContainer);
       addToast('Closable toast', 'info');
 
-      await waitFor(() => {
-        const closeButton = screen.getByRole('button', { name: /Close toast/i });
-        expect(closeButton).toBeInTheDocument();
-      });
-    });
-
-    it('removes toast when close button clicked', async () => {
-      // Use real timers for this test to avoid timing issues
-      vi.useRealTimers();
-
-      render(ToastContainer);
-      addToast('Toast to close', 'info');
-
-      await waitFor(() => {
-        expect(screen.getByRole('alert')).toBeInTheDocument();
-      });
+      await waitFor(() => { expect(screen.getByRole('alert')).toBeInTheDocument(); });
 
       const closeButton = screen.getByRole('button', { name: /Close toast/i });
+      expect(closeButton).toBeInTheDocument();
       closeButton.click();
 
-      // The toast should be removed from the store immediately
-      await waitFor(() => {
-        expect(get(toasts)).toHaveLength(0);
-      });
-
-      // Re-enable fake timers for other tests
+      await waitFor(() => { expect(get(toasts)).toHaveLength(0); });
       vi.useFakeTimers();
     });
   });
 
-  describe('icons', () => {
-    it('displays success icon for success toast', async () => {
-      render(ToastContainer);
-      addToast('Success', 'success');
-
-      await waitFor(() => {
-        const alert = screen.getByRole('alert');
-        const icon = alert.querySelector('svg');
-        expect(icon).toBeInTheDocument();
-      });
-    });
-
-    it('displays error icon for error toast', async () => {
-      render(ToastContainer);
-      addToast('Error', 'error');
-
-      await waitFor(() => {
-        const alert = screen.getByRole('alert');
-        const icon = alert.querySelector('svg');
-        expect(icon).toBeInTheDocument();
-      });
-    });
-
-    it('displays warning icon for warning toast', async () => {
-      render(ToastContainer);
-      addToast('Warning', 'warning');
-
-      await waitFor(() => {
-        const alert = screen.getByRole('alert');
-        const icon = alert.querySelector('svg');
-        expect(icon).toBeInTheDocument();
-      });
-    });
-
-    it('displays info icon for info toast', async () => {
-      render(ToastContainer);
-      addToast('Info', 'info');
-
-      await waitFor(() => {
-        const alert = screen.getByRole('alert');
-        const icon = alert.querySelector('svg');
-        expect(icon).toBeInTheDocument();
-      });
-    });
-  });
-
   describe('progress timer', () => {
-    it('shows progress bar', async () => {
+    it('shows progress bar that decreases over time', async () => {
       render(ToastContainer);
       addToast('Timed toast', 'info');
 
       await waitFor(() => {
-        const alert = screen.getByRole('alert');
-        const timer = alert.querySelector('.timer');
-        expect(timer).toBeInTheDocument();
-      });
-    });
-
-    it('progress bar decreases over time', async () => {
-      render(ToastContainer);
-      addToast('Timed toast', 'info');
-
-      await waitFor(() => {
-        const alert = screen.getByRole('alert');
-        const timer = alert.querySelector('.timer') as HTMLElement;
+        const timer = screen.getByRole('alert').querySelector('.timer');
         expect(timer).toBeInTheDocument();
       });
 
-      const alert = screen.getByRole('alert');
-      const timer = alert.querySelector('.timer') as HTMLElement;
-      const initialTransform = timer.style.transform;
-
-      // Advance time
+      const timer = screen.getByRole('alert').querySelector('.timer') as HTMLElement;
       await vi.advanceTimersByTimeAsync(1000);
 
-      // Check that transform has changed (progress decreased)
-      await waitFor(() => {
-        const newTransform = timer.style.transform;
-        // Both should have scaleX but with different values
-        expect(newTransform).toContain('scaleX');
-      });
+      await waitFor(() => { expect(timer.style.transform).toContain('scaleX'); });
     });
   });
 
   describe('accessibility', () => {
-    it('toasts have role="alert"', async () => {
-      render(ToastContainer);
+    it('toasts have role="alert" and container has positioning', async () => {
+      const { container } = render(ToastContainer);
       addToast('Accessible toast', 'info');
 
-      await waitFor(() => {
-        expect(screen.getByRole('alert')).toBeInTheDocument();
-      });
-    });
+      await waitFor(() => { expect(screen.getByRole('alert')).toBeInTheDocument(); });
 
-    it('renders container with positioning styles', () => {
-      const { container } = render(ToastContainer);
-
-      // Container uses CSS position:fixed (defined in component <style> block)
       const toastContainer = container.querySelector('.toasts-container');
       expect(toastContainer).toBeInTheDocument();
       expect(toastContainer).toHaveClass('toasts-container');
@@ -240,36 +108,19 @@ describe('ToastContainer', () => {
   });
 
   describe('integration with store', () => {
-    it('reflects store additions', async () => {
+    it('reflects store additions and removals', async () => {
+      vi.useRealTimers();
       render(ToastContainer);
 
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 
       addToast('Added via store', 'success');
-
-      await waitFor(() => {
-        expect(screen.getByText('Added via store')).toBeInTheDocument();
-      });
-    });
-
-    it('reflects store removals', async () => {
-      // Use real timers for this test
-      vi.useRealTimers();
-
-      render(ToastContainer);
-      addToast('Will be removed', 'info');
-
-      await waitFor(() => {
-        expect(screen.getByText('Will be removed')).toBeInTheDocument();
-      });
+      await waitFor(() => { expect(screen.getByText('Added via store')).toBeInTheDocument(); });
 
       const [toast] = get(toasts);
       removeToast(toast.id);
-
-      // Just verify the store was updated
       expect(get(toasts)).toHaveLength(0);
 
-      // Re-enable fake timers
       vi.useFakeTimers();
     });
   });

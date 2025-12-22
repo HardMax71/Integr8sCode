@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { setupAnimationMock, createMockNotification } from '../../__tests__/test-utils';
+import { setupAnimationMock } from '../../__tests__/test-utils';
 
 // Types for mock notification state
 interface MockNotification {
@@ -15,15 +15,8 @@ interface MockNotification {
   action_url?: string;
 }
 
-interface MockNotificationState {
-  notifications: MockNotification[];
-  loading: boolean;
-  error: string | null;
-}
-
 // vi.hoisted must contain self-contained code - cannot import external modules
 const mocks = vi.hoisted(() => {
-  // Mock store factory (must be inline - vi.hoisted runs before imports)
   function createMockStore<T>(initial: T) {
     let value = initial;
     const subscribers = new Set<(v: T) => void>();
@@ -35,7 +28,6 @@ const mocks = vi.hoisted(() => {
     };
   }
 
-  // Derived store factory for computed values
   function createDerivedStore<T, R>(
     source: { subscribe: (fn: (v: T) => void) => () => void; _getValue: () => T },
     fn: (v: T) => R
@@ -43,14 +35,12 @@ const mocks = vi.hoisted(() => {
     const subscribers = new Set<(v: R) => void>();
     let currentValue = fn(source._getValue());
     source.subscribe((v) => { currentValue = fn(v); subscribers.forEach(sub => sub(currentValue)); });
-    return {
-      subscribe(callback: (v: R) => void) { callback(currentValue); subscribers.add(callback); return () => subscribers.delete(callback); },
-    };
+    return { subscribe(callback: (v: R) => void) { callback(currentValue); subscribers.add(callback); return () => subscribers.delete(callback); } };
   }
 
-  type NotifState = { notifications: Array<{ notification_id: string; subject: string; body: string; status: 'unread' | 'read'; severity: 'low' | 'medium' | 'high' | 'urgent'; tags: string[]; created_at: string; action_url?: string; }>; loading: boolean; error: string | null; };
-
+  type NotifState = { notifications: MockNotification[]; loading: boolean; error: string | null };
   const mockNotificationsState = createMockStore<NotifState>({ notifications: [], loading: false, error: null });
+
   return {
     mockIsAuthenticated: createMockStore<boolean | null>(true),
     mockUsername: createMockStore<string | null>('testuser'),
@@ -58,21 +48,21 @@ const mocks = vi.hoisted(() => {
     mockNotificationsState,
     mockNotifications: createDerivedStore(mockNotificationsState, s => s.notifications),
     mockUnreadCount: createDerivedStore(mockNotificationsState, s => s.notifications.filter(n => n.status !== 'read').length),
-    mockGoto: (null as unknown) as ReturnType<typeof import('vitest').vi.fn>,
-    mockNotificationStore: (null as unknown) as {
+    mockGoto: null as unknown as ReturnType<typeof vi.fn>,
+    mockNotificationStore: null as unknown as {
       subscribe: typeof mockNotificationsState.subscribe;
-      load: ReturnType<typeof import('vitest').vi.fn>;
-      add: ReturnType<typeof import('vitest').vi.fn>;
-      markAsRead: ReturnType<typeof import('vitest').vi.fn>;
-      markAllAsRead: ReturnType<typeof import('vitest').vi.fn>;
-      delete: ReturnType<typeof import('vitest').vi.fn>;
-      clear: ReturnType<typeof import('vitest').vi.fn>;
-      refresh: ReturnType<typeof import('vitest').vi.fn>;
+      load: ReturnType<typeof vi.fn>;
+      add: ReturnType<typeof vi.fn>;
+      markAsRead: ReturnType<typeof vi.fn>;
+      markAllAsRead: ReturnType<typeof vi.fn>;
+      delete: ReturnType<typeof vi.fn>;
+      clear: ReturnType<typeof vi.fn>;
+      refresh: ReturnType<typeof vi.fn>;
     },
   };
 });
 
-// Initialize mocks that need vi.fn() outside of hoisted context
+// Initialize mocks
 mocks.mockGoto = vi.fn();
 mocks.mockNotificationStore = {
   subscribe: mocks.mockNotificationsState.subscribe,
@@ -85,19 +75,12 @@ mocks.mockNotificationStore = {
   refresh: vi.fn(),
 };
 
-// Mock router - use getter to defer access
-vi.mock('@mateothegreat/svelte5-router', () => ({
-  get goto() { return (...args: unknown[]) => mocks.mockGoto(...args); },
-}));
-
-// Mock auth store - use getters to defer access
+vi.mock('@mateothegreat/svelte5-router', () => ({ get goto() { return (...args: unknown[]) => mocks.mockGoto(...args); } }));
 vi.mock('../../stores/auth', () => ({
   get isAuthenticated() { return mocks.mockIsAuthenticated; },
   get username() { return mocks.mockUsername; },
   get userId() { return mocks.mockUserId; },
 }));
-
-// Mock notification store - use getters to defer access
 vi.mock('../../stores/notificationStore', () => ({
   get notificationStore() { return mocks.mockNotificationStore; },
   get notifications() { return mocks.mockNotifications; },
@@ -109,629 +92,241 @@ class MockEventSource {
   static CONNECTING = 0;
   static OPEN = 1;
   static CLOSED = 2;
-
   readyState = MockEventSource.OPEN;
   onopen: ((ev: Event) => void) | null = null;
   onmessage: ((ev: MessageEvent) => void) | null = null;
   onerror: ((ev: Event) => void) | null = null;
-
   constructor(public url: string, public options?: { withCredentials?: boolean }) {
-    setTimeout(() => {
-      if (this.onopen) {
-        this.onopen(new Event('open'));
-      }
-    }, 0);
+    setTimeout(() => { if (this.onopen) this.onopen(new Event('open')); }, 0);
   }
-
-  close() {
-    this.readyState = MockEventSource.CLOSED;
-  }
+  close() { this.readyState = MockEventSource.CLOSED; }
 }
-
 vi.stubGlobal('EventSource', MockEventSource);
-
-// Mock Notification API
-vi.stubGlobal('Notification', {
-  permission: 'default',
-  requestPermission: vi.fn().mockResolvedValue('granted'),
-});
+vi.stubGlobal('Notification', { permission: 'default', requestPermission: vi.fn().mockResolvedValue('granted') });
 
 import NotificationCenter from '../NotificationCenter.svelte';
 
-// Helper to set notification state and open dropdown
-async function openDropdownWithNotifications(notifications: MockNotification[] = []) {
+// Test helpers
+const createNotification = (overrides: Partial<MockNotification> = {}): MockNotification => ({
+  notification_id: '1',
+  subject: 'Test',
+  body: 'Body',
+  status: 'unread',
+  severity: 'medium',
+  tags: [],
+  created_at: new Date().toISOString(),
+  ...overrides,
+});
+
+const setNotifications = (notifications: MockNotification[]) => {
   mocks.mockNotificationsState.set({ notifications, loading: false, error: null });
+};
+
+const openDropdown = async () => {
   const user = userEvent.setup();
   render(NotificationCenter);
   const button = screen.getByRole('button', { name: /Notifications/i });
   await user.click(button);
-  return { user, button };
-}
+  return user;
+};
 
-// Helper to create a simple notification
-function notification(overrides: Partial<MockNotification> = {}): MockNotification {
-  return createMockNotification(overrides) as MockNotification;
-}
+const openDropdownWithContainer = async () => {
+  const user = userEvent.setup();
+  const { container } = render(NotificationCenter);
+  const button = screen.getByRole('button', { name: /Notifications/i });
+  await user.click(button);
+  return { user, container };
+};
 
 describe('NotificationCenter', () => {
   beforeEach(() => {
     setupAnimationMock();
-
-    // Reset stores to defaults
     mocks.mockIsAuthenticated.set(true);
     mocks.mockUsername.set('testuser');
     mocks.mockUserId.set('user-123');
-    mocks.mockNotificationsState.set({ notifications: [], loading: false, error: null });
-
-    // Reset mocks
+    setNotifications([]);
     mocks.mockGoto.mockReset();
     mocks.mockNotificationStore.load.mockReset().mockResolvedValue([]);
     mocks.mockNotificationStore.markAsRead.mockReset().mockResolvedValue(true);
     mocks.mockNotificationStore.markAllAsRead.mockReset().mockResolvedValue(true);
     mocks.mockNotificationStore.clear.mockReset();
     mocks.mockNotificationStore.add.mockReset();
-
-    // Suppress console output from SSE/logging
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'debug').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+  afterEach(() => { vi.restoreAllMocks(); });
 
   describe('bell icon', () => {
     it('renders notification button with bell icon', () => {
       render(NotificationCenter);
-
       const button = screen.getByRole('button', { name: /Notifications/i });
       expect(button).toBeInTheDocument();
-
-      const svg = button.querySelector('svg');
-      expect(svg).toBeInTheDocument();
+      expect(button.querySelector('svg')).toBeInTheDocument();
     });
 
     it('shows no badge when no unread notifications', () => {
-      mocks.mockNotificationsState.set({
-        notifications: [],
-        loading: false,
-        error: null,
-      });
-
       const { container } = render(NotificationCenter);
-
-      const badge = container.querySelector('.bg-red-500');
-      expect(badge).not.toBeInTheDocument();
+      expect(container.querySelector('.bg-red-500')).not.toBeInTheDocument();
     });
 
-    it('shows unread count badge', async () => {
-      mocks.mockNotificationsState.set({
-        notifications: [
-          { notification_id: '1', subject: 'Test', body: 'Body', status: 'unread', severity: 'medium', tags: [], created_at: new Date().toISOString() },
-          { notification_id: '2', subject: 'Test 2', body: 'Body 2', status: 'unread', severity: 'medium', tags: [], created_at: new Date().toISOString() },
-        ],
-        loading: false,
-        error: null,
-      });
-
+    it.each([
+      { count: 2, expected: '2' },
+      { count: 9, expected: '9' },
+      { count: 12, expected: '9+' },
+    ])('shows badge "$expected" when $count unread notifications', async ({ count, expected }) => {
+      const notifications = Array.from({ length: count }, (_, i) =>
+        createNotification({ notification_id: String(i), subject: `Test ${i}` })
+      );
+      setNotifications(notifications);
       const { container } = render(NotificationCenter);
 
       await waitFor(() => {
         const badge = container.querySelector('.bg-red-500');
-        expect(badge).toBeInTheDocument();
-        expect(badge?.textContent).toBe('2');
-      });
-    });
-
-    it('shows 9+ when more than 9 unread', async () => {
-      const notifications = Array.from({ length: 12 }, (_, i) => ({
-        notification_id: String(i),
-        subject: `Test ${i}`,
-        body: `Body ${i}`,
-        status: 'unread' as const,
-        severity: 'medium' as const,
-        tags: [],
-        created_at: new Date().toISOString(),
-      }));
-
-      mocks.mockNotificationsState.set({
-        notifications,
-        loading: false,
-        error: null,
-      });
-
-      const { container } = render(NotificationCenter);
-
-      await waitFor(() => {
-        const badge = container.querySelector('.bg-red-500');
-        expect(badge?.textContent).toBe('9+');
+        expect(badge?.textContent).toBe(expected);
       });
     });
   });
 
   describe('dropdown', () => {
     it('opens dropdown when bell clicked', async () => {
-      const user = userEvent.setup();
-      render(NotificationCenter);
-
-      const button = screen.getByRole('button', { name: /Notifications/i });
-      await user.click(button);
-
-      await waitFor(() => {
-        expect(screen.getByText('Notifications')).toBeInTheDocument();
-      });
-    });
-
-    it('closes dropdown when View all notifications clicked', async () => {
-      const user = userEvent.setup();
-      render(NotificationCenter);
-
-      const button = screen.getByRole('button', { name: /Notifications/i });
-
-      // First click opens dropdown
-      await user.click(button);
-
-      await waitFor(() => {
-        expect(screen.getByText('Notifications')).toBeInTheDocument();
-        expect(screen.getByText('View all notifications')).toBeInTheDocument();
-      });
-
-      // Click "View all notifications" which closes dropdown via onclick
-      const viewAllButton = screen.getByText('View all notifications');
-      await user.click(viewAllButton);
-
-      // After clicking View all, dropdown should close and navigate
-      await waitFor(() => {
-        expect(screen.queryByText('No notifications yet')).not.toBeInTheDocument();
-      });
-
-      expect(mocks.mockGoto).toHaveBeenCalledWith('/notifications');
+      await openDropdown();
+      await waitFor(() => { expect(screen.getByText('Notifications')).toBeInTheDocument(); });
     });
 
     it('shows empty state when no notifications', async () => {
-      const user = userEvent.setup();
-      render(NotificationCenter);
-
-      const button = screen.getByRole('button', { name: /Notifications/i });
-      await user.click(button);
-
-      await waitFor(() => {
-        expect(screen.getByText('No notifications yet')).toBeInTheDocument();
-      });
+      await openDropdown();
+      await waitFor(() => { expect(screen.getByText('No notifications yet')).toBeInTheDocument(); });
     });
 
     it('shows View all notifications link', async () => {
-      const user = userEvent.setup();
-      render(NotificationCenter);
-
-      const button = screen.getByRole('button', { name: /Notifications/i });
-      await user.click(button);
-
-      await waitFor(() => {
-        expect(screen.getByText('View all notifications')).toBeInTheDocument();
-      });
+      await openDropdown();
+      await waitFor(() => { expect(screen.getByText('View all notifications')).toBeInTheDocument(); });
     });
 
-    it('navigates to notifications page when View all clicked', async () => {
-      const user = userEvent.setup();
-      render(NotificationCenter);
-
-      const bellButton = screen.getByRole('button', { name: /Notifications/i });
-      await user.click(bellButton);
-
-      await waitFor(() => {
-        expect(screen.getByText('View all notifications')).toBeInTheDocument();
-      });
-
-      const viewAllButton = screen.getByText('View all notifications');
-      await user.click(viewAllButton);
-
+    it('navigates and closes when View all clicked', async () => {
+      const user = await openDropdown();
+      await waitFor(() => { expect(screen.getByText('View all notifications')).toBeInTheDocument(); });
+      await user.click(screen.getByText('View all notifications'));
+      await waitFor(() => { expect(screen.queryByText('No notifications yet')).not.toBeInTheDocument(); });
       expect(mocks.mockGoto).toHaveBeenCalledWith('/notifications');
     });
   });
 
   describe('notification list', () => {
     const sampleNotifications: MockNotification[] = [
-      {
-        notification_id: '1',
-        subject: 'Build Completed',
-        body: 'Your build finished successfully',
-        status: 'unread',
-        severity: 'medium',
-        tags: ['completed', 'success'],
-        created_at: new Date().toISOString(),
-        action_url: '/builds/123',
-      },
-      {
-        notification_id: '2',
-        subject: 'Build Failed',
-        body: 'Build encountered an error',
-        status: 'read',
-        severity: 'high',
-        tags: ['failed', 'error'],
-        created_at: new Date(Date.now() - 3600000).toISOString(),
-      },
+      createNotification({ notification_id: '1', subject: 'Build Completed', body: 'Your build finished successfully', tags: ['completed', 'success'], action_url: '/builds/123' }),
+      createNotification({ notification_id: '2', subject: 'Build Failed', body: 'Build encountered an error', status: 'read', severity: 'high', tags: ['failed', 'error'], created_at: new Date(Date.now() - 3600000).toISOString() }),
     ];
 
-    beforeEach(() => {
-      mocks.mockNotificationsState.set({
-        notifications: sampleNotifications,
-        loading: false,
-        error: null,
-      });
-    });
+    beforeEach(() => { setNotifications(sampleNotifications); });
 
-    it('displays notification subjects', async () => {
-      const user = userEvent.setup();
-      render(NotificationCenter);
-
-      const button = screen.getByRole('button', { name: /Notifications/i });
-      await user.click(button);
-
+    it('displays notification subjects and bodies', async () => {
+      await openDropdown();
       await waitFor(() => {
         expect(screen.getByText('Build Completed')).toBeInTheDocument();
         expect(screen.getByText('Build Failed')).toBeInTheDocument();
-      });
-    });
-
-    it('displays notification bodies', async () => {
-      const user = userEvent.setup();
-      render(NotificationCenter);
-
-      const button = screen.getByRole('button', { name: /Notifications/i });
-      await user.click(button);
-
-      await waitFor(() => {
         expect(screen.getByText('Your build finished successfully')).toBeInTheDocument();
         expect(screen.getByText('Build encountered an error')).toBeInTheDocument();
       });
     });
 
-    it('shows unread indicator for unread notifications', async () => {
-      const user = userEvent.setup();
-      const { container } = render(NotificationCenter);
-
-      const button = screen.getByRole('button', { name: /Notifications/i });
-      await user.click(button);
-
+    it('shows unread indicator and background for unread notifications', async () => {
+      const { container } = await openDropdownWithContainer();
       await waitFor(() => {
-        const unreadDots = container.querySelectorAll('.bg-blue-500.rounded-full');
-        expect(unreadDots.length).toBeGreaterThan(0);
-      });
-    });
-
-    it('applies different background for unread notifications', async () => {
-      const user = userEvent.setup();
-      const { container } = render(NotificationCenter);
-
-      const button = screen.getByRole('button', { name: /Notifications/i });
-      await user.click(button);
-
-      await waitFor(() => {
-        const unreadItem = container.querySelector('.bg-blue-50');
-        expect(unreadItem).toBeInTheDocument();
+        expect(container.querySelectorAll('.bg-blue-500.rounded-full').length).toBeGreaterThan(0);
+        expect(container.querySelector('.bg-blue-50')).toBeInTheDocument();
       });
     });
   });
 
   describe('mark as read', () => {
-    it('shows Mark all as read button when there are unread notifications', async () => {
-      mocks.mockNotificationsState.set({
-        notifications: [
-          { notification_id: '1', subject: 'Test', body: 'Body', status: 'unread', severity: 'medium', tags: [], created_at: new Date().toISOString() },
-        ],
-        loading: false,
-        error: null,
-      });
-
-      const user = userEvent.setup();
-      render(NotificationCenter);
-
-      const button = screen.getByRole('button', { name: /Notifications/i });
-      await user.click(button);
-
+    it.each([
+      { status: 'unread' as const, shouldShow: true },
+      { status: 'read' as const, shouldShow: false },
+    ])('$shouldShow ? "shows" : "hides" Mark all as read when notifications are $status', async ({ status, shouldShow }) => {
+      setNotifications([createNotification({ status })]);
+      await openDropdown();
       await waitFor(() => {
-        expect(screen.getByText('Mark all as read')).toBeInTheDocument();
-      });
-    });
-
-    it('hides Mark all as read when all are read', async () => {
-      mocks.mockNotificationsState.set({
-        notifications: [
-          { notification_id: '1', subject: 'Test', body: 'Body', status: 'read', severity: 'medium', tags: [], created_at: new Date().toISOString() },
-        ],
-        loading: false,
-        error: null,
-      });
-
-      const user = userEvent.setup();
-      render(NotificationCenter);
-
-      const button = screen.getByRole('button', { name: /Notifications/i });
-      await user.click(button);
-
-      await waitFor(() => {
-        expect(screen.queryByText('Mark all as read')).not.toBeInTheDocument();
+        if (shouldShow) {
+          expect(screen.getByText('Mark all as read')).toBeInTheDocument();
+        } else {
+          expect(screen.queryByText('Mark all as read')).not.toBeInTheDocument();
+        }
       });
     });
 
     it('calls markAllAsRead when button clicked', async () => {
-      mocks.mockNotificationsState.set({
-        notifications: [
-          { notification_id: '1', subject: 'Test', body: 'Body', status: 'unread', severity: 'medium', tags: [], created_at: new Date().toISOString() },
-        ],
-        loading: false,
-        error: null,
-      });
-
-      const user = userEvent.setup();
-      render(NotificationCenter);
-
-      const button = screen.getByRole('button', { name: /Notifications/i });
-      await user.click(button);
-
-      await waitFor(() => {
-        expect(screen.getByText('Mark all as read')).toBeInTheDocument();
-      });
-
-      const markAllButton = screen.getByText('Mark all as read');
-      await user.click(markAllButton);
-
+      setNotifications([createNotification()]);
+      const user = await openDropdown();
+      await waitFor(() => { expect(screen.getByText('Mark all as read')).toBeInTheDocument(); });
+      await user.click(screen.getByText('Mark all as read'));
       expect(mocks.mockNotificationStore.markAllAsRead).toHaveBeenCalled();
     });
   });
 
   describe('notification icons', () => {
-    it('shows success icon for completed/success tags', async () => {
-      mocks.mockNotificationsState.set({
-        notifications: [
-          { notification_id: '1', subject: 'Success', body: 'Body', status: 'unread', severity: 'medium', tags: ['completed'], created_at: new Date().toISOString() },
-        ],
-        loading: false,
-        error: null,
-      });
-
-      const user = userEvent.setup();
-      const { container } = render(NotificationCenter);
-
-      const button = screen.getByRole('button', { name: /Notifications/i });
-      await user.click(button);
-
+    it.each([
+      { tags: ['completed'], subject: 'Success', svgPath: 'M9 12l2 2 4-4' },
+      { tags: ['failed'], subject: 'Error', svgPath: 'M12 8v4m0 4h.01' },
+      { tags: ['timeout'], subject: 'Warning', svgPath: 'M12 9v2m0 4h.01' },
+    ])('shows correct icon for $tags tags', async ({ tags, subject, svgPath }) => {
+      setNotifications([createNotification({ tags, subject })]);
+      const { container } = await openDropdownWithContainer();
       await waitFor(() => {
-        const notificationItem = container.querySelector('[role="button"][aria-label*="Success"]');
-        const svg = notificationItem?.querySelector('svg');
-        expect(svg?.innerHTML).toContain('M9 12l2 2 4-4');
-      });
-    });
-
-    it('shows error icon for failed/error tags', async () => {
-      mocks.mockNotificationsState.set({
-        notifications: [
-          { notification_id: '1', subject: 'Error', body: 'Body', status: 'unread', severity: 'high', tags: ['failed'], created_at: new Date().toISOString() },
-        ],
-        loading: false,
-        error: null,
-      });
-
-      const user = userEvent.setup();
-      const { container } = render(NotificationCenter);
-
-      const button = screen.getByRole('button', { name: /Notifications/i });
-      await user.click(button);
-
-      await waitFor(() => {
-        const notificationItem = container.querySelector('[role="button"][aria-label*="Error"]');
-        const svg = notificationItem?.querySelector('svg');
-        expect(svg?.innerHTML).toContain('M12 8v4m0 4h.01');
-      });
-    });
-
-    it('shows warning icon for timeout/warning tags', async () => {
-      mocks.mockNotificationsState.set({
-        notifications: [
-          { notification_id: '1', subject: 'Warning', body: 'Body', status: 'unread', severity: 'medium', tags: ['timeout'], created_at: new Date().toISOString() },
-        ],
-        loading: false,
-        error: null,
-      });
-
-      const user = userEvent.setup();
-      const { container } = render(NotificationCenter);
-
-      const button = screen.getByRole('button', { name: /Notifications/i });
-      await user.click(button);
-
-      await waitFor(() => {
-        const notificationItem = container.querySelector('[role="button"][aria-label*="Warning"]');
-        const svg = notificationItem?.querySelector('svg');
-        expect(svg?.innerHTML).toContain('M12 9v2m0 4h.01');
+        const notificationItem = container.querySelector(`[role="button"][aria-label*="${subject}"]`);
+        expect(notificationItem?.querySelector('svg')?.innerHTML).toContain(svgPath);
       });
     });
   });
 
   describe('priority colors', () => {
-    it('applies correct color for high priority', async () => {
-      mocks.mockNotificationsState.set({
-        notifications: [
-          { notification_id: '1', subject: 'High', body: 'Body', status: 'unread', severity: 'high', tags: [], created_at: new Date().toISOString() },
-        ],
-        loading: false,
-        error: null,
-      });
-
-      const user = userEvent.setup();
-      const { container } = render(NotificationCenter);
-
-      const button = screen.getByRole('button', { name: /Notifications/i });
-      await user.click(button);
-
-      await waitFor(() => {
-        const iconWrapper = container.querySelector('.text-orange-600');
-        expect(iconWrapper).toBeInTheDocument();
-      });
-    });
-
-    it('applies correct color for urgent priority', async () => {
-      mocks.mockNotificationsState.set({
-        notifications: [
-          { notification_id: '1', subject: 'Urgent', body: 'Body', status: 'unread', severity: 'urgent', tags: [], created_at: new Date().toISOString() },
-        ],
-        loading: false,
-        error: null,
-      });
-
-      const user = userEvent.setup();
-      const { container } = render(NotificationCenter);
-
-      const button = screen.getByRole('button', { name: /Notifications/i });
-      await user.click(button);
-
-      await waitFor(() => {
-        const iconWrapper = container.querySelector('.text-red-600');
-        expect(iconWrapper).toBeInTheDocument();
-      });
+    it.each([
+      { severity: 'high' as const, colorClass: '.text-orange-600' },
+      { severity: 'urgent' as const, colorClass: '.text-red-600' },
+    ])('applies $colorClass for $severity priority', async ({ severity, colorClass }) => {
+      setNotifications([createNotification({ severity, subject: severity })]);
+      const { container } = await openDropdownWithContainer();
+      await waitFor(() => { expect(container.querySelector(colorClass)).toBeInTheDocument(); });
     });
   });
 
   describe('time formatting', () => {
-    it('shows "just now" for recent notifications', async () => {
-      mocks.mockNotificationsState.set({
-        notifications: [
-          { notification_id: '1', subject: 'Recent', body: 'Body', status: 'unread', severity: 'medium', tags: [], created_at: new Date().toISOString() },
-        ],
-        loading: false,
-        error: null,
-      });
-
-      const user = userEvent.setup();
-      render(NotificationCenter);
-
-      const button = screen.getByRole('button', { name: /Notifications/i });
-      await user.click(button);
-
-      await waitFor(() => {
-        expect(screen.getByText('just now')).toBeInTheDocument();
-      });
-    });
-
-    it('shows minutes ago for recent notifications', async () => {
-      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-      mocks.mockNotificationsState.set({
-        notifications: [
-          { notification_id: '1', subject: 'Minutes', body: 'Body', status: 'unread', severity: 'medium', tags: [], created_at: fiveMinutesAgo.toISOString() },
-        ],
-        loading: false,
-        error: null,
-      });
-
-      const user = userEvent.setup();
-      render(NotificationCenter);
-
-      const button = screen.getByRole('button', { name: /Notifications/i });
-      await user.click(button);
-
-      await waitFor(() => {
-        expect(screen.getByText('5m ago')).toBeInTheDocument();
-      });
-    });
-
-    it('shows hours ago for older notifications', async () => {
-      const threeHoursAgo = new Date(Date.now() - 3 * 60 * 60 * 1000);
-      mocks.mockNotificationsState.set({
-        notifications: [
-          { notification_id: '1', subject: 'Hours', body: 'Body', status: 'unread', severity: 'medium', tags: [], created_at: threeHoursAgo.toISOString() },
-        ],
-        loading: false,
-        error: null,
-      });
-
-      const user = userEvent.setup();
-      render(NotificationCenter);
-
-      const button = screen.getByRole('button', { name: /Notifications/i });
-      await user.click(button);
-
-      await waitFor(() => {
-        expect(screen.getByText('3h ago')).toBeInTheDocument();
-      });
+    it.each([
+      { offsetMs: 0, expected: 'just now' },
+      { offsetMs: 5 * 60 * 1000, expected: '5m ago' },
+      { offsetMs: 3 * 60 * 60 * 1000, expected: '3h ago' },
+    ])('shows "$expected" for notifications $offsetMs ms ago', async ({ offsetMs, expected }) => {
+      setNotifications([createNotification({ created_at: new Date(Date.now() - offsetMs).toISOString() })]);
+      await openDropdown();
+      await waitFor(() => { expect(screen.getByText(expected)).toBeInTheDocument(); });
     });
   });
 
   describe('notification click', () => {
     it('marks notification as read when clicked', async () => {
-      mocks.mockNotificationsState.set({
-        notifications: [
-          { notification_id: '1', subject: 'Clickable', body: 'Body', status: 'unread', severity: 'medium', tags: [], created_at: new Date().toISOString() },
-        ],
-        loading: false,
-        error: null,
-      });
-
-      const user = userEvent.setup();
-      render(NotificationCenter);
-
-      const button = screen.getByRole('button', { name: /Notifications/i });
-      await user.click(button);
-
-      await waitFor(() => {
-        expect(screen.getByText('Clickable')).toBeInTheDocument();
-      });
-
-      const notificationItem = screen.getByRole('button', { name: /View notification: Clickable/i });
-      await user.click(notificationItem);
-
+      setNotifications([createNotification({ subject: 'Clickable' })]);
+      const user = await openDropdown();
+      await waitFor(() => { expect(screen.getByText('Clickable')).toBeInTheDocument(); });
+      await user.click(screen.getByRole('button', { name: /View notification: Clickable/i }));
       expect(mocks.mockNotificationStore.markAsRead).toHaveBeenCalledWith('1');
     });
 
     it('navigates to action_url for internal links', async () => {
-      mocks.mockNotificationsState.set({
-        notifications: [
-          { notification_id: '1', subject: 'Internal', body: 'Body', status: 'unread', severity: 'medium', tags: [], created_at: new Date().toISOString(), action_url: '/builds/123' },
-        ],
-        loading: false,
-        error: null,
-      });
-
-      const user = userEvent.setup();
-      render(NotificationCenter);
-
-      const button = screen.getByRole('button', { name: /Notifications/i });
-      await user.click(button);
-
-      await waitFor(() => {
-        expect(screen.getByText('Internal')).toBeInTheDocument();
-      });
-
-      const notificationItem = screen.getByRole('button', { name: /View notification: Internal/i });
-      await user.click(notificationItem);
-
+      setNotifications([createNotification({ subject: 'Internal', action_url: '/builds/123' })]);
+      const user = await openDropdown();
+      await waitFor(() => { expect(screen.getByText('Internal')).toBeInTheDocument(); });
+      await user.click(screen.getByRole('button', { name: /View notification: Internal/i }));
       expect(mocks.mockGoto).toHaveBeenCalledWith('/builds/123');
     });
 
     it('handles keyboard navigation with Enter key', async () => {
-      mocks.mockNotificationsState.set({
-        notifications: [
-          { notification_id: '1', subject: 'Keyboard', body: 'Body', status: 'unread', severity: 'medium', tags: [], created_at: new Date().toISOString(), action_url: '/test' },
-        ],
-        loading: false,
-        error: null,
-      });
-
-      const user = userEvent.setup();
-      render(NotificationCenter);
-
-      const button = screen.getByRole('button', { name: /Notifications/i });
-      await user.click(button);
-
-      await waitFor(() => {
-        expect(screen.getByText('Keyboard')).toBeInTheDocument();
-      });
-
-      const notificationItem = screen.getByRole('button', { name: /View notification: Keyboard/i });
-      notificationItem.focus();
+      setNotifications([createNotification({ subject: 'Keyboard', action_url: '/test' })]);
+      const user = await openDropdown();
+      await waitFor(() => { expect(screen.getByText('Keyboard')).toBeInTheDocument(); });
+      screen.getByRole('button', { name: /View notification: Keyboard/i }).focus();
       await user.keyboard('{Enter}');
-
       expect(mocks.mockNotificationStore.markAsRead).toHaveBeenCalledWith('1');
       expect(mocks.mockGoto).toHaveBeenCalledWith('/test');
     });
@@ -740,49 +335,15 @@ describe('NotificationCenter', () => {
   describe('accessibility', () => {
     it('has aria-label on notification button', () => {
       render(NotificationCenter);
-
-      const button = screen.getByRole('button', { name: /Notifications/i });
-      expect(button.getAttribute('aria-label')).toBe('Notifications');
+      expect(screen.getByRole('button', { name: /Notifications/i }).getAttribute('aria-label')).toBe('Notifications');
     });
 
-    it('notification items have proper aria-label', async () => {
-      mocks.mockNotificationsState.set({
-        notifications: [
-          { notification_id: '1', subject: 'Test Subject', body: 'Body', status: 'unread', severity: 'medium', tags: [], created_at: new Date().toISOString() },
-        ],
-        loading: false,
-        error: null,
-      });
-
-      const user = userEvent.setup();
-      render(NotificationCenter);
-
-      const button = screen.getByRole('button', { name: /Notifications/i });
-      await user.click(button);
-
+    it('notification items have proper aria-label and are focusable', async () => {
+      setNotifications([createNotification({ subject: 'Test Subject' })]);
+      await openDropdown();
       await waitFor(() => {
         const notificationItem = screen.getByRole('button', { name: /View notification: Test Subject/i });
         expect(notificationItem).toBeInTheDocument();
-      });
-    });
-
-    it('notification items are focusable', async () => {
-      mocks.mockNotificationsState.set({
-        notifications: [
-          { notification_id: '1', subject: 'Focusable', body: 'Body', status: 'unread', severity: 'medium', tags: [], created_at: new Date().toISOString() },
-        ],
-        loading: false,
-        error: null,
-      });
-
-      const user = userEvent.setup();
-      render(NotificationCenter);
-
-      const button = screen.getByRole('button', { name: /Notifications/i });
-      await user.click(button);
-
-      await waitFor(() => {
-        const notificationItem = screen.getByRole('button', { name: /View notification: Focusable/i });
         expect(notificationItem.getAttribute('tabindex')).toBe('0');
       });
     });

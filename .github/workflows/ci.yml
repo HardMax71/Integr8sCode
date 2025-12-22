@@ -144,14 +144,12 @@ jobs:
 
       - name: Debug frontend state
         run: |
-          echo "=== Check JS bundle for baseUrl ==="
-          curl -ks https://127.0.0.1:5001/build/main.js | grep -o "baseUrl[^,]*" | head -3 || echo "not found"
+          echo "=== Test auth API - show response body and status ==="
+          curl -ks -w "\nHTTP_CODE:%{http_code}\n" https://127.0.0.1:5001/api/v1/auth/verify-token
           echo ""
-          echo "=== Test auth API directly ==="
-          curl -ksv https://127.0.0.1:5001/api/v1/auth/verify-token 2>&1 | head -30
-          echo ""
-          echo "=== Frontend container logs ==="
-          docker logs frontend 2>&1 | tail -50
+          echo "=== Check if app renders (wait 5s for JS) ==="
+          sleep 5
+          curl -ks https://127.0.0.1:5001/login | grep -E "(username|password|Sign in|spinner|loading)" | head -10 || echo "No form elements found"
 
       - name: Run E2E tests
         working-directory: frontend

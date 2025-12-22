@@ -26,7 +26,7 @@
     "@mateothegreat/svelte5-router": "^2.16.19",
     "@rollup/plugin-commonjs": "^24.0.0",
     "@rollup/plugin-json": "^6.1.0",
-    "@rollup/plugin-node-resolve": "^15.0.0",
+    "@rollup/plugin-node-resolve": "^16.0.3",
     "@rollup/plugin-replace": "^6.0.1",
     "@rollup/plugin-terser": "^0.4.4",
     "@uiw/codemirror-theme-bbedit": "^4.21.25",

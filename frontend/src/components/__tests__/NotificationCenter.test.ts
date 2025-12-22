@@ -243,9 +243,9 @@ describe('NotificationCenter', () => {
 
   describe('mark as read', () => {
     it.each([
-      { status: 'unread' as const, shouldShow: true },
-      { status: 'read' as const, shouldShow: false },
-    ])('$shouldShow ? "shows" : "hides" Mark all as read when notifications are $status', async ({ status, shouldShow }) => {
+      { status: 'unread' as const, shouldShow: true, verb: 'shows' },
+      { status: 'read' as const, shouldShow: false, verb: 'hides' },
+    ])('$verb Mark all as read when notifications are $status', async ({ status, shouldShow }) => {
       setNotifications([createNotification({ status })]);
       await openDropdown();
       await waitFor(() => {

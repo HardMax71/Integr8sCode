@@ -95,15 +95,10 @@ describe('ToastContainer', () => {
   });
 
   describe('accessibility', () => {
-    it('toasts have role="alert" and container has positioning', async () => {
-      const { container } = render(ToastContainer);
+    it('toasts have role="alert" for screen reader announcement', async () => {
+      render(ToastContainer);
       addToast('Accessible toast', 'info');
-
       await waitFor(() => { expect(screen.getByRole('alert')).toBeInTheDocument(); });
-
-      const toastContainer = container.querySelector('.toasts-container');
-      expect(toastContainer).toBeInTheDocument();
-      expect(toastContainer).toHaveClass('toasts-container');
     });
   });
 

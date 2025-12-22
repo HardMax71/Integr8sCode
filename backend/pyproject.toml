@@ -52,7 +52,7 @@ dependencies = [
     "kiwisolver==1.4.9",
     "kubernetes==31.0.0",
     "limits==3.13.0",
-    "markdown-it-py==3.0.0",
+    "markdown-it-py==4.0.0",
     "MarkupSafe==3.0.2",
     "mdurl==0.1.2",
     "motor==3.6.0",

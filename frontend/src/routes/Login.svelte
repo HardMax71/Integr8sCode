@@ -29,12 +29,12 @@
     error = null; // Clear previous error
     try {
       await login(username, password);
-      
-      // Load and apply user settings (theme, etc)
-      await loadUserSettings();
-      
+
+      // Load user settings in background (non-blocking)
+      loadUserSettings().catch(err => console.warn('Failed to load user settings:', err));
+
       addToast("Login successful! Welcome back.", "success");
-      
+
       // Check if there's a saved redirect path
       const redirectPath = sessionStorage.getItem('redirectAfterLogin');
       if (redirectPath) {

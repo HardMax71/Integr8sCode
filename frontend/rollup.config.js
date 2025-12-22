@@ -38,7 +38,9 @@ function startServer() {
 
     const proxyAgent = new https.Agent({
         ca: fs.readFileSync(caPath),
-        rejectUnauthorized: false  // Accept self-signed certificates in development
+        rejectUnauthorized: false,  // Accept self-signed certificates in development
+        keepAlive: true,  // Reuse connections to avoid TLS handshake per request
+        keepAliveMsecs: 1000
     });
 
     server = https.createServer(httpsOptions, (req, res) => {
@@ -201,6 +203,7 @@ export default {
         })
     ],
     watch: {
-        clearScreen: false
+        clearScreen: false,
+        exclude: ['node_modules/**', 'public/build/**', 'test-results/**', 'playwright-report/**', 'e2e/**']
     }
 };

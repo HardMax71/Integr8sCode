@@ -28,11 +28,12 @@ runs:
         yq eval '.services.backend.environment += ["MONGO_ROOT_PASSWORD=rootpassword"]' -i docker-compose.ci.yaml
         yq eval '.services.backend.environment += ["OTEL_SDK_DISABLED=true"]' -i docker-compose.ci.yaml
 
-        # Remove hot-reload volume mounts (causes permission issues in CI)
+        # Remove hot-reload volume mounts (causes permission issues and slow rebuilds in CI)
         yq eval '.services.backend.volumes = [.services.backend.volumes[] | select(. != "./backend:/app")]' -i docker-compose.ci.yaml
         yq eval '.services."k8s-worker".volumes = [.services."k8s-worker".volumes[] | select(. != "./backend:/app:ro")]' -i docker-compose.ci.yaml
         yq eval '.services."pod-monitor".volumes = [.services."pod-monitor".volumes[] | select(. != "./backend:/app:ro")]' -i docker-compose.ci.yaml
         yq eval '.services."result-processor".volumes = [.services."result-processor".volumes[] | select(. != "./backend:/app:ro")]' -i docker-compose.ci.yaml
+        yq eval '.services.frontend.volumes = [.services.frontend.volumes[] | select(. != "./frontend:/app")]' -i docker-compose.ci.yaml
 
         # Disable Kafka SASL authentication for CI
         yq eval 'del(.services.kafka.environment.KAFKA_OPTS)' -i docker-compose.ci.yaml

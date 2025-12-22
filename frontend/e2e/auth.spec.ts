@@ -16,7 +16,7 @@ test.describe('Authentication', () => {
     // Wait for the login form to render
     await page.waitForSelector('#username');
 
-    await expect(page.locator('h2')).toContainText('Sign in to your account');
+    await expect(page.getByRole('heading', { name: 'Sign in to your account' })).toBeVisible();
     await expect(page.locator('#username')).toBeVisible();
     await expect(page.locator('#password')).toBeVisible();
     await expect(page.locator('button[type="submit"]')).toBeVisible();
@@ -64,6 +64,8 @@ test.describe('Authentication', () => {
     await page.fill('#password', 'user123');
     await page.click('button[type="submit"]');
 
+    // Wait for Editor page content (router updates DOM before URL)
+    await expect(page.getByRole('heading', { name: 'Code Editor' })).toBeVisible();
     await expect(page).toHaveURL(/\/editor/);
   });
 
@@ -98,6 +100,8 @@ test.describe('Authentication', () => {
     await page.fill('#password', 'user123');
     await page.click('button[type="submit"]');
 
+    // Wait for Settings page content (redirect target)
+    await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
     await expect(page).toHaveURL(/\/settings/);
   });
 
@@ -105,16 +109,17 @@ test.describe('Authentication', () => {
     await page.goto('/login');
     await page.waitForSelector('#username');
 
-    const registerLink = page.locator('a[href="/register"]');
+    // Use specific text to avoid matching the Register button in header
+    const registerLink = page.getByRole('link', { name: 'create a new account' });
     await expect(registerLink).toBeVisible();
-    await expect(registerLink).toContainText('create a new account');
   });
 
   test('can navigate to registration page', async ({ page }) => {
     await page.goto('/login');
     await page.waitForSelector('#username');
 
-    await page.click('a[href="/register"]');
+    // Click the specific link in the form, not the header button
+    await page.getByRole('link', { name: 'create a new account' }).click();
 
     await expect(page).toHaveURL(/\/register/);
   });
@@ -135,13 +140,18 @@ test.describe('Logout', () => {
     await page.fill('#username', 'user');
     await page.fill('#password', 'user123');
     await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/\/editor/);
+    // Wait for Editor page content (router updates DOM before URL)
+    await expect(page.getByRole('heading', { name: 'Code Editor' })).toBeVisible();
   });
 
   test('can logout from authenticated state', async ({ page }) => {
-    // Logout button is in the header - must exist when authenticated
-    const logoutButton = page.locator('button:has-text("Logout")').first();
+    // Open user dropdown (contains the logout button)
+    const userDropdown = page.locator('.user-dropdown-container button').first();
+    await expect(userDropdown).toBeVisible();
+    await userDropdown.click();
 
+    // Click logout button inside the dropdown
+    const logoutButton = page.locator('button:has-text("Logout")').first();
     await expect(logoutButton).toBeVisible();
     await logoutButton.click();
     await expect(page).toHaveURL(/\/login/);

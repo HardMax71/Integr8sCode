@@ -142,6 +142,17 @@ jobs:
           curl -ksf https://127.0.0.1:5001/api/v1/auth/verify-token || echo "WARNING: Auth endpoint returned error (expected without cookies)"
           echo "Services ready!"
 
+      - name: Debug frontend state
+        run: |
+          echo "=== Check JS bundle for baseUrl ==="
+          curl -ks https://127.0.0.1:5001/build/main.js | grep -o "baseUrl[^,]*" | head -3 || echo "not found"
+          echo ""
+          echo "=== Test auth API directly ==="
+          curl -ksv https://127.0.0.1:5001/api/v1/auth/verify-token 2>&1 | head -30
+          echo ""
+          echo "=== Frontend container logs ==="
+          docker logs frontend 2>&1 | tail -50
+
       - name: Run E2E tests
         working-directory: frontend
         env:

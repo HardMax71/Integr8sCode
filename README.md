@@ -15,11 +15,17 @@
   <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/docker.yml">
     <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/docker.yml?branch=main&label=docker&logo=docker&logoColor=white" alt="Docker Scan Status" />
   </a>
-  <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/ci.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/ci.yml?branch=main&label=tests&logo=githubactions&logoColor=white" alt="Tests Status" />
+  <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/backend-ci.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/backend-ci.yml?branch=main&label=backend&logo=python&logoColor=white" alt="Backend Tests" />
+  </a>
+  <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/frontend-ci.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/frontend-ci.yml?branch=main&label=frontend&logo=svelte&logoColor=white" alt="Frontend Tests" />
   </a>
   <a href="https://codecov.io/gh/HardMax71/Integr8sCode">
-    <img src="https://img.shields.io/codecov/c/github/HardMax71/Integr8sCode?flag=backend&label=coverage&logo=codecov" alt="Coverage" />
+    <img src="https://img.shields.io/codecov/c/github/HardMax71/Integr8sCode?flag=backend&label=backend%20cov&logo=codecov" alt="Backend Coverage" />
+  </a>
+  <a href="https://codecov.io/gh/HardMax71/Integr8sCode">
+    <img src="https://img.shields.io/codecov/c/github/HardMax71/Integr8sCode?flag=frontend&label=frontend%20cov&logo=codecov" alt="Frontend Coverage" />
   </a>
 </p>
 <p align="center">

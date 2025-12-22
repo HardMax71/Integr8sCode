@@ -64,10 +64,11 @@ async def upsert_user(
 
 async def seed_users() -> None:
     mongodb_url = os.getenv("MONGODB_URL", "mongodb://mongo:27017/integr8scode")
-    print("Connecting to MongoDB...")
+    db_name = os.getenv("PROJECT_NAME", "integr8scode")
+
+    print(f"Connecting to MongoDB (database: {db_name})...")
 
     client: AsyncIOMotorClient = AsyncIOMotorClient(mongodb_url)
-    db_name = mongodb_url.rstrip("/").split("/")[-1].split("?")[0] or "integr8scode"
     db = client[db_name]
 
     # Default user

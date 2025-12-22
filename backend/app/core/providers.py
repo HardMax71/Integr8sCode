@@ -90,7 +90,7 @@ class DatabaseProvider(Provider):
     async def get_database_connection(self, settings: Settings) -> AsyncIterator[AsyncDatabaseConnection]:
         db_config = DatabaseConfig(
             mongodb_url=settings.MONGODB_URL,
-            db_name=settings.PROJECT_NAME + "_test" if settings.TESTING else settings.PROJECT_NAME,
+            db_name=settings.PROJECT_NAME,
             server_selection_timeout_ms=5000,
             connect_timeout_ms=5000,
             max_pool_size=50,

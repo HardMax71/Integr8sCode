@@ -561,7 +561,7 @@ async def run_kubernetes_worker() -> None:
         tz_aware=True,
         serverSelectionTimeoutMS=5000
     )
-    db_name = settings.PROJECT_NAME + "_test" if settings.TESTING else settings.PROJECT_NAME
+    db_name = settings.PROJECT_NAME
     database = db_client[db_name]
     await db_client.admin.command("ping")
     logger.info(f"Connected to database: {db_name}")

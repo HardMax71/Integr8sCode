@@ -86,7 +86,7 @@ dependencies = [
     "protobuf==4.25.8",
     "psutil==6.1.0",
     "pyasn1==0.6.1",
-    "pyasn1_modules==0.4.1",
+    "pyasn1_modules==0.4.2",
     "pydantic==2.9.2",
     "pydantic-avro==0.7.1",
     "pydantic-settings==2.5.2",

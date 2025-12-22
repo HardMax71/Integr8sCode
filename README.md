@@ -21,6 +21,8 @@
   <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/frontend-ci.yml">
     <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/frontend-ci.yml?branch=main&label=frontend&logo=svelte&logoColor=white" alt="Frontend Tests" />
   </a>
+</p>
+<p align="center">
   <a href="https://codecov.io/gh/HardMax71/Integr8sCode">
     <img src="https://img.shields.io/codecov/c/github/HardMax71/Integr8sCode?flag=backend&label=backend%20cov&logo=codecov" alt="Backend Coverage" />
   </a>

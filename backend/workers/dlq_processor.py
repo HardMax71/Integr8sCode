@@ -2,14 +2,13 @@ import asyncio
 import signal
 from typing import Optional
 
-from app.core.logging import logger
-from motor.motor_asyncio import AsyncIOMotorClient
-
 from app.core.database_context import Database, DBClient
+from app.core.logging import logger
 from app.dlq import DLQMessage, RetryPolicy, RetryStrategy
 from app.dlq.manager import DLQManager, create_dlq_manager
 from app.domain.enums.kafka import KafkaTopic
 from app.settings import get_settings
+from motor.motor_asyncio import AsyncIOMotorClient
 
 
 def _configure_retry_policies(manager: DLQManager) -> None:
@@ -41,8 +40,9 @@ def _configure_retry_policies(manager: DLQManager) -> None:
     )
     manager.set_retry_policy(
         "websocket-events",
-        RetryPolicy(topic="websocket-events", strategy=RetryStrategy.FIXED_INTERVAL,
-                    max_retries=10, base_delay_seconds=10),
+        RetryPolicy(
+            topic="websocket-events", strategy=RetryStrategy.FIXED_INTERVAL, max_retries=10, base_delay_seconds=10
+        ),
     )
     manager.default_retry_policy = RetryPolicy(
         topic="default",
@@ -56,9 +56,11 @@ def _configure_retry_policies(manager: DLQManager) -> None:
 
 def _configure_filters(manager: DLQManager, testing: bool) -> None:
     if not testing:
+
         def filter_test_events(message: DLQMessage) -> bool:
             event_id = message.event.event_id or ""
             return not event_id.startswith("test-")
+
         manager.add_filter(filter_test_events)
 
     def filter_old_messages(message: DLQMessage) -> bool:
@@ -128,6 +130,7 @@ async def main() -> None:
     signal.signal(signal.SIGTERM, signal_handler)
 
     from contextlib import AsyncExitStack
+
     async with AsyncExitStack() as stack:
         await stack.enter_async_context(manager)
         stack.callback(db_client.close)

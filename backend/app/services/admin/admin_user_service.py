@@ -19,11 +19,11 @@ from app.services.rate_limit_service import RateLimitService
 
 class AdminUserService:
     def __init__(
-            self,
-            user_repository: AdminUserRepository,
-            event_service: EventService,
-            execution_service: ExecutionService,
-            rate_limit_service: RateLimitService,
+        self,
+        user_repository: AdminUserRepository,
+        event_service: EventService,
+        execution_service: ExecutionService,
+        rate_limit_service: RateLimitService,
     ) -> None:
         self._users = user_repository
         self._events = event_service
@@ -31,8 +31,7 @@ class AdminUserService:
         self._rate_limits = rate_limit_service
 
     async def get_user_overview(self, user_id: str, hours: int = 24) -> AdminUserOverviewDomain:
-        logger.info("Admin getting user overview",
-                    extra={"target_user_id": user_id, "hours": hours})
+        logger.info("Admin getting user overview", extra={"target_user_id": user_id, "hours": hours})
         user = await self._users.get_user_by_id(user_id)
         if not user:
             raise ValueError("User not found")
@@ -46,10 +45,7 @@ class AdminUserService:
             end_time=now,
             include_all_users=False,
         )
-        exec_stats = await self._executions.get_execution_stats(
-            user_id=user_id,
-            time_range=(start, now)
-        )
+        exec_stats = await self._executions.get_execution_stats(user_id=user_id, time_range=(start, now))
         by_status = exec_stats.get("by_status", {}) or {}
 
         def _count(status: ExecutionStatus) -> int:
@@ -102,13 +98,9 @@ class AdminUserService:
             recent_events=recent_events,
         )
 
-    async def list_users(self,
-                         *,
-                         admin_username: str,
-                         limit: int,
-                         offset: int,
-                         search: str | None,
-                         role: UserRole | None) -> UserListResult:
+    async def list_users(
+        self, *, admin_username: str, limit: int, offset: int, search: str | None, role: UserRole | None
+    ) -> UserListResult:
         logger.info(
             "Admin listing users",
             extra={
@@ -150,8 +142,9 @@ class AdminUserService:
             "updated_at": now,
         }
         await self._users.users_collection.insert_one(user_doc)
-        logger.info("User created successfully",
-                    extra={"new_username": user_data.username, "admin_username": admin_username})
+        logger.info(
+            "User created successfully", extra={"new_username": user_data.username, "admin_username": admin_username}
+        )
         # Return fresh domain user
         created = await self._users.get_user_by_id(user_id)
         if not created:
@@ -159,8 +152,7 @@ class AdminUserService:
         return created
 
     async def get_user(self, *, admin_username: str, user_id: str) -> User | None:
-        logger.info("Admin getting user details",
-                    extra={"admin_username": admin_username, "target_user_id": user_id})
+        logger.info("Admin getting user details", extra={"admin_username": admin_username, "target_user_id": user_id})
         return await self._users.get_user_by_id(user_id)
 
     async def update_user(self, *, admin_username: str, user_id: str, update: UserUpdate) -> User | None:
@@ -183,8 +175,9 @@ class AdminUserService:
         return deleted_counts
 
     async def reset_user_password(self, *, admin_username: str, user_id: str, new_password: str) -> bool:
-        logger.info("Admin resetting user password",
-                    extra={"admin_username": admin_username, "target_user_id": user_id})
+        logger.info(
+            "Admin resetting user password", extra={"admin_username": admin_username, "target_user_id": user_id}
+        )
         pr = PasswordReset(user_id=user_id, new_password=new_password)
         ok = await self._users.reset_user_password(pr)
         if ok:
@@ -192,8 +185,9 @@ class AdminUserService:
         return ok
 
     async def get_user_rate_limits(self, *, admin_username: str, user_id: str) -> dict:
-        logger.info("Admin getting user rate limits",
-                    extra={"admin_username": admin_username, "target_user_id": user_id})
+        logger.info(
+            "Admin getting user rate limits", extra={"admin_username": admin_username, "target_user_id": user_id}
+        )
         user_limit = await self._rate_limits.get_user_rate_limit(user_id)
         usage_stats = await self._rate_limits.get_usage_stats(user_id)
         rate_limit_mapper = UserRateLimitMapper()
@@ -203,11 +197,9 @@ class AdminUserService:
             "current_usage": usage_stats,
         }
 
-    async def update_user_rate_limits(self,
-                                      *,
-                                      admin_username: str,
-                                      user_id: str,
-                                      config: UserRateLimit) -> dict[str, object]:
+    async def update_user_rate_limits(
+        self, *, admin_username: str, user_id: str, config: UserRateLimit
+    ) -> dict[str, object]:
         mapper = UserRateLimitMapper()
         logger.info(
             "Admin updating user rate limits",
@@ -218,7 +210,8 @@ class AdminUserService:
         return {"message": "Rate limits updated successfully", "config": mapper.to_dict(config)}
 
     async def reset_user_rate_limits(self, *, admin_username: str, user_id: str) -> bool:
-        logger.info("Admin resetting user rate limits",
-                    extra={"admin_username": admin_username, "target_user_id": user_id})
+        logger.info(
+            "Admin resetting user rate limits", extra={"admin_username": admin_username, "target_user_id": user_id}
+        )
         await self._rate_limits.reset_user_limits(user_id)
         return True

@@ -9,6 +9,7 @@ from app.domain.events.event_models import EventSummary
 
 class ReplaySessionFields(StringEnum):
     """Database field names for replay sessions."""
+
     SESSION_ID = "session_id"
     TYPE = "type"
     STATUS = "status"
@@ -64,20 +65,11 @@ class ReplaySession:
 
     def update_progress(self, replayed: int, failed: int = 0, skipped: int = 0) -> "ReplaySession":
         # Create new instance with updated values
-        new_session = replace(
-            self,
-            replayed_events=replayed,
-            failed_events=failed,
-            skipped_events=skipped
-        )
+        new_session = replace(self, replayed_events=replayed, failed_events=failed, skipped_events=skipped)
 
         # Check if completed and update status
         if new_session.replayed_events >= new_session.total_events:
-            new_session = replace(
-                new_session,
-                status=ReplayStatus.COMPLETED,
-                completed_at=datetime.now(timezone.utc)
-            )
+            new_session = replace(new_session, status=ReplayStatus.COMPLETED, completed_at=datetime.now(timezone.utc))
 
         return new_session
 
@@ -114,18 +106,13 @@ class ReplayQuery:
     end_time: datetime | None = None
 
     def is_empty(self) -> bool:
-        return not any([
-            self.event_ids,
-            self.correlation_id,
-            self.aggregate_id,
-            self.start_time,
-            self.end_time
-        ])
+        return not any([self.event_ids, self.correlation_id, self.aggregate_id, self.start_time, self.end_time])
 
 
 @dataclass
 class ReplaySessionData:
     """Unified replay session data for both preview and actual replay."""
+
     total_events: int
     replay_correlation_id: str
     dry_run: bool

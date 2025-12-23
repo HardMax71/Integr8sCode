@@ -39,28 +39,32 @@ async def upsert_user(
         print(f"User '{username}' exists - updating password, role={role}, is_superuser={is_superuser}")
         await db.users.update_one(
             {"username": username},
-            {"$set": {
-                "hashed_password": pwd_context.hash(password),
-                "role": role,
-                "is_superuser": is_superuser,
-                "is_active": True,
-                "updated_at": datetime.now(timezone.utc)
-            }}
+            {
+                "$set": {
+                    "hashed_password": pwd_context.hash(password),
+                    "role": role,
+                    "is_superuser": is_superuser,
+                    "is_active": True,
+                    "updated_at": datetime.now(timezone.utc),
+                }
+            },
         )
     else:
         print(f"Creating user '{username}' (role={role}, is_superuser={is_superuser})")
-        await db.users.insert_one({
-            "_id": ObjectId(),
-            "user_id": str(ObjectId()),
-            "username": username,
-            "email": email,
-            "hashed_password": pwd_context.hash(password),
-            "role": role,
-            "is_active": True,
-            "is_superuser": is_superuser,
-            "created_at": datetime.now(timezone.utc),
-            "updated_at": datetime.now(timezone.utc)
-        })
+        await db.users.insert_one(
+            {
+                "_id": ObjectId(),
+                "user_id": str(ObjectId()),
+                "username": username,
+                "email": email,
+                "hashed_password": pwd_context.hash(password),
+                "role": role,
+                "is_active": True,
+                "is_superuser": is_superuser,
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
+            }
+        )
 
 
 async def seed_users() -> None:
@@ -79,7 +83,7 @@ async def seed_users() -> None:
         email="user@integr8scode.com",
         password=os.getenv("DEFAULT_USER_PASSWORD", "user123"),
         role="user",
-        is_superuser=False
+        is_superuser=False,
     )
 
     # Admin user
@@ -89,7 +93,7 @@ async def seed_users() -> None:
         email="admin@integr8scode.com",
         password=os.getenv("ADMIN_USER_PASSWORD", "admin123"),
         role="admin",
-        is_superuser=True
+        is_superuser=True,
     )
 
     print("\n" + "=" * 50)

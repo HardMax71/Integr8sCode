@@ -8,6 +8,7 @@ from app.infrastructure.kafka.events import BaseEvent
 
 class DLQMessageStatus(StringEnum):
     """Status of a message in the Dead Letter Queue."""
+
     PENDING = "pending"
     SCHEDULED = "scheduled"
     RETRIED = "retried"
@@ -16,6 +17,7 @@ class DLQMessageStatus(StringEnum):
 
 class RetryStrategy(StringEnum):
     """Retry strategies for DLQ messages."""
+
     IMMEDIATE = "immediate"
     EXPONENTIAL_BACKOFF = "exponential_backoff"
     FIXED_INTERVAL = "fixed_interval"
@@ -25,6 +27,7 @@ class RetryStrategy(StringEnum):
 
 class DLQFields(StringEnum):
     """Database field names for DLQ messages collection."""
+
     EVENT_ID = "event_id"
     EVENT = "event"
     EVENT_TYPE = "event.event_type"
@@ -94,6 +97,7 @@ class DLQMessage:
 @dataclass
 class DLQMessageUpdate:
     """Strongly-typed update descriptor for DLQ message status changes."""
+
     status: DLQMessageStatus
     next_retry_at: datetime | None = None
     retried_at: datetime | None = None
@@ -107,6 +111,7 @@ class DLQMessageUpdate:
 @dataclass
 class DLQMessageFilter:
     """Filter criteria for querying DLQ messages."""
+
     status: DLQMessageStatus | None = None
     topic: str | None = None
     event_type: str | None = None
@@ -115,6 +120,7 @@ class DLQMessageFilter:
 @dataclass
 class RetryPolicy:
     """Retry policy configuration for DLQ messages."""
+
     topic: str
     strategy: RetryStrategy
     max_retries: int = 5
@@ -140,10 +146,7 @@ class RetryPolicy:
             delay = self.base_delay_seconds
 
         elif self.strategy == RetryStrategy.EXPONENTIAL_BACKOFF:
-            delay = min(
-                self.base_delay_seconds * (self.retry_multiplier ** message.retry_count),
-                self.max_delay_seconds
-            )
+            delay = min(self.base_delay_seconds * (self.retry_multiplier**message.retry_count), self.max_delay_seconds)
             # Add jitter to avoid thundering herd
             jitter = delay * self.jitter_factor * (2 * random.random() - 1)
             delay = max(0, delay + jitter)
@@ -158,6 +161,7 @@ class RetryPolicy:
 @dataclass
 class TopicStatistic:
     """Statistics for a single topic."""
+
     topic: str
     count: int
     avg_retry_count: float
@@ -166,6 +170,7 @@ class TopicStatistic:
 @dataclass
 class EventTypeStatistic:
     """Statistics for a single event type."""
+
     event_type: str
     count: int
 
@@ -173,6 +178,7 @@ class EventTypeStatistic:
 @dataclass
 class AgeStatistics:
     """Age statistics for DLQ messages."""
+
     min_age_seconds: float
     max_age_seconds: float
     avg_age_seconds: float
@@ -181,6 +187,7 @@ class AgeStatistics:
 @dataclass
 class DLQStatistics:
     """Comprehensive DLQ statistics."""
+
     by_status: dict[str, int]
     by_topic: list[TopicStatistic]
     by_event_type: list[EventTypeStatistic]
@@ -191,6 +198,7 @@ class DLQStatistics:
 @dataclass
 class DLQRetryResult:
     """Result of a single retry operation."""
+
     event_id: str
     status: str  # "success" or "failed"
     error: str | None = None
@@ -199,6 +207,7 @@ class DLQRetryResult:
 @dataclass
 class DLQBatchRetryResult:
     """Result of batch retry operation."""
+
     total: int
     successful: int
     failed: int
@@ -208,6 +217,7 @@ class DLQBatchRetryResult:
 @dataclass
 class DLQMessageListResult:
     """Result of listing DLQ messages."""
+
     messages: list[DLQMessage]
     total: int
     offset: int
@@ -217,6 +227,7 @@ class DLQMessageListResult:
 @dataclass
 class DLQTopicSummary:
     """Summary of a topic in DLQ."""
+
     topic: str
     total_messages: int
     status_breakdown: dict[str, int]

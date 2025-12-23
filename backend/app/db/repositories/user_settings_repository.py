@@ -17,24 +17,26 @@ from app.infrastructure.mappers import UserSettingsMapper
 class UserSettingsRepository:
     def __init__(self, database: Database) -> None:
         self.db = database
-        self.snapshots_collection: Collection = self.db.get_collection(
-            CollectionNames.USER_SETTINGS_SNAPSHOTS
-        )
+        self.snapshots_collection: Collection = self.db.get_collection(CollectionNames.USER_SETTINGS_SNAPSHOTS)
         self.events_collection: Collection = self.db.get_collection(CollectionNames.EVENTS)
         self.mapper = UserSettingsMapper()
 
     async def create_indexes(self) -> None:
         # Create indexes for settings snapshots
-        await self.snapshots_collection.create_indexes([
-            IndexModel([("user_id", ASCENDING)], unique=True),
-            IndexModel([("updated_at", DESCENDING)]),
-        ])
+        await self.snapshots_collection.create_indexes(
+            [
+                IndexModel([("user_id", ASCENDING)], unique=True),
+                IndexModel([("updated_at", DESCENDING)]),
+            ]
+        )
 
         # Create indexes for settings events
-        await self.events_collection.create_indexes([
-            IndexModel([("event_type", ASCENDING), ("aggregate_id", ASCENDING)]),
-            IndexModel([("aggregate_id", ASCENDING), ("timestamp", ASCENDING)]),
-        ])
+        await self.events_collection.create_indexes(
+            [
+                IndexModel([("event_type", ASCENDING), ("aggregate_id", ASCENDING)]),
+                IndexModel([("aggregate_id", ASCENDING), ("timestamp", ASCENDING)]),
+            ]
+        )
 
         logger.info("User settings repository indexes created successfully")
 
@@ -46,25 +48,18 @@ class UserSettingsRepository:
 
     async def create_snapshot(self, settings: DomainUserSettings) -> None:
         doc = self.mapper.to_snapshot_document(settings)
-        await self.snapshots_collection.replace_one(
-            {"user_id": settings.user_id},
-            doc,
-            upsert=True
-        )
+        await self.snapshots_collection.replace_one({"user_id": settings.user_id}, doc, upsert=True)
         logger.info(f"Created settings snapshot for user {settings.user_id}")
 
     async def get_settings_events(
-            self,
-            user_id: str,
-            event_types: List[EventType],
-            since: datetime | None = None,
-            until: datetime | None = None,
-            limit: int | None = None
+        self,
+        user_id: str,
+        event_types: List[EventType],
+        since: datetime | None = None,
+        until: datetime | None = None,
+        limit: int | None = None,
     ) -> List[DomainSettingsEvent]:
-        query = {
-            "aggregate_id": f"user_settings_{user_id}",
-            "event_type": {"$in": [str(et) for et in event_types]}
-        }
+        query = {"aggregate_id": f"user_settings_{user_id}", "event_type": {"$in": [str(et) for et in event_types]}}
 
         if since or until:
             timestamp_query: Dict[str, Any] = {}
@@ -86,28 +81,21 @@ class UserSettingsRepository:
         snapshot = await self.get_snapshot(user_id)
 
         if not snapshot:
-            return await self.events_collection.count_documents({
-                "aggregate_id": f"user_settings_{user_id}"
-            })
+            return await self.events_collection.count_documents({"aggregate_id": f"user_settings_{user_id}"})
 
-        return await self.events_collection.count_documents({
-            "aggregate_id": f"user_settings_{user_id}",
-            "timestamp": {"$gt": snapshot.updated_at}
-        })
+        return await self.events_collection.count_documents(
+            {"aggregate_id": f"user_settings_{user_id}", "timestamp": {"$gt": snapshot.updated_at}}
+        )
 
     async def count_events_for_user(self, user_id: str) -> int:
-        return await self.events_collection.count_documents({
-            "aggregate_id": f"user_settings_{user_id}"
-        })
-    
+        return await self.events_collection.count_documents({"aggregate_id": f"user_settings_{user_id}"})
+
     async def delete_user_settings(self, user_id: str) -> None:
         """Delete all settings data for a user (snapshot and events)."""
         # Delete snapshot
         await self.snapshots_collection.delete_one({"user_id": user_id})
-        
+
         # Delete all events
-        await self.events_collection.delete_many({
-            "aggregate_id": f"user_settings_{user_id}"
-        })
-        
+        await self.events_collection.delete_many({"aggregate_id": f"user_settings_{user_id}"})
+
         logger.info(f"Deleted all settings data for user {user_id}")

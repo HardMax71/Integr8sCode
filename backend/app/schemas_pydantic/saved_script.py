@@ -11,9 +11,7 @@ class SavedScriptBase(BaseModel):
     lang_version: str = "3.11"
     description: str | None = None
 
-    model_config = ConfigDict(
-        from_attributes=True
-    )
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SavedScriptCreate(SavedScriptBase):
@@ -26,9 +24,7 @@ class SavedScriptInDB(SavedScriptBase):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    model_config = ConfigDict(
-        from_attributes=True
-    )
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SavedScriptUpdate(BaseModel):
@@ -39,9 +35,7 @@ class SavedScriptUpdate(BaseModel):
     description: str | None = None
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    model_config = ConfigDict(
-        from_attributes=True
-    )
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SavedScriptCreateRequest(SavedScriptBase):
@@ -58,14 +52,10 @@ class SavedScriptResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    model_config = ConfigDict(
-        from_attributes=True
-    )
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SavedScriptListResponse(BaseModel):
     scripts: list[SavedScriptResponse]
 
-    model_config = ConfigDict(
-        from_attributes=True
-    )
+    model_config = ConfigDict(from_attributes=True)

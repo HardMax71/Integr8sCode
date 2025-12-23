@@ -43,7 +43,7 @@ class ExecutionRequestedEvent(BaseEvent):
                 "memory_limit": "128Mi",
                 "cpu_request": "50m",
                 "memory_request": "64Mi",
-                "priority": 5
+                "priority": 5,
             }
         }
     )
@@ -130,7 +130,7 @@ class ExecutionCancelledEvent(BaseEvent):
                 "execution_id": "550e8400-e29b-41d4-a716-446655440000",
                 "reason": "user_requested",
                 "cancelled_by": "user123",
-                "force_terminated": False
+                "force_terminated": False,
             }
         }
     )

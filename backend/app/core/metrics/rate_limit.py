@@ -26,7 +26,7 @@ class RateLimitMetrics(BaseMetrics):
             description="Number of bypassed rate limit checks",
             unit="1",
         )
-        
+
         # Performance metrics
         self.check_duration = self._meter.create_histogram(
             name="rate_limit.check.duration",
@@ -43,7 +43,7 @@ class RateLimitMetrics(BaseMetrics):
             description="Time to execute rate limit algorithm",
             unit="ms",
         )
-        
+
         # Usage metrics
         self.remaining = self._meter.create_histogram(
             name="rate_limit.remaining",
@@ -60,7 +60,7 @@ class RateLimitMetrics(BaseMetrics):
             description="Size of rate limit window",
             unit="s",
         )
-        
+
         # Configuration metrics - using histograms to record absolute values
         # We record the current value, and Grafana queries the latest
         self.active_rules = self._meter.create_histogram(
@@ -78,7 +78,7 @@ class RateLimitMetrics(BaseMetrics):
             description="Number of users with rate limit bypass",
             unit="1",
         )
-        
+
         # Token bucket specific metrics
         self.token_bucket_tokens = self._meter.create_histogram(
             name="rate_limit.token_bucket.tokens",
@@ -90,7 +90,7 @@ class RateLimitMetrics(BaseMetrics):
             description="Token bucket refill rate",
             unit="tokens/s",
         )
-        
+
         # Error metrics
         self.redis_errors = self._meter.create_counter(
             name="rate_limit.redis.errors.total",
@@ -102,6 +102,6 @@ class RateLimitMetrics(BaseMetrics):
             description="Number of configuration load errors",
             unit="1",
         )
-        
+
         # Authenticated vs anonymous checks can be derived from labels on requests_total
         # No separate ip/user counters to avoid duplication and complexity.

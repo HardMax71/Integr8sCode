@@ -33,12 +33,7 @@ class AdminSettingsRepository:
 
         return self.settings_mapper.system_settings_from_dict(settings_doc)
 
-    async def update_system_settings(
-            self,
-            settings: SystemSettings,
-            updated_by: str,
-            user_id: str
-    ) -> SystemSettings:
+    async def update_system_settings(self, settings: SystemSettings, updated_by: str, user_id: str) -> SystemSettings:
         """Update system-wide settings."""
         # Update settings metadata
         settings.updated_at = datetime.now(timezone.utc)
@@ -46,11 +41,7 @@ class AdminSettingsRepository:
         # Convert to dict and save
         settings_dict = self.settings_mapper.system_settings_to_dict(settings)
 
-        await self.settings_collection.replace_one(
-            {"_id": "global"},
-            settings_dict,
-            upsert=True
-        )
+        await self.settings_collection.replace_one({"_id": "global"}, settings_dict, upsert=True)
 
         # Create audit log entry
         audit_entry = AuditLogEntry(
@@ -58,12 +49,10 @@ class AdminSettingsRepository:
             user_id=user_id,
             username=updated_by,
             timestamp=datetime.now(timezone.utc),
-            changes=settings_dict
+            changes=settings_dict,
         )
 
-        await self.audit_log_collection.insert_one(
-            self.audit_mapper.to_dict(audit_entry)
-        )
+        await self.audit_log_collection.insert_one(self.audit_mapper.to_dict(audit_entry))
 
         return settings
 
@@ -77,7 +66,7 @@ class AdminSettingsRepository:
             action=AuditAction.SYSTEM_SETTINGS_RESET,
             user_id=user_id,
             username=username,
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(timezone.utc),
         )
 
         await self.audit_log_collection.insert_one(self.audit_mapper.to_dict(audit_entry))

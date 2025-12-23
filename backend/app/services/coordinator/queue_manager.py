@@ -41,10 +41,10 @@ class QueuedExecution:
 
 class QueueManager:
     def __init__(
-            self,
-            max_queue_size: int = 10000,
-            max_executions_per_user: int = 100,
-            stale_timeout_seconds: int = 3600,
+        self,
+        max_queue_size: int = 10000,
+        max_executions_per_user: int = 100,
+        stale_timeout_seconds: int = 3600,
     ) -> None:
         self.metrics = get_coordinator_metrics()
         self.max_queue_size = max_queue_size
@@ -82,9 +82,7 @@ class QueueManager:
         logger.info(f"Queue manager stopped. Final queue size: {len(self._queue)}")
 
     async def add_execution(
-            self,
-            event: ExecutionRequestedEvent,
-            priority: QueuePriority | None = None
+        self, event: ExecutionRequestedEvent, priority: QueuePriority | None = None
     ) -> Tuple[bool, int | None, str | None]:
         async with self._queue_lock:
             if len(self._queue) >= self.max_queue_size:
@@ -98,11 +96,7 @@ class QueueManager:
             if priority is None:
                 priority = QueuePriority(event.priority)
 
-            queued = QueuedExecution(
-                priority=priority.value,
-                timestamp=time.time(),
-                event=event
-            )
+            queued = QueuedExecution(priority=priority.value, timestamp=time.time(), event=event)
 
             heapq.heappush(self._queue, queued)
             self._track_execution(event.execution_id, user_id)
@@ -172,24 +166,18 @@ class QueueManager:
                 priority_counts[priority_name] += 1
                 user_counts[queued.user_id] += 1
 
-            top_users = dict(sorted(
-                user_counts.items(),
-                key=lambda x: x[1],
-                reverse=True
-            )[:10])
+            top_users = dict(sorted(user_counts.items(), key=lambda x: x[1], reverse=True)[:10])
 
             return {
                 "total_size": len(self._queue),
                 "priority_distribution": dict(priority_counts),
                 "top_users": top_users,
                 "max_queue_size": self.max_queue_size,
-                "utilization_percent": (len(self._queue) / self.max_queue_size) * 100
+                "utilization_percent": (len(self._queue) / self.max_queue_size) * 100,
             }
 
     async def requeue_execution(
-            self,
-            event: ExecutionRequestedEvent,
-            increment_retry: bool = True
+        self, event: ExecutionRequestedEvent, increment_retry: bool = True
     ) -> Tuple[bool, int | None, str | None]:
         def _next_lower(p: QueuePriority) -> QueuePriority:
             order = [
@@ -240,10 +228,8 @@ class QueueManager:
 
     def _record_wait_time(self, queued: QueuedExecution) -> None:
         self.metrics.record_queue_wait_time_by_priority(
-                queued.age_seconds,
-                QueuePriority(queued.priority).name,
-                "default"
-            )
+            queued.age_seconds, QueuePriority(queued.priority).name, "default"
+        )
 
     def _update_add_metrics(self, priority: QueuePriority) -> None:
         # Deprecated in favor of single execution queue depth metric

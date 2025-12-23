@@ -22,6 +22,7 @@ class ExecutionApiMapper:
         ru = None
         if isinstance(e.resource_usage, ResourceUsageDomain):
             ru = ResourceUsageSchema(**e.resource_usage.to_dict())
+
         # Map domain ExecutionErrorType -> public ErrorType
         def _map_error(t: Optional[ExecutionErrorType]) -> Optional[ErrorType]:
             if t is None:
@@ -30,6 +31,7 @@ class ExecutionApiMapper:
                 return ErrorType.SCRIPT_ERROR
             # TIMEOUT, RESOURCE_LIMIT, SYSTEM_ERROR, PERMISSION_DENIED -> SYSTEM_ERROR class
             return ErrorType.SYSTEM_ERROR
+
         return ExecutionResult(
             execution_id=e.execution_id,
             status=e.status,

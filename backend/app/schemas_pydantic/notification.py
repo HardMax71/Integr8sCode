@@ -15,6 +15,7 @@ from app.domain.enums.notification import (
 
 class Notification(BaseModel):
     """Individual notification instance"""
+
     notification_id: str = Field(default_factory=lambda: str(uuid4()))
     user_id: str
     channel: NotificationChannel
@@ -56,13 +57,12 @@ class Notification(BaseModel):
             raise ValueError("scheduled_for must be in the future")
         return v
 
-    model_config = ConfigDict(
-        from_attributes=True
-    )
+    model_config = ConfigDict(from_attributes=True)
 
 
 class NotificationBatch(BaseModel):
     """Batch of notifications for bulk processing"""
+
     batch_id: str = Field(default_factory=lambda: str(uuid4()))
     notifications: list[Notification]
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
@@ -78,9 +78,7 @@ class NotificationBatch(BaseModel):
             raise ValueError("Batch cannot exceed 1000 notifications")
         return v
 
-    model_config = ConfigDict(
-        from_attributes=True
-    )
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Rules removed in unified model
@@ -88,6 +86,7 @@ class NotificationBatch(BaseModel):
 
 class NotificationSubscription(BaseModel):
     """User subscription preferences for notifications"""
+
     user_id: str
     channel: NotificationChannel
     severities: list[NotificationSeverity] = Field(default_factory=list)
@@ -111,13 +110,12 @@ class NotificationSubscription(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
-    model_config = ConfigDict(
-        from_attributes=True
-    )
+    model_config = ConfigDict(from_attributes=True)
 
 
 class NotificationStats(BaseModel):
     """Statistics for notification delivery"""
+
     user_id: str | None = None
     channel: NotificationChannel | None = None
     tags: list[str] | None = None
@@ -143,13 +141,12 @@ class NotificationStats(BaseModel):
     avg_delivery_time_seconds: float = 0.0
     avg_read_time_seconds: float = 0.0
 
-    model_config = ConfigDict(
-        from_attributes=True
-    )
+    model_config = ConfigDict(from_attributes=True)
 
 
 class NotificationResponse(BaseModel):
     """Response schema for notification endpoints"""
+
     notification_id: str
     channel: NotificationChannel
     status: NotificationStatus
@@ -161,24 +158,22 @@ class NotificationResponse(BaseModel):
     severity: NotificationSeverity
     tags: list[str]
 
-    model_config = ConfigDict(
-        from_attributes=True
-    )
+    model_config = ConfigDict(from_attributes=True)
 
 
 class NotificationListResponse(BaseModel):
     """Response schema for notification list endpoints"""
+
     notifications: list[NotificationResponse]
     total: int
     unread_count: int
 
-    model_config = ConfigDict(
-        from_attributes=True
-    )
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SubscriptionUpdate(BaseModel):
     """Request schema for updating notification subscriptions"""
+
     enabled: bool
     severities: list[NotificationSeverity] = Field(default_factory=list)
     include_tags: list[str] = Field(default_factory=list)
@@ -191,9 +186,7 @@ class SubscriptionUpdate(BaseModel):
     timezone: str = "UTC"
     batch_interval_minutes: int = 60
 
-    model_config = ConfigDict(
-        from_attributes=True
-    )
+    model_config = ConfigDict(from_attributes=True)
 
 
 # TestNotificationRequest removed in unified model; use Notification schema directly for test endpoints
@@ -201,26 +194,23 @@ class SubscriptionUpdate(BaseModel):
 
 class SubscriptionsResponse(BaseModel):
     """Response schema for user subscriptions"""
+
     subscriptions: list[NotificationSubscription]
 
-    model_config = ConfigDict(
-        from_attributes=True
-    )
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UnreadCountResponse(BaseModel):
     """Response schema for unread notification count"""
+
     unread_count: int
 
-    model_config = ConfigDict(
-        from_attributes=True
-    )
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeleteNotificationResponse(BaseModel):
     """Response schema for notification deletion"""
+
     message: str
 
-    model_config = ConfigDict(
-        from_attributes=True
-    )
+    model_config = ConfigDict(from_attributes=True)

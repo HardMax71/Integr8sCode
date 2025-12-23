@@ -67,7 +67,7 @@ class RateLimitConfig:
                     burst_multiplier=1.5,
                     algorithm=RateLimitAlgorithm.SLIDING_WINDOW,
                     priority=10,
-                    enabled=True
+                    enabled=True,
                 ),
                 RateLimitRule(
                     endpoint_pattern=r"^/api/v1/admin/.*",
@@ -77,7 +77,7 @@ class RateLimitConfig:
                     burst_multiplier=2.0,
                     algorithm=RateLimitAlgorithm.SLIDING_WINDOW,
                     priority=5,
-                    enabled=True
+                    enabled=True,
                 ),
                 RateLimitRule(
                     endpoint_pattern=r"^/api/v1/events/.*",
@@ -87,7 +87,7 @@ class RateLimitConfig:
                     burst_multiplier=1.0,
                     algorithm=RateLimitAlgorithm.SLIDING_WINDOW,
                     priority=3,
-                    enabled=True
+                    enabled=True,
                 ),
                 RateLimitRule(
                     endpoint_pattern=r"^/api/v1/ws",
@@ -97,7 +97,7 @@ class RateLimitConfig:
                     burst_multiplier=1.0,
                     algorithm=RateLimitAlgorithm.SLIDING_WINDOW,
                     priority=3,
-                    enabled=True
+                    enabled=True,
                 ),
                 RateLimitRule(
                     endpoint_pattern=r"^/api/v1/auth/.*",
@@ -107,7 +107,7 @@ class RateLimitConfig:
                     burst_multiplier=1.5,
                     algorithm=RateLimitAlgorithm.SLIDING_WINDOW,
                     priority=7,
-                    enabled=True
+                    enabled=True,
                 ),
                 RateLimitRule(
                     endpoint_pattern=r"^/api/v1/.*",
@@ -117,11 +117,11 @@ class RateLimitConfig:
                     burst_multiplier=1.5,
                     algorithm=RateLimitAlgorithm.SLIDING_WINDOW,
                     priority=1,
-                    enabled=True
-                )
+                    enabled=True,
+                ),
             ],
             global_enabled=True,
-            redis_ttl=3600
+            redis_ttl=3600,
         )
 
 
@@ -142,6 +142,7 @@ class UserRateLimitSummary:
 
     Always present for callers; reflects defaults when no override exists.
     """
+
     user_id: str
     has_custom_limits: bool
     bypass_rate_limit: bool

@@ -33,13 +33,13 @@ class SagaOrchestrator(LifecycleEnabled):
     """Orchestrates saga execution and compensation"""
 
     def __init__(
-            self,
-            config: SagaConfig,
-            saga_repository: SagaRepository,
-            producer: UnifiedProducer,
-            event_store: EventStore,
-            idempotency_manager: IdempotencyManager,
-            resource_allocation_repository: ResourceAllocationRepository,
+        self,
+        config: SagaConfig,
+        saga_repository: SagaRepository,
+        producer: UnifiedProducer,
+        event_store: EventStore,
+        idempotency_manager: IdempotencyManager,
+        resource_allocation_repository: ResourceAllocationRepository,
     ):
         self.config = config
         self._sagas: dict[str, type[BaseSaga]] = {}
@@ -171,8 +171,10 @@ class SagaOrchestrator(LifecycleEnabled):
     def _should_trigger_saga(self, saga_class: type[BaseSaga], event: BaseEvent) -> bool:
         trigger_event_types = saga_class.get_trigger_events()
         should_trigger = event.event_type in trigger_event_types
-        logger.debug(f"Saga {saga_class.get_name()} triggers on {trigger_event_types}, "
-                     f"event is {event.event_type}, should trigger: {should_trigger}")
+        logger.debug(
+            f"Saga {saga_class.get_name()} triggers on {trigger_event_types}, "
+            f"event is {event.event_type}, should trigger: {should_trigger}"
+        )
         return should_trigger
 
     async def _start_saga(self, saga_name: str, trigger_event: BaseEvent) -> str | None:
@@ -224,11 +226,11 @@ class SagaOrchestrator(LifecycleEnabled):
         return instance.saga_id
 
     async def _execute_saga(
-            self,
-            saga: BaseSaga,
-            instance: Saga,
-            context: SagaContext,
-            trigger_event: BaseEvent,
+        self,
+        saga: BaseSaga,
+        instance: Saga,
+        context: SagaContext,
+        trigger_event: BaseEvent,
     ) -> None:
         """Execute saga steps"""
         tracer = get_tracer()
@@ -393,10 +395,10 @@ class SagaOrchestrator(LifecycleEnabled):
 
     async def cancel_saga(self, saga_id: str) -> bool:
         """Cancel a running saga and trigger compensation.
-        
+
         Args:
             saga_id: The ID of the saga to cancel
-            
+
         Returns:
             True if cancelled successfully, False otherwise
         """
@@ -480,7 +482,7 @@ class SagaOrchestrator(LifecycleEnabled):
 
     async def _publish_saga_cancelled_event(self, saga_instance: Saga) -> None:
         """Publish saga cancelled event.
-        
+
         Args:
             saga_instance: The cancelled saga instance
         """
@@ -514,20 +516,20 @@ class SagaOrchestrator(LifecycleEnabled):
 
 
 def create_saga_orchestrator(
-        saga_repository: SagaRepository,
-        producer: UnifiedProducer,
-        event_store: EventStore,
-        idempotency_manager: IdempotencyManager,
-        resource_allocation_repository: ResourceAllocationRepository,
-        config: SagaConfig,
+    saga_repository: SagaRepository,
+    producer: UnifiedProducer,
+    event_store: EventStore,
+    idempotency_manager: IdempotencyManager,
+    resource_allocation_repository: ResourceAllocationRepository,
+    config: SagaConfig,
 ) -> SagaOrchestrator:
     """Factory function to create a saga orchestrator.
-    
+
     Args:
         producer: Kafka producer instance
         event_store: Event store instance for event sourcing
         config: Optional saga configuration (uses defaults if not provided)
-        
+
     Returns:
         A new saga orchestrator instance
     """

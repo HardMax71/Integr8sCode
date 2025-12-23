@@ -84,7 +84,6 @@ def get_event_class_for_type(event_type: EventType) -> Type[BaseEvent] | None:
         EventType.EXECUTION_FAILED: ExecutionFailedEvent,
         EventType.EXECUTION_TIMEOUT: ExecutionTimeoutEvent,
         EventType.EXECUTION_CANCELLED: ExecutionCancelledEvent,
-        
         # Pod events
         EventType.POD_CREATED: PodCreatedEvent,
         EventType.POD_SCHEDULED: PodScheduledEvent,
@@ -93,7 +92,6 @@ def get_event_class_for_type(event_type: EventType) -> Type[BaseEvent] | None:
         EventType.POD_FAILED: PodFailedEvent,
         EventType.POD_TERMINATED: PodTerminatedEvent,
         EventType.POD_DELETED: PodDeletedEvent,
-        
         # User events
         EventType.USER_REGISTERED: UserRegisteredEvent,
         EventType.USER_LOGGED_IN: UserLoggedInEvent,
@@ -104,7 +102,6 @@ def get_event_class_for_type(event_type: EventType) -> Type[BaseEvent] | None:
         EventType.USER_THEME_CHANGED: UserThemeChangedEvent,
         EventType.USER_NOTIFICATION_SETTINGS_UPDATED: UserNotificationSettingsUpdatedEvent,
         EventType.USER_EDITOR_SETTINGS_UPDATED: UserEditorSettingsUpdatedEvent,
-        
         # Notification events
         EventType.NOTIFICATION_CREATED: NotificationCreatedEvent,
         EventType.NOTIFICATION_SENT: NotificationSentEvent,
@@ -112,30 +109,24 @@ def get_event_class_for_type(event_type: EventType) -> Type[BaseEvent] | None:
         EventType.NOTIFICATION_FAILED: NotificationFailedEvent,
         EventType.NOTIFICATION_READ: NotificationReadEvent,
         EventType.NOTIFICATION_CLICKED: NotificationClickedEvent,
-        
         # Script events
         EventType.SCRIPT_SAVED: ScriptSavedEvent,
         EventType.SCRIPT_DELETED: ScriptDeletedEvent,
         EventType.SCRIPT_SHARED: ScriptSharedEvent,
-        
         # Security events
         EventType.SECURITY_VIOLATION: SecurityViolationEvent,
         EventType.RATE_LIMIT_EXCEEDED: RateLimitExceededEvent,
         EventType.AUTH_FAILED: AuthFailedEvent,
-        
         # Resource events
         EventType.RESOURCE_LIMIT_EXCEEDED: ResourceLimitExceededEvent,
         EventType.QUOTA_EXCEEDED: QuotaExceededEvent,
-        
         # System events
         EventType.SYSTEM_ERROR: SystemErrorEvent,
         EventType.SERVICE_UNHEALTHY: ServiceUnhealthyEvent,
         EventType.SERVICE_RECOVERED: ServiceRecoveredEvent,
-        
         # Result events
         EventType.RESULT_STORED: ResultStoredEvent,
         EventType.RESULT_FAILED: ResultFailedEvent,
-        
         # Saga events
         EventType.SAGA_STARTED: SagaStartedEvent,
         EventType.SAGA_COMPLETED: SagaCompletedEvent,
@@ -143,14 +134,13 @@ def get_event_class_for_type(event_type: EventType) -> Type[BaseEvent] | None:
         EventType.SAGA_CANCELLED: SagaCancelledEvent,
         EventType.SAGA_COMPENSATING: SagaCompensatingEvent,
         EventType.SAGA_COMPENSATED: SagaCompensatedEvent,
-        
         # Saga command events
         EventType.CREATE_POD_COMMAND: CreatePodCommandEvent,
         EventType.DELETE_POD_COMMAND: DeletePodCommandEvent,
         EventType.ALLOCATE_RESOURCES_COMMAND: AllocateResourcesCommandEvent,
         EventType.RELEASE_RESOURCES_COMMAND: ReleaseResourcesCommandEvent,
     }
-    
+
     return event_map.get(event_type)
 
 
@@ -160,7 +150,7 @@ def get_topic_for_event(event_type: EventType) -> KafkaTopic:
     event_class = get_event_class_for_type(event_type)
     if event_class:
         return event_class.topic
-    
+
     # Default fallback
     return KafkaTopic.SYSTEM_EVENTS
 

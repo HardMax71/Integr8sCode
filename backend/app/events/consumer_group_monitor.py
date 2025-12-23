@@ -14,6 +14,7 @@ from app.settings import get_settings
 
 class ConsumerGroupHealth(StringEnum):
     """Consumer group health status."""
+
     HEALTHY = "healthy"
     DEGRADED = "degraded"
     UNHEALTHY = "unhealthy"
@@ -23,6 +24,7 @@ class ConsumerGroupHealth(StringEnum):
 @dataclass(slots=True)
 class ConsumerGroupMember:
     """Information about a consumer group member."""
+
     member_id: str
     client_id: str
     host: str
@@ -32,6 +34,7 @@ class ConsumerGroupMember:
 @dataclass(slots=True)
 class ConsumerGroupStatus:
     """Comprehensive consumer group status information."""
+
     group_id: str
     state: str
     protocol: str
@@ -65,21 +68,21 @@ class ConsumerGroupStatus:
 class NativeConsumerGroupMonitor:
     """
     Enhanced consumer group monitoring using confluent-kafka native operations.
-    
+
     Provides detailed consumer group health monitoring, lag tracking, and
     rebalancing detection using AdminClient's native capabilities.
     """
 
     def __init__(
-            self,
-            bootstrap_servers: str | None = None,
-            client_id: str = "integr8scode-consumer-group-monitor",
-            request_timeout_ms: int = 30000,
-            # Health thresholds
-            max_rebalance_time_seconds: int = 300,  # 5 minutes
-            critical_lag_threshold: int = 10000,
-            warning_lag_threshold: int = 1000,
-            min_members_threshold: int = 1,
+        self,
+        bootstrap_servers: str | None = None,
+        client_id: str = "integr8scode-consumer-group-monitor",
+        request_timeout_ms: int = 30000,
+        # Health thresholds
+        max_rebalance_time_seconds: int = 300,  # 5 minutes
+        critical_lag_threshold: int = 10000,
+        warning_lag_threshold: int = 1000,
+        min_members_threshold: int = 1,
     ):
         settings = get_settings()
         self.bootstrap_servers = bootstrap_servers or settings.KAFKA_BOOTSTRAP_SERVERS
@@ -97,10 +100,7 @@ class NativeConsumerGroupMonitor:
         self._cache_ttl_seconds = 30
 
     async def get_consumer_group_status(
-            self,
-            group_id: str,
-            timeout: float = 30.0,
-            include_lag: bool = True
+        self, group_id: str, timeout: float = 30.0, include_lag: bool = True
     ) -> ConsumerGroupStatus:
         """Get comprehensive status for a consumer group."""
         try:
@@ -123,16 +123,18 @@ class NativeConsumerGroupMonitor:
             for member in group_desc.members:
                 # Parse assigned partitions
                 assigned_partitions = []
-                if member.assignment and hasattr(member.assignment, 'topic_partitions'):
+                if member.assignment and hasattr(member.assignment, "topic_partitions"):
                     for tp in member.assignment.topic_partitions:
                         assigned_partitions.append(f"{tp.topic}:{tp.partition}")
 
-                members.append(ConsumerGroupMember(
-                    member_id=member.member_id,
-                    client_id=member.client_id,
-                    host=member.host,
-                    assigned_partitions=assigned_partitions
-                ))
+                members.append(
+                    ConsumerGroupMember(
+                        member_id=member.member_id,
+                        client_id=member.client_id,
+                        host=member.host,
+                        assigned_partitions=assigned_partitions,
+                    )
+                )
 
                 partition_distribution[member.member_id] = len(assigned_partitions)
                 total_assigned_partitions += len(assigned_partitions)
@@ -146,8 +148,8 @@ class NativeConsumerGroupMonitor:
             if include_lag and group_desc.state == ConsumerGroupState.STABLE:
                 try:
                     lag_info = await self._get_consumer_group_lag(group_id, timeout)
-                    total_lag = lag_info.get('total_lag', 0)
-                    partition_lags = lag_info.get('partition_lags', {})
+                    total_lag = lag_info.get("total_lag", 0)
+                    partition_lags = lag_info.get("partition_lags", {})
                 except Exception as e:
                     logger.warning(f"Failed to get lag info for group {group_id}: {e}")
 
@@ -155,15 +157,15 @@ class NativeConsumerGroupMonitor:
             status = ConsumerGroupStatus(
                 group_id=group_id,
                 state=group_desc.state.name if group_desc.state else "UNKNOWN",
-                protocol=getattr(group_desc, 'protocol', 'unknown'),
-                protocol_type=getattr(group_desc, 'protocol_type', 'unknown'),
+                protocol=getattr(group_desc, "protocol", "unknown"),
+                protocol_type=getattr(group_desc, "protocol_type", "unknown"),
                 coordinator=coordinator,
                 members=members,
                 member_count=len(members),
                 assigned_partitions=total_assigned_partitions,
                 partition_distribution=partition_distribution,
                 total_lag=total_lag,
-                partition_lags=partition_lags
+                partition_lags=partition_lags,
             )
 
             # Assess health
@@ -189,23 +191,17 @@ class NativeConsumerGroupMonitor:
                 assigned_partitions=0,
                 partition_distribution={},
                 health=ConsumerGroupHealth.UNHEALTHY,
-                health_message=f"Failed to get group status: {e}"
+                health_message=f"Failed to get group status: {e}",
             )
 
     async def get_multiple_group_status(
-            self,
-            group_ids: List[str],
-            timeout: float = 30.0,
-            include_lag: bool = True
+        self, group_ids: List[str], timeout: float = 30.0, include_lag: bool = True
     ) -> Dict[str, ConsumerGroupStatus]:
         """Get status for multiple consumer groups efficiently."""
         results = {}
 
         # Process groups concurrently
-        tasks = [
-            self.get_consumer_group_status(group_id, timeout, include_lag)
-            for group_id in group_ids
-        ]
+        tasks = [self.get_consumer_group_status(group_id, timeout, include_lag) for group_id in group_ids]
 
         try:
             statuses = await asyncio.gather(*tasks, return_exceptions=True)
@@ -224,7 +220,7 @@ class NativeConsumerGroupMonitor:
                         assigned_partitions=0,
                         partition_distribution={},
                         health=ConsumerGroupHealth.UNHEALTHY,
-                        health_message=str(status)
+                        health_message=str(status),
                     )
                 elif isinstance(status, ConsumerGroupStatus):
                     results[group_id] = status
@@ -244,7 +240,7 @@ class NativeConsumerGroupMonitor:
                     assigned_partitions=0,
                     partition_distribution={},
                     health=ConsumerGroupHealth.UNHEALTHY,
-                    health_message=str(e)
+                    health_message=str(e),
                 )
 
         return results
@@ -261,12 +257,12 @@ class NativeConsumerGroupMonitor:
             # Extract group IDs from result
             # ListConsumerGroupsResult has .valid and .errors attributes
             group_ids = []
-            if hasattr(result, 'valid'):
+            if hasattr(result, "valid"):
                 # result.valid contains a list of ConsumerGroupListing objects
                 group_ids = [group_listing.group_id for group_listing in result.valid]
 
             # Log any errors that occurred
-            if hasattr(result, 'errors') and result.errors:
+            if hasattr(result, "errors") and result.errors:
                 for error in result.errors:
                     logger.warning(f"Error listing some consumer groups: {error}")
 
@@ -295,28 +291,26 @@ class NativeConsumerGroupMonitor:
             return group_desc
 
         except Exception as e:
-            if hasattr(e, 'args') and e.args and isinstance(e.args[0], KafkaError):
+            if hasattr(e, "args") and e.args and isinstance(e.args[0], KafkaError):
                 kafka_err = e.args[0]
-                logger.error(f"Kafka error describing group {group_id}: "
-                             f"code={kafka_err.code()}, "
-                             f"name={kafka_err.name()}, "
-                             f"message={kafka_err}")
+                logger.error(
+                    f"Kafka error describing group {group_id}: "
+                    f"code={kafka_err.code()}, "
+                    f"name={kafka_err.name()}, "
+                    f"message={kafka_err}"
+                )
                 raise ValueError(f"Failed to describe group {group_id}: {kafka_err}")
             raise ValueError(f"Failed to describe group {group_id}: {e}")
 
-    async def _get_consumer_group_lag(
-            self,
-            group_id: str,
-            timeout: float
-    ) -> Dict[str, Any]:
+    async def _get_consumer_group_lag(self, group_id: str, timeout: float) -> Dict[str, Any]:
         """Get consumer group lag information."""
         try:
             # Create a temporary consumer to get lag info
             consumer_config = {
-                'bootstrap.servers': self.bootstrap_servers,
-                'group.id': f"{group_id}-lag-monitor-{datetime.now().timestamp()}",
-                'enable.auto.commit': False,
-                'auto.offset.reset': 'earliest'
+                "bootstrap.servers": self.bootstrap_servers,
+                "group.id": f"{group_id}-lag-monitor-{datetime.now().timestamp()}",
+                "enable.auto.commit": False,
+                "auto.offset.reset": "earliest",
             }
 
             consumer = Consumer(consumer_config)
@@ -328,12 +322,12 @@ class NativeConsumerGroupMonitor:
                 # Extract topics from member assignments
                 topics = set()
                 for member in group_desc.members:
-                    if member.assignment and hasattr(member.assignment, 'topic_partitions'):
+                    if member.assignment and hasattr(member.assignment, "topic_partitions"):
                         for tp in member.assignment.topic_partitions:
                             topics.add(tp.topic)
 
                 if not topics:
-                    return {'total_lag': 0, 'partition_lags': {}}
+                    return {"total_lag": 0, "partition_lags": {}}
 
                 # Get topic metadata to find all partitions
                 metadata = await asyncio.to_thread(consumer.list_topics, timeout=timeout)
@@ -351,16 +345,12 @@ class NativeConsumerGroupMonitor:
                         try:
                             # Get high water mark
                             low, high = await asyncio.to_thread(
-                                consumer.get_watermark_offsets,
-                                TopicPartition(topic, partition_id),
-                                timeout=timeout
+                                consumer.get_watermark_offsets, TopicPartition(topic, partition_id), timeout=timeout
                             )
 
                             # Get committed offset for the group
                             committed = await asyncio.to_thread(
-                                consumer.committed,
-                                [TopicPartition(topic, partition_id)],
-                                timeout=timeout
+                                consumer.committed, [TopicPartition(topic, partition_id)], timeout=timeout
                             )
 
                             if committed and len(committed) > 0:
@@ -374,17 +364,14 @@ class NativeConsumerGroupMonitor:
                             logger.debug(f"Failed to get lag for {topic}:{partition_id}: {e}")
                             continue
 
-                return {
-                    'total_lag': total_lag,
-                    'partition_lags': partition_lags
-                }
+                return {"total_lag": total_lag, "partition_lags": partition_lags}
 
             finally:
                 consumer.close()
 
         except Exception as e:
             logger.warning(f"Failed to get consumer group lag for {group_id}: {e}")
-            return {'total_lag': 0, 'partition_lags': {}}
+            return {"total_lag": 0, "partition_lags": {}}
 
     def _assess_group_health(self, status: ConsumerGroupStatus) -> tuple[ConsumerGroupHealth, str]:
         """Assess the health of a consumer group based on its status."""
@@ -436,7 +423,7 @@ class NativeConsumerGroupMonitor:
             "total_lag": status.total_lag,
             "coordinator": status.coordinator,
             "timestamp": status.timestamp.isoformat() if status.timestamp else None,
-            "partition_distribution": status.partition_distribution
+            "partition_distribution": status.partition_distribution,
         }
 
     def clear_cache(self) -> None:
@@ -444,8 +431,5 @@ class NativeConsumerGroupMonitor:
         self._group_status_cache.clear()
 
 
-def create_consumer_group_monitor(
-        bootstrap_servers: str | None = None,
-        **kwargs: Any
-) -> NativeConsumerGroupMonitor:
+def create_consumer_group_monitor(bootstrap_servers: str | None = None, **kwargs: Any) -> NativeConsumerGroupMonitor:
     return NativeConsumerGroupMonitor(bootstrap_servers=bootstrap_servers, **kwargs)

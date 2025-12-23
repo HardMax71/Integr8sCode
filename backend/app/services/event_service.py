@@ -27,11 +27,11 @@ class EventService:
         return {"metadata.user_id": user_id}
 
     async def get_execution_events(
-            self,
-            execution_id: str,
-            user_id: str,
-            user_role: UserRole,
-            include_system_events: bool = False,
+        self,
+        execution_id: str,
+        user_id: str,
+        user_role: UserRole,
+        include_system_events: bool = False,
     ) -> List[Event] | None:
         events = await self.repository.get_events_by_aggregate(aggregate_id=execution_id, limit=1000)
         if not events:
@@ -52,14 +52,14 @@ class EventService:
         return events
 
     async def get_user_events_paginated(
-            self,
-            user_id: str,
-            event_types: List[str] | None = None,
-            start_time: datetime | None = None,
-            end_time: datetime | None = None,
-            limit: int = 100,
-            skip: int = 0,
-            sort_order: str = "desc",
+        self,
+        user_id: str,
+        event_types: List[str] | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        limit: int = 100,
+        skip: int = 0,
+        sort_order: str = "desc",
     ) -> EventListResult:
         return await self.repository.get_user_events_paginated(
             user_id=user_id,
@@ -72,14 +72,14 @@ class EventService:
         )
 
     async def query_events_advanced(
-            self,
-            user_id: str,
-            user_role: UserRole,
-            filters: EventFilter,
-            sort_by: str = "timestamp",
-            sort_order: Any = "desc",
-            limit: int = 100,
-            skip: int = 0,
+        self,
+        user_id: str,
+        user_role: UserRole,
+        filters: EventFilter,
+        sort_by: str = "timestamp",
+        sort_order: Any = "desc",
+        limit: int = 100,
+        skip: int = 0,
     ) -> EventListResult | None:
         # Access control
         if filters.user_id and filters.user_id != user_id and user_role != UserRole.ADMIN:
@@ -102,7 +102,7 @@ class EventService:
 
         # Pagination and sorting from request
         return await self.repository.query_events_generic(
-            query=query, # type: ignore[assignment]
+            query=query,  # type: ignore[assignment]
             sort_field=sort_field,
             sort_direction=direction,
             skip=skip,
@@ -110,12 +110,12 @@ class EventService:
         )
 
     async def get_events_by_correlation(
-            self,
-            correlation_id: str,
-            user_id: str,
-            user_role: UserRole,
-            include_all_users: bool = False,
-            limit: int = 100,
+        self,
+        correlation_id: str,
+        user_id: str,
+        user_role: UserRole,
+        include_all_users: bool = False,
+        limit: int = 100,
     ) -> List[Event]:
         events = await self.repository.get_events_by_correlation(correlation_id=correlation_id, limit=limit)
         if not include_all_users or user_role != UserRole.ADMIN:
@@ -123,12 +123,12 @@ class EventService:
         return events
 
     async def get_event_statistics(
-            self,
-            user_id: str,
-            user_role: UserRole,
-            start_time: datetime | None = None,
-            end_time: datetime | None = None,
-            include_all_users: bool = False,
+        self,
+        user_id: str,
+        user_role: UserRole,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        include_all_users: bool = False,
     ) -> EventStatistics:
         match = {} if include_all_users else self._build_user_filter(user_id, user_role)
         return await self.repository.get_event_statistics_filtered(
@@ -138,10 +138,10 @@ class EventService:
         )
 
     async def get_event(
-            self,
-            event_id: str,
-            user_id: str,
-            user_role: UserRole,
+        self,
+        event_id: str,
+        user_id: str,
+        user_role: UserRole,
     ) -> Event | None:
         event = await self.repository.get_event(event_id)
         if not event:
@@ -152,11 +152,11 @@ class EventService:
         return event
 
     async def aggregate_events(
-            self,
-            user_id: str,
-            user_role: UserRole,
-            pipeline: List[Dict[str, Any]],
-            limit: int = 100,
+        self,
+        user_id: str,
+        user_role: UserRole,
+        pipeline: List[Dict[str, Any]],
+        limit: int = 100,
     ) -> EventAggregationResult:
         user_filter = self._build_user_filter(user_id, user_role)
         new_pipeline = list(pipeline)
@@ -168,18 +168,18 @@ class EventService:
         return await self.repository.aggregate_events(new_pipeline, limit=limit)
 
     async def list_event_types(
-            self,
-            user_id: str,
-            user_role: UserRole,
+        self,
+        user_id: str,
+        user_role: UserRole,
     ) -> List[str]:
         match = self._build_user_filter(user_id, user_role)
         return await self.repository.list_event_types(match=match)
 
     async def delete_event_with_archival(
-            self,
-            event_id: str,
-            deleted_by: str,
-            deletion_reason: str = "Admin deletion via API",
+        self,
+        event_id: str,
+        deleted_by: str,
+        deletion_reason: str = "Admin deletion via API",
     ) -> Event | None:
         return await self.repository.delete_event_with_archival(
             event_id=event_id,
@@ -191,10 +191,10 @@ class EventService:
         return await self.repository.get_aggregate_replay_info(aggregate_id)
 
     async def get_events_by_aggregate(
-            self,
-            aggregate_id: str,
-            event_types: List[str] | None = None,
-            limit: int = 100,
+        self,
+        aggregate_id: str,
+        event_types: List[str] | None = None,
+        limit: int = 100,
     ) -> list[Event]:
         return await self.repository.get_events_by_aggregate(
             aggregate_id=aggregate_id,

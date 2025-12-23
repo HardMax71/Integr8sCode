@@ -23,24 +23,16 @@ class SavedScriptRepository:
             raise ValueError("Insert not acknowledged")
         return self.mapper.from_mongo_document(doc)
 
-    async def get_saved_script(
-            self, script_id: str, user_id: str
-    ) -> DomainSavedScript | None:
-        saved_script = await self.collection.find_one(
-            {"script_id": script_id, "user_id": user_id}
-        )
+    async def get_saved_script(self, script_id: str, user_id: str) -> DomainSavedScript | None:
+        saved_script = await self.collection.find_one({"script_id": script_id, "user_id": user_id})
         if not saved_script:
             return None
         return self.mapper.from_mongo_document(saved_script)
 
-    async def update_saved_script(
-            self, script_id: str, user_id: str, update_data: DomainSavedScriptUpdate
-    ) -> None:
+    async def update_saved_script(self, script_id: str, user_id: str, update_data: DomainSavedScriptUpdate) -> None:
         update = self.mapper.to_update_dict(update_data)
 
-        await self.collection.update_one(
-            {"script_id": script_id, "user_id": user_id}, {"$set": update}
-        )
+        await self.collection.update_one({"script_id": script_id, "user_id": user_id}, {"$set": update})
 
     async def delete_saved_script(self, script_id: str, user_id: str) -> None:
         await self.collection.delete_one({"script_id": script_id, "user_id": user_id})

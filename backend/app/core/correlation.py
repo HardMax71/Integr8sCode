@@ -54,7 +54,7 @@ class CorrelationMiddleware:
         # Try to get correlation ID from headers
         headers = dict(scope["headers"])
         correlation_id = None
-        
+
         for header_name in [b"x-correlation-id", b"x-request-id"]:
             if header_name in headers:
                 correlation_id = headers[header_name].decode("latin-1")
@@ -63,20 +63,18 @@ class CorrelationMiddleware:
         # Generate correlation ID if not provided
         if not correlation_id:
             correlation_id = CorrelationContext.generate_correlation_id()
-        
+
         # Set correlation ID
         correlation_id = CorrelationContext.set_correlation_id(correlation_id)
 
         # Set request metadata
         client = scope.get("client")
         client_ip = client[0] if client else None
-        
+
         metadata = {
             "method": scope["method"],
             "path": scope["path"],
-            "client": {
-                "host": client_ip
-            } if client_ip else None
+            "client": {"host": client_ip} if client_ip else None,
         }
         CorrelationContext.set_request_metadata(metadata)
 
@@ -89,6 +87,6 @@ class CorrelationMiddleware:
 
         # Process request
         await self.app(scope, receive, send_wrapper)
-        
+
         # Clear context after request
         CorrelationContext.clear()

@@ -105,6 +105,7 @@ class DomainSettingsHistoryEntry:
 @dataclass
 class CachedSettings:
     """Wrapper for cached user settings with expiration time."""
+
     settings: DomainUserSettings
     expires_at: datetime
 

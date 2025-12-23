@@ -3,6 +3,7 @@ from app.core.utils import StringEnum
 
 class NotificationChannel(StringEnum):
     """Notification delivery channels."""
+
     IN_APP = "in_app"
     WEBHOOK = "webhook"
     SLACK = "slack"
@@ -10,6 +11,7 @@ class NotificationChannel(StringEnum):
 
 class NotificationSeverity(StringEnum):
     """Notification severity levels."""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -18,6 +20,7 @@ class NotificationSeverity(StringEnum):
 
 class NotificationStatus(StringEnum):
     """Notification delivery status."""
+
     PENDING = "pending"
     QUEUED = "queued"
     SENDING = "sending"

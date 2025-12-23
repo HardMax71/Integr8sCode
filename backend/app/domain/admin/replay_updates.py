@@ -27,7 +27,7 @@ class ReplaySessionUpdate:
         result: dict[str, object] = {}
 
         if self.status is not None:
-            result["status"] = self.status.value if hasattr(self.status, 'value') else self.status
+            result["status"] = self.status.value if hasattr(self.status, "value") else self.status
         if self.total_events is not None:
             result["total_events"] = self.total_events
         if self.replayed_events is not None:

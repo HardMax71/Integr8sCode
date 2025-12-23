@@ -3,6 +3,7 @@ from app.core.utils import StringEnum
 
 class LoginMethod(StringEnum):
     """User login methods."""
+
     PASSWORD = "password"
     OAUTH = "oauth"
     SSO = "sso"
@@ -11,6 +12,7 @@ class LoginMethod(StringEnum):
 
 class SettingsType(StringEnum):
     """Types of user settings."""
+
     PREFERENCES = "preferences"
     NOTIFICATION = "notification"
     EDITOR = "editor"

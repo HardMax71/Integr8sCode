@@ -42,11 +42,7 @@ class UserRepository:
         return None
 
     async def list_users(
-            self,
-            limit: int = 100,
-            offset: int = 0,
-            search: str | None = None,
-            role: UserRole | None = None
+        self, limit: int = 100, offset: int = 0, search: str | None = None, role: UserRole | None = None
     ) -> list[DomainAdminUser]:
         query: dict[str, object] = {}
 
@@ -55,7 +51,7 @@ class UserRepository:
             escaped_search = re.escape(search)
             query["$or"] = [
                 {"username": {"$regex": escaped_search, "$options": "i"}},
-                {"email": {"$regex": escaped_search, "$options": "i"}}
+                {"email": {"$regex": escaped_search, "$options": "i"}},
             ]
 
         if role:
@@ -76,10 +72,7 @@ class UserRepository:
         if update_data.password:
             update_dict[UserFields.HASHED_PASSWORD] = update_data.password  # caller should pass hashed if desired
         update_dict[UserFields.UPDATED_AT] = datetime.now(timezone.utc)
-        result = await self.collection.update_one(
-            {UserFields.USER_ID: user_id},
-            {"$set": update_dict}
-        )
+        result = await self.collection.update_one({UserFields.USER_ID: user_id}, {"$set": update_dict})
         if result.modified_count > 0:
             return await self.get_user_by_id(user_id)
         return None

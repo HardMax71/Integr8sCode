@@ -168,11 +168,7 @@ def _make_runtime_configs() -> dict[str, dict[str, RuntimeConfig]]:
             v: RuntimeConfig(
                 image=image_tpl.format(version=v),
                 file_name=file_name,
-                command=(
-                    interpreter_cmd
-                    if "{file}" in " ".join(interpreter_cmd)
-                    else interpreter_cmd + [full_path]
-                ),
+                command=(interpreter_cmd if "{file}" in " ".join(interpreter_cmd) else interpreter_cmd + [full_path]),
             )
             for v in versions
         }
@@ -182,6 +178,4 @@ def _make_runtime_configs() -> dict[str, dict[str, RuntimeConfig]]:
 
 RUNTIME_REGISTRY: dict[str, dict[str, RuntimeConfig]] = _make_runtime_configs()
 
-SUPPORTED_RUNTIMES: dict[str, list[str]] = {
-    lang: list(versions.keys()) for lang, versions in RUNTIME_REGISTRY.items()
-}
+SUPPORTED_RUNTIMES: dict[str, list[str]] = {lang: list(versions.keys()) for lang, versions in RUNTIME_REGISTRY.items()}

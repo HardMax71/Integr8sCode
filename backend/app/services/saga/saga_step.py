@@ -8,7 +8,7 @@ from app.infrastructure.kafka.events import BaseEvent
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T', bound=BaseEvent)
+T = TypeVar("T", bound=BaseEvent)
 
 
 class SagaContext:
@@ -35,7 +35,7 @@ class SagaContext:
         """Add event to context"""
         self.events.append(event)
 
-    def add_compensation(self, compensation: 'CompensationStep') -> None:
+    def add_compensation(self, compensation: "CompensationStep") -> None:
         """Add compensation step"""
         self.compensations.append(compensation)
 
@@ -80,7 +80,7 @@ class SagaStep(ABC, Generic[T]):
     async def execute(self, context: SagaContext, event: T) -> bool:
         """
         Execute the saga step
-        
+
         Returns:
             True if step succeeded and saga should continue
             False if step failed and compensation should start
@@ -88,7 +88,7 @@ class SagaStep(ABC, Generic[T]):
         pass
 
     @abstractmethod
-    def get_compensation(self) -> Optional['CompensationStep']:
+    def get_compensation(self) -> Optional["CompensationStep"]:
         """Get compensation step for this action"""
         pass
 
@@ -110,7 +110,7 @@ class CompensationStep(ABC):
     async def compensate(self, context: SagaContext) -> bool:
         """
         Execute compensation logic
-        
+
         Returns:
             True if compensation succeeded
             False if compensation failed

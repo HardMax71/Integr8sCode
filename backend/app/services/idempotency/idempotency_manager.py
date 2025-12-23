@@ -88,11 +88,7 @@ class IdempotencyManager:
         logger.info("Closed idempotency manager")
 
     def _generate_key(
-            self,
-            event: BaseEvent,
-            key_strategy: str,
-            custom_key: str | None = None,
-            fields: set[str] | None = None
+        self, event: BaseEvent, key_strategy: str, custom_key: str | None = None, fields: set[str] | None = None
     ) -> str:
         if key_strategy == "event_based":
             key = IdempotencyKeyStrategy.event_based(event)
@@ -104,15 +100,13 @@ class IdempotencyManager:
             raise ValueError(f"Invalid key strategy: {key_strategy}")
         return f"{self.config.key_prefix}:{key}"
 
-    
-
     async def check_and_reserve(
-            self,
-            event: BaseEvent,
-            key_strategy: str = "event_based",
-            custom_key: str | None = None,
-            ttl_seconds: int | None = None,
-            fields: set[str] | None = None,
+        self,
+        event: BaseEvent,
+        key_strategy: str = "event_based",
+        custom_key: str | None = None,
+        ttl_seconds: int | None = None,
+        fields: set[str] | None = None,
     ) -> IdempotencyResult:
         full_key = self._generate_key(event, key_strategy, custom_key, fields)
         ttl = ttl_seconds or self.config.default_ttl_seconds
@@ -126,10 +120,10 @@ class IdempotencyManager:
         return await self._create_new_key(full_key, event, ttl)
 
     async def _handle_existing_key(
-            self,
-            existing: IdempotencyRecord,
-            full_key: str,
-            event_type: str,
+        self,
+        existing: IdempotencyRecord,
+        full_key: str,
+        event_type: str,
     ) -> IdempotencyResult:
         status = existing.status
         if status == IdempotencyStatus.PROCESSING:
@@ -149,10 +143,10 @@ class IdempotencyManager:
         )
 
     async def _handle_processing_key(
-            self,
-            existing: IdempotencyRecord,
-            full_key: str,
-            event_type: str,
+        self,
+        existing: IdempotencyRecord,
+        full_key: str,
+        event_type: str,
     ) -> IdempotencyResult:
         created_at = existing.created_at
         now = datetime.now(timezone.utc)
@@ -162,12 +156,18 @@ class IdempotencyManager:
             existing.created_at = now
             existing.status = IdempotencyStatus.PROCESSING
             await self._repo.update_record(existing)
-            return IdempotencyResult(is_duplicate=False, status=IdempotencyStatus.PROCESSING, created_at=now,
-                                     key=full_key)
+            return IdempotencyResult(
+                is_duplicate=False, status=IdempotencyStatus.PROCESSING, created_at=now, key=full_key
+            )
 
         self.metrics.record_idempotency_duplicate_blocked(event_type)
-        return IdempotencyResult(is_duplicate=True, status=IdempotencyStatus.PROCESSING, created_at=created_at,
-                                 has_cached_result=existing.result_json is not None, key=full_key)
+        return IdempotencyResult(
+            is_duplicate=True,
+            status=IdempotencyStatus.PROCESSING,
+            created_at=created_at,
+            has_cached_result=existing.result_json is not None,
+            key=full_key,
+        )
 
     async def _create_new_key(self, full_key: str, event: BaseEvent, ttl: int) -> IdempotencyResult:
         created_at = datetime.now(timezone.utc)
@@ -181,24 +181,26 @@ class IdempotencyManager:
                 ttl_seconds=ttl,
             )
             await self._repo.insert_processing(record)
-            return IdempotencyResult(is_duplicate=False, status=IdempotencyStatus.PROCESSING, created_at=created_at,
-                                     key=full_key)
+            return IdempotencyResult(
+                is_duplicate=False, status=IdempotencyStatus.PROCESSING, created_at=created_at, key=full_key
+            )
         except DuplicateKeyError:
             # Race: someone inserted the same key concurrently — treat as existing
             existing = await self._repo.find_by_key(full_key)
             if existing:
                 return await self._handle_existing_key(existing, full_key, event.event_type)
             # If for some reason it's still not found, allow processing
-            return IdempotencyResult(is_duplicate=False, status=IdempotencyStatus.PROCESSING, created_at=created_at,
-                                     key=full_key)
+            return IdempotencyResult(
+                is_duplicate=False, status=IdempotencyStatus.PROCESSING, created_at=created_at, key=full_key
+            )
 
     async def _update_key_status(
-            self,
-            full_key: str,
-            existing: IdempotencyRecord,
-            status: IdempotencyStatus,
-            cached_json: str | None = None,
-            error: str | None = None,
+        self,
+        full_key: str,
+        existing: IdempotencyRecord,
+        status: IdempotencyStatus,
+        cached_json: str | None = None,
+        error: str | None = None,
     ) -> bool:
         created_at = existing.created_at
         completed_at = datetime.now(timezone.utc)
@@ -216,11 +218,11 @@ class IdempotencyManager:
         return (await self._repo.update_record(existing)) > 0
 
     async def mark_completed(
-            self,
-            event: BaseEvent,
-            key_strategy: str = "event_based",
-            custom_key: str | None = None,
-            fields: set[str] | None = None
+        self,
+        event: BaseEvent,
+        key_strategy: str = "event_based",
+        custom_key: str | None = None,
+        fields: set[str] | None = None,
     ) -> bool:
         full_key = self._generate_key(event, key_strategy, custom_key, fields)
         try:
@@ -235,28 +237,29 @@ class IdempotencyManager:
         return await self._update_key_status(full_key, existing, IdempotencyStatus.COMPLETED, cached_json=None)
 
     async def mark_failed(
-            self,
-            event: BaseEvent,
-            error: str,
-            key_strategy: str = "event_based",
-            custom_key: str | None = None,
-            fields: set[str] | None = None
+        self,
+        event: BaseEvent,
+        error: str,
+        key_strategy: str = "event_based",
+        custom_key: str | None = None,
+        fields: set[str] | None = None,
     ) -> bool:
         full_key = self._generate_key(event, key_strategy, custom_key, fields)
         existing = await self._repo.find_by_key(full_key)
         if not existing:
             logger.warning(f"Idempotency key {full_key} not found when marking failed")
             return False
-        return await self._update_key_status(full_key, existing, IdempotencyStatus.FAILED, cached_json=None,
-                                             error=error)
+        return await self._update_key_status(
+            full_key, existing, IdempotencyStatus.FAILED, cached_json=None, error=error
+        )
 
     async def mark_completed_with_json(
-            self,
-            event: BaseEvent,
-            cached_json: str,
-            key_strategy: str = "event_based",
-            custom_key: str | None = None,
-            fields: set[str] | None = None
+        self,
+        event: BaseEvent,
+        cached_json: str,
+        key_strategy: str = "event_based",
+        custom_key: str | None = None,
+        fields: set[str] | None = None,
     ) -> bool:
         full_key = self._generate_key(event, key_strategy, custom_key, fields)
         existing = await self._repo.find_by_key(full_key)
@@ -265,19 +268,20 @@ class IdempotencyManager:
             return False
         return await self._update_key_status(full_key, existing, IdempotencyStatus.COMPLETED, cached_json=cached_json)
 
-    async def get_cached_json(self, event: BaseEvent, key_strategy: str, custom_key: str | None,
-                              fields: set[str] | None = None) -> str:
+    async def get_cached_json(
+        self, event: BaseEvent, key_strategy: str, custom_key: str | None, fields: set[str] | None = None
+    ) -> str:
         full_key = self._generate_key(event, key_strategy, custom_key, fields)
         existing = await self._repo.find_by_key(full_key)
         assert existing and existing.result_json is not None, "Invariant: cached result must exist when requested"
         return existing.result_json
 
     async def remove(
-            self,
-            event: BaseEvent,
-            key_strategy: str = "event_based",
-            custom_key: str | None = None,
-            fields: set[str] | None = None
+        self,
+        event: BaseEvent,
+        key_strategy: str = "event_based",
+        custom_key: str | None = None,
+        fields: set[str] | None = None,
     ) -> bool:
         full_key = self._generate_key(event, key_strategy, custom_key, fields)
         try:
@@ -311,8 +315,8 @@ class IdempotencyManager:
 
 
 def create_idempotency_manager(
-        *,
-        repository: IdempotencyRepoProtocol,
-        config: IdempotencyConfig | None = None,
+    *,
+    repository: IdempotencyRepoProtocol,
+    config: IdempotencyConfig | None = None,
 ) -> IdempotencyManager:
     return IdempotencyManager(config or IdempotencyConfig(), repository)

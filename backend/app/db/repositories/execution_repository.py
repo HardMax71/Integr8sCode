@@ -78,9 +78,7 @@ class ExecutionRepository:
         update_data.setdefault("updated_at", datetime.now(timezone.utc))
         update_payload = {"$set": update_data}
 
-        result = await self.collection.update_one(
-            {"execution_id": execution_id}, update_payload
-        )
+        result = await self.collection.update_one({"execution_id": execution_id}, update_payload)
         return result.matched_count > 0
 
     async def write_terminal_result(self, exec_result: ExecutionResultDomain) -> bool:
@@ -122,11 +120,7 @@ class ExecutionRepository:
         return True
 
     async def get_executions(
-            self,
-            query: dict,
-            limit: int = 50,
-            skip: int = 0,
-            sort: list | None = None
+        self, query: dict, limit: int = 50, skip: int = 0, sort: list | None = None
     ) -> list[DomainExecution]:
         cursor = self.collection.find(query)
         if sort:

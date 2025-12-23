@@ -45,11 +45,7 @@ class GrafanaAlertProcessor:
     @classmethod
     def extract_title(cls, alert: GrafanaAlertItem) -> str:
         """Extract title from alert labels or annotations."""
-        return (
-                (alert.labels or {}).get("alertname")
-                or (alert.annotations or {}).get("title")
-                or cls.DEFAULT_TITLE
-        )
+        return (alert.labels or {}).get("alertname") or (alert.annotations or {}).get("title") or cls.DEFAULT_TITLE
 
     @classmethod
     def build_message(cls, alert: GrafanaAlertItem) -> str:
@@ -64,12 +60,7 @@ class GrafanaAlertProcessor:
         return summary or description or cls.DEFAULT_MESSAGE
 
     @classmethod
-    def build_metadata(
-            cls,
-            alert: GrafanaAlertItem,
-            webhook: GrafanaWebhook,
-            severity: str
-    ) -> dict[str, Any]:
+    def build_metadata(cls, alert: GrafanaAlertItem, webhook: GrafanaWebhook, severity: str) -> dict[str, Any]:
         """Build metadata dictionary for the notification."""
         return {
             "grafana_status": alert.status or webhook.status,
@@ -79,10 +70,10 @@ class GrafanaAlertProcessor:
         }
 
     async def process_single_alert(
-            self,
-            alert: GrafanaAlertItem,
-            webhook: GrafanaWebhook,
-            correlation_id: str,
+        self,
+        alert: GrafanaAlertItem,
+        webhook: GrafanaWebhook,
+        correlation_id: str,
     ) -> tuple[bool, str | None]:
         """Process a single Grafana alert.
 
@@ -112,18 +103,10 @@ class GrafanaAlertProcessor:
 
         except Exception as e:
             error_msg = f"Failed to process Grafana alert: {e}"
-            logger.error(
-                error_msg,
-                extra={"correlation_id": correlation_id},
-                exc_info=True
-            )
+            logger.error(error_msg, extra={"correlation_id": correlation_id}, exc_info=True)
             return False, error_msg
 
-    async def process_webhook(
-            self,
-            webhook_payload: GrafanaWebhook,
-            correlation_id: str
-    ) -> tuple[int, list[str]]:
+    async def process_webhook(self, webhook_payload: GrafanaWebhook, correlation_id: str) -> tuple[int, list[str]]:
         """Process all alerts in a Grafana webhook.
 
         Args:
@@ -147,9 +130,7 @@ class GrafanaAlertProcessor:
         )
 
         for alert in alerts:
-            success, error_msg = await self.process_single_alert(
-                alert, webhook_payload, correlation_id
-            )
+            success, error_msg = await self.process_single_alert(alert, webhook_payload, correlation_id)
             if success:
                 processed_count += 1
             elif error_msg:

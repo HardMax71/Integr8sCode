@@ -22,7 +22,7 @@ class CacheControlMiddleware:
 
         method = scope["method"]
         path = scope["path"]
-        
+
         # Only modify headers for GET requests
         if method != "GET":
             await self.app(scope, receive, send)
@@ -40,11 +40,11 @@ class CacheControlMiddleware:
                 if status_code == 200:
                     headers = MutableHeaders(scope=message)
                     headers["Cache-Control"] = cache_control
-                    
+
                     # Add ETag support for better caching
                     if "public" in cache_control:
                         headers["Vary"] = "Accept-Encoding"
-            
+
             await send(message)
 
         await self.app(scope, receive, send_wrapper)

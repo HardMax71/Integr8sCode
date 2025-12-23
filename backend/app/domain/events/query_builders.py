@@ -53,12 +53,7 @@ class AggregationStages:
     @staticmethod
     def date_to_string(date_field: str, format: str = "%Y-%m-%d-%H") -> dict[str, Any]:
         """Create a $dateToString expression."""
-        return {
-            "$dateToString": {
-                "format": format,
-                "date": date_field
-            }
-        }
+        return {"$dateToString": {"format": format, "date": date_field}}
 
 
 class EventStatsAggregation:
@@ -66,69 +61,67 @@ class EventStatsAggregation:
     def build_overview_pipeline(start_time: datetime) -> list[dict[str, Any]]:
         return [
             AggregationStages.match({EventFields.TIMESTAMP: {"$gte": start_time}}),
-            AggregationStages.group({
-                "_id": None,
-                "total_events": AggregationStages.sum(),
-                "event_types": AggregationStages.add_to_set(f"${EventFields.EVENT_TYPE}"),
-                "unique_users": AggregationStages.add_to_set(f"${EventFields.METADATA_USER_ID}"),
-                "services": AggregationStages.add_to_set(f"${EventFields.METADATA_SERVICE_NAME}")
-            }),
-            AggregationStages.project({
-                "_id": 0,
-                "total_events": 1,
-                "event_type_count": AggregationStages.size("$event_types"),
-                "unique_user_count": AggregationStages.size("$unique_users"),
-                "service_count": AggregationStages.size("$services")
-            })
+            AggregationStages.group(
+                {
+                    "_id": None,
+                    "total_events": AggregationStages.sum(),
+                    "event_types": AggregationStages.add_to_set(f"${EventFields.EVENT_TYPE}"),
+                    "unique_users": AggregationStages.add_to_set(f"${EventFields.METADATA_USER_ID}"),
+                    "services": AggregationStages.add_to_set(f"${EventFields.METADATA_SERVICE_NAME}"),
+                }
+            ),
+            AggregationStages.project(
+                {
+                    "_id": 0,
+                    "total_events": 1,
+                    "event_type_count": AggregationStages.size("$event_types"),
+                    "unique_user_count": AggregationStages.size("$unique_users"),
+                    "service_count": AggregationStages.size("$services"),
+                }
+            ),
         ]
 
     @staticmethod
     def build_event_types_pipeline(start_time: datetime, limit: int = 10) -> list[dict[str, Any]]:
         return [
             AggregationStages.match({EventFields.TIMESTAMP: {"$gte": start_time}}),
-            AggregationStages.group({
-                "_id": f"${EventFields.EVENT_TYPE}",
-                "count": AggregationStages.sum()
-            }),
+            AggregationStages.group({"_id": f"${EventFields.EVENT_TYPE}", "count": AggregationStages.sum()}),
             AggregationStages.sort({"count": -1}),
-            AggregationStages.limit(limit)
+            AggregationStages.limit(limit),
         ]
 
     @staticmethod
     def build_hourly_events_pipeline(start_time: datetime) -> list[dict[str, Any]]:
         return [
             AggregationStages.match({EventFields.TIMESTAMP: {"$gte": start_time}}),
-            AggregationStages.group({
-                "_id": AggregationStages.date_to_string(f"${EventFields.TIMESTAMP}"),
-                "count": AggregationStages.sum()
-            }),
-            AggregationStages.sort({"_id": 1})
+            AggregationStages.group(
+                {"_id": AggregationStages.date_to_string(f"${EventFields.TIMESTAMP}"), "count": AggregationStages.sum()}
+            ),
+            AggregationStages.sort({"_id": 1}),
         ]
 
     @staticmethod
     def build_top_users_pipeline(start_time: datetime, limit: int = 10) -> list[dict[str, Any]]:
         return [
             AggregationStages.match({EventFields.TIMESTAMP: {"$gte": start_time}}),
-            AggregationStages.group({
-                "_id": f"${EventFields.METADATA_USER_ID}",
-                "count": AggregationStages.sum()
-            }),
+            AggregationStages.group({"_id": f"${EventFields.METADATA_USER_ID}", "count": AggregationStages.sum()}),
             AggregationStages.sort({"count": -1}),
-            AggregationStages.limit(limit)
+            AggregationStages.limit(limit),
         ]
 
     @staticmethod
     def build_avg_duration_pipeline(start_time: datetime, event_type: str) -> list[dict[str, Any]]:
         return [
-            AggregationStages.match({
-                EventFields.TIMESTAMP: {"$gte": start_time},
-                EventFields.EVENT_TYPE: event_type,
-                EventFields.PAYLOAD_DURATION_SECONDS: {"$exists": True}
-            }),
-            AggregationStages.group({
-                "_id": None,
-                "avg_duration": AggregationStages.avg(f"${EventFields.PAYLOAD_DURATION_SECONDS}")
-            })
+            AggregationStages.match(
+                {
+                    EventFields.TIMESTAMP: {"$gte": start_time},
+                    EventFields.EVENT_TYPE: event_type,
+                    EventFields.PAYLOAD_DURATION_SECONDS: {"$exists": True},
+                }
+            ),
+            AggregationStages.group(
+                {"_id": None, "avg_duration": AggregationStages.avg(f"${EventFields.PAYLOAD_DURATION_SECONDS}")}
+            ),
         ]
 
 

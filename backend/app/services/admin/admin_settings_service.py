@@ -16,18 +16,16 @@ class AdminSettingsService:
         return settings
 
     async def update_system_settings(
-            self,
-            settings: SystemSettings,
-            updated_by: str,
-            user_id: str,
+        self,
+        settings: SystemSettings,
+        updated_by: str,
+        user_id: str,
     ) -> SystemSettings:
         logger.info(
             "Admin updating system settings",
             extra={"admin_username": updated_by},
         )
-        updated = await self._repo.update_system_settings(
-            settings=settings, updated_by=updated_by, user_id=user_id
-        )
+        updated = await self._repo.update_system_settings(settings=settings, updated_by=updated_by, user_id=user_id)
         logger.info("System settings updated successfully")
         return updated
 

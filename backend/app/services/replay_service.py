@@ -19,11 +19,7 @@ from app.services.event_replay import (
 class ReplayService:
     """Service for managing replay sessions and providing business logic"""
 
-    def __init__(
-            self,
-            repository: ReplayRepository,
-            event_replay_service: EventReplayService
-    ) -> None:
+    def __init__(self, repository: ReplayRepository, event_replay_service: EventReplayService) -> None:
         self.repository = repository
         self.event_replay_service = event_replay_service
 
@@ -51,8 +47,9 @@ class ReplayService:
 
             await self.repository.update_session_status(session_id, ReplayStatus.RUNNING)
 
-            return ReplayOperationResult(session_id=session_id, status=ReplayStatus.RUNNING,
-                                         message="Replay session started")
+            return ReplayOperationResult(
+                session_id=session_id, status=ReplayStatus.RUNNING, message="Replay session started"
+            )
 
         except ValueError as e:
             raise ServiceError(str(e), status_code=404) from e
@@ -67,8 +64,9 @@ class ReplayService:
 
             await self.repository.update_session_status(session_id, ReplayStatus.PAUSED)
 
-            return ReplayOperationResult(session_id=session_id, status=ReplayStatus.PAUSED,
-                                         message="Replay session paused")
+            return ReplayOperationResult(
+                session_id=session_id, status=ReplayStatus.PAUSED, message="Replay session paused"
+            )
 
         except ValueError as e:
             raise ServiceError(str(e), status_code=404) from e
@@ -83,8 +81,9 @@ class ReplayService:
 
             await self.repository.update_session_status(session_id, ReplayStatus.RUNNING)
 
-            return ReplayOperationResult(session_id=session_id, status=ReplayStatus.RUNNING,
-                                         message="Replay session resumed")
+            return ReplayOperationResult(
+                session_id=session_id, status=ReplayStatus.RUNNING, message="Replay session resumed"
+            )
 
         except ValueError as e:
             raise ServiceError(str(e), status_code=404) from e
@@ -99,8 +98,9 @@ class ReplayService:
 
             await self.repository.update_session_status(session_id, ReplayStatus.CANCELLED)
 
-            return ReplayOperationResult(session_id=session_id, status=ReplayStatus.CANCELLED,
-                                         message="Replay session cancelled")
+            return ReplayOperationResult(
+                session_id=session_id, status=ReplayStatus.CANCELLED, message="Replay session cancelled"
+            )
 
         except ValueError as e:
             raise ServiceError(str(e), status_code=404) from e
@@ -108,11 +108,7 @@ class ReplayService:
             logger.error(f"Failed to cancel replay session: {e}")
             raise ServiceError(str(e), status_code=500) from e
 
-    def list_sessions(
-            self,
-            status: ReplayStatus | None = None,
-            limit: int = 100
-    ) -> List[ReplaySessionState]:
+    def list_sessions(self, status: ReplayStatus | None = None, limit: int = 100) -> List[ReplaySessionState]:
         """List replay sessions with optional filtering (domain objects)."""
         return self.event_replay_service.list_sessions(status=status, limit=limit)
 
@@ -144,5 +140,3 @@ class ReplayService:
         except Exception as e:
             logger.error(f"Failed to cleanup old sessions: {e}")
             raise ServiceError(str(e), status_code=500) from e
-
-    

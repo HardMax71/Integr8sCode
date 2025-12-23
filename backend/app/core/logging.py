@@ -9,14 +9,10 @@ from opentelemetry import trace
 
 from app.settings import get_settings
 
-correlation_id_context: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    'correlation_id',
-    default=None
-)
+correlation_id_context: contextvars.ContextVar[str | None] = contextvars.ContextVar("correlation_id", default=None)
 
 request_metadata_context: contextvars.ContextVar[Dict[str, Any] | None] = contextvars.ContextVar(
-    'request_metadata',
-    default=None
+    "request_metadata", default=None
 )
 
 
@@ -43,18 +39,20 @@ class JSONFormatter(logging.Formatter):
         # Mask API keys, tokens, and similar sensitive data
         patterns = [
             # API keys and tokens
-            (r'(["\']?(?:api[_-]?)?(?:key|token|secret|password|passwd|pwd)["\']?\s*[:=]\s*["\']?)([^"\']+)(["\']?)',
-             r'\1***API_KEY_OR_TOKEN_REDACTED***\3'),
+            (
+                r'(["\']?(?:api[_-]?)?(?:key|token|secret|password|passwd|pwd)["\']?\s*[:=]\s*["\']?)([^"\']+)(["\']?)',
+                r"\1***API_KEY_OR_TOKEN_REDACTED***\3",
+            ),
             # Bearer tokens
-            (r'(Bearer\s+)([A-Za-z0-9\-_]+)', r'\1***BEARER_TOKEN_REDACTED***'),
+            (r"(Bearer\s+)([A-Za-z0-9\-_]+)", r"\1***BEARER_TOKEN_REDACTED***"),
             # JWT tokens
-            (r'(eyJ[A-Za-z0-9\-_]+\.eyJ[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+)', r'***JWT_REDACTED***'),
+            (r"(eyJ[A-Za-z0-9\-_]+\.eyJ[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+)", r"***JWT_REDACTED***"),
             # MongoDB URLs with credentials
-            (r'(mongodb(?:\+srv)?://[^:]+:)([^@]+)(@)', r'\1***MONGODB_REDACTED***\3'),
+            (r"(mongodb(?:\+srv)?://[^:]+:)([^@]+)(@)", r"\1***MONGODB_REDACTED***\3"),
             # Generic URLs with credentials
-            (r'(https?://[^:]+:)([^@]+)(@)', r'\1***URL_CREDS_REDACTED***\3'),
+            (r"(https?://[^:]+:)([^@]+)(@)", r"\1***URL_CREDS_REDACTED***\3"),
             # Email addresses (optional - uncomment if needed)
-            (r'([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})', r'***EMAIL_REDACTED***'),
+            (r"([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})", r"***EMAIL_REDACTED***"),
         ]
 
         for pattern, replacement in patterns:
@@ -73,31 +71,31 @@ class JSONFormatter(logging.Formatter):
             "message": message,
         }
 
-        if hasattr(record, 'correlation_id'):
-            log_data['correlation_id'] = record.correlation_id
+        if hasattr(record, "correlation_id"):
+            log_data["correlation_id"] = record.correlation_id
 
-        if hasattr(record, 'request_method'):
-            log_data['request_method'] = record.request_method
+        if hasattr(record, "request_method"):
+            log_data["request_method"] = record.request_method
 
-        if hasattr(record, 'request_path'):
-            log_data['request_path'] = record.request_path
+        if hasattr(record, "request_path"):
+            log_data["request_path"] = record.request_path
 
-        if hasattr(record, 'client_host'):
-            log_data['client_host'] = record.client_host
+        if hasattr(record, "client_host"):
+            log_data["client_host"] = record.client_host
 
         # OpenTelemetry trace context (hexadecimal ids)
-        if hasattr(record, 'trace_id'):
-            log_data['trace_id'] = record.trace_id
-        if hasattr(record, 'span_id'):
-            log_data['span_id'] = record.span_id
+        if hasattr(record, "trace_id"):
+            log_data["trace_id"] = record.trace_id
+        if hasattr(record, "span_id"):
+            log_data["span_id"] = record.span_id
 
         if record.exc_info:
             exc_text = self.formatException(record.exc_info)
-            log_data['exc_info'] = self._sanitize_sensitive_data(exc_text)
+            log_data["exc_info"] = self._sanitize_sensitive_data(exc_text)
 
-        if hasattr(record, 'stack_info') and record.stack_info:
+        if hasattr(record, "stack_info") and record.stack_info:
             stack_text = self.formatStack(record.stack_info)
-            log_data['stack_info'] = self._sanitize_sensitive_data(stack_text)
+            log_data["stack_info"] = self._sanitize_sensitive_data(stack_text)
 
         return json.dumps(log_data, ensure_ascii=False)
 
@@ -123,8 +121,8 @@ def setup_logger() -> logging.Logger:
             if span and span.is_recording():
                 span_context = span.get_span_context()
                 if span_context.is_valid:
-                    trace_id = format(span_context.trace_id, '032x')
-                    span_id = format(span_context.span_id, '016x')
+                    trace_id = format(span_context.trace_id, "032x")
+                    span_id = format(span_context.span_id, "016x")
             if trace_id:
                 record.trace_id = trace_id
             if span_id:

@@ -8,6 +8,7 @@ from app.domain.enums.events import EventType
 
 class EventFilter(BaseModel):
     """Filter criteria for browsing events"""
+
     event_types: List[EventType] | None = None
     aggregate_id: str | None = None
     correlation_id: str | None = None
@@ -20,6 +21,7 @@ class EventFilter(BaseModel):
 
 class EventBrowseRequest(BaseModel):
     """Request model for browsing events"""
+
     filters: EventFilter
     skip: int = 0
     limit: int = Field(default=50, le=500)
@@ -29,6 +31,7 @@ class EventBrowseRequest(BaseModel):
 
 class EventReplayRequest(BaseModel):
     """Request model for replaying events"""
+
     event_ids: List[str] | None = None
     correlation_id: str | None = None
     aggregate_id: str | None = None
@@ -40,6 +43,7 @@ class EventReplayRequest(BaseModel):
 
 class EventBrowseResponse(BaseModel):
     """Response model for browsing events"""
+
     events: List[Dict[str, Any]]
     total: int
     skip: int
@@ -48,6 +52,7 @@ class EventBrowseResponse(BaseModel):
 
 class EventDetailResponse(BaseModel):
     """Response model for event detail"""
+
     event: Dict[str, Any]
     related_events: List[Dict[str, Any]]
     timeline: List[Dict[str, Any]]
@@ -55,6 +60,7 @@ class EventDetailResponse(BaseModel):
 
 class EventReplayResponse(BaseModel):
     """Response model for event replay"""
+
     dry_run: bool
     total_events: int
     replay_correlation_id: str
@@ -65,6 +71,7 @@ class EventReplayResponse(BaseModel):
 
 class EventReplayStatusResponse(BaseModel):
     """Response model for replay status"""
+
     session_id: str
     status: str
     total_events: int
@@ -83,12 +90,14 @@ class EventReplayStatusResponse(BaseModel):
 
 class EventDeleteResponse(BaseModel):
     """Response model for event deletion"""
+
     message: str
     event_id: str
 
 
 class EventStatsResponse(BaseModel):
     """Response model for event statistics"""
+
     total_events: int
     events_by_type: Dict[str, int]
     events_by_hour: List[Dict[str, Any]]

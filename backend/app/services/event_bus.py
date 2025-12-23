@@ -19,6 +19,7 @@ from app.settings import get_settings
 @dataclass
 class Subscription:
     """Represents a single event subscription."""
+
     id: str = field(default_factory=lambda: str(uuid4()))
     pattern: str = ""
     handler: Callable = field(default=lambda: None)
@@ -27,7 +28,7 @@ class Subscription:
 class EventBus(LifecycleEnabled):
     """
     Hybrid event bus with Kafka backing and local in-memory distribution.
-    
+
     Supports pattern-based subscriptions using wildcards:
     - execution.* - matches all execution events
     - execution.123.* - matches all events for execution 123
@@ -62,21 +63,25 @@ class EventBus(LifecycleEnabled):
     async def _initialize_kafka(self) -> None:
         """Initialize Kafka producer and consumer."""
         # Producer setup
-        self.producer = Producer({
-            'bootstrap.servers': self.settings.KAFKA_BOOTSTRAP_SERVERS,
-            'client.id': f'event-bus-producer-{uuid4()}',
-            'linger.ms': 10,
-            'batch.size': 16384
-        })
+        self.producer = Producer(
+            {
+                "bootstrap.servers": self.settings.KAFKA_BOOTSTRAP_SERVERS,
+                "client.id": f"event-bus-producer-{uuid4()}",
+                "linger.ms": 10,
+                "batch.size": 16384,
+            }
+        )
 
         # Consumer setup
-        self.consumer = Consumer({
-            'bootstrap.servers': self.settings.KAFKA_BOOTSTRAP_SERVERS,
-            'group.id': f"event-bus-{uuid4()}",
-            'auto.offset.reset': 'latest',
-            'enable.auto.commit': True,
-            'client.id': f'event-bus-consumer-{uuid4()}'
-        })
+        self.consumer = Consumer(
+            {
+                "bootstrap.servers": self.settings.KAFKA_BOOTSTRAP_SERVERS,
+                "group.id": f"event-bus-{uuid4()}",
+                "auto.offset.reset": "latest",
+                "enable.auto.commit": True,
+                "client.id": f"event-bus-consumer-{uuid4()}",
+            }
+        )
         self.consumer.subscribe([self._topic])
 
         # Store the executor function for sync operations
@@ -118,7 +123,7 @@ class EventBus(LifecycleEnabled):
     async def publish(self, event_type: str, data: dict[str, Any]) -> None:
         """
         Publish an event to Kafka and local subscribers.
-        
+
         Args:
             event_type: Event type (e.g., "execution.123.started")
             data: Event data payload
@@ -129,8 +134,8 @@ class EventBus(LifecycleEnabled):
         if self.producer:
             try:
                 # Serialize and send message asynchronously
-                value = json.dumps(event).encode('utf-8')
-                key = event_type.encode('utf-8') if event_type else None
+                value = json.dumps(event).encode("utf-8")
+                key = event_type.encode("utf-8") if event_type else None
 
                 # Use executor to avoid blocking
                 if self._executor:
@@ -153,17 +158,17 @@ class EventBus(LifecycleEnabled):
             "id": str(uuid4()),
             "event_type": event_type,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "payload": data
+            "payload": data,
         }
 
     async def subscribe(self, pattern: str, handler: Callable) -> str:
         """
         Subscribe to events matching a pattern.
-        
+
         Args:
             pattern: Event pattern with wildcards (e.g., "execution.*")
             handler: Async function to handle matching events
-            
+
         Returns:
             Subscription ID for later unsubscribe
         """
@@ -228,8 +233,7 @@ class EventBus(LifecycleEnabled):
 
         # Execute all handlers concurrently
         results = await asyncio.gather(
-            *(self._invoke_handler(handler, event) for handler in matching_handlers),
-            return_exceptions=True
+            *(self._invoke_handler(handler, event) for handler in matching_handlers), return_exceptions=True
         )
 
         # Log any errors
@@ -244,9 +248,7 @@ class EventBus(LifecycleEnabled):
             for pattern, sub_ids in self._pattern_index.items():
                 if fnmatch.fnmatch(event_type, pattern):
                     handlers.extend(
-                        self._subscriptions[sub_id].handler
-                        for sub_id in sub_ids
-                        if sub_id in self._subscriptions
+                        self._subscriptions[sub_id].handler for sub_id in sub_ids if sub_id in self._subscriptions
                     )
             return handlers
 
@@ -284,7 +286,7 @@ class EventBus(LifecycleEnabled):
 
                 try:
                     # Deserialize message
-                    event = json.loads(msg.value().decode('utf-8'))
+                    event = json.loads(msg.value().decode("utf-8"))
                     event_type = event.get("event_type", "")
                     await self._distribute_event(event_type, event)
                 except Exception as e:
@@ -310,7 +312,7 @@ class EventBus(LifecycleEnabled):
                 "total_patterns": len(self._pattern_index),
                 "total_subscriptions": len(self._subscriptions),
                 "kafka_enabled": self.producer is not None,
-                "running": self._running
+                "running": self._running,
             }
 
 

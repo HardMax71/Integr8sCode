@@ -25,22 +25,19 @@ from app.services.admin import AdminUserService
 from app.services.rate_limit_service import RateLimitService
 
 router = APIRouter(
-    prefix="/admin/users",
-    tags=["admin", "users"],
-    route_class=DishkaRoute,
-    dependencies=[Depends(admin_user)]
+    prefix="/admin/users", tags=["admin", "users"], route_class=DishkaRoute, dependencies=[Depends(admin_user)]
 )
 
 
 @router.get("/", response_model=UserListResponse)
 async def list_users(
-        admin: Annotated[UserResponse, Depends(admin_user)],
-        admin_user_service: FromDishka[AdminUserService],
-        rate_limit_service: FromDishka[RateLimitService],
-        limit: int = Query(default=100, le=1000),
-        offset: int = Query(default=0, ge=0),
-        search: str | None = None,
-        role: UserRole | None = None,
+    admin: Annotated[UserResponse, Depends(admin_user)],
+    admin_user_service: FromDishka[AdminUserService],
+    rate_limit_service: FromDishka[RateLimitService],
+    limit: int = Query(default=100, le=1000),
+    offset: int = Query(default=0, ge=0),
+    search: str | None = None,
+    role: UserRole | None = None,
 ) -> UserListResponse:
     result = await admin_user_service.list_users(
         admin_username=admin.username,
@@ -72,9 +69,9 @@ async def list_users(
 
 @router.post("/", response_model=UserResponse)
 async def create_user(
-        admin: Annotated[UserResponse, Depends(admin_user)],
-        user_data: UserCreate,
-        admin_user_service: FromDishka[AdminUserService],
+    admin: Annotated[UserResponse, Depends(admin_user)],
+    user_data: UserCreate,
+    admin_user_service: FromDishka[AdminUserService],
 ) -> UserResponse:
     """Create a new user (admin only)."""
     # Delegate to service; map known validation error to 400
@@ -88,9 +85,9 @@ async def create_user(
 
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
-        admin: Annotated[UserResponse, Depends(admin_user)],
-        user_id: str,
-        admin_user_service: FromDishka[AdminUserService],
+    admin: Annotated[UserResponse, Depends(admin_user)],
+    user_id: str,
+    admin_user_service: FromDishka[AdminUserService],
 ) -> UserResponse:
     user = await admin_user_service.get_user(admin_username=admin.username, user_id=user_id)
     if not user:
@@ -102,9 +99,9 @@ async def get_user(
 
 @router.get("/{user_id}/overview", response_model=AdminUserOverview)
 async def get_user_overview(
-        admin: Annotated[UserResponse, Depends(admin_user)],
-        user_id: str,
-        admin_user_service: FromDishka[AdminUserService],
+    admin: Annotated[UserResponse, Depends(admin_user)],
+    user_id: str,
+    admin_user_service: FromDishka[AdminUserService],
 ) -> AdminUserOverview:
     # Service raises ValueError if not found -> map to 404
     try:
@@ -117,11 +114,11 @@ async def get_user_overview(
 
 @router.put("/{user_id}", response_model=UserResponse)
 async def update_user(
-        admin: Annotated[UserResponse, Depends(admin_user)],
-        user_id: str,
-        user_update: UserUpdate,
-        user_repo: FromDishka[AdminUserRepository],
-        admin_user_service: FromDishka[AdminUserService],
+    admin: Annotated[UserResponse, Depends(admin_user)],
+    user_id: str,
+    user_update: UserUpdate,
+    user_repo: FromDishka[AdminUserRepository],
+    admin_user_service: FromDishka[AdminUserService],
 ) -> UserResponse:
     # Get existing user (explicit 404), then update
     existing_user = await user_repo.get_user_by_id(user_id)
@@ -149,10 +146,10 @@ async def update_user(
 
 @router.delete("/{user_id}")
 async def delete_user(
-        admin: Annotated[UserResponse, Depends(admin_user)],
-        user_id: str,
-        admin_user_service: FromDishka[AdminUserService],
-        cascade: bool = Query(default=True, description="Cascade delete user's data"),
+    admin: Annotated[UserResponse, Depends(admin_user)],
+    user_id: str,
+    admin_user_service: FromDishka[AdminUserService],
+    cascade: bool = Query(default=True, description="Cascade delete user's data"),
 ) -> dict:
     # Prevent self-deletion; delegate to service
     if admin.user_id == user_id:
@@ -169,10 +166,10 @@ async def delete_user(
 
 @router.post("/{user_id}/reset-password", response_model=MessageResponse)
 async def reset_user_password(
-        admin: Annotated[UserResponse, Depends(admin_user)],
-        admin_user_service: FromDishka[AdminUserService],
-        user_id: str,
-        password_request: PasswordResetRequest,
+    admin: Annotated[UserResponse, Depends(admin_user)],
+    admin_user_service: FromDishka[AdminUserService],
+    user_id: str,
+    password_request: PasswordResetRequest,
 ) -> MessageResponse:
     success = await admin_user_service.reset_user_password(
         admin_username=admin.username, user_id=user_id, new_password=password_request.new_password
@@ -184,19 +181,19 @@ async def reset_user_password(
 
 @router.get("/{user_id}/rate-limits")
 async def get_user_rate_limits(
-        admin: Annotated[UserResponse, Depends(admin_user)],
-        admin_user_service: FromDishka[AdminUserService],
-        user_id: str,
+    admin: Annotated[UserResponse, Depends(admin_user)],
+    admin_user_service: FromDishka[AdminUserService],
+    user_id: str,
 ) -> dict:
     return await admin_user_service.get_user_rate_limits(admin_username=admin.username, user_id=user_id)
 
 
 @router.put("/{user_id}/rate-limits")
 async def update_user_rate_limits(
-        admin: Annotated[UserResponse, Depends(admin_user)],
-        admin_user_service: FromDishka[AdminUserService],
-        user_id: str,
-        rate_limit_config: UserRateLimit,
+    admin: Annotated[UserResponse, Depends(admin_user)],
+    admin_user_service: FromDishka[AdminUserService],
+    user_id: str,
+    rate_limit_config: UserRateLimit,
 ) -> dict:
     return await admin_user_service.update_user_rate_limits(
         admin_username=admin.username, user_id=user_id, config=rate_limit_config
@@ -205,9 +202,9 @@ async def update_user_rate_limits(
 
 @router.post("/{user_id}/rate-limits/reset")
 async def reset_user_rate_limits(
-        admin: Annotated[UserResponse, Depends(admin_user)],
-        admin_user_service: FromDishka[AdminUserService],
-        user_id: str,
+    admin: Annotated[UserResponse, Depends(admin_user)],
+    admin_user_service: FromDishka[AdminUserService],
+    user_id: str,
 ) -> MessageResponse:
     await admin_user_service.reset_user_rate_limits(admin_username=admin.username, user_id=user_id)
     return MessageResponse(message=f"Rate limits reset successfully for user {user_id}")

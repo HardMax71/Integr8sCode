@@ -6,7 +6,6 @@ from app.domain.enums.kafka import KafkaTopic
 
 @dataclass
 class K8sWorkerConfig:
-
     # Kafka settings
     kafka_bootstrap_servers: str | None = None
     consumer_group: str = "kubernetes-worker"

@@ -3,6 +3,7 @@
 This module contains Pydantic models for event-related API requests and responses.
 For Avro-based event schemas used in Kafka streaming, see app.schemas_avro.event_schemas.
 """
+
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 from uuid import uuid4
@@ -37,6 +38,7 @@ class EventListResponse(BaseModel):
 
 class EventFilterRequest(BaseModel):
     """Request model for filtering events."""
+
     event_types: List[EventType] | None = Field(None, description="Filter by event types")
     aggregate_id: str | None = Field(None, description="Filter by aggregate ID")
     correlation_id: str | None = Field(None, description="Filter by correlation ID")
@@ -53,10 +55,7 @@ class EventFilterRequest(BaseModel):
     @field_validator("sort_by")
     @classmethod
     def validate_sort_field(cls, v: str) -> str:
-        allowed_fields = {
-            "timestamp", "event_type", "aggregate_id",
-            "correlation_id", "stored_at"
-        }
+        allowed_fields = {"timestamp", "event_type", "aggregate_id", "correlation_id", "stored_at"}
         if v not in allowed_fields:
             raise ValueError(f"Sort field must be one of {allowed_fields}")
         return v
@@ -64,15 +63,14 @@ class EventFilterRequest(BaseModel):
 
 class EventAggregationRequest(BaseModel):
     """Request model for event aggregation queries."""
-    pipeline: List[Dict[str, Any]] = Field(
-        ...,
-        description="MongoDB aggregation pipeline"
-    )
+
+    pipeline: List[Dict[str, Any]] = Field(..., description="MongoDB aggregation pipeline")
     limit: int = Field(100, ge=1, le=1000)
 
 
 class PublishEventRequest(BaseModel):
     """Request model for publishing events."""
+
     event_type: EventType = Field(..., description="Type of event to publish")
     payload: Dict[str, Any] = Field(..., description="Event payload data")
     aggregate_id: str | None = Field(None, description="Aggregate root ID")
@@ -83,6 +81,7 @@ class PublishEventRequest(BaseModel):
 
 class EventBase(BaseModel):
     """Base event model for API responses."""
+
     event_id: str = Field(default_factory=lambda: str(uuid4()))
     event_type: EventType
     event_version: str = "1.0"
@@ -106,14 +105,14 @@ class EventBase(BaseModel):
                     "user_id": "user-789",
                     "service_name": "api-gateway",
                     "service_version": "1.0.0",
-                    "ip_address": "192.168.1.1"
+                    "ip_address": "192.168.1.1",
                 },
                 "payload": {
                     "execution_id": "execution-123",
                     "script": "print('hello')",
                     "language": "python",
-                    "version": "3.11"
-                }
+                    "version": "3.11",
+                },
             }
         }
     )
@@ -121,6 +120,7 @@ class EventBase(BaseModel):
 
 class ExecutionEventPayload(BaseModel):
     """Common payload for execution-related events in API responses."""
+
     execution_id: str
     user_id: str
     status: str | None = None
@@ -135,6 +135,7 @@ class ExecutionEventPayload(BaseModel):
 
 class PodEventPayload(BaseModel):
     """Common payload for pod-related events in API responses."""
+
     pod_name: str
     namespace: str
     execution_id: str
@@ -148,12 +149,14 @@ class PodEventPayload(BaseModel):
 
 class EventInDB(EventBase):
     """Event as stored in database."""
+
     stored_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     ttl_expires_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc) + timedelta(days=30))
 
 
 class EventQuery(BaseModel):
     """Query parameters for event search."""
+
     event_types: List[EventType] | None = None
     aggregate_id: str | None = None
     correlation_id: str | None = None
@@ -173,7 +176,7 @@ class EventQuery(BaseModel):
                 "start_time": "2024-01-20T00:00:00Z",
                 "end_time": "2024-01-20T23:59:59Z",
                 "limit": 100,
-                "skip": 0
+                "skip": 0,
             }
         }
     )
@@ -181,6 +184,7 @@ class EventQuery(BaseModel):
 
 class EventStatistics(BaseModel):
     """Event statistics response."""
+
     total_events: int
     events_by_type: Dict[str, int]
     events_by_service: Dict[str, int]
@@ -195,16 +199,13 @@ class EventStatistics(BaseModel):
                 "events_by_type": {
                     EventType.EXECUTION_REQUESTED: 523,
                     EventType.EXECUTION_COMPLETED: 498,
-                    EventType.POD_CREATED: 522
+                    EventType.POD_CREATED: 522,
                 },
-                "events_by_service": {
-                    "api-gateway": 523,
-                    "execution-service": 1020
-                },
+                "events_by_service": {"api-gateway": 523, "execution-service": 1020},
                 "events_by_hour": [
                     {"hour": "2024-01-20 10:00", "count": 85},
-                    {"hour": "2024-01-20 11:00", "count": 92}
-                ]
+                    {"hour": "2024-01-20 11:00", "count": 92},
+                ],
             }
         }
     )
@@ -212,6 +213,7 @@ class EventStatistics(BaseModel):
 
 class EventProjection(BaseModel):
     """Configuration for event projections."""
+
     name: str
     description: str | None = None
     source_events: List[EventType]  # Event types to include
@@ -227,18 +229,16 @@ class EventProjection(BaseModel):
                 "description": "Summary of executions by user and status",
                 "source_events": [EventType.EXECUTION_REQUESTED, EventType.EXECUTION_COMPLETED],
                 "aggregation_pipeline": [
-                    {"$match": {"event_type": {"$in": [EventType.EXECUTION_REQUESTED,
-                                                       EventType.EXECUTION_COMPLETED]}}},
-                    {"$group": {
-                        "_id": {
-                            "user_id": "$metadata.user_id",
-                            "status": "$payload.status"
-                        },
-                        "count": {"$sum": 1}
-                    }}
+                    {"$match": {"event_type": {"$in": [EventType.EXECUTION_REQUESTED, EventType.EXECUTION_COMPLETED]}}},
+                    {
+                        "$group": {
+                            "_id": {"user_id": "$metadata.user_id", "status": "$payload.status"},
+                            "count": {"$sum": 1},
+                        }
+                    },
                 ],
                 "output_collection": "execution_summary",
-                "refresh_interval_seconds": 300
+                "refresh_interval_seconds": 300,
             }
         }
     )
@@ -246,6 +246,7 @@ class EventProjection(BaseModel):
 
 class ResourceUsage(BaseModel):
     """Resource usage statistics."""
+
     cpu_seconds: float
     memory_mb_seconds: float
     disk_io_mb: float
@@ -254,6 +255,7 @@ class ResourceUsage(BaseModel):
 
 class PublishEventResponse(BaseModel):
     """Response model for publishing events"""
+
     event_id: str
     status: str
     timestamp: datetime
@@ -261,6 +263,7 @@ class PublishEventResponse(BaseModel):
 
 class DeleteEventResponse(BaseModel):
     """Response model for deleting events"""
+
     message: str
     event_id: str
     deleted_at: datetime
@@ -268,6 +271,7 @@ class DeleteEventResponse(BaseModel):
 
 class ReplayAggregateResponse(BaseModel):
     """Response model for replaying aggregate events"""
+
     dry_run: bool
     aggregate_id: str
     event_count: int | None = None

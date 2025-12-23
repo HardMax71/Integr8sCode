@@ -16,10 +16,7 @@ def main() -> None:
     setup_logger()
 
     # Configure root logger for worker
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     logger = logging.getLogger(__name__)
     logger.info("Starting PodMonitor worker...")
@@ -31,7 +28,7 @@ def main() -> None:
             service_name=GroupId.POD_MONITOR,
             service_version=settings.TRACING_SERVICE_VERSION,
             enable_console_exporter=False,
-            sampling_rate=settings.TRACING_SAMPLING_RATE
+            sampling_rate=settings.TRACING_SAMPLING_RATE,
         )
         logger.info("Tracing initialized for PodMonitor Service")
 

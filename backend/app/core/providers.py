@@ -94,7 +94,7 @@ class DatabaseProvider(Provider):
             server_selection_timeout_ms=5000,
             connect_timeout_ms=5000,
             max_pool_size=50,
-            min_pool_size=10
+            min_pool_size=10,
         )
 
         db_connection = create_database_connection(db_config)
@@ -128,9 +128,7 @@ class RedisProvider(Provider):
         )
         # Test connection
         await client.execute_command("PING")
-        logger.info(
-            f"Redis connected: {settings.REDIS_HOST}:{settings.REDIS_PORT}/{settings.REDIS_DB}"
-        )
+        logger.info(f"Redis connected: {settings.REDIS_HOST}:{settings.REDIS_PORT}/{settings.REDIS_DB}")
         try:
             yield client
         finally:
@@ -138,10 +136,7 @@ class RedisProvider(Provider):
 
     @provide
     def get_rate_limit_service(
-            self,
-            redis_client: redis.Redis,
-            settings: Settings,
-            rate_limit_metrics: RateLimitMetrics
+        self, redis_client: redis.Redis, settings: Settings, rate_limit_metrics: RateLimitMetrics
     ) -> RateLimitService:
         return RateLimitService(redis_client, settings, rate_limit_metrics)
 
@@ -159,13 +154,9 @@ class MessagingProvider(Provider):
 
     @provide
     async def get_kafka_producer(
-            self,
-            settings: Settings,
-            schema_registry: SchemaRegistryManager
+        self, settings: Settings, schema_registry: SchemaRegistryManager
     ) -> AsyncIterator[UnifiedProducer]:
-        config = ProducerConfig(
-            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS
-        )
+        config = ProducerConfig(bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS)
         producer = UnifiedProducer(config, schema_registry)
         await producer.start()
         try:
@@ -183,16 +174,12 @@ class MessagingProvider(Provider):
             await manager.stop()
 
     @provide
-    def get_idempotency_repository(self,
-                                   redis_client: redis.Redis) -> RedisIdempotencyRepository:
-        return RedisIdempotencyRepository(redis_client,
-                                          key_prefix="idempotency")
+    def get_idempotency_repository(self, redis_client: redis.Redis) -> RedisIdempotencyRepository:
+        return RedisIdempotencyRepository(redis_client, key_prefix="idempotency")
 
     @provide
-    async def get_idempotency_manager(self,
-                                      repo: RedisIdempotencyRepository) -> AsyncIterator[IdempotencyManager]:
-        manager = create_idempotency_manager(repository=repo,
-                                             config=IdempotencyConfig())
+    async def get_idempotency_manager(self, repo: RedisIdempotencyRepository) -> AsyncIterator[IdempotencyManager]:
+        manager = create_idempotency_manager(repository=repo, config=IdempotencyConfig())
         await manager.initialize()
         try:
             yield manager
@@ -208,31 +195,20 @@ class EventProvider(Provider):
         return create_schema_registry_manager()
 
     @provide
-    async def get_event_store(
-            self,
-            database: Database,
-            schema_registry: SchemaRegistryManager
-    ) -> EventStore:
-        store = create_event_store(
-            db=database,
-            schema_registry=schema_registry,
-            ttl_days=90
-        )
+    async def get_event_store(self, database: Database, schema_registry: SchemaRegistryManager) -> EventStore:
+        store = create_event_store(db=database, schema_registry=schema_registry, ttl_days=90)
         return store
 
     @provide
     async def get_event_store_consumer(
-            self,
-            event_store: EventStore,
-            schema_registry: SchemaRegistryManager,
-            kafka_producer: UnifiedProducer
+        self, event_store: EventStore, schema_registry: SchemaRegistryManager, kafka_producer: UnifiedProducer
     ) -> EventStoreConsumer:
         topics = get_all_topics()
         return create_event_store_consumer(
             event_store=event_store,
             topics=list(topics),
             schema_registry_manager=schema_registry,
-            producer=kafka_producer
+            producer=kafka_producer,
         )
 
     @provide
@@ -316,11 +292,11 @@ class ConnectionProvider(Provider):
 
     @provide(scope=Scope.APP)
     async def get_sse_kafka_redis_bridge(
-            self,
-            schema_registry: SchemaRegistryManager,
-            settings: Settings,
-            event_metrics: EventMetrics,
-            sse_redis_bus: SSERedisBus,
+        self,
+        schema_registry: SchemaRegistryManager,
+        settings: Settings,
+        event_metrics: EventMetrics,
+        sse_redis_bus: SSERedisBus,
     ) -> SSEKafkaRedisBridge:
         return create_sse_kafka_redis_bridge(
             schema_registry=schema_registry,
@@ -330,10 +306,7 @@ class ConnectionProvider(Provider):
         )
 
     @provide
-    def get_sse_repository(
-            self,
-            database: Database
-    ) -> SSERepository:
+    def get_sse_repository(self, database: Database) -> SSERepository:
         return SSERepository(database)
 
     @provide
@@ -343,12 +316,12 @@ class ConnectionProvider(Provider):
 
     @provide(scope=Scope.REQUEST)
     def get_sse_service(
-            self,
-            sse_repository: SSERepository,
-            router: SSEKafkaRedisBridge,
-            sse_redis_bus: SSERedisBus,
-            shutdown_manager: SSEShutdownManager,
-            settings: Settings
+        self,
+        sse_repository: SSERepository,
+        router: SSEKafkaRedisBridge,
+        sse_redis_bus: SSERedisBus,
+        shutdown_manager: SSEShutdownManager,
+        settings: Settings,
     ) -> SSEService:
         # Ensure shutdown manager coordinates with the router in this request scope
         shutdown_manager.set_router(router)
@@ -357,7 +330,7 @@ class ConnectionProvider(Provider):
             router=router,
             sse_bus=sse_redis_bus,
             shutdown_manager=shutdown_manager,
-            settings=settings
+            settings=settings,
         )
 
 
@@ -390,21 +363,16 @@ class UserServicesProvider(Provider):
 
     @provide
     async def get_kafka_event_service(
-            self,
-            event_repository: EventRepository,
-            kafka_producer: UnifiedProducer
+        self, event_repository: EventRepository, kafka_producer: UnifiedProducer
     ) -> KafkaEventService:
-        return KafkaEventService(
-            event_repository=event_repository,
-            kafka_producer=kafka_producer
-        )
+        return KafkaEventService(event_repository=event_repository, kafka_producer=kafka_producer)
 
     @provide
     async def get_user_settings_service(
-            self,
-            repository: UserSettingsRepository,
-            kafka_event_service: KafkaEventService,
-            event_bus_manager: EventBusManager
+        self,
+        repository: UserSettingsRepository,
+        kafka_event_service: KafkaEventService,
+        event_bus_manager: EventBusManager,
     ) -> UserSettingsService:
         service = UserSettingsService(repository, kafka_event_service)
         await service.initialize(event_bus_manager)
@@ -420,9 +388,9 @@ class AdminServicesProvider(Provider):
 
     @provide(scope=Scope.REQUEST)
     def get_admin_events_service(
-            self,
-            admin_events_repository: AdminEventsRepository,
-            replay_service: ReplayService,
+        self,
+        admin_events_repository: AdminEventsRepository,
+        replay_service: ReplayService,
     ) -> AdminEventsService:
         return AdminEventsService(admin_events_repository, replay_service)
 
@@ -432,8 +400,8 @@ class AdminServicesProvider(Provider):
 
     @provide
     def get_admin_settings_service(
-            self,
-            admin_settings_repository: AdminSettingsRepository,
+        self,
+        admin_settings_repository: AdminSettingsRepository,
     ) -> AdminSettingsService:
         return AdminSettingsService(admin_settings_repository)
 
@@ -451,13 +419,13 @@ class AdminServicesProvider(Provider):
 
     @provide
     def get_notification_service(
-            self,
-            notification_repository: NotificationRepository,
-            kafka_event_service: KafkaEventService,
-            event_bus_manager: EventBusManager,
-            schema_registry: SchemaRegistryManager,
-            sse_redis_bus: SSERedisBus,
-            settings: Settings,
+        self,
+        notification_repository: NotificationRepository,
+        kafka_event_service: KafkaEventService,
+        event_bus_manager: EventBusManager,
+        schema_registry: SchemaRegistryManager,
+        sse_redis_bus: SSERedisBus,
+        settings: Settings,
     ) -> NotificationService:
         service = NotificationService(
             notification_repository=notification_repository,
@@ -472,8 +440,8 @@ class AdminServicesProvider(Provider):
 
     @provide
     def get_grafana_alert_processor(
-            self,
-            notification_service: NotificationService,
+        self,
+        notification_service: NotificationService,
     ) -> GrafanaAlertProcessor:
         return GrafanaAlertProcessor(notification_service)
 
@@ -503,13 +471,13 @@ class BusinessServicesProvider(Provider):
 
     @provide
     async def get_saga_orchestrator(
-            self,
-            saga_repository: SagaRepository,
-            kafka_producer: UnifiedProducer,
-            event_store: EventStore,
-            idempotency_manager: IdempotencyManager,
-            resource_allocation_repository: ResourceAllocationRepository,
-            settings: Settings,
+        self,
+        saga_repository: SagaRepository,
+        kafka_producer: UnifiedProducer,
+        event_store: EventStore,
+        idempotency_manager: IdempotencyManager,
+        resource_allocation_repository: ResourceAllocationRepository,
+        settings: Settings,
     ) -> AsyncIterator[SagaOrchestrator]:
         config = SagaConfig(
             name="main-orchestrator",
@@ -535,60 +503,47 @@ class BusinessServicesProvider(Provider):
 
     @provide
     def get_saga_service(
-            self,
-            saga_repository: SagaRepository,
-            execution_repository: ExecutionRepository,
-            saga_orchestrator: SagaOrchestrator
+        self,
+        saga_repository: SagaRepository,
+        execution_repository: ExecutionRepository,
+        saga_orchestrator: SagaOrchestrator,
     ) -> SagaService:
         return SagaService(
-            saga_repo=saga_repository,
-            execution_repo=execution_repository,
-            orchestrator=saga_orchestrator
+            saga_repo=saga_repository, execution_repo=execution_repository, orchestrator=saga_orchestrator
         )
 
     @provide
     def get_execution_service(
-            self,
-            execution_repository: ExecutionRepository,
-            kafka_producer: UnifiedProducer,
-            event_store: EventStore,
-            settings: Settings
+        self,
+        execution_repository: ExecutionRepository,
+        kafka_producer: UnifiedProducer,
+        event_store: EventStore,
+        settings: Settings,
     ) -> ExecutionService:
         return ExecutionService(
-            execution_repo=execution_repository,
-            producer=kafka_producer,
-            event_store=event_store,
-            settings=settings
+            execution_repo=execution_repository, producer=kafka_producer, event_store=event_store, settings=settings
         )
 
     @provide
-    def get_saved_script_service(
-            self,
-            saved_script_repository: SavedScriptRepository
-    ) -> SavedScriptService:
+    def get_saved_script_service(self, saved_script_repository: SavedScriptRepository) -> SavedScriptService:
         return SavedScriptService(saved_script_repository)
 
     @provide
     async def get_replay_service(
-            self,
-            replay_repository: ReplayRepository,
-            kafka_producer: UnifiedProducer,
-            event_store: EventStore
+        self, replay_repository: ReplayRepository, kafka_producer: UnifiedProducer, event_store: EventStore
     ) -> ReplayService:
         event_replay_service = EventReplayService(
-            repository=replay_repository,
-            producer=kafka_producer,
-            event_store=event_store
+            repository=replay_repository, producer=kafka_producer, event_store=event_store
         )
         return ReplayService(replay_repository, event_replay_service)
 
     @provide
     def get_admin_user_service(
-            self,
-            admin_user_repository: AdminUserRepository,
-            event_service: EventService,
-            execution_service: ExecutionService,
-            rate_limit_service: RateLimitService,
+        self,
+        admin_user_repository: AdminUserRepository,
+        event_service: EventService,
+        execution_service: ExecutionService,
+        rate_limit_service: RateLimitService,
     ) -> AdminUserService:
         return AdminUserService(
             user_repository=admin_user_repository,
@@ -599,12 +554,12 @@ class BusinessServicesProvider(Provider):
 
     @provide
     async def get_execution_coordinator(
-            self,
-            kafka_producer: UnifiedProducer,
-            schema_registry: SchemaRegistryManager,
-            event_store: EventStore,
-            execution_repository: ExecutionRepository,
-            idempotency_manager: IdempotencyManager,
+        self,
+        kafka_producer: UnifiedProducer,
+        schema_registry: SchemaRegistryManager,
+        event_store: EventStore,
+        execution_repository: ExecutionRepository,
+        idempotency_manager: IdempotencyManager,
     ) -> AsyncIterator[ExecutionCoordinator]:
         coordinator = ExecutionCoordinator(
             producer=kafka_producer,

@@ -18,12 +18,12 @@ from app.infrastructure.kafka.events.base import BaseEvent
 
 class EventStore:
     def __init__(
-            self,
-            db: Database,
-            schema_registry: SchemaRegistryManager,
-            collection_name: str = "events",
-            ttl_days: int = 90,
-            batch_size: int = 100,
+        self,
+        db: Database,
+        schema_registry: SchemaRegistryManager,
+        collection_name: str = "events",
+        ttl_days: int = 90,
+        batch_size: int = 100,
     ):
         self.db = db
         self.metrics = get_event_metrics()
@@ -54,11 +54,13 @@ class EventStore:
             IndexModel([("execution_id", ASCENDING), ("timestamp", ASCENDING)]),
             IndexModel("metadata.correlation_id"),
             IndexModel("metadata.service_name"),
-            IndexModel([
-                ("event_type", ASCENDING),
-                ("metadata.user_id", ASCENDING),
-                ("timestamp", DESCENDING),
-            ]),
+            IndexModel(
+                [
+                    ("event_type", ASCENDING),
+                    ("metadata.user_id", ASCENDING),
+                    ("timestamp", DESCENDING),
+                ]
+            ),
             IndexModel(
                 "timestamp",
                 expireAfterSeconds=self.ttl_days * 24 * 60 * 60,
@@ -154,12 +156,12 @@ class EventStore:
         return event
 
     async def get_events_by_type(
-            self,
-            event_type: EventType,
-            start_time: datetime | None = None,
-            end_time: datetime | None = None,
-            limit: int = 100,
-            offset: int = 0,
+        self,
+        event_type: EventType,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        limit: int = 100,
+        offset: int = 0,
     ) -> List[BaseEvent]:
         start = asyncio.get_event_loop().time()
         q: Dict[str, Any] = {"event_type": str(event_type)}
@@ -173,9 +175,9 @@ class EventStore:
         return events
 
     async def get_execution_events(
-            self,
-            execution_id: str,
-            event_types: List[EventType] | None = None,
+        self,
+        execution_id: str,
+        event_types: List[EventType] | None = None,
     ) -> List[BaseEvent]:
         start = asyncio.get_event_loop().time()
         q: Dict[str, Any] = {"execution_id": execution_id}
@@ -189,12 +191,12 @@ class EventStore:
         return events
 
     async def get_user_events(
-            self,
-            user_id: str,
-            event_types: List[EventType] | None = None,
-            start_time: datetime | None = None,
-            end_time: datetime | None = None,
-            limit: int = 100,
+        self,
+        user_id: str,
+        event_types: List[EventType] | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        limit: int = 100,
     ) -> List[BaseEvent]:
         start = asyncio.get_event_loop().time()
         q: Dict[str, Any] = {"metadata.user_id": str(user_id)}
@@ -210,11 +212,11 @@ class EventStore:
         return events
 
     async def get_security_events(
-            self,
-            start_time: datetime | None = None,
-            end_time: datetime | None = None,
-            user_id: str | None = None,
-            limit: int = 100,
+        self,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        user_id: str | None = None,
+        limit: int = 100,
     ) -> List[BaseEvent]:
         start = asyncio.get_event_loop().time()
         q: Dict[str, Any] = {"event_type": {"$in": self._SECURITY_TYPES}}
@@ -239,11 +241,11 @@ class EventStore:
         return events
 
     async def replay_events(
-            self,
-            start_time: datetime,
-            end_time: datetime | None = None,
-            event_types: List[EventType] | None = None,
-            callback: Callable[[BaseEvent], Awaitable[None]] | None = None,
+        self,
+        start_time: datetime,
+        end_time: datetime | None = None,
+        event_types: List[EventType] | None = None,
+        callback: Callable[[BaseEvent], Awaitable[None]] | None = None,
     ) -> int:
         start = asyncio.get_event_loop().time()
         count = 0
@@ -271,9 +273,9 @@ class EventStore:
             return count
 
     async def get_event_stats(
-            self,
-            start_time: datetime | None = None,
-            end_time: datetime | None = None,
+        self,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
     ) -> Dict[str, Any]:
         pipeline: List[Dict[str, Any]] = []
         if start_time or end_time:
@@ -284,15 +286,19 @@ class EventStore:
                 match.setdefault("timestamp", {})["$lte"] = end_time
             pipeline.append({"$match": match})
 
-        pipeline.extend([
-            {"$group": {
-                "_id": "$event_type",
-                "count": {"$sum": 1},
-                "first_event": {"$min": "$timestamp"},
-                "last_event": {"$max": "$timestamp"},
-            }},
-            {"$sort": {"count": -1}},
-        ])
+        pipeline.extend(
+            [
+                {
+                    "$group": {
+                        "_id": "$event_type",
+                        "count": {"$sum": 1},
+                        "first_event": {"$min": "$timestamp"},
+                        "last_event": {"$max": "$timestamp"},
+                    }
+                },
+                {"$sort": {"count": -1}},
+            ]
+        )
 
         cursor = self.collection.aggregate(pipeline)
         stats: Dict[str, Any] = {"total_events": 0, "event_types": {}, "start_time": start_time, "end_time": end_time}
@@ -321,12 +327,12 @@ class EventStore:
         return tr
 
     async def _find_events(
-            self,
-            query: Dict[str, Any],
-            *,
-            sort: tuple[str, int],
-            limit: int | None = None,
-            offset: int = 0,
+        self,
+        query: Dict[str, Any],
+        *,
+        sort: tuple[str, int],
+        limit: int | None = None,
+        offset: int = 0,
     ) -> List[BaseEvent]:
         cur = self.collection.find(query, self._PROJECTION).sort(*sort).skip(offset)
         if limit is not None:
@@ -349,11 +355,11 @@ class EventStore:
 
 
 def create_event_store(
-        db: Database,
-        schema_registry: SchemaRegistryManager,
-        collection_name: str = "events",
-        ttl_days: int = 90,
-        batch_size: int = 100,
+    db: Database,
+    schema_registry: SchemaRegistryManager,
+    collection_name: str = "events",
+    ttl_days: int = 90,
+    batch_size: int = 100,
 ) -> EventStore:
     return EventStore(
         db=db,

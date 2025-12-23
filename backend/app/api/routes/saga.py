@@ -23,22 +23,22 @@ router = APIRouter(
 
 @router.get("/{saga_id}", response_model=SagaStatusResponse)
 async def get_saga_status(
-        saga_id: str,
-        request: Request,
-        saga_service: FromDishka[SagaService],
-        auth_service: FromDishka[AuthService],
+    saga_id: str,
+    request: Request,
+    saga_service: FromDishka[SagaService],
+    auth_service: FromDishka[AuthService],
 ) -> SagaStatusResponse:
     """Get saga status by ID.
-    
+
     Args:
         saga_id: The saga identifier
         request: FastAPI request object
         saga_service: Saga service from DI
         auth_service: Auth service from DI
-        
+
     Returns:
         Saga status response
-        
+
     Raises:
         HTTPException: 404 if saga not found, 403 if access denied
     """
@@ -53,24 +53,24 @@ async def get_saga_status(
 
 @router.get("/execution/{execution_id}", response_model=SagaListResponse)
 async def get_execution_sagas(
-        execution_id: str,
-        request: Request,
-        saga_service: FromDishka[SagaService],
-        auth_service: FromDishka[AuthService],
-        state: SagaState | None = Query(None, description="Filter by saga state"),
+    execution_id: str,
+    request: Request,
+    saga_service: FromDishka[SagaService],
+    auth_service: FromDishka[AuthService],
+    state: SagaState | None = Query(None, description="Filter by saga state"),
 ) -> SagaListResponse:
     """Get all sagas for an execution.
-    
+
     Args:
         execution_id: The execution identifier
         request: FastAPI request object
         saga_service: Saga service from DI
         auth_service: Auth service from DI
         state: Optional state filter
-        
+
     Returns:
         List of sagas for the execution
-        
+
     Raises:
         HTTPException: 403 if access denied
     """
@@ -86,15 +86,15 @@ async def get_execution_sagas(
 
 @router.get("/", response_model=SagaListResponse)
 async def list_sagas(
-        request: Request,
-        saga_service: FromDishka[SagaService],
-        auth_service: FromDishka[AuthService],
-        state: SagaState | None = Query(None, description="Filter by saga state"),
-        limit: int = Query(100, ge=1, le=1000),
-        offset: int = Query(0, ge=0),
+    request: Request,
+    saga_service: FromDishka[SagaService],
+    auth_service: FromDishka[AuthService],
+    state: SagaState | None = Query(None, description="Filter by saga state"),
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
 ) -> SagaListResponse:
     """List sagas accessible by the current user.
-    
+
     Args:
         request: FastAPI request object
         saga_service: Saga service from DI
@@ -102,7 +102,7 @@ async def list_sagas(
         state: Optional state filter
         limit: Maximum number of results
         offset: Number of results to skip
-        
+
     Returns:
         Paginated list of sagas
     """
@@ -110,12 +110,7 @@ async def list_sagas(
 
     service_user = User.from_response(current_user)
     domain_user = AdminUserMapper.from_pydantic_service_user(service_user)
-    result = await saga_service.list_user_sagas(
-        domain_user,
-        state,
-        limit,
-        offset
-    )
+    result = await saga_service.list_user_sagas(domain_user, state, limit, offset)
     mapper = SagaResponseMapper()
     saga_responses = mapper.list_to_responses(result.sagas)
     return SagaListResponse(sagas=saga_responses, total=result.total)
@@ -123,22 +118,22 @@ async def list_sagas(
 
 @router.post("/{saga_id}/cancel", response_model=SagaCancellationResponse)
 async def cancel_saga(
-        saga_id: str,
-        request: Request,
-        saga_service: FromDishka[SagaService],
-        auth_service: FromDishka[AuthService],
+    saga_id: str,
+    request: Request,
+    saga_service: FromDishka[SagaService],
+    auth_service: FromDishka[AuthService],
 ) -> SagaCancellationResponse:
     """Cancel a running saga.
-    
+
     Args:
         saga_id: The saga identifier
         request: FastAPI request object
         saga_service: Saga service from DI
         auth_service: Auth service from DI
-        
+
     Returns:
         Cancellation response with success status
-        
+
     Raises:
         HTTPException: 404 if not found, 403 if denied, 400 if invalid state
     """
@@ -150,9 +145,6 @@ async def cancel_saga(
 
     return SagaCancellationResponse(
         success=success,
-        message=(
-            "Saga cancelled successfully" if success
-            else "Failed to cancel saga"
-        ),
-        saga_id=saga_id
+        message=("Saga cancelled successfully" if success else "Failed to cancel saga"),
+        saga_id=saga_id,
     )

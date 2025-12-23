@@ -1,4 +1,3 @@
-
 from app.core.exceptions import ServiceError
 from app.core.logging import logger
 from app.db.repositories import SavedScriptRepository
@@ -14,9 +13,7 @@ class SavedScriptService:
         self.saved_script_repo = saved_script_repo
 
     async def create_saved_script(
-            self,
-            saved_script_create: DomainSavedScriptCreate,
-            user_id: str
+        self, saved_script_create: DomainSavedScriptCreate, user_id: str
     ) -> DomainSavedScript:
         logger.info(
             "Creating new saved script",
@@ -39,11 +36,7 @@ class SavedScriptService:
         )
         return created_script
 
-    async def get_saved_script(
-            self,
-            script_id: str,
-            user_id: str
-    ) -> DomainSavedScript:
+    async def get_saved_script(self, script_id: str, user_id: str) -> DomainSavedScript:
         logger.info(
             "Retrieving saved script",
             extra={
@@ -68,10 +61,7 @@ class SavedScriptService:
         return script
 
     async def update_saved_script(
-            self,
-            script_id: str,
-            user_id: str,
-            update_data: DomainSavedScriptUpdate
+        self, script_id: str, user_id: str, update_data: DomainSavedScriptUpdate
     ) -> DomainSavedScript:
         logger.info(
             "Updating saved script",
@@ -94,11 +84,7 @@ class SavedScriptService:
         )
         return updated_script
 
-    async def delete_saved_script(
-            self,
-            script_id: str,
-            user_id: str
-    ) -> None:
+    async def delete_saved_script(self, script_id: str, user_id: str) -> None:
         logger.info(
             "Deleting saved script",
             extra={
@@ -114,10 +100,7 @@ class SavedScriptService:
             extra={"script_id": script_id, "user_id": user_id},
         )
 
-    async def list_saved_scripts(
-            self,
-            user_id: str
-    ) -> list[DomainSavedScript]:
+    async def list_saved_scripts(self, user_id: str) -> list[DomainSavedScript]:
         logger.info(
             "Listing saved scripts",
             extra={

@@ -6,12 +6,14 @@ from pydantic import BaseModel, Field
 
 class SSEEvent(BaseModel):
     """Base model for SSE events."""
+
     event: str = Field(description="Event type")
     data: str = Field(description="JSON-encoded event data")
 
 
 class SSEHealthResponse(BaseModel):
     """Response model for SSE health check."""
+
     status: str = Field(description="Health status: healthy or draining")
     kafka_enabled: bool = Field(True, description="Whether Kafka features are enabled")
     active_connections: int = Field(description="Total number of active SSE connections")
@@ -24,6 +26,7 @@ class SSEHealthResponse(BaseModel):
 
 class ExecutionStreamEvent(BaseModel):
     """Model for execution stream events."""
+
     event_id: str | None = Field(None, description="Unique event identifier")
     timestamp: datetime | None = Field(None, description="Event timestamp")
     type: str | None = Field(None, description="Event type")
@@ -36,6 +39,7 @@ class ExecutionStreamEvent(BaseModel):
 
 class NotificationStreamEvent(BaseModel):
     """Model for notification stream events."""
+
     message: str = Field(description="Notification message")
     user_id: str = Field(description="User ID")
     timestamp: datetime = Field(description="Event timestamp")
@@ -43,6 +47,7 @@ class NotificationStreamEvent(BaseModel):
 
 class HeartbeatEvent(BaseModel):
     """Model for heartbeat events."""
+
     timestamp: datetime = Field(description="Heartbeat timestamp")
     execution_id: str | None = Field(None, description="Associated execution ID")
     user_id: str | None = Field(None, description="Associated user ID")

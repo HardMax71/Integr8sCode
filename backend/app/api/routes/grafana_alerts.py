@@ -16,9 +16,7 @@ async def receive_grafana_alerts(
 ) -> AlertResponse:
     correlation_id = CorrelationContext.get_correlation_id()
 
-    processed_count, errors = await processor.process_webhook(
-        webhook_payload, correlation_id
-    )
+    processed_count, errors = await processor.process_webhook(webhook_payload, correlation_id)
 
     alerts_count = len(webhook_payload.alerts or [])
 

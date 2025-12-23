@@ -29,20 +29,19 @@ from app.settings import get_settings
 
 class DLQManager(LifecycleEnabled):
     def __init__(
-            self,
-            database: Database,
-            consumer: Consumer,
-            producer: Producer,
-            dlq_topic: KafkaTopic = KafkaTopic.DEAD_LETTER_QUEUE,
-            retry_topic_suffix: str = "-retry",
-            default_retry_policy: RetryPolicy | None = None,
+        self,
+        database: Database,
+        consumer: Consumer,
+        producer: Producer,
+        dlq_topic: KafkaTopic = KafkaTopic.DEAD_LETTER_QUEUE,
+        retry_topic_suffix: str = "-retry",
+        default_retry_policy: RetryPolicy | None = None,
     ):
         self.metrics = get_dlq_metrics()
         self.dlq_topic = dlq_topic
         self.retry_topic_suffix = retry_topic_suffix
         self.default_retry_policy = default_retry_policy or RetryPolicy(
-            topic="default",
-            strategy=RetryStrategy.EXPONENTIAL_BACKOFF
+            topic="default", strategy=RetryStrategy.EXPONENTIAL_BACKOFF
         )
         self.consumer: Consumer = consumer
         self.producer: Producer = producer
@@ -153,10 +152,7 @@ class DLQManager(LifecycleEnabled):
 
     async def _record_message_metrics(self, dlq_message: DLQMessage) -> None:
         """Record metrics for received DLQ message."""
-        self.metrics.record_dlq_message_received(
-            dlq_message.original_topic,
-            dlq_message.event_type
-        )
+        self.metrics.record_dlq_message_received(dlq_message.original_topic, dlq_message.event_type)
         self.metrics.record_dlq_message_age(dlq_message.age_seconds)
 
     async def _process_message_with_tracing(self, msg: Message, dlq_message: DLQMessage) -> None:
@@ -194,10 +190,7 @@ class DLQManager(LifecycleEnabled):
         await self._store_message(message)
 
         # Get retry policy for topic
-        retry_policy = self._retry_policies.get(
-            message.original_topic,
-            self.default_retry_policy
-        )
+        retry_policy = self._retry_policies.get(message.original_topic, self.default_retry_policy)
 
         # Check if should retry
         if not retry_policy.should_retry(message):
@@ -224,11 +217,7 @@ class DLQManager(LifecycleEnabled):
 
         doc = DLQMapper.to_mongo_document(message)
 
-        await self.dlq_collection.update_one(
-            {DLQFields.EVENT_ID: message.event_id},
-            {"$set": doc},
-            upsert=True
-        )
+        await self.dlq_collection.update_one({DLQFields.EVENT_ID: message.event_id}, {"$set": doc}, upsert=True)
 
     async def _update_message_status(self, event_id: str, update: DLQMessageUpdate) -> None:
         update_doc = DLQMapper.update_to_mongo(update)
@@ -248,6 +237,7 @@ class DLQManager(LifecycleEnabled):
         }
         hdrs = inject_trace_context(hdrs)
         from typing import cast
+
         kafka_headers = cast(list[tuple[str, str | bytes]], [(k, v.encode()) for k, v in hdrs.items()])
 
         # Get the original event
@@ -274,11 +264,7 @@ class DLQManager(LifecycleEnabled):
         await asyncio.to_thread(self.producer.flush, timeout=5)
 
         # Update metrics
-        self.metrics.record_dlq_message_retried(
-            message.original_topic,
-            message.event_type,
-            "success"
-        )
+        self.metrics.record_dlq_message_retried(message.original_topic, message.event_type, "success")
 
         # Update status
         await self._update_message_status(
@@ -297,11 +283,7 @@ class DLQManager(LifecycleEnabled):
 
     async def _discard_message(self, message: DLQMessage, reason: str) -> None:
         # Update metrics
-        self.metrics.record_dlq_message_discarded(
-            message.original_topic,
-            message.event_type,
-            reason
-        )
+        self.metrics.record_dlq_message_discarded(message.original_topic, message.event_type, reason)
 
         # Update status
         await self._update_message_status(
@@ -324,10 +306,9 @@ class DLQManager(LifecycleEnabled):
                 # Find messages ready for retry
                 now = datetime.now(timezone.utc)
 
-                cursor = self.dlq_collection.find({
-                    "status": DLQMessageStatus.SCHEDULED,
-                    "next_retry_at": {"$lte": now}
-                }).limit(100)
+                cursor = self.dlq_collection.find(
+                    {"status": DLQMessageStatus.SCHEDULED, "next_retry_at": {"$lte": now}}
+                ).limit(100)
 
                 async for doc in cursor:
                     # Recreate DLQ message from MongoDB document
@@ -349,12 +330,8 @@ class DLQManager(LifecycleEnabled):
     async def _update_queue_metrics(self) -> None:
         # Get counts by topic
         pipeline: Sequence[Mapping[str, Any]] = [
-            {"$match": {str(DLQFields.STATUS): {"$in": [DLQMessageStatus.PENDING,
-                                                        DLQMessageStatus.SCHEDULED]}}},
-            {"$group": {
-                "_id": f"${DLQFields.ORIGINAL_TOPIC}",
-                "count": {"$sum": 1}
-            }}
+            {"$match": {str(DLQFields.STATUS): {"$in": [DLQMessageStatus.PENDING, DLQMessageStatus.SCHEDULED]}}},
+            {"$group": {"_id": f"${DLQFields.ORIGINAL_TOPIC}", "count": {"$sum": 1}}},
         ]
 
         async for result in self.dlq_collection.aggregate(pipeline):
@@ -395,35 +372,36 @@ class DLQManager(LifecycleEnabled):
         await self._retry_message(message)
         return True
 
-def create_dlq_manager(
-        database: Database,
-        dlq_topic: KafkaTopic = KafkaTopic.DEAD_LETTER_QUEUE,
-        retry_topic_suffix: str = "-retry",
-        default_retry_policy: RetryPolicy | None = None,
-) -> DLQManager:
 
+def create_dlq_manager(
+    database: Database,
+    dlq_topic: KafkaTopic = KafkaTopic.DEAD_LETTER_QUEUE,
+    retry_topic_suffix: str = "-retry",
+    default_retry_policy: RetryPolicy | None = None,
+) -> DLQManager:
     settings = get_settings()
-    consumer = Consumer({
-        'bootstrap.servers': settings.KAFKA_BOOTSTRAP_SERVERS,
-        'group.id': f"{GroupId.DLQ_MANAGER}.{settings.KAFKA_GROUP_SUFFIX}",
-        'enable.auto.commit': False,
-        'auto.offset.reset': 'earliest',
-        'client.id': 'dlq-manager-consumer'
-    })
-    producer = Producer({
-        'bootstrap.servers': settings.KAFKA_BOOTSTRAP_SERVERS,
-        'client.id': 'dlq-manager-producer',
-        'acks': 'all',
-        'enable.idempotence': True,
-        'compression.type': 'gzip',
-        'batch.size': 16384,
-        'linger.ms': 10
-    })
+    consumer = Consumer(
+        {
+            "bootstrap.servers": settings.KAFKA_BOOTSTRAP_SERVERS,
+            "group.id": f"{GroupId.DLQ_MANAGER}.{settings.KAFKA_GROUP_SUFFIX}",
+            "enable.auto.commit": False,
+            "auto.offset.reset": "earliest",
+            "client.id": "dlq-manager-consumer",
+        }
+    )
+    producer = Producer(
+        {
+            "bootstrap.servers": settings.KAFKA_BOOTSTRAP_SERVERS,
+            "client.id": "dlq-manager-producer",
+            "acks": "all",
+            "enable.idempotence": True,
+            "compression.type": "gzip",
+            "batch.size": 16384,
+            "linger.ms": 10,
+        }
+    )
     if default_retry_policy is None:
-        default_retry_policy = RetryPolicy(
-            topic="default",
-            strategy=RetryStrategy.EXPONENTIAL_BACKOFF
-        )
+        default_retry_policy = RetryPolicy(topic="default", strategy=RetryStrategy.EXPONENTIAL_BACKOFF)
     return DLQManager(
         database=database,
         consumer=consumer,

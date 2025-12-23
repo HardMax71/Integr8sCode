@@ -23,11 +23,7 @@ from app.services.kafka_event_service import KafkaEventService
 
 
 class UserSettingsService:
-    def __init__(
-            self,
-            repository: UserSettingsRepository,
-            event_service: KafkaEventService
-    ) -> None:
+    def __init__(self, repository: UserSettingsRepository, event_service: KafkaEventService) -> None:
         self.repository = repository
         self.event_service = event_service
         # TTL+LRU cache for settings
@@ -42,20 +38,14 @@ class UserSettingsService:
 
         logger.info(
             "UserSettingsService initialized",
-            extra={
-                "cache_ttl_seconds": self._cache_ttl.total_seconds(),
-                "max_cache_size": self._max_cache_size
-            }
+            extra={"cache_ttl_seconds": self._cache_ttl.total_seconds(), "max_cache_size": self._max_cache_size},
         )
 
     async def get_user_settings(self, user_id: str) -> DomainUserSettings:
         """Get settings with cache; rebuild and cache on miss."""
         if user_id in self._cache:
             cached = self._cache[user_id]
-            logger.debug(
-                f"Settings cache hit for user {user_id}",
-                extra={"cache_size": len(self._cache)}
-            )
+            logger.debug(f"Settings cache hit for user {user_id}", extra={"cache_size": len(self._cache)})
             return cached
 
         return await self.get_user_settings_fresh(user_id)
@@ -92,10 +82,7 @@ class UserSettingsService:
         return settings
 
     async def update_user_settings(
-            self,
-            user_id: str,
-            updates: DomainUserSettingsUpdate,
-            reason: str | None = None
+        self, user_id: str, updates: DomainUserSettingsUpdate, reason: str | None = None
     ) -> DomainUserSettings:
         """Upsert provided fields into current settings, publish minimal event, and cache."""
         s = await self.get_user_settings(user_id)
@@ -224,41 +211,26 @@ class UserSettingsService:
     async def update_theme(self, user_id: str, theme: Theme) -> DomainUserSettings:
         """Update user's theme preference"""
         return await self.update_user_settings(
-            user_id,
-            DomainUserSettingsUpdate(theme=theme),
-            reason="User changed theme"
+            user_id, DomainUserSettingsUpdate(theme=theme), reason="User changed theme"
         )
 
     async def update_notification_settings(
-            self,
-            user_id: str,
-            notifications: DomainNotificationSettings
+        self, user_id: str, notifications: DomainNotificationSettings
     ) -> DomainUserSettings:
         """Update notification preferences"""
         return await self.update_user_settings(
             user_id,
             DomainUserSettingsUpdate(notifications=notifications),
-            reason="User updated notification preferences"
+            reason="User updated notification preferences",
         )
 
-    async def update_editor_settings(
-            self,
-            user_id: str,
-            editor: DomainEditorSettings
-    ) -> DomainUserSettings:
+    async def update_editor_settings(self, user_id: str, editor: DomainEditorSettings) -> DomainUserSettings:
         """Update editor preferences"""
         return await self.update_user_settings(
-            user_id,
-            DomainUserSettingsUpdate(editor=editor),
-            reason="User updated editor settings"
+            user_id, DomainUserSettingsUpdate(editor=editor), reason="User updated editor settings"
         )
 
-    async def update_custom_setting(
-            self,
-            user_id: str,
-            key: str,
-            value: Any
-    ) -> DomainUserSettings:
+    async def update_custom_setting(self, user_id: str, key: str, value: Any) -> DomainUserSettings:
         """Update a custom setting"""
         current_settings = await self.get_user_settings(user_id)
         current_settings.custom_settings[key] = value
@@ -266,14 +238,10 @@ class UserSettingsService:
         return await self.update_user_settings(
             user_id,
             DomainUserSettingsUpdate(custom_settings=current_settings.custom_settings),
-            reason=f"Custom setting '{key}' updated"
+            reason=f"Custom setting '{key}' updated",
         )
 
-    async def get_settings_history(
-            self,
-            user_id: str,
-            limit: int = 50
-    ) -> List[DomainSettingsHistoryEntry]:
+    async def get_settings_history(self, user_id: str, limit: int = 50) -> List[DomainSettingsHistoryEntry]:
         """Get history from changed paths recorded in events."""
         events = await self._get_settings_events(user_id, limit=limit)
         history: list[DomainSettingsHistoryEntry] = []
@@ -309,17 +277,10 @@ class UserSettingsService:
                 )
         return history
 
-    async def restore_settings_to_point(
-            self,
-            user_id: str,
-            timestamp: datetime
-    ) -> DomainUserSettings:
+    async def restore_settings_to_point(self, user_id: str, timestamp: datetime) -> DomainUserSettings:
         """Restore settings to a specific point in time"""
         # Get all events up to the timestamp
-        events = await self._get_settings_events(
-            user_id,
-            until=timestamp
-        )
+        events = await self._get_settings_events(user_id, until=timestamp)
 
         # Rebuild settings from events
         settings = DomainUserSettings(user_id=user_id)
@@ -345,26 +306,18 @@ class UserSettingsService:
         return settings
 
     async def _get_settings_events(
-            self,
-            user_id: str,
-            since: datetime | None = None,
-            until: datetime | None = None,
-            limit: int | None = None
+        self, user_id: str, since: datetime | None = None, until: datetime | None = None, limit: int | None = None
     ) -> List[DomainSettingsEvent]:
         """Get settings-related events for a user"""
         event_types = [
             EventType.USER_SETTINGS_UPDATED,
             EventType.USER_THEME_CHANGED,
             EventType.USER_NOTIFICATION_SETTINGS_UPDATED,
-            EventType.USER_EDITOR_SETTINGS_UPDATED
+            EventType.USER_EDITOR_SETTINGS_UPDATED,
         ]
 
         raw = await self.repository.get_settings_events(
-            user_id=user_id,
-            event_types=event_types,
-            since=since,
-            until=until,
-            limit=limit
+            user_id=user_id, event_types=event_types, since=since, until=until, limit=limit
         )
         # map to domain
         out: list[DomainSettingsEvent] = []
@@ -431,18 +384,12 @@ class UserSettingsService:
         """Invalidate cached settings for a user"""
         removed = self._cache.pop(user_id, None) is not None
         if removed:
-            logger.debug(
-                f"Invalidated cache for user {user_id}",
-                extra={"cache_size": len(self._cache)}
-            )
+            logger.debug(f"Invalidated cache for user {user_id}", extra={"cache_size": len(self._cache)})
 
     def _add_to_cache(self, user_id: str, settings: DomainUserSettings) -> None:
         """Add settings to TTL+LRU cache."""
         self._cache[user_id] = settings
-        logger.debug(
-            f"Cached settings for user {user_id}",
-            extra={"cache_size": len(self._cache)}
-        )
+        logger.debug(f"Cached settings for user {user_id}", extra={"cache_size": len(self._cache)})
 
     def get_cache_stats(self) -> dict[str, Any]:
         """Get cache statistics for monitoring."""
@@ -452,13 +399,13 @@ class UserSettingsService:
             "expired_entries": 0,
             "cache_ttl_seconds": self._cache_ttl.total_seconds(),
         }
-    
+
     async def reset_user_settings(self, user_id: str) -> None:
         """Reset user settings by deleting all data and cache."""
         # Clear from cache
         self.invalidate_cache(user_id)
-        
+
         # Delete from database
         await self.repository.delete_user_settings(user_id)
-        
+
         logger.info(f"Reset settings for user {user_id}")

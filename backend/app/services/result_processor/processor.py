@@ -35,6 +35,7 @@ from app.settings import get_settings
 
 class ProcessingState(StringEnum):
     """Processing state enumeration."""
+
     IDLE = auto()
     PROCESSING = auto()
     STOPPED = auto()
@@ -50,7 +51,7 @@ class ResultProcessorConfig(BaseModel):
         default_factory=lambda: [
             KafkaTopic.EXECUTION_COMPLETED,
             KafkaTopic.EXECUTION_FAILED,
-            KafkaTopic.EXECUTION_TIMEOUT
+            KafkaTopic.EXECUTION_TIMEOUT,
         ]
     )
     result_topic: KafkaTopic = Field(default=KafkaTopic.EXECUTION_RESULTS)
@@ -62,10 +63,7 @@ class ResultProcessor(LifecycleEnabled):
     """Service for processing execution completion events and storing results."""
 
     def __init__(
-            self,
-            execution_repo: ExecutionRepository,
-            producer: UnifiedProducer,
-            idempotency_manager: IdempotencyManager
+        self, execution_repo: ExecutionRepository, producer: UnifiedProducer, idempotency_manager: IdempotencyManager
     ) -> None:
         """Initialize the result processor."""
         self.config = ResultProcessorConfig()
@@ -128,17 +126,14 @@ class ResultProcessor(LifecycleEnabled):
             group_id=f"{self.config.consumer_group}.{settings.KAFKA_GROUP_SUFFIX}",
             max_poll_records=1,
             enable_auto_commit=True,
-            auto_offset_reset="earliest"
+            auto_offset_reset="earliest",
         )
 
         # Create consumer with schema registry and dispatcher
         if not self._dispatcher:
             raise RuntimeError("Event dispatcher not initialized")
 
-        base_consumer = UnifiedConsumer(
-            consumer_config,
-            event_dispatcher=self._dispatcher
-        )
+        base_consumer = UnifiedConsumer(consumer_config, event_dispatcher=self._dispatcher)
         wrapper = IdempotentConsumerWrapper(
             consumer=base_consumer,
             idempotency_manager=self._idempotency_manager,
@@ -169,8 +164,7 @@ class ResultProcessor(LifecycleEnabled):
 
         exec_obj = await self._execution_repo.get_execution(event.execution_id)
         if exec_obj is None:
-            raise ServiceError(message=f"Execution {event.execution_id} not found",
-                               status_code=404)
+            raise ServiceError(message=f"Execution {event.execution_id} not found", status_code=404)
 
         lang_and_version = f"{exec_obj.lang}-{exec_obj.lang_version}"
 
@@ -188,8 +182,7 @@ class ResultProcessor(LifecycleEnabled):
         memory_limit_mib = int(settings_limit.rstrip("Mi"))  # TODO: Less brittle acquisition of limit
         memory_percent = (memory_mib / memory_limit_mib) * 100
         self._metrics.memory_utilization_percent.record(
-            memory_percent,
-            attributes={"lang_and_version": lang_and_version}
+            memory_percent, attributes={"lang_and_version": lang_and_version}
         )
 
         result = ExecutionResultDomain(
@@ -215,8 +208,7 @@ class ResultProcessor(LifecycleEnabled):
         # Fetch execution to get language and version for metrics
         exec_obj = await self._execution_repo.get_execution(event.execution_id)
         if exec_obj is None:
-            raise ServiceError(message=f"Execution {event.execution_id} not found",
-                               status_code=404)
+            raise ServiceError(message=f"Execution {event.execution_id} not found", status_code=404)
 
         self._metrics.record_error(event.error_type)
         lang_and_version = f"{exec_obj.lang}-{exec_obj.lang_version}"
@@ -244,8 +236,7 @@ class ResultProcessor(LifecycleEnabled):
 
         exec_obj = await self._execution_repo.get_execution(event.execution_id)
         if exec_obj is None:
-            raise ServiceError(message=f"Execution {event.execution_id} not found",
-                               status_code=404)
+            raise ServiceError(message=f"Execution {event.execution_id} not found", status_code=404)
 
         self._metrics.record_error(ExecutionErrorType.TIMEOUT)
         lang_and_version = f"{exec_obj.lang}-{exec_obj.lang_version}"
@@ -286,16 +277,9 @@ class ResultProcessor(LifecycleEnabled):
             ),
         )
 
-        await self._producer.produce(
-            event_to_produce=event,
-            key=result.execution_id
-        )
+        await self._producer.produce(event_to_produce=event, key=result.execution_id)
 
-    async def _publish_result_failed(
-            self,
-            execution_id: str,
-            error_message: str
-    ) -> None:
+    async def _publish_result_failed(self, execution_id: str, error_message: str) -> None:
         """Publish result processing failed event."""
 
         event = ResultFailedEvent(
@@ -307,10 +291,7 @@ class ResultProcessor(LifecycleEnabled):
             ),
         )
 
-        await self._producer.produce(
-            event_to_produce=event,
-            key=execution_id
-        )
+        await self._producer.produce(event_to_produce=event, key=execution_id)
 
     async def get_status(self) -> dict[str, Any]:
         """Get processor status."""

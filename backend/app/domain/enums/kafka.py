@@ -58,6 +58,7 @@ class KafkaTopic(StringEnum):
 
 class GroupId(StringEnum):
     """Kafka consumer group IDs."""
+
     EXECUTION_COORDINATOR = "execution-coordinator"
     K8S_WORKER = "k8s-worker"
     POD_MONITOR = "pod-monitor"

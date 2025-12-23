@@ -37,10 +37,9 @@ class SSERedisSubscription:
 class SSERedisBus:
     """Redis-backed pub/sub bus for SSE event fan-out across workers."""
 
-    def __init__(self,
-                 redis_client: redis.Redis,
-                 exec_prefix: str = "sse:exec:",
-                 notif_prefix: str = "sse:notif:") -> None:
+    def __init__(
+        self, redis_client: redis.Redis, exec_prefix: str = "sse:exec:", notif_prefix: str = "sse:notif:"
+    ) -> None:
         self._redis = redis_client
         self._exec_prefix = exec_prefix
         self._notif_prefix = notif_prefix

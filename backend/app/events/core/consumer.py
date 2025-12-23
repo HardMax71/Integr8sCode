@@ -22,10 +22,10 @@ from .types import ConsumerConfig, ConsumerMetrics, ConsumerState
 
 class UnifiedConsumer:
     def __init__(
-            self,
-            config: ConsumerConfig,
-            event_dispatcher: EventDispatcher,
-            stats_callback: Callable[[dict], None] | None = None
+        self,
+        config: ConsumerConfig,
+        event_dispatcher: EventDispatcher,
+        stats_callback: Callable[[dict], None] | None = None,
     ):
         self._config = config
         self._schema_registry = SchemaRegistryManager()
@@ -41,14 +41,11 @@ class UnifiedConsumer:
         self._topic_prefix = get_settings().KAFKA_TOPIC_PREFIX
 
     async def start(self, topics: list[KafkaTopic]) -> None:
-        self._state = (
-            self._state if self._state != ConsumerState.STOPPED
-            else ConsumerState.STARTING
-        )
+        self._state = self._state if self._state != ConsumerState.STOPPED else ConsumerState.STARTING
 
         consumer_config = self._config.to_consumer_config()
         if self._stats_callback:
-            consumer_config['stats_cb'] = self._handle_stats
+            consumer_config["stats_cb"] = self._handle_stats
 
         self._consumer = Consumer(consumer_config)
         topic_strings = [f"{self._topic_prefix}{str(topic)}" for topic in topics]
@@ -102,16 +99,19 @@ class UnifiedConsumer:
                         self._metrics.processing_errors += 1
                 else:
                     message_count += 1
-                    logger.debug(f"Message received from topic {msg.topic()}, "
-                                 f"partition {msg.partition()}, offset {msg.offset()}")
+                    logger.debug(
+                        f"Message received from topic {msg.topic()}, partition {msg.partition()}, offset {msg.offset()}"
+                    )
                     await self._process_message(msg)
                     if not self._config.enable_auto_commit:
                         await asyncio.to_thread(self._consumer.commit, msg)
             else:
                 await asyncio.sleep(0.01)
-        
-        logger.warning(f"Consumer loop ended for group {self._config.group_id}: "
-                       f"running={self._running}, consumer={self._consumer is not None}")
+
+        logger.warning(
+            f"Consumer loop ended for group {self._config.group_id}: "
+            f"running={self._running}, consumer={self._consumer is not None}"
+        )
 
     async def _process_message(self, message: Message) -> None:
         topic = message.topic()
@@ -162,18 +162,13 @@ class UnifiedConsumer:
             self._metrics.bytes_consumed += len(raw_value)
             self._metrics.last_message_time = datetime.now(timezone.utc)
             # Record Kafka consumption metrics
-            self._event_metrics.record_kafka_message_consumed(
-                topic=topic,
-                consumer_group=self._config.group_id
-            )
+            self._event_metrics.record_kafka_message_consumed(topic=topic, consumer_group=self._config.group_id)
         except Exception as e:
             logger.error(f"Dispatcher error for event {event.event_type}: {e}")
             self._metrics.processing_errors += 1
             # Record Kafka consumption error
             self._event_metrics.record_kafka_consumption_error(
-                topic=topic,
-                consumer_group=self._config.group_id,
-                error_type=type(e).__name__
+                topic=topic, consumer_group=self._config.group_id, error_type=type(e).__name__
             )
             if self._error_callback:
                 await self._error_callback(e, event)
@@ -184,15 +179,15 @@ class UnifiedConsumer:
     def _handle_stats(self, stats_json: str) -> None:
         stats = json.loads(stats_json)
 
-        self._metrics.messages_consumed = stats.get('rxmsgs', 0)
-        self._metrics.bytes_consumed = stats.get('rxmsg_bytes', 0)
+        self._metrics.messages_consumed = stats.get("rxmsgs", 0)
+        self._metrics.bytes_consumed = stats.get("rxmsg_bytes", 0)
 
-        topics = stats.get('topics', {})
+        topics = stats.get("topics", {})
         self._metrics.consumer_lag = sum(
-            partition_stats.get('consumer_lag', 0)
+            partition_stats.get("consumer_lag", 0)
             for topic_stats in topics.values()
-            for partition_stats in topic_stats.get('partitions', {}).values()
-            if partition_stats.get('consumer_lag', 0) >= 0
+            for partition_stats in topic_stats.get("partitions", {}).values()
+            if partition_stats.get("consumer_lag", 0) >= 0
         )
 
         self._metrics.last_updated = datetime.now(timezone.utc)
@@ -227,14 +222,10 @@ class UnifiedConsumer:
                 "commit_failures": self._metrics.commit_failures,
                 "processing_errors": self._metrics.processing_errors,
                 "last_message_time": (
-                    self._metrics.last_message_time.isoformat()
-                    if self._metrics.last_message_time else None
+                    self._metrics.last_message_time.isoformat() if self._metrics.last_message_time else None
                 ),
-                "last_updated": (
-                    self._metrics.last_updated.isoformat()
-                    if self._metrics.last_updated else None
-                ),
-            }
+                "last_updated": (self._metrics.last_updated.isoformat() if self._metrics.last_updated else None),
+            },
         }
 
     async def seek_to_beginning(self) -> None:

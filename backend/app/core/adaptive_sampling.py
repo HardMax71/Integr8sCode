@@ -21,17 +21,17 @@ class AdaptiveSampler(Sampler):
     """
 
     def __init__(
-            self,
-            base_rate: float = 0.1,
-            min_rate: float = 0.01,
-            max_rate: float = 1.0,
-            error_rate_threshold: float = 0.05,
-            high_traffic_threshold: int = 1000,
-            adjustment_interval: int = 60,
+        self,
+        base_rate: float = 0.1,
+        min_rate: float = 0.01,
+        max_rate: float = 1.0,
+        error_rate_threshold: float = 0.05,
+        high_traffic_threshold: int = 1000,
+        adjustment_interval: int = 60,
     ):
         """
         Initialize adaptive sampler
-        
+
         Args:
             base_rate: Base sampling rate (default 10%)
             min_rate: Minimum sampling rate (default 1%)
@@ -67,19 +67,17 @@ class AdaptiveSampler(Sampler):
         self._adjustment_thread = threading.Thread(target=self._adjustment_loop, daemon=True)
         self._adjustment_thread.start()
 
-        logging.getLogger("integr8scode").info(
-            f"Adaptive sampler initialized with base rate: {base_rate}"
-        )
+        logging.getLogger("integr8scode").info(f"Adaptive sampler initialized with base rate: {base_rate}")
 
     def should_sample(
-            self,
-            parent_context: Context | None,
-            trace_id: int,
-            name: str,
-            kind: SpanKind | None = None,
-            attributes: Attributes | None = None,
-            links: Sequence[Link] | None = None,
-            trace_state: TraceState | None = None,
+        self,
+        parent_context: Context | None,
+        trace_id: int,
+        name: str,
+        kind: SpanKind | None = None,
+        attributes: Attributes | None = None,
+        links: Sequence[Link] | None = None,
+        trace_state: TraceState | None = None,
     ) -> SamplingResult:
         """Determine if a span should be sampled"""
         # Get parent trace state
@@ -92,15 +90,10 @@ class AdaptiveSampler(Sampler):
             if parent_span_context.trace_flags.sampled:
                 if parent_trace_state is not None:
                     return SamplingResult(
-                        decision=Decision.RECORD_AND_SAMPLE,
-                        attributes=attributes,
-                        trace_state=parent_trace_state
+                        decision=Decision.RECORD_AND_SAMPLE, attributes=attributes, trace_state=parent_trace_state
                     )
                 else:
-                    return SamplingResult(
-                        decision=Decision.RECORD_AND_SAMPLE,
-                        attributes=attributes
-                    )
+                    return SamplingResult(decision=Decision.RECORD_AND_SAMPLE, attributes=attributes)
 
         # Track request
         self._track_request()
@@ -110,15 +103,10 @@ class AdaptiveSampler(Sampler):
             self._track_error()
             if parent_trace_state is not None:
                 return SamplingResult(
-                    decision=Decision.RECORD_AND_SAMPLE,
-                    attributes=attributes,
-                    trace_state=parent_trace_state
+                    decision=Decision.RECORD_AND_SAMPLE, attributes=attributes, trace_state=parent_trace_state
                 )
             else:
-                return SamplingResult(
-                    decision=Decision.RECORD_AND_SAMPLE,
-                    attributes=attributes
-                )
+                return SamplingResult(decision=Decision.RECORD_AND_SAMPLE, attributes=attributes)
 
         # Apply current sampling rate using integer arithmetic to avoid precision issues
         # Use trace ID for deterministic sampling
@@ -134,12 +122,12 @@ class AdaptiveSampler(Sampler):
             return SamplingResult(
                 decision=Decision.RECORD_AND_SAMPLE if should_sample else Decision.DROP,
                 attributes=attributes if should_sample else None,
-                trace_state=parent_trace_state
+                trace_state=parent_trace_state,
             )
         else:
             return SamplingResult(
                 decision=Decision.RECORD_AND_SAMPLE if should_sample else Decision.DROP,
-                attributes=attributes if should_sample else None
+                attributes=attributes if should_sample else None,
             )
 
     def get_description(self) -> str:
@@ -211,8 +199,7 @@ class AdaptiveSampler(Sampler):
             error_multiplier: float = min(10.0, 1 + (error_rate / self.error_rate_threshold))
             new_rate = min(self.max_rate, self.base_rate * error_multiplier)
             logging.getLogger("integr8scode").warning(
-                f"High error rate detected ({error_rate:.1%}), "
-                f"increasing sampling to {new_rate:.1%}"
+                f"High error rate detected ({error_rate:.1%}), increasing sampling to {new_rate:.1%}"
             )
 
         # Decrease sampling during high traffic
@@ -221,17 +208,14 @@ class AdaptiveSampler(Sampler):
             traffic_divisor = request_rate / self.high_traffic_threshold
             new_rate = max(self.min_rate, self.base_rate / traffic_divisor)
             logging.getLogger("integr8scode").info(
-                f"High traffic detected ({request_rate} req/min), "
-                f"decreasing sampling to {new_rate:.1%}"
+                f"High traffic detected ({request_rate} req/min), decreasing sampling to {new_rate:.1%}"
             )
 
         # Apply gradual changes
         if new_rate != self._current_rate:
             # Smooth transitions
             change_rate = 0.5  # Adjust 50% towards target
-            self._current_rate = (
-                    self._current_rate + (new_rate - self._current_rate) * change_rate
-            )
+            self._current_rate = self._current_rate + (new_rate - self._current_rate) * change_rate
 
             logging.getLogger("integr8scode").info(
                 f"Adjusted sampling rate to {self._current_rate:.1%} "
@@ -246,9 +230,7 @@ class AdaptiveSampler(Sampler):
             try:
                 self._adjust_sampling_rate()
             except Exception as e:
-                logging.getLogger("integr8scode").error(
-                    f"Error adjusting sampling rate: {e}"
-                )
+                logging.getLogger("integr8scode").error(f"Error adjusting sampling rate: {e}")
 
     def shutdown(self) -> None:
         """Shutdown the sampler"""
@@ -268,5 +250,5 @@ def create_adaptive_sampler(settings: Any | None = None) -> AdaptiveSampler:
         max_rate=1.0,
         error_rate_threshold=0.05,  # 5% error rate
         high_traffic_threshold=1000,  # 1000 requests per minute
-        adjustment_interval=60  # Adjust every minute
+        adjustment_interval=60,  # Adjust every minute
     )

@@ -10,6 +10,7 @@ from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
 
 class ShutdownPhase(Enum):
     """Phases of SSE shutdown process"""
+
     READY = "ready"
     NOTIFYING = "notifying"  # Notify connections of impending shutdown
     DRAINING = "draining"  # Wait for connections to close gracefully
@@ -20,22 +21,19 @@ class ShutdownPhase(Enum):
 class SSEShutdownManager:
     """
     Manages graceful shutdown of SSE connections.
-    
+
     Works alongside the SSEKafkaRedisBridge to:
     - Track active SSE connections
     - Notify clients about shutdown
     - Coordinate graceful disconnection
     - Ensure clean resource cleanup
-    
+
     The router handles Kafka consumer shutdown while this
     manager handles SSE client connection lifecycle.
     """
 
     def __init__(
-            self,
-            drain_timeout: float = 30.0,
-            notification_timeout: float = 5.0,
-            force_close_timeout: float = 10.0
+        self, drain_timeout: float = 30.0, notification_timeout: float = 5.0, force_close_timeout: float = 10.0
     ):
         self.drain_timeout = drain_timeout
         self.notification_timeout = notification_timeout
@@ -70,11 +68,7 @@ class SSEShutdownManager:
         """Set the router reference for shutdown coordination."""
         self._router = router
 
-    async def register_connection(
-            self,
-            execution_id: str,
-            connection_id: str
-    ) -> asyncio.Event | None:
+    async def register_connection(self, execution_id: str, connection_id: str) -> asyncio.Event | None:
         """
         Register a new SSE connection.
 
@@ -218,10 +212,7 @@ class SSEShutdownManager:
         while remaining > 0 and (time.time() - start_time) < self.drain_timeout:
             # Wait for connections to close
             try:
-                await asyncio.wait_for(
-                    self._drain_complete_event.wait(),
-                    timeout=check_interval
-                )
+                await asyncio.wait_for(self._drain_complete_event.wait(), timeout=check_interval)
                 break  # All connections drained
             except asyncio.TimeoutError:
                 pass
@@ -296,10 +287,7 @@ class SSEShutdownManager:
             return True
 
         try:
-            await asyncio.wait_for(
-                self._wait_for_complete(),
-                timeout=timeout
-            )
+            await asyncio.wait_for(self._wait_for_complete(), timeout=timeout)
             return True
         except asyncio.TimeoutError:
             return False
@@ -311,22 +299,18 @@ class SSEShutdownManager:
 
 
 def create_sse_shutdown_manager(
-        drain_timeout: float = 30.0,
-        notification_timeout: float = 5.0,
-        force_close_timeout: float = 10.0
+    drain_timeout: float = 30.0, notification_timeout: float = 5.0, force_close_timeout: float = 10.0
 ) -> SSEShutdownManager:
     """Factory function to create an SSE shutdown manager.
-    
+
     Args:
         drain_timeout: Time to wait for connections to close gracefully
         notification_timeout: Time to wait for shutdown notifications to be sent
         force_close_timeout: Time before force closing connections
-        
+
     Returns:
         A new SSE shutdown manager instance
     """
     return SSEShutdownManager(
-        drain_timeout=drain_timeout,
-        notification_timeout=notification_timeout,
-        force_close_timeout=force_close_timeout
+        drain_timeout=drain_timeout, notification_timeout=notification_timeout, force_close_timeout=force_close_timeout
     )

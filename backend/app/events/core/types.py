@@ -7,6 +7,7 @@ from app.core.utils import StringEnum
 
 class ProducerState(StringEnum):
     """Kafka producer state enumeration."""
+
     STOPPED = "stopped"
     STARTING = "starting"
     RUNNING = "running"
@@ -16,6 +17,7 @@ class ProducerState(StringEnum):
 
 class ConsumerState(StringEnum):
     """Kafka consumer state enumeration."""
+
     STOPPED = "stopped"
     STARTING = "starting"
     RUNNING = "running"
@@ -45,16 +47,16 @@ class ProducerConfig:
     def to_producer_config(self) -> dict[str, Any]:
         """Convert to Confluent Kafka producer configuration."""
         return {
-            'bootstrap.servers': self.bootstrap_servers,
-            'client.id': self.client_id,
-            'batch.size': self.batch_size,
-            'linger.ms': self.linger_ms,
-            'compression.type': self.compression_type,
-            'request.timeout.ms': self.request_timeout_ms,
-            'retries': self.retries,
-            'enable.idempotence': self.enable_idempotence,
-            'acks': self.acks,
-            'max.in.flight.requests.per.connection': self.max_in_flight_requests_per_connection,
+            "bootstrap.servers": self.bootstrap_servers,
+            "client.id": self.client_id,
+            "batch.size": self.batch_size,
+            "linger.ms": self.linger_ms,
+            "compression.type": self.compression_type,
+            "request.timeout.ms": self.request_timeout_ms,
+            "retries": self.retries,
+            "enable.idempotence": self.enable_idempotence,
+            "acks": self.acks,
+            "max.in.flight.requests.per.connection": self.max_in_flight_requests_per_connection,
         }
 
 
@@ -86,17 +88,17 @@ class ConsumerConfig:
     def to_consumer_config(self) -> dict[str, object]:
         """Convert to Confluent Kafka consumer configuration."""
         return {
-            'bootstrap.servers': self.bootstrap_servers,
-            'group.id': self.group_id,
-            'client.id': self.client_id,
-            'auto.offset.reset': self.auto_offset_reset,
-            'enable.auto.commit': self.enable_auto_commit,
-            'session.timeout.ms': self.session_timeout_ms,
-            'heartbeat.interval.ms': self.heartbeat_interval_ms,
-            'max.poll.interval.ms': self.max_poll_interval_ms,
-            'fetch.min.bytes': self.fetch_min_bytes,
-            'fetch.wait.max.ms': self.fetch_max_wait_ms,
-            'statistics.interval.ms': self.statistics_interval_ms,
+            "bootstrap.servers": self.bootstrap_servers,
+            "group.id": self.group_id,
+            "client.id": self.client_id,
+            "auto.offset.reset": self.auto_offset_reset,
+            "enable.auto.commit": self.enable_auto_commit,
+            "session.timeout.ms": self.session_timeout_ms,
+            "heartbeat.interval.ms": self.heartbeat_interval_ms,
+            "max.poll.interval.ms": self.max_poll_interval_ms,
+            "fetch.min.bytes": self.fetch_min_bytes,
+            "fetch.wait.max.ms": self.fetch_max_wait_ms,
+            "statistics.interval.ms": self.statistics_interval_ms,
         }
 
 

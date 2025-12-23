@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = Field(
         ...,  # Actual key be loaded from .env file
         min_length=32,
-        description="Secret key for JWT token signing. Must be at least 32 characters."
+        description="Secret key for JWT token signing. Must be at least 32 characters.",
     )
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
@@ -37,20 +37,15 @@ class Settings(BaseSettings):
     K8S_POD_EXECUTION_TIMEOUT: int = 300  # in seconds
     K8S_POD_PRIORITY_CLASS_NAME: str | None = None
 
-    SUPPORTED_RUNTIMES: dict[str, list[str]] = Field(
-        default_factory=lambda: RUNTIME_MATRIX
-    )
+    SUPPORTED_RUNTIMES: dict[str, list[str]] = Field(default_factory=lambda: RUNTIME_MATRIX)
 
-    EXAMPLE_SCRIPTS: dict[str, str] = Field(
-        default_factory=lambda: EXEC_EXAMPLE_SCRIPTS
-    )
-
+    EXAMPLE_SCRIPTS: dict[str, str] = Field(default_factory=lambda: EXEC_EXAMPLE_SCRIPTS)
 
     TESTING: bool = False
 
     # Event-Driven Design Configuration
     KAFKA_BOOTSTRAP_SERVERS: str = "kafka:29092"
-    KAFKA_GROUP_SUFFIX: str = "suff" # Suffix to append to consumer group IDs for test/parallel isolation
+    KAFKA_GROUP_SUFFIX: str = "suff"  # Suffix to append to consumer group IDs for test/parallel isolation
     SCHEMA_REGISTRY_URL: str = "http://schema-registry:8081"
     SCHEMA_REGISTRY_AUTH: str | None = None  # Format: "username:password"
     ENABLE_EVENT_STREAMING: bool = False
@@ -61,7 +56,7 @@ class Settings(BaseSettings):
     KAFKA_ENABLE_AUTO_COMMIT: bool = True
     KAFKA_SESSION_TIMEOUT_MS: int = 30000
     KAFKA_MAX_POLL_RECORDS: int = 500
-    
+
     # SSE Configuration
     SSE_CONSUMER_POOL_SIZE: int = 10  # Number of consumers in the partitioned pool
     SSE_HEARTBEAT_INTERVAL: int = 30  # Heartbeat interval in seconds for SSE - keep connection alive
@@ -87,7 +82,7 @@ class Settings(BaseSettings):
         default=0.1,  # 10% sampling by default
         ge=0.0,
         le=1.0,
-        description="Sampling rate for distributed tracing (0.0 to 1.0)"
+        description="Sampling rate for distributed tracing (0.0 to 1.0)",
     )
     TRACING_SERVICE_NAME: str = "integr8scode-backend"
     TRACING_SERVICE_VERSION: str = "1.0.0"
@@ -107,7 +102,7 @@ class Settings(BaseSettings):
     # WebSocket configuration
     WEBSOCKET_PING_INTERVAL: int = 30
     WEBSOCKET_PING_TIMEOUT: int = 10
-    
+
     # Redis Configuration
     REDIS_HOST: str = "redis"
     REDIS_PORT: int = 6379
@@ -116,7 +111,7 @@ class Settings(BaseSettings):
     REDIS_SSL: bool = False
     REDIS_MAX_CONNECTIONS: int = 50
     REDIS_DECODE_RESPONSES: bool = True
-    
+
     # Rate Limiting Configuration
     RATE_LIMIT_ENABLED: bool = True
     RATE_LIMIT_DEFAULT_REQUESTS: int = 100
@@ -154,16 +149,13 @@ class Settings(BaseSettings):
     SECURE_COOKIES: bool = True  # Can be overridden in .env for development
 
     # Logging configuration
-    LOG_LEVEL: str = Field(
-        default="DEBUG",
-        description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)"
-    )
+    LOG_LEVEL: str = Field(default="DEBUG", description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
 
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=True,
-        extra="forbid"  # Raise error on extra fields
+        extra="forbid",  # Raise error on extra fields
     )
 
 

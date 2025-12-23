@@ -1,0 +1,13 @@
+flag_management:
+  default_rules:
+    carryforward: true
+
+  individual_flags:
+    - name: backend
+      paths:
+        - backend/app/
+      carryforward: true
+    - name: frontend
+      paths:
+        - frontend/src/
+      carryforward: true

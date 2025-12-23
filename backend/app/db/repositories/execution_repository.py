@@ -66,9 +66,7 @@ class ExecutionRepository:
             created_at=document.get("created_at", datetime.now(timezone.utc)),
             updated_at=document.get("updated_at", datetime.now(timezone.utc)),
             resource_usage=(
-                ResourceUsageDomain.from_dict(resource_usage_data)
-                if resource_usage_data is not None
-                else None
+                ResourceUsageDomain.from_dict(resource_usage_data) if resource_usage_data is not None else None
             ),
             user_id=document.get("user_id"),
             exit_code=document.get("exit_code"),

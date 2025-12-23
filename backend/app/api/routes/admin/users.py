@@ -6,13 +6,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.dependencies import admin_user
 from app.db.repositories.admin.admin_user_repository import AdminUserRepository
+from app.domain.enums.user import UserRole
 from app.domain.rate_limit import UserRateLimit
 from app.domain.user import (
     UserUpdate as DomainUserUpdate,
 )
 from app.infrastructure.mappers import AdminOverviewApiMapper, UserMapper
 from app.schemas_pydantic.admin_user_overview import AdminUserOverview
-from app.domain.enums.user import UserRole
 from app.schemas_pydantic.user import (
     MessageResponse,
     PasswordResetRequest,

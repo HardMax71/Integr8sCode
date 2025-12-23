@@ -2,8 +2,8 @@ from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Query, Request, Response
 
-from app.infrastructure.mappers import NotificationApiMapper
 from app.domain.enums.notification import NotificationChannel, NotificationStatus
+from app.infrastructure.mappers import NotificationApiMapper
 from app.schemas_pydantic.notification import (
     DeleteNotificationResponse,
     NotificationListResponse,

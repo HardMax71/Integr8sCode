@@ -46,7 +46,7 @@ class AdminReplayResult:
 
 @dataclass
 class ExportResult:
-    filename: str
+    file_name: str  # not 'filename' - conflicts with LogRecord reserved attribute
     content: str
     media_type: str
 
@@ -211,10 +211,10 @@ class AdminEventsService:
             "Exported events CSV",
             extra={
                 "row_count": len(rows),
-                "filename": filename,
+                "file_name": filename,
             },
         )
-        return ExportResult(filename=filename, content=output.getvalue(), media_type="text/csv")
+        return ExportResult(file_name=filename, content=output.getvalue(), media_type="text/csv")
 
     async def export_events_json_content(self, *, filter: EventFilter, limit: int) -> ExportResult:
         result = await self._repo.browse_events(filter=filter, skip=0, limit=limit, sort_by="timestamp", sort_order=-1)
@@ -250,10 +250,10 @@ class AdminEventsService:
             "Exported events JSON",
             extra={
                 "event_count": len(events_data),
-                "filename": filename,
+                "file_name": filename,
             },
         )
-        return ExportResult(filename=filename, content=json_content, media_type="application/json")
+        return ExportResult(file_name=filename, content=json_content, media_type="application/json")
 
     async def delete_event(self, *, event_id: str, deleted_by: str) -> bool:
         # Load event for archival; archive then delete

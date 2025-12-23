@@ -96,7 +96,7 @@ async def export_events_csv(
         return StreamingResponse(
             iter([result.content]),
             media_type=result.media_type,
-            headers={"Content-Disposition": f"attachment; filename={result.filename}"},
+            headers={"Content-Disposition": f"attachment; filename={result.file_name}"},
         )
 
     except Exception as e:
@@ -132,7 +132,7 @@ async def export_events_json(
         return StreamingResponse(
             iter([result.content]),
             media_type=result.media_type,
-            headers={"Content-Disposition": f"attachment; filename={result.filename}"},
+            headers={"Content-Disposition": f"attachment; filename={result.file_name}"},
         )
 
     except Exception as e:

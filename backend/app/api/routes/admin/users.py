@@ -12,13 +12,13 @@ from app.domain.user import (
 )
 from app.infrastructure.mappers import AdminOverviewApiMapper, UserMapper
 from app.schemas_pydantic.admin_user_overview import AdminUserOverview
+from app.domain.enums.user import UserRole
 from app.schemas_pydantic.user import (
     MessageResponse,
     PasswordResetRequest,
     UserCreate,
     UserListResponse,
     UserResponse,
-    UserRole,
     UserUpdate,
 )
 from app.services.admin import AdminUserService

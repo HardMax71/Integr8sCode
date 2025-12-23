@@ -13,6 +13,7 @@ from app.core.utils import get_client_ip
 from app.domain.events.event_models import EventFilter
 from app.infrastructure.kafka.events.metadata import EventMetadata
 from app.infrastructure.mappers import EventMapper, EventStatisticsMapper
+from app.domain.enums.common import SortOrder
 from app.schemas_pydantic.events import (
     DeleteEventResponse,
     EventAggregationRequest,
@@ -23,7 +24,6 @@ from app.schemas_pydantic.events import (
     PublishEventRequest,
     PublishEventResponse,
     ReplayAggregateResponse,
-    SortOrder,
 )
 from app.schemas_pydantic.user import UserResponse
 from app.services.event_service import EventService

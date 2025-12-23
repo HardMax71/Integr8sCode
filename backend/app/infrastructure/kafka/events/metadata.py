@@ -2,7 +2,7 @@ from typing import Any, Dict
 from uuid import uuid4
 
 from pydantic import ConfigDict, Field
-from pydantic_avro import AvroBase
+from pydantic_avro import AvroBase  # type: ignore[attr-defined]
 
 from app.domain.enums.common import Environment
 

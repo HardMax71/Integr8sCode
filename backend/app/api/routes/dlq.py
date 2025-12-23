@@ -9,12 +9,12 @@ from app.api.dependencies import current_user
 from app.db.repositories.dlq_repository import DLQRepository
 from app.dlq import RetryPolicy
 from app.dlq.manager import DLQManager
+from app.dlq.models import DLQMessageStatus
 from app.schemas_pydantic.dlq import (
     DLQBatchRetryResponse,
     DLQMessageDetail,
     DLQMessageResponse,
     DLQMessagesResponse,
-    DLQMessageStatus,
     DLQStats,
     DLQTopicSummaryResponse,
     ManualRetryRequest,

@@ -65,7 +65,7 @@ class UnifiedProducer(LifecycleEnabled):
             # Record Kafka production error
             topic = message.topic() if message else None
             self._event_metrics.record_kafka_production_error(
-                topic=topic if topic is not None else "unknown", error_type=str(error.code()) if error else "unknown"
+                topic=topic if topic is not None else "unknown", error_type=str(error.code())
             )
             logger.error(f"Message delivery failed: {error}")
         else:

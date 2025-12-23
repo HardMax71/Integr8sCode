@@ -109,6 +109,8 @@ jobs:
           name: backend-coverage
           slug: HardMax71/Integr8sCode
           fail_ci_if_error: false
+          root_dir: backend
+          codecov_yml_path: .github/codecov.yml
 
       - name: Collect logs
         if: failure()

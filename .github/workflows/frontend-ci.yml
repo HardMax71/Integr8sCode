@@ -46,6 +46,8 @@ jobs:
           name: frontend-coverage
           slug: HardMax71/Integr8sCode
           fail_ci_if_error: false
+          root_dir: frontend
+          codecov_yml_path: .github/codecov.yml
 
   e2e:
     name: E2E Tests

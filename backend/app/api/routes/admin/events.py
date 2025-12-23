@@ -76,6 +76,69 @@ async def get_event_stats(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/export/csv")
+async def export_events_csv(
+    service: FromDishka[AdminEventsService],
+    event_types: list[EventType] | None = Query(None, description="Event types (repeat param for multiple)"),
+    start_time: datetime | None = Query(None, description="Start time"),
+    end_time: datetime | None = Query(None, description="End time"),
+    limit: int = Query(default=10000, le=50000),
+) -> StreamingResponse:
+    try:
+        export_filter = EventFilterMapper.from_admin_pydantic(
+            AdminEventFilter(
+                event_types=event_types,
+                start_time=start_time,
+                end_time=end_time,
+            )
+        )
+        result = await service.export_events_csv_content(filter=export_filter, limit=limit)
+        return StreamingResponse(
+            iter([result.content]),
+            media_type=result.media_type,
+            headers={"Content-Disposition": f"attachment; filename={result.filename}"},
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/export/json")
+async def export_events_json(
+    service: FromDishka[AdminEventsService],
+    event_types: list[EventType] | None = Query(None, description="Event types (repeat param for multiple)"),
+    aggregate_id: str | None = Query(None, description="Aggregate ID filter"),
+    correlation_id: str | None = Query(None, description="Correlation ID filter"),
+    user_id: str | None = Query(None, description="User ID filter"),
+    service_name: str | None = Query(None, description="Service name filter"),
+    start_time: datetime | None = Query(None, description="Start time"),
+    end_time: datetime | None = Query(None, description="End time"),
+    limit: int = Query(default=10000, le=50000),
+) -> StreamingResponse:
+    """Export events as JSON with comprehensive filtering."""
+    try:
+        export_filter = EventFilterMapper.from_admin_pydantic(
+            AdminEventFilter(
+                event_types=event_types,
+                aggregate_id=aggregate_id,
+                correlation_id=correlation_id,
+                user_id=user_id,
+                service_name=service_name,
+                start_time=start_time,
+                end_time=end_time,
+            )
+        )
+        result = await service.export_events_json_content(filter=export_filter, limit=limit)
+        return StreamingResponse(
+            iter([result.content]),
+            media_type=result.media_type,
+            headers={"Content-Disposition": f"attachment; filename={result.filename}"},
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/{event_id}")
 async def get_event_detail(event_id: str, service: FromDishka[AdminEventsService]) -> EventDetailResponse:
     try:
@@ -168,68 +231,5 @@ async def delete_event(
 
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/export/csv")
-async def export_events_csv(
-    service: FromDishka[AdminEventsService],
-    event_types: list[EventType] | None = Query(None, description="Event types (repeat param for multiple)"),
-    start_time: datetime | None = Query(None, description="Start time"),
-    end_time: datetime | None = Query(None, description="End time"),
-    limit: int = Query(default=10000, le=50000),
-) -> StreamingResponse:
-    try:
-        export_filter = EventFilterMapper.from_admin_pydantic(
-            AdminEventFilter(
-                event_types=event_types,
-                start_time=start_time,
-                end_time=end_time,
-            )
-        )
-        result = await service.export_events_csv_content(filter=export_filter, limit=limit)
-        return StreamingResponse(
-            iter([result.content]),
-            media_type=result.media_type,
-            headers={"Content-Disposition": f"attachment; filename={result.filename}"},
-        )
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/export/json")
-async def export_events_json(
-    service: FromDishka[AdminEventsService],
-    event_types: list[EventType] | None = Query(None, description="Event types (repeat param for multiple)"),
-    aggregate_id: str | None = Query(None, description="Aggregate ID filter"),
-    correlation_id: str | None = Query(None, description="Correlation ID filter"),
-    user_id: str | None = Query(None, description="User ID filter"),
-    service_name: str | None = Query(None, description="Service name filter"),
-    start_time: datetime | None = Query(None, description="Start time"),
-    end_time: datetime | None = Query(None, description="End time"),
-    limit: int = Query(default=10000, le=50000),
-) -> StreamingResponse:
-    """Export events as JSON with comprehensive filtering."""
-    try:
-        export_filter = EventFilterMapper.from_admin_pydantic(
-            AdminEventFilter(
-                event_types=event_types,
-                aggregate_id=aggregate_id,
-                correlation_id=correlation_id,
-                user_id=user_id,
-                service_name=service_name,
-                start_time=start_time,
-                end_time=end_time,
-            )
-        )
-        result = await service.export_events_json_content(filter=export_filter, limit=limit)
-        return StreamingResponse(
-            iter([result.content]),
-            media_type=result.media_type,
-            headers={"Content-Disposition": f"attachment; filename={result.filename}"},
-        )
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

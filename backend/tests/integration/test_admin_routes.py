@@ -334,7 +334,7 @@ class TestAdminEvents:
         # CSV export
         r_csv = await client.get("/api/v1/admin/events/export/csv?limit=10")
         if r_csv.status_code != 200:
-            pytest.skip("CSV export not available in this environment")
+            pytest.skip(f"CSV export returned {r_csv.status_code}: {r_csv.text[:200]}")
         ct_csv = r_csv.headers.get("content-type", "")
         assert "text/csv" in ct_csv
         body_csv = r_csv.text
@@ -344,7 +344,7 @@ class TestAdminEvents:
         # JSON export
         r_json = await client.get("/api/v1/admin/events/export/json?limit=10")
         if r_json.status_code != 200:
-            pytest.skip("JSON export not available in this environment")
+            pytest.skip(f"JSON export returned {r_json.status_code}: {r_json.text[:200]}")
         ct_json = r_json.headers.get("content-type", "")
         assert "application/json" in ct_json
         data = r_json.json()

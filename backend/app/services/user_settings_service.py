@@ -337,7 +337,7 @@ class UserSettingsService:
         if event.event_type == EventType.USER_THEME_CHANGED:
             new_theme = event.payload.get("new_theme")
             if new_theme:
-                settings.theme = Theme(new_theme)  # type: ignore[arg-type]
+                settings.theme = Theme(new_theme)
             return settings
 
         upd = event.payload.get("updated")
@@ -346,7 +346,7 @@ class UserSettingsService:
 
         # Top-level
         if "theme" in upd:
-            settings.theme = Theme(upd["theme"])  # type: ignore[arg-type]
+            settings.theme = Theme(upd["theme"])
         if "timezone" in upd:
             settings.timezone = upd["timezone"]
         if "date_format" in upd:

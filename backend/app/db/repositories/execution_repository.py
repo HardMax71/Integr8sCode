@@ -54,8 +54,9 @@ class ExecutionRepository:
                 document["status"] = result_doc.get("status")
 
         sv = document.get("status")
+        resource_usage_data = document.get("resource_usage")
         return DomainExecution(
-            execution_id=document.get("execution_id"),
+            execution_id=document["execution_id"],
             script=document.get("script", ""),
             status=ExecutionStatus(str(sv)),
             stdout=document.get("stdout"),
@@ -65,8 +66,8 @@ class ExecutionRepository:
             created_at=document.get("created_at", datetime.now(timezone.utc)),
             updated_at=document.get("updated_at", datetime.now(timezone.utc)),
             resource_usage=(
-                ResourceUsageDomain.from_dict(document.get("resource_usage"))
-                if document.get("resource_usage") is not None
+                ResourceUsageDomain.from_dict(resource_usage_data)
+                if resource_usage_data is not None
                 else None
             ),
             user_id=document.get("user_id"),

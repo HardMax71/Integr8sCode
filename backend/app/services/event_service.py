@@ -102,7 +102,7 @@ class EventService:
 
         # Pagination and sorting from request
         return await self.repository.query_events_generic(
-            query=query,  # type: ignore[assignment]
+            query=query,
             sort_field=sort_field,
             sort_direction=direction,
             skip=skip,

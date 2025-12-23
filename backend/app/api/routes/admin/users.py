@@ -8,16 +8,17 @@ from app.api.dependencies import admin_user
 from app.db.repositories.admin.admin_user_repository import AdminUserRepository
 from app.domain.enums.user import UserRole
 from app.domain.rate_limit import UserRateLimit
-from app.domain.user import (
-    UserUpdate as DomainUserUpdate,
-)
+from app.domain.user import UserUpdate as DomainUserUpdate
 from app.infrastructure.mappers import AdminOverviewApiMapper, UserMapper
 from app.schemas_pydantic.admin_user_overview import AdminUserOverview
 from app.schemas_pydantic.user import (
+    DeleteUserResponse,
     MessageResponse,
     PasswordResetRequest,
+    RateLimitUpdateResponse,
     UserCreate,
     UserListResponse,
+    UserRateLimitsResponse,
     UserResponse,
     UserUpdate,
 )
@@ -144,13 +145,13 @@ async def update_user(
     return UserResponse(**user_mapper.to_response_dict(updated_user))
 
 
-@router.delete("/{user_id}")
+@router.delete("/{user_id}", response_model=DeleteUserResponse)
 async def delete_user(
     admin: Annotated[UserResponse, Depends(admin_user)],
     user_id: str,
     admin_user_service: FromDishka[AdminUserService],
     cascade: bool = Query(default=True, description="Cascade delete user's data"),
-) -> dict:
+) -> DeleteUserResponse:
     # Prevent self-deletion; delegate to service
     if admin.user_id == user_id:
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
@@ -161,7 +162,7 @@ async def delete_user(
     if deleted_counts.get("user", 0) == 0:
         raise HTTPException(status_code=500, detail="Failed to delete user")
 
-    return {"message": f"User {user_id} deleted successfully", "deleted_counts": deleted_counts}
+    return DeleteUserResponse(message=f"User {user_id} deleted successfully", deleted_counts=deleted_counts)
 
 
 @router.post("/{user_id}/reset-password", response_model=MessageResponse)
@@ -179,25 +180,27 @@ async def reset_user_password(
     return MessageResponse(message=f"Password reset successfully for user {user_id}")
 
 
-@router.get("/{user_id}/rate-limits")
+@router.get("/{user_id}/rate-limits", response_model=UserRateLimitsResponse)
 async def get_user_rate_limits(
     admin: Annotated[UserResponse, Depends(admin_user)],
     admin_user_service: FromDishka[AdminUserService],
     user_id: str,
-) -> dict:
-    return await admin_user_service.get_user_rate_limits(admin_username=admin.username, user_id=user_id)
+) -> UserRateLimitsResponse:
+    result = await admin_user_service.get_user_rate_limits(admin_username=admin.username, user_id=user_id)
+    return UserRateLimitsResponse.model_validate(result)
 
 
-@router.put("/{user_id}/rate-limits")
+@router.put("/{user_id}/rate-limits", response_model=RateLimitUpdateResponse)
 async def update_user_rate_limits(
     admin: Annotated[UserResponse, Depends(admin_user)],
     admin_user_service: FromDishka[AdminUserService],
     user_id: str,
     rate_limit_config: UserRateLimit,
-) -> dict:
-    return await admin_user_service.update_user_rate_limits(
+) -> RateLimitUpdateResponse:
+    result = await admin_user_service.update_user_rate_limits(
         admin_username=admin.username, user_id=user_id, config=rate_limit_config
     )
+    return RateLimitUpdateResponse.model_validate(result)
 
 
 @router.post("/{user_id}/rate-limits/reset")

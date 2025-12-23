@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Awaitable, Callable, Iterable
+from typing import Any, Awaitable, Callable, Iterable
 
 from pymongo import ASCENDING, DESCENDING, IndexModel
 
@@ -123,7 +123,7 @@ class SchemaManager:
             logger.warning(f"Could not set events validator: {e}")
 
     @staticmethod
-    def _event_json_schema() -> dict:
+    def _event_json_schema() -> dict[str, Any]:
         return {
             "bsonType": "object",
             "required": [

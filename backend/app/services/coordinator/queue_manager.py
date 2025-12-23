@@ -55,7 +55,7 @@ class QueueManager:
         self._queue_lock = asyncio.Lock()
         self._user_execution_count: Dict[str, int] = defaultdict(int)
         self._execution_users: Dict[str, str] = {}
-        self._cleanup_task: asyncio.Task | None = None
+        self._cleanup_task: asyncio.Task[None] | None = None
         self._running = False
 
     async def start(self) -> None:

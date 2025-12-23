@@ -4,7 +4,7 @@ from fastapi import APIRouter, Request
 from sse_starlette.sse import EventSourceResponse
 
 from app.domain.sse import SSEHealthDomain
-from app.schemas_pydantic.sse import SSEHealthResponse
+from app.schemas_pydantic.sse import ShutdownStatusResponse, SSEHealthResponse
 from app.services.auth_service import AuthService
 from app.services.sse.sse_service import SSEService
 
@@ -51,6 +51,6 @@ async def sse_health(
         active_executions=domain.active_executions,
         active_consumers=domain.active_consumers,
         max_connections_per_user=domain.max_connections_per_user,
-        shutdown=domain.shutdown,
+        shutdown=ShutdownStatusResponse(**vars(domain.shutdown)),
         timestamp=domain.timestamp,
     )

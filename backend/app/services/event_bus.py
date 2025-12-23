@@ -17,12 +17,22 @@ from app.settings import get_settings
 
 
 @dataclass
+class EventBusEvent:
+    """Represents an event on the event bus."""
+
+    id: str
+    event_type: str
+    timestamp: str
+    payload: dict[str, Any]
+
+
+@dataclass
 class Subscription:
     """Represents a single event subscription."""
 
     id: str = field(default_factory=lambda: str(uuid4()))
     pattern: str = ""
-    handler: Callable = field(default=lambda: None)
+    handler: Callable[[EventBusEvent], Any] = field(default=lambda _: None)
 
 
 class EventBus(LifecycleEnabled):
@@ -43,10 +53,10 @@ class EventBus(LifecycleEnabled):
         self._subscriptions: dict[str, Subscription] = {}  # id -> Subscription
         self._pattern_index: dict[str, set[str]] = {}  # pattern -> set of subscription ids
         self._running = False
-        self._consumer_task: Optional[asyncio.Task] = None
+        self._consumer_task: Optional[asyncio.Task[None]] = None
         self._lock = asyncio.Lock()
         self._topic = f"{self.settings.KAFKA_TOPIC_PREFIX}{KafkaTopic.EVENT_BUS_STREAM}"
-        self._executor: Optional[Callable] = None  # Will store the executor function
+        self._executor: Optional[Callable[..., Any]] = None  # Will store the executor function
 
     async def start(self) -> None:
         """Start the event bus with Kafka backing."""
@@ -134,7 +144,7 @@ class EventBus(LifecycleEnabled):
         if self.producer:
             try:
                 # Serialize and send message asynchronously
-                value = json.dumps(event).encode("utf-8")
+                value = json.dumps(vars(event)).encode("utf-8")
                 key = event_type.encode("utf-8") if event_type else None
 
                 # Use executor to avoid blocking
@@ -152,16 +162,16 @@ class EventBus(LifecycleEnabled):
         # Publish to local subscribers for immediate handling
         await self._distribute_event(event_type, event)
 
-    def _create_event(self, event_type: str, data: dict[str, Any]) -> dict[str, Any]:
+    def _create_event(self, event_type: str, data: dict[str, Any]) -> EventBusEvent:
         """Create a standardized event object."""
-        return {
-            "id": str(uuid4()),
-            "event_type": event_type,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "payload": data,
-        }
+        return EventBusEvent(
+            id=str(uuid4()),
+            event_type=event_type,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            payload=data,
+        )
 
-    async def subscribe(self, pattern: str, handler: Callable) -> str:
+    async def subscribe(self, pattern: str, handler: Callable[[EventBusEvent], Any]) -> str:
         """
         Subscribe to events matching a pattern.
 
@@ -189,7 +199,7 @@ class EventBus(LifecycleEnabled):
         logger.debug(f"Created subscription {subscription.id} for pattern: {pattern}")
         return subscription.id
 
-    async def unsubscribe(self, pattern: str, handler: Callable) -> None:
+    async def unsubscribe(self, pattern: str, handler: Callable[[EventBusEvent], Any]) -> None:
         """Unsubscribe a specific handler from a pattern."""
         async with self._lock:
             # Find subscription with matching pattern and handler
@@ -223,7 +233,7 @@ class EventBus(LifecycleEnabled):
 
         logger.debug(f"Removed subscription {subscription_id} for pattern: {pattern}")
 
-    async def _distribute_event(self, event_type: str, event: dict[str, Any]) -> None:
+    async def _distribute_event(self, event_type: str, event: EventBusEvent) -> None:
         """Distribute event to all matching local subscribers."""
         # Find matching subscriptions
         matching_handlers = await self._find_matching_handlers(event_type)
@@ -241,10 +251,10 @@ class EventBus(LifecycleEnabled):
             if isinstance(result, Exception):
                 logger.error(f"Handler failed for event {event_type}: {result}")
 
-    async def _find_matching_handlers(self, event_type: str) -> list[Callable]:
+    async def _find_matching_handlers(self, event_type: str) -> list[Callable[[EventBusEvent], Any]]:
         """Find all handlers matching the event type."""
         async with self._lock:
-            handlers: list[Callable] = []
+            handlers: list[Callable[[EventBusEvent], Any]] = []
             for pattern, sub_ids in self._pattern_index.items():
                 if fnmatch.fnmatch(event_type, pattern):
                     handlers.extend(
@@ -252,7 +262,7 @@ class EventBus(LifecycleEnabled):
                     )
             return handlers
 
-    async def _invoke_handler(self, handler: Callable, event: dict[str, Any]) -> None:
+    async def _invoke_handler(self, handler: Callable[[EventBusEvent], Any], event: EventBusEvent) -> None:
         """Invoke a single handler, handling both sync and async."""
         if asyncio.iscoroutinefunction(handler):
             await handler(event)
@@ -286,9 +296,14 @@ class EventBus(LifecycleEnabled):
 
                 try:
                     # Deserialize message
-                    event = json.loads(msg.value().decode("utf-8"))
-                    event_type = event.get("event_type", "")
-                    await self._distribute_event(event_type, event)
+                    event_dict = json.loads(msg.value().decode("utf-8"))
+                    event = EventBusEvent(
+                        id=event_dict.get("id", ""),
+                        event_type=event_dict.get("event_type", ""),
+                        timestamp=event_dict.get("timestamp", ""),
+                        payload=event_dict.get("payload", {}),
+                    )
+                    await self._distribute_event(event.event_type, event)
                 except Exception as e:
                     logger.error(f"Error processing Kafka message: {e}")
 

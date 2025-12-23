@@ -484,7 +484,7 @@ class RateLimitService:
             await self.redis.delete(*keys)
         await self.redis.delete(index_key)
 
-    async def get_usage_stats(self, user_id: str) -> dict:
+    async def get_usage_stats(self, user_id: str) -> dict[str, dict[str, object]]:
         stats: dict[str, dict[str, object]] = {}
         index_key = self._index_key(user_id)
         keys = await cast(Awaitable[set[Any]], self.redis.smembers(index_key))

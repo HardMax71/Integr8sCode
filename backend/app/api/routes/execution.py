@@ -30,6 +30,7 @@ from app.schemas_pydantic.execution import (
     ExecutionResponse,
     ExecutionResult,
     ResourceLimits,
+    ResourceUsage,
     RetryExecutionRequest,
 )
 from app.schemas_pydantic.user import UserResponse
@@ -56,7 +57,7 @@ async def get_execution_with_access(
     # Map domain to Pydantic for dependency consumer
     ru = None
     if domain_exec.resource_usage is not None:
-        ru = domain_exec.resource_usage.to_dict()
+        ru = ResourceUsage(**vars(domain_exec.resource_usage))
     # Map error_type to public ErrorType in API model via mapper rules
     error_type = (
         (
@@ -335,7 +336,7 @@ async def get_k8s_resource_limits(
 ) -> ResourceLimits:
     try:
         limits = await execution_service.get_k8s_resource_limits()
-        return ResourceLimits(**limits)
+        return ResourceLimits(**vars(limits))
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to retrieve resource limits") from e
 

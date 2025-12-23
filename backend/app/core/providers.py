@@ -132,7 +132,7 @@ class RedisProvider(Provider):
         try:
             yield client
         finally:
-            await client.aclose()  # type: ignore[no-untyped-call]
+            await client.aclose()
 
     @provide
     def get_rate_limit_service(

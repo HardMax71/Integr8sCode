@@ -18,7 +18,7 @@ from app.domain.user import (
     DomainUserSettings,
     DomainUserSettingsUpdate,
 )
-from app.services.event_bus import EventBusManager
+from app.services.event_bus import EventBusEvent, EventBusManager
 from app.services.kafka_event_service import KafkaEventService
 
 
@@ -55,9 +55,8 @@ class UserSettingsService:
         self._event_bus_manager = event_bus_manager
         bus = await event_bus_manager.get_event_bus()
 
-        async def _handle(evt: dict) -> None:
-            payload = evt.get("payload", {})
-            uid = payload.get("user_id")
+        async def _handle(evt: EventBusEvent) -> None:
+            uid = evt.payload.get("user_id")
             if uid:
                 # Use asyncio.to_thread for the sync operation to make it properly async
                 await asyncio.to_thread(self.invalidate_cache, str(uid))

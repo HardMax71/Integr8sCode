@@ -8,7 +8,7 @@ pytestmark = pytest.mark.unit
 
 from app.domain.enums.events import EventType
 from app.domain.execution import DomainExecution, ResourceUsageDomain
-from app.domain.sse import SSEHealthDomain
+from app.domain.sse import ShutdownStatus, SSEHealthDomain
 from app.services.sse.sse_service import SSEService
 
 
@@ -76,8 +76,14 @@ class _FakeShutdown:
     def is_shutting_down(self) -> bool:
         return self._initiated
 
-    def get_shutdown_status(self) -> dict[str, Any]:
-        return {"initiated": self._initiated, "phase": "ready"}
+    def get_shutdown_status(self) -> ShutdownStatus:
+        return ShutdownStatus(
+            phase="ready",
+            initiated=self._initiated,
+            complete=False,
+            active_connections=0,
+            draining_connections=0,
+        )
 
     def initiate(self) -> None:
         self._initiated = True

@@ -99,7 +99,7 @@ class ExecutionCoordinator(LifecycleEnabled):
 
         # State tracking
         self._running = False
-        self._scheduling_task: asyncio.Task | None = None
+        self._scheduling_task: asyncio.Task[None] | None = None
         self._active_executions: set[str] = set()
         self._execution_resources: ExecutionMap = {}
         self._schema_registry_manager = schema_registry_manager

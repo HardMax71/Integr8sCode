@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
@@ -32,7 +34,7 @@ class ExecutionInDB(ExecutionBase):
     execution_id: str = Field(default_factory=lambda: str(uuid4()))
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    resource_usage: dict | None = None
+    resource_usage: ResourceUsage | None = None
     user_id: str | None = None
     exit_code: int | None = None
     error_type: ErrorType | None = None
@@ -46,7 +48,7 @@ class ExecutionUpdate(BaseModel):
     status: ExecutionStatus | None = None
     stdout: str | None = None
     stderr: str | None = None
-    resource_usage: dict | None = None
+    resource_usage: ResourceUsage | None = None
     exit_code: int | None = None
     error_type: ErrorType | None = None
 

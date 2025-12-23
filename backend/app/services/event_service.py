@@ -4,6 +4,7 @@ from typing import Any, Dict, List
 from pymongo import ASCENDING, DESCENDING
 
 from app.db.repositories.event_repository import EventRepository
+from app.domain.enums.common import SortOrder
 from app.domain.enums.user import UserRole
 from app.domain.events import (
     Event,
@@ -77,7 +78,7 @@ class EventService:
         user_role: UserRole,
         filters: EventFilter,
         sort_by: str = "timestamp",
-        sort_order: Any = "desc",
+        sort_order: SortOrder = SortOrder.DESC,
         limit: int = 100,
         skip: int = 0,
     ) -> EventListResult | None:
@@ -98,7 +99,7 @@ class EventService:
             "stored_at": "stored_at",
         }
         sort_field = field_map.get(sort_by, "timestamp")
-        direction = DESCENDING if str(sort_order).lower() == "desc" else ASCENDING
+        direction = DESCENDING if sort_order == SortOrder.DESC else ASCENDING
 
         # Pagination and sorting from request
         return await self.repository.query_events_generic(

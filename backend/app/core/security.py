@@ -34,7 +34,7 @@ class SecurityService:
     def get_password_hash(self, password: str) -> str:
         return self.pwd_context.hash(password)  # type: ignore
 
-    def create_access_token(self, data: dict, expires_delta: timedelta) -> str:
+    def create_access_token(self, data: dict[str, Any], expires_delta: timedelta) -> str:
         to_encode = data.copy()
         expire = datetime.now(timezone.utc) + expires_delta
         to_encode.update({"exp": expire})

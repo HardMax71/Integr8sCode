@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Any
 
 from app.core.database_context import Collection, Database
 from app.core.logging import logger
@@ -73,7 +74,7 @@ class ExecutionRepository:
             error_type=document.get("error_type"),
         )
 
-    async def update_execution(self, execution_id: str, update_data: dict) -> bool:
+    async def update_execution(self, execution_id: str, update_data: dict[str, Any]) -> bool:
         update_data.setdefault("updated_at", datetime.now(timezone.utc))
         update_payload = {"$set": update_data}
 
@@ -119,7 +120,7 @@ class ExecutionRepository:
         return True
 
     async def get_executions(
-        self, query: dict, limit: int = 50, skip: int = 0, sort: list | None = None
+        self, query: dict[str, Any], limit: int = 50, skip: int = 0, sort: list[tuple[str, int]] | None = None
     ) -> list[DomainExecution]:
         cursor = self.collection.find(query)
         if sort:
@@ -153,7 +154,7 @@ class ExecutionRepository:
 
         return executions
 
-    async def count_executions(self, query: dict) -> int:
+    async def count_executions(self, query: dict[str, Any]) -> int:
         return await self.collection.count_documents(query)
 
     async def delete_execution(self, execution_id: str) -> bool:

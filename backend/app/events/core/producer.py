@@ -37,7 +37,7 @@ class UnifiedProducer(LifecycleEnabled):
         self._running = False
         self._metrics = ProducerMetrics()
         self._event_metrics = get_event_metrics()  # Singleton for Kafka metrics
-        self._poll_task: asyncio.Task | None = None
+        self._poll_task: asyncio.Task[None] | None = None
         # Topic prefix (for tests/local isolation); cached on init
         self._topic_prefix = get_settings().KAFKA_TOPIC_PREFIX
 

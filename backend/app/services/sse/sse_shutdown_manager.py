@@ -1,10 +1,11 @@
 import asyncio
 import time
 from enum import Enum
-from typing import Any, Dict, Set
+from typing import Dict, Set
 
 from app.core.logging import logger
 from app.core.metrics.context import get_connection_metrics
+from app.domain.sse import ShutdownStatus
 from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
 
 
@@ -261,20 +262,20 @@ class SSEShutdownManager:
         """Check if shutdown is in progress"""
         return self._shutdown_initiated
 
-    def get_shutdown_status(self) -> Dict[str, Any]:
+    def get_shutdown_status(self) -> ShutdownStatus:
         """Get current shutdown status"""
-        status: Dict[str, Any] = {
-            "phase": self._phase.value,
-            "initiated": self._shutdown_initiated,
-            "complete": self._shutdown_complete,
-            "active_connections": sum(len(conns) for conns in self._active_connections.values()),
-            "draining_connections": len(self._draining_connections),
-        }
-
+        duration = None
         if self._shutdown_start_time:
-            status["duration"] = time.time() - self._shutdown_start_time
+            duration = time.time() - self._shutdown_start_time
 
-        return status
+        return ShutdownStatus(
+            phase=self._phase.value,
+            initiated=self._shutdown_initiated,
+            complete=self._shutdown_complete,
+            active_connections=sum(len(conns) for conns in self._active_connections.values()),
+            draining_connections=len(self._draining_connections),
+            duration=duration,
+        )
 
     async def wait_for_shutdown(self, timeout: float | None = None) -> bool:
         """

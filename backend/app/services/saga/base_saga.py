@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Any
 
 from app.domain.enums.events import EventType
 from app.services.saga.saga_step import SagaStep
@@ -32,7 +33,7 @@ class BaseSaga(ABC):
         pass
 
     @abstractmethod
-    def get_steps(self) -> list[SagaStep]:
+    def get_steps(self) -> list[SagaStep[Any]]:
         """Get saga steps in execution order.
 
         Returns:

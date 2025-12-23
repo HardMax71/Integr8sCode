@@ -51,7 +51,7 @@ class SagaOrchestrator(LifecycleEnabled):
         self._repo: SagaRepository = saga_repository
         self._alloc_repo: ResourceAllocationRepository = resource_allocation_repository
         self._running = False
-        self._tasks: list[asyncio.Task] = []
+        self._tasks: list[asyncio.Task[None]] = []
 
     def register_saga(self, saga_class: type[BaseSaga]) -> None:
         self._sagas[saga_class.get_name()] = saga_class

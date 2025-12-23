@@ -7,12 +7,14 @@ from .exceptions import (
 from .models import (
     DomainExecution,
     ExecutionResultDomain,
+    ResourceLimitsDomain,
     ResourceUsageDomain,
 )
 
 __all__ = [
     "DomainExecution",
     "ExecutionResultDomain",
+    "ResourceLimitsDomain",
     "ResourceUsageDomain",
     "ExecutionServiceError",
     "RuntimeNotSupportedError",

@@ -48,8 +48,8 @@ class DLQManager(LifecycleEnabled):
         self.dlq_collection: Collection = database.get_collection(CollectionNames.DLQ_MESSAGES)
 
         self._running = False
-        self._process_task: asyncio.Task | None = None
-        self._monitor_task: asyncio.Task | None = None
+        self._process_task: asyncio.Task[None] | None = None
+        self._monitor_task: asyncio.Task[None] | None = None
 
         # Topic-specific retry policies
         self._retry_policies: dict[str, RetryPolicy] = {}

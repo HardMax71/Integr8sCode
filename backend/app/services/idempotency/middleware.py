@@ -23,7 +23,7 @@ class IdempotentEventHandler:
         fields: Set[str] | None = None,
         ttl_seconds: int | None = None,
         cache_result: bool = True,
-        on_duplicate: Callable | None = None,
+        on_duplicate: Callable[[BaseEvent, Any], Any] | None = None,
     ):
         self.handler = handler
         self.idempotency_manager = idempotency_manager
@@ -95,7 +95,7 @@ def idempotent_handler(
     fields: Set[str] | None = None,
     ttl_seconds: int | None = None,
     cache_result: bool = True,
-    on_duplicate: Callable | None = None,
+    on_duplicate: Callable[[BaseEvent, Any], Any] | None = None,
 ) -> Callable[[Callable[[BaseEvent], Awaitable[None]]], Callable[[BaseEvent], Awaitable[None]]]:
     """Decorator for making event handlers idempotent"""
 
@@ -133,7 +133,7 @@ class IdempotentConsumerWrapper:
         self.default_key_strategy = default_key_strategy
         self.default_ttl_seconds = default_ttl_seconds
         self.enable_for_all_handlers = enable_for_all_handlers
-        self._original_handlers: Dict[EventType, list] = {}
+        self._original_handlers: Dict[EventType, list[Callable[[BaseEvent], Awaitable[None]]]] = {}
 
     def make_handlers_idempotent(self) -> None:
         """Wrap all registered handlers with idempotency"""
@@ -173,13 +173,13 @@ class IdempotentConsumerWrapper:
     def subscribe_idempotent_handler(
         self,
         event_type: str,
-        handler: Callable,
+        handler: Callable[[BaseEvent], Awaitable[None]],
         key_strategy: str | None = None,
         custom_key_func: Callable[[BaseEvent], str] | None = None,
         fields: Set[str] | None = None,
         ttl_seconds: int | None = None,
         cache_result: bool = True,
-        on_duplicate: Callable | None = None,
+        on_duplicate: Callable[[BaseEvent, Any], Any] | None = None,
     ) -> None:
         """Subscribe an idempotent handler for specific event type"""
         # Create the idempotent handler wrapper

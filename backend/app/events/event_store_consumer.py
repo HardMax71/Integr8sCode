@@ -39,7 +39,7 @@ class EventStoreConsumer(LifecycleEnabled):
         self._batch_buffer: list[BaseEvent] = []
         self._batch_lock = asyncio.Lock()
         self._last_batch_time = asyncio.get_event_loop().time()
-        self._batch_task: asyncio.Task | None = None
+        self._batch_task: asyncio.Task[None] | None = None
         self._running = False
 
     async def start(self) -> None:

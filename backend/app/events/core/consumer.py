@@ -2,6 +2,7 @@ import asyncio
 import json
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
+from typing import Any
 
 from confluent_kafka import OFFSET_BEGINNING, OFFSET_END, Consumer, Message, TopicPartition
 from confluent_kafka.error import KafkaError
@@ -17,7 +18,7 @@ from app.infrastructure.kafka.events.base import BaseEvent
 from app.settings import get_settings
 
 from .dispatcher import EventDispatcher
-from .types import ConsumerConfig, ConsumerMetrics, ConsumerState
+from .types import ConsumerConfig, ConsumerMetrics, ConsumerMetricsSnapshot, ConsumerState, ConsumerStatus
 
 
 class UnifiedConsumer:
@@ -25,7 +26,7 @@ class UnifiedConsumer:
         self,
         config: ConsumerConfig,
         event_dispatcher: EventDispatcher,
-        stats_callback: Callable[[dict], None] | None = None,
+        stats_callback: Callable[[dict[str, Any]], None] | None = None,
     ):
         self._config = config
         self._schema_registry = SchemaRegistryManager()
@@ -209,24 +210,24 @@ class UnifiedConsumer:
     def consumer(self) -> Consumer | None:
         return self._consumer
 
-    def get_status(self) -> dict:
-        return {
-            "state": self._state.value,
-            "is_running": self.is_running,
-            "group_id": self._config.group_id,
-            "client_id": self._config.client_id,
-            "metrics": {
-                "messages_consumed": self._metrics.messages_consumed,
-                "bytes_consumed": self._metrics.bytes_consumed,
-                "consumer_lag": self._metrics.consumer_lag,
-                "commit_failures": self._metrics.commit_failures,
-                "processing_errors": self._metrics.processing_errors,
-                "last_message_time": (
+    def get_status(self) -> ConsumerStatus:
+        return ConsumerStatus(
+            state=self._state.value,
+            is_running=self.is_running,
+            group_id=self._config.group_id,
+            client_id=self._config.client_id,
+            metrics=ConsumerMetricsSnapshot(
+                messages_consumed=self._metrics.messages_consumed,
+                bytes_consumed=self._metrics.bytes_consumed,
+                consumer_lag=self._metrics.consumer_lag,
+                commit_failures=self._metrics.commit_failures,
+                processing_errors=self._metrics.processing_errors,
+                last_message_time=(
                     self._metrics.last_message_time.isoformat() if self._metrics.last_message_time else None
                 ),
-                "last_updated": (self._metrics.last_updated.isoformat() if self._metrics.last_updated else None),
-            },
-        }
+                last_updated=self._metrics.last_updated.isoformat() if self._metrics.last_updated else None,
+            ),
+        )
 
     async def seek_to_beginning(self) -> None:
         self._seek_all_partitions(OFFSET_BEGINNING)

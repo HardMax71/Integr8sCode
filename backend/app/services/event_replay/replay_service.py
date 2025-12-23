@@ -27,11 +27,11 @@ class EventReplayService:
         event_store: EventStore,
     ) -> None:
         self._sessions: Dict[str, ReplaySessionState] = {}
-        self._active_tasks: Dict[str, asyncio.Task] = {}
+        self._active_tasks: Dict[str, asyncio.Task[None]] = {}
         self._repository = repository
         self._producer = producer
         self._event_store = event_store
-        self._callbacks: Dict[ReplayTarget, Callable] = {}
+        self._callbacks: Dict[ReplayTarget, Callable[..., Any]] = {}
         self._file_locks: Dict[str, asyncio.Lock] = {}
         self._metrics = ReplayMetrics()
         logger.info("Event replay service initialized")

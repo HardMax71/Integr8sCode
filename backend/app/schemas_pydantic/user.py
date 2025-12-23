@@ -146,3 +146,61 @@ class TokenValidationResponse(BaseModel):
     csrf_token: str
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class DeleteUserResponse(BaseModel):
+    """Response model for user deletion."""
+
+    message: str
+    deleted_counts: dict[str, int]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RateLimitRuleResponse(BaseModel):
+    """Response model for rate limit rule."""
+
+    endpoint_pattern: str
+    group: str
+    requests: int
+    window_seconds: int
+    algorithm: str
+    burst_multiplier: float = 1.5
+    priority: int = 0
+    enabled: bool = True
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UserRateLimitConfigResponse(BaseModel):
+    """Response model for user rate limit config."""
+
+    user_id: str
+    bypass_rate_limit: bool
+    global_multiplier: float
+    rules: list[RateLimitRuleResponse]
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    notes: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UserRateLimitsResponse(BaseModel):
+    """Response model for user rate limits with usage stats."""
+
+    user_id: str
+    rate_limit_config: Optional[UserRateLimitConfigResponse] = None
+    current_usage: dict[str, dict[str, object]]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RateLimitUpdateResponse(BaseModel):
+    """Response model for rate limit update."""
+
+    user_id: str
+    updated: bool
+    config: UserRateLimitConfigResponse
+
+    model_config = ConfigDict(from_attributes=True)

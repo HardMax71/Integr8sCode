@@ -1,7 +1,7 @@
 import asyncio
 from collections import defaultdict
 from collections.abc import Awaitable, Callable
-from typing import TypeVar
+from typing import TypeAlias, TypeVar
 
 from app.core.logging import logger
 from app.domain.enums.events import EventType
@@ -9,6 +9,7 @@ from app.infrastructure.kafka.events.base import BaseEvent
 from app.infrastructure.kafka.mappings import get_event_class_for_type
 
 T = TypeVar("T", bound=BaseEvent)
+EventHandler: TypeAlias = Callable[[BaseEvent], Awaitable[None]]
 
 
 class EventDispatcher:
@@ -42,7 +43,7 @@ class EventDispatcher:
                 self._topic_event_types[topic].add(event_class)
                 logger.debug(f"Mapped {event_class.__name__} to topic {topic}")
 
-    def register(self, event_type: EventType) -> Callable:
+    def register(self, event_type: EventType) -> Callable[[EventHandler], EventHandler]:
         """
         Decorator for registering type-safe event handlers.
 
@@ -52,14 +53,14 @@ class EventDispatcher:
                 # Handler logic here
         """
 
-        def decorator(handler: Callable[[BaseEvent], Awaitable[None]]) -> Callable:
+        def decorator(handler: EventHandler) -> EventHandler:
             logger.info(f"Registering handler '{handler.__name__}' for event type '{event_type.value}'")
             self._handlers[event_type].append(handler)
             return handler
 
         return decorator
 
-    def register_handler(self, event_type: EventType, handler: Callable[[BaseEvent], Awaitable[None]]) -> None:
+    def register_handler(self, event_type: EventType, handler: EventHandler) -> None:
         """
         Direct registration method for handlers.
 
@@ -70,7 +71,7 @@ class EventDispatcher:
         logger.info(f"Registering handler '{handler.__name__}' for event type '{event_type.value}'")
         self._handlers[event_type].append(handler)
 
-    def remove_handler(self, event_type: EventType, handler: Callable[[BaseEvent], Awaitable[None]]) -> bool:
+    def remove_handler(self, event_type: EventType, handler: EventHandler) -> bool:
         """
         Remove a specific handler for an event type.
 
@@ -125,7 +126,7 @@ class EventDispatcher:
             else:
                 self._event_metrics[event_type]["processed"] += 1
 
-    async def _execute_handler(self, handler: Callable, event: BaseEvent) -> None:
+    async def _execute_handler(self, handler: EventHandler, event: BaseEvent) -> None:
         """
         Execute a single handler with error handling.
 
@@ -135,8 +136,8 @@ class EventDispatcher:
         """
         try:
             logger.debug(f"Executing handler {handler.__class__.__name__} for event {event.event_id}")
-            result = await handler(event)
-            logger.debug(f"Handler {handler.__class__.__name__} completed, result: {result}")
+            await handler(event)
+            logger.debug(f"Handler {handler.__class__.__name__} completed")
         except Exception as e:
             logger.error(
                 f"Handler '{handler.__class__.__name__}' failed for event {event.event_id}: {e}", exc_info=True

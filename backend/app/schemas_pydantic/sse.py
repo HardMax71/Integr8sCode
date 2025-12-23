@@ -11,6 +11,17 @@ class SSEEvent(BaseModel):
     data: str = Field(description="JSON-encoded event data")
 
 
+class ShutdownStatusResponse(BaseModel):
+    """Response model for shutdown status."""
+
+    phase: str = Field(description="Current shutdown phase")
+    initiated: bool = Field(description="Whether shutdown has been initiated")
+    complete: bool = Field(description="Whether shutdown is complete")
+    active_connections: int = Field(description="Number of active connections")
+    draining_connections: int = Field(description="Number of connections being drained")
+    duration: float | None = Field(None, description="Duration of shutdown in seconds")
+
+
 class SSEHealthResponse(BaseModel):
     """Response model for SSE health check."""
 
@@ -20,7 +31,7 @@ class SSEHealthResponse(BaseModel):
     active_executions: int = Field(description="Number of executions being monitored")
     active_consumers: int = Field(description="Number of active Kafka consumers")
     max_connections_per_user: int = Field(description="Maximum connections allowed per user")
-    shutdown: Dict[str, Any] = Field(description="Shutdown status information")
+    shutdown: ShutdownStatusResponse = Field(description="Shutdown status information")
     timestamp: datetime = Field(description="Health check timestamp")
 
 

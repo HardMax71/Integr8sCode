@@ -148,3 +148,21 @@ class UserRateLimitSummary:
     bypass_rate_limit: bool
     global_multiplier: float
     rules_count: int
+
+
+@dataclass
+class UserRateLimitsResult:
+    """Result of fetching user rate limits with usage stats."""
+
+    user_id: str
+    rate_limit_config: Optional[UserRateLimit]
+    current_usage: Dict[str, Dict[str, object]]
+
+
+@dataclass
+class RateLimitUpdateResult:
+    """Result of updating user rate limits."""
+
+    user_id: str
+    updated: bool
+    config: UserRateLimit

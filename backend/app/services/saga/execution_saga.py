@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.domain.enums.events import EventType
@@ -342,7 +342,7 @@ class ExecutionSaga(BaseSaga):
         """Get events that trigger this saga"""
         return [EventType.EXECUTION_REQUESTED]
 
-    def get_steps(self) -> list[SagaStep]:
+    def get_steps(self) -> list[SagaStep[Any]]:
         """Get saga steps in order"""
         alloc_repo = getattr(self, "_alloc_repo", None)
         producer = getattr(self, "_producer", None)

@@ -8,7 +8,7 @@ from app.domain.admin import AdminUserOverviewDomain, DerivedCountsDomain, RateL
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.user import UserRole
-from app.domain.rate_limit import UserRateLimit
+from app.domain.rate_limit import RateLimitUpdateResult, UserRateLimit, UserRateLimitsResult
 from app.domain.user import PasswordReset, User, UserListResult, UserUpdate
 from app.infrastructure.mappers import UserRateLimitMapper
 from app.schemas_pydantic.user import UserCreate
@@ -184,22 +184,21 @@ class AdminUserService:
             logger.info("User password reset successfully", extra={"target_user_id": user_id})
         return ok
 
-    async def get_user_rate_limits(self, *, admin_username: str, user_id: str) -> dict:
+    async def get_user_rate_limits(self, *, admin_username: str, user_id: str) -> UserRateLimitsResult:
         logger.info(
             "Admin getting user rate limits", extra={"admin_username": admin_username, "target_user_id": user_id}
         )
         user_limit = await self._rate_limits.get_user_rate_limit(user_id)
         usage_stats = await self._rate_limits.get_usage_stats(user_id)
-        rate_limit_mapper = UserRateLimitMapper()
-        return {
-            "user_id": user_id,
-            "rate_limit_config": rate_limit_mapper.to_dict(user_limit) if user_limit else None,
-            "current_usage": usage_stats,
-        }
+        return UserRateLimitsResult(
+            user_id=user_id,
+            rate_limit_config=user_limit,
+            current_usage=usage_stats,
+        )
 
     async def update_user_rate_limits(
         self, *, admin_username: str, user_id: str, config: UserRateLimit
-    ) -> dict[str, object]:
+    ) -> RateLimitUpdateResult:
         mapper = UserRateLimitMapper()
         logger.info(
             "Admin updating user rate limits",
@@ -207,7 +206,7 @@ class AdminUserService:
         )
         config.user_id = user_id
         await self._rate_limits.update_user_rate_limit(user_id, config)
-        return {"message": "Rate limits updated successfully", "config": mapper.to_dict(config)}
+        return RateLimitUpdateResult(user_id=user_id, updated=True, config=config)
 
     async def reset_user_rate_limits(self, *, admin_username: str, user_id: str) -> bool:
         logger.info(

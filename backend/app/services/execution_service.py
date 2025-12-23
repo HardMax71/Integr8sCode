@@ -10,7 +10,7 @@ from app.core.metrics.context import get_execution_metrics
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
-from app.domain.execution import DomainExecution, ExecutionResultDomain, ResourceUsageDomain
+from app.domain.execution import DomainExecution, ExecutionResultDomain, ResourceLimitsDomain, ResourceUsageDomain
 from app.events.core import UnifiedProducer
 from app.events.event_store import EventStore
 from app.infrastructure.kafka.events.base import BaseEvent
@@ -70,15 +70,15 @@ class ExecutionService:
         finally:
             self.metrics.decrement_active_executions()
 
-    async def get_k8s_resource_limits(self) -> dict[str, Any]:
-        return {
-            "cpu_limit": self.settings.K8S_POD_CPU_LIMIT,
-            "memory_limit": self.settings.K8S_POD_MEMORY_LIMIT,
-            "cpu_request": self.settings.K8S_POD_CPU_REQUEST,
-            "memory_request": self.settings.K8S_POD_MEMORY_REQUEST,
-            "execution_timeout": self.settings.K8S_POD_EXECUTION_TIMEOUT,
-            "supported_runtimes": self.settings.SUPPORTED_RUNTIMES,
-        }
+    async def get_k8s_resource_limits(self) -> ResourceLimitsDomain:
+        return ResourceLimitsDomain(
+            cpu_limit=self.settings.K8S_POD_CPU_LIMIT,
+            memory_limit=self.settings.K8S_POD_MEMORY_LIMIT,
+            cpu_request=self.settings.K8S_POD_CPU_REQUEST,
+            memory_request=self.settings.K8S_POD_MEMORY_REQUEST,
+            execution_timeout=self.settings.K8S_POD_EXECUTION_TIMEOUT,
+            supported_runtimes=self.settings.SUPPORTED_RUNTIMES,
+        )
 
     async def get_example_scripts(self) -> dict[str, str]:
         return self.settings.EXAMPLE_SCRIPTS

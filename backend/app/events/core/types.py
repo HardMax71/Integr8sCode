@@ -142,3 +142,27 @@ class ConsumerMetrics:
     def __post_init__(self) -> None:
         """Initialize timestamps if not provided."""
         self.last_updated = self.last_updated or datetime.now(timezone.utc)
+
+
+@dataclass(slots=True)
+class ConsumerMetricsSnapshot:
+    """Snapshot of consumer metrics for status reporting."""
+
+    messages_consumed: int
+    bytes_consumed: int
+    consumer_lag: int
+    commit_failures: int
+    processing_errors: int
+    last_message_time: str | None
+    last_updated: str | None
+
+
+@dataclass(slots=True)
+class ConsumerStatus:
+    """Consumer status information."""
+
+    state: str
+    is_running: bool
+    group_id: str
+    client_id: str
+    metrics: ConsumerMetricsSnapshot

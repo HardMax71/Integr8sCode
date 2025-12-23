@@ -2,15 +2,14 @@ from typing import Dict
 from uuid import uuid4
 
 import pytest
-from httpx import AsyncClient
-
 from app.schemas_pydantic.admin_settings import (
-    SystemSettings,
     ExecutionLimitsSchema,
+    MonitoringSettingsSchema,
     SecuritySettingsSchema,
-    MonitoringSettingsSchema
+    SystemSettings,
 )
 from app.schemas_pydantic.admin_user_overview import AdminUserOverview
+from httpx import AsyncClient
 
 
 @pytest.mark.integration
@@ -401,7 +400,7 @@ class TestAdminEvents:
         rl_put = await client.put(f"/api/v1/admin/users/{target_user_id}/rate-limits", json=update_payload)
         assert rl_put.status_code == 200
         put_body = rl_put.json()
-        assert put_body.get("message")
+        assert put_body.get("updated") is True
         assert put_body.get("config", {}).get("user_id") == target_user_id
 
         # Reset rate limits

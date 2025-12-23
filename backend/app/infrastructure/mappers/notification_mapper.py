@@ -1,4 +1,5 @@
 from dataclasses import asdict, fields
+from typing import Any
 
 from app.domain.notification import (
     DomainNotification,
@@ -11,28 +12,28 @@ class NotificationMapper:
 
     # DomainNotification
     @staticmethod
-    def to_mongo_document(notification: DomainNotification) -> dict:
+    def to_mongo_document(notification: DomainNotification) -> dict[str, Any]:
         return asdict(notification)
 
     @staticmethod
-    def to_update_dict(notification: DomainNotification) -> dict:
+    def to_update_dict(notification: DomainNotification) -> dict[str, Any]:
         doc = asdict(notification)
         doc.pop("notification_id", None)
         return doc
 
     @staticmethod
-    def from_mongo_document(doc: dict) -> DomainNotification:
+    def from_mongo_document(doc: dict[str, Any]) -> DomainNotification:
         allowed = {f.name for f in fields(DomainNotification)}
         filtered = {k: v for k, v in doc.items() if k in allowed}
         return DomainNotification(**filtered)
 
     # DomainNotificationSubscription
     @staticmethod
-    def subscription_to_mongo_document(subscription: DomainNotificationSubscription) -> dict:
+    def subscription_to_mongo_document(subscription: DomainNotificationSubscription) -> dict[str, Any]:
         return asdict(subscription)
 
     @staticmethod
-    def subscription_from_mongo_document(doc: dict) -> DomainNotificationSubscription:
+    def subscription_from_mongo_document(doc: dict[str, Any]) -> DomainNotificationSubscription:
         allowed = {f.name for f in fields(DomainNotificationSubscription)}
         filtered = {k: v for k, v in doc.items() if k in allowed}
         return DomainNotificationSubscription(**filtered)

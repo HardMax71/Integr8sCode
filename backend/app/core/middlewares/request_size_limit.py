@@ -16,17 +16,15 @@ class RequestSizeLimitMiddleware:
 
         headers = dict(scope["headers"])
         content_length_header = headers.get(b"content-length")
-        
+
         if content_length_header:
             content_length = int(content_length_header)
             if content_length > self.max_size_bytes:
                 response = JSONResponse(
                     status_code=413,
-                    content={
-                        "detail": f"Request too large. Maximum size is {self.max_size_bytes / 1024 / 1024}MB"
-                    }
+                    content={"detail": f"Request too large. Maximum size is {self.max_size_bytes / 1024 / 1024}MB"},
                 )
                 await response(scope, receive, send)
                 return
-        
+
         await self.app(scope, receive, send)

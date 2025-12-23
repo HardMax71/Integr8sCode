@@ -84,6 +84,7 @@ class ReplayConfig(BaseModel):
 @dataclass
 class ReplaySessionState:
     """Domain replay session model used by services only."""
+
     session_id: str
     config: ReplayConfig
     status: ReplayStatus = ReplayStatus.CREATED

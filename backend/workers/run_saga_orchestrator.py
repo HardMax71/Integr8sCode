@@ -2,6 +2,7 @@ import asyncio
 import logging
 
 import redis.asyncio as redis
+from app.core.database_context import DBClient
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
@@ -26,11 +27,7 @@ async def run_saga_orchestrator() -> None:
     logger = logging.getLogger(__name__)
 
     # Create database connection
-    db_client: AsyncIOMotorClient = AsyncIOMotorClient(
-        settings.MONGODB_URL,
-        tz_aware=True,
-        serverSelectionTimeoutMS=5000
-    )
+    db_client: DBClient = AsyncIOMotorClient(settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000)
     db_name = settings.DATABASE_NAME
     database = db_client[db_name]
 
@@ -48,19 +45,13 @@ async def run_saga_orchestrator() -> None:
 
     # Initialize Kafka producer
     logger.info("Initializing Kafka producer...")
-    producer_config = ProducerConfig(
-        bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS
-    )
+    producer_config = ProducerConfig(bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS)
     producer = UnifiedProducer(producer_config, schema_registry_manager)
     await producer.start()
 
     # Create event store (schema ensured separately)
     logger.info("Creating event store...")
-    event_store = create_event_store(
-        db=database,
-        schema_registry=schema_registry_manager,
-        ttl_days=90
-    )
+    event_store = create_event_store(db=database, schema_registry=schema_registry_manager, ttl_days=90)
 
     # Create repository and idempotency manager (Redis-backed)
     saga_repository = SagaRepository(database)
@@ -130,10 +121,7 @@ def main() -> None:
     setup_logger()
 
     # Configure root logger for worker
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     logger = logging.getLogger(__name__)
     logger.info("Starting Saga Orchestrator worker...")
@@ -145,7 +133,7 @@ def main() -> None:
             service_name=GroupId.SAGA_ORCHESTRATOR,
             service_version=settings.TRACING_SERVICE_VERSION,
             enable_console_exporter=False,
-            sampling_rate=settings.TRACING_SAMPLING_RATE
+            sampling_rate=settings.TRACING_SAMPLING_RATE,
         )
         logger.info("Tracing initialized for Saga Orchestrator Service")
 

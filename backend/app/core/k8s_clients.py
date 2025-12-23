@@ -39,4 +39,3 @@ def close_k8s_clients(clients: K8sClients) -> None:
     close = getattr(clients.api_client, "close", None)
     if callable(close):
         close()
-

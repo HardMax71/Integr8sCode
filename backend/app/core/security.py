@@ -34,21 +34,17 @@ class SecurityService:
     def get_password_hash(self, password: str) -> str:
         return self.pwd_context.hash(password)  # type: ignore
 
-    def create_access_token(
-            self, data: dict, expires_delta: timedelta
-    ) -> str:
+    def create_access_token(self, data: dict[str, Any], expires_delta: timedelta) -> str:
         to_encode = data.copy()
         expire = datetime.now(timezone.utc) + expires_delta
         to_encode.update({"exp": expire})
-        encoded_jwt = jwt.encode(
-            to_encode, self.settings.SECRET_KEY, algorithm=self.settings.ALGORITHM
-        )
+        encoded_jwt = jwt.encode(to_encode, self.settings.SECRET_KEY, algorithm=self.settings.ALGORITHM)
         return encoded_jwt
 
     async def get_current_user(
-            self,
-            token: str,
-            user_repo: Any,  # Avoid circular import by using Any
+        self,
+        token: str,
+        user_repo: Any,  # Avoid circular import by using Any
     ) -> DomainAdminUser:
         credentials_exception = HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -56,9 +52,7 @@ class SecurityService:
             headers={"WWW-Authenticate": "Bearer"},
         )
         try:
-            payload = jwt.decode(
-                token, self.settings.SECRET_KEY, algorithms=[self.settings.ALGORITHM]
-            )
+            payload = jwt.decode(token, self.settings.SECRET_KEY, algorithms=[self.settings.ALGORITHM])
             username: str = payload.get("sub")
             if username is None:
                 raise credentials_exception
@@ -72,6 +66,7 @@ class SecurityService:
     def generate_csrf_token(self) -> str:
         """Generate a CSRF token using secure random"""
         import secrets
+
         return secrets.token_urlsafe(32)
 
     def validate_csrf_token(self, header_token: str, cookie_token: str) -> bool:
@@ -80,6 +75,7 @@ class SecurityService:
             return False
         # Constant-time comparison to prevent timing attacks
         import hmac
+
         return hmac.compare_digest(header_token, cookie_token)
 
 
@@ -111,15 +107,9 @@ def validate_csrf_token(request: Request) -> str:
     cookie_token = request.cookies.get("csrf_token", "")
 
     if not header_token:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="CSRF token missing"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="CSRF token missing")
 
     if not security_service.validate_csrf_token(header_token, cookie_token):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="CSRF token invalid"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="CSRF token invalid")
 
     return header_token

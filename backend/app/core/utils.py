@@ -6,15 +6,15 @@ from fastapi import Request
 class StringEnum(StrEnum):
     """
     A StrEnum subclass that behaves like a plain string in all representations.
-    
+
     This fixes the issue where StrEnum.__repr__ returns the enum member representation
     (e.g., '<MyEnum.VALUE: 'value'>') instead of just the string value.
-    
+
     Usage:
         class MyEnum(StringEnum):
             VALUE1 = "value1"
             VALUE2 = "value2"
-        
+
         # Now repr() returns just "value1" instead of "<MyEnum.VALUE1: 'value1'>"
     """
 

@@ -45,12 +45,12 @@ class ResourceCleaner:
             raise ServiceError(f"Kubernetes initialization failed: {e}") from e
 
     async def cleanup_pod_resources(
-            self,
-            pod_name: str,
-            namespace: str = "integr8scode",
-            execution_id: str | None = None,
-            timeout: int = 60,
-            delete_pvcs: bool = False,
+        self,
+        pod_name: str,
+        namespace: str = "integr8scode",
+        execution_id: str | None = None,
+        timeout: int = 60,
+        delete_pvcs: bool = False,
     ) -> None:
         """Clean up all resources associated with a pod"""
         await self.initialize()
@@ -62,21 +62,14 @@ class ResourceCleaner:
                 *(
                     [
                         self._delete_configmaps(execution_id, namespace),
-                        *(
-                            [self._delete_pvcs(execution_id, namespace)]
-                            if delete_pvcs
-                            else []
-                        ),
+                        *([self._delete_pvcs(execution_id, namespace)] if delete_pvcs else []),
                     ]
                     if execution_id
                     else []
                 ),
             ]
 
-            await asyncio.wait_for(
-                asyncio.gather(*tasks, return_exceptions=True),
-                timeout=timeout
-            )
+            await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=timeout)
 
             logger.info(f"Successfully cleaned up resources for pod: {pod_name}")
 
@@ -91,24 +84,13 @@ class ResourceCleaner:
         """Delete a pod"""
         if not self.v1:
             raise ServiceError("Kubernetes client not initialized")
-            
+
         try:
             loop = asyncio.get_event_loop()
-            await loop.run_in_executor(
-                None,
-                self.v1.read_namespaced_pod,
-                pod_name,
-                namespace
-            )
+            await loop.run_in_executor(None, self.v1.read_namespaced_pod, pod_name, namespace)
 
             await loop.run_in_executor(
-                None,
-                partial(
-                    self.v1.delete_namespaced_pod,
-                    pod_name,
-                    namespace,
-                    grace_period_seconds=30
-                )
+                None, partial(self.v1.delete_namespaced_pod, pod_name, namespace, grace_period_seconds=30)
             )
 
             logger.info(f"Deleted pod: {pod_name}")
@@ -124,64 +106,50 @@ class ResourceCleaner:
         """Delete ConfigMaps for an execution"""
         if not self.v1:
             raise ServiceError("Kubernetes client not initialized")
-            
+
         await self._delete_labeled_resources(
             execution_id,
             namespace,
             self.v1.list_namespaced_config_map,
             self.v1.delete_namespaced_config_map,
-            "ConfigMap"
+            "ConfigMap",
         )
-
 
     async def _delete_pvcs(self, execution_id: str, namespace: str) -> None:
         """Delete PersistentVolumeClaims for an execution"""
         if not self.v1:
             raise ServiceError("Kubernetes client not initialized")
-            
+
         await self._delete_labeled_resources(
             execution_id,
             namespace,
             self.v1.list_namespaced_persistent_volume_claim,
             self.v1.delete_namespaced_persistent_volume_claim,
-            "PVC"
+            "PVC",
         )
 
     async def _delete_labeled_resources(
-            self,
-            execution_id: str,
-            namespace: str,
-            list_func: Any,
-            delete_func: Any,
-            resource_type: str
+        self, execution_id: str, namespace: str, list_func: Any, delete_func: Any, resource_type: str
     ) -> None:
         """Generic function to delete labeled resources"""
         try:
             loop = asyncio.get_event_loop()
             label_selector = f"execution-id={execution_id}"
 
-            resources = await loop.run_in_executor(
-                None,
-                partial(list_func, namespace, label_selector=label_selector)
-            )
+            resources = await loop.run_in_executor(None, partial(list_func, namespace, label_selector=label_selector))
 
             for resource in resources.items:
-                await loop.run_in_executor(
-                    None,
-                    delete_func,
-                    resource.metadata.name,
-                    namespace
-                )
+                await loop.run_in_executor(None, delete_func, resource.metadata.name, namespace)
                 logger.info(f"Deleted {resource_type}: {resource.metadata.name}")
 
         except ApiException as e:
             logger.error(f"Failed to delete {resource_type}s: {e}")
 
     async def cleanup_orphaned_resources(
-            self,
-            namespace: str = "integr8scode",
-            max_age_hours: int = 24,
-            dry_run: bool = False,
+        self,
+        namespace: str = "integr8scode",
+        max_age_hours: int = 24,
+        dry_run: bool = False,
     ) -> ResourceDict:
         """Clean up orphaned resources older than specified age"""
         await self.initialize()
@@ -204,32 +172,23 @@ class ResourceCleaner:
             raise ServiceError(f"Orphaned resource cleanup failed: {e}") from e
 
     async def _cleanup_orphaned_pods(
-            self,
-            namespace: str,
-            cutoff_time: datetime,
-            cleaned: ResourceDict,
-            dry_run: bool
+        self, namespace: str, cutoff_time: datetime, cleaned: ResourceDict, dry_run: bool
     ) -> None:
         """Clean up orphaned pods"""
         if not self.v1:
             raise ServiceError("Kubernetes client not initialized")
-            
+
         loop = asyncio.get_event_loop()
         pods = await loop.run_in_executor(
-            None,
-            partial(
-                self.v1.list_namespaced_pod,
-                namespace,
-                label_selector="app=integr8s"
-            )
+            None, partial(self.v1.list_namespaced_pod, namespace, label_selector="app=integr8s")
         )
 
         terminal_phases = {"Succeeded", "Failed", "Unknown"}
 
         for pod in pods.items:
             if (
-                    pod.metadata.creation_timestamp.replace(tzinfo=timezone.utc) < cutoff_time
-                    and pod.status.phase in terminal_phases
+                pod.metadata.creation_timestamp.replace(tzinfo=timezone.utc) < cutoff_time
+                and pod.status.phase in terminal_phases
             ):
                 cleaned["pods"].append(pod.metadata.name)
 
@@ -240,24 +199,15 @@ class ResourceCleaner:
                         logger.error(f"Failed to delete orphaned pod {pod.metadata.name}: {e}")
 
     async def _cleanup_orphaned_configmaps(
-            self,
-            namespace: str,
-            cutoff_time: datetime,
-            cleaned: ResourceDict,
-            dry_run: bool
+        self, namespace: str, cutoff_time: datetime, cleaned: ResourceDict, dry_run: bool
     ) -> None:
         """Clean up orphaned ConfigMaps"""
         if not self.v1:
             raise ServiceError("Kubernetes client not initialized")
-            
+
         loop = asyncio.get_event_loop()
         configmaps = await loop.run_in_executor(
-            None,
-            partial(
-                self.v1.list_namespaced_config_map,
-                namespace,
-                label_selector="app=integr8s"
-            )
+            None, partial(self.v1.list_namespaced_config_map, namespace, label_selector="app=integr8s")
         )
 
         for cm in configmaps.items:
@@ -267,10 +217,7 @@ class ResourceCleaner:
                 if not dry_run:
                     try:
                         await loop.run_in_executor(
-                            None,
-                            self.v1.delete_namespaced_config_map,
-                            cm.metadata.name,
-                            namespace
+                            None, self.v1.delete_namespaced_config_map, cm.metadata.name, namespace
                         )
                     except Exception as e:
                         logger.error(f"Failed to delete orphaned ConfigMap {cm.metadata.name}: {e}")
@@ -289,10 +236,9 @@ class ResourceCleaner:
             try:
                 if not self.v1:
                     raise ServiceError("Kubernetes client not initialized")
-                    
+
                 pods = await loop.run_in_executor(
-                    None,
-                    partial(self.v1.list_namespaced_pod, namespace, label_selector=label_selector)
+                    None, partial(self.v1.list_namespaced_pod, namespace, label_selector=label_selector)
                 )
                 pod_count = len(pods.items)
             except Exception as e:
@@ -303,10 +249,9 @@ class ResourceCleaner:
             try:
                 if not self.v1:
                     raise ServiceError("Kubernetes client not initialized")
-                    
+
                 configmaps = await loop.run_in_executor(
-                    None,
-                    partial(self.v1.list_namespaced_config_map, namespace, label_selector=label_selector)
+                    None, partial(self.v1.list_namespaced_config_map, namespace, label_selector=label_selector)
                 )
                 configmap_count = len(configmaps.items)
             except Exception as e:
@@ -317,10 +262,12 @@ class ResourceCleaner:
             try:
                 if not self.networking_v1:
                     raise ServiceError("Kubernetes networking client not initialized")
-                    
+
                 policies = await loop.run_in_executor(
                     None,
-                    partial(self.networking_v1.list_namespaced_network_policy, namespace, label_selector=label_selector)
+                    partial(
+                        self.networking_v1.list_namespaced_network_policy, namespace, label_selector=label_selector
+                    ),
                 )
                 policy_count = len(policies.items)
             except Exception as e:

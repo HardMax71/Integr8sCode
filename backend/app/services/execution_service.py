@@ -10,7 +10,7 @@ from app.core.metrics.context import get_execution_metrics
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
-from app.domain.execution import DomainExecution, ExecutionResultDomain, ResourceUsageDomain
+from app.domain.execution import DomainExecution, ExecutionResultDomain, ResourceLimitsDomain, ResourceUsageDomain
 from app.events.core import UnifiedProducer
 from app.events.event_store import EventStore
 from app.infrastructure.kafka.events.base import BaseEvent
@@ -33,22 +33,22 @@ ExecutionStats: TypeAlias = dict[str, Any]
 class ExecutionService:
     """
     Unified execution service that orchestrates code execution through events.
-    
+
     This service creates execution records and publishes events to Kafka,
     where specialized workers handle the actual execution in isolated environments.
     Results are updated asynchronously through event processing.
     """
 
     def __init__(
-            self,
-            execution_repo: ExecutionRepository,
-            producer: UnifiedProducer,
-            event_store: EventStore,
-            settings: Settings,
+        self,
+        execution_repo: ExecutionRepository,
+        producer: UnifiedProducer,
+        event_store: EventStore,
+        settings: Settings,
     ) -> None:
         """
         Initialize execution service.
-        
+
         Args:
             execution_repo: Repository for execution data persistence.
             producer: Kafka producer for publishing events.
@@ -70,33 +70,33 @@ class ExecutionService:
         finally:
             self.metrics.decrement_active_executions()
 
-    async def get_k8s_resource_limits(self) -> dict[str, Any]:
-        return {
-            "cpu_limit": self.settings.K8S_POD_CPU_LIMIT,
-            "memory_limit": self.settings.K8S_POD_MEMORY_LIMIT,
-            "cpu_request": self.settings.K8S_POD_CPU_REQUEST,
-            "memory_request": self.settings.K8S_POD_MEMORY_REQUEST,
-            "execution_timeout": self.settings.K8S_POD_EXECUTION_TIMEOUT,
-            "supported_runtimes": self.settings.SUPPORTED_RUNTIMES,
-        }
+    async def get_k8s_resource_limits(self) -> ResourceLimitsDomain:
+        return ResourceLimitsDomain(
+            cpu_limit=self.settings.K8S_POD_CPU_LIMIT,
+            memory_limit=self.settings.K8S_POD_MEMORY_LIMIT,
+            cpu_request=self.settings.K8S_POD_CPU_REQUEST,
+            memory_request=self.settings.K8S_POD_MEMORY_REQUEST,
+            execution_timeout=self.settings.K8S_POD_EXECUTION_TIMEOUT,
+            supported_runtimes=self.settings.SUPPORTED_RUNTIMES,
+        )
 
     async def get_example_scripts(self) -> dict[str, str]:
         return self.settings.EXAMPLE_SCRIPTS
 
     def _create_event_metadata(
-            self,
-            user_id: str | None = None,
-            client_ip: str | None = None,
-            user_agent: str | None = None,
+        self,
+        user_id: str | None = None,
+        client_ip: str | None = None,
+        user_agent: str | None = None,
     ) -> EventMetadata:
         """
         Create standardized event metadata.
-        
+
         Args:
             user_id: User identifier.
             client_ip: Client IP address.
             user_agent: User agent string.
-            
+
         Returns:
             EventMetadata instance.
         """
@@ -112,20 +112,20 @@ class ExecutionService:
         )
 
     async def execute_script(
-            self,
-            script: str,
-            user_id: str,
-            *,
-            client_ip: str | None,
-            user_agent: str | None,
-            lang: str = "python",
-            lang_version: str = "3.11",
-            priority: int = 5,
-            timeout_override: int | None = None,
+        self,
+        script: str,
+        user_id: str,
+        *,
+        client_ip: str | None,
+        user_agent: str | None,
+        lang: str = "python",
+        lang_version: str = "3.11",
+        priority: int = 5,
+        timeout_override: int | None = None,
     ) -> DomainExecution:
         """
         Execute a script by creating an execution record and publishing an event.
-        
+
         Args:
             script: The code to execute.
             lang: Programming language.
@@ -133,10 +133,10 @@ class ExecutionService:
             user_id: ID of the user requesting execution.
             priority: Execution priority (1-10, lower is higher priority).
             timeout_override: Override default timeout in seconds.
-            
+
         Returns:
             DomainExecution record with queued status.
-            
+
         Raises:
             IntegrationException: If validation fails or event publishing fails.
         """
@@ -152,7 +152,7 @@ class ExecutionService:
                 "script_length": len(script),
                 "priority": priority,
                 "timeout_override": timeout_override,
-            }
+            },
         )
 
         runtime_cfg = RUNTIME_REGISTRY[lang][lang_version]
@@ -177,7 +177,7 @@ class ExecutionService:
                     "lang_version": lang_version,
                     "user_id": user_id,
                     "script_length": len(script),
-                }
+                },
             )
 
             # Metadata and event
@@ -222,15 +222,11 @@ class ExecutionService:
                     "execution_id": str(created_execution.execution_id),
                     "status": created_execution.status,
                     "duration_seconds": duration,
-                }
+                },
             )
             return created_execution
 
-    async def _update_execution_error(
-            self,
-            execution_id: str,
-            error_message: str
-    ) -> None:
+    async def _update_execution_error(self, execution_id: str, error_message: str) -> None:
         result = ExecutionResultDomain(
             execution_id=execution_id,
             status=ExecutionStatus.ERROR,
@@ -245,30 +241,24 @@ class ExecutionService:
     async def get_execution_result(self, execution_id: str) -> DomainExecution:
         """
         Get execution result from database.
-        
+
         In the event-driven architecture, results are updated asynchronously
         by worker services processing events. This method simply retrieves
         the current state from the database.
-        
+
         Args:
             execution_id: UUID of the execution.
-            
+
         Returns:
             Current execution state.
-            
+
         Raises:
             IntegrationException: If execution not found.
         """
         execution = await self.execution_repo.get_execution(execution_id)
         if not execution:
-            logger.warning(
-                "Execution not found",
-                extra={"execution_id": execution_id}
-            )
-            raise IntegrationException(
-                status_code=404,
-                detail=f"Execution {execution_id} not found"
-            )
+            logger.warning("Execution not found", extra={"execution_id": execution_id})
+            raise IntegrationException(status_code=404, detail=f"Execution {execution_id} not found")
 
         logger.info(
             "Execution result retrieved successfully",
@@ -280,33 +270,30 @@ class ExecutionService:
                 "has_output": bool(execution.stdout),
                 "has_errors": bool(execution.stderr),
                 "resource_usage": execution.resource_usage,
-            }
+            },
         )
 
         return execution
 
     async def get_execution_events(
-            self,
-            execution_id: str,
-            event_types: EventFilter = None,
-            limit: int = 100,
+        self,
+        execution_id: str,
+        event_types: EventFilter = None,
+        limit: int = 100,
     ) -> list[BaseEvent]:
         """
         Get all events for an execution from the event store.
-        
+
         Args:
             execution_id: UUID of the execution.
             event_types: Filter by specific event types.
             limit: Maximum number of events to return.
-            
+
         Returns:
             List of events for the execution.
         """
         # Use the correct method name - get_execution_events instead of get_events_by_execution
-        events = await self.event_store.get_execution_events(
-            execution_id=execution_id,
-            event_types=event_types
-        )
+        events = await self.event_store.get_execution_events(execution_id=execution_id, event_types=event_types)
 
         # Apply limit if we got more events than requested
         if len(events) > limit:
@@ -318,24 +305,24 @@ class ExecutionService:
                 "execution_id": execution_id,
                 "event_count": len(events),
                 "event_types": event_types,
-            }
+            },
         )
 
         return events
 
     async def get_user_executions(
-            self,
-            user_id: UserId,
-            status: ExecutionStatus | None = None,
-            lang: str | None = None,
-            start_time: datetime | None = None,
-            end_time: datetime | None = None,
-            limit: int = 50,
-            skip: int = 0,
+        self,
+        user_id: UserId,
+        status: ExecutionStatus | None = None,
+        lang: str | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        limit: int = 50,
+        skip: int = 0,
     ) -> list[DomainExecution]:
         """
         Get executions for a specific user with optional filters.
-        
+
         Args:
             user_id: User identifier.
             status: Filter by execution status.
@@ -344,17 +331,14 @@ class ExecutionService:
             end_time: Filter by end time.
             limit: Maximum number of results.
             skip: Number of results to skip.
-            
+
         Returns:
             List of executions matching filters.
         """
         query = self._build_user_query(user_id, status, lang, start_time, end_time)
 
         executions = await self.execution_repo.get_executions(
-            query=query,
-            limit=limit,
-            skip=skip,
-            sort=[("created_at", -1)]
+            query=query, limit=limit, skip=skip, sort=[("created_at", -1)]
         )
 
         logger.debug(
@@ -364,29 +348,29 @@ class ExecutionService:
                 "filters": {k: v for k, v in query.items() if k != "user_id"},
                 "limit": limit,
                 "skip": skip,
-            }
+            },
         )
 
         return executions
 
     async def count_user_executions(
-            self,
-            user_id: UserId,
-            status: ExecutionStatus | None = None,
-            lang: str | None = None,
-            start_time: datetime | None = None,
-            end_time: datetime | None = None,
+        self,
+        user_id: UserId,
+        status: ExecutionStatus | None = None,
+        lang: str | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
     ) -> int:
         """
         Count executions for a specific user with optional filters.
-        
+
         Args:
             user_id: User identifier.
             status: Filter by execution status.
             lang: Filter by language.
             start_time: Filter by start time.
             end_time: Filter by end time.
-            
+
         Returns:
             Count of executions matching filters.
         """
@@ -394,23 +378,23 @@ class ExecutionService:
         return await self.execution_repo.count_executions(query)
 
     def _build_user_query(
-            self,
-            user_id: UserId,
-            status: ExecutionStatus | None = None,
-            lang: str | None = None,
-            start_time: datetime | None = None,
-            end_time: datetime | None = None,
+        self,
+        user_id: UserId,
+        status: ExecutionStatus | None = None,
+        lang: str | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
     ) -> ExecutionQuery:
         """
         Build MongoDB query for user executions.
-        
+
         Args:
             user_id: User identifier.
             status: Filter by execution status.
             lang: Filter by language.
             start_time: Filter by start time.
             end_time: Filter by end time.
-            
+
         Returns:
             MongoDB query dictionary.
         """
@@ -435,10 +419,10 @@ class ExecutionService:
     async def delete_execution(self, execution_id: str) -> bool:
         """
         Delete an execution and publish deletion event.
-        
+
         Args:
             execution_id: UUID of execution to delete.
-            
+
         Returns:
             True if deletion successful.
         """
@@ -449,10 +433,7 @@ class ExecutionService:
             logger.warning(f"Execution {execution_id} not found for deletion")
             raise ServiceError("Execution not found", status_code=404)
 
-        logger.info(
-            "Deleted execution",
-            extra={"execution_id": execution_id}
-        )
+        logger.info("Deleted execution", extra={"execution_id": execution_id})
 
         await self._publish_deletion_event(execution_id)
 
@@ -461,44 +442,36 @@ class ExecutionService:
     async def _publish_deletion_event(self, execution_id: str) -> None:
         """
         Publish execution deletion/cancellation event.
-        
+
         Args:
             execution_id: UUID of deleted execution.
         """
         metadata = self._create_event_metadata()
 
         event = ExecutionCancelledEvent(
-            execution_id=execution_id,
-            reason="user_requested",
-            cancelled_by=metadata.user_id,
-            metadata=metadata
+            execution_id=execution_id, reason="user_requested", cancelled_by=metadata.user_id, metadata=metadata
         )
 
-        await self.producer.produce(
-            event_to_produce=event,
-            key=execution_id
-        )
+        await self.producer.produce(event_to_produce=event, key=execution_id)
 
         logger.info(
             "Published cancellation event",
             extra={
                 "execution_id": execution_id,
                 "event_id": str(event.event_id),
-            }
+            },
         )
 
     async def get_execution_stats(
-            self,
-            user_id: UserId | None = None,
-            time_range: TimeRange = (None, None)
+        self, user_id: UserId | None = None, time_range: TimeRange = (None, None)
     ) -> ExecutionStats:
         """
         Get execution statistics.
-        
+
         Args:
             user_id: Optional user filter.
             time_range: Tuple of (start_time, end_time).
-            
+
         Returns:
             Dictionary containing execution statistics.
         """
@@ -507,23 +480,19 @@ class ExecutionService:
         # Get executions for stats
         executions = await self.execution_repo.get_executions(
             query=query,
-            limit=1000  # Reasonable limit for stats
+            limit=1000,  # Reasonable limit for stats
         )
 
         return self._calculate_stats(executions)
 
-    def _build_stats_query(
-            self,
-            user_id: UserId | None,
-            time_range: TimeRange
-    ) -> ExecutionQuery:
+    def _build_stats_query(self, user_id: UserId | None, time_range: TimeRange) -> ExecutionQuery:
         """
         Build query for statistics.
-        
+
         Args:
             user_id: Optional user filter.
             time_range: Tuple of (start_time, end_time).
-            
+
         Returns:
             MongoDB query dictionary.
         """
@@ -546,10 +515,10 @@ class ExecutionService:
     def _calculate_stats(self, executions: list[DomainExecution]) -> ExecutionStats:
         """
         Calculate statistics from executions.
-        
+
         Args:
             executions: List of executions to analyze.
-            
+
         Returns:
             Statistics dictionary.
         """

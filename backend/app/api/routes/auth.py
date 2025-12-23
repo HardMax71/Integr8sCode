@@ -21,17 +21,15 @@ from app.schemas_pydantic.user import (
 from app.services.auth_service import AuthService
 from app.settings import get_settings
 
-router = APIRouter(prefix="/auth",
-                   tags=["authentication"],
-                   route_class=DishkaRoute)
+router = APIRouter(prefix="/auth", tags=["authentication"], route_class=DishkaRoute)
 
 
 @router.post("/login", response_model=LoginResponse)
 async def login(
-        request: Request,
-        response: Response,
-        user_repo: FromDishka[UserRepository],
-        form_data: OAuth2PasswordRequestForm = Depends(),
+    request: Request,
+    response: Response,
+    user_repo: FromDishka[UserRepository],
+    form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> LoginResponse:
     logger.info(
         "Login attempt",
@@ -88,9 +86,7 @@ async def login(
     )
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = security_service.create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
-    )
+    access_token = security_service.create_access_token(data={"sub": user.username}, expires_delta=access_token_expires)
 
     csrf_token = security_service.generate_csrf_token()
 
@@ -121,15 +117,15 @@ async def login(
         message="Login successful",
         username=user.username,
         role="admin" if user.is_superuser else "user",
-        csrf_token=csrf_token
+        csrf_token=csrf_token,
     )
 
 
 @router.post("/register", response_model=UserResponse)
 async def register(
-        request: Request,
-        user: UserCreate,
-        user_repo: FromDishka[UserRepository],
+    request: Request,
+    user: UserCreate,
+    user_repo: FromDishka[UserRepository],
 ) -> UserResponse:
     logger.info(
         "Registration attempt",
@@ -198,19 +194,19 @@ async def register(
                 "error_type": type(e).__name__,
                 "error_detail": str(e),
             },
-            exc_info=True
+            exc_info=True,
         )
         raise HTTPException(status_code=500, detail="Error creating user") from e
 
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_profile(
-        request: Request,
-        response: Response,
-        auth_service: FromDishka[AuthService],
+    request: Request,
+    response: Response,
+    auth_service: FromDishka[AuthService],
 ) -> UserResponse:
     current_user = await auth_service.get_current_user(request)
-    
+
     logger.info(
         "User profile request",
         extra={
@@ -219,18 +215,18 @@ async def get_current_user_profile(
             "endpoint": "/me",
         },
     )
-    
+
     # Set cache control headers
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
-    
+
     return current_user
 
 
 @router.get("/verify-token", response_model=TokenValidationResponse)
 async def verify_token(
-        request: Request,
-        auth_service: FromDishka[AuthService],
+    request: Request,
+    auth_service: FromDishka[AuthService],
 ) -> TokenValidationResponse:
     current_user = await auth_service.get_current_user(request)
     logger.info(
@@ -258,7 +254,7 @@ async def verify_token(
             valid=True,
             username=current_user.username,
             role="admin" if current_user.is_superuser else "user",
-            csrf_token=csrf_token
+            csrf_token=csrf_token,
         )
 
     except Exception as e:
@@ -278,12 +274,10 @@ async def verify_token(
         ) from e
 
 
-
-
 @router.post("/logout", response_model=MessageResponse)
 async def logout(
-        request: Request,
-        response: Response,
+    request: Request,
+    response: Response,
 ) -> MessageResponse:
     logger.info(
         "Logout attempt",

@@ -4,8 +4,8 @@ from typing import AsyncGenerator
 import redis.asyncio as redis
 from dishka import AsyncContainer
 from fastapi import FastAPI
-from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from app.core.database_context import Database
 from app.core.logging import logger
 from app.core.startup import initialize_metrics_context, initialize_rate_limits
 from app.core.tracing import init_tracing
@@ -20,7 +20,7 @@ from app.settings import get_settings
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     Application lifespan with dishka dependency injection.
-    
+
     This is much cleaner than the old lifespan.py:
     - No dependency_overrides
     - No manual service management
@@ -44,18 +44,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         service_version=settings.TRACING_SERVICE_VERSION,
         sampling_rate=settings.TRACING_SAMPLING_RATE,
         enable_console_exporter=settings.TESTING,
-        adaptive_sampling=settings.TRACING_ADAPTIVE_SAMPLING
+        adaptive_sampling=settings.TRACING_ADAPTIVE_SAMPLING,
     )
 
     if instrumentation_report.has_failures():
         logger.warning(
             "Some instrumentation libraries failed to initialize",
-            extra={"instrumentation_summary": instrumentation_report.get_summary()}
+            extra={"instrumentation_summary": instrumentation_report.get_summary()},
         )
     else:
         logger.info(
             "Distributed tracing initialized successfully",
-            extra={"instrumentation_summary": instrumentation_report.get_summary()}
+            extra={"instrumentation_summary": instrumentation_report.get_summary()},
         )
 
     # Initialize schema registry once at startup
@@ -64,7 +64,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await initialize_event_schemas(schema_registry)
 
     # Initialize database schema at application scope using app-scoped DB
-    database = await container.get(AsyncIOMotorDatabase)
+    database = await container.get(Database)
     schema_manager = SchemaManager(database)
     await schema_manager.apply_all()
     logger.info("Database schema ensured by SchemaManager")

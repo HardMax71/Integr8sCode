@@ -31,4 +31,4 @@ jobs:
           SECRET_KEY: ${{ secrets.TEST_SECRET_KEY }}
         run: |
           cd backend
-          uv run mypy --config-file pyproject.toml .
+          uv run mypy --config-file pyproject.toml --strict .

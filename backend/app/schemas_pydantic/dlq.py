@@ -8,6 +8,7 @@ from app.dlq import DLQMessageStatus, RetryStrategy
 
 class DLQStats(BaseModel):
     """Statistics for the Dead Letter Queue."""
+
     by_status: dict[str, int]
     by_topic: list[dict[str, Any]]
     by_event_type: list[dict[str, Any]]
@@ -17,6 +18,7 @@ class DLQStats(BaseModel):
 
 class DLQMessageResponse(BaseModel):
     """Response model for a DLQ message."""
+
     event_id: str
     event_type: str
     original_topic: str
@@ -30,6 +32,7 @@ class DLQMessageResponse(BaseModel):
 
 class RetryPolicyRequest(BaseModel):
     """Request model for setting a retry policy."""
+
     topic: str
     strategy: RetryStrategy
     max_retries: int = 5
@@ -40,11 +43,13 @@ class RetryPolicyRequest(BaseModel):
 
 class ManualRetryRequest(BaseModel):
     """Request model for manual retry of messages."""
+
     event_ids: list[str]
 
 
 class DLQMessagesResponse(BaseModel):
     """Response model for listing DLQ messages."""
+
     messages: list[DLQMessageResponse]
     total: int
     offset: int
@@ -53,6 +58,7 @@ class DLQMessagesResponse(BaseModel):
 
 class DLQBatchRetryResponse(BaseModel):
     """Response model for batch retry operation."""
+
     total: int
     successful: int
     failed: int
@@ -61,6 +67,7 @@ class DLQBatchRetryResponse(BaseModel):
 
 class DLQTopicSummaryResponse(BaseModel):
     """Response model for topic summary."""
+
     topic: str
     total_messages: int
     status_breakdown: dict[str, int]
@@ -72,6 +79,7 @@ class DLQTopicSummaryResponse(BaseModel):
 
 class DLQMessageDetail(BaseModel):
     """Detailed DLQ message response."""
+
     event_id: str
     event: dict[str, Any]  # BaseEvent as dict
     event_type: str

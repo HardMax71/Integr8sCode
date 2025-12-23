@@ -30,18 +30,18 @@ async def initialize_metrics_context(container: AsyncContainer) -> None:
 
         # Only add metrics that are actually provided by the container
         # Some metrics might not be needed for certain deployments
-        metrics_mapping['event'] = await container.get(EventMetrics)
-        metrics_mapping['connection'] = await container.get(ConnectionMetrics)
-        metrics_mapping['rate_limit'] = await container.get(RateLimitMetrics)
-        metrics_mapping['execution'] = await container.get(ExecutionMetrics)
-        metrics_mapping['database'] = await container.get(DatabaseMetrics)
-        metrics_mapping['health'] = await container.get(HealthMetrics)
-        metrics_mapping['kubernetes'] = await container.get(KubernetesMetrics)
-        metrics_mapping['coordinator'] = await container.get(CoordinatorMetrics)
-        metrics_mapping['dlq'] = await container.get(DLQMetrics)
-        metrics_mapping['notification'] = await container.get(NotificationMetrics)
-        metrics_mapping['replay'] = await container.get(ReplayMetrics)
-        metrics_mapping['security'] = await container.get(SecurityMetrics)
+        metrics_mapping["event"] = await container.get(EventMetrics)
+        metrics_mapping["connection"] = await container.get(ConnectionMetrics)
+        metrics_mapping["rate_limit"] = await container.get(RateLimitMetrics)
+        metrics_mapping["execution"] = await container.get(ExecutionMetrics)
+        metrics_mapping["database"] = await container.get(DatabaseMetrics)
+        metrics_mapping["health"] = await container.get(HealthMetrics)
+        metrics_mapping["kubernetes"] = await container.get(KubernetesMetrics)
+        metrics_mapping["coordinator"] = await container.get(CoordinatorMetrics)
+        metrics_mapping["dlq"] = await container.get(DLQMetrics)
+        metrics_mapping["notification"] = await container.get(NotificationMetrics)
+        metrics_mapping["replay"] = await container.get(ReplayMetrics)
+        metrics_mapping["security"] = await container.get(SecurityMetrics)
 
         # Initialize the context with available metrics
         MetricsContext.initialize_all(**metrics_mapping)
@@ -54,10 +54,7 @@ async def initialize_metrics_context(container: AsyncContainer) -> None:
         # The context will lazy-initialize metrics as needed
 
 
-async def initialize_rate_limits(
-        redis_client: redis.Redis,
-        settings: Settings
-) -> None:
+async def initialize_rate_limits(redis_client: redis.Redis, settings: Settings) -> None:
     """
     Initialize default rate limits in Redis on application startup.
     This ensures default limits are always available.

@@ -62,3 +62,15 @@ class ResourceUsageDomain:
             clk_tck_hertz=int(data.get("clk_tck_hertz", 0)),
             peak_memory_kb=int(data.get("peak_memory_kb", 0)),
         )
+
+
+@dataclass
+class ResourceLimitsDomain:
+    """K8s resource limits configuration."""
+
+    cpu_limit: str
+    memory_limit: str
+    cpu_request: str
+    memory_request: str
+    execution_timeout: int
+    supported_runtimes: dict[str, list[str]]

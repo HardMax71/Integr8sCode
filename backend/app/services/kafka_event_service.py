@@ -21,35 +21,30 @@ tracer = trace.get_tracer(__name__)
 
 
 class KafkaEventService:
-
-    def __init__(
-            self,
-            event_repository: EventRepository,
-            kafka_producer: UnifiedProducer
-    ):
+    def __init__(self, event_repository: EventRepository, kafka_producer: UnifiedProducer):
         self.event_repository = event_repository
         self.kafka_producer = kafka_producer
         self.metrics = get_event_metrics()
         self.settings = get_settings()
 
     async def publish_event(
-            self,
-            event_type: str,
-            payload: Dict[str, Any],
-            aggregate_id: str | None,
-            correlation_id: str | None = None,
-            metadata: EventMetadata | None = None,
+        self,
+        event_type: str,
+        payload: Dict[str, Any],
+        aggregate_id: str | None,
+        correlation_id: str | None = None,
+        metadata: EventMetadata | None = None,
     ) -> str:
         """
         Publish an event to Kafka and store an audit copy via the repository
-        
+
         Args:
             event_type: Type of event (e.g., "execution.requested")
             payload: Event-specific data
             aggregate_id: ID of the aggregate root
             correlation_id: ID for correlating related events
             metadata: Event metadata (service/user/trace/IP). If None, service fills minimal defaults.
-            
+
         Returns:
             Event ID of published event
         """
@@ -81,7 +76,7 @@ class KafkaEventService:
                 timestamp=timestamp,
                 aggregate_id=aggregate_id,
                 metadata=event_metadata,
-                payload=payload
+                payload=payload,
             )
             _ = await self.event_repository.store_event(event)
 
@@ -99,7 +94,7 @@ class KafkaEventService:
                 "timestamp": timestamp,
                 "aggregate_id": aggregate_id,
                 "metadata": event_metadata,
-                **payload  # Include event-specific payload fields
+                **payload,  # Include event-specific payload fields
             }
 
             # Create the typed event instance
@@ -109,7 +104,7 @@ class KafkaEventService:
             headers: Dict[str, str] = {
                 "event_type": event_type,
                 "correlation_id": event.correlation_id or "",
-                "service": event_metadata.service_name
+                "service": event_metadata.service_name,
             }
 
             # Add trace context
@@ -122,11 +117,7 @@ class KafkaEventService:
             headers = inject_trace_context(headers)
 
             # Publish to Kafka
-            await self.kafka_producer.produce(
-                event_to_produce=kafka_event,
-                key=aggregate_id,
-                headers=headers
-            )
+            await self.kafka_producer.produce(event_to_produce=kafka_event, key=aggregate_id, headers=headers)
 
             self.metrics.record_event_published(event_type)
 
@@ -146,12 +137,12 @@ class KafkaEventService:
             return kafka_event.event_id
 
     async def publish_execution_event(
-            self,
-            event_type: str,
-            execution_id: str,
-            status: str,
-            metadata: EventMetadata | None = None,
-            error_message: str | None = None,
+        self,
+        event_type: str,
+        execution_id: str,
+        status: str,
+        metadata: EventMetadata | None = None,
+        error_message: str | None = None,
     ) -> str:
         """Publish execution-related event using provided metadata (no framework coupling)."""
         logger.info(
@@ -160,13 +151,10 @@ class KafkaEventService:
                 "event_type": event_type,
                 "execution_id": execution_id,
                 "status": status,
-            }
+            },
         )
 
-        payload = {
-            "execution_id": execution_id,
-            "status": status
-        }
+        payload = {"execution_id": execution_id, "status": status}
 
         if error_message:
             payload["error_message"] = error_message
@@ -184,26 +172,22 @@ class KafkaEventService:
                 "event_type": event_type,
                 "execution_id": execution_id,
                 "event_id": event_id,
-            }
+            },
         )
 
         return event_id
 
     async def publish_pod_event(
-            self,
-            event_type: str,
-            pod_name: str,
-            execution_id: str,
-            namespace: str = "integr8scode",
-            status: str | None = None,
-            metadata: EventMetadata | None = None,
+        self,
+        event_type: str,
+        pod_name: str,
+        execution_id: str,
+        namespace: str = "integr8scode",
+        status: str | None = None,
+        metadata: EventMetadata | None = None,
     ) -> str:
         """Publish pod-related event"""
-        payload = {
-            "pod_name": pod_name,
-            "execution_id": execution_id,
-            "namespace": namespace
-        }
+        payload = {"pod_name": pod_name, "execution_id": execution_id, "namespace": namespace}
 
         if status:
             payload["status"] = status

@@ -9,6 +9,7 @@ from app.domain.enums.saga import SagaState
 @dataclass
 class Saga:
     """Domain model for saga."""
+
     saga_id: str
     saga_name: str
     execution_id: str
@@ -27,6 +28,7 @@ class Saga:
 @dataclass
 class SagaFilter:
     """Filter criteria for saga queries."""
+
     state: SagaState | None = None
     execution_ids: list[str] | None = None
     user_id: str | None = None
@@ -39,6 +41,7 @@ class SagaFilter:
 @dataclass
 class SagaQuery:
     """Query parameters for saga search."""
+
     filter: SagaFilter
     sort_by: str = "created_at"
     sort_order: str = "desc"
@@ -49,6 +52,7 @@ class SagaQuery:
 @dataclass
 class SagaListResult:
     """Result of saga list query."""
+
     sagas: list[Saga]
     total: int
     skip: int
@@ -63,6 +67,7 @@ class SagaListResult:
 @dataclass
 class SagaDetail:
     """Detailed saga information."""
+
     saga: Saga
     execution_details: dict[str, Any] | None = None
     step_details: list[dict[str, Any]] = field(default_factory=list)
@@ -71,6 +76,7 @@ class SagaDetail:
 @dataclass
 class SagaStatistics:
     """Saga statistics."""
+
     total_sagas: int
     sagas_by_state: dict[str, int] = field(default_factory=dict)
     sagas_by_name: dict[str, int] = field(default_factory=dict)
@@ -83,6 +89,7 @@ class SagaStatistics:
 @dataclass
 class SagaConfig:
     """Configuration for saga orchestration (domain)."""
+
     name: str
     timeout_seconds: int = 300
     max_retries: int = 3
@@ -98,6 +105,7 @@ class SagaConfig:
 @dataclass
 class SagaInstance:
     """Runtime instance of a saga execution (domain)."""
+
     saga_name: str
     execution_id: str
     state: SagaState = SagaState.CREATED

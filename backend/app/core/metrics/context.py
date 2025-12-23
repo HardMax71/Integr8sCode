@@ -18,13 +18,13 @@ from app.core.metrics import (
 )
 
 # Type variable for generic metrics
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class MetricsContextVar(Generic[T]):
     """
     A wrapper around contextvars.ContextVar for type-safe metrics access.
-    
+
     This class ensures that each metric type has its own context variable
     and provides a clean interface for getting and setting metrics.
     """
@@ -32,24 +32,23 @@ class MetricsContextVar(Generic[T]):
     def __init__(self, name: str, metric_class: Type[T]) -> None:
         """
         Initialize a metrics context variable.
-        
+
         Args:
             name: Name for the context variable (for debugging)
             metric_class: The class of the metric this context holds
         """
-        self._context_var: contextvars.ContextVar[Optional[T]] = \
-            contextvars.ContextVar(f'metrics_{name}', default=None)
+        self._context_var: contextvars.ContextVar[Optional[T]] = contextvars.ContextVar(f"metrics_{name}", default=None)
         self._metric_class = metric_class
         self._name = name
 
     def get(self) -> T:
         """
         Get the metric from context, creating it if necessary.
-        
+
         This method implements lazy initialization - if no metric exists
         in the current context, it creates one. This is useful for testing
         and standalone scripts where the context might not be initialized.
-        
+
         Returns:
             The metric instance for the current context
         """
@@ -64,10 +63,10 @@ class MetricsContextVar(Generic[T]):
     def set(self, metric: T) -> contextvars.Token[Optional[T]]:
         """
         Set the metric in the current context.
-        
+
         Args:
             metric: The metric instance to set
-            
+
         Returns:
             A token that can be used to reset the context
         """
@@ -84,24 +83,24 @@ class MetricsContextVar(Generic[T]):
 
 # Create module-level context variables for each metric type
 # These are singletons that live for the lifetime of the application
-_connection_ctx = MetricsContextVar('connection', ConnectionMetrics)
-_coordinator_ctx = MetricsContextVar('coordinator', CoordinatorMetrics)
-_database_ctx = MetricsContextVar('database', DatabaseMetrics)
-_dlq_ctx = MetricsContextVar('dlq', DLQMetrics)
-_event_ctx = MetricsContextVar('event', EventMetrics)
-_execution_ctx = MetricsContextVar('execution', ExecutionMetrics)
-_health_ctx = MetricsContextVar('health', HealthMetrics)
-_kubernetes_ctx = MetricsContextVar('kubernetes', KubernetesMetrics)
-_notification_ctx = MetricsContextVar('notification', NotificationMetrics)
-_rate_limit_ctx = MetricsContextVar('rate_limit', RateLimitMetrics)
-_replay_ctx = MetricsContextVar('replay', ReplayMetrics)
-_security_ctx = MetricsContextVar('security', SecurityMetrics)
+_connection_ctx = MetricsContextVar("connection", ConnectionMetrics)
+_coordinator_ctx = MetricsContextVar("coordinator", CoordinatorMetrics)
+_database_ctx = MetricsContextVar("database", DatabaseMetrics)
+_dlq_ctx = MetricsContextVar("dlq", DLQMetrics)
+_event_ctx = MetricsContextVar("event", EventMetrics)
+_execution_ctx = MetricsContextVar("execution", ExecutionMetrics)
+_health_ctx = MetricsContextVar("health", HealthMetrics)
+_kubernetes_ctx = MetricsContextVar("kubernetes", KubernetesMetrics)
+_notification_ctx = MetricsContextVar("notification", NotificationMetrics)
+_rate_limit_ctx = MetricsContextVar("rate_limit", RateLimitMetrics)
+_replay_ctx = MetricsContextVar("replay", ReplayMetrics)
+_security_ctx = MetricsContextVar("security", SecurityMetrics)
 
 
 class MetricsContext:
     """
     Central manager for all metrics contexts.
-    
+
     This class provides a unified interface for managing all metric types
     in the application. It handles initialization at startup and provides
     access methods for each metric type.
@@ -111,39 +110,39 @@ class MetricsContext:
     def initialize_all(cls, **metrics: Any) -> None:
         """
         Initialize all metrics contexts at application startup.
-        
+
         This should be called once during application initialization,
         typically in the startup sequence after dependency injection
         has created the metric instances.
-        
+
         Args:
             **metrics: Keyword arguments mapping metric names to instances
                       e.g., event=EventMetrics(), connection=ConnectionMetrics()
         """
         for name, metric_instance in metrics.items():
-            if name == 'connection':
+            if name == "connection":
                 _connection_ctx.set(metric_instance)
-            elif name == 'coordinator':
+            elif name == "coordinator":
                 _coordinator_ctx.set(metric_instance)
-            elif name == 'database':
+            elif name == "database":
                 _database_ctx.set(metric_instance)
-            elif name == 'dlq':
+            elif name == "dlq":
                 _dlq_ctx.set(metric_instance)
-            elif name == 'event':
+            elif name == "event":
                 _event_ctx.set(metric_instance)
-            elif name == 'execution':
+            elif name == "execution":
                 _execution_ctx.set(metric_instance)
-            elif name == 'health':
+            elif name == "health":
                 _health_ctx.set(metric_instance)
-            elif name == 'kubernetes':
+            elif name == "kubernetes":
                 _kubernetes_ctx.set(metric_instance)
-            elif name == 'notification':
+            elif name == "notification":
                 _notification_ctx.set(metric_instance)
-            elif name == 'rate_limit':
+            elif name == "rate_limit":
                 _rate_limit_ctx.set(metric_instance)
-            elif name == 'replay':
+            elif name == "replay":
                 _replay_ctx.set(metric_instance)
-            elif name == 'security':
+            elif name == "security":
                 _security_ctx.set(metric_instance)
             else:
                 logger.warning(f"Unknown metric type: {name}")
@@ -154,7 +153,7 @@ class MetricsContext:
     def reset_all(cls) -> None:
         """
         Reset all metrics contexts.
-        
+
         This is primarily useful for testing to ensure a clean state
         between test cases.
         """
@@ -223,6 +222,7 @@ class MetricsContext:
 
 # Convenience functions for direct access with proper type annotations
 # Import types with forward references to avoid circular imports
+
 
 def get_connection_metrics() -> ConnectionMetrics:
     return MetricsContext.get_connection_metrics()

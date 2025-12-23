@@ -22,8 +22,9 @@ from app.schemas_pydantic.user_settings import (
 class UserSettingsApiMapper:
     @staticmethod
     def to_domain_update(upd: UserSettingsUpdate) -> DomainUserSettingsUpdate:
-        notifications = UserSettingsApiMapper._to_domain_notifications(upd.notifications) \
-            if upd.notifications is not None else None
+        notifications = (
+            UserSettingsApiMapper._to_domain_notifications(upd.notifications) if upd.notifications is not None else None
+        )
         return DomainUserSettingsUpdate(
             theme=upd.theme,
             timezone=upd.timezone,
@@ -99,4 +100,3 @@ class UserSettingsApiMapper:
             for i in items
         ]
         return SettingsHistoryResponse(history=entries, total=len(entries))
-

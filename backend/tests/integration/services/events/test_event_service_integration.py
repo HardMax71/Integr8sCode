@@ -4,6 +4,7 @@ import pytest
 
 from app.db.repositories import EventRepository
 from app.domain.events.event_models import EventFields, Event, EventFilter
+from app.domain.enums.common import SortOrder
 from app.domain.enums.user import UserRole
 from app.infrastructure.kafka.events.metadata import EventMetadata
 from app.domain.enums.events import EventType
@@ -35,7 +36,7 @@ async def test_event_service_access_and_queries(scope) -> None:  # type: ignore[
     assert any(ev.aggregate_id == "agg1" for ev in events_admin)
 
     # query_events_advanced: basic run (empty filters) should return a result structure
-    res = await svc.query_events_advanced("u1", UserRole.USER, filters=EventFilter(), sort_by="correlation_id", sort_order="asc")
+    res = await svc.query_events_advanced("u1", UserRole.USER, filters=EventFilter(), sort_by="correlation_id", sort_order=SortOrder.ASC)
     assert res is not None
 
     # get_events_by_correlation filters non-admin to their own user_id

@@ -26,7 +26,7 @@ from app.domain.user import (
 )
 from app.schemas_pydantic.user import User as ServiceUser
 
-EMAIL_PATTERN = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+EMAIL_PATTERN = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 
 
 class UserMapper:
@@ -41,7 +41,7 @@ class UserMapper:
             UserFields.IS_SUPERUSER: user.is_superuser,
             UserFields.HASHED_PASSWORD: user.hashed_password,
             UserFields.CREATED_AT: user.created_at,
-            UserFields.UPDATED_AT: user.updated_at
+            UserFields.UPDATED_AT: user.updated_at,
         }
 
     @staticmethod
@@ -64,7 +64,7 @@ class UserMapper:
             is_superuser=data.get(UserFields.IS_SUPERUSER, False),
             hashed_password=data.get(UserFields.HASHED_PASSWORD, ""),
             created_at=data.get(UserFields.CREATED_AT, datetime.now(timezone.utc)),
-            updated_at=data.get(UserFields.UPDATED_AT, datetime.now(timezone.utc))
+            updated_at=data.get(UserFields.UPDATED_AT, datetime.now(timezone.utc)),
         )
 
     @staticmethod
@@ -80,7 +80,7 @@ class UserMapper:
             "is_active": user.is_active,
             "is_superuser": user.is_superuser,
             "created_at": created_at_ts,
-            "updated_at": updated_at_ts
+            "updated_at": updated_at_ts,
         }
 
     @staticmethod
@@ -136,7 +136,7 @@ class UserMapper:
             UserFields.IS_ACTIVE: creation.is_active,
             UserFields.IS_SUPERUSER: creation.is_superuser,
             UserFields.CREATED_AT: datetime.now(timezone.utc),
-            UserFields.UPDATED_AT: datetime.now(timezone.utc)
+            UserFields.UPDATED_AT: datetime.now(timezone.utc),
         }
 
 
@@ -148,7 +148,7 @@ class UserListResultMapper:
             "users": [user_mapper.to_response_dict(user) for user in result.users],
             "total": result.total,
             "offset": result.offset,
-            "limit": result.limit
+            "limit": result.limit,
         }
 
 
@@ -159,7 +159,7 @@ class SettingsMapper:
             "max_timeout_seconds": limits.max_timeout_seconds,
             "max_memory_mb": limits.max_memory_mb,
             "max_cpu_cores": limits.max_cpu_cores,
-            "max_concurrent_executions": limits.max_concurrent_executions
+            "max_concurrent_executions": limits.max_concurrent_executions,
         }
 
     @staticmethod
@@ -170,7 +170,7 @@ class SettingsMapper:
             max_timeout_seconds=data.get("max_timeout_seconds", 300),
             max_memory_mb=data.get("max_memory_mb", 512),
             max_cpu_cores=data.get("max_cpu_cores", 2),
-            max_concurrent_executions=data.get("max_concurrent_executions", 10)
+            max_concurrent_executions=data.get("max_concurrent_executions", 10),
         )
 
     @staticmethod
@@ -179,7 +179,7 @@ class SettingsMapper:
             "password_min_length": settings.password_min_length,
             "session_timeout_minutes": settings.session_timeout_minutes,
             "max_login_attempts": settings.max_login_attempts,
-            "lockout_duration_minutes": settings.lockout_duration_minutes
+            "lockout_duration_minutes": settings.lockout_duration_minutes,
         }
 
     @staticmethod
@@ -190,7 +190,7 @@ class SettingsMapper:
             password_min_length=data.get("password_min_length", 8),
             session_timeout_minutes=data.get("session_timeout_minutes", 60),
             max_login_attempts=data.get("max_login_attempts", 5),
-            lockout_duration_minutes=data.get("lockout_duration_minutes", 15)
+            lockout_duration_minutes=data.get("lockout_duration_minutes", 15),
         )
 
     @staticmethod
@@ -199,7 +199,7 @@ class SettingsMapper:
             "metrics_retention_days": settings.metrics_retention_days,
             "log_level": settings.log_level.value,
             "enable_tracing": settings.enable_tracing,
-            "sampling_rate": settings.sampling_rate
+            "sampling_rate": settings.sampling_rate,
         }
 
     @staticmethod
@@ -210,7 +210,7 @@ class SettingsMapper:
             metrics_retention_days=data.get("metrics_retention_days", 30),
             log_level=LogLevel(data.get("log_level", LogLevel.INFO)),
             enable_tracing=data.get("enable_tracing", True),
-            sampling_rate=data.get("sampling_rate", 0.1)
+            sampling_rate=data.get("sampling_rate", 0.1),
         )
 
     @staticmethod
@@ -221,7 +221,7 @@ class SettingsMapper:
             SettingsFields.SECURITY_SETTINGS: mapper.security_settings_to_dict(settings.security_settings),
             SettingsFields.MONITORING_SETTINGS: mapper.monitoring_settings_to_dict(settings.monitoring_settings),
             SettingsFields.CREATED_AT: settings.created_at,
-            SettingsFields.UPDATED_AT: settings.updated_at
+            SettingsFields.UPDATED_AT: settings.updated_at,
         }
 
     @staticmethod
@@ -234,7 +234,7 @@ class SettingsMapper:
             security_settings=mapper.security_settings_from_dict(data.get(SettingsFields.SECURITY_SETTINGS)),
             monitoring_settings=mapper.monitoring_settings_from_dict(data.get(SettingsFields.MONITORING_SETTINGS)),
             created_at=data.get(SettingsFields.CREATED_AT, datetime.now(timezone.utc)),
-            updated_at=data.get(SettingsFields.UPDATED_AT, datetime.now(timezone.utc))
+            updated_at=data.get(SettingsFields.UPDATED_AT, datetime.now(timezone.utc)),
         )
 
     @staticmethod
@@ -243,7 +243,7 @@ class SettingsMapper:
         return {
             "execution_limits": mapper.execution_limits_to_dict(settings.execution_limits),
             "security_settings": mapper.security_settings_to_dict(settings.security_settings),
-            "monitoring_settings": mapper.monitoring_settings_to_dict(settings.monitoring_settings)
+            "monitoring_settings": mapper.monitoring_settings_to_dict(settings.monitoring_settings),
         }
 
     @staticmethod
@@ -265,7 +265,7 @@ class AuditLogMapper:
             AuditLogFields.USER_ID: entry.user_id,
             AuditLogFields.USERNAME: entry.username,
             AuditLogFields.CHANGES: entry.changes,
-            "reason": entry.reason  # reason is not in the enum but used as additional field
+            "reason": entry.reason,  # reason is not in the enum but used as additional field
         }
 
     @staticmethod
@@ -276,5 +276,5 @@ class AuditLogMapper:
             user_id=data[AuditLogFields.USER_ID],
             username=data.get(AuditLogFields.USERNAME, ""),
             changes=data.get(AuditLogFields.CHANGES, {}),
-            reason=data.get("reason", "")
+            reason=data.get("reason", ""),
         )

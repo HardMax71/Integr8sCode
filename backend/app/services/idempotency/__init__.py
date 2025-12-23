@@ -17,5 +17,5 @@ __all__ = [
     "create_idempotency_manager",
     "IdempotentEventHandler",
     "idempotent_handler",
-    "IdempotentConsumerWrapper"
+    "IdempotentConsumerWrapper",
 ]

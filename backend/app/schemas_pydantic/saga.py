@@ -6,6 +6,7 @@ from app.domain.saga.models import Saga
 
 class SagaStatusResponse(BaseModel):
     """Response schema for saga status"""
+
     saga_id: str
     saga_name: str
     execution_id: str
@@ -34,18 +35,20 @@ class SagaStatusResponse(BaseModel):
             created_at=saga.created_at.isoformat(),
             updated_at=saga.updated_at.isoformat(),
             completed_at=saga.completed_at.isoformat() if saga.completed_at else None,
-            retry_count=saga.retry_count
+            retry_count=saga.retry_count,
         )
 
 
 class SagaListResponse(BaseModel):
     """Response schema for saga list"""
+
     sagas: list[SagaStatusResponse]
     total: int
 
 
 class SagaCancellationResponse(BaseModel):
     """Response schema for saga cancellation"""
+
     success: bool
     message: str
     saga_id: str

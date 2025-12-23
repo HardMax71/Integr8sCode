@@ -6,11 +6,12 @@ from typing import List
 from app.core.utils import StringEnum
 from app.domain.enums.user import UserRole
 
-EMAIL_PATTERN = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+EMAIL_PATTERN = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 
 
 class UserFields(StringEnum):
     """Database field names for users collection."""
+
     USER_ID = "user_id"
     USERNAME = "username"
     EMAIL = "email"
@@ -24,6 +25,7 @@ class UserFields(StringEnum):
 
 class UserFilterType(StringEnum):
     """Types of user filters."""
+
     USERNAME = "username"
     EMAIL = "email"
     ROLE = "role"
@@ -32,6 +34,7 @@ class UserFilterType(StringEnum):
 @dataclass
 class UserSearchFilter:
     """User search filter criteria."""
+
     search_text: str | None = None
     role: UserRole | None = None
 
@@ -39,6 +42,7 @@ class UserSearchFilter:
 @dataclass
 class User:
     """User domain model."""
+
     user_id: str
     username: str
     email: str
@@ -53,6 +57,7 @@ class User:
 @dataclass
 class UserUpdate:
     """User update domain model."""
+
     username: str | None = None
     email: str | None = None
     role: UserRole | None = None
@@ -60,18 +65,21 @@ class UserUpdate:
     password: str | None = None
 
     def has_updates(self) -> bool:
-        return any([
-            self.username is not None,
-            self.email is not None,
-            self.role is not None,
-            self.is_active is not None,
-            self.password is not None
-        ])
+        return any(
+            [
+                self.username is not None,
+                self.email is not None,
+                self.role is not None,
+                self.is_active is not None,
+                self.password is not None,
+            ]
+        )
 
 
 @dataclass
 class UserListResult:
     """Result of listing users."""
+
     users: List[User]
     total: int
     offset: int
@@ -81,6 +89,7 @@ class UserListResult:
 @dataclass
 class PasswordReset:
     """Password reset domain model."""
+
     user_id: str
     new_password: str
 
@@ -91,6 +100,7 @@ class PasswordReset:
 @dataclass
 class UserCreation:
     """User creation domain model."""
+
     username: str
     email: str
     password: str
@@ -99,9 +109,11 @@ class UserCreation:
     is_superuser: bool = False
 
     def is_valid(self) -> bool:
-        return all([
-            self.username,
-            self.email,
-            self.password and len(self.password) >= 8,
-            EMAIL_PATTERN.match(self.email) is not None  # Proper email validation
-        ])
+        return all(
+            [
+                self.username,
+                self.email,
+                self.password and len(self.password) >= 8,
+                EMAIL_PATTERN.match(self.email) is not None,  # Proper email validation
+            ]
+        )

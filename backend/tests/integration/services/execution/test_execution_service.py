@@ -1,5 +1,6 @@
 import pytest
 
+from app.domain.execution import ResourceLimitsDomain
 from app.services.execution_service import ExecutionService
 
 pytestmark = pytest.mark.integration
@@ -9,7 +10,8 @@ pytestmark = pytest.mark.integration
 async def test_execute_script_and_limits(scope) -> None:  # type: ignore[valid-type]
     svc: ExecutionService = await scope.get(ExecutionService)
     limits = await svc.get_k8s_resource_limits()
-    assert set(limits.keys()) >= {"cpu_limit", "memory_limit", "supported_runtimes"}
+    assert isinstance(limits, ResourceLimitsDomain)
+    assert limits.cpu_limit and limits.memory_limit and limits.supported_runtimes
     ex = await svc.get_example_scripts()
     assert isinstance(ex, dict)
 

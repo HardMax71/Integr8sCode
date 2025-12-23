@@ -7,6 +7,7 @@ from app.core.utils import StringEnum
 
 class SettingsFields(StringEnum):
     """Database field names for settings collection."""
+
     ID = "_id"
     CREATED_AT = "created_at"
     UPDATED_AT = "updated_at"
@@ -18,6 +19,7 @@ class SettingsFields(StringEnum):
 
 class AuditLogFields(StringEnum):
     """Database field names for audit log collection."""
+
     ACTION = "action"
     USER_ID = "user_id"
     USERNAME = "username"
@@ -27,12 +29,14 @@ class AuditLogFields(StringEnum):
 
 class AuditAction(StringEnum):
     """Audit log action types."""
+
     SYSTEM_SETTINGS_UPDATED = "system_settings_updated"
     SYSTEM_SETTINGS_RESET = "system_settings_reset"
 
 
 class LogLevel(StringEnum):
     """Log level options."""
+
     DEBUG = "DEBUG"
     INFO = "INFO"
     WARNING = "WARNING"
@@ -67,6 +71,7 @@ class MonitoringSettings:
 @dataclass
 class SystemSettings:
     """Complete system settings configuration."""
+
     execution_limits: ExecutionLimits = field(default_factory=ExecutionLimits)
     security_settings: SecuritySettings = field(default_factory=SecuritySettings)
     monitoring_settings: MonitoringSettings = field(default_factory=MonitoringSettings)

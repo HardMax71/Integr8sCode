@@ -2,7 +2,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict
+
+
+@dataclass
+class ShutdownStatus:
+    """Status of SSE shutdown process."""
+
+    phase: str
+    initiated: bool
+    complete: bool
+    active_connections: int
+    draining_connections: int
+    duration: float | None = None
 
 
 @dataclass
@@ -13,7 +24,7 @@ class SSEHealthDomain:
     active_executions: int
     active_consumers: int
     max_connections_per_user: int
-    shutdown: Dict[str, Any]
+    shutdown: ShutdownStatus
     timestamp: datetime
 
 
@@ -27,4 +38,4 @@ class SSEExecutionStatusDomain:
 @dataclass
 class SSEEventDomain:
     aggregate_id: str
-    timestamp: Any
+    timestamp: datetime

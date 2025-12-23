@@ -1,8 +1,8 @@
 from datetime import UTC, datetime, timedelta
 
-from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
 from pymongo import ASCENDING, DESCENDING, IndexModel
 
+from app.core.database_context import Collection, Database
 from app.core.logging import logger
 from app.domain.enums.notification import (
     NotificationChannel,
@@ -16,35 +16,38 @@ from app.infrastructure.mappers import NotificationMapper
 
 
 class NotificationRepository:
-    def __init__(self, database: AsyncIOMotorDatabase):
-        self.db: AsyncIOMotorDatabase = database
+    def __init__(self, database: Database):
+        self.db: Database = database
 
-        self.notifications_collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.NOTIFICATIONS)
-        self.subscriptions_collection: AsyncIOMotorCollection = self.db.get_collection(
-            CollectionNames.NOTIFICATION_SUBSCRIPTIONS)
+        self.notifications_collection: Collection = self.db.get_collection(CollectionNames.NOTIFICATIONS)
+        self.subscriptions_collection: Collection = self.db.get_collection(CollectionNames.NOTIFICATION_SUBSCRIPTIONS)
         self.mapper = NotificationMapper()
 
     async def create_indexes(self) -> None:
         # Create indexes if only _id exists
         notif_indexes = await self.notifications_collection.list_indexes().to_list(None)
         if len(notif_indexes) <= 1:
-            await self.notifications_collection.create_indexes([
-                IndexModel([("user_id", ASCENDING), ("created_at", DESCENDING)]),
-                IndexModel([("status", ASCENDING), ("scheduled_for", ASCENDING)]),
-                IndexModel([("created_at", ASCENDING)]),
-                IndexModel([("notification_id", ASCENDING)], unique=True),
-                # Multikey index to speed up tag queries (include/exclude/prefix)
-                IndexModel([("tags", ASCENDING)]),
-            ])
+            await self.notifications_collection.create_indexes(
+                [
+                    IndexModel([("user_id", ASCENDING), ("created_at", DESCENDING)]),
+                    IndexModel([("status", ASCENDING), ("scheduled_for", ASCENDING)]),
+                    IndexModel([("created_at", ASCENDING)]),
+                    IndexModel([("notification_id", ASCENDING)], unique=True),
+                    # Multikey index to speed up tag queries (include/exclude/prefix)
+                    IndexModel([("tags", ASCENDING)]),
+                ]
+            )
 
         subs_indexes = await self.subscriptions_collection.list_indexes().to_list(None)
         if len(subs_indexes) <= 1:
-            await self.subscriptions_collection.create_indexes([
-                IndexModel([("user_id", ASCENDING), ("channel", ASCENDING)], unique=True),
-                IndexModel([("enabled", ASCENDING)]),
-                IndexModel([("include_tags", ASCENDING)]),
-                IndexModel([("severities", ASCENDING)]),
-            ])
+            await self.subscriptions_collection.create_indexes(
+                [
+                    IndexModel([("user_id", ASCENDING), ("channel", ASCENDING)], unique=True),
+                    IndexModel([("enabled", ASCENDING)]),
+                    IndexModel([("include_tags", ASCENDING)]),
+                    IndexModel([("severities", ASCENDING)]),
+                ]
+            )
 
     # Notifications
     async def create_notification(self, notification: DomainNotification) -> str:
@@ -60,9 +63,7 @@ class NotificationRepository:
         return result.modified_count > 0
 
     async def get_notification(self, notification_id: str, user_id: str) -> DomainNotification | None:
-        doc = await self.notifications_collection.find_one(
-            {"notification_id": notification_id, "user_id": user_id}
-        )
+        doc = await self.notifications_collection.find_one({"notification_id": notification_id, "user_id": user_id})
         if not doc:
             return None
         return self.mapper.from_mongo_document(doc)
@@ -88,14 +89,14 @@ class NotificationRepository:
         return result.deleted_count > 0
 
     async def list_notifications(
-            self,
-            user_id: str,
-            status: NotificationStatus | None = None,
-            skip: int = 0,
-            limit: int = 20,
-            include_tags: list[str] | None = None,
-            exclude_tags: list[str] | None = None,
-            tag_prefix: str | None = None,
+        self,
+        user_id: str,
+        status: NotificationStatus | None = None,
+        skip: int = 0,
+        limit: int = 20,
+        include_tags: list[str] | None = None,
+        exclude_tags: list[str] | None = None,
+        tag_prefix: str | None = None,
     ) -> list[DomainNotification]:
         base: dict[str, object] = {"user_id": user_id}
         if status:
@@ -112,10 +113,7 @@ class NotificationRepository:
             query = {"$and": [base] + tag_filters}
 
         cursor = (
-            self.notifications_collection.find(query or base)
-            .sort("created_at", DESCENDING)
-            .skip(skip)
-            .limit(limit)
+            self.notifications_collection.find(query or base).sort("created_at", DESCENDING).skip(skip).limit(limit)
         )
 
         items: list[DomainNotification] = []
@@ -124,11 +122,11 @@ class NotificationRepository:
         return items
 
     async def list_notifications_by_tag(
-            self,
-            user_id: str,
-            tag: str,
-            skip: int = 0,
-            limit: int = 20,
+        self,
+        user_id: str,
+        tag: str,
+        skip: int = 0,
+        limit: int = 20,
     ) -> list[DomainNotification]:
         """Convenience helper to list notifications filtered by a single exact tag."""
         return await self.list_notifications(
@@ -138,9 +136,7 @@ class NotificationRepository:
             include_tags=[tag],
         )
 
-    async def count_notifications(
-            self, user_id: str, additional_filters: dict[str, object] | None = None
-    ) -> int:
+    async def count_notifications(self, user_id: str, additional_filters: dict[str, object] | None = None) -> int:
         query: dict[str, object] = {"user_id": user_id}
         if additional_filters:
             query.update(additional_filters)
@@ -204,43 +200,33 @@ class NotificationRepository:
 
     # Subscriptions
     async def get_subscription(
-            self, user_id: str, channel: NotificationChannel
+        self, user_id: str, channel: NotificationChannel
     ) -> DomainNotificationSubscription | None:
-        doc = await self.subscriptions_collection.find_one(
-            {"user_id": user_id, "channel": channel}
-        )
+        doc = await self.subscriptions_collection.find_one({"user_id": user_id, "channel": channel})
         if not doc:
             return None
         return self.mapper.subscription_from_mongo_document(doc)
 
     async def upsert_subscription(
-            self,
-            user_id: str,
-            channel: NotificationChannel,
-            subscription: DomainNotificationSubscription,
+        self,
+        user_id: str,
+        channel: NotificationChannel,
+        subscription: DomainNotificationSubscription,
     ) -> None:
         subscription.user_id = user_id
         subscription.channel = channel
         subscription.updated_at = datetime.now(UTC)
         doc = self.mapper.subscription_to_mongo_document(subscription)
-        await self.subscriptions_collection.replace_one(
-            {"user_id": user_id, "channel": channel}, doc, upsert=True
-        )
+        await self.subscriptions_collection.replace_one({"user_id": user_id, "channel": channel}, doc, upsert=True)
 
-    async def get_all_subscriptions(
-            self, user_id: str
-    ) -> dict[str, DomainNotificationSubscription]:
+    async def get_all_subscriptions(self, user_id: str) -> dict[str, DomainNotificationSubscription]:
         subs: dict[str, DomainNotificationSubscription] = {}
         for channel in NotificationChannel:
-            doc = await self.subscriptions_collection.find_one(
-                {"user_id": user_id, "channel": channel}
-            )
+            doc = await self.subscriptions_collection.find_one({"user_id": user_id, "channel": channel})
             if doc:
                 subs[channel] = self.mapper.subscription_from_mongo_document(doc)
             else:
-                subs[channel] = DomainNotificationSubscription(
-                    user_id=user_id, channel=channel, enabled=True
-                )
+                subs[channel] = DomainNotificationSubscription(user_id=user_id, channel=channel, enabled=True)
         return subs
 
     # User query operations for system notifications
@@ -282,9 +268,7 @@ class NotificationRepository:
                 user_ids.add(user["user_id"])
 
         executions_collection = self.db.executions
-        exec_cursor = executions_collection.find(
-            {"created_at": {"$gte": cutoff_date}}, {"user_id": 1}
-        ).limit(1000)
+        exec_cursor = executions_collection.find({"created_at": {"$gte": cutoff_date}}, {"user_id": 1}).limit(1000)
 
         async for execution in exec_cursor:
             if execution.get("user_id"):

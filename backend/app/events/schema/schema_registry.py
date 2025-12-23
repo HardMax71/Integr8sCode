@@ -124,9 +124,7 @@ class SchemaRegistryManager:
             schema_str = json.dumps(event.__class__.avro_schema(namespace=self.namespace))
             # Use record_subject_name_strategy to ensure subject is based on record name, not topic
             self._serializers[subject_key] = AvroSerializer(
-                self.client,
-                schema_str,
-                conf={'subject.name.strategy': record_subject_name_strategy}
+                self.client, schema_str, conf={"subject.name.strategy": record_subject_name_strategy}
             )
 
         # Prepare payload dict (exclude event_type: schema id implies the concrete record)
@@ -201,8 +199,13 @@ class SchemaRegistryManager:
         Valid: BACKWARD, FORWARD, FULL, NONE, BACKWARD_TRANSITIVE, FORWARD_TRANSITIVE, FULL_TRANSITIVE
         """
         valid_modes = {
-            "BACKWARD", "FORWARD", "FULL", "NONE",
-            "BACKWARD_TRANSITIVE", "FORWARD_TRANSITIVE", "FULL_TRANSITIVE",
+            "BACKWARD",
+            "FORWARD",
+            "FULL",
+            "NONE",
+            "BACKWARD_TRANSITIVE",
+            "FORWARD_TRANSITIVE",
+            "FULL_TRANSITIVE",
         }
         if mode not in valid_modes:
             raise ValueError(f"Invalid compatibility mode: {mode}")

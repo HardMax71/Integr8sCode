@@ -1,5 +1,4 @@
-from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
-
+from app.core.database_context import Collection, Database
 from app.domain.events.event_models import CollectionNames
 from app.domain.saved_script import (
     DomainSavedScript,
@@ -10,9 +9,9 @@ from app.infrastructure.mappers import SavedScriptMapper
 
 
 class SavedScriptRepository:
-    def __init__(self, database: AsyncIOMotorDatabase):
+    def __init__(self, database: Database):
         self.db = database
-        self.collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.SAVED_SCRIPTS)
+        self.collection: Collection = self.db.get_collection(CollectionNames.SAVED_SCRIPTS)
         self.mapper = SavedScriptMapper()
 
     async def create_saved_script(self, saved_script: DomainSavedScriptCreate, user_id: str) -> DomainSavedScript:
@@ -24,24 +23,16 @@ class SavedScriptRepository:
             raise ValueError("Insert not acknowledged")
         return self.mapper.from_mongo_document(doc)
 
-    async def get_saved_script(
-            self, script_id: str, user_id: str
-    ) -> DomainSavedScript | None:
-        saved_script = await self.collection.find_one(
-            {"script_id": script_id, "user_id": user_id}
-        )
+    async def get_saved_script(self, script_id: str, user_id: str) -> DomainSavedScript | None:
+        saved_script = await self.collection.find_one({"script_id": script_id, "user_id": user_id})
         if not saved_script:
             return None
         return self.mapper.from_mongo_document(saved_script)
 
-    async def update_saved_script(
-            self, script_id: str, user_id: str, update_data: DomainSavedScriptUpdate
-    ) -> None:
+    async def update_saved_script(self, script_id: str, user_id: str, update_data: DomainSavedScriptUpdate) -> None:
         update = self.mapper.to_update_dict(update_data)
 
-        await self.collection.update_one(
-            {"script_id": script_id, "user_id": user_id}, {"$set": update}
-        )
+        await self.collection.update_one({"script_id": script_id, "user_id": user_id}, {"$set": update})
 
     async def delete_saved_script(self, script_id: str, user_id: str) -> None:
         await self.collection.delete_one({"script_id": script_id, "user_id": user_id})

@@ -23,7 +23,7 @@ class SSEMapper:
     def event_from_mongo_document(doc: Dict[str, Any]) -> SSEEventDomain:
         return SSEEventDomain(
             aggregate_id=str(doc.get("aggregate_id", "")),
-            timestamp=doc.get("timestamp"),
+            timestamp=doc["timestamp"],
         )
 
     # Executions

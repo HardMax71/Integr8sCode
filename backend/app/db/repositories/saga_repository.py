@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
 
-from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
 from pymongo import DESCENDING
 
+from app.core.database_context import Collection, Database
 from app.domain.enums.saga import SagaState
 from app.domain.events.event_models import CollectionNames
 from app.domain.saga.models import Saga, SagaFilter, SagaListResult
@@ -11,16 +11,16 @@ from app.infrastructure.mappers import SagaFilterMapper, SagaMapper
 
 class SagaRepository:
     """Repository for saga data access.
-    
+
     This repository handles all database operations for sagas,
     following clean architecture principles with no business logic
     or HTTP-specific concerns.
     """
 
-    def __init__(self, database: AsyncIOMotorDatabase):
+    def __init__(self, database: Database):
         self.db = database
-        self.sagas: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.SAGAS)
-        self.executions: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.EXECUTIONS)
+        self.sagas: Collection = self.db.get_collection(CollectionNames.SAGAS)
+        self.executions: Collection = self.db.get_collection(CollectionNames.EXECUTIONS)
         self.mapper = SagaMapper()
         self.filter_mapper = SagaFilterMapper()
 
@@ -34,21 +34,19 @@ class SagaRepository:
         return result.modified_count > 0
 
     async def get_saga_by_execution_and_name(self, execution_id: str, saga_name: str) -> Saga | None:
-        doc = await self.sagas.find_one({
-            "execution_id": execution_id,
-            "saga_name": saga_name,
-        })
+        doc = await self.sagas.find_one(
+            {
+                "execution_id": execution_id,
+                "saga_name": saga_name,
+            }
+        )
         return self.mapper.from_mongo(doc) if doc else None
 
     async def get_saga(self, saga_id: str) -> Saga | None:
         doc = await self.sagas.find_one({"saga_id": saga_id})
         return self.mapper.from_mongo(doc) if doc else None
 
-    async def get_sagas_by_execution(
-            self,
-            execution_id: str,
-            state: str | None = None
-    ) -> list[Saga]:
+    async def get_sagas_by_execution(self, execution_id: str, state: str | None = None) -> list[Saga]:
         query: dict[str, object] = {"execution_id": execution_id}
         if state:
             query["state"] = state
@@ -57,69 +55,37 @@ class SagaRepository:
         docs = await cursor.to_list(length=None)
         return [self.mapper.from_mongo(doc) for doc in docs]
 
-    async def list_sagas(
-            self,
-            filter: SagaFilter,
-            limit: int = 100,
-            skip: int = 0
-    ) -> SagaListResult:
+    async def list_sagas(self, filter: SagaFilter, limit: int = 100, skip: int = 0) -> SagaListResult:
         query = self.filter_mapper.to_mongodb_query(filter)
 
         # Get total count
         total = await self.sagas.count_documents(query)
 
         # Get sagas with pagination
-        cursor = (self.sagas.find(query)
-                  .sort("created_at", DESCENDING)
-                  .skip(skip)
-                  .limit(limit))
+        cursor = self.sagas.find(query).sort("created_at", DESCENDING).skip(skip).limit(limit)
         docs = await cursor.to_list(length=limit)
 
         sagas = [self.mapper.from_mongo(doc) for doc in docs]
 
-        return SagaListResult(
-            sagas=sagas,
-            total=total,
-            skip=skip,
-            limit=limit
-        )
+        return SagaListResult(sagas=sagas, total=total, skip=skip, limit=limit)
 
-    async def update_saga_state(
-            self,
-            saga_id: str,
-            state: str,
-            error_message: str | None = None
-    ) -> bool:
-        update_data = {
-            "state": state,
-            "updated_at": datetime.now(timezone.utc)
-        }
+    async def update_saga_state(self, saga_id: str, state: str, error_message: str | None = None) -> bool:
+        update_data = {"state": state, "updated_at": datetime.now(timezone.utc)}
 
         if error_message:
             update_data["error_message"] = error_message
 
-        result = await self.sagas.update_one(
-            {"saga_id": saga_id},
-            {"$set": update_data}
-        )
+        result = await self.sagas.update_one({"saga_id": saga_id}, {"$set": update_data})
 
         return result.modified_count > 0
 
     async def get_user_execution_ids(self, user_id: str) -> list[str]:
-        cursor = self.executions.find(
-            {"user_id": user_id},
-            {"execution_id": 1}
-        )
+        cursor = self.executions.find({"user_id": user_id}, {"execution_id": 1})
         docs = await cursor.to_list(length=None)
         return [doc["execution_id"] for doc in docs]
 
     async def count_sagas_by_state(self) -> dict[str, int]:
-        pipeline = [
-            {"$group": {
-                "_id": "$state",
-                "count": {"$sum": 1}
-            }}
-        ]
+        pipeline = [{"$group": {"_id": "$state", "count": {"$sum": 1}}}]
 
         result = {}
         async for doc in self.sagas.aggregate(pipeline):
@@ -128,10 +94,10 @@ class SagaRepository:
         return result
 
     async def find_timed_out_sagas(
-            self,
-            cutoff_time: datetime,
-            states: list[SagaState] | None = None,
-            limit: int = 100,
+        self,
+        cutoff_time: datetime,
+        states: list[SagaState] | None = None,
+        limit: int = 100,
     ) -> list[Saga]:
         states = states or [SagaState.RUNNING, SagaState.COMPENSATING]
         query = {
@@ -142,23 +108,14 @@ class SagaRepository:
         docs = await cursor.to_list(length=limit)
         return [self.mapper.from_mongo(doc) for doc in docs]
 
-    async def get_saga_statistics(
-            self,
-            filter: SagaFilter | None = None
-    ) -> dict[str, object]:
+    async def get_saga_statistics(self, filter: SagaFilter | None = None) -> dict[str, object]:
         query = self.filter_mapper.to_mongodb_query(filter) if filter else {}
 
         # Basic counts
         total = await self.sagas.count_documents(query)
 
         # State distribution
-        state_pipeline = [
-            {"$match": query},
-            {"$group": {
-                "_id": "$state",
-                "count": {"$sum": 1}
-            }}
-        ]
+        state_pipeline = [{"$match": query}, {"$group": {"_id": "$state", "count": {"$sum": 1}}}]
 
         states = {}
         async for doc in self.sagas.aggregate(state_pipeline):
@@ -167,15 +124,8 @@ class SagaRepository:
         # Average duration for completed sagas
         duration_pipeline = [
             {"$match": {**query, "state": "completed", "completed_at": {"$ne": None}}},
-            {"$project": {
-                "duration": {
-                    "$subtract": ["$completed_at", "$created_at"]
-                }
-            }},
-            {"$group": {
-                "_id": None,
-                "avg_duration": {"$avg": "$duration"}
-            }}
+            {"$project": {"duration": {"$subtract": ["$completed_at", "$created_at"]}}},
+            {"$group": {"_id": None, "avg_duration": {"$avg": "$duration"}}},
         ]
 
         avg_duration = 0.0
@@ -183,8 +133,4 @@ class SagaRepository:
             # Convert milliseconds to seconds
             avg_duration = doc["avg_duration"] / 1000.0 if doc["avg_duration"] else 0.0
 
-        return {
-            "total": total,
-            "by_state": states,
-            "average_duration_seconds": avg_duration
-        }
+        return {"total": total, "by_state": states, "average_duration_seconds": avg_duration}

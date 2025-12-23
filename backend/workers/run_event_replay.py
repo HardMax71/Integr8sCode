@@ -2,6 +2,7 @@ import asyncio
 import logging
 from contextlib import AsyncExitStack
 
+from app.core.database_context import DBClient
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
 from app.db.repositories.replay_repository import ReplayRepository
@@ -35,11 +36,7 @@ async def run_replay_service() -> None:
     settings = get_settings()
 
     # Create database connection
-    db_client: AsyncIOMotorClient = AsyncIOMotorClient(
-        settings.MONGODB_URL,
-        tz_aware=True,
-        serverSelectionTimeoutMS=5000
-    )
+    db_client: DBClient = AsyncIOMotorClient(settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000)
     db_name = settings.DATABASE_NAME
     database = db_client[db_name]
 
@@ -52,9 +49,7 @@ async def run_replay_service() -> None:
 
     # Initialize services
     schema_registry = SchemaRegistryManager()
-    producer_config = ProducerConfig(
-        bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS
-    )
+    producer_config = ProducerConfig(bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS)
     producer = UnifiedProducer(producer_config, schema_registry)
 
     # Create event store
@@ -68,11 +63,7 @@ async def run_replay_service() -> None:
     replay_repository = ReplayRepository(database)
 
     # Create replay service
-    replay_service = EventReplayService(
-        repository=replay_repository,
-        producer=producer,
-        event_store=event_store
-    )
+    replay_service = EventReplayService(repository=replay_repository, producer=producer, event_store=event_store)
     logger.info("Event replay service initialized")
 
     async with AsyncExitStack() as stack:
@@ -80,12 +71,14 @@ async def run_replay_service() -> None:
         stack.callback(db_client.close)
 
         task = asyncio.create_task(cleanup_task(replay_service))
+
         async def _cancel_task() -> None:
             task.cancel()
             try:
                 await task
             except asyncio.CancelledError:
                 pass
+
         stack.push_async_callback(_cancel_task)
 
         await asyncio.Event().wait()
@@ -97,10 +90,7 @@ def main() -> None:
     setup_logger()
 
     # Configure root logger for worker
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     logger = logging.getLogger(__name__)
     logger.info("Starting Event Replay Service...")
@@ -112,7 +102,7 @@ def main() -> None:
             service_name="event-replay",
             service_version=settings.TRACING_SERVICE_VERSION,
             enable_console_exporter=False,
-            sampling_rate=settings.TRACING_SAMPLING_RATE
+            sampling_rate=settings.TRACING_SAMPLING_RATE,
         )
         logger.info("Tracing initialized for Event Replay Service")
 

@@ -7,6 +7,7 @@ from app.domain.enums.health import AlertSeverity
 
 class HealthAlert(BaseModel):
     """Health alert information."""
+
     id: str = Field(..., description="Unique alert identifier")
     severity: AlertSeverity = Field(..., description="Alert severity level")
     service: str = Field(..., description="Service name that triggered the alert")
@@ -19,6 +20,7 @@ class HealthAlert(BaseModel):
 
 class HealthMetricsSummary(BaseModel):
     """Summary of health metrics for dashboard display"""
+
     total_checks: int
     healthy_checks: int
     failed_checks: int
@@ -29,6 +31,7 @@ class HealthMetricsSummary(BaseModel):
 
 class ServiceMetrics(BaseModel):
     """Detailed metrics for a specific service"""
+
     service_name: str
     check_count_24h: int
     failure_count_24h: int
@@ -42,6 +45,7 @@ class ServiceMetrics(BaseModel):
 
 class HealthTrend(BaseModel):
     """Health trend data point"""
+
     timestamp: datetime = Field(..., description="Trend data timestamp")
     status: str
     healthy_count: int
@@ -51,6 +55,7 @@ class HealthTrend(BaseModel):
 
 class ServiceHealth(BaseModel):
     """Service health information"""
+
     name: str
     status: str
     uptime_percentage: float
@@ -61,6 +66,7 @@ class ServiceHealth(BaseModel):
 
 class HealthDashboardResponse(BaseModel):
     """Complete health dashboard response"""
+
     overall_status: str
     last_updated: datetime = Field(..., description="Dashboard last update timestamp")
     services: list[ServiceHealth]
@@ -71,11 +77,13 @@ class HealthDashboardResponse(BaseModel):
 
 class SimpleHealthStatus(BaseModel):
     """Simple health status response for public endpoint."""
+
     status: str = Field(..., description="Health status: 'healthy' or 'unhealthy'")
 
 
 class HealthStatistics(BaseModel):
     """Health check statistics."""
+
     total_checks: int
     healthy: int
     degraded: int
@@ -85,6 +93,7 @@ class HealthStatistics(BaseModel):
 
 class CategoryServices(BaseModel):
     """Services within a health category."""
+
     status: str
     message: str
     duration_ms: float
@@ -93,6 +102,7 @@ class CategoryServices(BaseModel):
 
 class DetailedHealthStatus(BaseModel):
     """Detailed health status with all categories and statistics."""
+
     timestamp: str = Field(..., description="ISO timestamp of health check")
     overall_status: str = Field(..., description="Overall system health status")
     categories: dict[str, dict[str, CategoryServices]] = Field(
@@ -103,6 +113,7 @@ class DetailedHealthStatus(BaseModel):
 
 class HealthCheckConfig(BaseModel):
     """Health check configuration details."""
+
     type: str | None = None
     critical: bool | None = None
     interval_seconds: float | None = None
@@ -112,12 +123,14 @@ class HealthCheckConfig(BaseModel):
 
 class HealthCheckState(BaseModel):
     """Current state of health check."""
+
     consecutive_failures: int
     consecutive_successes: int
 
 
 class ServiceHealthDetails(BaseModel):
     """Detailed health information for a specific service."""
+
     name: str
     status: str
     message: str
@@ -131,6 +144,7 @@ class ServiceHealthDetails(BaseModel):
 
 class CategoryHealthStatistics(BaseModel):
     """Statistics for a health category."""
+
     total: int
     healthy: int
     degraded: int
@@ -139,6 +153,7 @@ class CategoryHealthStatistics(BaseModel):
 
 class CategoryHealthResponse(BaseModel):
     """Health information for a specific category."""
+
     category: str
     status: str
     services: dict[str, CategoryServices] = Field(default_factory=dict)
@@ -147,6 +162,7 @@ class CategoryHealthResponse(BaseModel):
 
 class DependencyNode(BaseModel):
     """Service dependency graph node."""
+
     id: str
     label: str
     status: str
@@ -156,6 +172,7 @@ class DependencyNode(BaseModel):
 
 class DependencyEdge(BaseModel):
     """Service dependency graph edge."""
+
     from_service: str = Field(..., alias="from")
     to_service: str = Field(..., alias="to")
     critical: bool
@@ -165,12 +182,14 @@ class DependencyEdge(BaseModel):
 
 class DependencyGraph(BaseModel):
     """Service dependency graph structure."""
+
     nodes: list[DependencyNode]
     edges: list[DependencyEdge]
 
 
 class ServiceImpactAnalysis(BaseModel):
     """Impact analysis for an unhealthy service."""
+
     status: str
     affected_services: list[str]
     is_critical: bool
@@ -178,6 +197,7 @@ class ServiceImpactAnalysis(BaseModel):
 
 class ServiceDependenciesResponse(BaseModel):
     """Service dependencies and impact analysis."""
+
     dependency_graph: DependencyGraph
     impact_analysis: dict[str, ServiceImpactAnalysis]
     total_services: int
@@ -187,6 +207,7 @@ class ServiceDependenciesResponse(BaseModel):
 
 class HealthCheckTriggerResponse(BaseModel):
     """Response from manually triggered health check."""
+
     service: str
     status: str
     message: str
@@ -199,6 +220,7 @@ class HealthCheckTriggerResponse(BaseModel):
 
 class ServiceHistoryDataPoint(BaseModel):
     """Single data point in service history."""
+
     timestamp: datetime
     status: str
     duration_ms: float
@@ -207,6 +229,7 @@ class ServiceHistoryDataPoint(BaseModel):
 
 class ServiceHistorySummary(BaseModel):
     """Summary statistics for service history."""
+
     uptime_percentage: float
     total_checks: int
     healthy_checks: int
@@ -215,6 +238,7 @@ class ServiceHistorySummary(BaseModel):
 
 class ServiceHistoryResponse(BaseModel):
     """Historical health data for a service."""
+
     service_name: str
     time_range_hours: int
     data_points: list[ServiceHistoryDataPoint]
@@ -223,6 +247,7 @@ class ServiceHistoryResponse(BaseModel):
 
 class SystemMetrics(BaseModel):
     """System-level metrics for real-time status."""
+
     mongodb_connections: int
     mongodb_ops_per_sec: int
     kafka_total_lag: int
@@ -232,6 +257,7 @@ class SystemMetrics(BaseModel):
 
 class ServiceRealtimeStatus(BaseModel):
     """Real-time status for a single service."""
+
     status: str
     message: str
     duration_ms: float
@@ -241,6 +267,7 @@ class ServiceRealtimeStatus(BaseModel):
 
 class LastIncident(BaseModel):
     """Information about the last system incident."""
+
     time: datetime | None = None
     service: str | None = None
     duration_minutes: int | None = None
@@ -248,6 +275,7 @@ class LastIncident(BaseModel):
 
 class RealtimeStatusResponse(BaseModel):
     """Real-time health status with live metrics."""
+
     timestamp: datetime
     overall_status: str
     services: dict[str, ServiceRealtimeStatus]

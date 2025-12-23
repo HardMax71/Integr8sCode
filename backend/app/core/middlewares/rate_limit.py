@@ -15,7 +15,7 @@ from app.settings import Settings
 class RateLimitMiddleware:
     """
     Middleware for rate limiting API requests.
-    
+
     Features:
     - User-based limits for authenticated requests
     - IP-based limits for anonymous requests
@@ -24,16 +24,18 @@ class RateLimitMiddleware:
     """
 
     # Paths exempt from rate limiting
-    EXCLUDED_PATHS = frozenset({
-        "/health",
-        "/metrics",
-        "/docs",
-        "/openapi.json",
-        "/favicon.ico",
-        "/api/v1/auth/login",  # Auth endpoints handle their own limits
-        "/api/v1/auth/register",
-        "/api/v1/auth/logout"
-    })
+    EXCLUDED_PATHS = frozenset(
+        {
+            "/health",
+            "/metrics",
+            "/docs",
+            "/openapi.json",
+            "/favicon.ico",
+            "/api/v1/auth/login",  # Auth endpoints handle their own limits
+            "/api/v1/auth/register",
+            "/api/v1/auth/logout",
+        }
+    )
 
     def __init__(
         self,
@@ -51,9 +53,9 @@ class RateLimitMiddleware:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
-            
+
         path = scope["path"]
-        
+
         if not self.enabled or path in self.EXCLUDED_PATHS:
             await self.app(scope, receive, send)
             return
@@ -65,7 +67,7 @@ class RateLimitMiddleware:
                 container = asgi_app.state.dishka_container
                 async with container() as container_scope:
                     self.rate_limit_service = await container_scope.get(RateLimitService)
-            
+
             if self.rate_limit_service is None:
                 await self.app(scope, receive, send)
                 return
@@ -98,11 +100,7 @@ class RateLimitMiddleware:
             return str(user.user_id)
         return f"ip:{get_client_ip(request)}"
 
-    async def _check_rate_limit(
-            self,
-            user_id: str,
-            endpoint: str
-    ) -> RateLimitStatus:
+    async def _check_rate_limit(self, user_id: str, endpoint: str) -> RateLimitStatus:
         # At this point service should be available; if not, allow request
         if self.rate_limit_service is None:
             return RateLimitStatus(
@@ -112,17 +110,14 @@ class RateLimitMiddleware:
                 reset_at=datetime.now(timezone.utc),
             )
 
-        return await self.rate_limit_service.check_rate_limit(
-            user_id=user_id,
-            endpoint=endpoint
-        )
+        return await self.rate_limit_service.check_rate_limit(user_id=user_id, endpoint=endpoint)
 
     def _rate_limit_exceeded_response(self, status: RateLimitStatus) -> JSONResponse:
         headers = {
             "X-RateLimit-Limit": str(status.limit),
             "X-RateLimit-Remaining": "0",
             "X-RateLimit-Reset": str(int(status.reset_at.timestamp())),
-            "Retry-After": str(status.retry_after or 60)
+            "Retry-After": str(status.retry_after or 60),
         }
 
         return JSONResponse(
@@ -130,7 +125,7 @@ class RateLimitMiddleware:
             content={
                 "detail": "Rate limit exceeded",
                 "retry_after": status.retry_after,
-                "reset_at": status.reset_at.isoformat()
+                "reset_at": status.reset_at.isoformat(),
             },
-            headers=headers
+            headers=headers,
         )

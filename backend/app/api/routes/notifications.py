@@ -2,12 +2,11 @@ from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Query, Request, Response
 
+from app.domain.enums.notification import NotificationChannel, NotificationStatus
 from app.infrastructure.mappers import NotificationApiMapper
 from app.schemas_pydantic.notification import (
     DeleteNotificationResponse,
-    NotificationChannel,
     NotificationListResponse,
-    NotificationStatus,
     NotificationSubscription,
     SubscriptionsResponse,
     SubscriptionUpdate,
@@ -21,15 +20,15 @@ router = APIRouter(prefix="/notifications", tags=["notifications"], route_class=
 
 @router.get("", response_model=NotificationListResponse)
 async def get_notifications(
-        request: Request,
-        notification_service: FromDishka[NotificationService],
-        auth_service: FromDishka[AuthService],
-        status: NotificationStatus | None = Query(None),
-        include_tags: list[str] | None = Query(None, description="Only notifications with any of these tags"),
-        exclude_tags: list[str] | None = Query(None, description="Exclude notifications with any of these tags"),
-        tag_prefix: str | None = Query(None, description="Only notifications having a tag starting with this prefix"),
-        limit: int = Query(50, ge=1, le=100),
-        offset: int = Query(0, ge=0),
+    request: Request,
+    notification_service: FromDishka[NotificationService],
+    auth_service: FromDishka[AuthService],
+    status: NotificationStatus | None = Query(None),
+    include_tags: list[str] | None = Query(None, description="Only notifications with any of these tags"),
+    exclude_tags: list[str] | None = Query(None, description="Exclude notifications with any of these tags"),
+    tag_prefix: str | None = Query(None, description="Only notifications having a tag starting with this prefix"),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
 ) -> NotificationListResponse:
     current_user = await auth_service.get_current_user(request)
     result = await notification_service.list_notifications(
@@ -46,25 +45,20 @@ async def get_notifications(
 
 @router.put("/{notification_id}/read", status_code=204)
 async def mark_notification_read(
-        notification_id: str,
-        notification_service: FromDishka[NotificationService],
-        request: Request,
-        auth_service: FromDishka[AuthService]
+    notification_id: str,
+    notification_service: FromDishka[NotificationService],
+    request: Request,
+    auth_service: FromDishka[AuthService],
 ) -> Response:
     current_user = await auth_service.get_current_user(request)
-    _ = await notification_service.mark_as_read(
-        notification_id=notification_id,
-        user_id=current_user.user_id
-    )
+    _ = await notification_service.mark_as_read(notification_id=notification_id, user_id=current_user.user_id)
 
     return Response(status_code=204)
 
 
 @router.post("/mark-all-read", status_code=204)
 async def mark_all_read(
-        notification_service: FromDishka[NotificationService],
-        request: Request,
-        auth_service: FromDishka[AuthService]
+    notification_service: FromDishka[NotificationService], request: Request, auth_service: FromDishka[AuthService]
 ) -> Response:
     current_user = await auth_service.get_current_user(request)
     """Mark all notifications as read"""
@@ -74,9 +68,7 @@ async def mark_all_read(
 
 @router.get("/subscriptions", response_model=SubscriptionsResponse)
 async def get_subscriptions(
-        notification_service: FromDishka[NotificationService],
-        request: Request,
-        auth_service: FromDishka[AuthService]
+    notification_service: FromDishka[NotificationService], request: Request, auth_service: FromDishka[AuthService]
 ) -> SubscriptionsResponse:
     current_user = await auth_service.get_current_user(request)
     subscriptions_dict = await notification_service.get_subscriptions(current_user.user_id)
@@ -85,11 +77,11 @@ async def get_subscriptions(
 
 @router.put("/subscriptions/{channel}", response_model=NotificationSubscription)
 async def update_subscription(
-        channel: NotificationChannel,
-        subscription: SubscriptionUpdate,
-        notification_service: FromDishka[NotificationService],
-        request: Request,
-        auth_service: FromDishka[AuthService]
+    channel: NotificationChannel,
+    subscription: SubscriptionUpdate,
+    notification_service: FromDishka[NotificationService],
+    request: Request,
+    auth_service: FromDishka[AuthService],
 ) -> NotificationSubscription:
     current_user = await auth_service.get_current_user(request)
     updated_sub = await notification_service.update_subscription(
@@ -107,9 +99,7 @@ async def update_subscription(
 
 @router.get("/unread-count", response_model=UnreadCountResponse)
 async def get_unread_count(
-        notification_service: FromDishka[NotificationService],
-        request: Request,
-        auth_service: FromDishka[AuthService]
+    notification_service: FromDishka[NotificationService], request: Request, auth_service: FromDishka[AuthService]
 ) -> UnreadCountResponse:
     current_user = await auth_service.get_current_user(request)
     count = await notification_service.get_unread_count(current_user.user_id)
@@ -119,15 +109,12 @@ async def get_unread_count(
 
 @router.delete("/{notification_id}", response_model=DeleteNotificationResponse)
 async def delete_notification(
-        notification_id: str,
-        notification_service: FromDishka[NotificationService],
-        request: Request,
-        auth_service: FromDishka[AuthService]
+    notification_id: str,
+    notification_service: FromDishka[NotificationService],
+    request: Request,
+    auth_service: FromDishka[AuthService],
 ) -> DeleteNotificationResponse:
     current_user = await auth_service.get_current_user(request)
     """Delete a notification"""
-    _ = await notification_service.delete_notification(
-        user_id=current_user.user_id,
-        notification_id=notification_id
-    )
+    _ = await notification_service.delete_notification(user_id=current_user.user_id, notification_id=notification_id)
     return DeleteNotificationResponse(message="Notification deleted")

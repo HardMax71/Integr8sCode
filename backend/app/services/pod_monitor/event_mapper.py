@@ -30,6 +30,7 @@ type EventList = list[BaseEvent]
 @dataclass(frozen=True)
 class PodContext:
     """Immutable context for pod event processing"""
+
     pod: k8s_client.V1Pod
     execution_id: str
     metadata: EventMetadata
@@ -40,6 +41,7 @@ class PodContext:
 @dataclass(frozen=True)
 class PodLogs:
     """Parsed pod logs and execution results"""
+
     stdout: str = ""
     stderr: str = ""
     exit_code: int | None = None
@@ -96,17 +98,11 @@ class PodEventMapper:
 
         # Skip duplicate events
         if pod.metadata and self._is_duplicate(pod.metadata.name, phase):
-            logger.debug(
-                f"POD-EVENT: duplicate ignored name={pod.metadata.name} phase={phase}"
-            )
+            logger.debug(f"POD-EVENT: duplicate ignored name={pod.metadata.name} phase={phase}")
             return []
 
         ctx = PodContext(
-            pod=pod,
-            execution_id=execution_id,
-            metadata=self._create_metadata(pod),
-            phase=phase,
-            event_type=event_type
+            pod=pod, execution_id=execution_id, metadata=self._create_metadata(pod), phase=phase, event_type=event_type
         )
         logger.info(
             f"POD-EVENT: ctx execution_id={ctx.execution_id} phase={ctx.phase} "
@@ -133,27 +129,21 @@ class PodEventMapper:
             and pod.metadata
             and prior_phase == "Pending"
         ):
-            logger.debug(
-                f"POD-EVENT: skipping running map due to empty statuses after Pending exec={execution_id}"
-            )
+            logger.debug(f"POD-EVENT: skipping running map due to empty statuses after Pending exec={execution_id}")
             return events
 
         # Phase-based mappers
         for mapper in self._phase_mappers.get(phase, []):
             if event := mapper(ctx):
                 mapper_name = getattr(mapper, "__name__", repr(mapper))
-                logger.info(
-                    f"POD-EVENT: phase-map {mapper_name} -> {event.event_type} exec={ctx.execution_id}"
-                )
+                logger.info(f"POD-EVENT: phase-map {mapper_name} -> {event.event_type} exec={ctx.execution_id}")
                 events.append(event)
 
         # Event type mappers
         for mapper in self._event_type_mappers.get(event_type, []):
             if event := mapper(ctx):
                 mapper_name = getattr(mapper, "__name__", repr(mapper))
-                logger.info(
-                    f"POD-EVENT: type-map {mapper_name} -> {event.event_type} exec={ctx.execution_id}"
-                )
+                logger.info(f"POD-EVENT: type-map {mapper_name} -> {event.event_type} exec={ctx.execution_id}")
                 events.append(event)
 
         return events
@@ -165,25 +155,19 @@ class PodEventMapper:
 
         # Try labels first
         if pod.metadata.labels and (exec_id := pod.metadata.labels.get("execution-id")):
-            logger.debug(
-                f"POD-EVENT: extracted exec-id from label name={pod.metadata.name} exec_id={exec_id}"
-            )
+            logger.debug(f"POD-EVENT: extracted exec-id from label name={pod.metadata.name} exec_id={exec_id}")
             return str(exec_id)
-        
+
         # Try annotations
         if pod.metadata.annotations and (exec_id := pod.metadata.annotations.get("integr8s.io/execution-id")):
-            logger.debug(
-                f"POD-EVENT: extracted exec-id from annotation name={pod.metadata.name} exec_id={exec_id}"
-            )
+            logger.debug(f"POD-EVENT: extracted exec-id from annotation name={pod.metadata.name} exec_id={exec_id}")
             return str(exec_id)
-        
+
         # Try pod name pattern
         if pod.metadata.name and pod.metadata.name.startswith("exec-"):
-            logger.debug(
-                f"POD-EVENT: extracted exec-id from name pattern name={pod.metadata.name}"
-            )
+            logger.debug(f"POD-EVENT: extracted exec-id from name pattern name={pod.metadata.name}")
             return str(pod.metadata.name[5:])
-        
+
         return None
 
     def _create_metadata(self, pod: k8s_client.V1Pod) -> EventMetadata:
@@ -193,21 +177,15 @@ class PodEventMapper:
 
         # Try to get correlation_id from annotations first (full value),
         # then labels (potentially truncated)
-        correlation_id = (
-            annotations.get("integr8s.io/correlation-id") or
-            labels.get("correlation-id") or
-            ""
-        )
+        correlation_id = annotations.get("integr8s.io/correlation-id") or labels.get("correlation-id") or ""
 
         md = EventMetadata(
             user_id=labels.get("user-id"),
             service_name=GroupId.POD_MONITOR,
             service_version="1.0.0",
-            correlation_id=correlation_id
+            correlation_id=correlation_id,
         )
-        logger.info(
-            f"POD-EVENT: metadata user_id={md.user_id} corr={md.correlation_id} name={pod.metadata.name}"
-        )
+        logger.info(f"POD-EVENT: metadata user_id={md.user_id} corr={md.correlation_id} name={pod.metadata.name}")
         return md
 
     def _is_duplicate(self, pod_name: str, phase: PodPhase) -> bool:
@@ -225,9 +203,7 @@ class PodEventMapper:
 
         # Find PodScheduled condition
         scheduled_condition = next(
-            (c for c in ctx.pod.status.conditions
-             if c.type == "PodScheduled" and c.status == "True"),
-            None
+            (c for c in ctx.pod.status.conditions if c.type == "PodScheduled" and c.status == "True"), None
         )
 
         if not scheduled_condition:
@@ -237,7 +213,7 @@ class PodEventMapper:
             execution_id=ctx.execution_id,
             pod_name=ctx.pod.metadata.name,
             node_name=ctx.pod.spec.node_name or "pending",
-            metadata=ctx.metadata
+            metadata=ctx.metadata,
         )
         logger.debug(f"POD-EVENT: mapped scheduled -> {evt.event_type} exec={ctx.execution_id}")
         return evt
@@ -253,7 +229,7 @@ class PodEventMapper:
                 "name": status.name,
                 "ready": str(status.ready),
                 "restart_count": str(status.restart_count),
-                "state": self._format_container_state(status.state)
+                "state": self._format_container_state(status.state),
             }
             for status in (ctx.pod.status.container_statuses or [])
         ]
@@ -262,7 +238,7 @@ class PodEventMapper:
             execution_id=ctx.execution_id,
             pod_name=ctx.pod.metadata.name,
             container_statuses=json.dumps(container_statuses),  # Serialize as JSON string
-            metadata=ctx.metadata
+            metadata=ctx.metadata,
         )
         logger.debug(f"POD-EVENT: mapped running -> {evt.event_type} exec={ctx.execution_id}")
         return evt
@@ -283,11 +259,9 @@ class PodEventMapper:
             stdout=logs.stdout,
             stderr=logs.stderr,
             resource_usage=logs.resource_usage or ResourceUsageDomain.from_dict({}),
-            metadata=ctx.metadata
+            metadata=ctx.metadata,
         )
-        logger.info(
-            f"POD-EVENT: mapped completed exec={ctx.execution_id} exit_code={exit_code}"
-        )
+        logger.info(f"POD-EVENT: mapped completed exec={ctx.execution_id} exit_code={exit_code}")
         return evt
 
     def _map_failed_or_completed(self, ctx: PodContext) -> BaseEvent | None:
@@ -308,8 +282,11 @@ class PodEventMapper:
         # If no stderr from logs but we have an error message, use it as stderr
         stderr = logs.stderr if logs.stderr else error_info.message
         # Ensure exit_code is populated (fallback to logs or generic non-zero)
-        exit_code = error_info.exit_code if error_info.exit_code is not None \
+        exit_code = (
+            error_info.exit_code
+            if error_info.exit_code is not None
             else (logs.exit_code if logs.exit_code is not None else 1)
+        )
 
         evt = ExecutionFailedEvent(
             execution_id=ctx.execution_id,
@@ -320,7 +297,7 @@ class PodEventMapper:
             stderr=stderr,
             error_message=stderr,
             resource_usage=logs.resource_usage or ResourceUsageDomain.from_dict({}),
-            metadata=ctx.metadata
+            metadata=ctx.metadata,
         )
         logger.info(
             f"POD-EVENT: mapped failed exec={ctx.execution_id} error_type={error_info.error_type} "
@@ -341,7 +318,7 @@ class PodEventMapper:
             exit_code=terminated.exit_code,
             reason=terminated.reason or "Terminated",
             message=getattr(terminated, "message", None),
-            metadata=ctx.metadata
+            metadata=ctx.metadata,
         )
         logger.info(
             f"POD-EVENT: mapped terminated exec={ctx.execution_id} reason={terminated.reason} "
@@ -361,11 +338,9 @@ class PodEventMapper:
             stdout=logs.stdout,
             stderr=logs.stderr,
             resource_usage=logs.resource_usage or ResourceUsageDomain.from_dict({}),
-            metadata=ctx.metadata
+            metadata=ctx.metadata,
         )
-        logger.info(
-            f"POD-EVENT: mapped timeout exec={ctx.execution_id} adl={ctx.pod.spec.active_deadline_seconds}"
-        )
+        logger.info(f"POD-EVENT: mapped timeout exec={ctx.execution_id} adl={ctx.pod.spec.active_deadline_seconds}")
         return evt
 
     def _get_main_container(self, pod: k8s_client.V1Pod) -> k8s_client.V1ContainerStatus | None:
@@ -380,9 +355,7 @@ class PodEventMapper:
             return False
 
         return all(
-            status.state and
-            status.state.terminated and
-            status.state.terminated.exit_code == 0
+            status.state and status.state.terminated and status.state.terminated.exit_code == 0
             for status in pod.status.container_statuses
         )
 
@@ -403,6 +376,7 @@ class PodEventMapper:
     @dataclass
     class FailureInfo:
         """Pod failure analysis result"""
+
         message: str
         error_type: ExecutionErrorType
         exit_code: int | None = None
@@ -412,7 +386,7 @@ class PodEventMapper:
         # Default failure info
         default = self.FailureInfo(
             message=(pod.status.message if pod.status else None) or "Pod failed",
-            error_type=ExecutionErrorType.SYSTEM_ERROR
+            error_type=ExecutionErrorType.SYSTEM_ERROR,
         )
 
         if not pod.status:
@@ -421,12 +395,11 @@ class PodEventMapper:
         # Check for resource limits
         if pod.status.reason == "Evicted":
             return self.FailureInfo(
-                message="Pod evicted due to resource constraints",
-                error_type=ExecutionErrorType.RESOURCE_LIMIT
+                message="Pod evicted due to resource constraints", error_type=ExecutionErrorType.RESOURCE_LIMIT
             )
 
         # Check container statuses
-        for status in (pod.status.container_statuses or []):
+        for status in pod.status.container_statuses or []:
             # Terminated container
             if status.state and status.state.terminated:
                 terminated = status.state.terminated
@@ -437,7 +410,7 @@ class PodEventMapper:
                     return self.FailureInfo(
                         message=term_msg or status_msg or f"Container exited with code {terminated.exit_code}",
                         error_type=ExecutionErrorType.SCRIPT_ERROR,
-                        exit_code=terminated.exit_code
+                        exit_code=terminated.exit_code,
                     )
 
             # Waiting container
@@ -451,15 +424,13 @@ class PodEventMapper:
 
                 if error_type := error_type_map.get(waiting.reason):
                     return self.FailureInfo(
-                        message=waiting.message or f"Container waiting: {waiting.reason}",
-                        error_type=error_type
+                        message=waiting.message or f"Container waiting: {waiting.reason}", error_type=error_type
                     )
 
         # Check for OOM
         if "OOMKilled" in (pod.status.message or ""):
             return self.FailureInfo(
-                message="Container killed due to out of memory",
-                error_type=ExecutionErrorType.RESOURCE_LIMIT
+                message="Container killed due to out of memory", error_type=ExecutionErrorType.RESOURCE_LIMIT
             )
 
         return default
@@ -472,8 +443,7 @@ class PodEventMapper:
 
         # Check if any container terminated
         has_terminated = any(
-            status.state and status.state.terminated
-            for status in (pod.status.container_statuses if pod.status else [])
+            status.state and status.state.terminated for status in (pod.status.container_statuses if pod.status else [])
         )
 
         if not has_terminated:
@@ -482,14 +452,12 @@ class PodEventMapper:
 
         try:
             logs = self._k8s_api.read_namespaced_pod_log(
-                name=pod.metadata.name,
-                namespace=pod.metadata.namespace or "integr8scode",
-                tail_lines=10000
+                name=pod.metadata.name, namespace=pod.metadata.namespace or "integr8scode", tail_lines=10000
             )
-            
+
             if not logs:
                 return PodLogs()
-            
+
             # Try to parse executor JSON
             return self._parse_executor_output(logs)
 
@@ -506,7 +474,7 @@ class PodEventMapper:
             return result
 
         # Try line by line
-        for line in logs_stripped.split('\n'):
+        for line in logs_stripped.split("\n"):
             if result := self._try_parse_json(line.strip()):
                 return result
 
@@ -516,7 +484,7 @@ class PodEventMapper:
 
     def _try_parse_json(self, text: str) -> PodLogs | None:
         """Try to parse text as executor JSON output"""
-        if not (text.startswith('{') and text.endswith('}')):
+        if not (text.startswith("{") and text.endswith("}")):
             return None
 
         data = ast.literal_eval(text)
@@ -524,7 +492,7 @@ class PodEventMapper:
             stdout=data.get("stdout", ""),
             stderr=data.get("stderr", ""),
             exit_code=data.get("exit_code", 0),
-            resource_usage=ResourceUsageDomain.from_dict(data.get("resource_usage", {}))
+            resource_usage=ResourceUsageDomain.from_dict(data.get("resource_usage", {})),
         )
 
     def _log_extraction_error(self, pod_name: str, error: str) -> None:
@@ -537,7 +505,6 @@ class PodEventMapper:
             logger.debug(f"Pod {pod_name} logs not available - container may still be creating")
         else:
             logger.warning(f"Failed to extract logs from pod {pod_name}: {error}")
-
 
     def clear_cache(self) -> None:
         """Clear event cache"""

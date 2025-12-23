@@ -2,15 +2,14 @@ from typing import Dict
 from uuid import uuid4
 
 import pytest
-from httpx import AsyncClient
-
 from app.schemas_pydantic.admin_settings import (
-    SystemSettings,
     ExecutionLimitsSchema,
+    MonitoringSettingsSchema,
     SecuritySettingsSchema,
-    MonitoringSettingsSchema
+    SystemSettings,
 )
 from app.schemas_pydantic.admin_user_overview import AdminUserOverview
+from httpx import AsyncClient
 
 
 @pytest.mark.integration
@@ -334,8 +333,7 @@ class TestAdminEvents:
 
         # CSV export
         r_csv = await client.get("/api/v1/admin/events/export/csv?limit=10")
-        if r_csv.status_code != 200:
-            pytest.skip("CSV export not available in this environment")
+        assert r_csv.status_code == 200, f"CSV export failed: {r_csv.status_code} - {r_csv.text[:200]}"
         ct_csv = r_csv.headers.get("content-type", "")
         assert "text/csv" in ct_csv
         body_csv = r_csv.text
@@ -344,8 +342,7 @@ class TestAdminEvents:
 
         # JSON export
         r_json = await client.get("/api/v1/admin/events/export/json?limit=10")
-        if r_json.status_code != 200:
-            pytest.skip("JSON export not available in this environment")
+        assert r_json.status_code == 200, f"JSON export failed: {r_json.status_code} - {r_json.text[:200]}"
         ct_json = r_json.headers.get("content-type", "")
         assert "application/json" in ct_json
         data = r_json.json()
@@ -401,7 +398,7 @@ class TestAdminEvents:
         rl_put = await client.put(f"/api/v1/admin/users/{target_user_id}/rate-limits", json=update_payload)
         assert rl_put.status_code == 200
         put_body = rl_put.json()
-        assert put_body.get("message")
+        assert put_body.get("updated") is True
         assert put_body.get("config", {}).get("user_id") == target_user_id
 
         # Reset rate limits

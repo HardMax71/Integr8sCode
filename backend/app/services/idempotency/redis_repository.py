@@ -59,7 +59,7 @@ class RedisIdempotencyRepository:
             event_id=str(doc.get("event_id", "")),
             created_at=created_at,  # type: ignore[arg-type]
             ttl_seconds=int(doc.get("ttl_seconds", 0) or 0),
-            completed_at=completed_at,  # type: ignore[arg-type]
+            completed_at=completed_at,
             processing_duration_ms=doc.get("processing_duration_ms"),
             error=doc.get("error"),
             result_json=doc.get("result"),
@@ -138,4 +138,4 @@ class RedisIdempotencyRepository:
         return counts
 
     async def health_check(self) -> None:
-        await self._r.execute_command("PING")
+        await self._r.execute_command("PING")  # type: ignore[no-untyped-call]

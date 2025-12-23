@@ -27,14 +27,14 @@ from app.services.replay_service import ReplayService
 
 class AdminReplayResult:
     def __init__(
-            self,
-            *,
-            dry_run: bool,
-            total_events: int,
-            replay_correlation_id: str,
-            status: str,
-            session_id: str | None = None,
-            events_preview: List[Dict[str, Any]] | None = None,
+        self,
+        *,
+        dry_run: bool,
+        total_events: int,
+        replay_correlation_id: str,
+        status: str,
+        session_id: str | None = None,
+        events_preview: List[Dict[str, Any]] | None = None,
     ) -> None:
         self.dry_run = dry_run
         self.total_events = total_events
@@ -46,7 +46,7 @@ class AdminReplayResult:
 
 @dataclass
 class ExportResult:
-    filename: str
+    file_name: str  # not 'filename' - conflicts with LogRecord reserved attribute
     content: str
     media_type: str
 
@@ -57,13 +57,13 @@ class AdminEventsService:
         self._replay_service = replay_service
 
     async def browse_events(
-            self,
-            *,
-            filter: EventFilter,
-            skip: int,
-            limit: int,
-            sort_by: str,
-            sort_order: int,
+        self,
+        *,
+        filter: EventFilter,
+        skip: int,
+        limit: int,
+        sort_by: str,
+        sort_order: int,
     ) -> EventBrowseResult:
         return await self._repo.browse_events(
             filter=filter, skip=skip, limit=limit, sort_by=sort_by, sort_order=sort_order
@@ -76,22 +76,25 @@ class AdminEventsService:
         return await self._repo.get_event_stats(hours=hours)
 
     async def prepare_or_schedule_replay(
-            self,
-            *,
-            replay_query: ReplayQuery,
-            dry_run: bool,
-            replay_correlation_id: str,
-            target_service: str | None,
+        self,
+        *,
+        replay_query: ReplayQuery,
+        dry_run: bool,
+        replay_correlation_id: str,
+        target_service: str | None,
     ) -> AdminReplayResult:
         query = self._repo.build_replay_query(replay_query)
         if not query:
             raise ValueError("Must specify at least one filter for replay")
 
         # Prepare and optionally preview
-        logger.info("Preparing replay session", extra={
-            "dry_run": dry_run,
-            "replay_correlation_id": replay_correlation_id,
-        })
+        logger.info(
+            "Preparing replay session",
+            extra={
+                "dry_run": dry_run,
+                "replay_correlation_id": replay_correlation_id,
+            },
+        )
         session_data = await self._repo.prepare_replay_session(
             query=query,
             dry_run=dry_run,
@@ -117,10 +120,13 @@ class AdminEventsService:
                 status="Preview",
                 events_preview=previews,
             )
-            logger.info("Replay dry-run prepared", extra={
-                "total_events": result.total_events,
-                "replay_correlation_id": result.replay_correlation_id,
-            })
+            logger.info(
+                "Replay dry-run prepared",
+                extra={
+                    "total_events": result.total_events,
+                    "replay_correlation_id": result.replay_correlation_id,
+                },
+            )
             return result
 
         # Build config for actual replay and create session via replay service
@@ -157,11 +163,14 @@ class AdminEventsService:
             session_id=session_id,
             status="Replay scheduled",
         )
-        logger.info("Replay scheduled", extra={
-            "session_id": result.session_id,
-            "total_events": result.total_events,
-            "replay_correlation_id": result.replay_correlation_id,
-        })
+        logger.info(
+            "Replay scheduled",
+            extra={
+                "session_id": result.session_id,
+                "total_events": result.total_events,
+                "replay_correlation_id": result.replay_correlation_id,
+            },
+        )
         return result
 
     async def start_replay_session(self, session_id: str) -> None:
@@ -178,26 +187,37 @@ class AdminEventsService:
     async def export_events_csv_content(self, *, filter: EventFilter, limit: int) -> ExportResult:
         rows = await self._repo.export_events_csv(filter)
         output = StringIO()
-        writer = csv.DictWriter(output, fieldnames=[
-            "Event ID", "Event Type", "Timestamp", "Correlation ID",
-            "Aggregate ID", "User ID", "Service", "Status", "Error",
-        ])
+        writer = csv.DictWriter(
+            output,
+            fieldnames=[
+                "Event ID",
+                "Event Type",
+                "Timestamp",
+                "Correlation ID",
+                "Aggregate ID",
+                "User ID",
+                "Service",
+                "Status",
+                "Error",
+            ],
+        )
         writer.writeheader()
         row_mapper = EventExportRowMapper()
         for row in rows[:limit]:
             writer.writerow(row_mapper.to_dict(row))
         output.seek(0)
         filename = f"events_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
-        logger.info("Exported events CSV", extra={
-            "row_count": len(rows),
-            "filename": filename,
-        })
-        return ExportResult(filename=filename, content=output.getvalue(), media_type="text/csv")
+        logger.info(
+            "Exported events CSV",
+            extra={
+                "row_count": len(rows),
+                "file_name": filename,
+            },
+        )
+        return ExportResult(file_name=filename, content=output.getvalue(), media_type="text/csv")
 
     async def export_events_json_content(self, *, filter: EventFilter, limit: int) -> ExportResult:
-        result = await self._repo.browse_events(
-            filter=filter, skip=0, limit=limit, sort_by="timestamp", sort_order=-1
-        )
+        result = await self._repo.browse_events(filter=filter, skip=0, limit=limit, sort_by="timestamp", sort_order=-1)
         event_mapper = EventMapper()
         events_data: list[dict[str, Any]] = []
         for event in result.events:
@@ -226,11 +246,14 @@ class AdminEventsService:
         }
         json_content = json.dumps(export_data, indent=2, default=str)
         filename = f"events_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"
-        logger.info("Exported events JSON", extra={
-            "event_count": len(events_data),
-            "filename": filename,
-        })
-        return ExportResult(filename=filename, content=json_content, media_type="application/json")
+        logger.info(
+            "Exported events JSON",
+            extra={
+                "event_count": len(events_data),
+                "file_name": filename,
+            },
+        )
+        return ExportResult(file_name=filename, content=json_content, media_type="application/json")
 
     async def delete_event(self, *, event_id: str, deleted_by: str) -> bool:
         # Load event for archival; archive then delete
@@ -241,10 +264,13 @@ class AdminEventsService:
         await self._repo.archive_event(detail.event, deleted_by)
         deleted = await self._repo.delete_event(event_id)
         if deleted:
-            logger.info("Event deleted", extra={
-                "event_id": event_id,
-                "event_type": detail.event.event_type,
-                "correlation_id": detail.event.correlation_id,
-                "deleted_by": deleted_by,
-            })
+            logger.info(
+                "Event deleted",
+                extra={
+                    "event_id": event_id,
+                    "event_type": detail.event.event_type,
+                    "correlation_id": detail.event.correlation_id,
+                    "deleted_by": deleted_by,
+                },
+            )
         return deleted

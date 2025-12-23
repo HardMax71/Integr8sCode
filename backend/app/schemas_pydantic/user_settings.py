@@ -10,6 +10,7 @@ from app.domain.enums.notification import NotificationChannel
 
 class NotificationSettings(BaseModel):
     """User notification preferences"""
+
     execution_completed: bool = True
     execution_failed: bool = True
     system_updates: bool = True
@@ -19,6 +20,7 @@ class NotificationSettings(BaseModel):
 
 class EditorSettings(BaseModel):
     """Code editor preferences"""
+
     theme: str = "one-dark"
     font_size: int = 14
     tab_size: int = 4
@@ -31,14 +33,14 @@ class EditorSettings(BaseModel):
     bracket_matching: bool = True
     highlight_active_line: bool = True
     default_language: str = "python"
-    
+
     @field_validator("font_size")
     @classmethod
     def validate_font_size(cls, v: int) -> int:
         if v < 8 or v > 32:
             raise ValueError("Font size must be between 8 and 32")
         return v
-    
+
     @field_validator("tab_size")
     @classmethod
     def validate_tab_size(cls, v: int) -> int:
@@ -49,6 +51,7 @@ class EditorSettings(BaseModel):
 
 class UserSettings(BaseModel):
     """Complete user settings model"""
+
     user_id: str
     theme: Theme = Theme.AUTO
     timezone: str = "UTC"
@@ -64,6 +67,7 @@ class UserSettings(BaseModel):
 
 class UserSettingsUpdate(BaseModel):
     """Partial update model for user settings"""
+
     theme: Theme | None = None
     timezone: str | None = None
     date_format: str | None = None
@@ -75,6 +79,7 @@ class UserSettingsUpdate(BaseModel):
 
 class SettingChange(BaseModel):
     """Represents a single setting change for event sourcing"""
+
     field_path: str  # e.g., "theme", "editor.font_size", "notifications.channels"
     old_value: Any
     new_value: Any
@@ -84,11 +89,13 @@ class SettingChange(BaseModel):
 
 class ThemeUpdateRequest(BaseModel):
     """Request model for theme update"""
+
     theme: Theme
 
 
 class SettingsHistoryEntry(BaseModel):
     """Single entry in settings history"""
+
     timestamp: datetime
     event_type: str
     field: str
@@ -100,18 +107,21 @@ class SettingsHistoryEntry(BaseModel):
 
 class SettingsHistoryResponse(BaseModel):
     """Response model for settings history"""
+
     history: List[SettingsHistoryEntry]
     total: int
 
 
 class RestoreSettingsRequest(BaseModel):
     """Request model for restoring settings"""
+
     timestamp: datetime
     reason: str | None = None
 
 
 class SettingsEvent(BaseModel):
     """Minimal event model for user settings service consumption."""
+
     event_type: str | EventType
     timestamp: datetime
     payload: Dict[str, Any]

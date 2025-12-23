@@ -35,9 +35,7 @@ class AuthService:
     async def get_admin(self, request: Request) -> UserResponse:
         user = await self.get_current_user(request)
         if user.role != UserRole.ADMIN:
-            logger.warning(
-                f"Admin access denied for user: {user.username} (role: {user.role})"
-            )
+            logger.warning(f"Admin access denied for user: {user.username} (role: {user.role})")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Admin access required",

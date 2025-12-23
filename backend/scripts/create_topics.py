@@ -19,10 +19,12 @@ async def create_topics() -> None:
     settings = get_settings()
 
     # Create admin client
-    admin_client = AdminClient({
-        'bootstrap.servers': settings.KAFKA_BOOTSTRAP_SERVERS,
-        'client.id': 'topic-creator',
-    })
+    admin_client = AdminClient(
+        {
+            "bootstrap.servers": settings.KAFKA_BOOTSTRAP_SERVERS,
+            "client.id": "topic-creator",
+        }
+    )
 
     try:
         logger.info(f"Connected to Kafka brokers: {settings.KAFKA_BOOTSTRAP_SERVERS}")
@@ -46,20 +48,23 @@ async def create_topics() -> None:
             topic_name = f"{topic_prefix}{topic.value}"
             if topic_name not in existing_topics:
                 # Get config from topic_configs
-                config = topic_configs.get(topic, {
-                    "num_partitions": 3,
-                    "replication_factor": 1,
-                    "config": {
-                        "retention.ms": "604800000",  # 7 days
-                        "compression.type": "gzip",
-                    }
-                })
+                config = topic_configs.get(
+                    topic,
+                    {
+                        "num_partitions": 3,
+                        "replication_factor": 1,
+                        "config": {
+                            "retention.ms": "604800000",  # 7 days
+                            "compression.type": "gzip",
+                        },
+                    },
+                )
 
                 new_topic = NewTopic(
                     topic=topic_name,
                     num_partitions=config.get("num_partitions", 3),
                     replication_factor=config.get("replication_factor", 1),
-                    config=config.get("config", {})
+                    config=config.get("config", {}),
                 )
                 topics_to_create.append(new_topic)
                 logger.info(f"Will create topic: {topic_name}")

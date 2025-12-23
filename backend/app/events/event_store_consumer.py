@@ -18,14 +18,14 @@ class EventStoreConsumer(LifecycleEnabled):
     """Consumes events from Kafka and stores them in MongoDB."""
 
     def __init__(
-            self,
-            event_store: EventStore,
-            topics: list[KafkaTopic],
-            schema_registry_manager: SchemaRegistryManager,
-            producer: UnifiedProducer | None = None,
-            group_id: GroupId = GroupId.EVENT_STORE_CONSUMER,
-            batch_size: int = 100,
-            batch_timeout_seconds: float = 5.0,
+        self,
+        event_store: EventStore,
+        topics: list[KafkaTopic],
+        schema_registry_manager: SchemaRegistryManager,
+        producer: UnifiedProducer | None = None,
+        group_id: GroupId = GroupId.EVENT_STORE_CONSUMER,
+        batch_size: int = 100,
+        batch_timeout_seconds: float = 5.0,
     ):
         self.event_store = event_store
         self.topics = topics
@@ -39,7 +39,7 @@ class EventStoreConsumer(LifecycleEnabled):
         self._batch_buffer: list[BaseEvent] = []
         self._batch_lock = asyncio.Lock()
         self._last_batch_time = asyncio.get_event_loop().time()
-        self._batch_task: asyncio.Task | None = None
+        self._batch_task: asyncio.Task[None] | None = None
         self._running = False
 
     async def start(self) -> None:
@@ -52,13 +52,10 @@ class EventStoreConsumer(LifecycleEnabled):
             bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
             group_id=f"{self.group_id}.{settings.KAFKA_GROUP_SUFFIX}",
             enable_auto_commit=False,
-            max_poll_records=self.batch_size
+            max_poll_records=self.batch_size,
         )
 
-        self.consumer = UnifiedConsumer(
-            config,
-            event_dispatcher=self.dispatcher
-        )
+        self.consumer = UnifiedConsumer(config, event_dispatcher=self.dispatcher)
 
         # Register handler for all event types - store everything
         for event_type in EventType:
@@ -70,7 +67,7 @@ class EventStoreConsumer(LifecycleEnabled):
             dlq_handler = create_dlq_error_handler(
                 producer=self.producer,
                 original_topic="event-store",  # Generic topic name for event store
-                max_retries=3
+                max_retries=3,
             )
             self.consumer.register_error_callback(dlq_handler)
         else:
@@ -117,10 +114,7 @@ class EventStoreConsumer(LifecycleEnabled):
 
     async def _handle_error_with_event(self, error: Exception, event: BaseEvent) -> None:
         """Handle processing errors with event context."""
-        logger.error(
-            f"Error processing event {event.event_id} ({event.event_type}): {error}",
-            exc_info=True
-        )
+        logger.error(f"Error processing event {event.event_id} ({event.event_type}): {error}", exc_info=True)
 
     async def _batch_processor(self) -> None:
         """Periodically flush batches based on timeout."""
@@ -131,8 +125,7 @@ class EventStoreConsumer(LifecycleEnabled):
                 async with self._batch_lock:
                     time_since_last_batch = asyncio.get_event_loop().time() - self._last_batch_time
 
-                    if (self._batch_buffer and
-                            time_since_last_batch >= self.batch_timeout):
+                    if self._batch_buffer and time_since_last_batch >= self.batch_timeout:
                         await self._flush_batch()
 
             except Exception as e:
@@ -162,13 +155,13 @@ class EventStoreConsumer(LifecycleEnabled):
 
 
 def create_event_store_consumer(
-        event_store: EventStore,
-        topics: list[KafkaTopic],
-        schema_registry_manager: SchemaRegistryManager,
-        producer: UnifiedProducer | None = None,
-        group_id: GroupId = GroupId.EVENT_STORE_CONSUMER,
-        batch_size: int = 100,
-        batch_timeout_seconds: float = 5.0,
+    event_store: EventStore,
+    topics: list[KafkaTopic],
+    schema_registry_manager: SchemaRegistryManager,
+    producer: UnifiedProducer | None = None,
+    group_id: GroupId = GroupId.EVENT_STORE_CONSUMER,
+    batch_size: int = 100,
+    batch_timeout_seconds: float = 5.0,
 ) -> EventStoreConsumer:
     return EventStoreConsumer(
         event_store=event_store,
@@ -177,5 +170,5 @@ def create_event_store_consumer(
         batch_size=batch_size,
         batch_timeout_seconds=batch_timeout_seconds,
         schema_registry_manager=schema_registry_manager,
-        producer=producer
+        producer=producer,
     )

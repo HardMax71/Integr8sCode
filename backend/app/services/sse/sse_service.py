@@ -17,7 +17,6 @@ from app.settings import Settings
 
 
 class SSEService:
-    
     # Only result_stored should terminate the stream; other terminal-ish
     # execution events precede the final persisted result and must not close
     # the connection prematurely.
@@ -44,30 +43,28 @@ class SSEService:
         self.metrics = get_connection_metrics()
         self.heartbeat_interval = getattr(settings, "SSE_HEARTBEAT_INTERVAL", 30)
 
-    async def create_execution_stream(
-        self,
-        execution_id: str,
-        user_id: str
-    ) -> AsyncGenerator[Dict[str, Any], None]:
+    async def create_execution_stream(self, execution_id: str, user_id: str) -> AsyncGenerator[Dict[str, Any], None]:
         connection_id = f"sse_{execution_id}_{datetime.now(timezone.utc).timestamp()}"
-        
+
         shutdown_event = await self.shutdown_manager.register_connection(execution_id, connection_id)
         if shutdown_event is None:
-            yield self._format_event("error", {
-                "error": "Server is shutting down",
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            })
+            yield self._format_event(
+                "error", {"error": "Server is shutting down", "timestamp": datetime.now(timezone.utc).isoformat()}
+            )
             return
 
         subscription = None
         try:
             # Start opening subscription concurrently, then yield handshake
             sub_task = asyncio.create_task(self.sse_bus.open_subscription(execution_id))
-            yield self._format_event("connected", {
-                "execution_id": execution_id,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "connection_id": connection_id
-            })
+            yield self._format_event(
+                "connected",
+                {
+                    "execution_id": execution_id,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "connection_id": connection_id,
+                },
+            )
 
             # Complete Redis subscription after handshake
             logger.info(f"Opening Redis subscription for execution {execution_id}")
@@ -91,7 +88,7 @@ class SSEService:
                 include_heartbeat=False,
             ):
                 yield event_data
-                
+
         finally:
             if subscription is not None:
                 await subscription.close()
@@ -108,20 +105,22 @@ class SSEService:
         last_heartbeat = datetime.now(timezone.utc)
         while True:
             if shutdown_event.is_set():
-                yield self._format_event("shutdown", {
-                    "message": "Server is shutting down",
-                    "grace_period": 30,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                })
+                yield self._format_event(
+                    "shutdown",
+                    {
+                        "message": "Server is shutting down",
+                        "grace_period": 30,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    },
+                )
                 break
 
             now = datetime.now(timezone.utc)
             if include_heartbeat and (now - last_heartbeat).total_seconds() >= self.heartbeat_interval:
-                yield self._format_event("heartbeat", {
-                    "execution_id": execution_id,
-                    "timestamp": now.isoformat(),
-                    "message": "SSE connection active"
-                })
+                yield self._format_event(
+                    "heartbeat",
+                    {"execution_id": execution_id, "timestamp": now.isoformat(), "message": "SSE connection active"},
+                )
                 last_heartbeat = now
 
             msg = await subscription.get(timeout=0.5)
@@ -184,20 +183,20 @@ class SSEService:
                 # Ignore malformed messages
                 continue
 
-    async def create_notification_stream(
-        self,
-        user_id: str
-    ) -> AsyncGenerator[Dict[str, Any], None]:
+    async def create_notification_stream(self, user_id: str) -> AsyncGenerator[Dict[str, Any], None]:
         subscription = None
 
         try:
             # Start opening subscription concurrently, then yield handshake
             sub_task = asyncio.create_task(self.sse_bus.open_notification_subscription(user_id))
-            yield self._format_event("connected", {
-                "message": "Connected to notification stream",
-                "user_id": user_id,
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            })
+            yield self._format_event(
+                "connected",
+                {
+                    "message": "Connected to notification stream",
+                    "user_id": user_id,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                },
+            )
 
             # Complete Redis subscription after handshake
             subscription = await sub_task
@@ -207,11 +206,10 @@ class SSEService:
                 # Heartbeat
                 now = datetime.now(timezone.utc)
                 if (now - last_heartbeat).total_seconds() >= self.heartbeat_interval:
-                    yield self._format_event("heartbeat", {
-                        "timestamp": now.isoformat(),
-                        "user_id": user_id,
-                        "message": "Notification stream active"
-                    })
+                    yield self._format_event(
+                        "heartbeat",
+                        {"timestamp": now.isoformat(), "user_id": user_id, "message": "Notification stream active"},
+                    )
                     last_heartbeat = now
 
                 # Forward notification messages as SSE data
@@ -236,7 +234,7 @@ class SSEService:
             active_consumers=router_stats["num_consumers"],
             max_connections_per_user=5,
             shutdown=self.shutdown_manager.get_shutdown_status(),
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(timezone.utc),
         )
 
     async def _event_to_sse_format(self, event: BaseEvent, execution_id: str) -> Dict[str, Any]:

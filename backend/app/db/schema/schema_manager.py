@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Awaitable, Callable, Iterable
+from typing import Any, Awaitable, Callable, Iterable
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo import ASCENDING, DESCENDING, IndexModel
 
+from app.core.database_context import Database
 from app.core.logging import logger
 from app.domain.events.event_models import EventFields
 
@@ -13,7 +13,7 @@ from app.domain.events.event_models import EventFields
 class SchemaManager:
     """Applies idempotent, versioned MongoDB migrations per database."""
 
-    def __init__(self, database: AsyncIOMotorDatabase) -> None:
+    def __init__(self, database: Database) -> None:
         self.db = database
         self._versions = self.db["schema_versions"]
 
@@ -44,8 +44,11 @@ class SchemaManager:
             ("0006_saga_indexes", "Create saga indexes", self._m_0006_sagas),
             ("0007_execution_results_indexes", "Create execution results indexes", self._m_0007_execution_results),
             ("0008_dlq_indexes", "Create DLQ indexes", self._m_0008_dlq),
-            ("0009_event_store_extra_indexes", "Additional events indexes for event_store",
-             self._m_0009_event_store_extra),
+            (
+                "0009_event_store_extra_indexes",
+                "Additional events indexes for event_store",
+                self._m_0009_event_store_extra,
+            ),
         ]
 
         for mig_id, desc, func in migrations:
@@ -62,17 +65,22 @@ class SchemaManager:
         # Create named, idempotent indexes
         indexes: Iterable[IndexModel] = [
             IndexModel([(EventFields.EVENT_ID, ASCENDING)], name="idx_event_id_unique", unique=True),
-            IndexModel([(EventFields.EVENT_TYPE, ASCENDING), (EventFields.TIMESTAMP, DESCENDING)],
-                      name="idx_event_type_ts"),
-            IndexModel([(EventFields.AGGREGATE_ID, ASCENDING), (EventFields.TIMESTAMP, DESCENDING)],
-                      name="idx_aggregate_ts"),
+            IndexModel(
+                [(EventFields.EVENT_TYPE, ASCENDING), (EventFields.TIMESTAMP, DESCENDING)], name="idx_event_type_ts"
+            ),
+            IndexModel(
+                [(EventFields.AGGREGATE_ID, ASCENDING), (EventFields.TIMESTAMP, DESCENDING)], name="idx_aggregate_ts"
+            ),
             IndexModel([(EventFields.METADATA_CORRELATION_ID, ASCENDING)], name="idx_meta_correlation"),
-            IndexModel([(EventFields.METADATA_USER_ID, ASCENDING), (EventFields.TIMESTAMP, DESCENDING)],
-                      name="idx_meta_user_ts"),
-            IndexModel([(EventFields.METADATA_SERVICE_NAME, ASCENDING), (EventFields.TIMESTAMP, DESCENDING)],
-                      name="idx_meta_service_ts"),
-            IndexModel([(EventFields.STATUS, ASCENDING), (EventFields.TIMESTAMP, DESCENDING)],
-                      name="idx_status_ts"),
+            IndexModel(
+                [(EventFields.METADATA_USER_ID, ASCENDING), (EventFields.TIMESTAMP, DESCENDING)],
+                name="idx_meta_user_ts",
+            ),
+            IndexModel(
+                [(EventFields.METADATA_SERVICE_NAME, ASCENDING), (EventFields.TIMESTAMP, DESCENDING)],
+                name="idx_meta_service_ts",
+            ),
+            IndexModel([(EventFields.STATUS, ASCENDING), (EventFields.TIMESTAMP, DESCENDING)], name="idx_status_ts"),
             IndexModel([(EventFields.PAYLOAD_EXECUTION_ID, ASCENDING)], name="idx_payload_execution", sparse=True),
             IndexModel([(EventFields.PAYLOAD_POD_NAME, ASCENDING)], name="idx_payload_pod", sparse=True),
             # Optional TTL on ttl_expires_at (no effect for nulls)
@@ -81,12 +89,17 @@ class SchemaManager:
             # Use language_override: "none" to prevent MongoDB from interpreting
             # the "language" field as a text search language (which causes
             # "language override unsupported: python" errors)
-            IndexModel([
-                (EventFields.EVENT_TYPE, "text"),
-                (EventFields.METADATA_SERVICE_NAME, "text"),
-                (EventFields.METADATA_USER_ID, "text"),
-                (EventFields.PAYLOAD, "text"),
-            ], name="idx_text_search", language_override="none", default_language="english"),
+            IndexModel(
+                [
+                    (EventFields.EVENT_TYPE, "text"),
+                    (EventFields.METADATA_SERVICE_NAME, "text"),
+                    (EventFields.METADATA_USER_ID, "text"),
+                    (EventFields.PAYLOAD, "text"),
+                ],
+                name="idx_text_search",
+                language_override="none",
+                default_language="english",
+            ),
         ]
 
         try:
@@ -97,18 +110,20 @@ class SchemaManager:
 
         # Validator (moderate, warn) — non-blocking
         try:
-            await self.db.command({
-                "collMod": "events",
-                "validator": {"$jsonSchema": self._event_json_schema()},
-                "validationLevel": "moderate",
-                "validationAction": "warn",
-            })
+            await self.db.command(
+                {
+                    "collMod": "events",
+                    "validator": {"$jsonSchema": self._event_json_schema()},
+                    "validationLevel": "moderate",
+                    "validationAction": "warn",
+                }
+            )
             logger.info("Events collection validator ensured")
         except Exception as e:
             logger.warning(f"Could not set events validator: {e}")
 
     @staticmethod
-    def _event_json_schema() -> dict:
+    def _event_json_schema() -> dict[str, Any]:
         return {
             "bsonType": "object",
             "required": [
@@ -135,14 +150,18 @@ class SchemaManager:
         snapshots = self.db["user_settings_snapshots"]
         events = self.db["events"]
         try:
-            await snapshots.create_indexes([
-                IndexModel([("user_id", ASCENDING)], name="idx_settings_user_unique", unique=True),
-                IndexModel([("updated_at", DESCENDING)], name="idx_settings_updated_at_desc"),
-            ])
-            await events.create_indexes([
-                IndexModel([("event_type", ASCENDING), ("aggregate_id", ASCENDING)], name="idx_events_type_agg"),
-                IndexModel([("aggregate_id", ASCENDING), ("timestamp", ASCENDING)], name="idx_events_agg_ts"),
-            ])
+            await snapshots.create_indexes(
+                [
+                    IndexModel([("user_id", ASCENDING)], name="idx_settings_user_unique", unique=True),
+                    IndexModel([("updated_at", DESCENDING)], name="idx_settings_updated_at_desc"),
+                ]
+            )
+            await events.create_indexes(
+                [
+                    IndexModel([("event_type", ASCENDING), ("aggregate_id", ASCENDING)], name="idx_events_type_agg"),
+                    IndexModel([("aggregate_id", ASCENDING), ("timestamp", ASCENDING)], name="idx_events_agg_ts"),
+                ]
+            )
             logger.info("User settings indexes ensured")
         except Exception as e:
             logger.warning(f"Failed ensuring user settings indexes: {e}")
@@ -151,17 +170,21 @@ class SchemaManager:
         sessions = self.db["replay_sessions"]
         events = self.db["events"]
         try:
-            await sessions.create_indexes([
-                IndexModel([("session_id", ASCENDING)], name="idx_replay_session_id", unique=True),
-                IndexModel([("status", ASCENDING)], name="idx_replay_status"),
-                IndexModel([("created_at", DESCENDING)], name="idx_replay_created_at_desc"),
-                IndexModel([("user_id", ASCENDING)], name="idx_replay_user"),
-            ])
-            await events.create_indexes([
-                IndexModel([("execution_id", ASCENDING), ("timestamp", ASCENDING)], name="idx_events_exec_ts"),
-                IndexModel([("event_type", ASCENDING), ("timestamp", ASCENDING)], name="idx_events_type_ts"),
-                IndexModel([("metadata.user_id", ASCENDING), ("timestamp", ASCENDING)], name="idx_events_user_ts"),
-            ])
+            await sessions.create_indexes(
+                [
+                    IndexModel([("session_id", ASCENDING)], name="idx_replay_session_id", unique=True),
+                    IndexModel([("status", ASCENDING)], name="idx_replay_status"),
+                    IndexModel([("created_at", DESCENDING)], name="idx_replay_created_at_desc"),
+                    IndexModel([("user_id", ASCENDING)], name="idx_replay_user"),
+                ]
+            )
+            await events.create_indexes(
+                [
+                    IndexModel([("execution_id", ASCENDING), ("timestamp", ASCENDING)], name="idx_events_exec_ts"),
+                    IndexModel([("event_type", ASCENDING), ("timestamp", ASCENDING)], name="idx_events_type_ts"),
+                    IndexModel([("metadata.user_id", ASCENDING), ("timestamp", ASCENDING)], name="idx_events_user_ts"),
+                ]
+            )
             logger.info("Replay indexes ensured")
         except Exception as e:
             logger.warning(f"Failed ensuring replay indexes: {e}")
@@ -171,21 +194,32 @@ class SchemaManager:
         rules = self.db["notification_rules"]
         subs = self.db["notification_subscriptions"]
         try:
-            await notifications.create_indexes([
-                IndexModel([("user_id", ASCENDING), ("created_at", DESCENDING)], name="idx_notif_user_created_desc"),
-                IndexModel([("status", ASCENDING), ("scheduled_for", ASCENDING)], name="idx_notif_status_sched"),
-                IndexModel([("created_at", ASCENDING)], name="idx_notif_created_at"),
-                IndexModel([("notification_id", ASCENDING)], name="idx_notif_id_unique", unique=True),
-            ])
-            await rules.create_indexes([
-                IndexModel([("event_types", ASCENDING)], name="idx_rules_event_types"),
-                IndexModel([("enabled", ASCENDING)], name="idx_rules_enabled"),
-            ])
-            await subs.create_indexes([
-                IndexModel([("user_id", ASCENDING), ("channel", ASCENDING)],
-                           name="idx_sub_user_channel_unique", unique=True),
-                IndexModel([("enabled", ASCENDING)], name="idx_sub_enabled"),
-            ])
+            await notifications.create_indexes(
+                [
+                    IndexModel(
+                        [("user_id", ASCENDING), ("created_at", DESCENDING)], name="idx_notif_user_created_desc"
+                    ),
+                    IndexModel([("status", ASCENDING), ("scheduled_for", ASCENDING)], name="idx_notif_status_sched"),
+                    IndexModel([("created_at", ASCENDING)], name="idx_notif_created_at"),
+                    IndexModel([("notification_id", ASCENDING)], name="idx_notif_id_unique", unique=True),
+                ]
+            )
+            await rules.create_indexes(
+                [
+                    IndexModel([("event_types", ASCENDING)], name="idx_rules_event_types"),
+                    IndexModel([("enabled", ASCENDING)], name="idx_rules_enabled"),
+                ]
+            )
+            await subs.create_indexes(
+                [
+                    IndexModel(
+                        [("user_id", ASCENDING), ("channel", ASCENDING)],
+                        name="idx_sub_user_channel_unique",
+                        unique=True,
+                    ),
+                    IndexModel([("enabled", ASCENDING)], name="idx_sub_enabled"),
+                ]
+            )
             logger.info("Notification indexes ensured")
         except Exception as e:
             logger.warning(f"Failed ensuring notification indexes: {e}")
@@ -193,12 +227,14 @@ class SchemaManager:
     async def _m_0005_idempotency(self) -> None:
         coll = self.db["idempotency_keys"]
         try:
-            await coll.create_indexes([
-                IndexModel([("key", ASCENDING)], name="idx_idem_key_unique", unique=True),
-                IndexModel([("created_at", ASCENDING)], name="idx_idem_created_ttl", expireAfterSeconds=3600),
-                IndexModel([("status", ASCENDING)], name="idx_idem_status"),
-                IndexModel([("event_type", ASCENDING)], name="idx_idem_event_type"),
-            ])
+            await coll.create_indexes(
+                [
+                    IndexModel([("key", ASCENDING)], name="idx_idem_key_unique", unique=True),
+                    IndexModel([("created_at", ASCENDING)], name="idx_idem_created_ttl", expireAfterSeconds=3600),
+                    IndexModel([("status", ASCENDING)], name="idx_idem_status"),
+                    IndexModel([("event_type", ASCENDING)], name="idx_idem_event_type"),
+                ]
+            )
             logger.info("Idempotency indexes ensured")
         except Exception as e:
             logger.warning(f"Failed ensuring idempotency indexes: {e}")
@@ -206,13 +242,15 @@ class SchemaManager:
     async def _m_0006_sagas(self) -> None:
         coll = self.db["sagas"]
         try:
-            await coll.create_indexes([
-                IndexModel([("saga_id", ASCENDING)], name="idx_saga_id_unique", unique=True),
-                IndexModel([("execution_id", ASCENDING)], name="idx_saga_execution"),
-                IndexModel([("state", ASCENDING)], name="idx_saga_state"),
-                IndexModel([("created_at", ASCENDING)], name="idx_saga_created_at"),
-                IndexModel([("state", ASCENDING), ("created_at", ASCENDING)], name="idx_saga_state_created"),
-            ])
+            await coll.create_indexes(
+                [
+                    IndexModel([("saga_id", ASCENDING)], name="idx_saga_id_unique", unique=True),
+                    IndexModel([("execution_id", ASCENDING)], name="idx_saga_execution"),
+                    IndexModel([("state", ASCENDING)], name="idx_saga_state"),
+                    IndexModel([("created_at", ASCENDING)], name="idx_saga_created_at"),
+                    IndexModel([("state", ASCENDING), ("created_at", ASCENDING)], name="idx_saga_state_created"),
+                ]
+            )
             logger.info("Saga indexes ensured")
         except Exception as e:
             logger.warning(f"Failed ensuring saga indexes: {e}")
@@ -220,11 +258,15 @@ class SchemaManager:
     async def _m_0007_execution_results(self) -> None:
         coll = self.db["execution_results"]
         try:
-            await coll.create_indexes([
-                IndexModel([("execution_id", ASCENDING)], name="idx_results_execution_unique", unique=True),
-                IndexModel([("created_at", ASCENDING)], name="idx_results_created_at"),
-                IndexModel([("user_id", ASCENDING), ("created_at", DESCENDING)], name="idx_results_user_created_desc"),
-            ])
+            await coll.create_indexes(
+                [
+                    IndexModel([("execution_id", ASCENDING)], name="idx_results_execution_unique", unique=True),
+                    IndexModel([("created_at", ASCENDING)], name="idx_results_created_at"),
+                    IndexModel(
+                        [("user_id", ASCENDING), ("created_at", DESCENDING)], name="idx_results_user_created_desc"
+                    ),
+                ]
+            )
             logger.info("Execution results indexes ensured")
         except Exception as e:
             logger.warning(f"Failed ensuring execution results indexes: {e}")
@@ -232,16 +274,20 @@ class SchemaManager:
     async def _m_0008_dlq(self) -> None:
         coll = self.db["dlq_messages"]
         try:
-            await coll.create_indexes([
-                IndexModel([("event_id", ASCENDING)], name="idx_dlq_event_id_unique", unique=True),
-                IndexModel([("original_topic", ASCENDING)], name="idx_dlq_topic"),
-                IndexModel([("event_type", ASCENDING)], name="idx_dlq_event_type"),
-                IndexModel([("failed_at", DESCENDING)], name="idx_dlq_failed_desc"),
-                IndexModel([("retry_count", ASCENDING)], name="idx_dlq_retry_count"),
-                IndexModel([("status", ASCENDING)], name="idx_dlq_status"),
-                IndexModel([("next_retry_at", ASCENDING)], name="idx_dlq_next_retry"),
-                IndexModel([("created_at", ASCENDING)], name="idx_dlq_created_ttl", expireAfterSeconds=7 * 24 * 3600),
-            ])
+            await coll.create_indexes(
+                [
+                    IndexModel([("event_id", ASCENDING)], name="idx_dlq_event_id_unique", unique=True),
+                    IndexModel([("original_topic", ASCENDING)], name="idx_dlq_topic"),
+                    IndexModel([("event_type", ASCENDING)], name="idx_dlq_event_type"),
+                    IndexModel([("failed_at", DESCENDING)], name="idx_dlq_failed_desc"),
+                    IndexModel([("retry_count", ASCENDING)], name="idx_dlq_retry_count"),
+                    IndexModel([("status", ASCENDING)], name="idx_dlq_status"),
+                    IndexModel([("next_retry_at", ASCENDING)], name="idx_dlq_next_retry"),
+                    IndexModel(
+                        [("created_at", ASCENDING)], name="idx_dlq_created_ttl", expireAfterSeconds=7 * 24 * 3600
+                    ),
+                ]
+            )
             logger.info("DLQ indexes ensured")
         except Exception as e:
             logger.warning(f"Failed ensuring DLQ indexes: {e}")
@@ -249,11 +295,17 @@ class SchemaManager:
     async def _m_0009_event_store_extra(self) -> None:
         events = self.db["events"]
         try:
-            await events.create_indexes([
-                IndexModel([("metadata.user_id", ASCENDING), ("event_type", ASCENDING)], name="idx_events_user_type"),
-                IndexModel([("event_type", ASCENDING), ("metadata.user_id", ASCENDING), ("timestamp", DESCENDING)],
-                          name="idx_events_type_user_ts"),
-            ])
+            await events.create_indexes(
+                [
+                    IndexModel(
+                        [("metadata.user_id", ASCENDING), ("event_type", ASCENDING)], name="idx_events_user_type"
+                    ),
+                    IndexModel(
+                        [("event_type", ASCENDING), ("metadata.user_id", ASCENDING), ("timestamp", DESCENDING)],
+                        name="idx_events_type_user_ts",
+                    ),
+                ]
+            )
             logger.info("Additional event store indexes ensured")
         except Exception as e:
             logger.warning(f"Failed ensuring event store extra indexes: {e}")

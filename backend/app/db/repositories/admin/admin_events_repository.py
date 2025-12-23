@@ -1,9 +1,9 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 
-from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
 from pymongo import ReturnDocument
 
+from app.core.database_context import Collection, Database
 from app.domain.admin import (
     ReplayQuery,
     ReplaySession,
@@ -43,29 +43,26 @@ from app.infrastructure.mappers import (
 class AdminEventsRepository:
     """Repository for admin event operations using domain models."""
 
-    def __init__(self, db: AsyncIOMotorDatabase):
+    def __init__(self, db: Database):
         self.db = db
-        self.events_collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.EVENTS)
-        self.event_store_collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.EVENT_STORE)
+        self.events_collection: Collection = self.db.get_collection(CollectionNames.EVENTS)
+        self.event_store_collection: Collection = self.db.get_collection(CollectionNames.EVENT_STORE)
         # Bind related collections used by this repository
-        self.executions_collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.EXECUTIONS)
-        self.events_archive_collection: AsyncIOMotorCollection = self.db.get_collection(
-            CollectionNames.EVENTS_ARCHIVE
-        )
+        self.executions_collection: Collection = self.db.get_collection(CollectionNames.EXECUTIONS)
+        self.events_archive_collection: Collection = self.db.get_collection(CollectionNames.EVENTS_ARCHIVE)
         self.replay_mapper = ReplaySessionMapper()
         self.replay_query_mapper = ReplayQueryMapper()
-        self.replay_sessions_collection: AsyncIOMotorCollection = self.db.get_collection(
-            CollectionNames.REPLAY_SESSIONS)
+        self.replay_sessions_collection: Collection = self.db.get_collection(CollectionNames.REPLAY_SESSIONS)
         self.mapper = EventMapper()
         self.summary_mapper = EventSummaryMapper()
 
     async def browse_events(
-            self,
-            filter: EventFilter,
-            skip: int = 0,
-            limit: int = 50,
-            sort_by: str = EventFields.TIMESTAMP,
-            sort_order: int = SortDirection.DESCENDING
+        self,
+        filter: EventFilter,
+        skip: int = 0,
+        limit: int = 50,
+        sort_by: str = EventFields.TIMESTAMP,
+        sort_order: int = SortDirection.DESCENDING,
     ) -> EventBrowseResult:
         """Browse events with filters using domain models."""
         query = EventFilterMapper.to_mongo_query(filter)
@@ -82,12 +79,7 @@ class AdminEventsRepository:
         event_docs = await cursor.to_list(length=limit)
         events = [self.mapper.from_mongo_document(doc) for doc in event_docs]
 
-        return EventBrowseResult(
-            events=events,
-            total=total,
-            skip=skip,
-            limit=limit
-        )
+        return EventBrowseResult(events=events, total=total, skip=skip, limit=limit)
 
     async def get_event_detail(self, event_id: str) -> EventDetail | None:
         """Get detailed information about an event."""
@@ -99,10 +91,13 @@ class AdminEventsRepository:
         event = self.mapper.from_mongo_document(event_doc)
 
         # Get related events
-        cursor = self.events_collection.find({
-            EventFields.METADATA_CORRELATION_ID: event.correlation_id,
-            EventFields.EVENT_ID: {"$ne": event_id}
-        }).sort(EventFields.TIMESTAMP, SortDirection.ASCENDING).limit(10)
+        cursor = (
+            self.events_collection.find(
+                {EventFields.METADATA_CORRELATION_ID: event.correlation_id, EventFields.EVENT_ID: {"$ne": event_id}}
+            )
+            .sort(EventFields.TIMESTAMP, SortDirection.ASCENDING)
+            .limit(10)
+        )
 
         related_docs = await cursor.to_list(length=10)
         related_events = [self.summary_mapper.from_mongo_document(doc) for doc in related_docs]
@@ -110,11 +105,7 @@ class AdminEventsRepository:
         # Build timeline (could be expanded with more logic)
         timeline = related_events[:5]  # Simple timeline for now
 
-        detail = EventDetail(
-            event=event,
-            related_events=related_events,
-            timeline=timeline
-        )
+        detail = EventDetail(event=event, related_events=related_events, timeline=timeline)
 
         return detail
 
@@ -131,18 +122,19 @@ class AdminEventsRepository:
         overview_pipeline = EventStatsAggregation.build_overview_pipeline(start_time)
         overview_result = await self.events_collection.aggregate(overview_pipeline).to_list(1)
 
-        stats = overview_result[0] if overview_result else {
-            "total_events": 0,
-            "event_type_count": 0,
-            "unique_user_count": 0,
-            "service_count": 0
-        }
+        stats = (
+            overview_result[0]
+            if overview_result
+            else {"total_events": 0, "event_type_count": 0, "unique_user_count": 0, "service_count": 0}
+        )
 
         # Get error rate
-        error_count = await self.events_collection.count_documents({
-            EventFields.TIMESTAMP: {"$gte": start_time},
-            EventFields.EVENT_TYPE: {"$regex": "failed|error|timeout", "$options": "i"}
-        })
+        error_count = await self.events_collection.count_documents(
+            {
+                EventFields.TIMESTAMP: {"$gte": start_time},
+                EventFields.EVENT_TYPE: {"$regex": "failed|error|timeout", "$options": "i"},
+            }
+        )
 
         error_rate = (error_count / stats["total_events"] * 100) if stats["total_events"] > 0 else 0
 
@@ -155,8 +147,7 @@ class AdminEventsRepository:
         hourly_pipeline = EventStatsAggregation.build_hourly_events_pipeline(start_time)
         hourly_cursor = self.events_collection.aggregate(hourly_pipeline)
         events_by_hour: list[HourlyEventCount | dict[str, Any]] = [
-            HourlyEventCount(hour=doc["_id"], count=doc["count"])
-            async for doc in hourly_cursor
+            HourlyEventCount(hour=doc["_id"], count=doc["count"]) async for doc in hourly_cursor
         ]
 
         # Get top users
@@ -178,20 +169,16 @@ class AdminEventsRepository:
                 "$match": {
                     "created_at": {"$gte": start_time},
                     "status": "completed",
-                    "resource_usage.execution_time_wall_seconds": {"$exists": True}
+                    "resource_usage.execution_time_wall_seconds": {"$exists": True},
                 }
             },
-            {
-                "$group": {
-                    "_id": None,
-                    "avg_duration": {"$avg": "$resource_usage.execution_time_wall_seconds"}
-                }
-            }
+            {"$group": {"_id": None, "avg_duration": {"$avg": "$resource_usage.execution_time_wall_seconds"}}},
         ]
 
         exec_result = await executions_collection.aggregate(exec_pipeline).to_list(1)
-        avg_processing_time = exec_result[0]["avg_duration"] if exec_result and exec_result[0].get(
-            "avg_duration") else 0
+        avg_processing_time = (
+            exec_result[0]["avg_duration"] if exec_result and exec_result[0].get("avg_duration") else 0
+        )
 
         statistics = EventStatistics(
             total_events=stats["total_events"],
@@ -199,7 +186,7 @@ class AdminEventsRepository:
             events_by_hour=events_by_hour,
             top_users=top_users,
             error_rate=round(error_rate, 2),
-            avg_processing_time=round(avg_processing_time, 2)
+            avg_processing_time=round(avg_processing_time, 2),
         )
 
         return statistics
@@ -208,10 +195,7 @@ class AdminEventsRepository:
         """Export events as CSV data."""
         query = EventFilterMapper.to_mongo_query(filter)
 
-        cursor = self.events_collection.find(query).sort(
-            EventFields.TIMESTAMP,
-            SortDirection.DESCENDING
-        ).limit(10000)
+        cursor = self.events_collection.find(query).sort(EventFields.TIMESTAMP, SortDirection.DESCENDING).limit(10000)
 
         event_docs = await cursor.to_list(length=10000)
 
@@ -243,9 +227,7 @@ class AdminEventsRepository:
 
     async def get_replay_session(self, session_id: str) -> ReplaySession | None:
         """Get replay session by ID."""
-        doc = await self.replay_sessions_collection.find_one({
-            ReplaySessionFields.SESSION_ID: session_id
-        })
+        doc = await self.replay_sessions_collection.find_one({ReplaySessionFields.SESSION_ID: session_id})
         return self.replay_mapper.from_dict(doc) if doc else None
 
     async def update_replay_session(self, session_id: str, updates: ReplaySessionUpdate) -> bool:
@@ -256,16 +238,13 @@ class AdminEventsRepository:
         mongo_updates = updates.to_dict()
 
         result = await self.replay_sessions_collection.update_one(
-            {ReplaySessionFields.SESSION_ID: session_id},
-            {"$set": mongo_updates}
+            {ReplaySessionFields.SESSION_ID: session_id}, {"$set": mongo_updates}
         )
         return result.modified_count > 0
 
     async def get_replay_status_with_progress(self, session_id: str) -> ReplaySessionStatusDetail | None:
         """Get replay session status with progress updates."""
-        doc = await self.replay_sessions_collection.find_one({
-            ReplaySessionFields.SESSION_ID: session_id
-        })
+        doc = await self.replay_sessions_collection.find_one({ReplaySessionFields.SESSION_ID: session_id})
         if not doc:
             return None
 
@@ -278,17 +257,14 @@ class AdminEventsRepository:
             if time_since_created.total_seconds() > 2:
                 # Use atomic update to prevent race conditions
                 update_result = await self.replay_sessions_collection.find_one_and_update(
-                    {
-                        ReplaySessionFields.SESSION_ID: session_id,
-                        ReplaySessionFields.STATUS: ReplayStatus.SCHEDULED
-                    },
+                    {ReplaySessionFields.SESSION_ID: session_id, ReplaySessionFields.STATUS: ReplayStatus.SCHEDULED},
                     {
                         "$set": {
                             ReplaySessionFields.STATUS: ReplayStatus.RUNNING,
-                            ReplaySessionFields.STARTED_AT: current_time
+                            ReplaySessionFields.STARTED_AT: current_time,
                         }
                     },
-                    return_document=ReturnDocument.AFTER
+                    return_document=ReturnDocument.AFTER,
                 )
                 if update_result:
                     # Update local session object with the atomically updated values
@@ -298,18 +274,13 @@ class AdminEventsRepository:
         if session.is_running and session.started_at:
             time_since_started = current_time - session.started_at
             # Assume 10 events per second processing rate
-            estimated_progress = min(
-                int(time_since_started.total_seconds() * 10),
-                session.total_events
-            )
+            estimated_progress = min(int(time_since_started.total_seconds() * 10), session.total_events)
 
             # Update progress - returns new instance
             updated_session = session.update_progress(estimated_progress)
 
             # Update in database
-            session_update = ReplaySessionUpdate(
-                replayed_events=updated_session.replayed_events
-            )
+            session_update = ReplaySessionUpdate(replayed_events=updated_session.replayed_events)
 
             if updated_session.is_completed:
                 session_update.status = updated_session.status
@@ -359,23 +330,23 @@ class AdminEventsRepository:
                 for exec_id in list(execution_ids)[:10]:  # Limit to 10
                     exec_doc = await executions_collection.find_one({"execution_id": exec_id})
                     if exec_doc:
-                        execution_results.append({
-                            "execution_id": exec_doc.get("execution_id"),
-                            "status": exec_doc.get("status"),
-                            "stdout": exec_doc.get("stdout"),
-                            "stderr": exec_doc.get("stderr"),
-                            "exit_code": exec_doc.get("exit_code"),
-                            "execution_time": exec_doc.get("execution_time"),
-                            "lang": exec_doc.get("lang"),
-                            "lang_version": exec_doc.get("lang_version"),
-                            "created_at": exec_doc.get("created_at"),
-                            "updated_at": exec_doc.get("updated_at")
-                        })
+                        execution_results.append(
+                            {
+                                "execution_id": exec_doc.get("execution_id"),
+                                "status": exec_doc.get("status"),
+                                "stdout": exec_doc.get("stdout"),
+                                "stderr": exec_doc.get("stderr"),
+                                "exit_code": exec_doc.get("exit_code"),
+                                "execution_time": exec_doc.get("execution_time"),
+                                "lang": exec_doc.get("lang"),
+                                "lang_version": exec_doc.get("lang_version"),
+                                "created_at": exec_doc.get("created_at"),
+                                "updated_at": exec_doc.get("updated_at"),
+                            }
+                        )
 
         return ReplaySessionStatusDetail(
-            session=session,
-            estimated_completion=estimated_completion,
-            execution_results=execution_results
+            session=session, estimated_completion=estimated_completion, execution_results=execution_results
         )
 
     async def count_events_for_replay(self, query: Dict[str, Any]) -> int:
@@ -402,11 +373,7 @@ class AdminEventsRepository:
         return self.replay_query_mapper.to_mongodb_query(replay_query)
 
     async def prepare_replay_session(
-            self,
-            query: Dict[str, Any],
-            dry_run: bool,
-            replay_correlation_id: str,
-            max_events: int = 1000
+        self, query: Dict[str, Any], dry_run: bool, replay_correlation_id: str, max_events: int = 1000
     ) -> ReplaySessionData:
         """Prepare replay session with validation and preview."""
         event_count = await self.count_events_for_replay(query)
@@ -427,23 +394,16 @@ class AdminEventsRepository:
             replay_correlation_id=replay_correlation_id,
             dry_run=dry_run,
             query=query,
-            events_preview=events_preview
+            events_preview=events_preview,
         )
 
         return session_data
 
     async def get_replay_events_preview(
-            self,
-            event_ids: List[str] | None = None,
-            correlation_id: str | None = None,
-            aggregate_id: str | None = None
+        self, event_ids: List[str] | None = None, correlation_id: str | None = None, aggregate_id: str | None = None
     ) -> Dict[str, Any]:
         """Get preview of events that would be replayed - backward compatibility."""
-        replay_query = ReplayQuery(
-            event_ids=event_ids,
-            correlation_id=correlation_id,
-            aggregate_id=aggregate_id
-        )
+        replay_query = ReplayQuery(event_ids=event_ids, correlation_id=correlation_id, aggregate_id=aggregate_id)
 
         query = self.replay_query_mapper.to_mongodb_query(replay_query)
 
@@ -452,15 +412,9 @@ class AdminEventsRepository:
 
         total = await self.event_store_collection.count_documents(query)
 
-        cursor = self.event_store_collection.find(query).sort(
-            EventFields.TIMESTAMP,
-            SortDirection.ASCENDING
-        ).limit(100)
+        cursor = self.event_store_collection.find(query).sort(EventFields.TIMESTAMP, SortDirection.ASCENDING).limit(100)
 
         # Batch fetch all events from cursor
         events = await cursor.to_list(length=100)
 
-        return {
-            "events": events,
-            "total": total
-        }
+        return {"events": events, "total": total}

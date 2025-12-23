@@ -25,7 +25,7 @@ class SagaMapper:
             created_at=doc["created_at"],
             updated_at=doc["updated_at"],
             completed_at=doc.get("completed_at"),
-            retry_count=doc.get("retry_count", 0)
+            retry_count=doc.get("retry_count", 0),
         )
 
     def to_mongo(self, saga: Saga) -> dict[str, Any]:
@@ -51,7 +51,7 @@ class SagaMapper:
             "created_at": saga.created_at,
             "updated_at": saga.updated_at,
             "completed_at": saga.completed_at,
-            "retry_count": saga.retry_count
+            "retry_count": saga.retry_count,
         }
 
     def from_instance(self, instance: SagaInstance) -> Saga:
@@ -86,7 +86,7 @@ class SagaMapper:
             "created_at": saga.created_at.isoformat(),
             "updated_at": saga.updated_at.isoformat(),
             "completed_at": saga.completed_at.isoformat() if saga.completed_at else None,
-            "retry_count": saga.retry_count
+            "retry_count": saga.retry_count,
         }
 
 
@@ -118,7 +118,6 @@ class SagaInstanceMapper:
 
     @staticmethod
     def from_mongo(doc: dict[str, Any]) -> SagaInstance:
-        
         # Robust state conversion
         raw_state = doc.get("state", SagaState.CREATED)
         try:
@@ -140,13 +139,13 @@ class SagaInstanceMapper:
             "completed_at": doc.get("completed_at"),
             "retry_count": int(doc.get("retry_count", 0)),
         }
-        
+
         # Only add datetime fields if they exist and are valid
         if doc.get("created_at"):
             kwargs["created_at"] = doc.get("created_at")
         if doc.get("updated_at"):
             kwargs["updated_at"] = doc.get("updated_at")
-        
+
         return SagaInstance(**kwargs)
 
     @staticmethod

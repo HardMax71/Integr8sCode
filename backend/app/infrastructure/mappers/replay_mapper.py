@@ -30,7 +30,7 @@ class ReplaySessionMapper:
             ReplaySessionFields.CORRELATION_ID: session.correlation_id,
             ReplaySessionFields.CREATED_AT: session.created_at,
             ReplaySessionFields.DRY_RUN: session.dry_run,
-            "triggered_executions": session.triggered_executions
+            "triggered_executions": session.triggered_executions,
         }
 
         if session.started_at:
@@ -64,7 +64,7 @@ class ReplaySessionMapper:
             created_by=data.get(ReplaySessionFields.CREATED_BY),
             target_service=data.get(ReplaySessionFields.TARGET_SERVICE),
             dry_run=data.get(ReplaySessionFields.DRY_RUN, False),
-            triggered_executions=data.get("triggered_executions", [])
+            triggered_executions=data.get("triggered_executions", []),
         )
 
     @staticmethod
@@ -82,7 +82,7 @@ class ReplaySessionMapper:
             "completed_at": detail.session.completed_at,
             "error": detail.session.error,
             "progress_percentage": detail.session.progress_percentage,
-            "execution_results": detail.execution_results
+            "execution_results": detail.execution_results,
         }
 
         if detail.estimated_completion:
@@ -157,7 +157,7 @@ class ReplaySessionDataMapper:
             "dry_run": data.dry_run,
             "total_events": data.total_events,
             "replay_correlation_id": data.replay_correlation_id,
-            "query": data.query
+            "query": data.query,
         }
 
         if data.dry_run and data.events_preview:
@@ -166,7 +166,7 @@ class ReplaySessionDataMapper:
                     "event_id": e.event_id,
                     "event_type": e.event_type,
                     "timestamp": e.timestamp,
-                    "aggregate_id": e.aggregate_id
+                    "aggregate_id": e.aggregate_id,
                 }
                 for e in data.events_preview
             ]

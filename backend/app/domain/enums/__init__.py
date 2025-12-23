@@ -27,5 +27,5 @@ __all__ = [
     # Saga
     "SagaState",
     # User
-    "UserRole"
+    "UserRole",
 ]

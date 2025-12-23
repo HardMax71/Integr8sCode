@@ -5,6 +5,7 @@ from app.core.utils import StringEnum
 
 class ExecutionErrorType(StringEnum):
     """Types of execution errors."""
+
     SYSTEM_ERROR = "system_error"
     TIMEOUT = "timeout"
     RESOURCE_LIMIT = "resource_limit"
@@ -14,6 +15,7 @@ class ExecutionErrorType(StringEnum):
 
 class StorageType(StringEnum):
     """Types of storage backends."""
+
     DATABASE = "database"
     S3 = "s3"
     FILESYSTEM = "filesystem"

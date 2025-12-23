@@ -5,7 +5,6 @@ from app.domain.events.event_models import (
     EventFields,
     EventFilter,
     EventListResult,
-    EventMetadata,
     EventProjection,
     EventQuery,
     EventReplayInfo,
@@ -13,6 +12,7 @@ from app.domain.events.event_models import (
     EventStatistics,
     ExecutionEventsResult,
 )
+from app.infrastructure.kafka.events.metadata import EventMetadata
 
 __all__ = [
     "ArchivedEvent",

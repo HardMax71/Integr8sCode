@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.domain.enums.events import EventType
@@ -179,17 +179,14 @@ class CreatePodStep(SagaStep[ExecutionRequestedEvent]):
                 metadata=EventMetadata(
                     service_name="saga-orchestrator",
                     service_version="1.0.0",
-                    user_id=event.metadata.user_id if event.metadata else "system"
-                )
+                    user_id=event.metadata.user_id if event.metadata else "system",
+                ),
             )
 
             # Publish command to saga_commands topic
             if not self.producer:
                 raise RuntimeError("Producer dependency not injected")
-            await self.producer.produce(
-                event_to_produce=create_pod_cmd,
-                key=execution_id
-            )
+            await self.producer.produce(event_to_produce=create_pod_cmd, key=execution_id)
 
             context.set("pod_creation_triggered", True)
             logger.info(f"CreatePodCommandEvent published for execution {execution_id}")
@@ -236,6 +233,7 @@ class MonitorExecutionStep(SagaStep[ExecutionRequestedEvent]):
 
 
 # Compensation Steps
+
 
 class ReleaseResourcesCompensation(CompensationStep):
     """Release allocated resources"""
@@ -317,17 +315,12 @@ class DeletePodCompensation(CompensationStep):
                 execution_id=execution_id,
                 reason="Saga compensation due to failure",
                 metadata=EventMetadata(
-                    service_name="saga-orchestrator",
-                    service_version="1.0.0",
-                    user_id=context.get("user_id", "system")
-                )
+                    service_name="saga-orchestrator", service_version="1.0.0", user_id=context.get("user_id", "system")
+                ),
             )
 
-            await self.producer.produce(
-                event_to_produce=delete_pod_cmd,
-                key=execution_id
-            )
-            
+            await self.producer.produce(event_to_produce=delete_pod_cmd, key=execution_id)
+
             logger.info(f"DeletePodCommandEvent published for {execution_id}")
             return True
 
@@ -349,7 +342,7 @@ class ExecutionSaga(BaseSaga):
         """Get events that trigger this saga"""
         return [EventType.EXECUTION_REQUESTED]
 
-    def get_steps(self) -> list[SagaStep]:
+    def get_steps(self) -> list[SagaStep[Any]]:
         """Get saga steps in order"""
         alloc_repo = getattr(self, "_alloc_repo", None)
         producer = getattr(self, "_producer", None)

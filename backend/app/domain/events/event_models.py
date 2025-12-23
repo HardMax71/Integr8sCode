@@ -5,15 +5,13 @@ from typing import Any
 from app.core.utils import StringEnum
 from app.infrastructure.kafka.events.metadata import EventMetadata
 
-MongoQueryValue = (
-        str |
-        dict[str, str | list[str] | float | datetime]
-)
+MongoQueryValue = str | dict[str, str | list[str] | float | datetime]
 MongoQuery = dict[str, MongoQueryValue]
 
 
 class EventFields(StringEnum):
     """Database field names for events collection."""
+
     ID = "_id"
     EVENT_ID = "event_id"
     EVENT_TYPE = "event_type"
@@ -74,12 +72,10 @@ class CollectionNames(StringEnum):
     DLQ_MESSAGES = "dlq_messages"
 
 
- 
-
-
 @dataclass
 class Event:
     """Domain model for an event."""
+
     event_id: str
     event_type: str
     event_version: str
@@ -100,6 +96,7 @@ class Event:
 @dataclass
 class EventSummary:
     """Lightweight event summary for lists and previews."""
+
     event_id: str
     event_type: str
     timestamp: datetime
@@ -109,6 +106,7 @@ class EventSummary:
 @dataclass
 class EventFilter:
     """Filter criteria for querying events."""
+
     event_types: list[str] | None = None
     aggregate_id: str | None = None
     correlation_id: str | None = None
@@ -124,6 +122,7 @@ class EventFilter:
 @dataclass
 class EventQuery:
     """Query parameters for event search."""
+
     filter: EventFilter
     sort_by: str = EventFields.TIMESTAMP
     sort_order: EventSortOrder = EventSortOrder.DESC
@@ -137,6 +136,7 @@ class EventQuery:
 @dataclass
 class EventListResult:
     """Result of event list query."""
+
     events: list[Event]
     total: int
     skip: int
@@ -147,6 +147,7 @@ class EventListResult:
 @dataclass
 class EventBrowseResult:
     """Result for event browsing."""
+
     events: list[Event]
     total: int
     skip: int
@@ -156,6 +157,7 @@ class EventBrowseResult:
 @dataclass
 class EventDetail:
     """Detailed event information with related events."""
+
     event: Event
     related_events: list[EventSummary] = field(default_factory=list)
     timeline: list[EventSummary] = field(default_factory=list)
@@ -176,6 +178,7 @@ class UserEventCount:
 @dataclass
 class EventStatistics:
     """Event statistics."""
+
     total_events: int
     events_by_type: dict[str, int] = field(default_factory=dict)
     events_by_service: dict[str, int] = field(default_factory=dict)
@@ -190,6 +193,7 @@ class EventStatistics:
 @dataclass
 class EventProjection:
     """Configuration for event projections."""
+
     name: str
     pipeline: list[dict[str, Any]]
     output_collection: str
@@ -202,6 +206,7 @@ class EventProjection:
 @dataclass
 class ArchivedEvent(Event):
     """Archived event with deletion metadata."""
+
     deleted_at: datetime | None = None
     deleted_by: str | None = None
     deletion_reason: str | None = None
@@ -210,6 +215,7 @@ class ArchivedEvent(Event):
 @dataclass
 class EventReplayInfo:
     """Information for event replay."""
+
     events: list[Event]
     event_count: int
     event_types: list[str]
@@ -220,6 +226,7 @@ class EventReplayInfo:
 @dataclass
 class ExecutionEventsResult:
     """Result of execution events query."""
+
     events: list[Event]
     access_allowed: bool
     include_system_events: bool
@@ -231,10 +238,7 @@ class ExecutionEventsResult:
 
         events = self.events
         if not self.include_system_events:
-            events = [
-                e for e in events
-                if not e.metadata.service_name.startswith("system-")
-            ]
+            events = [e for e in events if not e.metadata.service_name.startswith("system-")]
 
         return events
 
@@ -242,6 +246,7 @@ class ExecutionEventsResult:
 @dataclass
 class EventExportRow:
     """Event export row for CSV."""
+
     event_id: str
     event_type: str
     timestamp: str
@@ -256,6 +261,7 @@ class EventExportRow:
 @dataclass
 class EventAggregationResult:
     """Result of event aggregation."""
+
     results: list[dict[str, Any]]
     pipeline: list[dict[str, Any]]
     execution_time_ms: float | None = None

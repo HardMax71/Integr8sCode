@@ -12,17 +12,14 @@ from app.schemas_pydantic.user import UserResponse
 from app.services.admin import AdminSettingsService
 
 router = APIRouter(
-    prefix="/admin/settings",
-    tags=["admin", "settings"],
-    route_class=DishkaRoute,
-    dependencies=[Depends(admin_user)]
+    prefix="/admin/settings", tags=["admin", "settings"], route_class=DishkaRoute, dependencies=[Depends(admin_user)]
 )
 
 
 @router.get("/", response_model=SystemSettings)
 async def get_system_settings(
-        admin: Annotated[UserResponse, Depends(admin_user)],
-        service: FromDishka[AdminSettingsService],
+    admin: Annotated[UserResponse, Depends(admin_user)],
+    service: FromDishka[AdminSettingsService],
 ) -> SystemSettings:
     try:
         domain_settings = await service.get_system_settings(admin.username)
@@ -35,18 +32,15 @@ async def get_system_settings(
 
 @router.put("/", response_model=SystemSettings)
 async def update_system_settings(
-        admin: Annotated[UserResponse, Depends(admin_user)],
-        settings: SystemSettings,
-        service: FromDishka[AdminSettingsService],
+    admin: Annotated[UserResponse, Depends(admin_user)],
+    settings: SystemSettings,
+    service: FromDishka[AdminSettingsService],
 ) -> SystemSettings:
     try:
         settings_mapper = SettingsMapper()
         domain_settings = settings_mapper.system_settings_from_pydantic(settings.model_dump())
     except (ValueError, ValidationError, KeyError) as e:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Invalid settings: {str(e)}"
-        )
+        raise HTTPException(status_code=422, detail=f"Invalid settings: {str(e)}")
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid settings format")
 
@@ -68,8 +62,8 @@ async def update_system_settings(
 
 @router.post("/reset", response_model=SystemSettings)
 async def reset_system_settings(
-        admin: Annotated[UserResponse, Depends(admin_user)],
-        service: FromDishka[AdminSettingsService],
+    admin: Annotated[UserResponse, Depends(admin_user)],
+    service: FromDishka[AdminSettingsService],
 ) -> SystemSettings:
     try:
         reset_domain_settings = await service.reset_system_settings(admin.username, admin.user_id)

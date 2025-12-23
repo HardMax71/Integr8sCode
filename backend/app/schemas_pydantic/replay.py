@@ -9,6 +9,7 @@ from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
 
 class ReplayRequest(BaseModel):
     """Request schema for creating replay sessions"""
+
     replay_type: ReplayType
     target: ReplayTarget = ReplayTarget.KAFKA
 
@@ -31,6 +32,7 @@ class ReplayRequest(BaseModel):
 
 class ReplayResponse(BaseModel):
     """Response schema for replay operations"""
+
     session_id: str
     status: ReplayStatus
     message: str
@@ -38,6 +40,7 @@ class ReplayResponse(BaseModel):
 
 class SessionSummary(BaseModel):
     """Summary information for replay sessions"""
+
     session_id: str
     replay_type: ReplayType
     target: ReplayTarget
@@ -55,5 +58,6 @@ class SessionSummary(BaseModel):
 
 class CleanupResponse(BaseModel):
     """Response schema for cleanup operations"""
+
     removed_sessions: int
     message: str

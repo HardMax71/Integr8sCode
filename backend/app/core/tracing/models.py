@@ -8,6 +8,7 @@ from app.core.utils import StringEnum
 
 class EventAttributes(StringEnum):
     """Standard attribute names for tracing events."""
+
     EVENT_TYPE = "event.type"
     EVENT_ID = "event.id"
     EXECUTION_ID = "execution.id"
@@ -28,6 +29,7 @@ class EventAttributes(StringEnum):
 
 class InstrumentationStatus(StringEnum):
     """Status of library instrumentation."""
+
     SUCCESS = "success"
     FAILED = "failed"
     NOT_ATTEMPTED = "not_attempted"
@@ -36,6 +38,7 @@ class InstrumentationStatus(StringEnum):
 @dataclass
 class InstrumentationResult:
     """Result of instrumenting a single library."""
+
     library: str
     status: InstrumentationStatus
     error: Exception | None = None
@@ -44,6 +47,7 @@ class InstrumentationResult:
 @dataclass
 class InstrumentationReport:
     """Report of all instrumentation results."""
+
     results: Dict[str, InstrumentationResult] = field(default_factory=dict)
 
     def add_result(self, result: InstrumentationResult) -> None:
@@ -52,17 +56,11 @@ class InstrumentationReport:
 
     def get_summary(self) -> Dict[str, str]:
         """Get a summary of instrumentation statuses."""
-        return {
-            library: result.status
-            for library, result in self.results.items()
-        }
+        return {library: result.status for library, result in self.results.items()}
 
     def has_failures(self) -> bool:
         """Check if any instrumentation failed."""
-        return any(
-            result.status == InstrumentationStatus.FAILED
-            for result in self.results.values()
-        )
+        return any(result.status == InstrumentationStatus.FAILED for result in self.results.values())
 
 
 class Instrumentor(Protocol):
@@ -74,6 +72,7 @@ class Instrumentor(Protocol):
 @dataclass
 class LibraryInstrumentation:
     """Configuration for instrumenting a library."""
+
     name: str
     instrumentor: Instrumentor
     config: Dict[str, Any] = field(default_factory=dict)

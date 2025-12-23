@@ -188,11 +188,11 @@ class DLQMapper:
     # Domain construction and updates
     @staticmethod
     def from_failed_event(
-            event: BaseEvent,
-            original_topic: str,
-            error: str,
-            producer_id: str,
-            retry_count: int = 0,
+        event: BaseEvent,
+        original_topic: str,
+        error: str,
+        producer_id: str,
+        retry_count: int = 0,
     ) -> DLQMessage:
         return DLQMessage(
             event=event,

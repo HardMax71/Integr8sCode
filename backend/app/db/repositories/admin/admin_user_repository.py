@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 
-from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
-
+from app.core.database_context import Collection, Database
 from app.core.security import SecurityService
 from app.domain.enums import UserRole
 from app.domain.events.event_models import CollectionNames
@@ -17,33 +16,26 @@ from app.infrastructure.mappers import UserMapper
 
 
 class AdminUserRepository:
-    def __init__(self, db: AsyncIOMotorDatabase):
+    def __init__(self, db: Database):
         self.db = db
-        self.users_collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.USERS)
+        self.users_collection: Collection = self.db.get_collection(CollectionNames.USERS)
 
         # Related collections used by this repository (e.g., cascade deletes)
-        self.executions_collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.EXECUTIONS)
-        self.saved_scripts_collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.SAVED_SCRIPTS)
-        self.notifications_collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.NOTIFICATIONS)
-        self.user_settings_collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.USER_SETTINGS)
-        self.events_collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.EVENTS)
-        self.sagas_collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.SAGAS)
+        self.executions_collection: Collection = self.db.get_collection(CollectionNames.EXECUTIONS)
+        self.saved_scripts_collection: Collection = self.db.get_collection(CollectionNames.SAVED_SCRIPTS)
+        self.notifications_collection: Collection = self.db.get_collection(CollectionNames.NOTIFICATIONS)
+        self.user_settings_collection: Collection = self.db.get_collection(CollectionNames.USER_SETTINGS)
+        self.events_collection: Collection = self.db.get_collection(CollectionNames.EVENTS)
+        self.sagas_collection: Collection = self.db.get_collection(CollectionNames.SAGAS)
         self.security_service = SecurityService()
         self.mapper = UserMapper()
 
     async def list_users(
-            self,
-            limit: int = 100,
-            offset: int = 0,
-            search: str | None = None,
-            role: UserRole | None = None
+        self, limit: int = 100, offset: int = 0, search: str | None = None, role: UserRole | None = None
     ) -> UserListResult:
         """List all users with optional filtering."""
         # Create search filter
-        search_filter = UserSearchFilter(
-            search_text=search,
-            role=role
-        )
+        search_filter = UserSearchFilter(search_text=search, role=role)
 
         query = self.mapper.search_filter_to_query(search_filter)
 
@@ -57,12 +49,7 @@ class AdminUserRepository:
         async for user_doc in cursor:
             users.append(self.mapper.from_mongo_document(user_doc))
 
-        return UserListResult(
-            users=users,
-            total=total,
-            offset=offset,
-            limit=limit
-        )
+        return UserListResult(users=users, total=total, offset=offset, limit=limit)
 
     async def get_user_by_id(self, user_id: str) -> User | None:
         """Get user by ID."""
@@ -71,11 +58,7 @@ class AdminUserRepository:
             return self.mapper.from_mongo_document(user_doc)
         return None
 
-    async def update_user(
-            self,
-            user_id: str,
-            update_data: UserUpdate
-    ) -> User | None:
+    async def update_user(self, user_id: str, update_data: UserUpdate) -> User | None:
         """Update user details."""
         if not update_data.has_updates():
             return await self.get_user_by_id(user_id)
@@ -92,10 +75,7 @@ class AdminUserRepository:
         # Add updated_at timestamp
         update_dict[UserFields.UPDATED_AT] = datetime.now(timezone.utc)
 
-        result = await self.users_collection.update_one(
-            {UserFields.USER_ID: user_id},
-            {"$set": update_dict}
-        )
+        result = await self.users_collection.update_one({UserFields.USER_ID: user_id}, {"$set": update_dict})
 
         if result.modified_count > 0:
             return await self.get_user_by_id(user_id)
@@ -147,10 +127,7 @@ class AdminUserRepository:
 
         result = await self.users_collection.update_one(
             {UserFields.USER_ID: password_reset.user_id},
-            {"$set": {
-                UserFields.HASHED_PASSWORD: hashed_password,
-                UserFields.UPDATED_AT: datetime.now(timezone.utc)
-            }}
+            {"$set": {UserFields.HASHED_PASSWORD: hashed_password, UserFields.UPDATED_AT: datetime.now(timezone.utc)}},
         )
 
         return result.modified_count > 0

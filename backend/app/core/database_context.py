@@ -7,6 +7,8 @@ from typing import Any, AsyncContextManager, Protocol, TypeVar, runtime_checkabl
 from motor.motor_asyncio import (
     AsyncIOMotorClient,
     AsyncIOMotorClientSession,
+    AsyncIOMotorCollection,
+    AsyncIOMotorCursor,
     AsyncIOMotorDatabase,
 )
 from pymongo.errors import ServerSelectionTimeoutError
@@ -14,12 +16,16 @@ from pymongo.errors import ServerSelectionTimeoutError
 from app.core.logging import logger
 
 # Python 3.12 type aliases using the new 'type' statement
-type DBClient = AsyncIOMotorClient[Any]
-type Database = AsyncIOMotorDatabase[Any]
+# MongoDocument represents the raw document type returned by Motor operations
+type MongoDocument = dict[str, Any]
+type DBClient = AsyncIOMotorClient[MongoDocument]
+type Database = AsyncIOMotorDatabase[MongoDocument]
+type Collection = AsyncIOMotorCollection[MongoDocument]
+type Cursor = AsyncIOMotorCursor[MongoDocument]
 type DBSession = AsyncIOMotorClientSession
 
 # Type variable for generic database provider
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class DatabaseError(Exception):
@@ -28,11 +34,13 @@ class DatabaseError(Exception):
 
 class DatabaseNotInitializedError(DatabaseError):
     """Raised when attempting to use database before initialization."""
+
     pass
 
 
 class DatabaseAlreadyInitializedError(DatabaseError):
     """Raised when attempting to initialize an already initialized database."""
+
     pass
 
 
@@ -46,13 +54,12 @@ class DatabaseConfig:
     min_pool_size: int = 10
     retry_writes: bool = True
     retry_reads: bool = True
-    write_concern: str = 'majority'
+    write_concern: str = "majority"
     journal: bool = True
 
 
 @runtime_checkable
 class DatabaseProvider(Protocol):
-
     @property
     def client(self) -> DBClient:
         """Get the MongoDB client."""
@@ -78,7 +85,7 @@ class DatabaseProvider(Protocol):
 
 
 class AsyncDatabaseConnection:
-    __slots__ = ('_client', '_database', '_db_name', '_config')
+    __slots__ = ("_client", "_database", "_db_name", "_config")
 
     def __init__(self, config: DatabaseConfig) -> None:
         self._config = config
@@ -89,7 +96,7 @@ class AsyncDatabaseConnection:
     async def connect(self) -> None:
         """
         Establish connection to MongoDB.
-        
+
         Raises:
             DatabaseAlreadyInitializedError: If already connected
             ServerSelectionTimeoutError: If cannot connect to MongoDB
@@ -101,8 +108,8 @@ class AsyncDatabaseConnection:
 
         # Always explicitly bind to current event loop for consistency
         import asyncio
-        
-        client: AsyncIOMotorClient = AsyncIOMotorClient(
+
+        client: DBClient = AsyncIOMotorClient(
             self._config.mongodb_url,
             serverSelectionTimeoutMS=self._config.server_selection_timeout_ms,
             connectTimeoutMS=self._config.connect_timeout_ms,
@@ -112,12 +119,12 @@ class AsyncDatabaseConnection:
             retryReads=self._config.retry_reads,
             w=self._config.write_concern,
             journal=self._config.journal,
-            io_loop=asyncio.get_running_loop()  # Always bind to current loop
+            io_loop=asyncio.get_running_loop(),  # Always bind to current loop
         )
 
         # Verify connection
         try:
-            await client.admin.command('ping')
+            await client.admin.command("ping")
             logger.info("Successfully connected to MongoDB")
         except ServerSelectionTimeoutError as e:
             logger.error(f"Failed to connect to MongoDB: {e}")
@@ -157,10 +164,10 @@ class AsyncDatabaseConnection:
     async def session(self) -> AsyncIterator[DBSession]:
         """
         Create a database session for transactions.
-        
+
         Yields:
             Database session for use in transactions
-            
+
         Example:
             async with connection.session() as session:
                 await collection.insert_one(doc, session=session)
@@ -172,8 +179,9 @@ class AsyncDatabaseConnection:
 
 class ContextualDatabaseProvider(DatabaseProvider):
     def __init__(self) -> None:
-        self._connection_var: contextvars.ContextVar[AsyncDatabaseConnection | None] = \
-            contextvars.ContextVar('db_connection', default=None)
+        self._connection_var: contextvars.ContextVar[AsyncDatabaseConnection | None] = contextvars.ContextVar(
+            "db_connection", default=None
+        )
 
     def set_connection(self, connection: AsyncDatabaseConnection) -> None:
         self._connection_var.set(connection)
@@ -186,8 +194,7 @@ class ContextualDatabaseProvider(DatabaseProvider):
         connection = self._connection_var.get()
         if connection is None:
             raise DatabaseNotInitializedError(
-                "No database connection in current context. "
-                "Ensure connection is set in the request lifecycle."
+                "No database connection in current context. Ensure connection is set in the request lifecycle."
             )
         return connection
 
@@ -211,28 +218,21 @@ class ContextualDatabaseProvider(DatabaseProvider):
         return self._connection.session()
 
 
- 
-
-
 class DatabaseConnectionPool:
     def __init__(self) -> None:
         self._connections: dict[str, AsyncDatabaseConnection] = {}
 
-    async def create_connection(
-            self,
-            key: str,
-            config: DatabaseConfig
-    ) -> AsyncDatabaseConnection:
+    async def create_connection(self, key: str, config: DatabaseConfig) -> AsyncDatabaseConnection:
         """
         Create and store a new database connection.
-        
+
         Args:
             key: Unique identifier for this connection
             config: Database configuration
-            
+
         Returns:
             The created connection
-            
+
         Raises:
             DatabaseAlreadyInitializedError: If key already exists
         """
@@ -247,7 +247,7 @@ class DatabaseConnectionPool:
     def get_connection(self, key: str) -> AsyncDatabaseConnection:
         """
         Get a connection by key.
-        
+
         Raises:
             KeyError: If connection not found
         """

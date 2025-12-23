@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
+from typing import Any
 
-from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
-
+from app.core.database_context import Collection, Database
 from app.core.logging import logger
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.events.event_models import CollectionNames
@@ -9,10 +9,10 @@ from app.domain.execution import DomainExecution, ExecutionResultDomain, Resourc
 
 
 class ExecutionRepository:
-    def __init__(self, db: AsyncIOMotorDatabase):
+    def __init__(self, db: Database):
         self.db = db
-        self.collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.EXECUTIONS)
-        self.results_collection: AsyncIOMotorCollection = self.db.get_collection(CollectionNames.EXECUTION_RESULTS)
+        self.collection: Collection = self.db.get_collection(CollectionNames.EXECUTIONS)
+        self.results_collection: Collection = self.db.get_collection(CollectionNames.EXECUTION_RESULTS)
 
     async def create_execution(self, execution: DomainExecution) -> DomainExecution:
         execution_dict = {
@@ -55,8 +55,9 @@ class ExecutionRepository:
                 document["status"] = result_doc.get("status")
 
         sv = document.get("status")
+        resource_usage_data = document.get("resource_usage")
         return DomainExecution(
-            execution_id=document.get("execution_id"),
+            execution_id=document["execution_id"],
             script=document.get("script", ""),
             status=ExecutionStatus(str(sv)),
             stdout=document.get("stdout"),
@@ -66,22 +67,18 @@ class ExecutionRepository:
             created_at=document.get("created_at", datetime.now(timezone.utc)),
             updated_at=document.get("updated_at", datetime.now(timezone.utc)),
             resource_usage=(
-                ResourceUsageDomain.from_dict(document.get("resource_usage"))
-                if document.get("resource_usage") is not None
-                else None
+                ResourceUsageDomain.from_dict(resource_usage_data) if resource_usage_data is not None else None
             ),
             user_id=document.get("user_id"),
             exit_code=document.get("exit_code"),
             error_type=document.get("error_type"),
         )
 
-    async def update_execution(self, execution_id: str, update_data: dict) -> bool:
+    async def update_execution(self, execution_id: str, update_data: dict[str, Any]) -> bool:
         update_data.setdefault("updated_at", datetime.now(timezone.utc))
         update_payload = {"$set": update_data}
 
-        result = await self.collection.update_one(
-            {"execution_id": execution_id}, update_payload
-        )
+        result = await self.collection.update_one({"execution_id": execution_id}, update_payload)
         return result.matched_count > 0
 
     async def write_terminal_result(self, exec_result: ExecutionResultDomain) -> bool:
@@ -123,11 +120,7 @@ class ExecutionRepository:
         return True
 
     async def get_executions(
-            self,
-            query: dict,
-            limit: int = 50,
-            skip: int = 0,
-            sort: list | None = None
+        self, query: dict[str, Any], limit: int = 50, skip: int = 0, sort: list[tuple[str, int]] | None = None
     ) -> list[DomainExecution]:
         cursor = self.collection.find(query)
         if sort:
@@ -161,7 +154,7 @@ class ExecutionRepository:
 
         return executions
 
-    async def count_executions(self, query: dict) -> int:
+    async def count_executions(self, query: dict[str, Any]) -> int:
         return await self.collection.count_documents(query)
 
     async def delete_execution(self, execution_id: str) -> bool:

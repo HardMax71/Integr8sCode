@@ -23,10 +23,10 @@
   </a>
 </p>
 <p align="center">
-  <a href="https://codecov.io/gh/HardMax71/Integr8sCode">
+  <a href="https://app.codecov.io/gh/HardMax71/Integr8sCode/flags?flag=backend">
     <img src="https://img.shields.io/codecov/c/github/HardMax71/Integr8sCode?flag=backend&label=backend%20cov&logo=codecov" alt="Backend Coverage" />
   </a>
-  <a href="https://codecov.io/gh/HardMax71/Integr8sCode">
+  <a href="https://app.codecov.io/gh/HardMax71/Integr8sCode/flags?flag=frontend">
     <img src="https://img.shields.io/codecov/c/github/HardMax71/Integr8sCode?flag=frontend&label=frontend%20cov&logo=codecov" alt="Frontend Coverage" />
   </a>
 </p>

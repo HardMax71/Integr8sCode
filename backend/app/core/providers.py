@@ -127,12 +127,12 @@ class RedisProvider(Provider):
             socket_timeout=5,
         )
         # Test connection
-        await client.execute_command("PING")
+        await client.execute_command("PING")  # type: ignore[no-untyped-call]
         logger.info(f"Redis connected: {settings.REDIS_HOST}:{settings.REDIS_PORT}/{settings.REDIS_DB}")
         try:
             yield client
         finally:
-            await client.aclose()
+            await client.aclose()  # type: ignore[no-untyped-call]
 
     @provide
     def get_rate_limit_service(

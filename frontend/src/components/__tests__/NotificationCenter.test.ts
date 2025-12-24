@@ -87,35 +87,52 @@ vi.mock('../../stores/notificationStore', () => ({
   get unreadCount() { return mocks.mockUnreadCount; },
 }));
 
-// Mock EventSource
+// Mock EventSource with instance tracking
 class MockEventSource {
   static CONNECTING = 0;
   static OPEN = 1;
   static CLOSED = 2;
+  static instances: MockEventSource[] = [];
+
   readyState = MockEventSource.OPEN;
   onopen: ((ev: Event) => void) | null = null;
   onmessage: ((ev: MessageEvent) => void) | null = null;
   onerror: ((ev: Event) => void) | null = null;
+
   constructor(public url: string, public options?: { withCredentials?: boolean }) {
+    MockEventSource.instances.push(this);
     setTimeout(() => { if (this.onopen) this.onopen(new Event('open')); }, 0);
   }
+
   close() { this.readyState = MockEventSource.CLOSED; }
+
+  simulateMessage(data: unknown) {
+    if (this.onmessage) {
+      this.onmessage(new MessageEvent('message', { data: JSON.stringify(data) }));
+    }
+  }
+
+  simulateError() {
+    if (this.onerror) {
+      this.onerror(new Event('error'));
+    }
+  }
+
+  static clearInstances() { MockEventSource.instances = []; }
+  static getLastInstance() { return MockEventSource.instances[MockEventSource.instances.length - 1]; }
 }
 vi.stubGlobal('EventSource', MockEventSource);
 vi.stubGlobal('Notification', { permission: 'default', requestPermission: vi.fn().mockResolvedValue('granted') });
 
 import NotificationCenter from '../NotificationCenter.svelte';
 
-// Test helpers
+// =============================================================================
+// Test Helpers
+// =============================================================================
+
 const createNotification = (overrides: Partial<MockNotification> = {}): MockNotification => ({
-  notification_id: '1',
-  subject: 'Test',
-  body: 'Body',
-  status: 'unread',
-  severity: 'medium',
-  tags: [],
-  created_at: new Date().toISOString(),
-  ...overrides,
+  notification_id: '1', subject: 'Test', body: 'Body', status: 'unread',
+  severity: 'medium', tags: [], created_at: new Date().toISOString(), ...overrides,
 });
 
 const setNotifications = (notifications: MockNotification[]) => {
@@ -125,18 +142,109 @@ const setNotifications = (notifications: MockNotification[]) => {
 const openDropdown = async () => {
   const user = userEvent.setup();
   render(NotificationCenter);
-  const button = screen.getByRole('button', { name: /Notifications/i });
-  await user.click(button);
+  await user.click(screen.getByRole('button', { name: /Notifications/i }));
   return user;
 };
 
 const openDropdownWithContainer = async () => {
   const user = userEvent.setup();
   const { container } = render(NotificationCenter);
-  const button = screen.getByRole('button', { name: /Notifications/i });
-  await user.click(button);
+  await user.click(screen.getByRole('button', { name: /Notifications/i }));
   return { user, container };
 };
+
+/** Sets up SSE and waits for the EventSource to be ready with handlers attached */
+const setupSSE = async () => {
+  mocks.mockIsAuthenticated.set(true);
+  render(NotificationCenter);
+  await waitFor(() => { expect(MockEventSource.instances.length).toBeGreaterThan(0); });
+  const instance = MockEventSource.getLastInstance()!;
+  await waitFor(() => { expect(instance.onmessage).not.toBeNull(); });
+  return instance;
+};
+
+/** Sets up SSE with fake timers and returns instance with error handler ready */
+const setupSSEWithFakeTimers = async () => {
+  vi.useFakeTimers();
+  mocks.mockIsAuthenticated.set(true);
+  render(NotificationCenter);
+  await vi.waitFor(() => { expect(MockEventSource.instances.length).toBeGreaterThan(0); });
+  const instance = MockEventSource.getLastInstance()!;
+  await vi.waitFor(() => { expect(instance.onerror).not.toBeNull(); });
+  return instance;
+};
+
+/** Mocks window.location.href for external URL testing */
+const withMockedLocation = async (testFn: (mockHref: ReturnType<typeof vi.fn>) => Promise<void>) => {
+  const originalLocation = window.location;
+  const mockHref = vi.fn();
+  Object.defineProperty(window, 'location', { value: { ...originalLocation, href: '' }, writable: true, configurable: true });
+  Object.defineProperty(window.location, 'href', { set: mockHref, configurable: true });
+  try { await testFn(mockHref); }
+  finally { Object.defineProperty(window, 'location', { value: originalLocation, writable: true, configurable: true }); }
+};
+
+/** Interacts with a notification button via click or keyboard */
+const interactWithButton = async (
+  user: ReturnType<typeof userEvent.setup>,
+  button: HTMLElement,
+  method: 'click' | 'keyboard'
+) => {
+  if (method === 'click') await user.click(button);
+  else { button.focus(); await user.keyboard('{Enter}'); }
+};
+
+// =============================================================================
+// Test Data (consolidated arrays for it.each)
+// =============================================================================
+
+const iconTestCases = [
+  { tags: ['completed'], svgPath: 'M9 12l2 2 4-4', desc: 'check' },
+  { tags: ['success'], svgPath: 'M9 12l2 2 4-4', desc: 'check' },
+  { tags: ['failed'], svgPath: 'M12 8v4m0 4h.01', desc: 'error' },
+  { tags: ['error'], svgPath: 'M12 8v4m0 4h.01', desc: 'error' },
+  { tags: ['security'], svgPath: 'M12 8v4m0 4h.01', desc: 'error' },
+  { tags: ['timeout'], svgPath: 'M12 9v2m0 4h.01', desc: 'warning' },
+  { tags: ['warning'], svgPath: 'M12 9v2m0 4h.01', desc: 'warning' },
+  { tags: ['unknown'], svgPath: 'M13 16h-1v-4h-1', desc: 'info' },
+  { tags: [] as string[], svgPath: 'M13 16h-1v-4h-1', desc: 'info' },
+];
+
+const priorityTestCases = [
+  { severity: 'low' as const, css: '.text-gray-600' },
+  { severity: 'medium' as const, css: '.text-blue-600' },
+  { severity: 'high' as const, css: '.text-orange-600' },
+  { severity: 'urgent' as const, css: '.text-red-600' },
+];
+
+const timeTestCases = [
+  { offsetMs: 0, expected: 'just now' },
+  { offsetMs: 5 * 60 * 1000, expected: '5m ago' },
+  { offsetMs: 3 * 60 * 60 * 1000, expected: '3h ago' },
+];
+
+const badgeTestCases = [
+  { count: 2, expected: '2' },
+  { count: 9, expected: '9' },
+  { count: 12, expected: '9+' },
+];
+
+const ignoredSSEMessages = [
+  { message: { event: 'heartbeat' }, desc: 'heartbeat', shouldLog: false },
+  { message: { event: 'connected' }, desc: 'connected', shouldLog: false },
+  { message: { other: 'value' }, desc: 'non-notification', shouldLog: true },
+];
+
+const interactionTestCases = [
+  { method: 'click' as const, hasUrl: true, url: '/builds/123' },
+  { method: 'click' as const, hasUrl: false, url: undefined },
+  { method: 'keyboard' as const, hasUrl: true, url: '/test' },
+  { method: 'keyboard' as const, hasUrl: false, url: undefined },
+];
+
+// =============================================================================
+// Tests
+// =============================================================================
 
 describe('NotificationCenter', () => {
   beforeEach(() => {
@@ -151,6 +259,7 @@ describe('NotificationCenter', () => {
     mocks.mockNotificationStore.markAllAsRead.mockReset().mockResolvedValue(true);
     mocks.mockNotificationStore.clear.mockReset();
     mocks.mockNotificationStore.add.mockReset();
+    MockEventSource.clearInstances();
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'debug').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -158,7 +267,7 @@ describe('NotificationCenter', () => {
 
   afterEach(() => { vi.restoreAllMocks(); });
 
-  describe('bell icon', () => {
+  describe('bell icon and badge', () => {
     it('renders notification button with bell icon', () => {
       render(NotificationCenter);
       const button = screen.getByRole('button', { name: /Notifications/i });
@@ -171,25 +280,14 @@ describe('NotificationCenter', () => {
       expect(container.querySelector('.bg-red-500')).not.toBeInTheDocument();
     });
 
-    it.each([
-      { count: 2, expected: '2' },
-      { count: 9, expected: '9' },
-      { count: 12, expected: '9+' },
-    ])('shows badge "$expected" when $count unread notifications', async ({ count, expected }) => {
-      const notifications = Array.from({ length: count }, (_, i) =>
-        createNotification({ notification_id: String(i), subject: `Test ${i}` })
-      );
-      setNotifications(notifications);
+    it.each(badgeTestCases)('shows badge "$expected" for $count unread', async ({ count, expected }) => {
+      setNotifications(Array.from({ length: count }, (_, i) => createNotification({ notification_id: String(i) })));
       const { container } = render(NotificationCenter);
-
-      await waitFor(() => {
-        const badge = container.querySelector('.bg-red-500');
-        expect(badge?.textContent).toBe(expected);
-      });
+      await waitFor(() => { expect(container.querySelector('.bg-red-500')?.textContent).toBe(expected); });
     });
   });
 
-  describe('dropdown', () => {
+  describe('dropdown behavior', () => {
     it('opens dropdown when bell clicked', async () => {
       await openDropdown();
       await waitFor(() => { expect(screen.getByText('Notifications')).toBeInTheDocument(); });
@@ -200,152 +298,216 @@ describe('NotificationCenter', () => {
       await waitFor(() => { expect(screen.getByText('No notifications yet')).toBeInTheDocument(); });
     });
 
-    it('shows View all notifications link', async () => {
-      await openDropdown();
-      await waitFor(() => { expect(screen.getByText('View all notifications')).toBeInTheDocument(); });
-    });
-
-    it('navigates and closes when View all clicked', async () => {
+    it('navigates to /notifications when View all clicked', async () => {
       const user = await openDropdown();
-      await waitFor(() => { expect(screen.getByText('View all notifications')).toBeInTheDocument(); });
-      await user.click(screen.getByText('View all notifications'));
-      await waitFor(() => { expect(screen.queryByText('No notifications yet')).not.toBeInTheDocument(); });
+      await user.click(await screen.findByText('View all notifications'));
       expect(mocks.mockGoto).toHaveBeenCalledWith('/notifications');
     });
   });
 
-  describe('notification list', () => {
-    const sampleNotifications: MockNotification[] = [
-      createNotification({ notification_id: '1', subject: 'Build Completed', body: 'Your build finished successfully', tags: ['completed', 'success'], action_url: '/builds/123' }),
-      createNotification({ notification_id: '2', subject: 'Build Failed', body: 'Build encountered an error', status: 'read', severity: 'high', tags: ['failed', 'error'], created_at: new Date(Date.now() - 3600000).toISOString() }),
-    ];
-
-    beforeEach(() => { setNotifications(sampleNotifications); });
-
-    it('displays notification subjects and bodies', async () => {
-      await openDropdown();
+  describe('notification list display', () => {
+    it('displays notification subjects and shows unread indicator', async () => {
+      setNotifications([
+        createNotification({ notification_id: '1', subject: 'Build Completed' }),
+        createNotification({ notification_id: '2', subject: 'Build Failed', status: 'read' }),
+      ]);
+      const { container } = await openDropdownWithContainer();
       await waitFor(() => {
         expect(screen.getByText('Build Completed')).toBeInTheDocument();
         expect(screen.getByText('Build Failed')).toBeInTheDocument();
-        expect(screen.getByText('Your build finished successfully')).toBeInTheDocument();
-        expect(screen.getByText('Build encountered an error')).toBeInTheDocument();
-      });
-    });
-
-    it('shows unread indicator and background for unread notifications', async () => {
-      const { container } = await openDropdownWithContainer();
-      await waitFor(() => {
-        expect(container.querySelectorAll('.bg-blue-500.rounded-full').length).toBeGreaterThan(0);
-        expect(container.querySelector('.bg-blue-50')).toBeInTheDocument();
+        expect(container.querySelector('.bg-blue-500.rounded-full')).toBeInTheDocument();
       });
     });
   });
 
-  describe('mark as read', () => {
+  describe('mark as read functionality', () => {
     it.each([
-      { status: 'unread' as const, shouldShow: true, verb: 'shows' },
-      { status: 'read' as const, shouldShow: false, verb: 'hides' },
-    ])('$verb Mark all as read when notifications are $status', async ({ status, shouldShow }) => {
+      { status: 'unread' as const, visible: true },
+      { status: 'read' as const, visible: false },
+    ])('Mark all button visible=$visible for $status', async ({ status, visible }) => {
       setNotifications([createNotification({ status })]);
       await openDropdown();
       await waitFor(() => {
-        if (shouldShow) {
-          expect(screen.getByText('Mark all as read')).toBeInTheDocument();
-        } else {
-          expect(screen.queryByText('Mark all as read')).not.toBeInTheDocument();
-        }
+        expect(!!screen.queryByText('Mark all as read')).toBe(visible);
       });
     });
 
     it('calls markAllAsRead when button clicked', async () => {
       setNotifications([createNotification()]);
       const user = await openDropdown();
-      await waitFor(() => { expect(screen.getByText('Mark all as read')).toBeInTheDocument(); });
-      await user.click(screen.getByText('Mark all as read'));
+      await user.click(await screen.findByText('Mark all as read'));
       expect(mocks.mockNotificationStore.markAllAsRead).toHaveBeenCalled();
+    });
+
+    it('skips markAsRead for already-read notifications', async () => {
+      setNotifications([createNotification({ subject: 'Read', status: 'read' })]);
+      const user = await openDropdown();
+      await user.click(await screen.findByRole('button', { name: /View notification: Read/i }));
+      expect(mocks.mockNotificationStore.markAsRead).not.toHaveBeenCalled();
     });
   });
 
   describe('notification icons', () => {
-    it.each([
-      { tags: ['completed'], subject: 'Success', svgPath: 'M9 12l2 2 4-4' },
-      { tags: ['failed'], subject: 'Error', svgPath: 'M12 8v4m0 4h.01' },
-      { tags: ['timeout'], subject: 'Warning', svgPath: 'M12 9v2m0 4h.01' },
-    ])('shows correct icon for $tags tags', async ({ tags, subject, svgPath }) => {
+    it.each(iconTestCases)('shows $desc icon for tags=$tags', async ({ tags, svgPath }) => {
+      const subject = tags[0] || 'NoTags';
       setNotifications([createNotification({ tags, subject })]);
       const { container } = await openDropdownWithContainer();
       await waitFor(() => {
-        const notificationItem = container.querySelector(`[role="button"][aria-label*="${subject}"]`);
-        expect(notificationItem?.querySelector('svg')?.innerHTML).toContain(svgPath);
+        expect(container.querySelector(`[aria-label*="${subject}"] svg`)?.innerHTML).toContain(svgPath);
       });
     });
   });
 
   describe('priority colors', () => {
-    it.each([
-      { severity: 'high' as const, colorClass: '.text-orange-600' },
-      { severity: 'urgent' as const, colorClass: '.text-red-600' },
-    ])('applies $colorClass for $severity priority', async ({ severity, colorClass }) => {
-      setNotifications([createNotification({ severity, subject: severity })]);
+    it.each(priorityTestCases)('applies $css for $severity', async ({ severity, css }) => {
+      setNotifications([createNotification({ severity })]);
       const { container } = await openDropdownWithContainer();
-      await waitFor(() => { expect(container.querySelector(colorClass)).toBeInTheDocument(); });
+      await waitFor(() => { expect(container.querySelector(css)).toBeInTheDocument(); });
     });
   });
 
   describe('time formatting', () => {
-    it.each([
-      { offsetMs: 0, expected: 'just now' },
-      { offsetMs: 5 * 60 * 1000, expected: '5m ago' },
-      { offsetMs: 3 * 60 * 60 * 1000, expected: '3h ago' },
-    ])('shows "$expected" for notifications $offsetMs ms ago', async ({ offsetMs, expected }) => {
+    it.each(timeTestCases)('shows "$expected" for $offsetMs ms ago', async ({ offsetMs, expected }) => {
       setNotifications([createNotification({ created_at: new Date(Date.now() - offsetMs).toISOString() })]);
       await openDropdown();
       await waitFor(() => { expect(screen.getByText(expected)).toBeInTheDocument(); });
     });
+
+    it('shows date for >24h old notifications', async () => {
+      const oldDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+      setNotifications([createNotification({ created_at: oldDate.toISOString() })]);
+      await openDropdown();
+      await waitFor(() => { expect(screen.getByText(oldDate.toLocaleDateString())).toBeInTheDocument(); });
+    });
   });
 
-  describe('notification click', () => {
-    it('marks notification as read when clicked', async () => {
-      setNotifications([createNotification({ subject: 'Clickable' })]);
+  describe('notification interaction', () => {
+    it.each(interactionTestCases)('$method: navigates=$hasUrl', async ({ method, hasUrl, url }) => {
+      const subject = `${method}-${hasUrl}`;
+      setNotifications([createNotification({ subject, action_url: url })]);
       const user = await openDropdown();
-      await waitFor(() => { expect(screen.getByText('Clickable')).toBeInTheDocument(); });
-      await user.click(screen.getByRole('button', { name: /View notification: Clickable/i }));
+      const button = await screen.findByRole('button', { name: new RegExp(`View notification: ${subject}`, 'i') });
+      await interactWithButton(user, button, method);
+
       expect(mocks.mockNotificationStore.markAsRead).toHaveBeenCalledWith('1');
+      hasUrl ? expect(mocks.mockGoto).toHaveBeenCalledWith(url) : expect(mocks.mockGoto).not.toHaveBeenCalled();
     });
 
-    it('navigates to action_url for internal links', async () => {
-      setNotifications([createNotification({ subject: 'Internal', action_url: '/builds/123' })]);
-      const user = await openDropdown();
-      await waitFor(() => { expect(screen.getByText('Internal')).toBeInTheDocument(); });
-      await user.click(screen.getByRole('button', { name: /View notification: Internal/i }));
-      expect(mocks.mockGoto).toHaveBeenCalledWith('/builds/123');
+    it('ignores non-Enter keydown', async () => {
+      vi.useFakeTimers();
+      setNotifications([createNotification({ subject: 'Test', action_url: '/test' })]);
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(NotificationCenter);
+      await user.click(screen.getByRole('button', { name: /Notifications/i }));
+      screen.getByRole('button', { name: /View notification: Test/i }).focus();
+      await user.keyboard('{Tab}');
+      expect(mocks.mockNotificationStore.markAsRead).not.toHaveBeenCalled();
+      vi.useRealTimers();
     });
+  });
 
-    it('handles keyboard navigation with Enter key', async () => {
-      setNotifications([createNotification({ subject: 'Keyboard', action_url: '/test' })]);
-      const user = await openDropdown();
-      await waitFor(() => { expect(screen.getByText('Keyboard')).toBeInTheDocument(); });
-      screen.getByRole('button', { name: /View notification: Keyboard/i }).focus();
-      await user.keyboard('{Enter}');
-      expect(mocks.mockNotificationStore.markAsRead).toHaveBeenCalledWith('1');
-      expect(mocks.mockGoto).toHaveBeenCalledWith('/test');
+  describe('external URL navigation', () => {
+    it.each(['click', 'keyboard'] as const)('navigates via %s', async (method) => {
+      await withMockedLocation(async (mockHref) => {
+        const url = `https://example.com/${method}`;
+        setNotifications([createNotification({ subject: method, action_url: url })]);
+        const user = await openDropdown();
+        const button = await screen.findByRole('button', { name: new RegExp(`View notification: ${method}`, 'i') });
+        await interactWithButton(user, button, method);
+        expect(mockHref).toHaveBeenCalledWith(url);
+      });
     });
   });
 
   describe('accessibility', () => {
-    it('has aria-label on notification button', () => {
+    it('button has aria-label and items are focusable', async () => {
+      setNotifications([createNotification({ subject: 'Test' })]);
       render(NotificationCenter);
-      expect(screen.getByRole('button', { name: /Notifications/i }).getAttribute('aria-label')).toBe('Notifications');
+      expect(screen.getByRole('button', { name: /Notifications/i })).toHaveAttribute('aria-label', 'Notifications');
+      await userEvent.click(screen.getByRole('button', { name: /Notifications/i }));
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /View notification: Test/i })).toHaveAttribute('tabindex', '0');
+      });
+    });
+  });
+
+  describe('auto-mark as read', () => {
+    it('marks notifications after 2s delay', async () => {
+      vi.useFakeTimers();
+      setNotifications([createNotification({ notification_id: '1' }), createNotification({ notification_id: '2' })]);
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(NotificationCenter);
+      await user.click(screen.getByRole('button', { name: /Notifications/i }));
+      await vi.advanceTimersByTimeAsync(2500);
+      expect(mocks.mockNotificationStore.markAsRead).toHaveBeenCalled();
+      vi.useRealTimers();
+    });
+  });
+
+  describe('SSE connection', () => {
+    it('connects when authenticated and clears on logout', async () => {
+      mocks.mockIsAuthenticated.set(true);
+      render(NotificationCenter);
+      await waitFor(() => { expect(MockEventSource.instances.length).toBeGreaterThan(0); });
+      mocks.mockIsAuthenticated.set(false);
+      await waitFor(() => { expect(mocks.mockNotificationStore.clear).toHaveBeenCalled(); });
+    });
+  });
+
+  describe('SSE message handling', () => {
+    it('adds valid notifications to store', async () => {
+      const instance = await setupSSE();
+      instance.simulateMessage({ notification_id: 'new-1', subject: 'New', body: 'Body' });
+      await waitFor(() => { expect(mocks.mockNotificationStore.add).toHaveBeenCalled(); });
     });
 
-    it('notification items have proper aria-label and are focusable', async () => {
-      setNotifications([createNotification({ subject: 'Test Subject' })]);
-      await openDropdown();
-      await waitFor(() => {
-        const notificationItem = screen.getByRole('button', { name: /View notification: Test Subject/i });
-        expect(notificationItem).toBeInTheDocument();
-        expect(notificationItem.getAttribute('tabindex')).toBe('0');
-      });
+    it.each(ignoredSSEMessages)('ignores $desc messages', async ({ message, shouldLog }) => {
+      const instance = await setupSSE();
+      instance.simulateMessage(message);
+      expect(mocks.mockNotificationStore.add).not.toHaveBeenCalled();
+      if (shouldLog) expect(console.debug).toHaveBeenCalled();
+    });
+
+    it('handles JSON parse errors', async () => {
+      const instance = await setupSSE();
+      instance.onmessage?.(new MessageEvent('message', { data: 'invalid{' }));
+      expect(console.error).toHaveBeenCalled();
+    });
+  });
+
+  describe('SSE error handling', () => {
+    it('attempts reconnection on error', async () => {
+      const instance = await setupSSEWithFakeTimers();
+      instance.simulateError();
+      expect(console.log).toHaveBeenCalled();
+      vi.useRealTimers();
+    });
+
+    it('closes stream on error when logged out', async () => {
+      const instance = await setupSSE();
+      mocks.mockIsAuthenticated.set(false);
+      instance.simulateError();
+      expect(instance.readyState).toBe(MockEventSource.CLOSED);
+    });
+
+    it('logs error after max reconnection attempts', async () => {
+      await setupSSEWithFakeTimers();
+      for (let i = 0; i < 4; i++) {
+        MockEventSource.getLastInstance()!.simulateError();
+        await vi.advanceTimersByTimeAsync(30000);
+      }
+      expect(console.error).toHaveBeenCalled();
+      vi.useRealTimers();
+    });
+
+    it('stops reconnecting after logout', async () => {
+      await setupSSEWithFakeTimers();
+      const count = MockEventSource.instances.length;
+      mocks.mockIsAuthenticated.set(false);
+      MockEventSource.getLastInstance()!.simulateError();
+      await vi.advanceTimersByTimeAsync(10000);
+      expect(MockEventSource.instances.length).toBe(count);
+      vi.useRealTimers();
     });
   });
 });

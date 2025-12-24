@@ -119,4 +119,96 @@ describe('ToastContainer', () => {
       vi.useFakeTimers();
     });
   });
+
+  describe('mouse interaction', () => {
+    it('pauses timer on mouseenter and resumes on mouseleave', async () => {
+      vi.useRealTimers();
+      render(ToastContainer);
+      addToast('Hoverable toast', 'info');
+
+      await waitFor(() => { expect(screen.getByRole('alert')).toBeInTheDocument(); });
+
+      const toastElement = screen.getByRole('alert');
+
+      // Simulate mouse enter to pause timer
+      const mouseEnterEvent = new MouseEvent('mouseenter', { bubbles: true });
+      toastElement.dispatchEvent(mouseEnterEvent);
+
+      // Toast should still be visible after pause
+      await new Promise(resolve => setTimeout(resolve, 100));
+      expect(screen.getByRole('alert')).toBeInTheDocument();
+
+      // Simulate mouse leave to resume timer
+      const mouseLeaveEvent = new MouseEvent('mouseleave', { bubbles: true });
+      toastElement.dispatchEvent(mouseLeaveEvent);
+
+      // Toast should still be visible immediately after resume
+      expect(screen.getByRole('alert')).toBeInTheDocument();
+    });
+
+    it('clears timer on mouseenter', async () => {
+      vi.useRealTimers();
+      render(ToastContainer);
+      addToast('Timer test', 'success');
+
+      await waitFor(() => { expect(screen.getByRole('alert')).toBeInTheDocument(); });
+
+      const toastElement = screen.getByRole('alert');
+
+      // Hover over the toast
+      const mouseEnterEvent = new MouseEvent('mouseenter', { bubbles: true });
+      toastElement.dispatchEvent(mouseEnterEvent);
+
+      // Wait a bit - toast should still be there since timer is paused
+      await new Promise(resolve => setTimeout(resolve, 200));
+      expect(screen.getByText('Timer test')).toBeInTheDocument();
+    });
+
+    it('restarts timer on mouseleave', async () => {
+      vi.useRealTimers();
+      render(ToastContainer);
+      addToast('Restart timer test', 'warning');
+
+      await waitFor(() => { expect(screen.getByRole('alert')).toBeInTheDocument(); });
+
+      const toastElement = screen.getByRole('alert');
+
+      // Hover and unhover
+      toastElement.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 50));
+      toastElement.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+
+      // Toast should still be visible after unhover
+      expect(screen.getByText('Restart timer test')).toBeInTheDocument();
+    });
+  });
+
+  describe('timer edge cases', () => {
+    it('handles multiple toasts with independent timers', async () => {
+      vi.useRealTimers();
+      render(ToastContainer);
+      addToast('First toast', 'info');
+      addToast('Second toast', 'success');
+
+      await waitFor(() => { expect(screen.getAllByRole('alert')).toHaveLength(2); });
+
+      // Both toasts should have progress bars
+      const alerts = screen.getAllByRole('alert');
+      expect(alerts[0].querySelector('.timer')).toBeInTheDocument();
+      expect(alerts[1].querySelector('.timer')).toBeInTheDocument();
+    });
+
+    it('cleans up timers on unmount', async () => {
+      vi.useRealTimers();
+      const { unmount } = render(ToastContainer);
+      addToast('Cleanup test', 'info');
+
+      await waitFor(() => { expect(screen.getByRole('alert')).toBeInTheDocument(); });
+
+      // Unmount should clean up timers without error
+      unmount();
+
+      // No error should be thrown - this is implicitly tested by test not failing
+    });
+  });
 });

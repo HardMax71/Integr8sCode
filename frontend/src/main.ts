@@ -1,16 +1,11 @@
-import { client } from './lib/api/client.gen';
 import { mount } from 'svelte';
 import App from './App.svelte';
 import ErrorDisplay from './components/ErrorDisplay.svelte';
 import { appError } from './stores/errorStore';
+import { initializeApiInterceptors } from './lib/api-interceptors';
 import './app.css';
 
-// Configure the API client with credentials
-// Note: SDK already has full paths like '/api/v1/auth/login', so baseUrl should be empty
-client.setConfig({
-  baseUrl: '',
-  credentials: 'include',
-});
+initializeApiInterceptors();
 
 // Global error handlers to catch unhandled errors
 window.onerror = (message, source, lineno, colno, error) => {
@@ -20,9 +15,8 @@ window.onerror = (message, source, lineno, colno, error) => {
 };
 
 window.onunhandledrejection = (event) => {
-  console.error('[Unhandled Promise Rejection]', event.reason);
-  appError.setError(event.reason, 'Unhandled Promise Error');
-  event.preventDefault(); // Prevent default handling to match onerror behavior
+  console.info('[Promise Rejection Handled]', event.reason);
+  event.preventDefault();
 };
 
 // Mount the app with error handling

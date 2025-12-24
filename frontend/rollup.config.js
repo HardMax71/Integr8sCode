@@ -181,7 +181,8 @@ export default {
             preferBuiltins: false,
             // Prefer ES modules
             mainFields: ['svelte', 'module', 'browser', 'main'],
-            exportConditions: ['svelte']
+            exportConditions: ['svelte'],
+            extensions: ['.mjs', '.js', '.json', '.node', '.svelte']
         }),
         commonjs(),
         !production && {

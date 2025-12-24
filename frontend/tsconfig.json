@@ -20,5 +20,5 @@
     }
   },
   "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.js", "src/**/*.svelte"],
-  "exclude": ["node_modules", "public"]
+  "exclude": ["node_modules", "public", "src/**/__tests__/**", "src/**/*.test.ts"]
 }

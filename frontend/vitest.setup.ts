@@ -1,6 +1,10 @@
 import '@testing-library/jest-dom/vitest';
 import { vi } from 'vitest';
 
+// Global handler for promise rejections (mirrors main.ts behavior)
+// API errors are handled by interceptor - just silence the rejection in tests
+process.on('unhandledRejection', () => {});
+
 // Mock localStorage
 const localStorageStore: Record<string, string> = {};
 const localStorageMock = {

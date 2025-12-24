@@ -232,5 +232,63 @@ describe('Header', () => {
       await waitFor(() => { expect(screen.queryByRole('link', { name: /Settings/i })).not.toBeInTheDocument(); });
       restoreConsole();
     });
+
+    it('closes dropdown when clicking outside', async () => {
+      setAuth(true, 'testuser', 'user');
+      await openUserDropdown('testuser');
+      await waitFor(() => { expect(screen.getByRole('link', { name: /Settings/i })).toBeInTheDocument(); });
+
+      // Click outside the dropdown
+      document.body.click();
+
+      await waitFor(() => {
+        expect(screen.queryByRole('link', { name: /Settings/i })).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('resize behavior', () => {
+    it('closes mobile menu when resizing to desktop width', async () => {
+      // Start in mobile mode
+      Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 800 });
+
+      const { container } = await openMobileMenu();
+      await waitFor(() => { expect(container.querySelector('.lg\\:hidden.absolute')).toBeInTheDocument(); });
+
+      // Resize to desktop width
+      Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1200 });
+      window.dispatchEvent(new Event('resize'));
+
+      await waitFor(() => {
+        expect(container.querySelector('.lg\\:hidden.absolute')).not.toBeInTheDocument();
+      });
+    });
+
+    it('detects mobile on mount when window is narrow', () => {
+      Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 500 });
+      const { container } = render(Header);
+
+      // Mobile menu toggle should be visible
+      expect(container.querySelector('.block.lg\\:hidden')).toBeInTheDocument();
+    });
+  });
+
+  describe('mobile menu logout', () => {
+    it('calls logout and navigates from mobile menu', async () => {
+      Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 800 });
+      setAuth(true, 'mobileuser', 'user');
+
+      const { user, container } = await openMobileMenu();
+      await waitFor(() => {
+        const mobileMenu = container.querySelector('.lg\\:hidden.absolute');
+        expect(mobileMenu?.textContent).toContain('Logout');
+      });
+
+      const logoutButton = screen.getByRole('button', { name: /Logout/i });
+      await user.click(logoutButton);
+
+      expect(mocks.mockLogout).toHaveBeenCalled();
+      expect(mocks.mockGoto).toHaveBeenCalledWith('/login');
+    });
   });
 });

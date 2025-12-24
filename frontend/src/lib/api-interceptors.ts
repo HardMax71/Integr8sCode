@@ -110,6 +110,7 @@ export function initializeApiInterceptors(): void {
             return error;
         }
 
+        addToast(getErrorMessage(error, 'An error occurred'), 'error');
         return error;
     });
 

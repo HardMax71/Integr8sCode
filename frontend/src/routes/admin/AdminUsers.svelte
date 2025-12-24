@@ -14,6 +14,7 @@
         type EndpointGroup,
     } from '../../lib/api';
     import { unwrap, unwrapOr } from '../../lib/api-interceptors';
+    import { addToast } from '../../stores/toastStore';
     import { formatTimestamp } from '../../lib/formatters';
     import AdminLayout from './AdminLayout.svelte';
     import Spinner from '../../components/Spinner.svelte';
@@ -210,7 +211,8 @@
     }
 
     async function saveUser(): Promise<void> {
-        if (!userForm.username) return;
+        if (!userForm.username) { addToast('Username is required', 'error'); return; }
+        if (!editingUser && !userForm.password) { addToast('Password is required', 'error'); return; }
         savingUser = true;
         let result;
         if (editingUser) {
@@ -220,7 +222,6 @@
             if (userForm.password) updateData.password = userForm.password;
             result = await updateUserApiV1AdminUsersUserIdPut({ path: { user_id: editingUser.user_id }, body: updateData });
         } else {
-            if (!userForm.password) { savingUser = false; return; }
             result = await createUserApiV1AdminUsersPost({
                 body: { username: userForm.username, email: userForm.email || null, password: userForm.password, role: userForm.role, is_active: userForm.is_active }
             });

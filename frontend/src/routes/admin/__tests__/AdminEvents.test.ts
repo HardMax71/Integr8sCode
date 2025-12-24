@@ -113,6 +113,8 @@ vi.mock('../../../stores/toastStore', () => ({
   addToast: (...args: unknown[]) => mocks.addToast(...args),
 }));
 
+vi.mock('../../../lib/api-interceptors');
+
 // Mock @mateothegreat/svelte5-router
 vi.mock('@mateothegreat/svelte5-router', () => ({
   route: () => {},
@@ -204,7 +206,7 @@ describe('AdminEvents', () => {
 
     it('handles API error on load events and shows toast', async () => {
       vi.useRealTimers();
-      const error = new Error('Network error');
+      const error = { message: 'Network error' };
       mocks.browseEventsApiV1AdminEventsBrowsePost.mockImplementation(async () => {
         mocks.addToast('Failed to load events', 'error');
         return { data: null, error };
@@ -673,7 +675,7 @@ describe('AdminEvents', () => {
     it('handles delete error and shows toast', async () => {
       vi.useRealTimers();
       const user = userEvent.setup();
-      const error = new Error('Cannot delete');
+      const error = { message: 'Cannot delete' };
       mocks.deleteEventApiV1AdminEventsEventIdDelete.mockImplementation(async () => {
         mocks.addToast('Failed to delete event', 'error');
         return { data: null, error };
@@ -807,7 +809,7 @@ describe('AdminEvents', () => {
     it('handles user overview load error and shows toast', async () => {
       vi.useRealTimers();
       const user = userEvent.setup();
-      const error = new Error('Failed to load');
+      const error = { message: 'Failed to load' };
       const events = [createMockEvent({ metadata: { user_id: 'user-error' } })];
       mocks.getUserOverviewApiV1AdminUsersUserIdOverviewGet.mockImplementation(async () => {
         mocks.addToast('Failed to load user overview', 'error');
@@ -871,7 +873,7 @@ describe('AdminEvents', () => {
     it('handles event detail load error and shows toast', async () => {
       vi.useRealTimers();
       const user = userEvent.setup();
-      const error = new Error('Detail not found');
+      const error = { message: 'Detail not found' };
       mocks.getEventDetailApiV1AdminEventsEventIdGet.mockImplementation(async () => {
         mocks.addToast('Failed to load event details', 'error');
         return { data: null, error };
@@ -890,7 +892,7 @@ describe('AdminEvents', () => {
     it('handles replay error and shows toast', async () => {
       vi.useRealTimers();
       const user = userEvent.setup();
-      const error = new Error('Replay failed');
+      const error = { message: 'Replay failed' };
       mocks.replayEventsApiV1AdminEventsReplayPost.mockImplementation(async () => {
         mocks.addToast('Failed to replay event', 'error');
         return { data: null, error };

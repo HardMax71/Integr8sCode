@@ -81,7 +81,7 @@
         { path: "/admin/sagas", component: AdminSagas, hooks: { pre: requireAuth } },
         { path: "/admin/users", component: AdminUsers, hooks: { pre: requireAuth } },
         { path: "/admin/settings", component: AdminSettings, hooks: { pre: requireAuth } },
-        { path: "/admin", component: AdminEvents, hooks: { pre: requireAuth } },
+        { path: "^/admin$", component: AdminEvents, hooks: { pre: requireAuth } },
     ];
 </script>
 

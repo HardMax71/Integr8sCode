@@ -21,16 +21,22 @@
     xl: 'max-w-6xl',
   };
 
-  function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') onClose();
-  }
+  // Only listen for Escape when modal is open
+  $effect(() => {
+    if (!open) return;
+
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  });
 
   function handleBackdropClick(e: MouseEvent) {
     if (e.target === e.currentTarget) onClose();
   }
 </script>
-
-<svelte:window onkeydown={handleKeydown} />
 
 {#if open}
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -38,11 +44,9 @@
     class="modal-backdrop"
     transition:fade={{ duration: 150 }}
     onclick={handleBackdropClick}
-    onkeydown={handleKeydown}
     role="dialog"
     aria-modal="true"
     aria-labelledby="modal-title"
-    tabindex="-1"
   >
     <div class="modal-container {sizeClasses[size]}">
       <div class="modal-header">

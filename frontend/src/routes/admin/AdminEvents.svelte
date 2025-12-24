@@ -15,8 +15,17 @@
         type AdminUserOverview,
     } from '../../lib/api';
     import { addToast } from '../../stores/toastStore';
+    import { handleApiError } from '../../lib/api-utils';
+    import { formatTimestamp } from '../../lib/formatters';
     import AdminLayout from './AdminLayout.svelte';
     import Spinner from '../../components/Spinner.svelte';
+    import Modal from '../../components/Modal.svelte';
+    import EventTypeIcon from '../../components/EventTypeIcon.svelte';
+    import {
+        Filter, Download, RefreshCw, X, Eye, Play, Trash2,
+        ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight,
+        FileText, Code, AlertTriangle
+    } from '@lucide/svelte';
 
     let events = $state<EventResponse[]>([]);
     let loading = $state(false);
@@ -107,9 +116,7 @@
             events = data?.events || [];
             totalEvents = data?.total || 0;
         } catch (err) {
-            console.error('Failed to load events:', err);
-            const msg = (err as Error)?.message || 'Unknown error';
-            addToast(`Failed to load events: ${msg}`, 'error');
+            handleApiError(err, 'load events');
             events = [];
             totalEvents = 0;
         } finally {
@@ -133,8 +140,7 @@
             if (error) throw error;
             selectedEvent = data ?? null;
         } catch (err) {
-            const msg = (err as Error)?.message || 'Unknown error';
-            addToast(`Failed to load event detail: ${msg}`, 'error');
+            handleApiError(err, 'load event detail');
         }
     }
 
@@ -219,8 +225,7 @@
                 selectedEvent = null;
             }
         } catch (err) {
-            const msg = (err as Error)?.message || 'Unknown error';
-            addToast(`Failed to replay event: ${msg}`, 'error');
+            handleApiError(err, 'replay event');
         }
     }
 
@@ -239,8 +244,7 @@
             ]);
             selectedEvent = null;
         } catch (err) {
-            const msg = (err as Error)?.message || 'Unknown error';
-            addToast(`Failed to delete event: ${msg}`, 'error');
+            handleApiError(err, 'delete event');
         }
     }
 
@@ -277,8 +281,7 @@
             
             addToast(`Starting ${format.toUpperCase()} export...`, 'info');
         } catch (err) {
-            const msg = (err as Error)?.message || 'Unknown error';
-            addToast(`Failed to export events: ${msg}`, 'error');
+            handleApiError(err, 'export events');
         }
     }
 
@@ -293,23 +296,11 @@
             if (error) throw error;
             userOverview = data ?? null;
         } catch (err) {
-            console.error('Failed to load user overview:', err);
-            const msg = (err as Error)?.message || 'Unknown error';
-            addToast(`Failed to load user overview: ${msg}`, 'error');
+            handleApiError(err, 'load user overview');
             showUserOverview = false;
         } finally {
             userOverviewLoading = false;
         }
-    }
-
-    function formatTimestamp(timestamp: string): string {
-        // Backend sends ISO datetime strings
-        return new Date(timestamp).toLocaleString();
-    }
-
-    function formatDuration(seconds: number | null | undefined): string {
-        if (!seconds) return '-';
-        return `${seconds.toFixed(2)}s`;
     }
 
     function getEventTypeColor(eventType: string): string {
@@ -322,69 +313,6 @@
         return 'text-gray-600 dark:text-gray-400';
     }
 
-    function getEventTypeIcon(eventType: string): string {
-        // Execution events (handle both dot and underscore notation)
-        if (eventType === 'execution.requested' || eventType === 'execution_requested') {
-            return `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3l-4 4m0 0l4 4m-4-4h9" />
-            </svg>`;
-        }
-        if (eventType === 'execution.started' || eventType === 'execution_started') {
-            return `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>`;
-        }
-        if (eventType === 'execution.completed' || eventType === 'execution_completed') {
-            return `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>`;
-        }
-        if (eventType === 'execution.failed' || eventType === 'execution_failed') {
-            return `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>`;
-        }
-        if (eventType === 'execution.timeout' || eventType === 'execution_timeout') {
-            return `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>`;
-        }
-        
-        // Pod events (handle both dot and underscore notation)
-        if (eventType === 'pod.created' || eventType === 'pod_created') {
-            return `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7" />
-            </svg>`;
-        }
-        if (eventType === 'pod.running' || eventType === 'pod_running') {
-            return `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>`;
-        }
-        if (eventType === 'pod.succeeded' || eventType === 'pod_succeeded') {
-            return `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-            </svg>`;
-        }
-        if (eventType === 'pod.failed' || eventType === 'pod_failed') {
-            return `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>`;
-        }
-        if (eventType === 'pod.terminated' || eventType === 'pod_terminated') {
-            return `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 110 2h-4a1 1 0 01-1-1z" />
-            </svg>`;
-        }
-        
-        // Default icon for unknown event types - Question mark
-        return `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>`;
-    }
-    
     function getEventTypeLabel(eventType: string): string {
         // For execution.requested, show icon only (with tooltip)
         if (eventType === 'execution.requested') {
@@ -462,9 +390,9 @@
                     class:ring-offset-2={showFilters}
                     class:dark:ring-offset-dark-bg-default={showFilters}
                 >
-                    <svg class="w-4 h-4 transition-transform duration-200" class:rotate-180={showFilters} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                    </svg>
+                    <span class="transition-transform duration-200" class:rotate-180={showFilters}>
+                        <Filter size={16} />
+                    </span>
                     <span class="hidden sm:inline">Filters</span>
                     {#if hasActiveFilters()}
                         <span class="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-xs font-bold {showFilters ? 'bg-white text-primary' : 'bg-primary text-white'}">
@@ -480,39 +408,31 @@
                         onblur={() => setTimeout(() => showExportMenu = false, 200)}
                         class="btn btn-sm sm:btn-md btn-secondary-outline flex items-center gap-1 sm:gap-2"
                     >
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
-                        </svg>
+                        <Download size={16} />
                         <span class="hidden sm:inline">Export</span>
-                        <svg class="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                        </svg>
+                        <ChevronRight size={12} class="ml-1 rotate-90" />
                     </button>
-                    
+
                     {#if showExportMenu}
                         <div class="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
                             <button
                                 onclick={() => { exportEvents('csv'); showExportMenu = false; }}
                                 class="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 rounded-t-lg transition-colors"
                             >
-                                <svg class="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                </svg>
+                                <FileText size={16} class="text-green-600 dark:text-green-400" />
                                 <span>Export as CSV</span>
                             </button>
                             <button
                                 onclick={() => { exportEvents('json'); showExportMenu = false; }}
                                 class="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 rounded-b-lg transition-colors"
                             >
-                                <svg class="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                                </svg>
+                                <Code size={16} class="text-blue-600 dark:text-blue-400" />
                                 <span>Export as JSON</span>
                             </button>
                         </div>
                     {/if}
                 </div>
-                
+
                 <button
                     onclick={loadEvents}
                     class="btn btn-sm sm:btn-md btn-primary flex items-center gap-1 sm:gap-2"
@@ -521,9 +441,7 @@
                     {#if loading}
                         <Spinner size="small" />
                     {:else}
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
+                        <RefreshCw size={16} />
                     {/if}
                     <span class="hidden sm:inline">Refresh</span>
                 </button>
@@ -538,9 +456,7 @@
                     class="absolute top-2 right-2 p-1 hover:bg-blue-100 dark:hover:bg-blue-800 rounded-lg transition-colors"
                     title="Close"
                 >
-                    <svg class="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+                    <X size={20} class="text-blue-600 dark:text-blue-400" />
                 </button>
                 
                 <div class="flex items-center justify-between mb-2 pr-8">
@@ -671,9 +587,7 @@
                     onclick={clearFilters}
                     class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
                 >
-                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+                    <X size={12} class="mr-1" />
                     Clear all
                 </button>
             </div>
@@ -858,7 +772,7 @@
                                     <td class="px-3 py-2 text-sm text-fg-default dark:text-dark-fg-default">
                                         <div class="relative group">
                                             <span class={`${getEventTypeColor(event.event_type)} shrink-0 cursor-help`}>
-                                                {@html getEventTypeIcon(event.event_type)}
+                                                <EventTypeIcon eventType={event.event_type} />
                                             </span>
                                             <!-- Tooltip on hover -->
                                             <div class="absolute z-10 invisible group-hover:visible bg-gray-900 text-white text-xs rounded py-1 px-2 left-0 top-8 min-w-max">
@@ -898,29 +812,21 @@
                                                 class="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
                                                 title="Preview replay"
                                             >
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                                </svg>
+                                                <Eye size={16} />
                                             </button>
                                             <button
                                                 onclick={(e) => { e.stopPropagation(); replayEvent(event.event_id, false); }}
                                                 class="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-blue-600 dark:text-blue-400"
                                                 title="Replay"
                                             >
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                </svg>
+                                                <Play size={16} />
                                             </button>
                                             <button
                                                 onclick={(e) => { e.stopPropagation(); deleteEvent(event.event_id); }}
                                                 class="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-red-600 dark:text-red-400"
                                                 title="Delete"
                                             >
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                </svg>
+                                                <Trash2 size={16} />
                                             </button>
                                         </div>
                                     </td>
@@ -946,7 +852,7 @@
                                     <div class="flex items-center gap-2">
                                         <div class="relative group">
                                             <span class={`${getEventTypeColor(event.event_type)} shrink-0 cursor-help`}>
-                                                {@html getEventTypeIcon(event.event_type)}
+                                                <EventTypeIcon eventType={event.event_type} />
                                             </span>
                                             <!-- Mobile tooltip -->
                                             <div class="absolute z-10 invisible group-hover:visible bg-gray-900 text-white text-xs rounded py-1 px-2 left-0 top-7 min-w-max">
@@ -968,29 +874,21 @@
                                         class="btn btn-ghost btn-xs p-1"
                                         title="Preview replay"
                                     >
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                        </svg>
+                                        <Eye size={16} />
                                     </button>
                                     <button
                                         onclick={(e) => { e.stopPropagation(); replayEvent(event.event_id, false); }}
                                         class="btn btn-ghost btn-xs p-1 text-blue-600 dark:text-blue-400"
                                         title="Replay"
                                     >
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
+                                        <Play size={16} />
                                     </button>
                                     <button
                                         onclick={(e) => { e.stopPropagation(); deleteEvent(event.event_id); }}
                                         class="btn btn-ghost btn-xs p-1 text-red-600 dark:text-red-400"
                                         title="Delete"
                                     >
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                        </svg>
+                                        <Trash2 size={16} />
                                     </button>
                                 </div>
                             </div>
@@ -1066,11 +964,9 @@
                                     class="pagination-button"
                                     title="First page"
                                 >
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-                                    </svg>
+                                    <ChevronsLeft size={16} />
                                 </button>
-                                
+
                                 <!-- Previous page -->
                                 <button
                                     onclick={() => { currentPage--; loadEvents(); }}
@@ -1078,18 +974,16 @@
                                     class="pagination-button"
                                     title="Previous page"
                                 >
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-                                    </svg>
+                                    <ChevronLeft size={16} />
                                 </button>
-                                
+
                                 <!-- Page numbers -->
                                 <div class="pagination-text">
                                     <span class="font-medium">{currentPage}</span>
                                     <span class="text-fg-muted dark:text-dark-fg-muted mx-1">/</span>
                                     <span class="font-medium">{totalPages}</span>
                                 </div>
-                                
+
                                 <!-- Next page -->
                                 <button
                                     onclick={() => { currentPage++; loadEvents(); }}
@@ -1097,11 +991,9 @@
                                     class="pagination-button"
                                     title="Next page"
                                 >
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                                    </svg>
+                                    <ChevronRight size={16} />
                                 </button>
-                                
+
                                 <!-- Last page -->
                                 <button
                                     onclick={() => { currentPage = totalPages; loadEvents(); }}
@@ -1109,9 +1001,7 @@
                                     class="pagination-button"
                                     title="Last page"
                                 >
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-                                    </svg>
+                                    <ChevronsRight size={16} />
                                 </button>
                                 </div>
                                 {/if}
@@ -1128,303 +1018,249 @@
         </div>
     </div>
 
-    {#if selectedEvent}
-        <div class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center min-h-screen p-4 sm:p-6">
-            <button
-                class="fixed inset-0 bg-black/50 border-none cursor-default"
-                onclick={() => selectedEvent = null}
-                onkeydown={(e) => e.key === 'Escape' && (selectedEvent = null)}
-                aria-label="Close modal"
-                tabindex="-1"
-            ></button>
-            <div class="relative inline-block align-middle bg-bg-alt dark:bg-dark-bg-alt rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:max-w-4xl sm:w-full max-h-[90vh] overflow-y-auto p-6">
-                <h3 class="font-bold text-lg mb-4">Event Details</h3>
-                
-                <div class="space-y-4">
-                    <div>
-                        <h4 class="font-semibold mb-2">Basic Information</h4>
-                        <table class="w-full">
-                            <tbody>
-                                <tr class="border-b border-border-default dark:border-dark-border-default">
-                                    <td class="px-4 py-2 font-semibold text-fg-default dark:text-dark-fg-default">Event ID</td>
-                                    <td class="px-4 py-2 font-mono text-sm text-fg-default dark:text-dark-fg-default">{selectedEvent.event.event_id}</td>
-                                </tr>
-                                <tr class="border-b border-border-default dark:border-dark-border-default">
-                                    <td class="px-4 py-2 font-semibold text-fg-default dark:text-dark-fg-default">Event Type</td>
-                                    <td class="px-4 py-2">
-                                        <div class="flex items-center gap-2">
-                                            <span class={`${getEventTypeColor(selectedEvent.event.event_type)} shrink-0`} title={selectedEvent.event.event_type}>
-                                                {@html getEventTypeIcon(selectedEvent.event.event_type)}
-                                            </span>
-                                            <span class={getEventTypeColor(selectedEvent.event.event_type)}>
-                                                {selectedEvent.event.event_type}
-                                            </span>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <tr class="border-b border-border-default dark:border-dark-border-default">
-                                    <td class="px-4 py-2 font-semibold text-fg-default dark:text-dark-fg-default">Timestamp</td>
-                                    <td class="px-4 py-2 text-sm text-fg-default dark:text-dark-fg-default">{formatTimestamp(selectedEvent.event.timestamp)}</td>
-                                </tr>
-                                <tr class="border-b border-border-default dark:border-dark-border-default">
-                                    <td class="px-4 py-2 font-semibold text-fg-default dark:text-dark-fg-default">Correlation ID</td>
-                                    <td class="px-4 py-2 font-mono text-sm text-fg-default dark:text-dark-fg-default">{selectedEvent.event.correlation_id}</td>
-                                </tr>
-                                <tr class="border-b border-border-default dark:border-dark-border-default">
-                                    <td class="px-4 py-2 font-semibold text-fg-default dark:text-dark-fg-default">Aggregate ID</td>
-                                    <td class="px-4 py-2 font-mono text-sm text-fg-default dark:text-dark-fg-default">{selectedEvent.event.aggregate_id || '-'}</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    
-                    <div>
-                        <h4 class="font-semibold mb-2">Metadata</h4>
-                        <pre class="bg-neutral-100 dark:bg-neutral-800 p-3 rounded overflow-auto text-sm font-mono text-fg-default dark:text-dark-fg-default">
-{JSON.stringify(selectedEvent.event.metadata, null, 2)}
-                        </pre>
-                    </div>
-                    
-                    <div>
-                        <h4 class="font-semibold mb-2">Payload</h4>
-                        <pre class="bg-neutral-100 dark:bg-neutral-800 p-3 rounded overflow-auto text-sm font-mono text-fg-default dark:text-dark-fg-default">
-{JSON.stringify(selectedEvent.event.payload, null, 2)}
-                        </pre>
-                    </div>
-                    
-                    {#if selectedEvent.related_events && selectedEvent.related_events.length > 0}
-                        <div>
-                            <h4 class="font-semibold mb-2">Related Events</h4>
-                            <div class="space-y-1">
-                                {#each selectedEvent.related_events || [] as related}
-                                    <button
-                                        onclick={() => loadEventDetail(related.event_id)}
-                                        class="flex justify-between items-center w-full p-2 bg-neutral-100 dark:bg-neutral-800 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
-                                    >
-                                        <span class={getEventTypeColor(related.event_type)}>
-                                            {related.event_type}
+    <Modal open={!!selectedEvent} title="Event Details" onClose={() => selectedEvent = null} size="lg">
+        {#if selectedEvent}
+            <div class="space-y-4">
+                <div>
+                    <h4 class="font-semibold mb-2">Basic Information</h4>
+                    <table class="w-full">
+                        <tbody>
+                            <tr class="border-b border-border-default dark:border-dark-border-default">
+                                <td class="px-4 py-2 font-semibold text-fg-default dark:text-dark-fg-default">Event ID</td>
+                                <td class="px-4 py-2 font-mono text-sm text-fg-default dark:text-dark-fg-default">{selectedEvent.event.event_id}</td>
+                            </tr>
+                            <tr class="border-b border-border-default dark:border-dark-border-default">
+                                <td class="px-4 py-2 font-semibold text-fg-default dark:text-dark-fg-default">Event Type</td>
+                                <td class="px-4 py-2">
+                                    <div class="flex items-center gap-2">
+                                        <span class={`${getEventTypeColor(selectedEvent.event.event_type)} shrink-0`} title={selectedEvent.event.event_type}>
+                                            <EventTypeIcon eventType={selectedEvent.event.event_type} />
                                         </span>
-                                        <span class="text-sm text-fg-muted dark:text-dark-fg-muted">
-                                            {formatTimestamp(related.timestamp)}
+                                        <span class={getEventTypeColor(selectedEvent.event.event_type)}>
+                                            {selectedEvent.event.event_type}
                                         </span>
-                                    </button>
-                                {/each}
-                            </div>
-                        </div>
-                    {/if}
-                </div>
-                
-                <div class="mt-5 sm:mt-6 flex gap-3 justify-end">
-                    <button
-                        onclick={() => replayEvent(selectedEvent.event.event_id, false)}
-                        class="btn btn-primary"
-                    >
-                        Replay Event
-                    </button>
-                    <button
-                        onclick={() => selectedEvent = null}
-                        class="btn btn-secondary-outline"
-                    >
-                        Close
-                    </button>
-                </div>
-            </div>
-        </div>
-    {/if}
-
-    <!-- Replay Preview Modal -->
-    {#if showReplayPreview && replayPreview}
-        <div class="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center p-4 z-50">
-            <div class="bg-white dark:bg-dark-surface rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                <div class="p-6 border-b border-gray-200 dark:border-gray-700">
-                    <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Replay Preview</h2>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        Review the events that will be replayed
-                    </p>
-                </div>
-                
-                <div class="p-6">
-                    <div class="mb-4">
-                        <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                            <div class="flex items-center justify-between mb-2">
-                                <span class="font-semibold text-blue-900 dark:text-blue-100">
-                                    {replayPreview.total_events} event{replayPreview.total_events !== 1 ? 's' : ''} will be replayed
-                                </span>
-                                <span class="text-sm text-blue-700 dark:text-blue-300">
-                                    Dry Run
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    {#if replayPreview.events_preview && replayPreview.events_preview.length > 0}
-                        <div class="space-y-3">
-                            <h3 class="font-medium text-gray-900 dark:text-white mb-2">Events to Replay:</h3>
-                            {#each replayPreview.events_preview as event}
-                                <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
-                                    <div class="flex justify-between items-start">
-                                        <div>
-                                            <div class="font-mono text-xs text-gray-500 dark:text-gray-400 mb-1">
-                                                {event.event_id}
-                                            </div>
-                                            <div class="font-medium text-gray-900 dark:text-white">
-                                                {event.event_type}
-                                            </div>
-                                            {#if event.aggregate_id}
-                                                <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                                    Aggregate: {event.aggregate_id}
-                                                </div>
-                                            {/if}
-                                        </div>
-                                        <div class="text-sm text-gray-500 dark:text-gray-400">
-                                            {new Date(event.timestamp).toLocaleString()}
-                                        </div>
                                     </div>
-                                </div>
+                                </td>
+                            </tr>
+                            <tr class="border-b border-border-default dark:border-dark-border-default">
+                                <td class="px-4 py-2 font-semibold text-fg-default dark:text-dark-fg-default">Timestamp</td>
+                                <td class="px-4 py-2 text-sm text-fg-default dark:text-dark-fg-default">{formatTimestamp(selectedEvent.event.timestamp)}</td>
+                            </tr>
+                            <tr class="border-b border-border-default dark:border-dark-border-default">
+                                <td class="px-4 py-2 font-semibold text-fg-default dark:text-dark-fg-default">Correlation ID</td>
+                                <td class="px-4 py-2 font-mono text-sm text-fg-default dark:text-dark-fg-default">{selectedEvent.event.correlation_id}</td>
+                            </tr>
+                            <tr class="border-b border-border-default dark:border-dark-border-default">
+                                <td class="px-4 py-2 font-semibold text-fg-default dark:text-dark-fg-default">Aggregate ID</td>
+                                <td class="px-4 py-2 font-mono text-sm text-fg-default dark:text-dark-fg-default">{selectedEvent.event.aggregate_id || '-'}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div>
+                    <h4 class="font-semibold mb-2">Metadata</h4>
+                    <pre class="bg-neutral-100 dark:bg-neutral-800 p-3 rounded overflow-auto text-sm font-mono text-fg-default dark:text-dark-fg-default">{JSON.stringify(selectedEvent.event.metadata, null, 2)}</pre>
+                </div>
+
+                <div>
+                    <h4 class="font-semibold mb-2">Payload</h4>
+                    <pre class="bg-neutral-100 dark:bg-neutral-800 p-3 rounded overflow-auto text-sm font-mono text-fg-default dark:text-dark-fg-default">{JSON.stringify(selectedEvent.event.payload, null, 2)}</pre>
+                </div>
+
+                {#if selectedEvent.related_events && selectedEvent.related_events.length > 0}
+                    <div>
+                        <h4 class="font-semibold mb-2">Related Events</h4>
+                        <div class="space-y-1">
+                            {#each selectedEvent.related_events || [] as related}
+                                <button
+                                    onclick={() => loadEventDetail(related.event_id)}
+                                    class="flex justify-between items-center w-full p-2 bg-neutral-100 dark:bg-neutral-800 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+                                >
+                                    <span class={getEventTypeColor(related.event_type)}>
+                                        {related.event_type}
+                                    </span>
+                                    <span class="text-sm text-fg-muted dark:text-dark-fg-muted">
+                                        {formatTimestamp(related.timestamp)}
+                                    </span>
+                                </button>
                             {/each}
                         </div>
-                    {/if}
-                    
-                    <div class="mt-6 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-                        <div class="flex">
-                            <svg class="h-5 w-5 text-yellow-400 dark:text-yellow-300 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-                            </svg>
-                            <div class="ml-3">
-                                <h3 class="text-sm font-medium text-yellow-800 dark:text-yellow-200">
-                                    Warning
-                                </h3>
-                                <div class="mt-1 text-sm text-yellow-700 dark:text-yellow-300">
-                                    Replaying events will re-process them through the system. This may trigger new executions
-                                    and create duplicate results if the events have already been processed.
+                    </div>
+                {/if}
+            </div>
+        {/if}
+
+        {#snippet footer()}
+            <button
+                onclick={() => selectedEvent && replayEvent(selectedEvent.event.event_id, false)}
+                class="btn btn-primary"
+            >
+                Replay Event
+            </button>
+            <button
+                onclick={() => selectedEvent = null}
+                class="btn btn-secondary-outline"
+            >
+                Close
+            </button>
+        {/snippet}
+    </Modal>
+
+    <!-- Replay Preview Modal -->
+    <Modal open={showReplayPreview && !!replayPreview} title="Replay Preview" onClose={() => { showReplayPreview = false; replayPreview = null; }} size="md">
+        {#if replayPreview}
+            <p class="text-sm text-gray-500 dark:text-gray-400 -mt-2 mb-4">
+                Review the events that will be replayed
+            </p>
+
+            <div class="mb-4">
+                <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                    <div class="flex items-center justify-between">
+                        <span class="font-semibold text-blue-900 dark:text-blue-100">
+                            {replayPreview.total_events} event{replayPreview.total_events !== 1 ? 's' : ''} will be replayed
+                        </span>
+                        <span class="text-sm text-blue-700 dark:text-blue-300">Dry Run</span>
+                    </div>
+                </div>
+            </div>
+
+            {#if replayPreview.events_preview && replayPreview.events_preview.length > 0}
+                <div class="space-y-3">
+                    <h3 class="font-medium text-gray-900 dark:text-white mb-2">Events to Replay:</h3>
+                    {#each replayPreview.events_preview as event}
+                        <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <div class="font-mono text-xs text-gray-500 dark:text-gray-400 mb-1">{event.event_id}</div>
+                                    <div class="font-medium text-gray-900 dark:text-white">{event.event_type}</div>
+                                    {#if event.aggregate_id}
+                                        <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">Aggregate: {event.aggregate_id}</div>
+                                    {/if}
                                 </div>
+                                <div class="text-sm text-gray-500 dark:text-gray-400">{formatTimestamp(event.timestamp)}</div>
                             </div>
+                        </div>
+                    {/each}
+                </div>
+            {/if}
+
+            <div class="mt-6 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                <div class="flex">
+                    <AlertTriangle size={20} class="text-yellow-400 dark:text-yellow-300 mt-0.5 shrink-0" />
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-yellow-800 dark:text-yellow-200">Warning</h3>
+                        <div class="mt-1 text-sm text-yellow-700 dark:text-yellow-300">
+                            Replaying events will re-process them through the system. This may trigger new executions
+                            and create duplicate results if the events have already been processed.
                         </div>
                     </div>
                 </div>
-                
-                <div class="p-6 border-t border-gray-200 dark:border-gray-700 flex gap-3 justify-end">
-                    <button
-                        onclick={() => {
-                            showReplayPreview = false;
-                            replayEvent(replayPreview.eventId, false);
-                        }}
-                        class="btn btn-primary"
-                    >
-                        Proceed with Replay
-                    </button>
-                    <button
-                        onclick={() => {
-                            showReplayPreview = false;
-                            replayPreview = null;
-                        }}
-                        class="btn btn-secondary-outline"
-                    >
-                        Cancel
-                    </button>
-                </div>
             </div>
-        </div>
-    {/if}
+        {/if}
+
+        {#snippet footer()}
+            <button
+                onclick={() => {
+                    showReplayPreview = false;
+                    if (replayPreview) replayEvent(replayPreview.eventId, false);
+                }}
+                class="btn btn-primary"
+            >
+                Proceed with Replay
+            </button>
+            <button
+                onclick={() => { showReplayPreview = false; replayPreview = null; }}
+                class="btn btn-secondary-outline"
+            >
+                Cancel
+            </button>
+        {/snippet}
+    </Modal>
 
     <!-- User Overview Modal -->
-    {#if showUserOverview}
-        <div class="fixed inset-0 flex items-center justify-center p-4 z-50">
-            <button
-                class="fixed inset-0 bg-black/50 dark:bg-black/70 border-none cursor-default"
-                onclick={() => showUserOverview = false}
-                onkeydown={(e) => e.key === 'Escape' && (showUserOverview = false)}
-                aria-label="Close modal"
-                tabindex="-1"
-            ></button>
-            <div class="relative bg-white dark:bg-neutral-900 rounded-lg shadow-xl w-full max-w-3xl">
-                <div class="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                    <h2 class="text-xl font-semibold text-gray-900 dark:text-white">User Overview</h2>
-                </div>
-                <div class="p-6">
-                    {#if userOverviewLoading}
-                        <div class="flex items-center justify-center py-10">
-                            <Spinner />
-                        </div>
-                    {:else if userOverview}
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <!-- User info -->
-                            <div>
-                                <h3 class="font-semibold mb-3 text-fg-default dark:text-dark-fg-default">Profile</h3>
-                                <div class="space-y-2 text-sm">
-                                    <div><span class="text-fg-muted dark:text-dark-fg-muted">User ID:</span> <span class="font-mono">{userOverview.user.user_id}</span></div>
-                                    <div><span class="text-fg-muted dark:text-dark-fg-muted">Username:</span> {userOverview.user.username}</div>
-                                    <div><span class="text-fg-muted dark:text-dark-fg-muted">Email:</span> {userOverview.user.email}</div>
-                                    <div><span class="text-fg-muted dark:text-dark-fg-muted">Role:</span> {userOverview.user.role}</div>
-                                    <div><span class="text-fg-muted dark:text-dark-fg-muted">Active:</span> {userOverview.user.is_active ? 'Yes' : 'No'}</div>
-                                    <div><span class="text-fg-muted dark:text-dark-fg-muted">Superuser:</span> {userOverview.user.is_superuser ? 'Yes' : 'No'}</div>
-                                </div>
-                                {#if userOverview.rate_limit_summary}
-                                    <div class="mt-4">
-                                        <h4 class="font-medium mb-2 text-fg-default dark:text-dark-fg-default">Rate Limits</h4>
-                                        <div class="text-sm space-y-1">
-                                            <div><span class="text-fg-muted dark:text-dark-fg-muted">Bypass:</span> {userOverview.rate_limit_summary.bypass_rate_limit ? 'Yes' : 'No'}</div>
-                                            <div><span class="text-fg-muted dark:text-dark-fg-muted">Global Multiplier:</span> {userOverview.rate_limit_summary.global_multiplier ?? 1.0}</div>
-                                            <div><span class="text-fg-muted dark:text-dark-fg-muted">Custom Rules:</span> {userOverview.rate_limit_summary.has_custom_limits ? 'Yes' : 'No'}</div>
-                                        </div>
-                                    </div>
-                                {/if}
-                            </div>
-
-                            <!-- Stats -->
-                            <div>
-                                <h3 class="font-semibold mb-3 text-fg-default dark:text-dark-fg-default">Execution Stats (last 24h)</h3>
-                                <div class="grid grid-cols-2 gap-3">
-                                    <div class="p-3 rounded-lg bg-green-50 dark:bg-green-900/20">
-                                        <div class="text-xs text-green-700 dark:text-green-300">Succeeded</div>
-                                        <div class="text-xl font-semibold text-green-800 dark:text-green-200">{userOverview.derived_counts.succeeded}</div>
-                                    </div>
-                                    <div class="p-3 rounded-lg bg-red-50 dark:bg-red-900/20">
-                                        <div class="text-xs text-red-700 dark:text-red-300">Failed</div>
-                                        <div class="text-xl font-semibold text-red-800 dark:text-red-200">{userOverview.derived_counts.failed}</div>
-                                    </div>
-                                    <div class="p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/20">
-                                        <div class="text-xs text-yellow-700 dark:text-yellow-300">Timeout</div>
-                                        <div class="text-xl font-semibold text-yellow-800 dark:text-yellow-200">{userOverview.derived_counts.timeout}</div>
-                                    </div>
-                                    <div class="p-3 rounded-lg bg-gray-100 dark:bg-gray-800">
-                                        <div class="text-xs text-gray-700 dark:text-gray-300">Cancelled</div>
-                                        <div class="text-xl font-semibold text-gray-900 dark:text-gray-100">{userOverview.derived_counts.cancelled}</div>
-                                    </div>
-                                </div>
-                                <div class="mt-3 text-sm text-fg-muted dark:text-dark-fg-muted">
-                                    Terminal Total: <span class="font-semibold text-fg-default dark:text-dark-fg-default">{userOverview.derived_counts.terminal_total}</span>
-                                </div>
-                                <div class="mt-2 text-sm text-fg-muted dark:text-dark-fg-muted">
-                                    Total Events: <span class="font-semibold text-fg-default dark:text-dark-fg-default">{userOverview.stats.total_events}</span>
-                                </div>
+    <Modal open={showUserOverview} title="User Overview" onClose={() => showUserOverview = false} size="lg">
+        {#if userOverviewLoading}
+            <div class="flex items-center justify-center py-10">
+                <Spinner />
+            </div>
+        {:else if userOverview}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- User info -->
+                <div>
+                    <h3 class="font-semibold mb-3 text-fg-default dark:text-dark-fg-default">Profile</h3>
+                    <div class="space-y-2 text-sm">
+                        <div><span class="text-fg-muted dark:text-dark-fg-muted">User ID:</span> <span class="font-mono">{userOverview.user.user_id}</span></div>
+                        <div><span class="text-fg-muted dark:text-dark-fg-muted">Username:</span> {userOverview.user.username}</div>
+                        <div><span class="text-fg-muted dark:text-dark-fg-muted">Email:</span> {userOverview.user.email}</div>
+                        <div><span class="text-fg-muted dark:text-dark-fg-muted">Role:</span> {userOverview.user.role}</div>
+                        <div><span class="text-fg-muted dark:text-dark-fg-muted">Active:</span> {userOverview.user.is_active ? 'Yes' : 'No'}</div>
+                        <div><span class="text-fg-muted dark:text-dark-fg-muted">Superuser:</span> {userOverview.user.is_superuser ? 'Yes' : 'No'}</div>
+                    </div>
+                    {#if userOverview.rate_limit_summary}
+                        <div class="mt-4">
+                            <h4 class="font-medium mb-2 text-fg-default dark:text-dark-fg-default">Rate Limits</h4>
+                            <div class="text-sm space-y-1">
+                                <div><span class="text-fg-muted dark:text-dark-fg-muted">Bypass:</span> {userOverview.rate_limit_summary.bypass_rate_limit ? 'Yes' : 'No'}</div>
+                                <div><span class="text-fg-muted dark:text-dark-fg-muted">Global Multiplier:</span> {userOverview.rate_limit_summary.global_multiplier ?? 1.0}</div>
+                                <div><span class="text-fg-muted dark:text-dark-fg-muted">Custom Rules:</span> {userOverview.rate_limit_summary.has_custom_limits ? 'Yes' : 'No'}</div>
                             </div>
                         </div>
-
-                        {#if userOverview.recent_events && userOverview.recent_events.length > 0}
-                            <div class="mt-6">
-                                <h3 class="font-semibold mb-2 text-fg-default dark:text-dark-fg-default">Recent Execution Events</h3>
-                                <div class="space-y-1 max-h-48 overflow-auto">
-                                    {#each userOverview.recent_events as ev}
-                                        <div class="flex justify-between items-center p-2 bg-neutral-50 dark:bg-neutral-800 rounded">
-                                            <div class="text-sm">
-                                                <span class={getEventTypeColor(ev.event_type)}>{getEventTypeLabel(ev.event_type) || ev.event_type}</span>
-                                                <span class="ml-2 font-mono text-xs text-fg-muted dark:text-dark-fg-muted">{ev.aggregate_id || '-'}</span>
-                                            </div>
-                                            <div class="text-xs text-fg-muted dark:text-dark-fg-muted">{formatTimestamp(ev.timestamp)}</div>
-                                        </div>
-                                    {/each}
-                                </div>
-                            </div>
-                        {/if}
-                    {:else}
-                        <div class="text-sm text-fg-muted dark:text-dark-fg-muted">No data available</div>
                     {/if}
                 </div>
-                <div class="p-6 border-t border-gray-200 dark:border-gray-700 flex gap-3 justify-end">
-                    <a href="/admin/users" class="btn btn-outline">Open User Management</a>
+
+                <!-- Stats -->
+                <div>
+                    <h3 class="font-semibold mb-3 text-fg-default dark:text-dark-fg-default">Execution Stats (last 24h)</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="p-3 rounded-lg bg-green-50 dark:bg-green-900/20">
+                            <div class="text-xs text-green-700 dark:text-green-300">Succeeded</div>
+                            <div class="text-xl font-semibold text-green-800 dark:text-green-200">{userOverview.derived_counts.succeeded}</div>
+                        </div>
+                        <div class="p-3 rounded-lg bg-red-50 dark:bg-red-900/20">
+                            <div class="text-xs text-red-700 dark:text-red-300">Failed</div>
+                            <div class="text-xl font-semibold text-red-800 dark:text-red-200">{userOverview.derived_counts.failed}</div>
+                        </div>
+                        <div class="p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/20">
+                            <div class="text-xs text-yellow-700 dark:text-yellow-300">Timeout</div>
+                            <div class="text-xl font-semibold text-yellow-800 dark:text-yellow-200">{userOverview.derived_counts.timeout}</div>
+                        </div>
+                        <div class="p-3 rounded-lg bg-gray-100 dark:bg-gray-800">
+                            <div class="text-xs text-gray-700 dark:text-gray-300">Cancelled</div>
+                            <div class="text-xl font-semibold text-gray-900 dark:text-gray-100">{userOverview.derived_counts.cancelled}</div>
+                        </div>
+                    </div>
+                    <div class="mt-3 text-sm text-fg-muted dark:text-dark-fg-muted">
+                        Terminal Total: <span class="font-semibold text-fg-default dark:text-dark-fg-default">{userOverview.derived_counts.terminal_total}</span>
+                    </div>
+                    <div class="mt-2 text-sm text-fg-muted dark:text-dark-fg-muted">
+                        Total Events: <span class="font-semibold text-fg-default dark:text-dark-fg-default">{userOverview.stats.total_events}</span>
+                    </div>
                 </div>
             </div>
-        </div>
-    {/if}
+
+            {#if userOverview.recent_events && userOverview.recent_events.length > 0}
+                <div class="mt-6">
+                    <h3 class="font-semibold mb-2 text-fg-default dark:text-dark-fg-default">Recent Execution Events</h3>
+                    <div class="space-y-1 max-h-48 overflow-auto">
+                        {#each userOverview.recent_events as ev}
+                            <div class="flex justify-between items-center p-2 bg-neutral-50 dark:bg-neutral-800 rounded">
+                                <div class="text-sm">
+                                    <span class={getEventTypeColor(ev.event_type)}>{getEventTypeLabel(ev.event_type) || ev.event_type}</span>
+                                    <span class="ml-2 font-mono text-xs text-fg-muted dark:text-dark-fg-muted">{ev.aggregate_id || '-'}</span>
+                                </div>
+                                <div class="text-xs text-fg-muted dark:text-dark-fg-muted">{formatTimestamp(ev.timestamp)}</div>
+                            </div>
+                        {/each}
+                    </div>
+                </div>
+            {/if}
+        {:else}
+            <div class="text-sm text-fg-muted dark:text-dark-fg-muted">No data available</div>
+        {/if}
+
+        {#snippet footer()}
+            <a href="/admin/users" class="btn btn-outline">Open User Management</a>
+        {/snippet}
+    </Modal>
 </AdminLayout>

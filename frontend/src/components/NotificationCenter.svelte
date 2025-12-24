@@ -31,7 +31,7 @@
     }
     
     const priorityColors = {
-        low: 'text-gray-600 dark:text-gray-400',
+        low: 'text-fg-muted dark:text-dark-fg-muted',
         medium: 'text-blue-600 dark:text-blue-400',
         high: 'text-orange-600 dark:text-orange-400',
         urgent: 'text-red-600 dark:text-red-400'
@@ -212,7 +212,7 @@
     }
 </script>
 
-<div class="relative">
+<div class="relative z-40">
     <button
         onclick={toggleDropdown}
         class="btn btn-ghost btn-icon relative"
@@ -228,10 +228,10 @@
     
     {#if showDropdown}
         <div
-            class="absolute right-0 mt-2 w-96 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50"
+            class="absolute right-0 mt-2 w-96 bg-surface-overlay dark:bg-dark-surface-overlay rounded-lg shadow-lg border border-border-default dark:border-dark-border-default z-50"
             transition:fly={{ y: -10, duration: 200 }}
         >
-            <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+            <div class="p-4 border-b border-border-default dark:border-dark-border-default">
                 <div class="flex justify-between items-center">
                     <h3 class="font-semibold text-lg">Notifications</h3>
                     {#if $unreadCount > 0}
@@ -251,13 +251,13 @@
                         <span class="loading loading-spinner loading-sm"></span>
                     </div>
                 {:else if $notifications.length === 0}
-                    <div class="p-8 text-center text-gray-500">
+                    <div class="p-8 text-center text-fg-muted dark:text-dark-fg-muted">
                         No notifications yet
                     </div>
                 {:else}
                     {#each $notifications as notification}
                         <div
-                            class="p-4 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
+                            class="p-4 border-b border-border-default/50 dark:border-dark-border-default hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover cursor-pointer transition-colors"
                             class:bg-blue-50={notification.status !== 'read'}
                             class:dark:bg-blue-900={notification.status !== 'read'}
                             onclick={() => {
@@ -297,10 +297,10 @@
                                     <p class="font-medium text-sm">
                                         {notification.subject}
                                     </p>
-                                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                    <p class="text-sm text-fg-muted dark:text-dark-fg-muted mt-1">
                                         {notification.body}
                                     </p>
-                                    <p class="text-xs text-gray-500 dark:text-gray-500 mt-2">
+                                    <p class="text-xs text-fg-subtle dark:text-dark-fg-subtle mt-2">
                                         {formatTime(notification.created_at)}
                                     </p>
                                 </div>
@@ -313,7 +313,7 @@
                 {/if}
             </div>
             
-            <div class="p-3 border-t border-gray-200 dark:border-gray-700">
+            <div class="p-3 border-t border-border-default dark:border-dark-border-default">
                 <button
                     onclick={() => {
                         showDropdown = false;
@@ -327,10 +327,3 @@
         </div>
     {/if}
 </div>
-
-<style>
-    /* Ensure dropdown is above other content */
-    .relative {
-        z-index: 40;
-    }
-</style>

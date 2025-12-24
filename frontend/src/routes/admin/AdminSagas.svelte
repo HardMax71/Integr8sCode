@@ -32,7 +32,7 @@
     let totalItems = $state(0);
 
     const sagaStates: Record<string, { label: string; color: string; bgColor: string; icon: typeof CheckCircle }> = {
-        created: { label: 'Created', color: 'badge-neutral', bgColor: 'bg-gray-50 dark:bg-gray-900/20', icon: Plus },
+        created: { label: 'Created', color: 'badge-neutral', bgColor: 'bg-neutral-50 dark:bg-neutral-900/20', icon: Plus },
         running: { label: 'Running', color: 'badge-info', bgColor: 'bg-blue-50 dark:bg-blue-900/20', icon: Loader },
         compensating: { label: 'Compensating', color: 'badge-warning', bgColor: 'bg-yellow-50 dark:bg-yellow-900/20', icon: AlertTriangle },
         completed: { label: 'Completed', color: 'badge-success', bgColor: 'bg-green-50 dark:bg-green-900/20', icon: CheckCircle },
@@ -84,7 +84,7 @@
     }
 
     function getStateInfo(state: SagaState | string) {
-        return sagaStates[state as SagaState] || { label: state, color: 'badge-neutral', bgColor: 'bg-gray-50', icon: Plus };
+        return sagaStates[state as SagaState] || { label: state, color: 'badge-neutral', bgColor: 'bg-neutral-50', icon: Plus };
     }
 
     function getProgressPercentage(saga: SagaStatusResponse): number {
@@ -359,7 +359,7 @@
             <h3 class="font-semibold mb-3">Execution Steps</h3>
 
             {#if selectedSaga.saga_name === 'execution_saga'}
-                <div class="mb-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg overflow-x-auto">
+                <div class="mb-4 p-4 bg-neutral-50 dark:bg-neutral-700/50 rounded-lg overflow-x-auto">
                     <div class="flex items-start justify-between gap-0 min-w-[600px] pb-2">
                         {#each executionSagaSteps as step, index}
                             {@const isCompleted = selectedSaga.completed_steps.includes(step.name)}
@@ -371,7 +371,7 @@
                                 <div class="flex items-center w-full relative h-12">
                                     <div class="flex-1 flex items-center justify-end">
                                         {#if index > 0}
-                                            <div class="h-0.5 w-full {selectedSaga.completed_steps.includes(executionSagaSteps[index - 1].name) && (isCompleted || isCompensated) ? 'bg-green-400' : 'bg-gray-300 dark:bg-gray-600'}"></div>
+                                            <div class="h-0.5 w-full {selectedSaga.completed_steps.includes(executionSagaSteps[index - 1].name) && (isCompleted || isCompensated) ? 'bg-green-400' : 'bg-neutral-300 dark:bg-neutral-600'}"></div>
                                         {/if}
                                     </div>
                                     <div class="relative z-10 mx-1">
@@ -380,7 +380,7 @@
                                              isCompensated ? 'bg-yellow-100 text-yellow-600 border-yellow-300' :
                                              isCurrent ? 'bg-blue-100 text-blue-600 border-blue-300 animate-pulse' :
                                              isFailed ? 'bg-red-100 text-red-600 border-red-300' :
-                                             'bg-gray-100 text-gray-400 border-gray-300 dark:bg-gray-800'}">
+                                             'bg-neutral-100 text-neutral-400 border-neutral-300 dark:bg-neutral-800'}">
                                             {#if isCompleted}<Check class="w-5 h-5" />
                                             {:else if isCompensated}<Undo2 class="w-4 h-4" />
                                             {:else if isCurrent}<div class="w-2 h-2 bg-current rounded-full"></div>
@@ -390,7 +390,7 @@
                                     </div>
                                     <div class="flex-1 flex items-center justify-start">
                                         {#if index < executionSagaSteps.length - 1}
-                                            <div class="h-0.5 w-full {isCompleted && selectedSaga.completed_steps.includes(executionSagaSteps[index + 1].name) ? 'bg-green-400' : 'bg-gray-300 dark:bg-gray-600'}"></div>
+                                            <div class="h-0.5 w-full {isCompleted && selectedSaga.completed_steps.includes(executionSagaSteps[index + 1].name) ? 'bg-green-400' : 'bg-neutral-300 dark:bg-neutral-600'}"></div>
                                         {/if}
                                     </div>
                                 </div>
@@ -434,7 +434,7 @@
         {#if selectedSaga.context_data && Object.keys(selectedSaga.context_data).length > 0}
             <div class="mt-6">
                 <h3 class="font-semibold mb-3">Context Data</h3>
-                <div class="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                <div class="p-4 bg-neutral-50 dark:bg-neutral-700/50 rounded-lg">
                     <pre class="text-sm overflow-x-auto">{JSON.stringify(selectedSaga.context_data, null, 2)}</pre>
                 </div>
             </div>

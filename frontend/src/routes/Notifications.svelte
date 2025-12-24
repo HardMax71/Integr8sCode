@@ -108,7 +108,7 @@
 
     // New unified notification rendering: derive icons from tags and colors from severity
     const severityColors: Record<string, string> = {
-        low: 'text-gray-600 dark:text-gray-400',
+        low: 'text-fg-muted dark:text-dark-fg-muted',
         medium: 'text-blue-600 dark:text-blue-400',
         high: 'text-orange-600 dark:text-orange-400',
         urgent: 'text-red-600 dark:text-red-400'
@@ -274,10 +274,3 @@
         {/if}
     </div>
 </div>
-
-<style>
-    /* Ensure dropdown is above other content */
-    .relative {
-        z-index: 40;
-    }
-</style>

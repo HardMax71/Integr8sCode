@@ -42,7 +42,7 @@ describe('Spinner', () => {
       { color: 'primary', expectedClass: 'text-primary' },
       { color: 'white', expectedClass: 'text-white' },
       { color: 'current', expectedClass: 'text-current' },
-      { color: 'muted', expectedClass: 'text-gray-400' },
+      { color: 'muted', expectedClass: 'text-fg-subtle' },
     ] as const)('applies $expectedClass for color="$color"', ({ color, expectedClass }) => {
       render(Spinner, { props: { color } });
       expect(getSpinner().classList.contains(expectedClass)).toBe(true);

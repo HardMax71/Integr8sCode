@@ -211,7 +211,7 @@ const iconTestCases = [
 ];
 
 const priorityTestCases = [
-  { severity: 'low' as const, css: '.text-gray-600' },
+  { severity: 'low' as const, css: '.text-fg-muted' },
   { severity: 'medium' as const, css: '.text-blue-600' },
   { severity: 'high' as const, css: '.text-orange-600' },
   { severity: 'urgent' as const, css: '.text-red-600' },

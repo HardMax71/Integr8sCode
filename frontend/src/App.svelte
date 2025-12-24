@@ -90,18 +90,16 @@
 {:else}
     <div class="flex flex-col min-h-screen bg-bg-default dark:bg-dark-bg-default pt-16">
         <Header/>
-        <div class="flex-grow flex flex-col">
-            <ToastContainer/>
-            <main class="flex-grow">
-                {#if !authInitialized}
-                    <div class="flex items-center justify-center min-h-[50vh]">
-                        <Spinner size="large" />
-                    </div>
-                {:else}
-                    <Router base="/" {routes} />
-                {/if}
-            </main>
-        </div>
+        <ToastContainer/>
+        <main class="flex-grow">
+            {#if !authInitialized}
+                <div class="flex items-center justify-center min-h-[50vh]">
+                    <Spinner size="large" />
+                </div>
+            {:else}
+                <Router base="/" {routes} />
+            {/if}
+        </main>
         <Footer/>
     </div>
 {/if}

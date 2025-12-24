@@ -64,7 +64,7 @@
     });
 
     function getToastClasses(type: ToastType): string {
-        const base = "toast";
+        const base = "toast-item";
         switch (type) {
             case 'success':
                 return `${base} bg-green-50 border-green-200 text-green-800 dark:bg-green-950 dark:border-green-800 dark:text-green-200`;
@@ -101,7 +101,7 @@
     }
 
     function getTimerClasses(type: ToastType): string {
-        const base = "timer";
+        const base = "toast-timer";
         switch (type) {
             case 'success': return `${base} bg-green-300 dark:bg-green-600`;
             case 'error':   return `${base} bg-red-300 dark:bg-red-600`;
@@ -112,7 +112,7 @@
     }
 </script>
 
-<div class="toasts-container">
+<div class="toast-container">
     {#each toastList as toast (toast.id)}
         <div
              role="alert"
@@ -150,46 +150,3 @@
         </div>
     {/each}
 </div>
-
-<style>
-    .toasts-container {
-        position: fixed;
-        top: 5rem;
-        right: 1.5rem;
-        z-index: 100;
-        width: 100%;
-        max-width: 24rem;
-        pointer-events: none;
-    }
-
-    .toast {
-        position: relative;
-        display: flex;
-        align-items: flex-start;
-        padding: 1rem;
-        margin-bottom: 0.75rem;
-        border-radius: 0.5rem;
-        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-        overflow: hidden;
-        pointer-events: auto;
-        border-width: 1px;
-    }
-
-     .timer {
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        height: 3px;
-        transform-origin: left;
-        transition: transform 0.1s linear;
-     }
-
-    @media (max-width: 640px) {
-        .toasts-container {
-            top: 4.5rem;
-            left: 1rem;
-            right: 1rem;
-            max-width: none;
-        }
-    }
-</style>

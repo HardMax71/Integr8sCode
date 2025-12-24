@@ -20,7 +20,7 @@ describe('ToastContainer', () => {
   describe('rendering', () => {
     it('renders empty container when no toasts', () => {
       const { container } = render(ToastContainer);
-      const toastContainer = container.querySelector('.toasts-container');
+      const toastContainer = container.querySelector('.toast-container');
       expect(toastContainer).toBeInTheDocument();
       expect(toastContainer?.children.length).toBe(0);
     });
@@ -83,11 +83,11 @@ describe('ToastContainer', () => {
       addToast('Timed toast', 'info');
 
       await waitFor(() => {
-        const timer = screen.getByRole('alert').querySelector('.timer');
+        const timer = screen.getByRole('alert').querySelector('.toast-timer');
         expect(timer).toBeInTheDocument();
       });
 
-      const timer = screen.getByRole('alert').querySelector('.timer') as HTMLElement;
+      const timer = screen.getByRole('alert').querySelector('.toast-timer') as HTMLElement;
       await vi.advanceTimersByTimeAsync(1000);
 
       await waitFor(() => { expect(timer.style.transform).toContain('scaleX'); });
@@ -194,8 +194,8 @@ describe('ToastContainer', () => {
 
       // Both toasts should have progress bars
       const alerts = screen.getAllByRole('alert');
-      expect(alerts[0].querySelector('.timer')).toBeInTheDocument();
-      expect(alerts[1].querySelector('.timer')).toBeInTheDocument();
+      expect(alerts[0].querySelector('.toast-timer')).toBeInTheDocument();
+      expect(alerts[1].querySelector('.toast-timer')).toBeInTheDocument();
     });
 
     it('cleans up timers on unmount', async () => {

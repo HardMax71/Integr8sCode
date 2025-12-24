@@ -1,4 +1,46 @@
 @layer components {
+  /* Toast Container */
+  .toast-container {
+    position: fixed;
+    top: 5rem;
+    right: 1.5rem;
+    z-index: 100;
+    width: 100%;
+    max-width: 24rem;
+    pointer-events: none;
+  }
+
+  .toast-item {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    overflow: hidden;
+    pointer-events: auto;
+    border-width: 1px;
+  }
+
+  .toast-timer {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    transform-origin: left;
+    transition: transform 0.1s linear;
+  }
+
+  @media (max-width: 640px) {
+    .toast-container {
+      top: 4.5rem;
+      left: 1rem;
+      right: 1rem;
+      max-width: none;
+    }
+  }
+
   /* Button Extensions */
   .btn-lg {
     @apply px-6 py-3 text-base rounded-md;
@@ -24,7 +66,9 @@
   .form-input-bare {
     @apply bg-transparent border-0 border-b-2 border-neutral-300 dark:border-neutral-600
            focus:border-primary dark:focus:border-primary rounded-none px-1 py-0
-           focus:outline-hidden focus:ring-0 transition-colors;
+           focus:outline-hidden focus:ring-0 transition-colors
+           w-full text-sm font-medium text-fg-default dark:text-dark-fg-default
+           placeholder-fg-muted dark:placeholder-dark-fg-muted;
   }
 
   /* Pagination Controls */
@@ -106,19 +150,19 @@
   }
 
   .modal-container {
-    @apply bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden;
+    @apply bg-surface-overlay dark:bg-dark-surface-overlay rounded-lg shadow-xl max-w-4xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden;
   }
 
   .modal-header {
-    @apply p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center;
+    @apply p-4 sm:p-6 border-b border-border-default dark:border-dark-border-default flex justify-between items-center;
   }
 
   .modal-title {
-    @apply text-lg sm:text-xl font-semibold text-gray-900 dark:text-gray-100;
+    @apply text-lg sm:text-xl font-semibold text-fg-default dark:text-dark-fg-default;
   }
 
   .modal-close {
-    @apply text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-2xl leading-none;
+    @apply text-fg-muted hover:text-fg-default dark:text-dark-fg-muted dark:hover:text-dark-fg-default text-2xl leading-none;
   }
 
   .modal-body {
@@ -126,7 +170,7 @@
   }
 
   .modal-footer {
-    @apply p-4 sm:p-6 border-t border-gray-200 dark:border-gray-700 flex gap-3 justify-end;
+    @apply p-4 sm:p-6 border-t border-border-default dark:border-dark-border-default flex gap-3 justify-end;
   }
 
   /* Badge/Pill Styles */
@@ -163,7 +207,7 @@
   }
 
   .badge-neutral {
-    @apply bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200;
+    @apply bg-skeleton dark:bg-dark-skeleton text-fg-default dark:text-dark-fg-default;
   }
 
   /* Alert/Notification Styles */
@@ -189,7 +233,7 @@
 
   /* Progress Bar */
   .progress-container {
-    @apply w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2;
+    @apply w-full bg-skeleton dark:bg-dark-skeleton rounded-full h-2;
   }
 
   .progress-bar {
@@ -210,11 +254,11 @@
 
   /* Dropdown Menu (Generic) */
   .dropdown-menu {
-    @apply absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50;
+    @apply absolute right-0 mt-2 w-48 bg-surface-overlay dark:bg-dark-surface-overlay rounded-lg shadow-lg border border-border-default dark:border-dark-border-default z-50;
   }
 
   .dropdown-item {
-    @apply w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 transition-colors;
+    @apply w-full px-4 py-2 text-left hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover flex items-center gap-2 transition-colors;
   }
 
   .dropdown-item:first-child {
@@ -227,26 +271,26 @@
 
   /* Tooltip */
   .tooltip {
-    @apply absolute bottom-8 right-0 z-10 px-2 py-1 text-xs bg-neutral-800 dark:bg-neutral-200
-           text-white dark:text-neutral-800 rounded shadow-lg opacity-0 group-hover:opacity-100
+    @apply absolute bottom-8 right-0 z-10 px-2 py-1 text-xs bg-tooltip-bg
+           text-tooltip-fg rounded shadow-lg opacity-0 group-hover:opacity-100
            transition-opacity duration-200 pointer-events-none whitespace-nowrap;
   }
 
   /* Loading Skeleton */
   .skeleton {
-    @apply animate-pulse bg-gray-200 dark:bg-gray-700 rounded;
+    @apply animate-pulse bg-skeleton dark:bg-dark-skeleton rounded;
   }
 
   .skeleton-text {
-    @apply h-4 animate-pulse bg-gray-200 dark:bg-gray-700 rounded mb-2;
+    @apply h-4 animate-pulse bg-skeleton dark:bg-dark-skeleton rounded mb-2;
   }
 
   .skeleton-title {
-    @apply h-6 animate-pulse bg-gray-200 dark:bg-gray-700 rounded mb-3;
+    @apply h-6 animate-pulse bg-skeleton dark:bg-dark-skeleton rounded mb-3;
   }
 
   .skeleton-button {
-    @apply h-10 w-24 animate-pulse bg-gray-200 dark:bg-gray-700 rounded;
+    @apply h-10 w-24 animate-pulse bg-skeleton dark:bg-dark-skeleton rounded;
   }
 
   /* Feature Card */
@@ -264,7 +308,7 @@
   }
 
   .empty-state-icon {
-    @apply w-12 h-12 mx-auto mb-4 text-gray-400 dark:text-gray-600;
+    @apply w-12 h-12 mx-auto mb-4 text-fg-subtle dark:text-dark-fg-subtle;
   }
 
   .empty-state-title {
@@ -290,7 +334,7 @@
 
   /* Avatar */
   .avatar {
-    @apply inline-flex items-center justify-center rounded-full bg-gray-500 text-white;
+    @apply inline-flex items-center justify-center rounded-full bg-fg-subtle dark:bg-dark-fg-subtle text-white;
   }
 
   .avatar-sm {
@@ -323,7 +367,7 @@
   }
 
   .tab-item-inactive {
-    @apply border-transparent text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default hover:border-gray-300 dark:hover:border-gray-600;
+    @apply border-transparent text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default hover:border-border-default dark:hover:border-dark-border-default;
   }
 
   /* Divider */

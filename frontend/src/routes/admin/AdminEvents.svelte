@@ -218,7 +218,7 @@
         if (eventType.includes('.requested')) return 'text-purple-600 dark:text-purple-400';
         if (eventType.includes('.created')) return 'text-indigo-600 dark:text-indigo-400';
         if (eventType.includes('.terminated')) return 'text-orange-600 dark:text-orange-400';
-        return 'text-gray-600 dark:text-gray-400';
+        return 'text-neutral-600 dark:text-neutral-400';
     }
 
     function getEventTypeLabel(eventType: string): string {
@@ -322,17 +322,17 @@
                     </button>
 
                     {#if showExportMenu}
-                        <div class="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+                        <div class="absolute right-0 mt-2 w-48 bg-surface-overlay dark:bg-dark-surface-overlay rounded-lg shadow-lg border border-neutral-200 dark:border-neutral-700 z-50">
                             <button
                                 onclick={() => { exportEvents('csv'); showExportMenu = false; }}
-                                class="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 rounded-t-lg transition-colors"
+                                class="w-full px-4 py-2 text-left hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover flex items-center gap-2 rounded-t-lg transition-colors"
                             >
                                 <FileText size={16} class="text-green-600 dark:text-green-400" />
                                 <span>Export as CSV</span>
                             </button>
                             <button
                                 onclick={() => { exportEvents('json'); showExportMenu = false; }}
-                                class="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 rounded-b-lg transition-colors"
+                                class="w-full px-4 py-2 text-left hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover flex items-center gap-2 rounded-b-lg transition-colors"
                             >
                                 <Code size={16} class="text-blue-600 dark:text-blue-400" />
                                 <span>Export as JSON</span>
@@ -401,7 +401,7 @@
                             <div class="mt-2 space-y-1">
                                 {#each activeReplaySession.failed_event_errors as error}
                                     <div class="p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-xs">
-                                        <div class="font-mono text-gray-600 dark:text-gray-400">{error.event_id}</div>
+                                        <div class="font-mono text-neutral-600 dark:text-neutral-400">{error.event_id}</div>
                                         <div class="text-red-700 dark:text-red-300 mt-1">{error.error}</div>
                                     </div>
                                 {/each}
@@ -415,10 +415,10 @@
                         <h4 class="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">Execution Results:</h4>
                         <div class="space-y-2">
                             {#each activeReplaySession.execution_results as result}
-                                <div class="bg-white dark:bg-gray-800 rounded p-2 text-sm">
+                                <div class="bg-surface-overlay dark:bg-dark-surface-overlay rounded p-2 text-sm">
                                     <div class="flex justify-between items-start">
                                         <div>
-                                            <span class="font-mono text-xs text-gray-500">{result.execution_id}</span>
+                                            <span class="font-mono text-xs text-neutral-500">{result.execution_id}</span>
                                             <div class="flex items-center gap-2 mt-1">
                                                 <span class={`px-2 py-0.5 rounded text-xs ${
                                                     result.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
@@ -428,7 +428,7 @@
                                                     {result.status}
                                                 </span>
                                                 {#if result.execution_time}
-                                                    <span class="text-gray-500 dark:text-gray-400">
+                                                    <span class="text-neutral-500 dark:text-neutral-400">
                                                         {result.execution_time.toFixed(2)}s
                                                     </span>
                                                 {/if}
@@ -683,13 +683,13 @@
                                                 <EventTypeIcon eventType={event.event_type} />
                                             </span>
                                             <!-- Tooltip on hover -->
-                                            <div class="absolute z-10 invisible group-hover:visible bg-gray-900 text-white text-xs rounded py-1 px-2 left-0 top-8 min-w-max">
+                                            <div class="absolute z-10 invisible group-hover:visible bg-tooltip-bg text-white text-xs rounded py-1 px-2 left-0 top-8 min-w-max">
                                                 <div class="font-medium">{event.event_type}</div>
-                                                <div class="text-gray-400 text-[10px] font-mono mt-0.5">
+                                                <div class="text-neutral-400 text-[10px] font-mono mt-0.5">
                                                     {event.event_id.slice(0, 8)}...
                                                 </div>
                                                 <!-- Tooltip arrow -->
-                                                <div class="absolute -top-1 left-2 w-2 h-2 bg-gray-900 transform rotate-45"></div>
+                                                <div class="absolute -top-1 left-2 w-2 h-2 bg-tooltip-bg transform rotate-45"></div>
                                             </div>
                                         </div>
                                     </td>
@@ -717,21 +717,21 @@
                                         <div class="flex gap-1 justify-center">
                                             <button
                                                 onclick={(e) => { e.stopPropagation(); replayEvent(event.event_id); }}
-                                                class="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                                                class="p-1 hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover rounded"
                                                 title="Preview replay"
                                             >
                                                 <Eye size={16} />
                                             </button>
                                             <button
                                                 onclick={(e) => { e.stopPropagation(); replayEvent(event.event_id, false); }}
-                                                class="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-blue-600 dark:text-blue-400"
+                                                class="p-1 hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover rounded text-blue-600 dark:text-blue-400"
                                                 title="Replay"
                                             >
                                                 <Play size={16} />
                                             </button>
                                             <button
                                                 onclick={(e) => { e.stopPropagation(); deleteEvent(event.event_id); }}
-                                                class="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-red-600 dark:text-red-400"
+                                                class="p-1 hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover rounded text-red-600 dark:text-red-400"
                                                 title="Delete"
                                             >
                                                 <Trash2 size={16} />
@@ -763,12 +763,12 @@
                                                 <EventTypeIcon eventType={event.event_type} />
                                             </span>
                                             <!-- Mobile tooltip -->
-                                            <div class="absolute z-10 invisible group-hover:visible bg-gray-900 text-white text-xs rounded py-1 px-2 left-0 top-7 min-w-max">
+                                            <div class="absolute z-10 invisible group-hover:visible bg-tooltip-bg text-white text-xs rounded py-1 px-2 left-0 top-7 min-w-max">
                                                 <div class="font-medium">{event.event_type}</div>
-                                                <div class="text-gray-400 text-[10px] font-mono mt-0.5">
+                                                <div class="text-neutral-400 text-[10px] font-mono mt-0.5">
                                                     {event.event_id.slice(0, 8)}...
                                                 </div>
-                                                <div class="absolute -top-1 left-2 w-2 h-2 bg-gray-900 transform rotate-45"></div>
+                                                <div class="absolute -top-1 left-2 w-2 h-2 bg-tooltip-bg transform rotate-45"></div>
                                             </div>
                                         </div>
                                         <div class="text-sm text-fg-muted dark:text-dark-fg-muted">
@@ -851,7 +851,7 @@
                                         id="events-page-size"
                                         bind:value={pageSize}
                                         onchange={() => { currentPage = 1; loadEvents(); }}
-                                        class="px-3 py-1.5 pr-8 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer"
+                                        class="px-3 py-1.5 pr-8 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-surface-overlay dark:bg-dark-surface-overlay text-neutral-900 dark:text-neutral-100 text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer"
                                         style="background-image: url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 fill=%22none%22 viewBox=%220 0 20 20%22><path stroke=%22%236b7280%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22 stroke-width=%221.5%22 d=%22M6 8l4 4 4-4%22/></svg>'); background-repeat: no-repeat; background-position: right 0.5rem center; background-size: 16px;"
                                     >
                                         <option value={10}>10</option>
@@ -1018,7 +1018,7 @@
     <!-- Replay Preview Modal -->
     <Modal open={showReplayPreview && !!replayPreview} title="Replay Preview" onClose={() => { showReplayPreview = false; replayPreview = null; }} size="md">
         {#if replayPreview}
-            <p class="text-sm text-gray-500 dark:text-gray-400 -mt-2 mb-4">
+            <p class="text-sm text-neutral-500 dark:text-neutral-400 -mt-2 mb-4">
                 Review the events that will be replayed
             </p>
 
@@ -1035,18 +1035,18 @@
 
             {#if replayPreview.events_preview && replayPreview.events_preview.length > 0}
                 <div class="space-y-3">
-                    <h3 class="font-medium text-gray-900 dark:text-white mb-2">Events to Replay:</h3>
+                    <h3 class="font-medium text-fg-default dark:text-dark-fg-default mb-2">Events to Replay:</h3>
                     {#each replayPreview.events_preview as event}
-                        <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+                        <div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-3">
                             <div class="flex justify-between items-start">
                                 <div>
-                                    <div class="font-mono text-xs text-gray-500 dark:text-gray-400 mb-1">{event.event_id}</div>
-                                    <div class="font-medium text-gray-900 dark:text-white">{event.event_type}</div>
+                                    <div class="font-mono text-xs text-neutral-500 dark:text-neutral-400 mb-1">{event.event_id}</div>
+                                    <div class="font-medium text-fg-default dark:text-dark-fg-default">{event.event_type}</div>
                                     {#if event.aggregate_id}
-                                        <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">Aggregate: {event.aggregate_id}</div>
+                                        <div class="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Aggregate: {event.aggregate_id}</div>
                                     {/if}
                                 </div>
-                                <div class="text-sm text-gray-500 dark:text-gray-400">{formatTimestamp(event.timestamp)}</div>
+                                <div class="text-sm text-neutral-500 dark:text-neutral-400">{formatTimestamp(event.timestamp)}</div>
                             </div>
                         </div>
                     {/each}
@@ -1133,9 +1133,9 @@
                             <div class="text-xs text-yellow-700 dark:text-yellow-300">Timeout</div>
                             <div class="text-xl font-semibold text-yellow-800 dark:text-yellow-200">{userOverview.derived_counts.timeout}</div>
                         </div>
-                        <div class="p-3 rounded-lg bg-gray-100 dark:bg-gray-800">
-                            <div class="text-xs text-gray-700 dark:text-gray-300">Cancelled</div>
-                            <div class="text-xl font-semibold text-gray-900 dark:text-gray-100">{userOverview.derived_counts.cancelled}</div>
+                        <div class="p-3 rounded-lg bg-neutral-100 dark:bg-neutral-800">
+                            <div class="text-xs text-neutral-700 dark:text-neutral-300">Cancelled</div>
+                            <div class="text-xl font-semibold text-neutral-900 dark:text-neutral-100">{userOverview.derived_counts.cancelled}</div>
                         </div>
                     </div>
                     <div class="mt-3 text-sm text-fg-muted dark:text-dark-fg-muted">

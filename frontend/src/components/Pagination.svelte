@@ -23,7 +23,7 @@
     itemName = 'items',
   }: Props = $props();
 
-  const start = $derived((currentPage - 1) * pageSize + 1);
+  const start = $derived(Math.min((currentPage - 1) * pageSize + 1, totalItems));
   const end = $derived(Math.min(currentPage * pageSize, totalItems));
 </script>
 

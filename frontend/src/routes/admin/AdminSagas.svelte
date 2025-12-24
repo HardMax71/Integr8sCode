@@ -7,7 +7,7 @@
         type SagaStatusResponse,
         type SagaState,
     } from '../../lib/api';
-    import { handleApiError } from '../../lib/api-utils';
+    import { unwrap, unwrapOr } from '../../lib/api-interceptors';
     import { formatTimestamp, formatDurationBetween } from '../../lib/formatters';
     import AdminLayout from './AdminLayout.svelte';
     import Spinner from '../../components/Spinner.svelte';
@@ -49,54 +49,38 @@
     ];
 
     async function loadSagas(): Promise<void> {
-        try {
-            loading = true;
-            const { data, error } = await listSagasApiV1SagasGet({
-                query: { state: stateFilter || undefined, limit: pageSize, offset: (currentPage - 1) * pageSize }
-            });
-            if (error) throw error;
-            sagas = data?.sagas || [];
-            totalItems = data?.total || 0;
+        loading = true;
+        const data = unwrapOr(await listSagasApiV1SagasGet({
+            query: { state: stateFilter || undefined, limit: pageSize, offset: (currentPage - 1) * pageSize }
+        }), null);
+        loading = false;
+        sagas = data?.sagas || [];
+        totalItems = data?.total || 0;
 
-            if (executionIdFilter) sagas = sagas.filter(s => s.execution_id.includes(executionIdFilter));
-            if (searchQuery) {
-                const q = searchQuery.toLowerCase();
-                sagas = sagas.filter(s =>
-                    s.saga_id.toLowerCase().includes(q) || s.saga_name.toLowerCase().includes(q) ||
-                    s.execution_id.toLowerCase().includes(q) || s.error_message?.toLowerCase().includes(q)
-                );
-            }
-        } catch (err) {
-            handleApiError(err, 'load sagas');
-        } finally {
-            loading = false;
+        if (executionIdFilter) sagas = sagas.filter(s => s.execution_id.includes(executionIdFilter));
+        if (searchQuery) {
+            const q = searchQuery.toLowerCase();
+            sagas = sagas.filter(s =>
+                s.saga_id.toLowerCase().includes(q) || s.saga_name.toLowerCase().includes(q) ||
+                s.execution_id.toLowerCase().includes(q) || s.error_message?.toLowerCase().includes(q)
+            );
         }
     }
 
     async function loadSagaDetails(sagaId: string): Promise<void> {
-        try {
-            const { data, error } = await getSagaStatusApiV1SagasSagaIdGet({ path: { saga_id: sagaId } });
-            if (error) throw error;
-            selectedSaga = data ?? null;
-            showDetailModal = true;
-        } catch (err) {
-            handleApiError(err, 'load saga details');
-        }
+        const data = unwrapOr(await getSagaStatusApiV1SagasSagaIdGet({ path: { saga_id: sagaId } }), null);
+        if (!data) return;
+        selectedSaga = data;
+        showDetailModal = true;
     }
 
     async function loadExecutionSagas(executionId: string): Promise<void> {
-        try {
-            loading = true;
-            const { data, error } = await getExecutionSagasApiV1SagasExecutionExecutionIdGet({ path: { execution_id: executionId } });
-            if (error) throw error;
-            sagas = data?.sagas || [];
-            totalItems = data?.total || 0;
-            executionIdFilter = executionId;
-        } catch (err) {
-            handleApiError(err, 'load execution sagas');
-        } finally {
-            loading = false;
-        }
+        loading = true;
+        const data = unwrapOr(await getExecutionSagasApiV1SagasExecutionExecutionIdGet({ path: { execution_id: executionId } }), null);
+        loading = false;
+        sagas = data?.sagas || [];
+        totalItems = data?.total || 0;
+        executionIdFilter = executionId;
     }
 
     function getStateInfo(state: SagaState | string) {

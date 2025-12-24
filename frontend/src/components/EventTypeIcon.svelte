@@ -45,7 +45,7 @@
     'pod_terminated': MinusCircle,
   };
 
-  const icon = $derived(iconMap[eventType] || HelpCircle);
+  const Icon = $derived(iconMap[eventType] || HelpCircle);
 </script>
 
-<svelte:component this={icon} {size} />
+<Icon {size} />

@@ -14,8 +14,8 @@
         type EventReplayStatusResponse,
         type AdminUserOverview,
     } from '../../lib/api';
+    import { unwrap, unwrapOr } from '../../lib/api-interceptors';
     import { addToast } from '../../stores/toastStore';
-    import { handleApiError } from '../../lib/api-utils';
     import { formatTimestamp } from '../../lib/formatters';
     import AdminLayout from './AdminLayout.svelte';
     import Spinner from '../../components/Spinner.svelte';
@@ -98,191 +98,105 @@
     
     async function loadEvents() {
         loading = true;
-        try {
-            const { data, error } = await browseEventsApiV1AdminEventsBrowsePost({
-                body: {
-                    filters: {
-                        ...filters,
-                        start_time: filters.start_time ? new Date(filters.start_time).toISOString() : null,
-                        end_time: filters.end_time ? new Date(filters.end_time).toISOString() : null
-                    },
-                    skip,
-                    limit: pageSize,
-                    sort_by: 'timestamp',
-                    sort_order: -1
-                }
-            });
-            if (error) throw error;
-            events = data?.events || [];
-            totalEvents = data?.total || 0;
-        } catch (err) {
-            handleApiError(err, 'load events');
-            events = [];
-            totalEvents = 0;
-        } finally {
-            loading = false;
-        }
+        const data = unwrapOr(await browseEventsApiV1AdminEventsBrowsePost({
+            body: {
+                filters: {
+                    ...filters,
+                    start_time: filters.start_time ? new Date(filters.start_time).toISOString() : null,
+                    end_time: filters.end_time ? new Date(filters.end_time).toISOString() : null
+                },
+                skip,
+                limit: pageSize,
+                sort_by: 'timestamp',
+                sort_order: -1
+            }
+        }), null);
+        loading = false;
+        events = data?.events || [];
+        totalEvents = data?.total || 0;
     }
 
     async function loadStats(): Promise<void> {
-        try {
-            const { data, error } = await getEventStatsApiV1AdminEventsStatsGet({ query: { hours: 24 } });
-            if (error) throw error;
-            stats = data ?? null;
-        } catch (err) {
-            console.error('Failed to load stats:', err);
-        }
+        stats = unwrapOr(await getEventStatsApiV1AdminEventsStatsGet({ query: { hours: 24 } }), null);
     }
 
     async function loadEventDetail(eventId: string): Promise<void> {
-        try {
-            const { data, error } = await getEventDetailApiV1AdminEventsEventIdGet({ path: { event_id: eventId } });
-            if (error) throw error;
-            selectedEvent = data ?? null;
-        } catch (err) {
-            handleApiError(err, 'load event detail');
-        }
+        selectedEvent = unwrapOr(await getEventDetailApiV1AdminEventsEventIdGet({ path: { event_id: eventId } }), null);
     }
 
     async function checkReplayStatus(sessionId: string): Promise<void> {
-        try {
-            const { data: status, error } = await getReplayStatusApiV1AdminEventsReplaySessionIdStatusGet({
-                path: { session_id: sessionId }
-            });
-            if (error) throw error;
-            activeReplaySession = status;
+        const status = unwrapOr(await getReplayStatusApiV1AdminEventsReplaySessionIdStatusGet({
+            path: { session_id: sessionId }
+        }), null);
+        if (!status) {
+            if (replayCheckInterval) { clearInterval(replayCheckInterval); replayCheckInterval = null; }
+            return;
+        }
+        activeReplaySession = status;
 
-            if (status.status === 'completed' || status.status === 'failed' || status.status === 'cancelled') {
-                if (replayCheckInterval) {
-                    clearInterval(replayCheckInterval);
-                    replayCheckInterval = null;
-                }
-
-                if (status.status === 'completed') {
-                    addToast(
-                        `Replay completed! Processed ${status.replayed_events} events successfully.`,
-                        'success'
-                    );
-                } else if (status.status === 'failed') {
-                    addToast(
-                        `Replay failed: ${status.error || 'Unknown error'}`,
-                        'error'
-                    );
-                }
-            }
-        } catch (err) {
-            console.error('Failed to check replay status:', err);
-            if (replayCheckInterval) {
-                clearInterval(replayCheckInterval);
-                replayCheckInterval = null;
+        if (status.status === 'completed' || status.status === 'failed' || status.status === 'cancelled') {
+            if (replayCheckInterval) { clearInterval(replayCheckInterval); replayCheckInterval = null; }
+            if (status.status === 'completed') {
+                addToast(`Replay completed! Processed ${status.replayed_events} events successfully.`, 'success');
+            } else if (status.status === 'failed') {
+                addToast(`Replay failed: ${status.error || 'Unknown error'}`, 'error');
             }
         }
     }
 
     async function replayEvent(eventId: string, dryRun: boolean = true): Promise<void> {
-        try {
-            if (!dryRun && !confirm('Are you sure you want to replay this event? This will re-process the event through the system.')) {
-                return;
-            }
+        if (!dryRun && !confirm('Are you sure you want to replay this event? This will re-process the event through the system.')) {
+            return;
+        }
 
-            const { data: response, error } = await replayEventsApiV1AdminEventsReplayPost({
-                body: {
-                    event_ids: [eventId],
-                    dry_run: dryRun
-                }
-            });
-            if (error) throw error;
+        const response = unwrap(await replayEventsApiV1AdminEventsReplayPost({
+            body: { event_ids: [eventId], dry_run: dryRun }
+        }));
 
-            if (dryRun) {
-                if (response?.events_preview && response.events_preview.length > 0) {
-                    replayPreview = {
-                        ...response,
-                        eventId: eventId
-                    };
-                    showReplayPreview = true;
-                } else {
-                    addToast(`Dry run: ${response?.total_events} events would be replayed`, 'info');
-                }
+        if (dryRun) {
+            if (response?.events_preview && response.events_preview.length > 0) {
+                replayPreview = { ...response, eventId: eventId };
+                showReplayPreview = true;
             } else {
-                addToast(`Replay scheduled! Tracking progress...`, 'success');
-
-                if (response?.session_id) {
-                    activeReplaySession = {
-                        session_id: response.session_id,
-                        status: 'scheduled',
-                        total_events: response.total_events,
-                        replayed_events: 0,
-                        progress_percentage: 0
-                    };
-
-                    checkReplayStatus(response.session_id);
-
-                    replayCheckInterval = setInterval(() => {
-                        checkReplayStatus(response.session_id);
-                    }, 2000);
-                }
-
-                selectedEvent = null;
+                addToast(`Dry run: ${response?.total_events} events would be replayed`, 'info');
             }
-        } catch (err) {
-            handleApiError(err, 'replay event');
+        } else {
+            addToast(`Replay scheduled! Tracking progress...`, 'success');
+            if (response?.session_id) {
+                activeReplaySession = {
+                    session_id: response.session_id,
+                    status: 'scheduled',
+                    total_events: response.total_events,
+                    replayed_events: 0,
+                    progress_percentage: 0
+                };
+                checkReplayStatus(response.session_id);
+                replayCheckInterval = setInterval(() => { checkReplayStatus(response.session_id); }, 2000);
+            }
+            selectedEvent = null;
         }
     }
 
     async function deleteEvent(eventId: string): Promise<void> {
-        if (!confirm('Are you sure you want to delete this event? This action cannot be undone.')) {
-            return;
-        }
-
-        try {
-            const { error } = await deleteEventApiV1AdminEventsEventIdDelete({ path: { event_id: eventId } });
-            if (error) throw error;
-            addToast('Event deleted successfully', 'success');
-            await Promise.all([
-                loadEvents(),
-                loadStats()
-            ]);
-            selectedEvent = null;
-        } catch (err) {
-            handleApiError(err, 'delete event');
-        }
+        if (!confirm('Are you sure you want to delete this event? This action cannot be undone.')) return;
+        unwrap(await deleteEventApiV1AdminEventsEventIdDelete({ path: { event_id: eventId } }));
+        addToast('Event deleted successfully', 'success');
+        await Promise.all([loadEvents(), loadStats()]);
+        selectedEvent = null;
     }
 
-    async function exportEvents(format: 'csv' | 'json' = 'csv'): Promise<void> {
-        try {
-            const params = new URLSearchParams();
-            if (filters.event_types.length > 0) {
-                params.append('event_types', filters.event_types.join(','));
-            }
-            if (filters.start_time) {
-                params.append('start_time', new Date(filters.start_time).toISOString());
-            }
-            if (filters.end_time) {
-                params.append('end_time', new Date(filters.end_time).toISOString());
-            }
-            if (filters.aggregate_id) {
-                params.append('aggregate_id', filters.aggregate_id);
-            }
-            if (filters.correlation_id) {
-                params.append('correlation_id', filters.correlation_id);
-            }
-            if (filters.user_id) {
-                params.append('user_id', filters.user_id);
-            }
-            if (filters.service_name) {
-                params.append('service_name', filters.service_name);
-            }
-            
-            if (format === 'csv') {
-                window.open(`/api/v1/admin/events/export/csv?${params.toString()}`, '_blank');
-            } else if (format === 'json') {
-                window.open(`/api/v1/admin/events/export/json?${params.toString()}`, '_blank');
-            }
-            
-            addToast(`Starting ${format.toUpperCase()} export...`, 'info');
-        } catch (err) {
-            handleApiError(err, 'export events');
-        }
+    function exportEvents(format: 'csv' | 'json' = 'csv'): void {
+        const params = new URLSearchParams();
+        if (filters.event_types.length > 0) params.append('event_types', filters.event_types.join(','));
+        if (filters.start_time) params.append('start_time', new Date(filters.start_time).toISOString());
+        if (filters.end_time) params.append('end_time', new Date(filters.end_time).toISOString());
+        if (filters.aggregate_id) params.append('aggregate_id', filters.aggregate_id);
+        if (filters.correlation_id) params.append('correlation_id', filters.correlation_id);
+        if (filters.user_id) params.append('user_id', filters.user_id);
+        if (filters.service_name) params.append('service_name', filters.service_name);
+
+        window.open(`/api/v1/admin/events/export/${format}?${params.toString()}`, '_blank');
+        addToast(`Starting ${format.toUpperCase()} export...`, 'info');
     }
 
     async function openUserOverview(userId: string): Promise<void> {
@@ -291,16 +205,10 @@
         userOverview = null;
         showUserOverview = true;
         userOverviewLoading = true;
-        try {
-            const { data, error } = await getUserOverviewApiV1AdminUsersUserIdOverviewGet({ path: { user_id: userId } });
-            if (error) throw error;
-            userOverview = data ?? null;
-        } catch (err) {
-            handleApiError(err, 'load user overview');
-            showUserOverview = false;
-        } finally {
-            userOverviewLoading = false;
-        }
+        const data = unwrapOr(await getUserOverviewApiV1AdminUsersUserIdOverviewGet({ path: { user_id: userId } }), null);
+        userOverviewLoading = false;
+        if (!data) { showUserOverview = false; return; }
+        userOverview = data;
     }
 
     function getEventTypeColor(eventType: string): string {

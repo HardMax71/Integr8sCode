@@ -133,6 +133,9 @@ nav:
 
   - Network Isolation: security/policies.md
 
+  - Frontend:
+    - Error Handling: frontend/error-handling.md
+
   - Testing:
     - Load Testing: testing/load-testing.md
     - Frontend Testing: testing/frontend-testing.md

@@ -39,14 +39,15 @@
 </script>
 
 {#if open}
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div
     class="modal-backdrop"
     transition:fade={{ duration: 150 }}
     onclick={handleBackdropClick}
+    onkeydown={(e) => e.key === 'Escape' && onClose()}
     role="dialog"
     aria-modal="true"
     aria-labelledby="modal-title"
+    tabindex="-1"
   >
     <div class="modal-container {sizeClasses[size]}">
       <div class="modal-header">

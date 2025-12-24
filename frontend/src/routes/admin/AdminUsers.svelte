@@ -13,7 +13,7 @@
         type RateLimitRule,
         type EndpointGroup,
     } from '../../lib/api';
-    import { handleApiError, handleValidationError } from '../../lib/api-utils';
+    import { unwrap, unwrapOr } from '../../lib/api-interceptors';
     import { formatTimestamp } from '../../lib/formatters';
     import AdminLayout from './AdminLayout.svelte';
     import Spinner from '../../components/Spinner.svelte';
@@ -60,85 +60,58 @@
 
     async function loadUsers(): Promise<void> {
         loading = true;
-        try {
-            const { data, error } = await listUsersApiV1AdminUsersGet({});
-            if (error) throw error;
-            users = Array.isArray(data) ? data : data?.users || [];
-        } catch (err) {
-            handleApiError(err, 'load users');
-            users = [];
-        } finally {
-            loading = false;
-        }
+        const data = unwrapOr(await listUsersApiV1AdminUsersGet({}), null);
+        loading = false;
+        users = data ? (Array.isArray(data) ? data : data?.users || []) : [];
     }
 
     async function deleteUser(): Promise<void> {
         if (!userToDelete) return;
         deletingUser = true;
-        try {
-            const { data: response, error } = await deleteUserApiV1AdminUsersUserIdDelete({
-                path: { user_id: userToDelete.user_id },
-                query: { cascade: cascadeDelete }
-            });
-            if (error) throw error;
-            await loadUsers();
-            showDeleteModal = false;
-            userToDelete = null;
-        } catch (err) {
-            handleApiError(err, 'delete user');
-        } finally {
-            deletingUser = false;
-        }
+        const result = await deleteUserApiV1AdminUsersUserIdDelete({
+            path: { user_id: userToDelete.user_id },
+            query: { cascade: cascadeDelete }
+        });
+        deletingUser = false;
+        unwrap(result);
+        await loadUsers();
+        showDeleteModal = false;
+        userToDelete = null;
     }
 
     async function openRateLimitModal(user: UserResponse): Promise<void> {
         rateLimitUser = user;
         showRateLimitModal = true;
         loadingRateLimits = true;
-        try {
-            const { data: response, error } = await getUserRateLimitsApiV1AdminUsersUserIdRateLimitsGet({
-                path: { user_id: user.user_id }
-            });
-            if (error) throw error;
-            rateLimitConfig = response?.rate_limit_config || {
-                user_id: user.user_id, rules: [], global_multiplier: 1.0, bypass_rate_limit: false, notes: ''
-            };
-            rateLimitUsage = response?.current_usage || {};
-        } catch (err) {
-            handleApiError(err, 'load rate limits');
-        } finally {
-            loadingRateLimits = false;
-        }
+        const result = await getUserRateLimitsApiV1AdminUsersUserIdRateLimitsGet({
+            path: { user_id: user.user_id }
+        });
+        loadingRateLimits = false;
+        const response = unwrap(result);
+        rateLimitConfig = response?.rate_limit_config || {
+            user_id: user.user_id, rules: [], global_multiplier: 1.0, bypass_rate_limit: false, notes: ''
+        };
+        rateLimitUsage = response?.current_usage || {};
     }
 
     async function saveRateLimits(): Promise<void> {
         if (!rateLimitUser || !rateLimitConfig) return;
         savingRateLimits = true;
-        try {
-            const { error } = await updateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPut({
-                path: { user_id: rateLimitUser.user_id },
-                body: rateLimitConfig
-            });
-            if (error) throw error;
-            showRateLimitModal = false;
-        } catch (err) {
-            handleValidationError(err, 'Failed to save rate limits');
-        } finally {
-            savingRateLimits = false;
-        }
+        const result = await updateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPut({
+            path: { user_id: rateLimitUser.user_id },
+            body: rateLimitConfig
+        });
+        savingRateLimits = false;
+        unwrap(result);
+        showRateLimitModal = false;
     }
 
     async function resetRateLimits(): Promise<void> {
         if (!rateLimitUser) return;
-        try {
-            const { error } = await resetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPost({
-                path: { user_id: rateLimitUser.user_id }
-            });
-            if (error) throw error;
-            rateLimitUsage = {};
-        } catch (err) {
-            handleApiError(err, 'reset rate limits');
-        }
+        unwrap(await resetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPost({
+            path: { user_id: rateLimitUser.user_id }
+        }));
+        rateLimitUsage = {};
     }
 
     let defaultRulesWithEffective = $derived(getDefaultRulesWithMultiplier(rateLimitConfig?.global_multiplier));
@@ -239,28 +212,23 @@
     async function saveUser(): Promise<void> {
         if (!userForm.username) return;
         savingUser = true;
-        try {
-            if (editingUser) {
-                const updateData: Record<string, string | boolean | null> = {
-                    username: userForm.username, email: userForm.email || null, role: userForm.role, is_active: userForm.is_active
-                };
-                if (userForm.password) updateData.password = userForm.password;
-                const { error } = await updateUserApiV1AdminUsersUserIdPut({ path: { user_id: editingUser.user_id }, body: updateData });
-                if (error) throw error;
-            } else {
-                if (!userForm.password) return;
-                const { error } = await createUserApiV1AdminUsersPost({
-                    body: { username: userForm.username, email: userForm.email || null, password: userForm.password, role: userForm.role, is_active: userForm.is_active }
-                });
-                if (error) throw error;
-            }
-            showUserModal = false;
-            await loadUsers();
-        } catch (err) {
-            handleValidationError(err, 'Failed to save user');
-        } finally {
-            savingUser = false;
+        let result;
+        if (editingUser) {
+            const updateData: Record<string, string | boolean | null> = {
+                username: userForm.username, email: userForm.email || null, role: userForm.role, is_active: userForm.is_active
+            };
+            if (userForm.password) updateData.password = userForm.password;
+            result = await updateUserApiV1AdminUsersUserIdPut({ path: { user_id: editingUser.user_id }, body: updateData });
+        } else {
+            if (!userForm.password) { savingUser = false; return; }
+            result = await createUserApiV1AdminUsersPost({
+                body: { username: userForm.username, email: userForm.email || null, password: userForm.password, role: userForm.role, is_active: userForm.is_active }
+            });
         }
+        savingUser = false;
+        unwrap(result);
+        showUserModal = false;
+        await loadUsers();
     }
 
     function handlePageChange(page: number): void { currentPage = page; }

@@ -59,7 +59,7 @@
       </button>
       <button
         onclick={goHome}
-        class="flex-1 btn py-2.5 text-sm font-medium bg-bg-default dark:bg-dark-bg-default border border-border-default dark:border-dark-border-default text-fg-default dark:text-dark-fg-default hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+        class="flex-1 btn py-2.5 text-sm font-medium bg-bg-default dark:bg-dark-bg-default border border-border-default dark:border-dark-border-default text-fg-default dark:text-dark-fg-default hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover transition-colors"
       >
         Go to Home
       </button>

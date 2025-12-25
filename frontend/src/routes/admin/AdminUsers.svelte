@@ -136,7 +136,7 @@
         sse: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
         websocket: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
         auth: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-        api: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
+        api: 'bg-neutral-100 text-neutral-800 dark:bg-neutral-700 dark:text-neutral-200',
         public: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200'
     };
 
@@ -453,7 +453,7 @@
         {:else if rateLimitConfig}
             <div class="space-y-4">
                 <!-- Quick Settings -->
-                <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-900">
+                <div class="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4 bg-neutral-50 dark:bg-neutral-900">
                     <div class="flex items-center justify-between mb-3">
                         <h4 class="font-semibold text-fg-default dark:text-dark-fg-default">Quick Settings</h4>
                         <label class="flex items-center gap-2">
@@ -466,7 +466,7 @@
                             <label for="global-multiplier" class="block text-sm font-medium mb-1 text-fg-default dark:text-dark-fg-default">Global Multiplier</label>
                             <input id="global-multiplier" type="number" bind:value={rateLimitConfig.global_multiplier} min="0.01" step="0.1"
                                 class="input w-full" disabled={rateLimitConfig.bypass_rate_limit} />
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Multiplies all limits (1.0 = default, 2.0 = double)</p>
+                            <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Multiplies all limits (1.0 = default, 2.0 = double)</p>
                         </div>
                         <div>
                             <label for="admin-notes" class="block text-sm font-medium mb-1 text-fg-default dark:text-dark-fg-default">Admin Notes</label>
@@ -476,7 +476,7 @@
                 </div>
 
                 <!-- Endpoint-Specific Limits -->
-                <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                <div class="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4">
                     <div class="flex justify-between items-center mb-4">
                         <h4 class="font-semibold text-fg-default dark:text-dark-fg-default">Endpoint Rate Limits</h4>
                         <button onclick={() => addNewRule()} class="btn btn-sm btn-primary flex items-center gap-1" disabled={rateLimitConfig.bypass_rate_limit}>
@@ -486,30 +486,30 @@
 
                     <!-- Default Rules -->
                     <div class="mb-4">
-                        <h5 class="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Default Global Rules</h5>
+                        <h5 class="text-xs sm:text-sm font-medium text-neutral-600 dark:text-neutral-400 mb-2">Default Global Rules</h5>
                         <div class="space-y-2">
                             {#each defaultRulesWithEffective || [] as rule}
-                                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                                <div class="flex items-center justify-between p-3 bg-neutral-50 dark:bg-neutral-900 rounded-lg">
                                     <div class="flex-1 grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-4 items-center">
                                         <div>
-                                            <span class="text-xs text-gray-500 dark:text-gray-400">Endpoint</span>
+                                            <span class="text-xs text-neutral-500 dark:text-neutral-400">Endpoint</span>
                                             <p class="text-sm font-mono text-fg-default dark:text-dark-fg-default">{rule.endpoint_pattern}</p>
                                         </div>
                                         <div>
-                                            <span class="text-xs text-gray-500 dark:text-gray-400">Limit</span>
+                                            <span class="text-xs text-neutral-500 dark:text-neutral-400">Limit</span>
                                             <p class="text-sm text-fg-default dark:text-dark-fg-default">
                                                 {#if rateLimitConfig?.global_multiplier !== 1.0}
-                                                    <span class="line-through text-gray-400">{rule.requests}</span>
+                                                    <span class="line-through text-neutral-400">{rule.requests}</span>
                                                     <span class="font-semibold text-blue-600 dark:text-blue-400">{rule.effective_requests}</span>
                                                 {:else}{rule.requests}{/if} req / {rule.window_seconds}s
                                             </p>
                                         </div>
                                         <div>
-                                            <span class="text-xs text-gray-500 dark:text-gray-400">Group</span>
+                                            <span class="text-xs text-neutral-500 dark:text-neutral-400">Group</span>
                                             <span class="inline-block px-2 py-1 text-xs rounded-full {getGroupColor(rule.group)}">{rule.group}</span>
                                         </div>
                                         <div>
-                                            <span class="text-xs text-gray-500 dark:text-gray-400">Algorithm</span>
+                                            <span class="text-xs text-neutral-500 dark:text-neutral-400">Algorithm</span>
                                             <p class="text-sm text-fg-default dark:text-dark-fg-default">{rule.algorithm}</p>
                                         </div>
                                     </div>
@@ -521,7 +521,7 @@
                     <!-- User-Specific Rules -->
                     {#if rateLimitConfig.rules && rateLimitConfig.rules.length > 0}
                         <div>
-                            <h5 class="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">User-Specific Overrides</h5>
+                            <h5 class="text-xs sm:text-sm font-medium text-neutral-600 dark:text-neutral-400 mb-2">User-Specific Overrides</h5>
                             <div class="space-y-2">
                                 {#each rateLimitConfig.rules as rule, index}
                                     <div class="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
@@ -532,9 +532,9 @@
                                             </div>
                                             <div class="flex items-center gap-1 flex-wrap">
                                                 <input type="number" bind:value={rule.requests} min="1" class="input input-sm w-16" disabled={rateLimitConfig.bypass_rate_limit} />
-                                                <span class="text-xs text-gray-500">/</span>
+                                                <span class="text-xs text-neutral-500">/</span>
                                                 <input type="number" bind:value={rule.window_seconds} min="1" class="input input-sm w-16" disabled={rateLimitConfig.bypass_rate_limit} />
-                                                <span class="text-xs text-gray-500">s</span>
+                                                <span class="text-xs text-neutral-500">s</span>
                                                 {#if rateLimitConfig.global_multiplier !== 1.0}
                                                     <span class="text-xs text-blue-600 dark:text-blue-400 ml-2">(→ {Math.floor(rule.requests * rateLimitConfig.global_multiplier)}/{rule.window_seconds}s)</span>
                                                 {/if}
@@ -560,14 +560,14 @@
 
                 <!-- Current Usage -->
                 {#if rateLimitUsage && Object.keys(rateLimitUsage).length > 0}
-                    <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                    <div class="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4">
                         <div class="flex justify-between items-center mb-3">
                             <h4 class="font-semibold text-fg-default dark:text-dark-fg-default">Current Usage</h4>
                             <button onclick={resetRateLimits} class="btn btn-sm btn-secondary">Reset All Counters</button>
                         </div>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {#each Object.entries(rateLimitUsage) as [endpoint, usage]}
-                                <div class="flex justify-between p-2 bg-gray-50 dark:bg-gray-900 rounded">
+                                <div class="flex justify-between p-2 bg-neutral-50 dark:bg-neutral-900 rounded">
                                     <span class="text-sm font-mono text-fg-muted dark:text-dark-fg-muted">{endpoint}</span>
                                     <span class="text-sm font-semibold text-fg-default dark:text-dark-fg-default">{usage.count || usage.tokens_remaining || 0}</span>
                                 </div>
@@ -605,7 +605,7 @@
                 </div>
                 <div>
                     <label for="user-form-password" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
-                        Password {!editingUser ? '* ' : ''}{#if editingUser}<span class="text-xs text-gray-500">(leave empty to keep current)</span>{/if}
+                        Password {!editingUser ? '* ' : ''}{#if editingUser}<span class="text-xs text-neutral-500">(leave empty to keep current)</span>{/if}
                     </label>
                     <input id="user-form-password" type="password" bind:value={userForm.password} class="form-input-standard"
                         placeholder={editingUser ? 'Enter new password' : 'Enter password'} disabled={savingUser} autocomplete="new-password" />

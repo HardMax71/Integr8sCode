@@ -16,7 +16,7 @@
     primary: 'text-primary dark:text-primary-light',
     white: 'text-white',
     current: 'text-current',
-    muted: 'text-gray-400 dark:text-gray-500'
+    muted: 'text-fg-subtle dark:text-dark-fg-subtle'
   };
 
   let sizeClass = $derived(sizeClasses[size] || sizeClasses.medium);

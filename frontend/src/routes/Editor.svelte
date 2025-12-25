@@ -807,7 +807,7 @@
 <input type="file" accept=".py,text/x-python" bind:this={fileInput} class="hidden" onchange={handleFileUpload}/>
 
 <div class="editor-grid-container space-y-4 md:space-y-0 md:gap-6" in:fade={{ duration: 300 }}>
-    <header class="editor-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div class="editor-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h2 class="text-xl sm:text-2xl font-semibold text-fg-default dark:text-dark-fg-default whitespace-nowrap">
             Code Editor
         </h2>
@@ -846,7 +846,7 @@
         {:else if apiError && !k8sLimits}
             <p class="text-xs text-red-600 dark:text-red-400">{apiError}</p>
         {/if}
-    </header>
+    </div>
 
     <div class="editor-main-code flex flex-col rounded-lg overflow-hidden shadow-md border border-border-default dark:border-dark-border-default">
         <div class="editor-toolbar flex items-center justify-between px-3 py-1 bg-bg-default dark:bg-dark-bg-default border-b border-border-default dark:border-dark-border-default shrink-0">

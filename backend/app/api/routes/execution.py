@@ -1,3 +1,4 @@
+from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Annotated
 from uuid import uuid4
@@ -336,7 +337,7 @@ async def get_k8s_resource_limits(
 ) -> ResourceLimits:
     try:
         limits = await execution_service.get_k8s_resource_limits()
-        return ResourceLimits(**vars(limits))
+        return ResourceLimits(**asdict(limits))
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to retrieve resource limits") from e
 

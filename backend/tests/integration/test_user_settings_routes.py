@@ -129,7 +129,7 @@ class TestUserSettingsRoutes:
         assert settings.editor is not None
         assert isinstance(settings.editor.font_size, int)
         assert 8 <= settings.editor.font_size <= 32
-        assert settings.editor.theme in ["one-dark", "monokai", "github", "dracula", "solarized", "vs", "vscode"]
+        assert settings.editor.theme in ["auto", "one-dark", "monokai", "github", "dracula", "solarized", "vs", "vscode"]
         assert isinstance(settings.editor.tab_size, int)
         assert settings.editor.tab_size in [2, 4, 8]
         assert isinstance(settings.editor.word_wrap, bool)

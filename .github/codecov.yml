@@ -1,13 +1,23 @@
+codecov:
+  require_ci_to_pass: false
+
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+    patch:
+      default:
+        target: auto
+        threshold: 1%
+
 flag_management:
   default_rules:
     carryforward: true
 
   individual_flags:
     - name: backend
-      paths:
-        - backend/app/
       carryforward: true
     - name: frontend
-      paths:
-        - frontend/src/
       carryforward: true

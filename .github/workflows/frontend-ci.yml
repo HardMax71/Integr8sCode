@@ -44,10 +44,8 @@ jobs:
           files: frontend/coverage/lcov.info
           flags: frontend
           name: frontend-coverage
-          slug: HardMax71/Integr8sCode
           fail_ci_if_error: false
-          root_dir: frontend
-          codecov_yml_path: .github/codecov.yml
+          verbose: true
 
   e2e:
     name: E2E Tests

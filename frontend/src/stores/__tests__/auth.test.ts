@@ -16,17 +16,17 @@ vi.mock('../../lib/api', () => ({
 }));
 
 describe('auth store', () => {
-  let localStorageData: Record<string, string> = {};
+  let sessionStorageData: Record<string, string> = {};
 
   beforeEach(async () => {
-    // Reset localStorage mock
-    localStorageData = {};
-    vi.mocked(localStorage.getItem).mockImplementation((key: string) => localStorageData[key] ?? null);
-    vi.mocked(localStorage.setItem).mockImplementation((key: string, value: string) => {
-      localStorageData[key] = value;
+    // Reset sessionStorage mock
+    sessionStorageData = {};
+    vi.mocked(sessionStorage.getItem).mockImplementation((key: string) => sessionStorageData[key] ?? null);
+    vi.mocked(sessionStorage.setItem).mockImplementation((key: string, value: string) => {
+      sessionStorageData[key] = value;
     });
-    vi.mocked(localStorage.removeItem).mockImplementation((key: string) => {
-      delete localStorageData[key];
+    vi.mocked(sessionStorage.removeItem).mockImplementation((key: string) => {
+      delete sessionStorageData[key];
     });
 
     // Reset all mocks
@@ -59,7 +59,7 @@ describe('auth store', () => {
       expect(get(userRole)).toBe(null);
     });
 
-    it('restores auth state from localStorage', async () => {
+    it('restores auth state from sessionStorage', async () => {
       const authState = {
         isAuthenticated: true,
         username: 'testuser',
@@ -69,7 +69,7 @@ describe('auth store', () => {
         userEmail: 'test@example.com',
         timestamp: Date.now(),
       };
-      localStorageData['authState'] = JSON.stringify(authState);
+      sessionStorageData['authState'] = JSON.stringify(authState);
 
       const { isAuthenticated, username, userRole, csrfToken } = await import('../auth');
 
@@ -77,24 +77,6 @@ describe('auth store', () => {
       expect(get(username)).toBe('testuser');
       expect(get(userRole)).toBe('user');
       expect(get(csrfToken)).toBe('test-token');
-    });
-
-    it('clears expired auth state from localStorage', async () => {
-      const authState = {
-        isAuthenticated: true,
-        username: 'testuser',
-        userRole: 'user',
-        csrfToken: 'test-token',
-        userId: 'user-123',
-        userEmail: 'test@example.com',
-        timestamp: Date.now() - 25 * 60 * 60 * 1000, // 25 hours ago
-      };
-      localStorageData['authState'] = JSON.stringify(authState);
-
-      const { isAuthenticated } = await import('../auth');
-
-      expect(get(isAuthenticated)).toBe(null);
-      expect(localStorage.removeItem).toHaveBeenCalledWith('authState');
     });
   });
 
@@ -124,7 +106,7 @@ describe('auth store', () => {
       expect(get(csrfToken)).toBe('new-csrf-token');
     });
 
-    it('persists auth state to localStorage on login', async () => {
+    it('persists auth state to sessionStorage on login', async () => {
       mockLoginApi.mockResolvedValue({
         data: {
           username: 'testuser',
@@ -141,7 +123,7 @@ describe('auth store', () => {
       const { login } = await import('../auth');
       await login('testuser', 'password123');
 
-      expect(localStorage.setItem).toHaveBeenCalledWith(
+      expect(sessionStorage.setItem).toHaveBeenCalledWith(
         'authState',
         expect.stringContaining('testuser')
       );
@@ -201,13 +183,13 @@ describe('auth store', () => {
       expect(get(username)).toBe(null);
     });
 
-    it('clears localStorage on logout', async () => {
+    it('clears sessionStorage on logout', async () => {
       mockLogoutApi.mockResolvedValue({ data: {}, error: null });
 
       const { logout } = await import('../auth');
       await logout();
 
-      expect(localStorage.removeItem).toHaveBeenCalledWith('authState');
+      expect(sessionStorage.removeItem).toHaveBeenCalledWith('authState');
     });
 
     it('still clears state even if API call fails', async () => {

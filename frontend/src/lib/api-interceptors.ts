@@ -46,7 +46,7 @@ function clearAuthState(): void {
     userRole.set(null);
     userEmail.set(null);
     csrfToken.set(null);
-    localStorage.removeItem('authState');
+    sessionStorage.removeItem('authState');
 }
 
 function handleAuthFailure(currentPath: string): void {

@@ -127,17 +127,9 @@ export class AuthInitializer {
 
     private static _getPersistedAuth(): PersistedAuth | null {
         try {
-            const authData = localStorage.getItem('authState');
+            const authData = sessionStorage.getItem('authState');
             if (!authData) return null;
-
-            const parsed: PersistedAuth = JSON.parse(authData);
-
-            if (Date.now() - parsed.timestamp > 24 * 60 * 60 * 1000) {
-                localStorage.removeItem('authState');
-                return null;
-            }
-
-            return parsed;
+            return JSON.parse(authData);
         } catch (e) {
             console.error('[AuthInit] Failed to parse persisted auth:', e);
             return null;
@@ -156,7 +148,7 @@ export class AuthInitializer {
         userEmail.set(null);
         csrfToken.set(null);
         clearUserSettings();
-        localStorage.removeItem('authState');
+        sessionStorage.removeItem('authState');
     }
 
     static isAuthenticated(): boolean {

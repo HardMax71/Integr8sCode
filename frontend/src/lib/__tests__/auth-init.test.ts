@@ -55,20 +55,20 @@ function setupMatchMedia() {
 }
 
 describe('auth-init', () => {
-  let localStorageData: Record<string, string> = {};
+  let sessionStorageData: Record<string, string> = {};
 
   beforeEach(async () => {
     // Setup matchMedia before module imports (must happen after resetModules)
     setupMatchMedia();
 
-    // Reset localStorage mock
-    localStorageData = {};
-    vi.mocked(localStorage.getItem).mockImplementation((key: string) => localStorageData[key] ?? null);
-    vi.mocked(localStorage.setItem).mockImplementation((key: string, value: string) => {
-      localStorageData[key] = value;
+    // Reset sessionStorage mock
+    sessionStorageData = {};
+    vi.mocked(sessionStorage.getItem).mockImplementation((key: string) => sessionStorageData[key] ?? null);
+    vi.mocked(sessionStorage.setItem).mockImplementation((key: string, value: string) => {
+      sessionStorageData[key] = value;
     });
-    vi.mocked(localStorage.removeItem).mockImplementation((key: string) => {
-      delete localStorageData[key];
+    vi.mocked(sessionStorage.removeItem).mockImplementation((key: string) => {
+      delete sessionStorageData[key];
     });
 
     // Reset all mocks
@@ -163,7 +163,7 @@ describe('auth-init', () => {
         csrfToken: 'csrf-token',
         timestamp: Date.now(),
       };
-      localStorageData['authState'] = JSON.stringify(authState);
+      sessionStorageData['authState'] = JSON.stringify(authState);
       mockVerifyAuth.mockResolvedValue(true);
 
       const { AuthInitializer } = await import('../auth-init');
@@ -187,29 +187,14 @@ describe('auth-init', () => {
         csrfToken: 'token',
         timestamp: Date.now(),
       };
-      localStorageData['authState'] = JSON.stringify(authState);
+      sessionStorageData['authState'] = JSON.stringify(authState);
       mockVerifyAuth.mockResolvedValue(false);
 
       const { AuthInitializer } = await import('../auth-init');
       await AuthInitializer.initialize();
 
       expect(mockIsAuthenticatedSet).toHaveBeenLastCalledWith(false);
-      expect(localStorage.removeItem).toHaveBeenCalledWith('authState');
-    });
-
-    it('removes expired persisted auth (>24 hours)', async () => {
-      const authState = {
-        isAuthenticated: true,
-        username: 'testuser',
-        timestamp: Date.now() - 25 * 60 * 60 * 1000, // 25 hours ago
-      };
-      localStorageData['authState'] = JSON.stringify(authState);
-      mockVerifyAuth.mockResolvedValue(false);
-
-      const { AuthInitializer } = await import('../auth-init');
-      await AuthInitializer.initialize();
-
-      expect(localStorage.removeItem).toHaveBeenCalledWith('authState');
+      expect(sessionStorage.removeItem).toHaveBeenCalledWith('authState');
     });
 
     it('keeps recent auth on network error (<5 min)', async () => {
@@ -222,7 +207,7 @@ describe('auth-init', () => {
         csrfToken: 'token',
         timestamp: Date.now() - 2 * 60 * 1000, // 2 minutes ago
       };
-      localStorageData['authState'] = JSON.stringify(authState);
+      sessionStorageData['authState'] = JSON.stringify(authState);
       mockVerifyAuth.mockRejectedValue(new Error('Network error'));
 
       const { AuthInitializer } = await import('../auth-init');
@@ -241,7 +226,7 @@ describe('auth-init', () => {
         csrfToken: 'token',
         timestamp: Date.now() - 10 * 60 * 1000, // 10 minutes ago
       };
-      localStorageData['authState'] = JSON.stringify(authState);
+      sessionStorageData['authState'] = JSON.stringify(authState);
       mockVerifyAuth.mockRejectedValue(new Error('Network error'));
 
       const { AuthInitializer } = await import('../auth-init');
@@ -348,8 +333,8 @@ describe('auth-init', () => {
   });
 
   describe('error handling', () => {
-    it('handles malformed JSON in localStorage', async () => {
-      localStorageData['authState'] = 'not valid json{';
+    it('handles malformed JSON in sessionStorage', async () => {
+      sessionStorageData['authState'] = 'not valid json{';
       mockVerifyAuth.mockResolvedValue(false);
 
       const { AuthInitializer } = await import('../auth-init');

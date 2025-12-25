@@ -99,3 +99,4 @@ function createNotificationStore() {
 export const notificationStore = createNotificationStore();
 export const unreadCount = derived(notificationStore, s => s.notifications.filter(n => n.status !== 'read').length);
 export const notifications = derived(notificationStore, s => s.notifications);
+export const loading = derived(notificationStore, s => s.loading);

@@ -4,11 +4,10 @@
     import { isAuthenticated, username, userId } from '../stores/auth';
     import { get } from 'svelte/store';
     import { goto } from '@mateothegreat/svelte5-router';
-    import { notificationStore, notifications, unreadCount } from '../stores/notificationStore';
+    import { notificationStore, notifications, unreadCount, loading } from '../stores/notificationStore';
     import type { NotificationResponse } from '../lib/api';
 
     let showDropdown = $state(false);
-    let loading = $state(false);
     // EventSource and reconnect state - not displayed in template, no $state needed
     let eventSource: EventSource | null = null;
     let reconnectAttempts = 0;
@@ -246,7 +245,7 @@
             </div>
             
             <div class="max-h-96 overflow-y-auto">
-                {#if loading}
+                {#if $loading}
                     <div class="p-8 text-center">
                         <span class="loading loading-spinner loading-sm"></span>
                     </div>

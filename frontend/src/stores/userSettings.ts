@@ -21,10 +21,6 @@ export function setUserSettings(settings: UserSettings | null): void {
     userSettings.set(settings);
 }
 
-export function updateSettings(partial: Partial<UserSettings>): void {
-    userSettings.update(current => current ? { ...current, ...partial } : null);
-}
-
 export function clearUserSettings(): void {
     userSettings.set(null);
 }

@@ -73,13 +73,12 @@ class ExecutionRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_runtime_supported(self) -> "ExecutionRequest":  # noqa: D401
-        settings = get_settings()
-        runtimes = settings.SUPPORTED_RUNTIMES or {}
-        if self.lang not in runtimes:
+        runtimes = get_settings().SUPPORTED_RUNTIMES
+        if not (lang_info := runtimes.get(self.lang)):
             raise ValueError(f"Language '{self.lang}' not supported. Supported: {list(runtimes.keys())}")
-        lang_info = runtimes[self.lang]
         if self.lang_version not in lang_info.versions:
-            raise ValueError(f"Version '{self.lang_version}' not supported for {self.lang}. Supported: {lang_info.versions}")
+            raise ValueError(f"Version '{self.lang_version}' not supported for {self.lang}. "
+                             f"Supported: {lang_info.versions}")
         return self
 
 

@@ -9,11 +9,9 @@ vi.mock('../api', () => ({
 }));
 
 const mockSetUserSettings = vi.fn();
-const mockUpdateSettings = vi.fn();
 
 vi.mock('../../stores/userSettings', () => ({
   setUserSettings: (settings: unknown) => mockSetUserSettings(settings),
-  updateSettings: (partial: unknown) => mockUpdateSettings(partial),
 }));
 
 const mockSetThemeLocal = vi.fn();
@@ -38,7 +36,6 @@ describe('user-settings', () => {
     mockGetUserSettings.mockReset();
     mockUpdateUserSettings.mockReset();
     mockSetUserSettings.mockReset();
-    mockUpdateSettings.mockReset();
     mockSetThemeLocal.mockReset();
 
     mockIsAuthenticated = true;
@@ -170,16 +167,18 @@ describe('user-settings', () => {
     });
 
     it('updates store on success', async () => {
-      mockUpdateUserSettings.mockResolvedValue({ data: {}, error: null });
+      const responseData = { user_id: '123', theme: 'system' };
+      mockUpdateUserSettings.mockResolvedValue({ data: responseData, error: null });
 
       const { saveUserSettings } = await import('../user-settings');
       await saveUserSettings({ theme: 'system' });
 
-      expect(mockUpdateSettings).toHaveBeenCalledWith({ theme: 'system' });
+      expect(mockSetUserSettings).toHaveBeenCalledWith(responseData);
     });
 
     it('applies theme locally when theme is saved', async () => {
-      mockUpdateUserSettings.mockResolvedValue({ data: {}, error: null });
+      const responseData = { user_id: '123', theme: 'dark' };
+      mockUpdateUserSettings.mockResolvedValue({ data: responseData, error: null });
 
       const { saveUserSettings } = await import('../user-settings');
       await saveUserSettings({ theme: 'dark' });
@@ -188,7 +187,8 @@ describe('user-settings', () => {
     });
 
     it('does not apply theme when only editor settings saved', async () => {
-      mockUpdateUserSettings.mockResolvedValue({ data: {}, error: null });
+      const responseData = { user_id: '123', editor: { font_size: 16 } };
+      mockUpdateUserSettings.mockResolvedValue({ data: responseData, error: null });
 
       const { saveUserSettings } = await import('../user-settings');
       await saveUserSettings({ editor: { font_size: 16 } });

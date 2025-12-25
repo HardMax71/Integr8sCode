@@ -1,13 +1,14 @@
 import { get } from 'svelte/store';
 import { isAuthenticated } from '../stores/auth';
 import { setThemeLocal } from '../stores/theme';
-import { setUserSettings, updateSettings } from '../stores/userSettings';
+import { setUserSettings } from '../stores/userSettings';
 import {
     getUserSettingsApiV1UserSettingsGet,
     updateUserSettingsApiV1UserSettingsPut,
     type UserSettings,
     type UserSettingsUpdate,
 } from './api';
+import { unwrap } from './api-interceptors';
 
 export async function loadUserSettings(): Promise<UserSettings | undefined> {
     try {
@@ -34,17 +35,11 @@ export async function saveUserSettings(partial: UserSettingsUpdate): Promise<boo
     if (!get(isAuthenticated)) return false;
 
     try {
-        const { error } = await updateUserSettingsApiV1UserSettingsPut({ body: partial });
+        const data = unwrap(await updateUserSettingsApiV1UserSettingsPut({ body: partial }));
+        setUserSettings(data);
 
-        if (error) {
-            console.error('Failed to save user settings:', error);
-            return false;
-        }
-
-        updateSettings(partial as Partial<UserSettings>);
-
-        if (partial.theme) {
-            setThemeLocal(partial.theme);
+        if (data.theme) {
+            setThemeLocal(data.theme);
         }
 
         return true;

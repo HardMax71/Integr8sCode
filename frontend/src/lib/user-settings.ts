@@ -1,49 +1,15 @@
 import { get } from 'svelte/store';
 import { isAuthenticated } from '../stores/auth';
 import { setThemeLocal } from '../stores/theme';
-import { getCachedSettings, setCachedSettings, updateCachedSetting } from './settings-cache';
+import { setUserSettings, updateSettings } from '../stores/userSettings';
 import {
     getUserSettingsApiV1UserSettingsGet,
-    updateThemeApiV1UserSettingsThemePut,
-    updateEditorSettingsApiV1UserSettingsEditorPut,
-    type Theme,
-    type EditorSettings,
+    updateUserSettingsApiV1UserSettingsPut,
     type UserSettings,
+    type UserSettingsUpdate,
 } from './api';
 
-export async function saveThemeSetting(theme: string): Promise<boolean | undefined> {
-    if (!get(isAuthenticated)) {
-        return;
-    }
-
-    try {
-        const { error } = await updateThemeApiV1UserSettingsThemePut({
-            body: { theme: theme as Theme }
-        });
-
-        if (error) {
-            console.error('Failed to save theme setting');
-            throw error;
-        }
-
-        updateCachedSetting('theme', theme);
-        console.log('Theme setting saved:', theme);
-        return true;
-    } catch (err) {
-        console.error('Error saving theme setting:', err);
-        return false;
-    }
-}
-
 export async function loadUserSettings(): Promise<UserSettings | undefined> {
-    const cached = getCachedSettings();
-    if (cached) {
-        if (cached.theme) {
-            setThemeLocal(cached.theme);
-        }
-        return cached;
-    }
-
     try {
         const { data, error } = await getUserSettingsApiV1UserSettingsGet({});
 
@@ -52,7 +18,7 @@ export async function loadUserSettings(): Promise<UserSettings | undefined> {
             return;
         }
 
-        setCachedSettings(data);
+        setUserSettings(data);
 
         if (data.theme) {
             setThemeLocal(data.theme);
@@ -64,26 +30,26 @@ export async function loadUserSettings(): Promise<UserSettings | undefined> {
     }
 }
 
-export async function saveEditorSettings(editorSettings: EditorSettings): Promise<boolean | undefined> {
-    if (!get(isAuthenticated)) {
-        return;
-    }
+export async function saveUserSettings(partial: UserSettingsUpdate): Promise<boolean> {
+    if (!get(isAuthenticated)) return false;
 
     try {
-        const { error } = await updateEditorSettingsApiV1UserSettingsEditorPut({
-            body: editorSettings
-        });
+        const { error } = await updateUserSettingsApiV1UserSettingsPut({ body: partial });
 
         if (error) {
-            console.error('Failed to save editor settings');
-            throw error;
+            console.error('Failed to save user settings:', error);
+            return false;
         }
 
-        updateCachedSetting('editor', editorSettings);
-        console.log('Editor settings saved');
+        updateSettings(partial as Partial<UserSettings>);
+
+        if (partial.theme) {
+            setThemeLocal(partial.theme);
+        }
+
         return true;
     } catch (err) {
-        console.error('Error saving editor settings:', err);
+        console.error('Error saving user settings:', err);
         return false;
     }
 }

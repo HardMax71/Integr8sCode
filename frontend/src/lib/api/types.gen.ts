@@ -485,26 +485,6 @@ export type EditorSettings = {
      * Show Line Numbers
      */
     show_line_numbers?: boolean;
-    /**
-     * Font Family
-     */
-    font_family?: string;
-    /**
-     * Auto Complete
-     */
-    auto_complete?: boolean;
-    /**
-     * Bracket Matching
-     */
-    bracket_matching?: boolean;
-    /**
-     * Highlight Active Line
-     */
-    highlight_active_line?: boolean;
-    /**
-     * Default Language
-     */
-    default_language?: string;
 };
 
 /**

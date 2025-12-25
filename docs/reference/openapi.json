@@ -4991,7 +4991,7 @@
           "theme": {
             "type": "string",
             "title": "Theme",
-            "default": "one-dark"
+            "default": "auto"
           },
           "font_size": {
             "type": "integer",
@@ -5017,31 +5017,6 @@
             "type": "boolean",
             "title": "Show Line Numbers",
             "default": true
-          },
-          "font_family": {
-            "type": "string",
-            "title": "Font Family",
-            "default": "Monaco, Consolas, 'Courier New', monospace"
-          },
-          "auto_complete": {
-            "type": "boolean",
-            "title": "Auto Complete",
-            "default": true
-          },
-          "bracket_matching": {
-            "type": "boolean",
-            "title": "Bracket Matching",
-            "default": true
-          },
-          "highlight_active_line": {
-            "type": "boolean",
-            "title": "Highlight Active Line",
-            "default": true
-          },
-          "default_language": {
-            "type": "string",
-            "title": "Default Language",
-            "default": "python"
           }
         },
         "type": "object",

@@ -1,5 +1,6 @@
 import { get } from 'svelte/store';
 import { isAuthenticated, username, userId, userRole, userEmail, csrfToken, verifyAuth } from '../stores/auth';
+import { clearUserSettings } from '../stores/userSettings';
 import { loadUserSettings } from './user-settings';
 
 interface PersistedAuth {
@@ -154,6 +155,7 @@ export class AuthInitializer {
         userRole.set(null);
         userEmail.set(null);
         csrfToken.set(null);
+        clearUserSettings();
         localStorage.removeItem('authState');
     }
 

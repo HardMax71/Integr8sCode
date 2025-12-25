@@ -20,7 +20,7 @@ class DomainNotificationSettings:
 
 @dataclass
 class DomainEditorSettings:
-    theme: str = "one-dark"
+    theme: str = "auto"
     font_size: int = 14
     tab_size: int = 4
     use_tabs: bool = False

@@ -3,7 +3,7 @@ import { get } from 'svelte/store';
 
 // Mock the dynamic imports before importing the theme module
 vi.mock('../../lib/user-settings', () => ({
-  saveThemeSetting: vi.fn().mockResolvedValue(true),
+  saveUserSettings: vi.fn().mockResolvedValue(true),
 }));
 
 vi.mock('../auth', () => ({

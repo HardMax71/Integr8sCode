@@ -23,7 +23,7 @@ function getInitialTheme(): ThemeValue {
 const initialTheme = getInitialTheme();
 const { subscribe, set: internalSet, update } = writable<ThemeValue>(initialTheme);
 
-let saveThemeSetting: ((theme: string) => Promise<boolean | undefined>) | null = null;
+let saveUserSettings: ((partial: { theme?: ThemeValue }) => Promise<boolean>) | null = null;
 let isAuthenticatedStore: import('svelte/store').Readable<boolean | null> | null = null;
 
 if (browser) {
@@ -31,7 +31,7 @@ if (browser) {
         import('../lib/user-settings'),
         import('./auth')
     ]).then(([userSettings, auth]) => {
-        saveThemeSetting = userSettings.saveThemeSetting;
+        saveUserSettings = userSettings.saveUserSettings;
         isAuthenticatedStore = auth.isAuthenticated;
     });
 }
@@ -43,8 +43,8 @@ export const theme = {
         if (browser) {
             localStorage.setItem(storageKey, value);
         }
-        if (saveThemeSetting && isAuthenticatedStore && get(isAuthenticatedStore)) {
-            saveThemeSetting(value);
+        if (saveUserSettings && isAuthenticatedStore && get(isAuthenticatedStore)) {
+            saveUserSettings({ theme: value });
         }
     },
     update

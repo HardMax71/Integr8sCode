@@ -11,7 +11,7 @@
     import { addToast } from '../stores/toastStore';
     import { get } from 'svelte/store';
     import { fly } from 'svelte/transition';
-    import { setCachedSettings, updateCachedSetting } from '../lib/settings-cache';
+    import { setUserSettings } from '../stores/userSettings';
     import Spinner from '../components/Spinner.svelte';
 
     let settings = $state<any>(null);
@@ -99,7 +99,7 @@
             if (error) throw error;
 
             settings = data;
-            setCachedSettings(settings);
+            setUserSettings(settings);
 
             formData = {
                 theme: $themeStore,
@@ -145,9 +145,6 @@
             if (!deepEqual(formData.editor, settings.editor)) {
                 updates.editor = formData.editor;
             }
-            if (!deepEqual(formData.preferences, settings.preferences)) {
-                updates.preferences = formData.preferences;
-            }
 
             if (Object.keys(updates).length === 0) {
                 addToast('No changes to save', 'info');
@@ -158,7 +155,7 @@
             if (error) throw error;
 
             settings = data;
-            setCachedSettings(settings);
+            setUserSettings(settings);
 
             formData = {
                 theme: settings.theme || 'auto',
@@ -197,17 +194,11 @@
             if (error) throw error;
 
             history = (data?.history || [])
-                .map(item => {
-                    let displayField = item.field;
-                    if (displayField.startsWith('preferences.')) {
-                        displayField = displayField.replace('preferences.', '');
-                    }
-                    return {
-                        ...item,
-                        displayField,
-                        isRestore: item.reason && item.reason.includes('restore')
-                    };
-                })
+                .map(item => ({
+                    ...item,
+                    displayField: item.field,
+                    isRestore: item.reason?.includes('restore')
+                }))
                 .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
             historyCache = history;

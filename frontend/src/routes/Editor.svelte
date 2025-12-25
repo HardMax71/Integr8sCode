@@ -41,8 +41,8 @@
     import AnsiToHtml from 'ansi-to-html';
     import DOMPurify from 'dompurify';
     import { updateMetaTags, pageMeta } from '../utils/meta';
-    import { getCachedSettings, settingsCache } from '../lib/settings-cache';
-    import { loadUserSettings, saveEditorSettings } from '../lib/user-settings';
+    import { editorSettings as editorSettingsStore } from '../stores/userSettings';
+    import { saveUserSettings } from '../lib/user-settings';
 
     let themeCompartment = new Compartment();
     let fontSizeCompartment = new Compartment();
@@ -213,67 +213,20 @@
 
         // Verify authentication status on startup
         await verifyAuth();
-        
-        // Load user settings if authenticated
-        if (authenticated) {
-            const userSettings = await loadUserSettings();
-            if (userSettings && userSettings.editor) {
-                editorSettings = { ...editorSettings, ...userSettings.editor };
-                // Migrate one-dark to auto for better theme following
-                if (editorSettings.theme === 'one-dark') {
-                    console.log('Migrating one-dark theme to auto');
-                    editorSettings.theme = 'auto';
-                }
-                // If user has 'github' theme saved but app is in dark mode, switch to auto
-                const currentAppTheme = get(appTheme);
-                if (editorSettings.theme === 'github' && currentAppTheme === 'dark') {
-                    console.log('User has light theme saved but app is dark - switching to auto');
-                    editorSettings.theme = 'auto';
-                }
-            }
-        }
-        
-        // Subscribe to settings cache updates
-        unsubscribeSettings = settingsCache.subscribe(cached => {
-            if (cached && cached.editor) {
-                editorSettings = { ...editorSettings, ...cached.editor };
-                // Migrate one-dark to auto for better theme following
-                if (editorSettings.theme === 'one-dark') {
-                    console.log('Migrating cached one-dark theme to auto');
-                    editorSettings.theme = 'auto';
-                }
-                // If user has 'github' theme saved but app is in dark mode, switch to auto
-                const currentAppTheme = get(appTheme);
-                if (editorSettings.theme === 'github' && currentAppTheme === 'dark') {
-                    console.log('Cached settings have light theme but app is dark - switching to auto');
-                    editorSettings.theme = 'auto';
-                }
+
+        // Subscribe to editor settings store (populated by AuthInitializer)
+        unsubscribeSettings = editorSettingsStore.subscribe(storeSettings => {
+            editorSettings = storeSettings;
+            if (editorView) {
                 applyEditorSettings();
             }
         });
-        
-        unsubscribeAuth = isAuthenticated.subscribe(async authStatus => {
+
+        unsubscribeAuth = isAuthenticated.subscribe(authStatus => {
             const wasAuthenticated = authenticated;
             authenticated = authStatus;
             if (!wasAuthenticated && authenticated && editorView) {
                 loadSavedScripts();
-                // Load user settings when authenticated
-                const userSettings = await loadUserSettings();
-                if (userSettings && userSettings.editor) {
-                    editorSettings = { ...editorSettings, ...userSettings.editor };
-                    // Migrate one-dark to auto for better theme following
-                    if (editorSettings.theme === 'one-dark') {
-                        console.log('Migrating auth-loaded one-dark theme to auto');
-                        editorSettings.theme = 'auto';
-                    }
-                    // If user has 'github' theme saved but app is in dark mode, switch to auto
-                    const currentAppTheme = get(appTheme);
-                    if (editorSettings.theme === 'github' && currentAppTheme === 'dark') {
-                        console.log('Auth loaded settings have light theme but app is dark - switching to auto');
-                        editorSettings.theme = 'auto';
-                    }
-                    applyEditorSettings();
-                }
             } else if (wasAuthenticated && !authenticated) {
                 savedScripts = [];
                 showSavedScripts = false;

@@ -1,17 +1,14 @@
 <script lang="ts">
   import { route } from "@mateothegreat/svelte5-router";
   import { fade, fly } from "svelte/transition";
-  import { onMount } from 'svelte';
+  import { onMount, type Component } from 'svelte';
   import { updateMetaTags, pageMeta } from '../utils/meta';
+  import { Zap, ShieldCheck, Clock } from '@lucide/svelte';
 
-  const boltIcon = `<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>`;
-  const shieldCheckIcon = `<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>`;
-  const clockIcon = `<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
-
-  const features = [
-    { icon: boltIcon, title: "Instant Execution", content: "Run code online effortlessly in isolated Kubernetes pods with near-native speed." },
-    { icon: shieldCheckIcon, title: "Secure & Efficient", content: "Strict resource limits (CPU, Memory, Time) and network restrictions ensure safe code execution." },
-    { icon: clockIcon, title: "Real-time Results", content: "Get immediate feedback with live execution status updates and detailed output upon completion." }
+  const features: { icon: Component; title: string; content: string }[] = [
+    { icon: Zap, title: "Instant Execution", content: "Run code online effortlessly in isolated Kubernetes pods with near-native speed." },
+    { icon: ShieldCheck, title: "Secure & Efficient", content: "Strict resource limits (CPU, Memory, Time) and network restrictions ensure safe code execution." },
+    { icon: Clock, title: "Real-time Results", content: "Get immediate feedback with live execution status updates and detailed output upon completion." }
   ];
 
   let ready = $state(false);
@@ -63,7 +60,7 @@
              style="--fly-y: 24px; --fly-delay: {800 + i * 120}ms;">
           <!-- Icon -->
           <div class="flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-full bg-primary/10 text-primary dark:text-primary-light ring-1 ring-primary/20 mb-5 transition-transform duration-300 group-hover:scale-110 group-hover:ring-primary/40">
-            {@html feature.icon}
+            <svelte:component this={feature.icon} class="h-6 w-6" />
           </div>
           <h3 class="text-lg sm:text-xl font-semibold leading-7 sm:leading-8 text-fg-default dark:text-dark-fg-default mb-2 transition-colors duration-200 group-hover:text-primary dark:group-hover:text-primary-light">{feature.title}</h3>
           <p class="flex-grow text-sm sm:text-base leading-6 sm:leading-7 text-fg-muted dark:text-dark-fg-muted">{feature.content}</p>

@@ -201,15 +201,15 @@ const interactWithButton = async (
 // =============================================================================
 
 const iconTestCases = [
-  { tags: ['completed'], svgPath: 'M9 12l2 2 4-4', desc: 'check' },
-  { tags: ['success'], svgPath: 'M9 12l2 2 4-4', desc: 'check' },
-  { tags: ['failed'], svgPath: 'M12 8v4m0 4h.01', desc: 'error' },
-  { tags: ['error'], svgPath: 'M12 8v4m0 4h.01', desc: 'error' },
-  { tags: ['security'], svgPath: 'M12 8v4m0 4h.01', desc: 'error' },
-  { tags: ['timeout'], svgPath: 'M12 9v2m0 4h.01', desc: 'warning' },
-  { tags: ['warning'], svgPath: 'M12 9v2m0 4h.01', desc: 'warning' },
-  { tags: ['unknown'], svgPath: 'M13 16h-1v-4h-1', desc: 'info' },
-  { tags: [] as string[], svgPath: 'M13 16h-1v-4h-1', desc: 'info' },
+  { tags: ['completed'], iconClass: 'lucide-circle-check', desc: 'check' },
+  { tags: ['success'], iconClass: 'lucide-circle-check', desc: 'check' },
+  { tags: ['failed'], iconClass: 'lucide-circle-alert', desc: 'error' },
+  { tags: ['error'], iconClass: 'lucide-circle-alert', desc: 'error' },
+  { tags: ['security'], iconClass: 'lucide-circle-alert', desc: 'error' },
+  { tags: ['timeout'], iconClass: 'lucide-triangle-alert', desc: 'warning' },
+  { tags: ['warning'], iconClass: 'lucide-triangle-alert', desc: 'warning' },
+  { tags: ['unknown'], iconClass: 'lucide-info', desc: 'info' },
+  { tags: [] as string[], iconClass: 'lucide-info', desc: 'info' },
 ];
 
 const priorityTestCases = [
@@ -350,12 +350,13 @@ describe('NotificationCenter', () => {
   });
 
   describe('notification icons', () => {
-    it.each(iconTestCases)('shows $desc icon for tags=$tags', async ({ tags, svgPath }) => {
+    it.each(iconTestCases)('shows $desc icon for tags=$tags', async ({ tags, iconClass }) => {
       const subject = tags[0] || 'NoTags';
       setNotifications([createNotification({ tags, subject })]);
       const { container } = await openDropdownWithContainer();
       await waitFor(() => {
-        expect(container.querySelector(`[aria-label*="${subject}"] svg`)?.innerHTML).toContain(svgPath);
+        const svg = container.querySelector(`[aria-label*="${subject}"] svg`);
+        expect(svg?.classList.contains(iconClass)).toBe(true);
       });
     });
   });

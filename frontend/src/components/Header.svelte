@@ -5,24 +5,13 @@
   import { fade } from 'svelte/transition';
   import { onMount, onDestroy } from 'svelte';
   import NotificationCenter from './NotificationCenter.svelte';
+  import { Sun, Moon, MonitorCog, Menu, X, LogIn, UserPlus, LogOut, User, ChevronDown, Settings } from '@lucide/svelte';
 
   let isMenuActive = $state(false);
   let isMobile = $state(false);
   let resizeListener: (() => void) | null = null;
   let showUserDropdown = $state(false);
-
-  const sunIcon = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>`;
-  const moonIcon = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>`;
-  const autoIcon = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>`;
-  const menuIcon = `<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>`;
-  const closeIcon = `<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>`;
   let logoImgClass = "h-8 max-h-8 w-auto transition-all duration-200 group-hover:scale-110";
-  const loginIcon = `<svg class="w-5 h-5 mr-2 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"></path></svg>`;
-  const registerIcon = `<svg class="w-5 h-5 mr-2 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path></svg>`;
-  const logoutIcon = `<svg class="w-5 h-5 mr-2 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>`;
-  const userIcon = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>`;
-  const chevronDownIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
-  const adminIcon = `<svg class="w-5 h-5 mr-2 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>`;
 
 
   function toggleMenu() {
@@ -107,11 +96,11 @@
       <div class="flex items-center space-x-3">
         <button onclick={toggleTheme} title="Toggle theme" class="btn btn-ghost btn-icon text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default">
           {#if $theme === 'light'}
-            {@html sunIcon}
+            <Sun class="w-5 h-5" />
           {:else if $theme === 'dark'}
-            {@html moonIcon}
+            <Moon class="w-5 h-5" />
           {:else}
-            {@html autoIcon}
+            <MonitorCog class="w-5 h-5" />
           {/if}
         </button>
 
@@ -125,10 +114,10 @@
                 class="flex items-center space-x-2 btn btn-ghost btn-sm"
               >
                 <div class="flex items-center space-x-2">
-                  {@html userIcon}
+                  <User class="w-5 h-5" />
                   <span class="hidden xl:inline font-medium">{$username}</span>
                   <span class="transition-transform duration-200" class:rotate-180={showUserDropdown}>
-                    {@html chevronDownIcon}
+                    <ChevronDown class="w-4 h-4" />
                   </span>
                 </div>
               </button>
@@ -200,7 +189,11 @@
 
         <div class="block lg:hidden">
           <button onclick={toggleMenu} class="btn btn-ghost btn-icon text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default">
-            {@html isMenuActive ? closeIcon : menuIcon}
+            {#if isMenuActive}
+              <X class="h-5 w-5" />
+            {:else}
+              <Menu class="h-5 w-5" />
+            {/if}
           </button>
         </div>
       </div>
@@ -226,21 +219,21 @@
             </div>
             {#if $userRole === 'admin'}
               <a href="/admin/events" use:route onclick={closeMenu} class="block px-3 py-2 rounded-md text-base font-medium text-fg-default dark:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center">
-                {@html adminIcon} Admin Panel
+                <Settings class="w-5 h-5 mr-2 -ml-1" /> Admin Panel
               </a>
             {/if}
             <a href="/settings" use:route onclick={closeMenu} class="block px-3 py-2 rounded-md text-base font-medium text-fg-default dark:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700">
               Settings
             </a>
             <button onclick={handleLogout} class="w-full text-left block px-3 py-2 rounded-md text-base font-medium text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-800 dark:hover:text-red-300 flex items-center">
-              {@html logoutIcon} Logout
+              <LogOut class="w-5 h-5 mr-2 -ml-1" /> Logout
             </button>
           {:else}
             <a href="/login" use:route onclick={closeMenu} class="block px-3 py-2 rounded-md text-base font-medium text-fg-default dark:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center">
-              {@html loginIcon} Login
+              <LogIn class="w-5 h-5 mr-2 -ml-1" /> Login
             </a>
             <a href="/register" use:route onclick={closeMenu} class="block px-3 py-2 rounded-md text-base font-medium text-fg-default dark:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center">
-              {@html registerIcon} Register
+              <UserPlus class="w-5 h-5 mr-2 -ml-1" /> Register
             </a>
           {/if}
         </div>

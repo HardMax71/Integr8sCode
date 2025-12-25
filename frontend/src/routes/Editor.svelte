@@ -49,6 +49,7 @@
     import { updateMetaTags, pageMeta } from '../utils/meta';
     import { editorSettings as editorSettingsStore } from '../stores/userSettings';
     import { saveUserSettings } from '../lib/user-settings';
+    import { MessageSquare, ChevronDown, ChevronUp, ChevronRight, Cpu, MemoryStick, Clock, CirclePlay, Settings, FilePlus, Upload, Download, Save, List, Trash2, FileText, Copy, Lightbulb, AlertTriangle } from '@lucide/svelte';
 
     let themeCompartment = new Compartment();
     let fontSizeCompartment = new Compartment();
@@ -145,6 +146,7 @@
 
     let script = createPersistentStore("script", "# Welcome to Integr8sCode!\n\nprint('Hello, Kubernetes!')");
     let executing = $state(false);
+    let executionStatus = $state<string | null>(null); // Progress status during execution (queued, running, etc.)
     let result = $state<ExecutionResult | null>(null);
     let editorView = $state<EditorView | null>(null);
     let editorContainer: HTMLElement;
@@ -184,23 +186,6 @@
     let unsubscribeScriptName;
     let unsubscribeLang;
 
-    const resourceIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l4-4z"></path></svg>`;
-    const chevronDownIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
-    const chevronUpIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>`;
-    const cpuIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path></svg>`;
-    const memoryIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>`;
-    const timeoutIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
-    const playIcon = `<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg>`;
-    const settingsIcon = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>`;
-    const newFileIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>`;
-    const uploadIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>`;
-    const exportIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>`;
-    const saveIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>`;
-    const listIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>`;
-    const trashIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>`;
-    const idIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>`;
-    const copyIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>`;
-    const exampleIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>`;
 
     // Watch for script name changes and clear ID if name changed
     // Uses reactive state variables that are kept in sync with stores via subscriptions
@@ -443,14 +428,17 @@
 
     async function executeScript() {
         executing = true;
+        executionStatus = 'starting';
         apiError = null;
         result = null;
+
         const scriptValue = get(script);
         const langValue = get(selectedLang);
         const versionValue = get(selectedVersion);
-        let executionId = null;
+        let executionId: string | null = null;
 
         try {
+            // 1. Start execution
             const { data: executeData, error: execError } = await createExecutionApiV1ExecutePost({
                 body: {
                     script: scriptValue,
@@ -459,101 +447,90 @@
                 }
             });
             if (execError) throw execError;
-            executionId = executeData.execution_id;
-            result = {status: 'running', execution_id: executionId};
 
-            // Compute a strict timeout: 2x execution limit (seconds -> ms)
-            const execLimitSec = (k8sLimits?.execution_timeout || 5);
-            const timeout = (2 * execLimitSec) * 1000;
-            
-            result = await new Promise((resolve, reject) => {
-                // Use the SSE endpoint for real-time events from Kafka
+            executionId = executeData.execution_id;
+            executionStatus = executeData.status || 'queued';
+
+            // 2. Connect to SSE for real-time updates
+            const finalResult = await new Promise<ExecutionResult>((resolve, reject) => {
                 const eventSource = new EventSource(`/api/v1/events/executions/${executionId}`, {
                     withCredentials: true
                 });
-                
-                let timeoutId = setTimeout(() => {
-                    eventSource.close();
-                    resolve({
-                        status: 'timeout', 
-                        errors: 'Execution timed out', 
-                        execution_id: executionId
-                    });
-                }, timeout);
-                
-                eventSource.onopen = () => {
-                    console.log('SSE connected for execution:', executionId);
+
+                const fetchResultFallback = async () => {
+                    try {
+                        const { data, error } = await getResultApiV1ResultExecutionIdGet({
+                            path: { execution_id: executionId! }
+                        });
+                        if (error) throw error;
+                        resolve(data!);
+                    } catch (e) {
+                        reject(e);
+                    }
                 };
-                
+
                 eventSource.onmessage = async (event) => {
                     try {
                         const data = JSON.parse(event.data);
-                        const et = data?.event_type;
-                        if (et === 'heartbeat' || et === 'connected') {
+                        const eventType = data?.event_type || data?.type;
+
+                        // Ignore heartbeat/connected events
+                        if (eventType === 'heartbeat' || eventType === 'connected') {
                             return;
                         }
-                        console.log('Execution update:', data);
-                        
-                        // Update result with the latest status
-                        if (data.event_type === 'result_stored' || data.type === 'result_stored') {
-                            result = data.result;
-                            clearTimeout(timeoutId);
+
+                        // Update status for progress display
+                        if (data.status) {
+                            executionStatus = data.status;
+                        }
+
+                        // Terminal event: result_stored contains the full result
+                        if (eventType === 'result_stored' && data.result) {
                             eventSource.close();
-                            resolve(result);
-                        } else if (
-                            data.event_type === 'execution_failed' || data.type === 'execution_failed' || data.status === 'failed' || data.status === 'error' ||
-                            data.event_type === 'execution_timeout' || data.type === 'execution_timeout' || data.status === 'timeout'
-                        ) {
-                            // Close immediately on any terminal error
-                            clearTimeout(timeoutId);
-                            try { eventSource.close(); } catch {}
-                            try {
-                                const { data: finalData } = await getResultApiV1ResultExecutionIdGet({ path: { execution_id: executionId } });
-                                resolve(finalData);
-                            } catch {
-                                resolve({ status: 'error', errors: data?.error || 'Execution failed', execution_id: executionId });
-                            }
-                        } else if (data.event_type === 'execution_completed' || data.type === 'execution_completed' || data.status === 'completed') {
-                            result = { ...(result || {}), status: 'completed' };
-                        } else if (data.event_type === 'execution_failed' || data.type === 'execution_failed' || data.status === 'failed' || data.status === 'error') {
-                            result = { ...(result || {}), status: 'failed' };
-                        } else if (data.event_type === 'execution_timeout' || data.type === 'execution_timeout' || data.status === 'timeout') {
-                            result = { ...(result || {}), status: 'timeout' };
-                        } else if (data.status) {
-                            // Update intermediate status
-                            result = {...result, status: data.status};
+                            resolve(data.result);
+                            return;
+                        }
+
+                        // Other terminal events: fetch result from API
+                        if (eventType === 'execution_failed' ||
+                            eventType === 'execution_timeout' ||
+                            eventType === 'result_failed') {
+                            eventSource.close();
+                            await fetchResultFallback();
                         }
                     } catch (err) {
                         console.error('Error processing SSE event:', err);
                     }
                 };
-                
-                eventSource.onerror = (error) => {
-                    console.error('SSE error:', error);
-                    clearTimeout(timeoutId);
-                    eventSource.close();
 
-                    getResultApiV1ResultExecutionIdGet({ path: { execution_id: executionId } })
-                      .then(({ data }) => resolve(data))
-                      .catch(() => resolve({
-                          status: 'error',
-                          errors: 'Lost connection to execution stream',
-                          execution_id: executionId
-                      }));
+                eventSource.onerror = () => {
+                    console.error('SSE connection error, fetching result via API');
+                    eventSource.close();
+                    fetchResultFallback();
                 };
             });
 
-            if (result?.status !== 'completed' && result?.status !== 'error' && result?.status !== 'failed' && result?.status !== 'timeout') {
-                const timeoutMessage = `Execution timed out waiting for a final status.`;
-                result = {status: 'error', errors: timeoutMessage, execution_id: executionId};
-                addToast(timeoutMessage, 'warning');
-            }
+            result = finalResult;
 
         } catch (err) {
-            apiError = getErrorMessage(err, "Error initiating script execution.");
-            result = {status: 'error', errors: apiError, execution_id: executionId};
+            apiError = getErrorMessage(err, "Error executing script.");
+            // If we have an execution_id, try to fetch the result anyway
+            if (executionId) {
+                try {
+                    const { data } = await getResultApiV1ResultExecutionIdGet({
+                        path: { execution_id: executionId }
+                    });
+                    if (data) {
+                        result = data;
+                        apiError = null; // Clear error since we got a result
+                    }
+                } catch {
+                    // Keep the apiError
+                }
+            }
         } finally {
             executing = false;
+            executionStatus = null;
         }
     }
 
@@ -593,6 +570,7 @@
         showOptions = false;
         result = null;
         apiError = null;
+        executionStatus = null;
     }
 
     async function saveScript() {
@@ -663,6 +641,7 @@
         });
         result = null;
         apiError = null;
+        executionStatus = null;
         addToast("New script started.", "info");
     }
 
@@ -781,6 +760,7 @@
             addToast(`Loaded example script for ${lang}.`, "info");
             result = null;
             apiError = null;
+            executionStatus = null;
         } else {
             addToast(`No example script available for ${lang}.`, "warning");
         }
@@ -828,9 +808,9 @@
             <div class="relative shrink-0">
                 <button class="btn btn-secondary-outline btn-sm inline-flex items-center space-x-1.5 w-full sm:w-auto justify-center"
                         onclick={toggleLimits} aria-expanded={showLimits}>
-                    {@html resourceIcon}
+                    <MessageSquare class="w-4 h-4" />
                     <span>Resource Limits</span>
-                    {#if showLimits} {@html chevronUpIcon} {:else} {@html chevronDownIcon} {/if}
+                    {#if showLimits} <ChevronUp class="w-4 h-4" /> {:else} <ChevronDown class="w-4 h-4" /> {/if}
                 </button>
                 {#if showLimits}
                     <div class="absolute right-0 top-full mt-2 w-64 sm:w-72 bg-bg-alt dark:bg-dark-bg-alt rounded-lg shadow-xl ring-1 ring-black/5 dark:ring-white/10 p-5 z-30 border border-border-default dark:border-dark-border-default"
@@ -838,17 +818,17 @@
                         <div class="space-y-4">
                             <div class="flex items-center justify-between text-sm">
                                 <span class="text-fg-muted dark:text-dark-fg-muted inline-flex items-center"><span
-                                        class="mr-2">{@html cpuIcon}</span>CPU Limit</span>
+                                        class="mr-2"><Cpu class="w-4 h-4" /></span>CPU Limit</span>
                                 <span class="font-semibold text-fg-default dark:text-dark-fg-default tabular-nums">{k8sLimits.cpu_limit}</span>
                             </div>
                             <div class="flex items-center justify-between text-sm">
                                 <span class="text-fg-muted dark:text-dark-fg-muted inline-flex items-center"><span
-                                        class="mr-2">{@html memoryIcon}</span>Memory Limit</span>
+                                        class="mr-2"><MemoryStick class="w-4 h-4" /></span>Memory Limit</span>
                                 <span class="font-semibold text-fg-default dark:text-dark-fg-default tabular-nums">{k8sLimits.memory_limit}</span>
                             </div>
                             <div class="flex items-center justify-between text-sm">
                                 <span class="text-fg-muted dark:text-dark-fg-muted inline-flex items-center"><span
-                                        class="mr-2">{@html timeoutIcon}</span>Timeout</span>
+                                        class="mr-2"><Clock class="w-4 h-4" /></span>Timeout</span>
                                 <span class="font-semibold text-fg-default dark:text-dark-fg-default tabular-nums">{k8sLimits.execution_timeout}
                                     s</span>
                             </div>
@@ -871,7 +851,7 @@
             <div class="flex items-center space-x-2">
                  <button class="btn btn-secondary-outline btn-sm inline-flex items-center space-x-1.5"
                         onclick={loadExampleScript} title="Load an example script for the selected language">
-                    {@html exampleIcon}
+                    <Lightbulb class="w-4 h-4" />
                     <span class="hidden sm:inline">Example</span>
                 </button>
             </div>
@@ -889,7 +869,7 @@
                         Start typing, upload a file, or use an example to begin.
                     </p>
                     <button class="btn btn-primary inline-flex items-center space-x-2" onclick={loadExampleScript}>
-                        {@html exampleIcon}
+                        <Lightbulb class="w-4 h-4" />
                         <span>Start with an Example</span>
                     </button>
                 </div>
@@ -906,7 +886,24 @@
                 {#if executing}
                     <div class="flex flex-col items-center justify-center h-full text-center p-4 animate-fadeIn">
                         <Spinner/>
-                        <p class="mt-3 text-sm font-medium text-primary-dark dark:text-primary-light">Executing script...</p>
+                        <p class="mt-3 text-sm font-medium text-primary-dark dark:text-primary-light">
+                            {#if executionStatus}
+                                {executionStatus === 'queued' ? 'Queued...' :
+                                 executionStatus === 'running' ? 'Running...' :
+                                 executionStatus === 'scheduled' ? 'Scheduled...' :
+                                 'Executing...'}
+                            {:else}
+                                Executing...
+                            {/if}
+                        </p>
+                    </div>
+                {:else if apiError && !result}
+                    <div class="flex flex-col items-center justify-center h-full text-center p-4 animate-fadeIn">
+                        <div class="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mb-3">
+                            <AlertTriangle class="w-6 h-6 text-red-600 dark:text-red-400" />
+                        </div>
+                        <p class="text-sm font-medium text-red-700 dark:text-red-300">Execution Failed</p>
+                        <p class="mt-1 text-xs text-fg-muted dark:text-dark-fg-muted max-w-xs">{apiError}</p>
                     </div>
                 {:else if result}
                     <div class="space-y-5 animate-flyIn">
@@ -946,7 +943,7 @@
                                     <button class="inline-flex items-center p-1.5 rounded-lg text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors duration-150 cursor-pointer"
                                             aria-label="Click to copy execution ID"
                                             onclick={() => copyExecutionId(result.execution_id)}>
-                                        {@html idIcon}
+                                        <FileText class="w-4 h-4" />
                                     </button>
                                     <div class="absolute top-8 right-0 z-10 px-2 py-1 text-xs bg-neutral-800 dark:bg-neutral-200 text-white dark:text-neutral-800 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap">
                                         Execution ID:
@@ -967,7 +964,7 @@
                                         <button class="inline-flex items-center p-1.5 rounded-lg text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
                                                 aria-label="Copy output to clipboard"
                                                 onclick={() => copyOutput(result.stdout)}>
-                                            {@html copyIcon}
+                                            <Copy class="w-4 h-4" />
                                         </button>
                                         <div class="absolute bottom-8 right-0 z-10 px-2 py-1 text-xs bg-neutral-800 dark:bg-neutral-200 text-white dark:text-neutral-800 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap">
                                             Copy output
@@ -989,7 +986,7 @@
                                         <button class="inline-flex items-center p-1.5 rounded-lg text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 hover:bg-red-100 dark:hover:bg-red-900 transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
                                                 aria-label="Copy error text to clipboard"
                                                 onclick={() => copyErrors(result.stderr)}>
-                                            {@html copyIcon}
+                                            <Copy class="w-4 h-4" />
                                         </button>
                                         <div class="absolute bottom-8 right-0 z-10 px-2 py-1 text-xs bg-neutral-800 dark:bg-neutral-200 text-white dark:text-neutral-800 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap">
                                             Copy errors
@@ -1048,9 +1045,9 @@
                             class:opacity-50={!runtimesAvailable}
                             class:cursor-not-allowed={!runtimesAvailable}>
                         <span class="capitalize truncate">{runtimesAvailable ? `${$selectedLang} ${$selectedVersion}` : "Unavailable"}</span>
-                        <svg class="w-5 h-5 ml-2 shrink-0 text-fg-muted dark:text-dark-fg-muted transform transition-transform" class:-rotate-180={showLangOptions} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                        </svg>
+                        <span class="ml-2 shrink-0 text-fg-muted dark:text-dark-fg-muted transform transition-transform" class:-rotate-180={showLangOptions}>
+                            <ChevronDown class="w-5 h-5" />
+                        </span>
                     </button>
 
                     {#if showLangOptions && runtimesAvailable}
@@ -1061,7 +1058,7 @@
                                     <li class="relative" onmouseenter={() => hoveredLang = lang}>
                                         <div class="flex justify-between items-center w-full px-3 py-2 text-sm text-fg-default dark:text-dark-fg-default">
                                             <span class="capitalize font-medium">{lang}</span>
-                                            <svg class="w-4 h-4 text-fg-muted dark:text-dark-fg-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                                            <ChevronRight class="w-4 h-4 text-fg-muted dark:text-dark-fg-muted" />
                                         </div>
 
                                         {#if hoveredLang === lang && langInfo.versions.length > 0}
@@ -1093,7 +1090,7 @@
                 </div>
                 <button class="btn btn-primary btn-sm flex-grow sm:flex-grow-0 min-w-[130px]" onclick={executeScript}
                         disabled={executing || !runtimesAvailable}>
-                    {@html playIcon}
+                    <CirclePlay class="w-5 h-5" />
                     <span class="ml-1.5">{executing ? "Executing..." : "Run Script"}</span>
                 </button>
                 <button class="btn btn-secondary-outline btn-sm btn-icon ml-auto sm:ml-2"
@@ -1102,7 +1099,7 @@
                         title={showOptions ? "Hide Options" : "Show Options"}>
                     <span class="sr-only">Toggle Script Options</span>
                     <div class="transition-transform duration-300 ease-out-expo" class:rotate-90={showOptions}>
-                        {@html settingsIcon}
+                        <Settings class="w-5 h-5" />
                     </div>
                 </button>
             </div>
@@ -1119,21 +1116,21 @@
                         <div class="grid grid-cols-2 gap-2">
                             <button class="btn btn-secondary-outline btn-sm inline-flex items-center justify-center space-x-1"
                                     onclick={newScript} title="Start a new script">
-                                {@html newFileIcon}<span>New</span>
+                                <FilePlus class="w-4 h-4" /><span>New</span>
                             </button>
                             <button class="btn btn-secondary-outline btn-sm inline-flex items-center justify-center space-x-1"
                                     onclick={() => fileInput.click()} title="Upload a file">
-                                {@html uploadIcon}<span>Upload</span>
+                                <Upload class="w-4 h-4" /><span>Upload</span>
                             </button>
                             {#if authenticated}
                                 <button class="btn btn-primary btn-sm inline-flex items-center justify-center space-x-1"
                                         onclick={saveScript} title="Save current script">
-                                    {@html saveIcon}<span>Save</span>
+                                    <Save class="w-4 h-4" /><span>Save</span>
                                 </button>
                             {/if}
                             <button class="btn btn-secondary-outline btn-sm inline-flex items-center justify-center space-x-1"
                                     onclick={exportScript} title="Download current script">
-                                {@html exportIcon}<span>Export</span>
+                                <Download class="w-4 h-4" /><span>Export</span>
                             </button>
                         </div>
                     </div>
@@ -1152,7 +1149,7 @@
                                         onclick={toggleSavedScripts}
                                         aria-expanded={showSavedScripts}
                                         title={showSavedScripts ? "Hide Saved Scripts" : "Show Saved Scripts"}>
-                                    {@html listIcon}
+                                    <List class="w-4 h-4" />
                                     <span>{showSavedScripts ? "Hide" : "Show"} Saved Scripts</span>
                                 </button>
                             </div>
@@ -1178,7 +1175,7 @@
                                                                 onclick={(e) => { e.stopPropagation(); deleteScript(savedItem.id); }}
                                                                 title={`Delete ${savedItem.name}`}>
                                                             <span class="sr-only">Delete</span>
-                                                            {@html trashIcon}
+                                                            <Trash2 class="w-4 h-4" />
                                                         </button>
                                                     </li>
                                                 {/each}

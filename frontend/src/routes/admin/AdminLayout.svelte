@@ -6,6 +6,7 @@
     import { get } from 'svelte/store';
     import Spinner from '../../components/Spinner.svelte';
     import type { Snippet } from 'svelte';
+    import { ShieldCheck } from '@lucide/svelte';
 
     let { path = '', children }: { path?: string; children?: Snippet } = $props();
 
@@ -78,9 +79,7 @@
         <div class="w-64 bg-bg-sidebar dark:bg-dark-bg-sidebar shadow-lg fixed left-0 top-16 bottom-0 overflow-y-auto z-10">
             <div class="p-4">
                 <div class="flex items-center gap-2 mb-8">
-                    <svg class="w-6 h-6 text-primary dark:text-primary-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                    </svg>
+                    <ShieldCheck class="w-6 h-6 text-primary dark:text-primary-light" />
                     <h2 class="text-xl font-bold text-fg-default dark:text-dark-fg-default">Admin Panel</h2>
                 </div>
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
+    import { onMount, type Component } from 'svelte';
     import { goto } from '@mateothegreat/svelte5-router';
     import { isAuthenticated, verifyAuth } from '../stores/auth';
     import { addToast } from '../stores/toastStore';
@@ -8,16 +8,13 @@
     import { fly } from 'svelte/transition';
     import Spinner from '../components/Spinner.svelte';
     import type { NotificationResponse } from '../lib/api';
+    import { Bell, Trash2, Clock, CircleCheck, AlertCircle, Info } from '@lucide/svelte';
 
     let loading = $state(false);
     let deleting = $state<Record<string, boolean>>({});
     let includeTagsInput = $state('');
     let excludeTagsInput = $state('');
     let prefixInput = $state('');
-    
-    const bellIcon = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>`;
-    const trashIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>`;
-    const clockIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
     
     
     onMount(async () => {
@@ -114,16 +111,12 @@
         urgent: 'text-red-600 dark:text-red-400'
     };
 
-    function getNotificationIcon(tags: string[] = []): string {
+    function getNotificationIcon(tags: string[] = []): Component {
         const set = new Set(tags || []);
-        const check = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
-        const warn = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
-        const clock = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
-        const info = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z" /></svg>`;
-        if (set.has('failed') || set.has('error') || set.has('security')) return warn;
-        if (set.has('timeout') || set.has('warning')) return clock;
-        if (set.has('completed') || set.has('success')) return check;
-        return info;
+        if (set.has('failed') || set.has('error') || set.has('security')) return AlertCircle;
+        if (set.has('timeout') || set.has('warning')) return Clock;
+        if (set.has('completed') || set.has('success')) return CircleCheck;
+        return Info;
     }
 </script>
 
@@ -170,8 +163,8 @@
         {:else if $notifications.length === 0}
             <div class="card">
                 <div class="p-12 text-center">
-                    <div class="w-20 h-20 mx-auto mb-4 text-fg-subtle dark:text-dark-fg-subtle">
-                        {@html bellIcon}
+                    <div class="w-20 h-20 mx-auto mb-4 text-fg-subtle dark:text-dark-fg-subtle flex items-center justify-center">
+                        <Bell class="w-16 h-16" />
                     </div>
                     <h3 class="text-lg font-semibold text-fg-default dark:text-dark-fg-default mb-2">
                         No notifications yet
@@ -196,7 +189,7 @@
                         <div class="p-4">
                             <div class="flex items-start gap-4">
                                 <div class="mt-1 {severityColors[notification.severity || 'medium']}">
-                                    {@html getNotificationIcon(notification.tags)}
+                                    <svelte:component this={getNotificationIcon(notification.tags)} class="w-5 h-5" />
                                 </div>
                                 
                                 <div class="flex-1">
@@ -218,7 +211,7 @@
                                             {#if deleting[notification.notification_id]}
                                                 <Spinner size="small" />
                                             {:else}
-                                                {@html trashIcon}
+                                                <Trash2 class="w-4 h-4" />
                                             {/if}
                                         </button>
                                         {#if (notification.tags || []).some(t => t.startsWith('exec:'))}
@@ -237,7 +230,7 @@
                                     
                                     <div class="flex items-center gap-4 mt-3">
                                         <span class="inline-flex items-center gap-1 text-xs text-fg-subtle dark:text-dark-fg-subtle">
-                                            {@html clockIcon}
+                                            <Clock class="w-4 h-4" />
                                             {formatTimestamp(notification.created_at)}
                                         </span>
                                         

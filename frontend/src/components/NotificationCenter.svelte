@@ -1,11 +1,12 @@
 <script lang="ts">
-    import { onMount, onDestroy } from 'svelte';
+    import { onMount, onDestroy, type Component } from 'svelte';
     import { fade, fly } from 'svelte/transition';
     import { isAuthenticated, username, userId } from '../stores/auth';
     import { get } from 'svelte/store';
     import { goto } from '@mateothegreat/svelte5-router';
     import { notificationStore, notifications, unreadCount, loading } from '../stores/notificationStore';
     import type { NotificationResponse } from '../lib/api';
+    import { Bell, AlertCircle, AlertTriangle, CircleCheck, Info } from '@lucide/svelte';
 
     let showDropdown = $state(false);
     // EventSource and reconnect state - not displayed in template, no $state needed
@@ -14,19 +15,13 @@
     const maxReconnectAttempts = 3;
     let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
     let hasLoadedInitialData = false;
-    
-    const bellIcon = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>`;
-    const errorIcon = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
-    const warningIcon = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>`;
-    const checkCircleIcon = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
-    const infoIcon = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z"></path></svg>`;
 
-    function getNotificationIcon(tags: string[] = []): string {
+    function getNotificationIcon(tags: string[] = []): Component {
         const set = new Set(tags || []);
-        if (set.has('failed') || set.has('error') || set.has('security')) return errorIcon;
-        if (set.has('timeout') || set.has('warning')) return warningIcon;
-        if (set.has('completed') || set.has('success')) return checkCircleIcon;
-        return infoIcon;
+        if (set.has('failed') || set.has('error') || set.has('security')) return AlertCircle;
+        if (set.has('timeout') || set.has('warning')) return AlertTriangle;
+        if (set.has('completed') || set.has('success')) return CircleCheck;
+        return Info;
     }
     
     const priorityColors = {
@@ -225,7 +220,7 @@
         class="btn btn-ghost btn-icon relative"
         aria-label="Notifications"
     >
-        {@html bellIcon}
+        <Bell class="w-5 h-5" />
         {#if $unreadCount > 0}
             <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
                 {$unreadCount > 9 ? '9+' : $unreadCount}
@@ -255,9 +250,7 @@
                         onclick={requestNotificationPermission}
                         class="mt-2 w-full text-xs text-fg-muted dark:text-dark-fg-muted hover:text-blue-600 dark:hover:text-blue-400 flex items-center justify-center gap-1"
                     >
-                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
-                        </svg>
+                        <Bell class="w-3 h-3" />
                         Enable desktop notifications
                     </button>
                 {/if}
@@ -309,7 +302,7 @@
                         >
                             <div class="flex items-start space-x-3">
                                 <div class={`mt-1 ${priorityColors[notification.severity || 'medium']}`}>
-                                    {@html getNotificationIcon(notification.tags)}
+                                    <svelte:component this={getNotificationIcon(notification.tags)} class="w-5 h-5" />
                                 </div>
                                 <div class="flex-1 min-w-0">
                                     <p class="font-medium text-sm">

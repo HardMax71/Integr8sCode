@@ -13,6 +13,7 @@
     import { fly } from 'svelte/transition';
     import { setUserSettings } from '../stores/userSettings';
     import Spinner from '../components/Spinner.svelte';
+    import { ChevronDown } from '@lucide/svelte';
 
     let settings = $state<any>(null);
     let loading = $state(true);
@@ -312,9 +313,7 @@
                                     class="form-dropdown-button"
                                     aria-expanded={showThemeDropdown}>
                                 <span class="truncate">{themes.find(t => t.value === formData.theme)?.label || 'Select theme'}</span>
-                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                                </svg>
+                                <ChevronDown class="w-5 h-5" />
                             </button>
 
                             {#if showThemeDropdown}
@@ -355,9 +354,7 @@
                                         class="form-dropdown-button"
                                         aria-expanded={showEditorThemeDropdown}>
                                     <span class="truncate">{editorThemes.find(t => t.value === formData.editor.theme)?.label || 'Select theme'}</span>
-                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                                    </svg>
+                                    <ChevronDown class="w-5 h-5" />
                                 </button>
 
                                 {#if showEditorThemeDropdown}

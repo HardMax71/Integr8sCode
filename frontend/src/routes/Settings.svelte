@@ -7,7 +7,7 @@
         getSettingsHistoryApiV1UserSettingsHistoryGet,
     } from '../lib/api';
     import { isAuthenticated, username } from '../stores/auth';
-    import { theme as themeStore } from '../stores/theme';
+    import { theme as themeStore, setTheme } from '../stores/theme';
     import { addToast } from '../stores/toastStore';
     import { get } from 'svelte/store';
     import { fly } from 'svelte/transition';
@@ -102,7 +102,7 @@
             setUserSettings(settings);
 
             formData = {
-                theme: $themeStore,
+                theme: settings.theme || 'auto',
                 notifications: {
                     execution_completed: settings.notifications?.execution_completed ?? true,
                     execution_failed: settings.notifications?.execution_failed ?? true,
@@ -230,7 +230,7 @@
             await loadSettings();
 
             if (settings.theme) {
-                themeStore.set(settings.theme);
+                setTheme(settings.theme);
             }
 
             showHistory = false;
@@ -326,9 +326,8 @@
                                                 <button onclick={() => {
                                     formData.theme = theme.value;
                                     showThemeDropdown = false;
-                                    // Apply theme immediately if it's the theme setting
                                     if (theme.value) {
-                                        themeStore.set(theme.value);
+                                        setTheme(theme.value);
                                     }
                                 }}
                                                         class:selected={formData.theme === theme.value}

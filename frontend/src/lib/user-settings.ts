@@ -1,6 +1,6 @@
 import { get } from 'svelte/store';
 import { isAuthenticated } from '../stores/auth';
-import { setThemeLocal } from '../stores/theme';
+import { setTheme } from '../stores/theme';
 import { setUserSettings } from '../stores/userSettings';
 import {
     getUserSettingsApiV1UserSettingsGet,
@@ -22,7 +22,7 @@ export async function loadUserSettings(): Promise<UserSettings | undefined> {
         setUserSettings(data);
 
         if (data.theme) {
-            setThemeLocal(data.theme);
+            setTheme(data.theme);
         }
 
         return data;
@@ -39,7 +39,7 @@ export async function saveUserSettings(partial: UserSettingsUpdate): Promise<boo
         setUserSettings(data);
 
         if (data.theme) {
-            setThemeLocal(data.theme);
+            setTheme(data.theme);
         }
 
         return true;

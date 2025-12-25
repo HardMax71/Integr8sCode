@@ -43,9 +43,6 @@ export const theme = {
         if (browser) {
             localStorage.setItem(storageKey, value);
         }
-        if (saveUserSettings && isAuthenticatedStore && get(isAuthenticatedStore)) {
-            saveUserSettings({ theme: value });
-        }
     },
     update
 };
@@ -72,16 +69,11 @@ export function toggleTheme(): void {
     const current = get(theme);
     const next: ThemeValue = current === 'light' ? 'dark' : current === 'dark' ? 'auto' : 'light';
     theme.set(next);
+    if (saveUserSettings && isAuthenticatedStore && get(isAuthenticatedStore)) {
+        saveUserSettings({ theme: next });
+    }
 }
 
 export function setTheme(newTheme: ThemeValue): void {
     theme.set(newTheme);
-}
-
-export function setThemeLocal(newTheme: ThemeValue): void {
-    internalSet(newTheme);
-    if (browser) {
-        localStorage.setItem(storageKey, newTheme);
-    }
-    applyTheme(newTheme);
 }

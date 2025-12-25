@@ -14,10 +14,10 @@ vi.mock('../../stores/userSettings', () => ({
   setUserSettings: (settings: unknown) => mockSetUserSettings(settings),
 }));
 
-const mockSetThemeLocal = vi.fn();
+const mockSetTheme = vi.fn();
 
 vi.mock('../../stores/theme', () => ({
-  setThemeLocal: (theme: string) => mockSetThemeLocal(theme),
+  setTheme: (theme: string) => mockSetTheme(theme),
 }));
 
 let mockIsAuthenticated = true;
@@ -36,7 +36,7 @@ describe('user-settings', () => {
     mockGetUserSettings.mockReset();
     mockUpdateUserSettings.mockReset();
     mockSetUserSettings.mockReset();
-    mockSetThemeLocal.mockReset();
+    mockSetTheme.mockReset();
 
     mockIsAuthenticated = true;
 
@@ -83,7 +83,7 @@ describe('user-settings', () => {
       const { loadUserSettings } = await import('../user-settings');
       await loadUserSettings();
 
-      expect(mockSetThemeLocal).toHaveBeenCalledWith('dark');
+      expect(mockSetTheme).toHaveBeenCalledWith('dark');
     });
 
     it('returns undefined on API error', async () => {
@@ -116,7 +116,7 @@ describe('user-settings', () => {
       const { loadUserSettings } = await import('../user-settings');
       await loadUserSettings();
 
-      expect(mockSetThemeLocal).not.toHaveBeenCalled();
+      expect(mockSetTheme).not.toHaveBeenCalled();
     });
   });
 
@@ -183,7 +183,7 @@ describe('user-settings', () => {
       const { saveUserSettings } = await import('../user-settings');
       await saveUserSettings({ theme: 'dark' });
 
-      expect(mockSetThemeLocal).toHaveBeenCalledWith('dark');
+      expect(mockSetTheme).toHaveBeenCalledWith('dark');
     });
 
     it('does not apply theme when only editor settings saved', async () => {
@@ -193,7 +193,7 @@ describe('user-settings', () => {
       const { saveUserSettings } = await import('../user-settings');
       await saveUserSettings({ editor: { font_size: 16 } });
 
-      expect(mockSetThemeLocal).not.toHaveBeenCalled();
+      expect(mockSetTheme).not.toHaveBeenCalled();
     });
 
     it('returns true on success', async () => {

@@ -147,26 +147,6 @@ describe('theme store', () => {
     });
   });
 
-  describe('setThemeLocal', () => {
-    it('updates store without triggering server save', async () => {
-      const { theme, setThemeLocal } = await import('../theme');
-
-      setThemeLocal('dark');
-      expect(get(theme)).toBe('dark');
-      expect(localStorage.setItem).toHaveBeenCalledWith('app-theme', 'dark');
-    });
-
-    it('applies theme to DOM', async () => {
-      const { setThemeLocal } = await import('../theme');
-
-      setThemeLocal('dark');
-      expect(document.documentElement.classList.contains('dark')).toBe(true);
-
-      setThemeLocal('light');
-      expect(document.documentElement.classList.contains('dark')).toBe(false);
-    });
-  });
-
   describe('auto theme', () => {
     it('applies light when system prefers light', async () => {
       vi.mocked(matchMedia).mockImplementation((query: string) => ({

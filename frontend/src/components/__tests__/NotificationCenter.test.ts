@@ -48,6 +48,7 @@ const mocks = vi.hoisted(() => {
     mockNotificationsState,
     mockNotifications: createDerivedStore(mockNotificationsState, s => s.notifications),
     mockUnreadCount: createDerivedStore(mockNotificationsState, s => s.notifications.filter(n => n.status !== 'read').length),
+    mockLoading: createDerivedStore(mockNotificationsState, s => s.loading),
     mockGoto: null as unknown as ReturnType<typeof vi.fn>,
     mockNotificationStore: null as unknown as {
       subscribe: typeof mockNotificationsState.subscribe;
@@ -85,6 +86,7 @@ vi.mock('../../stores/notificationStore', () => ({
   get notificationStore() { return mocks.mockNotificationStore; },
   get notifications() { return mocks.mockNotifications; },
   get unreadCount() { return mocks.mockUnreadCount; },
+  get loading() { return mocks.mockLoading; },
 }));
 
 // Mock EventSource with instance tracking

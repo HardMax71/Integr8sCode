@@ -15,7 +15,9 @@ window.onerror = (message, source, lineno, colno, error) => {
 };
 
 window.onunhandledrejection = (event) => {
-  console.info('[Promise Rejection Handled]', event.reason);
+  console.error('[Unhandled Promise Rejection]', event.reason);
+  const error = event.reason instanceof Error ? event.reason : new Error(String(event.reason));
+  appError.setError(error, 'Unexpected Error');
   event.preventDefault();
 };
 

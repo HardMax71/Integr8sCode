@@ -108,7 +108,7 @@
                     execution_failed: settings.notifications?.execution_failed ?? true,
                     system_updates: settings.notifications?.system_updates ?? true,
                     security_alerts: settings.notifications?.security_alerts ?? true,
-                    channels: ['in_app']
+                    channels: settings.notifications?.channels || ['in_app']
                 },
                 editor: {
                     theme: settings.editor?.theme || 'auto',

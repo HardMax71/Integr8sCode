@@ -405,6 +405,18 @@ export const browseEventsApiV1AdminEventsBrowsePost = <ThrowOnError extends bool
 export const getEventStatsApiV1AdminEventsStatsGet = <ThrowOnError extends boolean = false>(options?: Options<GetEventStatsApiV1AdminEventsStatsGetData, ThrowOnError>) => (options?.client ?? client).get<GetEventStatsApiV1AdminEventsStatsGetResponses, GetEventStatsApiV1AdminEventsStatsGetErrors, ThrowOnError>({ url: '/api/v1/admin/events/stats', ...options });
 
 /**
+ * Export Events Csv
+ */
+export const exportEventsCsvApiV1AdminEventsExportCsvGet = <ThrowOnError extends boolean = false>(options?: Options<ExportEventsCsvApiV1AdminEventsExportCsvGetData, ThrowOnError>) => (options?.client ?? client).get<ExportEventsCsvApiV1AdminEventsExportCsvGetResponses, ExportEventsCsvApiV1AdminEventsExportCsvGetErrors, ThrowOnError>({ url: '/api/v1/admin/events/export/csv', ...options });
+
+/**
+ * Export Events Json
+ *
+ * Export events as JSON with comprehensive filtering.
+ */
+export const exportEventsJsonApiV1AdminEventsExportJsonGet = <ThrowOnError extends boolean = false>(options?: Options<ExportEventsJsonApiV1AdminEventsExportJsonGetData, ThrowOnError>) => (options?.client ?? client).get<ExportEventsJsonApiV1AdminEventsExportJsonGetResponses, ExportEventsJsonApiV1AdminEventsExportJsonGetErrors, ThrowOnError>({ url: '/api/v1/admin/events/export/json', ...options });
+
+/**
  * Delete Event
  */
 export const deleteEventApiV1AdminEventsEventIdDelete = <ThrowOnError extends boolean = false>(options: Options<DeleteEventApiV1AdminEventsEventIdDeleteData, ThrowOnError>) => (options.client ?? client).delete<DeleteEventApiV1AdminEventsEventIdDeleteResponses, DeleteEventApiV1AdminEventsEventIdDeleteErrors, ThrowOnError>({ url: '/api/v1/admin/events/{event_id}', ...options });
@@ -430,18 +442,6 @@ export const replayEventsApiV1AdminEventsReplayPost = <ThrowOnError extends bool
  * Get Replay Status
  */
 export const getReplayStatusApiV1AdminEventsReplaySessionIdStatusGet = <ThrowOnError extends boolean = false>(options: Options<GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetData, ThrowOnError>) => (options.client ?? client).get<GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponses, GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetErrors, ThrowOnError>({ url: '/api/v1/admin/events/replay/{session_id}/status', ...options });
-
-/**
- * Export Events Csv
- */
-export const exportEventsCsvApiV1AdminEventsExportCsvGet = <ThrowOnError extends boolean = false>(options?: Options<ExportEventsCsvApiV1AdminEventsExportCsvGetData, ThrowOnError>) => (options?.client ?? client).get<ExportEventsCsvApiV1AdminEventsExportCsvGetResponses, ExportEventsCsvApiV1AdminEventsExportCsvGetErrors, ThrowOnError>({ url: '/api/v1/admin/events/export/csv', ...options });
-
-/**
- * Export Events Json
- *
- * Export events as JSON with comprehensive filtering.
- */
-export const exportEventsJsonApiV1AdminEventsExportJsonGet = <ThrowOnError extends boolean = false>(options?: Options<ExportEventsJsonApiV1AdminEventsExportJsonGetData, ThrowOnError>) => (options?.client ?? client).get<ExportEventsJsonApiV1AdminEventsExportJsonGetResponses, ExportEventsJsonApiV1AdminEventsExportJsonGetErrors, ThrowOnError>({ url: '/api/v1/admin/events/export/json', ...options });
 
 /**
  * Get System Settings

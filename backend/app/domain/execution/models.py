@@ -65,6 +65,14 @@ class ResourceUsageDomain:
 
 
 @dataclass
+class LanguageInfoDomain:
+    """Language runtime information."""
+
+    versions: list[str]
+    file_ext: str
+
+
+@dataclass
 class ResourceLimitsDomain:
     """K8s resource limits configuration."""
 
@@ -73,4 +81,4 @@ class ResourceLimitsDomain:
     cpu_request: str
     memory_request: str
     execution_timeout: int
-    supported_runtimes: dict[str, list[str]]
+    supported_runtimes: dict[str, LanguageInfoDomain]

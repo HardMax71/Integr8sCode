@@ -1160,8 +1160,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "title": "Response Liveness Api V1 Health Live Get"
+                  "$ref": "#/components/schemas/LivenessResponse"
                 }
               }
             }
@@ -1183,8 +1182,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "title": "Response Readiness Api V1 Health Ready Get"
+                  "$ref": "#/components/schemas/ReadinessResponse"
                 }
               }
             }
@@ -2359,171 +2357,6 @@
         }
       }
     },
-    "/api/v1/admin/events/{event_id}": {
-      "get": {
-        "tags": [
-          "admin-events"
-        ],
-        "summary": "Get Event Detail",
-        "operationId": "get_event_detail_api_v1_admin_events__event_id__get",
-        "parameters": [
-          {
-            "name": "event_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Event Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EventDetailResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "admin-events"
-        ],
-        "summary": "Delete Event",
-        "operationId": "delete_event_api_v1_admin_events__event_id__delete",
-        "parameters": [
-          {
-            "name": "event_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Event Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EventDeleteResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/admin/events/replay": {
-      "post": {
-        "tags": [
-          "admin-events"
-        ],
-        "summary": "Replay Events",
-        "operationId": "replay_events_api_v1_admin_events_replay_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EventReplayRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EventReplayResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/admin/events/replay/{session_id}/status": {
-      "get": {
-        "tags": [
-          "admin-events"
-        ],
-        "summary": "Get Replay Status",
-        "operationId": "get_replay_status_api_v1_admin_events_replay__session_id__status_get",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Session Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EventReplayStatusResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/admin/events/export/csv": {
       "get": {
         "tags": [
@@ -2783,6 +2616,171 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/events/{event_id}": {
+      "get": {
+        "tags": [
+          "admin-events"
+        ],
+        "summary": "Get Event Detail",
+        "operationId": "get_event_detail_api_v1_admin_events__event_id__get",
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Event Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventDetailResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "admin-events"
+        ],
+        "summary": "Delete Event",
+        "operationId": "delete_event_api_v1_admin_events__event_id__delete",
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Event Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventDeleteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/events/replay": {
+      "post": {
+        "tags": [
+          "admin-events"
+        ],
+        "summary": "Replay Events",
+        "operationId": "replay_events_api_v1_admin_events_replay_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventReplayRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventReplayResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/events/replay/{session_id}/status": {
+      "get": {
+        "tags": [
+          "admin-events"
+        ],
+        "summary": "Get Replay Status",
+        "operationId": "get_replay_status_api_v1_admin_events_replay__session_id__status_get",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventReplayStatusResponse"
+                }
               }
             }
           },
@@ -3141,8 +3139,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "title": "Response Delete User Api V1 Admin Users  User Id  Delete"
+                  "$ref": "#/components/schemas/DeleteUserResponse"
                 }
               }
             }
@@ -3281,8 +3278,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "title": "Response Get User Rate Limits Api V1 Admin Users  User Id  Rate Limits Get"
+                  "$ref": "#/components/schemas/UserRateLimitsResponse"
                 }
               }
             }
@@ -3333,8 +3329,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "title": "Response Update User Rate Limits Api V1 Admin Users  User Id  Rate Limits Put"
+                  "$ref": "#/components/schemas/RateLimitUpdateResponse"
                 }
               }
             }
@@ -4037,7 +4032,7 @@
           "sagas"
         ],
         "summary": "Get Saga Status",
-        "description": "Get saga status by ID.\n\nArgs:\n    saga_id: The saga identifier\n    request: FastAPI request object\n    saga_service: Saga service from DI\n    auth_service: Auth service from DI\n    \nReturns:\n    Saga status response\n    \nRaises:\n    HTTPException: 404 if saga not found, 403 if access denied",
+        "description": "Get saga status by ID.\n\nArgs:\n    saga_id: The saga identifier\n    request: FastAPI request object\n    saga_service: Saga service from DI\n    auth_service: Auth service from DI\n\nReturns:\n    Saga status response\n\nRaises:\n    HTTPException: 404 if saga not found, 403 if access denied",
         "operationId": "get_saga_status_api_v1_sagas__saga_id__get",
         "parameters": [
           {
@@ -4080,7 +4075,7 @@
           "sagas"
         ],
         "summary": "Get Execution Sagas",
-        "description": "Get all sagas for an execution.\n\nArgs:\n    execution_id: The execution identifier\n    request: FastAPI request object\n    saga_service: Saga service from DI\n    auth_service: Auth service from DI\n    state: Optional state filter\n    \nReturns:\n    List of sagas for the execution\n    \nRaises:\n    HTTPException: 403 if access denied",
+        "description": "Get all sagas for an execution.\n\nArgs:\n    execution_id: The execution identifier\n    request: FastAPI request object\n    saga_service: Saga service from DI\n    auth_service: Auth service from DI\n    state: Optional state filter\n\nReturns:\n    List of sagas for the execution\n\nRaises:\n    HTTPException: 403 if access denied",
         "operationId": "get_execution_sagas_api_v1_sagas_execution__execution_id__get",
         "parameters": [
           {
@@ -4141,7 +4136,7 @@
           "sagas"
         ],
         "summary": "List Sagas",
-        "description": "List sagas accessible by the current user.\n\nArgs:\n    request: FastAPI request object\n    saga_service: Saga service from DI\n    auth_service: Auth service from DI\n    state: Optional state filter\n    limit: Maximum number of results\n    offset: Number of results to skip\n    \nReturns:\n    Paginated list of sagas",
+        "description": "List sagas accessible by the current user.\n\nArgs:\n    request: FastAPI request object\n    saga_service: Saga service from DI\n    auth_service: Auth service from DI\n    state: Optional state filter\n    limit: Maximum number of results\n    offset: Number of results to skip\n\nReturns:\n    Paginated list of sagas",
         "operationId": "list_sagas_api_v1_sagas__get",
         "parameters": [
           {
@@ -4216,7 +4211,7 @@
           "sagas"
         ],
         "summary": "Cancel Saga",
-        "description": "Cancel a running saga.\n\nArgs:\n    saga_id: The saga identifier\n    request: FastAPI request object\n    saga_service: Saga service from DI\n    auth_service: Auth service from DI\n    \nReturns:\n    Cancellation response with success status\n    \nRaises:\n    HTTPException: 404 if not found, 403 if denied, 400 if invalid state",
+        "description": "Cancel a running saga.\n\nArgs:\n    saga_id: The saga identifier\n    request: FastAPI request object\n    saga_service: Saga service from DI\n    auth_service: Auth service from DI\n\nReturns:\n    Cancellation response with success status\n\nRaises:\n    HTTPException: 404 if not found, 403 if denied, 400 if invalid state",
         "operationId": "cancel_saga_api_v1_sagas__saga_id__cancel_post",
         "parameters": [
           {
@@ -4954,6 +4949,28 @@
         ],
         "title": "DeleteResponse",
         "description": "Model for execution deletion response."
+      },
+      "DeleteUserResponse": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "deleted_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Deleted Counts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message",
+          "deleted_counts"
+        ],
+        "title": "DeleteUserResponse",
+        "description": "Response model for user deletion."
       },
       "DerivedCounts": {
         "properties": {
@@ -6363,6 +6380,55 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "LanguageInfo": {
+        "properties": {
+          "versions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Versions"
+          },
+          "file_ext": {
+            "type": "string",
+            "title": "File Ext"
+          }
+        },
+        "type": "object",
+        "required": [
+          "versions",
+          "file_ext"
+        ],
+        "title": "LanguageInfo",
+        "description": "Language runtime information."
+      },
+      "LivenessResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Health status"
+          },
+          "uptime_seconds": {
+            "type": "integer",
+            "title": "Uptime Seconds",
+            "description": "Server uptime in seconds"
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp",
+            "description": "ISO timestamp of health check"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "uptime_seconds",
+          "timestamp"
+        ],
+        "title": "LivenessResponse",
+        "description": "Response model for liveness probe."
+      },
       "LoginResponse": {
         "properties": {
           "message": {
@@ -6924,6 +6990,55 @@
         ],
         "title": "RateLimitRule"
       },
+      "RateLimitRuleResponse": {
+        "properties": {
+          "endpoint_pattern": {
+            "type": "string",
+            "title": "Endpoint Pattern"
+          },
+          "group": {
+            "type": "string",
+            "title": "Group"
+          },
+          "requests": {
+            "type": "integer",
+            "title": "Requests"
+          },
+          "window_seconds": {
+            "type": "integer",
+            "title": "Window Seconds"
+          },
+          "algorithm": {
+            "type": "string",
+            "title": "Algorithm"
+          },
+          "burst_multiplier": {
+            "type": "number",
+            "title": "Burst Multiplier",
+            "default": 1.5
+          },
+          "priority": {
+            "type": "integer",
+            "title": "Priority",
+            "default": 0
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "endpoint_pattern",
+          "group",
+          "requests",
+          "window_seconds",
+          "algorithm"
+        ],
+        "title": "RateLimitRuleResponse",
+        "description": "Response model for rate limit rule."
+      },
       "RateLimitSummary": {
         "properties": {
           "bypass_rate_limit": {
@@ -6962,6 +7077,50 @@
         },
         "type": "object",
         "title": "RateLimitSummary"
+      },
+      "RateLimitUpdateResponse": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "updated": {
+            "type": "boolean",
+            "title": "Updated"
+          },
+          "config": {
+            "$ref": "#/components/schemas/UserRateLimitConfigResponse"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "updated",
+          "config"
+        ],
+        "title": "RateLimitUpdateResponse",
+        "description": "Response model for rate limit update."
+      },
+      "ReadinessResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Readiness status"
+          },
+          "uptime_seconds": {
+            "type": "integer",
+            "title": "Uptime Seconds",
+            "description": "Server uptime in seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "uptime_seconds"
+        ],
+        "title": "ReadinessResponse",
+        "description": "Response model for readiness probe."
       },
       "ReplayAggregateResponse": {
         "properties": {
@@ -7555,10 +7714,7 @@
           },
           "supported_runtimes": {
             "additionalProperties": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
+              "$ref": "#/components/schemas/LanguageInfo"
             },
             "type": "object",
             "title": "Supported Runtimes"
@@ -7766,8 +7922,7 @@
             "description": "Maximum connections allowed per user"
           },
           "shutdown": {
-            "type": "object",
-            "title": "Shutdown",
+            "$ref": "#/components/schemas/ShutdownStatusResponse",
             "description": "Shutdown status information"
           },
           "timestamp": {
@@ -8256,6 +8411,57 @@
         "title": "SettingsHistoryResponse",
         "description": "Response model for settings history"
       },
+      "ShutdownStatusResponse": {
+        "properties": {
+          "phase": {
+            "type": "string",
+            "title": "Phase",
+            "description": "Current shutdown phase"
+          },
+          "initiated": {
+            "type": "boolean",
+            "title": "Initiated",
+            "description": "Whether shutdown has been initiated"
+          },
+          "complete": {
+            "type": "boolean",
+            "title": "Complete",
+            "description": "Whether shutdown is complete"
+          },
+          "active_connections": {
+            "type": "integer",
+            "title": "Active Connections",
+            "description": "Number of active connections"
+          },
+          "draining_connections": {
+            "type": "integer",
+            "title": "Draining Connections",
+            "description": "Number of connections being drained"
+          },
+          "duration": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration",
+            "description": "Duration of shutdown in seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "phase",
+          "initiated",
+          "complete",
+          "active_connections",
+          "draining_connections"
+        ],
+        "title": "ShutdownStatusResponse",
+        "description": "Response model for shutdown status."
+      },
       "SortOrder": {
         "type": "string",
         "enum": [
@@ -8575,6 +8781,105 @@
           "user_id"
         ],
         "title": "UserRateLimit"
+      },
+      "UserRateLimitConfigResponse": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "bypass_rate_limit": {
+            "type": "boolean",
+            "title": "Bypass Rate Limit"
+          },
+          "global_multiplier": {
+            "type": "number",
+            "title": "Global Multiplier"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/RateLimitRuleResponse"
+            },
+            "type": "array",
+            "title": "Rules"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "bypass_rate_limit",
+          "global_multiplier",
+          "rules"
+        ],
+        "title": "UserRateLimitConfigResponse",
+        "description": "Response model for user rate limit config."
+      },
+      "UserRateLimitsResponse": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "rate_limit_config": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRateLimitConfigResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "current_usage": {
+            "additionalProperties": {
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Current Usage"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "current_usage"
+        ],
+        "title": "UserRateLimitsResponse",
+        "description": "Response model for user rate limits with usage stats."
       },
       "UserResponse": {
         "properties": {

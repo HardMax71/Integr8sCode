@@ -14,6 +14,7 @@
         deleteSavedScriptApiV1ScriptsScriptIdDelete,
         type K8sResourceLimits,
         type ExecutionResult,
+        type LanguageInfo,
     } from "../lib/api";
 
     // Local interface for saved script data used in the editor
@@ -33,6 +34,11 @@
     import {EditorView, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers} from "@codemirror/view";
     import {defaultKeymap, history, historyKeymap, indentWithTab} from "@codemirror/commands";
     import {python} from "@codemirror/lang-python";
+    import {javascript} from "@codemirror/lang-javascript";
+    import {go} from "@codemirror/lang-go";
+    import {StreamLanguage} from "@codemirror/language";
+    import {ruby} from "@codemirror/legacy-modes/mode/ruby";
+    import {shell} from "@codemirror/legacy-modes/mode/shell";
     import {oneDark} from "@codemirror/theme-one-dark";
     import {githubLight} from "@uiw/codemirror-theme-github";
     import {bracketMatching} from "@codemirror/language";
@@ -49,7 +55,20 @@
     let tabSizeCompartment = new Compartment();
     let lineNumbersCompartment = new Compartment();
     let lineWrappingCompartment = new Compartment();
-    
+    let languageCompartment = new Compartment();
+
+    // Language extension mapping
+    function getLanguageExtension(lang: string) {
+        switch (lang) {
+            case 'python': return python();
+            case 'node': return javascript();
+            case 'go': return go();
+            case 'ruby': return StreamLanguage.define(ruby);
+            case 'bash': return StreamLanguage.define(shell);
+            default: return python();
+        }
+    }
+
     // Default editor settings
     let editorSettings = {
         theme: 'auto',  // Default to following app theme
@@ -135,7 +154,11 @@
     // Updated state for language and version selection
     let selectedLang = writable("python");
     let selectedVersion = writable("3.11");
-    let supportedRuntimes = $state<Record<string, string[]>>({});
+    let supportedRuntimes = $state<Record<string, LanguageInfo>>({});
+    let acceptedFileExts = $derived(
+        Object.values(supportedRuntimes).map(i => `.${i.file_ext}`).join(',') || '.txt'
+    );
+    let runtimesAvailable = $derived(Object.keys(supportedRuntimes).length > 0);
     let showLangOptions = $state(false);
     let hoveredLang = $state<string | null>(null);
 
@@ -159,6 +182,7 @@
     let unsubscribeSettings;
     let unsubscribeScriptId;
     let unsubscribeScriptName;
+    let unsubscribeLang;
 
     const resourceIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l4-4z"></path></svg>`;
     const chevronDownIcon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
@@ -237,16 +261,18 @@
 
         const { data: limitsData, error: limitsError } = await getK8sResourceLimitsApiV1K8sLimitsGet({});
         if (limitsError) {
-            supportedRuntimes = {"python": ["3.9", "3.10", "3.11"]};
+            addToast("Failed to load runtime configuration. Execution disabled.", "error");
+            supportedRuntimes = {};
         } else {
             k8sLimits = limitsData;
-            supportedRuntimes = k8sLimits?.supported_runtimes || {"python": ["3.9", "3.10", "3.11"]};
+            supportedRuntimes = k8sLimits?.supported_runtimes || {};
             const currentLang = get(selectedLang);
             const currentVersion = get(selectedVersion);
-            if (!supportedRuntimes[currentLang] || !supportedRuntimes[currentLang].includes(currentVersion)) {
+            const langInfo = supportedRuntimes[currentLang];
+            if (!langInfo || !langInfo.versions.includes(currentVersion)) {
                 const firstLang = Object.keys(supportedRuntimes)[0];
                 if (firstLang) {
-                    const firstVersion = supportedRuntimes[firstLang][0];
+                    const firstVersion = supportedRuntimes[firstLang].versions[0];
                     selectedLang.set(firstLang);
                     if (firstVersion) selectedVersion.set(firstVersion);
                 }
@@ -269,6 +295,15 @@
             }
         });
 
+        unsubscribeLang = selectedLang.subscribe(lang => {
+            // Update syntax highlighting when language changes
+            if (editorView) {
+                editorView.dispatch({
+                    effects: languageCompartment.reconfigure(getLanguageExtension(lang))
+                });
+            }
+        });
+
         if (authenticated) {
             await loadSavedScripts();
         }
@@ -284,6 +319,7 @@
         if (unsubscribeSettings) unsubscribeSettings();
         if (unsubscribeScriptId) unsubscribeScriptId();
         if (unsubscribeScriptName) unsubscribeScriptName();
+        if (unsubscribeLang) unsubscribeLang();
     });
 
     function getStaticExtensions() {
@@ -302,7 +338,7 @@
                 ...completionKeymap,
                 indentWithTab
             ]),
-            python(),
+            languageCompartment.of(getLanguageExtension(get(selectedLang))),
             lineWrappingCompartment.of(editorSettings.word_wrap ? EditorView.lineWrapping : []),
             fontSizeCompartment.of(EditorView.theme({
                 ".cm-content": {
@@ -634,9 +670,12 @@
         const scriptValue = get(script);
         const blob = new Blob([scriptValue], {type: "text/plain;charset=utf-8"});
         const url = URL.createObjectURL(blob);
-        let filename = get(scriptName).trim() || "script.py";
-        if (!filename.toLowerCase().endsWith(".py")) {
-            filename += ".py";
+        const lang = get(selectedLang);
+        const langInfo = supportedRuntimes[lang];
+        const ext = langInfo?.file_ext || "txt";
+        let filename = get(scriptName).trim() || `script.${ext}`;
+        if (!filename.toLowerCase().endsWith(`.${ext}`)) {
+            filename = filename.replace(/\.[^.]+$/, "") + `.${ext}`;
         }
         const a = document.createElement("a");
         a.href = url;
@@ -651,10 +690,23 @@
         const target = event.target as HTMLInputElement;
         const file = target.files?.[0];
         if (!file) return;
-        if (!file.name.toLowerCase().endsWith(".py")) {
-            addToast("Only .py files are allowed.", "error");
+
+        // Build extension to language map from supportedRuntimes
+        const extToLang: Record<string, string> = {};
+        for (const [lang, info] of Object.entries(supportedRuntimes)) {
+            extToLang[info.file_ext] = lang;
+        }
+
+        // Get file extension
+        const fileExt = file.name.split('.').pop()?.toLowerCase() || "";
+        const detectedLang = extToLang[fileExt];
+
+        if (!detectedLang) {
+            const supportedExts = Object.values(supportedRuntimes).map(i => `.${i.file_ext}`).join(", ");
+            addToast(`Unsupported file type. Allowed: ${supportedExts}`, "error");
             return;
         }
+
         const reader = new FileReader();
         reader.onload = (e: ProgressEvent<FileReader>) => {
             const text = e.target?.result as string;
@@ -662,11 +714,19 @@
                 newScript();
                 script.set(text);
                 scriptName.set(file.name);
+
+                // Auto-select detected language and first available version
+                selectedLang.set(detectedLang);
+                const langInfo = supportedRuntimes[detectedLang];
+                if (langInfo?.versions.length > 0) {
+                    selectedVersion.set(langInfo.versions[0]);
+                }
+
                 editorView.dispatch({
                     changes: {from: 0, to: editorView.state.doc.length, insert: text},
                     selection: {anchor: 0}
                 });
-                addToast(`Loaded script from ${file.name}`, "info");
+                addToast(`Loaded ${detectedLang} script from ${file.name}`, "info");
             }
         };
         reader.onerror = () => {
@@ -757,7 +817,7 @@
     }
 </script>
 
-<input type="file" accept=".py,text/x-python" bind:this={fileInput} class="hidden" onchange={handleFileUpload}/>
+<input type="file" accept={acceptedFileExts} bind:this={fileInput} class="hidden" onchange={handleFileUpload}/>
 
 <div class="editor-grid-container space-y-4 md:space-y-0 md:gap-6" in:fade={{ duration: 300 }}>
     <div class="editor-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -983,29 +1043,32 @@
                 <!-- Language Selector Dropdown -->
                 <div class="relative">
                     <button onclick={() => showLangOptions = !showLangOptions}
-                            class="btn btn-secondary-outline btn-sm w-36 flex items-center justify-between text-left">
-                        <span class="capitalize truncate">{$selectedLang} {$selectedVersion}</span>
+                            disabled={!runtimesAvailable}
+                            class="btn btn-secondary-outline btn-sm w-36 flex items-center justify-between text-left"
+                            class:opacity-50={!runtimesAvailable}
+                            class:cursor-not-allowed={!runtimesAvailable}>
+                        <span class="capitalize truncate">{runtimesAvailable ? `${$selectedLang} ${$selectedVersion}` : "Unavailable"}</span>
                         <svg class="w-5 h-5 ml-2 shrink-0 text-fg-muted dark:text-dark-fg-muted transform transition-transform" class:-rotate-180={showLangOptions} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                         </svg>
                     </button>
 
-                    {#if showLangOptions}
+                    {#if showLangOptions && runtimesAvailable}
                         <div transition:fly={{ y: -5, duration: 150 }}
                              class="absolute bottom-full mb-2 w-36 bg-bg-alt dark:bg-dark-bg-alt rounded-lg shadow-xl ring-1 ring-black/5 dark:ring-white/10 z-30">
                             <ul class="py-1" onmouseleave={() => hoveredLang = null}>
-                                {#each Object.entries(supportedRuntimes) as [lang, versions] (lang)}
+                                {#each Object.entries(supportedRuntimes) as [lang, langInfo] (lang)}
                                     <li class="relative" onmouseenter={() => hoveredLang = lang}>
                                         <div class="flex justify-between items-center w-full px-3 py-2 text-sm text-fg-default dark:text-dark-fg-default">
                                             <span class="capitalize font-medium">{lang}</span>
                                             <svg class="w-4 h-4 text-fg-muted dark:text-dark-fg-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
                                         </div>
 
-                                        {#if hoveredLang === lang && versions.length > 0}
+                                        {#if hoveredLang === lang && langInfo.versions.length > 0}
                                             <div class="absolute left-full top-0 -mt-1 ml-1 w-20 bg-bg-alt dark:bg-dark-bg-alt rounded-lg shadow-lg ring-1 ring-black/5 dark:ring-white/10 z-40"
                                                  transition:fly={{ x: 5, duration: 100 }}>
                                                 <ul class="py-1 max-h-60 overflow-y-auto custom-scrollbar">
-                                                    {#each versions as version (version)}
+                                                    {#each langInfo.versions as version (version)}
                                                         <li>
                                                             <button onclick={() => { selectedLang.set(lang); selectedVersion.set(version); showLangOptions = false; hoveredLang = null; }}
                                                                     class="w-full text-left px-3 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700/60 transition-colors duration-100"
@@ -1024,15 +1087,12 @@
                                         {/if}
                                     </li>
                                 {/each}
-                                {#if Object.keys(supportedRuntimes).length === 0}
-                                    <li class="px-3 py-2 text-sm text-fg-muted dark:text-dark-fg-muted italic">No runtimes available</li>
-                                {/if}
                             </ul>
                         </div>
                     {/if}
                 </div>
                 <button class="btn btn-primary btn-sm flex-grow sm:flex-grow-0 min-w-[130px]" onclick={executeScript}
-                        disabled={executing}>
+                        disabled={executing || !runtimesAvailable}>
                     {@html playIcon}
                     <span class="ml-1.5">{executing ? "Executing..." : "Run Script"}</span>
                 </button>

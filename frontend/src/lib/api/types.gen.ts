@@ -430,6 +430,24 @@ export type DeleteResponse = {
 };
 
 /**
+ * DeleteUserResponse
+ *
+ * Response model for user deletion.
+ */
+export type DeleteUserResponse = {
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Deleted Counts
+     */
+    deleted_counts: {
+        [key: string]: number;
+    };
+};
+
+/**
  * DerivedCounts
  */
 export type DerivedCounts = {
@@ -1276,6 +1294,48 @@ export type HttpValidationError = {
 };
 
 /**
+ * LanguageInfo
+ *
+ * Language runtime information.
+ */
+export type LanguageInfo = {
+    /**
+     * Versions
+     */
+    versions: Array<string>;
+    /**
+     * File Ext
+     */
+    file_ext: string;
+};
+
+/**
+ * LivenessResponse
+ *
+ * Response model for liveness probe.
+ */
+export type LivenessResponse = {
+    /**
+     * Status
+     *
+     * Health status
+     */
+    status: string;
+    /**
+     * Uptime Seconds
+     *
+     * Server uptime in seconds
+     */
+    uptime_seconds: number;
+    /**
+     * Timestamp
+     *
+     * ISO timestamp of health check
+     */
+    timestamp: string;
+};
+
+/**
  * LoginResponse
  *
  * Response model for successful login
@@ -1650,6 +1710,46 @@ export type RateLimitRule = {
 };
 
 /**
+ * RateLimitRuleResponse
+ *
+ * Response model for rate limit rule.
+ */
+export type RateLimitRuleResponse = {
+    /**
+     * Endpoint Pattern
+     */
+    endpoint_pattern: string;
+    /**
+     * Group
+     */
+    group: string;
+    /**
+     * Requests
+     */
+    requests: number;
+    /**
+     * Window Seconds
+     */
+    window_seconds: number;
+    /**
+     * Algorithm
+     */
+    algorithm: string;
+    /**
+     * Burst Multiplier
+     */
+    burst_multiplier?: number;
+    /**
+     * Priority
+     */
+    priority?: number;
+    /**
+     * Enabled
+     */
+    enabled?: boolean;
+};
+
+/**
  * RateLimitSummary
  */
 export type RateLimitSummary = {
@@ -1665,6 +1765,43 @@ export type RateLimitSummary = {
      * Has Custom Limits
      */
     has_custom_limits?: boolean | null;
+};
+
+/**
+ * RateLimitUpdateResponse
+ *
+ * Response model for rate limit update.
+ */
+export type RateLimitUpdateResponse = {
+    /**
+     * User Id
+     */
+    user_id: string;
+    /**
+     * Updated
+     */
+    updated: boolean;
+    config: UserRateLimitConfigResponse;
+};
+
+/**
+ * ReadinessResponse
+ *
+ * Response model for readiness probe.
+ */
+export type ReadinessResponse = {
+    /**
+     * Status
+     *
+     * Readiness status
+     */
+    status: string;
+    /**
+     * Uptime Seconds
+     *
+     * Server uptime in seconds
+     */
+    uptime_seconds: number;
 };
 
 /**
@@ -1968,7 +2105,7 @@ export type ResourceLimits = {
      * Supported Runtimes
      */
     supported_runtimes: {
-        [key: string]: Array<string>;
+        [key: string]: LanguageInfo;
     };
 };
 
@@ -2119,13 +2256,9 @@ export type SseHealthResponse = {
      */
     max_connections_per_user: number;
     /**
-     * Shutdown
-     *
      * Shutdown status information
      */
-    shutdown: {
-        [key: string]: unknown;
-    };
+    shutdown: ShutdownStatusResponse;
     /**
      * Timestamp
      *
@@ -2430,6 +2563,50 @@ export type SettingsHistoryResponse = {
 };
 
 /**
+ * ShutdownStatusResponse
+ *
+ * Response model for shutdown status.
+ */
+export type ShutdownStatusResponse = {
+    /**
+     * Phase
+     *
+     * Current shutdown phase
+     */
+    phase: string;
+    /**
+     * Initiated
+     *
+     * Whether shutdown has been initiated
+     */
+    initiated: boolean;
+    /**
+     * Complete
+     *
+     * Whether shutdown is complete
+     */
+    complete: boolean;
+    /**
+     * Active Connections
+     *
+     * Number of active connections
+     */
+    active_connections: number;
+    /**
+     * Draining Connections
+     *
+     * Number of connections being drained
+     */
+    draining_connections: number;
+    /**
+     * Duration
+     *
+     * Duration of shutdown in seconds
+     */
+    duration?: number | null;
+};
+
+/**
  * SortOrder
  *
  * Sort order for queries.
@@ -2644,6 +2821,63 @@ export type UserRateLimit = {
      * Notes
      */
     notes?: string | null;
+};
+
+/**
+ * UserRateLimitConfigResponse
+ *
+ * Response model for user rate limit config.
+ */
+export type UserRateLimitConfigResponse = {
+    /**
+     * User Id
+     */
+    user_id: string;
+    /**
+     * Bypass Rate Limit
+     */
+    bypass_rate_limit: boolean;
+    /**
+     * Global Multiplier
+     */
+    global_multiplier: number;
+    /**
+     * Rules
+     */
+    rules: Array<RateLimitRuleResponse>;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
+    /**
+     * Notes
+     */
+    notes?: string | null;
+};
+
+/**
+ * UserRateLimitsResponse
+ *
+ * Response model for user rate limits with usage stats.
+ */
+export type UserRateLimitsResponse = {
+    /**
+     * User Id
+     */
+    user_id: string;
+    rate_limit_config?: UserRateLimitConfigResponse | null;
+    /**
+     * Current Usage
+     */
+    current_usage: {
+        [key: string]: {
+            [key: string]: unknown;
+        };
+    };
 };
 
 /**
@@ -3576,13 +3810,9 @@ export type LivenessApiV1HealthLiveGetData = {
 
 export type LivenessApiV1HealthLiveGetResponses = {
     /**
-     * Response Liveness Api V1 Health Live Get
-     *
      * Successful Response
      */
-    200: {
-        [key: string]: unknown;
-    };
+    200: LivenessResponse;
 };
 
 export type LivenessApiV1HealthLiveGetResponse = LivenessApiV1HealthLiveGetResponses[keyof LivenessApiV1HealthLiveGetResponses];
@@ -3596,13 +3826,9 @@ export type ReadinessApiV1HealthReadyGetData = {
 
 export type ReadinessApiV1HealthReadyGetResponses = {
     /**
-     * Response Readiness Api V1 Health Ready Get
-     *
      * Successful Response
      */
-    200: {
-        [key: string]: unknown;
-    };
+    200: ReadinessResponse;
 };
 
 export type ReadinessApiV1HealthReadyGetResponse = ReadinessApiV1HealthReadyGetResponses[keyof ReadinessApiV1HealthReadyGetResponses];
@@ -4316,121 +4542,6 @@ export type GetEventStatsApiV1AdminEventsStatsGetResponses = {
 
 export type GetEventStatsApiV1AdminEventsStatsGetResponse = GetEventStatsApiV1AdminEventsStatsGetResponses[keyof GetEventStatsApiV1AdminEventsStatsGetResponses];
 
-export type DeleteEventApiV1AdminEventsEventIdDeleteData = {
-    body?: never;
-    path: {
-        /**
-         * Event Id
-         */
-        event_id: string;
-    };
-    query?: never;
-    url: '/api/v1/admin/events/{event_id}';
-};
-
-export type DeleteEventApiV1AdminEventsEventIdDeleteErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type DeleteEventApiV1AdminEventsEventIdDeleteError = DeleteEventApiV1AdminEventsEventIdDeleteErrors[keyof DeleteEventApiV1AdminEventsEventIdDeleteErrors];
-
-export type DeleteEventApiV1AdminEventsEventIdDeleteResponses = {
-    /**
-     * Successful Response
-     */
-    200: EventDeleteResponse;
-};
-
-export type DeleteEventApiV1AdminEventsEventIdDeleteResponse = DeleteEventApiV1AdminEventsEventIdDeleteResponses[keyof DeleteEventApiV1AdminEventsEventIdDeleteResponses];
-
-export type GetEventDetailApiV1AdminEventsEventIdGetData = {
-    body?: never;
-    path: {
-        /**
-         * Event Id
-         */
-        event_id: string;
-    };
-    query?: never;
-    url: '/api/v1/admin/events/{event_id}';
-};
-
-export type GetEventDetailApiV1AdminEventsEventIdGetErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetEventDetailApiV1AdminEventsEventIdGetError = GetEventDetailApiV1AdminEventsEventIdGetErrors[keyof GetEventDetailApiV1AdminEventsEventIdGetErrors];
-
-export type GetEventDetailApiV1AdminEventsEventIdGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: EventDetailResponse;
-};
-
-export type GetEventDetailApiV1AdminEventsEventIdGetResponse = GetEventDetailApiV1AdminEventsEventIdGetResponses[keyof GetEventDetailApiV1AdminEventsEventIdGetResponses];
-
-export type ReplayEventsApiV1AdminEventsReplayPostData = {
-    body: EventReplayRequest;
-    path?: never;
-    query?: never;
-    url: '/api/v1/admin/events/replay';
-};
-
-export type ReplayEventsApiV1AdminEventsReplayPostErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ReplayEventsApiV1AdminEventsReplayPostError = ReplayEventsApiV1AdminEventsReplayPostErrors[keyof ReplayEventsApiV1AdminEventsReplayPostErrors];
-
-export type ReplayEventsApiV1AdminEventsReplayPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: EventReplayResponse;
-};
-
-export type ReplayEventsApiV1AdminEventsReplayPostResponse = ReplayEventsApiV1AdminEventsReplayPostResponses[keyof ReplayEventsApiV1AdminEventsReplayPostResponses];
-
-export type GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetData = {
-    body?: never;
-    path: {
-        /**
-         * Session Id
-         */
-        session_id: string;
-    };
-    query?: never;
-    url: '/api/v1/admin/events/replay/{session_id}/status';
-};
-
-export type GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetError = GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetErrors[keyof GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetErrors];
-
-export type GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: EventReplayStatusResponse;
-};
-
-export type GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponse = GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponses[keyof GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponses];
-
 export type ExportEventsCsvApiV1AdminEventsExportCsvGetData = {
     body?: never;
     path?: never;
@@ -4546,6 +4657,121 @@ export type ExportEventsJsonApiV1AdminEventsExportJsonGetResponses = {
      */
     200: unknown;
 };
+
+export type DeleteEventApiV1AdminEventsEventIdDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Event Id
+         */
+        event_id: string;
+    };
+    query?: never;
+    url: '/api/v1/admin/events/{event_id}';
+};
+
+export type DeleteEventApiV1AdminEventsEventIdDeleteErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteEventApiV1AdminEventsEventIdDeleteError = DeleteEventApiV1AdminEventsEventIdDeleteErrors[keyof DeleteEventApiV1AdminEventsEventIdDeleteErrors];
+
+export type DeleteEventApiV1AdminEventsEventIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: EventDeleteResponse;
+};
+
+export type DeleteEventApiV1AdminEventsEventIdDeleteResponse = DeleteEventApiV1AdminEventsEventIdDeleteResponses[keyof DeleteEventApiV1AdminEventsEventIdDeleteResponses];
+
+export type GetEventDetailApiV1AdminEventsEventIdGetData = {
+    body?: never;
+    path: {
+        /**
+         * Event Id
+         */
+        event_id: string;
+    };
+    query?: never;
+    url: '/api/v1/admin/events/{event_id}';
+};
+
+export type GetEventDetailApiV1AdminEventsEventIdGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetEventDetailApiV1AdminEventsEventIdGetError = GetEventDetailApiV1AdminEventsEventIdGetErrors[keyof GetEventDetailApiV1AdminEventsEventIdGetErrors];
+
+export type GetEventDetailApiV1AdminEventsEventIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: EventDetailResponse;
+};
+
+export type GetEventDetailApiV1AdminEventsEventIdGetResponse = GetEventDetailApiV1AdminEventsEventIdGetResponses[keyof GetEventDetailApiV1AdminEventsEventIdGetResponses];
+
+export type ReplayEventsApiV1AdminEventsReplayPostData = {
+    body: EventReplayRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/events/replay';
+};
+
+export type ReplayEventsApiV1AdminEventsReplayPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReplayEventsApiV1AdminEventsReplayPostError = ReplayEventsApiV1AdminEventsReplayPostErrors[keyof ReplayEventsApiV1AdminEventsReplayPostErrors];
+
+export type ReplayEventsApiV1AdminEventsReplayPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: EventReplayResponse;
+};
+
+export type ReplayEventsApiV1AdminEventsReplayPostResponse = ReplayEventsApiV1AdminEventsReplayPostResponses[keyof ReplayEventsApiV1AdminEventsReplayPostResponses];
+
+export type GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/api/v1/admin/events/replay/{session_id}/status';
+};
+
+export type GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetError = GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetErrors[keyof GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetErrors];
+
+export type GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: EventReplayStatusResponse;
+};
+
+export type GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponse = GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponses[keyof GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponses];
 
 export type GetSystemSettingsApiV1AdminSettingsGetData = {
     body?: never;
@@ -4701,13 +4927,9 @@ export type DeleteUserApiV1AdminUsersUserIdDeleteError = DeleteUserApiV1AdminUse
 
 export type DeleteUserApiV1AdminUsersUserIdDeleteResponses = {
     /**
-     * Response Delete User Api V1 Admin Users  User Id  Delete
-     *
      * Successful Response
      */
-    200: {
-        [key: string]: unknown;
-    };
+    200: DeleteUserResponse;
 };
 
 export type DeleteUserApiV1AdminUsersUserIdDeleteResponse = DeleteUserApiV1AdminUsersUserIdDeleteResponses[keyof DeleteUserApiV1AdminUsersUserIdDeleteResponses];
@@ -4855,13 +5077,9 @@ export type GetUserRateLimitsApiV1AdminUsersUserIdRateLimitsGetError = GetUserRa
 
 export type GetUserRateLimitsApiV1AdminUsersUserIdRateLimitsGetResponses = {
     /**
-     * Response Get User Rate Limits Api V1 Admin Users  User Id  Rate Limits Get
-     *
      * Successful Response
      */
-    200: {
-        [key: string]: unknown;
-    };
+    200: UserRateLimitsResponse;
 };
 
 export type GetUserRateLimitsApiV1AdminUsersUserIdRateLimitsGetResponse = GetUserRateLimitsApiV1AdminUsersUserIdRateLimitsGetResponses[keyof GetUserRateLimitsApiV1AdminUsersUserIdRateLimitsGetResponses];
@@ -4889,13 +5107,9 @@ export type UpdateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPutError = Update
 
 export type UpdateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPutResponses = {
     /**
-     * Response Update User Rate Limits Api V1 Admin Users  User Id  Rate Limits Put
-     *
      * Successful Response
      */
-    200: {
-        [key: string]: unknown;
-    };
+    200: RateLimitUpdateResponse;
 };
 
 export type UpdateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPutResponse = UpdateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPutResponses[keyof UpdateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPutResponses];

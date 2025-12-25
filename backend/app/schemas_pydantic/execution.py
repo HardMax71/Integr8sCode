@@ -77,9 +77,9 @@ class ExecutionRequest(BaseModel):
         runtimes = settings.SUPPORTED_RUNTIMES or {}
         if self.lang not in runtimes:
             raise ValueError(f"Language '{self.lang}' not supported. Supported: {list(runtimes.keys())}")
-        versions = runtimes.get(self.lang, [])
-        if self.lang_version not in versions:
-            raise ValueError(f"Version '{self.lang_version}' not supported for {self.lang}. Supported: {versions}")
+        lang_info = runtimes[self.lang]
+        if self.lang_version not in lang_info.versions:
+            raise ValueError(f"Version '{self.lang_version}' not supported for {self.lang}. Supported: {lang_info.versions}")
         return self
 
 
@@ -108,6 +108,13 @@ class ExecutionResult(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class LanguageInfo(BaseModel):
+    """Language runtime information."""
+
+    versions: list[str]
+    file_ext: str
+
+
 class ResourceLimits(BaseModel):
     """Model for resource limits configuration."""
 
@@ -116,7 +123,7 @@ class ResourceLimits(BaseModel):
     cpu_request: str
     memory_request: str
     execution_timeout: int
-    supported_runtimes: dict[str, list[str]]
+    supported_runtimes: dict[str, LanguageInfo]
 
 
 class ExampleScripts(BaseModel):

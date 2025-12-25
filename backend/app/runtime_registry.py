@@ -1,5 +1,7 @@
 from typing import NamedTuple, TypedDict
 
+from app.domain.execution import LanguageInfoDomain
+
 
 class RuntimeConfig(NamedTuple):
     image: str  # Full Docker image reference
@@ -178,4 +180,7 @@ def _make_runtime_configs() -> dict[str, dict[str, RuntimeConfig]]:
 
 RUNTIME_REGISTRY: dict[str, dict[str, RuntimeConfig]] = _make_runtime_configs()
 
-SUPPORTED_RUNTIMES: dict[str, list[str]] = {lang: list(versions.keys()) for lang, versions in RUNTIME_REGISTRY.items()}
+SUPPORTED_RUNTIMES: dict[str, LanguageInfoDomain] = {
+    lang: LanguageInfoDomain(versions=spec["versions"], file_ext=spec["file_ext"])
+    for lang, spec in LANGUAGE_SPECS.items()
+}

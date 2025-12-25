@@ -70,16 +70,25 @@ export function initializeApiInterceptors(): void {
 
         console.error('[API Error]', { status, url, error });
 
-        if (status === 401 && !isAuthEndpoint && !isHandling401) {
-            isHandling401 = true;
-            try {
-                const currentPath = window.location.pathname + window.location.search;
-                addToast('Session expired. Please log in again.', 'warning');
-                handleAuthFailure(currentPath);
-            } finally {
-                setTimeout(() => { isHandling401 = false; }, 1000);
+        // 401: Silent by default. Only show toast + redirect if user HAD an active session.
+        if (status === 401) {
+            if (isAuthEndpoint) {
+                return error; // Auth endpoints handle their own messaging
             }
-            return { _handled: true, _status: 401 };
+            const wasAuthenticated = get(isAuthenticated);
+            if (wasAuthenticated && !isHandling401) {
+                isHandling401 = true;
+                try {
+                    const currentPath = window.location.pathname + window.location.search;
+                    addToast('Session expired. Please log in again.', 'warning');
+                    handleAuthFailure(currentPath);
+                } finally {
+                    setTimeout(() => { isHandling401 = false; }, 1000);
+                }
+            } else {
+                clearAuthState();
+            }
+            return error;
         }
 
         if (status === 403) {
@@ -105,12 +114,15 @@ export function initializeApiInterceptors(): void {
             return error;
         }
 
-        if (!response && !url.includes('/verify-token')) {
+        if (!response && !isAuthEndpoint) {
             addToast('Network error. Check your connection.', 'error');
             return error;
         }
 
-        addToast(getErrorMessage(error, 'An error occurred'), 'error');
+        // Don't toast for auth-related silent failures
+        if (!isAuthEndpoint) {
+            addToast(getErrorMessage(error, 'An error occurred'), 'error');
+        }
         return error;
     });
 

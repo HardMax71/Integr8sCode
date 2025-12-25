@@ -20,13 +20,12 @@
     margin-right: auto;
     position: relative;
     min-height: calc(100vh - 8rem);
-    max-height: calc(100vh - 8rem);
-    padding: 1rem 1rem 0 1rem;
+    padding: 1rem 1rem 1rem 1rem;
   }
 
   @media (min-width: 640px) {
     .editor-grid-container {
-      padding: 1.5rem 1.5rem 0 1.5rem;
+      padding: 1.5rem 1.5rem 1rem 1.5rem;
     }
   }
 
@@ -85,8 +84,7 @@
       grid-template-rows: auto minmax(400px, 1fr) auto;
       gap: 1rem;
       min-height: calc(100vh - 8rem);
-      max-height: calc(100vh - 8rem);
-      padding: 1.5rem 1.5rem 0 1.5rem;
+      padding: 1.5rem 1.5rem 1rem 1.5rem;
     }
 
     .editor-header {
@@ -112,13 +110,13 @@
 
   @media (min-width: 1024px) {
     .editor-grid-container {
-      padding: 2rem 2rem 0 2rem;
+      padding: 2rem 2rem 1rem 2rem;
     }
   }
 
   @media (min-width: 1280px) {
     .editor-grid-container {
-      padding: 2rem 3rem 0 3rem;
+      padding: 2rem 3rem 1rem 3rem;
     }
   }
 

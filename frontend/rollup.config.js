@@ -144,6 +144,8 @@ export default {
                 '@codemirror/language',
                 '@codemirror/autocomplete',
                 '@codemirror/lang-python',
+                '@codemirror/lang-javascript',
+                '@codemirror/lang-go',
                 '@codemirror/theme-one-dark',
                 '@uiw/codemirror-theme-github'
             ]
@@ -182,7 +184,7 @@ export default {
             // Prefer ES modules
             mainFields: ['svelte', 'module', 'browser', 'main'],
             exportConditions: ['svelte'],
-            extensions: ['.mjs', '.js', '.json', '.node', '.svelte']
+            extensions: ['.mjs', '.js', '.ts', '.json', '.node', '.svelte']
         }),
         commonjs(),
         !production && {

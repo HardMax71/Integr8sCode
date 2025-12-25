@@ -48,9 +48,10 @@
     });
 
     const phaseLabel = $derived.by(() => {
+        if (phase === 'starting') return 'Starting...';
         if (phase === 'queued') return 'Queued...';
-        if (phase === 'running') return 'Running...';
         if (phase === 'scheduled') return 'Scheduled...';
+        if (phase === 'running') return 'Running...';
         return 'Executing...';
     });
 </script>

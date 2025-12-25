@@ -40,8 +40,7 @@
 
     function createPersistentStore<T>(key: string, startValue: T) {
         if (typeof localStorage === 'undefined') {
-            const store = writable<T>(startValue);
-            return { subscribe: store.subscribe, set: store.set };
+            return writable<T>(startValue);
         }
         const storedValue = localStorage.getItem(key);
         let parsedValue: T = startValue;
@@ -52,9 +51,21 @@
                 localStorage.removeItem(key);
             }
         }
-        const store = writable<T>(parsedValue);
-        store.subscribe(value => localStorage.setItem(key, JSON.stringify(value)));
-        return store;
+        const { subscribe, set, update } = writable<T>(parsedValue);
+        return {
+            subscribe,
+            set(value: T) {
+                set(value);
+                localStorage.setItem(key, JSON.stringify(value));
+            },
+            update(fn: (value: T) => T) {
+                update(v => {
+                    const newValue = fn(v);
+                    localStorage.setItem(key, JSON.stringify(newValue));
+                    return newValue;
+                });
+            }
+        };
     }
 
     // Stores
@@ -300,7 +311,7 @@
                 lang={$selectedLang}
                 settings={editorSettings}
             />
-            {#if get(script).trim() === ''}
+            {#if $script.trim() === ''}
                 <div class="absolute inset-0 flex flex-col items-center justify-center p-4 text-center pointer-events-none">
                     <h3 class="text-lg font-semibold text-fg-default dark:text-dark-fg-default">Editor is Empty</h3>
                     <p class="text-sm text-fg-muted dark:text-dark-fg-muted mt-1 mb-4">Start typing, upload a file, or use an example to begin.</p>

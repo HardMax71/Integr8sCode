@@ -124,7 +124,14 @@ class MockEventSource {
   static getLastInstance() { return MockEventSource.instances[MockEventSource.instances.length - 1]; }
 }
 vi.stubGlobal('EventSource', MockEventSource);
-vi.stubGlobal('Notification', { permission: 'default', requestPermission: vi.fn().mockResolvedValue('granted') });
+
+// Configurable Notification mock
+const mockRequestPermission = vi.fn().mockResolvedValue('granted');
+let mockNotificationPermission = 'default';
+vi.stubGlobal('Notification', {
+  get permission() { return mockNotificationPermission; },
+  requestPermission: mockRequestPermission,
+});
 
 import NotificationCenter from '../NotificationCenter.svelte';
 
@@ -262,6 +269,8 @@ describe('NotificationCenter', () => {
     mocks.mockNotificationStore.clear.mockReset();
     mocks.mockNotificationStore.add.mockReset();
     MockEventSource.clearInstances();
+    mockNotificationPermission = 'default';
+    mockRequestPermission.mockReset().mockResolvedValue('granted');
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'debug').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -511,6 +520,62 @@ describe('NotificationCenter', () => {
       await vi.advanceTimersByTimeAsync(10000);
       expect(MockEventSource.instances.length).toBe(count);
       vi.useRealTimers();
+    });
+  });
+
+  describe('desktop notification permission', () => {
+    it('shows enable button when permission is default', async () => {
+      mockNotificationPermission = 'default';
+      await openDropdown();
+      await waitFor(() => {
+        expect(screen.getByText('Enable desktop notifications')).toBeInTheDocument();
+      });
+    });
+
+    it('hides enable button when permission is granted', async () => {
+      mockNotificationPermission = 'granted';
+      await openDropdown();
+      await waitFor(() => {
+        expect(screen.queryByText('Enable desktop notifications')).not.toBeInTheDocument();
+      });
+    });
+
+    it('hides enable button when permission is denied', async () => {
+      mockNotificationPermission = 'denied';
+      await openDropdown();
+      await waitFor(() => {
+        expect(screen.queryByText('Enable desktop notifications')).not.toBeInTheDocument();
+      });
+    });
+
+    it('calls requestPermission when enable button clicked', async () => {
+      mockNotificationPermission = 'default';
+      const user = await openDropdown();
+      await user.click(await screen.findByText('Enable desktop notifications'));
+      expect(mockRequestPermission).toHaveBeenCalled();
+    });
+
+    it('shows browser notification when SSE notification received and permission granted', async () => {
+      mockNotificationPermission = 'granted';
+      const mockNotificationConstructor = vi.fn();
+      vi.stubGlobal('Notification', {
+        get permission() { return 'granted'; },
+        requestPermission: mockRequestPermission,
+      });
+      (globalThis as unknown as { Notification: unknown }).Notification = class {
+        constructor(title: string, options?: NotificationOptions) {
+          mockNotificationConstructor(title, options);
+        }
+        static get permission() { return 'granted'; }
+        static requestPermission = mockRequestPermission;
+      };
+
+      const instance = await setupSSE();
+      instance.simulateMessage({ notification_id: 'n1', subject: 'Test Title', body: 'Test Body' });
+
+      await waitFor(() => {
+        expect(mockNotificationConstructor).toHaveBeenCalledWith('Test Title', expect.objectContaining({ body: 'Test Body' }));
+      });
     });
   });
 });

@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.core.utils import StringEnum
+from app.domain.enums.events import EventType
 from app.infrastructure.kafka.events import BaseEvent
 
 
@@ -89,9 +90,9 @@ class DLQMessage:
         return (datetime.now(timezone.utc) - self.failed_at).total_seconds()
 
     @property
-    def event_type(self) -> str:
+    def event_type(self) -> EventType:
         """Get event type from the event."""
-        return str(self.event.event_type)
+        return self.event.event_type
 
 
 @dataclass

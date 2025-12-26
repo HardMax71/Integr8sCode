@@ -366,16 +366,19 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EventType"
+                  }
                 },
                 {
                   "type": "null"
                 }
               ],
-              "description": "Comma-separated event types to filter",
+              "description": "Event types to filter",
               "title": "Event Types"
             },
-            "description": "Comma-separated event types to filter"
+            "description": "Event types to filter"
           },
           {
             "name": "limit",
@@ -4555,8 +4558,7 @@
             "title": "Event"
           },
           "event_type": {
-            "type": "string",
-            "title": "Event Type"
+            "$ref": "#/components/schemas/EventType"
           },
           "original_topic": {
             "type": "string",
@@ -4709,8 +4711,7 @@
             "title": "Event Id"
           },
           "event_type": {
-            "type": "string",
-            "title": "Event Type"
+            "$ref": "#/components/schemas/EventType"
           },
           "original_topic": {
             "type": "string",
@@ -5052,16 +5053,6 @@
           "api"
         ],
         "title": "EndpointGroup"
-      },
-      "ErrorType": {
-        "type": "string",
-        "enum": [
-          "script_error",
-          "system_error",
-          "success"
-        ],
-        "title": "ErrorType",
-        "description": "Classification of error types in execution platform."
       },
       "EventAggregationRequest": {
         "properties": {
@@ -6021,6 +6012,18 @@
         "title": "ExampleScripts",
         "description": "Model for example scripts."
       },
+      "ExecutionErrorType": {
+        "type": "string",
+        "enum": [
+          "system_error",
+          "timeout",
+          "resource_limit",
+          "script_error",
+          "permission_denied"
+        ],
+        "title": "ExecutionErrorType",
+        "description": "Types of execution errors."
+      },
       "ExecutionEventResponse": {
         "properties": {
           "event_id": {
@@ -6028,8 +6031,7 @@
             "title": "Event Id"
           },
           "event_type": {
-            "type": "string",
-            "title": "Event Type"
+            "$ref": "#/components/schemas/EventType"
           },
           "timestamp": {
             "type": "string",
@@ -6236,7 +6238,7 @@
           "error_type": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ErrorType"
+                "$ref": "#/components/schemas/ExecutionErrorType"
               },
               {
                 "type": "null"
@@ -8342,8 +8344,7 @@
             "title": "Timestamp"
           },
           "event_type": {
-            "type": "string",
-            "title": "Event Type"
+            "$ref": "#/components/schemas/EventType"
           },
           "field": {
             "type": "string",

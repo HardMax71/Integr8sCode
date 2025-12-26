@@ -2,7 +2,7 @@ import asyncio
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import auto
-from typing import Awaitable, Callable, Mapping
+from typing import Awaitable, Callable
 
 import httpx
 
@@ -36,6 +36,7 @@ from app.infrastructure.kafka.events.execution import (
 from app.infrastructure.kafka.mappings import get_topic_for_event
 from app.services.event_bus import EventBusManager
 from app.services.kafka_event_service import KafkaEventService
+from app.schemas_pydantic.sse import RedisNotificationMessage
 from app.services.sse.redis_bus import SSERedisBus
 from app.settings import Settings, get_settings
 
@@ -790,17 +791,17 @@ class NotificationService:
 
     async def _publish_notification_sse(self, notification: DomainNotification) -> None:
         """Publish an in-app notification to the SSE bus for realtime delivery."""
-        payload: Mapping[str, object] = {
-            "notification_id": notification.notification_id,
-            "severity": str(notification.severity),
-            "tags": list(notification.tags or []),
-            "subject": notification.subject,
-            "body": notification.body,
-            "action_url": notification.action_url or "",
-            "created_at": notification.created_at.isoformat(),
-            "status": str(notification.status),
-        }
-        await self.sse_bus.publish_notification(notification.user_id, payload)
+        message = RedisNotificationMessage(
+            notification_id=notification.notification_id,
+            severity=notification.severity,
+            status=notification.status,
+            tags=list(notification.tags or []),
+            subject=notification.subject,
+            body=notification.body,
+            action_url=notification.action_url or "",
+            created_at=notification.created_at.isoformat(),
+        )
+        await self.sse_bus.publish_notification(notification.user_id, message)
 
     async def _should_skip_notification(
         self, notification: DomainNotification, subscription: DomainNotificationSubscription | None

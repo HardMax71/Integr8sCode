@@ -1,10 +1,11 @@
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any
 
 from pymongo import ASCENDING, DESCENDING
 
 from app.db.repositories.event_repository import EventRepository
 from app.domain.enums.common import SortOrder
+from app.domain.enums.events import EventType
 from app.domain.enums.user import UserRole
 from app.domain.events import (
     Event,
@@ -33,7 +34,7 @@ class EventService:
         user_id: str,
         user_role: UserRole,
         include_system_events: bool = False,
-    ) -> List[Event] | None:
+    ) -> list[Event] | None:
         events = await self.repository.get_events_by_aggregate(aggregate_id=execution_id, limit=1000)
         if not events:
             return []
@@ -55,7 +56,7 @@ class EventService:
     async def get_user_events_paginated(
         self,
         user_id: str,
-        event_types: List[str] | None = None,
+        event_types: list[str] | None = None,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
         limit: int = 100,
@@ -117,7 +118,7 @@ class EventService:
         user_role: UserRole,
         include_all_users: bool = False,
         limit: int = 100,
-    ) -> List[Event]:
+    ) -> list[Event]:
         events = await self.repository.get_events_by_correlation(correlation_id=correlation_id, limit=limit)
         if not include_all_users or user_role != UserRole.ADMIN:
             events = [e for e in events if (e.metadata and e.metadata.user_id == user_id)]
@@ -156,7 +157,7 @@ class EventService:
         self,
         user_id: str,
         user_role: UserRole,
-        pipeline: List[Dict[str, Any]],
+        pipeline: list[dict[str, Any]],
         limit: int = 100,
     ) -> EventAggregationResult:
         user_filter = self._build_user_filter(user_id, user_role)
@@ -172,7 +173,7 @@ class EventService:
         self,
         user_id: str,
         user_role: UserRole,
-    ) -> List[str]:
+    ) -> list[str]:
         match = self._build_user_filter(user_id, user_role)
         return await self.repository.list_event_types(match=match)
 
@@ -194,7 +195,7 @@ class EventService:
     async def get_events_by_aggregate(
         self,
         aggregate_id: str,
-        event_types: List[str] | None = None,
+        event_types: list[EventType] | None = None,
         limit: int = 100,
     ) -> list[Event]:
         return await self.repository.get_events_by_aggregate(

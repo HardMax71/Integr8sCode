@@ -2,10 +2,14 @@ import {
     createExecutionApiV1ExecutePost,
     getResultApiV1ResultExecutionIdGet,
     type ExecutionResult,
+    type EventType,
 } from '$lib/api';
 import { getErrorMessage } from '$lib/api-interceptors';
 
 export type ExecutionPhase = 'idle' | 'starting' | 'queued' | 'scheduled' | 'running';
+
+// Failure event types that should trigger fallback fetch
+const FAILURE_EVENTS: EventType[] = ['execution_failed', 'execution_timeout', 'result_failed'];
 
 export function createExecutionState() {
     let phase = $state<ExecutionPhase>('idle');
@@ -66,7 +70,7 @@ export function createExecutionState() {
                             return;
                         }
 
-                        if (['execution_failed', 'execution_timeout', 'result_failed'].includes(eventType)) {
+                        if (FAILURE_EVENTS.includes(eventType as EventType)) {
                             eventSource.close();
                             await fetchFallback();
                         }
@@ -75,9 +79,9 @@ export function createExecutionState() {
                     }
                 };
 
-                eventSource.onerror = () => {
+                eventSource.onerror = async () => {
                     eventSource.close();
-                    fetchFallback();
+                    await fetchFallback();
                 };
             });
 

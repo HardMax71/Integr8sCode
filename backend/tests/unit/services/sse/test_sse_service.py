@@ -1,15 +1,19 @@
 import asyncio
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Type
 
 import pytest
+from pydantic import BaseModel
 
 pytestmark = pytest.mark.unit
 
 from app.domain.enums.events import EventType
 from app.domain.execution import DomainExecution, ResourceUsageDomain
 from app.domain.sse import ShutdownStatus, SSEHealthDomain
+from app.schemas_pydantic.sse import RedisNotificationMessage, RedisSSEMessage
 from app.services.sse.sse_service import SSEService
+
+T = Any  # TypeVar for fake
 
 
 class _FakeSubscription:
@@ -17,10 +21,15 @@ class _FakeSubscription:
         self._q: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
         self.closed = False
 
-    async def get(self, timeout: float = 0.5):  # noqa: ARG002
+    async def get(self, model: Type[BaseModel], timeout: float = 0.5) -> T | None:
         try:
-            return await asyncio.wait_for(self._q.get(), timeout=timeout)
+            raw = await asyncio.wait_for(self._q.get(), timeout=timeout)
+            if raw is None:
+                return None
+            return model.model_validate(raw)
         except asyncio.TimeoutError:
+            return None
+        except Exception:
             return None
 
     async def push(self, msg: dict[str, Any]) -> None:
@@ -121,7 +130,7 @@ async def test_execution_stream_closes_on_failed_event() -> None:
     assert _decode(stat)["event_type"] == "status"
 
     # Push a failed event and ensure stream ends after yielding it
-    await bus.exec_sub.push({"event_type": str(EventType.EXECUTION_FAILED), "execution_id": "exec-1", "data": {}})
+    await bus.exec_sub.push({"event_type": EventType.EXECUTION_FAILED, "execution_id": "exec-1", "data": {}})
     failed = await agen.__anext__()
     assert _decode(failed)["event_type"] == str(EventType.EXECUTION_FAILED)
 
@@ -153,7 +162,7 @@ async def test_execution_stream_result_stored_includes_result_payload() -> None:
     await agen.__anext__()  # connected
     await agen.__anext__()  # status
 
-    await bus.exec_sub.push({"event_type": str(EventType.RESULT_STORED), "execution_id": "exec-2", "data": {}})
+    await bus.exec_sub.push({"event_type": EventType.RESULT_STORED, "execution_id": "exec-2", "data": {}})
     evt = await agen.__anext__()
     data = _decode(evt)
     assert data["event_type"] == str(EventType.RESULT_STORED)
@@ -180,8 +189,17 @@ async def test_notification_stream_connected_and_heartbeat_and_message() -> None
     hb = await agen.__anext__()
     assert _decode(hb)["event_type"] == "heartbeat"
 
-    # Push a notification payload
-    await bus.notif_sub.push({"notification_id": "n1", "subject": "s", "body": "b"})
+    # Push a notification payload (must match RedisNotificationMessage schema)
+    await bus.notif_sub.push({
+        "notification_id": "n1",
+        "severity": "low",
+        "status": "pending",
+        "tags": [],
+        "subject": "s",
+        "body": "b",
+        "action_url": "",
+        "created_at": "2025-01-01T00:00:00Z",
+    })
     notif = await agen.__anext__()
     assert _decode(notif)["event_type"] == "notification"
 

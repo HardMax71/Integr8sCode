@@ -1,5 +1,4 @@
 import asyncio
-import json
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 from typing import Any, Dict
@@ -9,7 +8,13 @@ from app.core.metrics.context import get_connection_metrics
 from app.db.repositories.sse_repository import SSERepository
 from app.domain.enums.events import EventType
 from app.domain.sse import SSEHealthDomain
-from app.infrastructure.kafka.events.base import BaseEvent
+from app.schemas_pydantic.execution import ExecutionResult
+from app.schemas_pydantic.sse import (
+    RedisNotificationMessage,
+    RedisSSEMessage,
+    SSEExecutionEventData,
+    SSENotificationEventData,
+)
 from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
 from app.services.sse.redis_bus import SSERedisBus
 from app.services.sse.sse_shutdown_manager import SSEShutdownManager
@@ -17,9 +22,7 @@ from app.settings import Settings
 
 
 class SSEService:
-    # Only result_stored should terminate the stream; other terminal-ish
-    # execution events precede the final persisted result and must not close
-    # the connection prematurely.
+    # Terminal event types that should close the SSE stream
     TERMINAL_EVENT_TYPES: set[EventType] = {
         EventType.RESULT_STORED,
         EventType.EXECUTION_FAILED,
@@ -48,23 +51,24 @@ class SSEService:
 
         shutdown_event = await self.shutdown_manager.register_connection(execution_id, connection_id)
         if shutdown_event is None:
-            yield self._format_event(
-                "error", {"error": "Server is shutting down", "timestamp": datetime.now(timezone.utc).isoformat()}
-            )
+            yield self._format_sse_event(SSEExecutionEventData(
+                event_type="error",
+                execution_id=execution_id,
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                error="Server is shutting down",
+            ))
             return
 
         subscription = None
         try:
             # Start opening subscription concurrently, then yield handshake
             sub_task = asyncio.create_task(self.sse_bus.open_subscription(execution_id))
-            yield self._format_event(
-                "connected",
-                {
-                    "execution_id": execution_id,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "connection_id": connection_id,
-                },
-            )
+            yield self._format_sse_event(SSEExecutionEventData(
+                event_type="connected",
+                execution_id=execution_id,
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                connection_id=connection_id,
+            ))
 
             # Complete Redis subscription after handshake
             logger.info(f"Opening Redis subscription for execution {execution_id}")
@@ -73,12 +77,12 @@ class SSEService:
 
             initial_status = await self.repository.get_execution_status(execution_id)
             if initial_status:
-                payload = {
-                    "execution_id": initial_status.execution_id,
-                    "status": initial_status.status,
-                    "timestamp": initial_status.timestamp,
-                }
-                yield self._format_event("status", payload)
+                yield self._format_sse_event(SSEExecutionEventData(
+                    event_type="status",
+                    execution_id=initial_status.execution_id,
+                    timestamp=initial_status.timestamp,
+                    status=initial_status.status,
+                ))
                 self.metrics.record_sse_message_sent("executions", "status")
 
             async for event_data in self._stream_events_redis(
@@ -105,83 +109,59 @@ class SSEService:
         last_heartbeat = datetime.now(timezone.utc)
         while True:
             if shutdown_event.is_set():
-                yield self._format_event(
-                    "shutdown",
-                    {
-                        "message": "Server is shutting down",
-                        "grace_period": 30,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                    },
-                )
+                yield self._format_sse_event(SSEExecutionEventData(
+                    event_type="shutdown",
+                    execution_id=execution_id,
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    message="Server is shutting down",
+                    grace_period=30,
+                ))
                 break
 
             now = datetime.now(timezone.utc)
             if include_heartbeat and (now - last_heartbeat).total_seconds() >= self.heartbeat_interval:
-                yield self._format_event(
-                    "heartbeat",
-                    {"execution_id": execution_id, "timestamp": now.isoformat(), "message": "SSE connection active"},
-                )
+                yield self._format_sse_event(SSEExecutionEventData(
+                    event_type="heartbeat",
+                    execution_id=execution_id,
+                    timestamp=now.isoformat(),
+                    message="SSE connection active",
+                ))
                 last_heartbeat = now
 
-            msg = await subscription.get(timeout=0.5)
+            msg: RedisSSEMessage | None = await subscription.get(RedisSSEMessage, timeout=0.5)
             if not msg:
                 continue
-            # msg contains {'event_type': str, 'execution_id': str, 'data': {...}}
-            logger.info(f"Received Redis message for execution {execution_id}: {msg.get('event_type')}")
+
+            logger.info(f"Received Redis message for execution {execution_id}: {msg.event_type}")
             try:
-                raw_event_type = msg.get("event_type")
-                # Normalize to EventType when possible
-                try:
-                    event_type = EventType(str(raw_event_type))
-                except Exception:
-                    event_type = None
-                data = msg.get("data", {})
-                # Build SSE payload similar to _event_to_sse_format
-                sse_event: Dict[str, Any] = {
-                    "event_id": data.get("event_id"),
-                    "timestamp": data.get("timestamp"),
-                    "type": str(event_type) if event_type is not None else str(raw_event_type),
-                    "execution_id": execution_id,
-                }
-                if "status" in data:
-                    sse_event["status"] = data["status"]
-                # Include stdout/stderr/exit_code if present
-                for key in ("stdout", "stderr", "exit_code", "timeout_seconds"):
-                    if key in data:
-                        sse_event[key] = data[key]
-                # Include resource_usage if present
-                if "resource_usage" in data:
-                    sse_event["resource_usage"] = data["resource_usage"]
-
-                # If this is result_stored, enrich with full execution result payload
-                if event_type == EventType.RESULT_STORED:
-                    exec_domain = await self.repository.get_execution(execution_id)
-                    if exec_domain:
-                        ru_payload = None
-                        if getattr(exec_domain, "resource_usage", None) is not None:
-                            ru_obj = exec_domain.resource_usage
-                            ru_payload = ru_obj.to_dict() if ru_obj and hasattr(ru_obj, "to_dict") else ru_obj
-                        sse_event["result"] = {
-                            "execution_id": exec_domain.execution_id,
-                            "status": exec_domain.status,
-                            "stdout": exec_domain.stdout,
-                            "stderr": exec_domain.stderr,
-                            "lang": exec_domain.lang,
-                            "lang_version": exec_domain.lang_version,
-                            "resource_usage": ru_payload,
-                            "exit_code": exec_domain.exit_code,
-                            "error_type": exec_domain.error_type,
-                        }
-
-                yield self._format_event(str(event_type) if event_type is not None else str(raw_event_type), sse_event)
+                sse_event = await self._build_sse_event_from_redis(execution_id, msg)
+                yield self._format_sse_event(sse_event)
 
                 # End on terminal event types
-                if event_type in self.TERMINAL_EVENT_TYPES:
-                    logger.info(f"Terminal event for execution {execution_id}: {event_type}")
+                if msg.event_type in self.TERMINAL_EVENT_TYPES:
+                    logger.info(f"Terminal event for execution {execution_id}: {msg.event_type}")
                     break
             except Exception:
                 # Ignore malformed messages
                 continue
+
+    async def _build_sse_event_from_redis(
+        self, execution_id: str, msg: RedisSSEMessage
+    ) -> SSEExecutionEventData:
+        """Build typed SSE event from Redis message."""
+        result: ExecutionResult | None = None
+        if msg.event_type == EventType.RESULT_STORED:
+            exec_domain = await self.repository.get_execution(execution_id)
+            if exec_domain:
+                result = ExecutionResult.model_validate(exec_domain)
+
+        return SSEExecutionEventData.model_validate({
+            **msg.data,
+            "event_type": msg.event_type,
+            "execution_id": execution_id,
+            "type": msg.event_type,
+            "result": result,
+        })
 
     async def create_notification_stream(self, user_id: str) -> AsyncGenerator[Dict[str, Any], None]:
         subscription = None
@@ -189,14 +169,12 @@ class SSEService:
         try:
             # Start opening subscription concurrently, then yield handshake
             sub_task = asyncio.create_task(self.sse_bus.open_notification_subscription(user_id))
-            yield self._format_event(
-                "connected",
-                {
-                    "message": "Connected to notification stream",
-                    "user_id": user_id,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                },
-            )
+            yield self._format_notification_event(SSENotificationEventData(
+                event_type="connected",
+                user_id=user_id,
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                message="Connected to notification stream",
+            ))
 
             # Complete Redis subscription after handshake
             subscription = await sub_task
@@ -206,17 +184,28 @@ class SSEService:
                 # Heartbeat
                 now = datetime.now(timezone.utc)
                 if (now - last_heartbeat).total_seconds() >= self.heartbeat_interval:
-                    yield self._format_event(
-                        "heartbeat",
-                        {"timestamp": now.isoformat(), "user_id": user_id, "message": "Notification stream active"},
-                    )
+                    yield self._format_notification_event(SSENotificationEventData(
+                        event_type="heartbeat",
+                        user_id=user_id,
+                        timestamp=now.isoformat(),
+                        message="Notification stream active",
+                    ))
                     last_heartbeat = now
 
                 # Forward notification messages as SSE data
-                msg = await subscription.get(timeout=0.5)
-                if msg:
-                    # msg already contains the notification payload
-                    yield self._format_event("notification", msg)
+                redis_msg = await subscription.get(RedisNotificationMessage, timeout=0.5)
+                if redis_msg:
+                    yield self._format_notification_event(SSENotificationEventData(
+                        event_type="notification",
+                        notification_id=redis_msg.notification_id,
+                        severity=redis_msg.severity,
+                        status=redis_msg.status,
+                        tags=redis_msg.tags,
+                        subject=redis_msg.subject,
+                        body=redis_msg.body,
+                        action_url=redis_msg.action_url,
+                        created_at=redis_msg.created_at,
+                    ))
         finally:
             try:
                 if subscription is not None:
@@ -237,45 +226,10 @@ class SSEService:
             timestamp=datetime.now(timezone.utc),
         )
 
-    async def _event_to_sse_format(self, event: BaseEvent, execution_id: str) -> Dict[str, Any]:
-        event_data = event.model_dump(mode="json")
+    def _format_sse_event(self, event: SSEExecutionEventData) -> Dict[str, Any]:
+        """Format typed SSE event for sse-starlette."""
+        return {"data": event.model_dump_json(exclude_none=True)}
 
-        sse_event: Dict[str, Any] = {
-            "event_id": event.event_id,
-            "timestamp": event_data.get("timestamp"),
-            "type": str(event.event_type),
-            "execution_id": execution_id,
-        }
-
-        if "status" in event_data:
-            sse_event["status"] = event_data["status"]
-
-        if event.event_type == EventType.RESULT_STORED:
-            exec_domain = await self.repository.get_execution(execution_id)
-            if exec_domain:
-                ru_payload = None
-                if getattr(exec_domain, "resource_usage", None) is not None:
-                    ru_obj = exec_domain.resource_usage
-                    ru_payload = ru_obj.to_dict() if ru_obj and hasattr(ru_obj, "to_dict") else ru_obj
-                sse_event["result"] = {
-                    "execution_id": exec_domain.execution_id,
-                    "status": exec_domain.status,
-                    "stdout": exec_domain.stdout,
-                    "stderr": exec_domain.stderr,
-                    "lang": exec_domain.lang,
-                    "lang_version": exec_domain.lang_version,
-                    "resource_usage": ru_payload,
-                    "exit_code": exec_domain.exit_code,
-                    "error_type": exec_domain.error_type,
-                }
-
-        skip_fields = {"event_id", "timestamp", "event_type", "metadata", "payload"}
-        for key, value in event_data.items():
-            if key not in skip_fields and key not in sse_event:
-                sse_event[key] = value
-
-        return sse_event
-
-    def _format_event(self, event_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
-        data["event_type"] = event_type
-        return {"data": json.dumps(data)}
+    def _format_notification_event(self, event: SSENotificationEventData) -> Dict[str, Any]:
+        """Format typed notification SSE event for sse-starlette."""
+        return {"data": event.model_dump_json(exclude_none=True)}

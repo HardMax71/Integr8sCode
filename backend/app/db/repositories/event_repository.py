@@ -9,6 +9,7 @@ from app.core.database_context import Collection, Database
 from app.core.logging import logger
 from app.core.tracing import EventAttributes
 from app.core.tracing.utils import add_span_attributes
+from app.domain.enums.events import EventType
 from app.domain.enums.user import UserRole
 from app.domain.events import (
     ArchivedEvent,
@@ -114,11 +115,11 @@ class EventRepository:
         return [self.mapper.from_mongo_document(doc) for doc in docs]
 
     async def get_events_by_aggregate(
-        self, aggregate_id: str, event_types: list[str] | None = None, limit: int = 100
+        self, aggregate_id: str, event_types: list[EventType] | None = None, limit: int = 100
     ) -> list[Event]:
         query: dict[str, Any] = {EventFields.AGGREGATE_ID: aggregate_id}
         if event_types:
-            query[EventFields.EVENT_TYPE] = {"$in": event_types}
+            query[EventFields.EVENT_TYPE] = {"$in": [t.value for t in event_types]}
 
         cursor = self._collection.find(query).sort(EventFields.TIMESTAMP, ASCENDING).limit(limit)
         docs = await cursor.to_list(length=limit)

@@ -1,41 +1,43 @@
 /**
  * Event type configurations and utilities
  */
+import type { EventType } from '$lib/api';
 
-// Available event types for filtering
-export const EVENT_TYPES = [
-    'execution.requested',
-    'execution.started',
-    'execution.completed',
-    'execution.failed',
-    'execution.timeout',
-    'pod.created',
-    'pod.running',
-    'pod.succeeded',
-    'pod.failed',
-    'pod.terminated'
-] as const;
+// Re-export EventType from generated types
+export type { EventType } from '$lib/api';
 
-export type EventType = typeof EVENT_TYPES[number];
+// Common event types for filtering UI (subset of all EventType values)
+export const EVENT_TYPES: EventType[] = [
+    'execution_requested',
+    'execution_started',
+    'execution_completed',
+    'execution_failed',
+    'execution_timeout',
+    'pod_created',
+    'pod_running',
+    'pod_succeeded',
+    'pod_failed',
+    'pod_terminated'
+];
 
 // Event type color mapping
 export function getEventTypeColor(eventType: string): string {
-    if (eventType.includes('.completed') || eventType.includes('.succeeded')) {
+    if (eventType.includes('_completed') || eventType.includes('_succeeded')) {
         return 'text-green-600 dark:text-green-400';
     }
-    if (eventType.includes('.failed') || eventType.includes('.timeout')) {
+    if (eventType.includes('_failed') || eventType.includes('_timeout')) {
         return 'text-red-600 dark:text-red-400';
     }
-    if (eventType.includes('.started') || eventType.includes('.running')) {
+    if (eventType.includes('_started') || eventType.includes('_running')) {
         return 'text-blue-600 dark:text-blue-400';
     }
-    if (eventType.includes('.requested')) {
+    if (eventType.includes('_requested')) {
         return 'text-purple-600 dark:text-purple-400';
     }
-    if (eventType.includes('.created')) {
+    if (eventType.includes('_created')) {
         return 'text-indigo-600 dark:text-indigo-400';
     }
-    if (eventType.includes('.terminated')) {
+    if (eventType.includes('_terminated')) {
         return 'text-orange-600 dark:text-orange-400';
     }
     return 'text-neutral-600 dark:text-neutral-400';
@@ -43,22 +45,18 @@ export function getEventTypeColor(eventType: string): string {
 
 // Get display label for event type
 export function getEventTypeLabel(eventType: string): string {
-    // For execution.requested, show icon only (with tooltip)
-    if (eventType === 'execution.requested') {
+    // For execution_requested, show icon only (with tooltip)
+    if (eventType === 'execution_requested') {
         return '';
     }
 
-    // For all other events, show full name
-    const parts = eventType.split('.');
-    if (parts.length === 2) {
-        return `${parts[0]}.${parts[1]}`;
-    }
+    // Return the event type as-is (already readable with underscores)
     return eventType;
 }
 
 // Default filter state for events
 export interface EventFilters {
-    event_types: string[];
+    event_types: EventType[];
     aggregate_id: string;
     correlation_id: string;
     user_id: string;

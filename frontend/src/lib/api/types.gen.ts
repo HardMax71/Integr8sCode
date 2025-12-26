@@ -170,10 +170,7 @@ export type DlqMessageDetail = {
     event: {
         [key: string]: unknown;
     };
-    /**
-     * Event Type
-     */
-    event_type: string;
+    event_type: EventType;
     /**
      * Original Topic
      */
@@ -243,10 +240,7 @@ export type DlqMessageResponse = {
      * Event Id
      */
     event_id: string;
-    /**
-     * Event Type
-     */
-    event_type: string;
+    event_type: EventType;
     /**
      * Original Topic
      */
@@ -509,13 +503,6 @@ export type EditorSettings = {
  * EndpointGroup
  */
 export type EndpointGroup = 'execution' | 'admin' | 'sse' | 'websocket' | 'auth' | 'public' | 'api';
-
-/**
- * ErrorType
- *
- * Classification of error types in execution platform.
- */
-export type ErrorType = 'script_error' | 'system_error' | 'success';
 
 /**
  * EventAggregationRequest
@@ -1055,6 +1042,13 @@ export type ExampleScripts = {
 };
 
 /**
+ * ExecutionErrorType
+ *
+ * Types of execution errors.
+ */
+export type ExecutionErrorType = 'system_error' | 'timeout' | 'resource_limit' | 'script_error' | 'permission_denied';
+
+/**
  * ExecutionEventResponse
  *
  * Model for execution event response.
@@ -1064,10 +1058,7 @@ export type ExecutionEventResponse = {
      * Event Id
      */
     event_id: string;
-    /**
-     * Event Type
-     */
-    event_type: string;
+    event_type: EventType;
     /**
      * Timestamp
      */
@@ -1211,7 +1202,7 @@ export type ExecutionResult = {
      * Exit Code
      */
     exit_code?: number | null;
-    error_type?: ErrorType | null;
+    error_type?: ExecutionErrorType | null;
 };
 
 /**
@@ -2520,10 +2511,7 @@ export type SettingsHistoryEntry = {
      * Timestamp
      */
     timestamp: string;
-    /**
-     * Event Type
-     */
-    event_type: string;
+    event_type: EventType;
     /**
      * Field
      */
@@ -3284,9 +3272,9 @@ export type GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetData = {
         /**
          * Event Types
          *
-         * Comma-separated event types to filter
+         * Event types to filter
          */
-        event_types?: string | null;
+        event_types?: Array<EventType> | null;
         /**
          * Limit
          */

@@ -136,6 +136,8 @@
                 {/if}
 
                 {#if result.resource_usage}
+                    {@const clkTck = result.resource_usage.clk_tck_hertz ?? 100}
+                    {@const cpuMs = (result.resource_usage.cpu_time_jiffies ?? 0) * 1000 / clkTck}
                     <div class="p-3 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 text-xs space-y-1">
                         <h4 class="text-xs font-medium text-blue-700 dark:text-blue-300 mb-2 uppercase tracking-wider">Resource Usage:</h4>
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-3 gap-y-1">
@@ -143,8 +145,8 @@
                                 <span class="text-fg-muted dark:text-dark-fg-muted font-normal">CPU:</span>
                                 <span class="text-fg-default dark:text-dark-fg-default font-medium">
                                     {result.resource_usage.cpu_time_jiffies === 0
-                                        ? '< 10 m'
-                                        : `${((result.resource_usage.cpu_time_jiffies ?? 0) * 10).toFixed(3)} m`}
+                                        ? `< ${(1000 / clkTck).toFixed(0)} m`
+                                        : `${cpuMs.toFixed(3)} m`}
                                 </span>
                             </div>
                             <div class="flex flex-col">

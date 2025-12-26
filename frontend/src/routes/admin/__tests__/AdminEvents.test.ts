@@ -16,7 +16,7 @@ interface MockEventOverrides {
 
 const DEFAULT_EVENT = {
   event_id: 'evt-1',
-  event_type: 'execution.completed',
+  event_type: 'execution_completed',
   timestamp: '2024-01-15T10:30:00Z',
   correlation_id: 'corr-123',
   aggregate_id: 'exec-456',
@@ -25,8 +25,8 @@ const DEFAULT_EVENT = {
 };
 
 const EVENT_TYPES = [
-  'execution.requested', 'execution.started', 'execution.completed',
-  'execution.failed', 'pod.created', 'pod.running'
+  'execution_requested', 'execution_started', 'execution_completed',
+  'execution_failed', 'pod_created', 'pod_running'
 ];
 
 const createMockEvent = (overrides: MockEventOverrides = {}) => ({ ...DEFAULT_EVENT, ...overrides });
@@ -60,8 +60,8 @@ function createMockEventDetail(event = createMockEvent()) {
   return {
     event,
     related_events: [
-      { event_id: 'rel-1', event_type: 'execution.started', timestamp: '2024-01-15T10:29:00Z' },
-      { event_id: 'rel-2', event_type: 'pod.created', timestamp: '2024-01-15T10:29:30Z' },
+      { event_id: 'rel-1', event_type: 'execution_started', timestamp: '2024-01-15T10:29:00Z' },
+      { event_id: 'rel-2', event_type: 'pod_created', timestamp: '2024-01-15T10:29:30Z' },
     ],
   };
 }
@@ -462,7 +462,7 @@ describe('AdminEvents', () => {
     it('displays event information in modal', async () => {
       vi.useRealTimers();
       const user = userEvent.setup();
-      const event = createMockEvent({ event_id: 'evt-123', event_type: 'execution.completed', correlation_id: 'corr-abc' });
+      const event = createMockEvent({ event_id: 'evt-123', event_type: 'execution_completed', correlation_id: 'corr-abc' });
       mocks.getEventDetailApiV1AdminEventsEventIdGet.mockResolvedValue({
         data: createMockEventDetail(event),
         error: null,
@@ -475,7 +475,7 @@ describe('AdminEvents', () => {
       await waitFor(() => {
         // Using getAllByText because values may appear in table + modal
         expect(screen.getAllByText('evt-123').length).toBeGreaterThan(0);
-        expect(screen.getAllByText('execution.completed').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('execution_completed').length).toBeGreaterThan(0);
         expect(screen.getAllByText('corr-abc').length).toBeGreaterThan(0);
       });
     });
@@ -495,8 +495,8 @@ describe('AdminEvents', () => {
 
       await waitFor(() => {
         expect(screen.getByText(/Related Events/i)).toBeInTheDocument();
-        expect(screen.getByText('execution.started')).toBeInTheDocument();
-        expect(screen.getByText('pod.created')).toBeInTheDocument();
+        expect(screen.getByText('execution_started')).toBeInTheDocument();
+        expect(screen.getByText('pod_created')).toBeInTheDocument();
       });
     });
 
@@ -810,7 +810,7 @@ describe('AdminEvents', () => {
   describe('event type display', () => {
     it('shows correct color for completed events', async () => {
       vi.useRealTimers();
-      const events = [createMockEvent({ event_type: 'execution.completed' })];
+      const events = [createMockEvent({ event_type: 'execution_completed' })];
       await renderWithEvents(events);
       // The icon container should have green color class
       const iconSpan = document.querySelector('.text-green-600');
@@ -819,7 +819,7 @@ describe('AdminEvents', () => {
 
     it('shows correct color for failed events', async () => {
       vi.useRealTimers();
-      const events = [createMockEvent({ event_type: 'execution.failed' })];
+      const events = [createMockEvent({ event_type: 'execution_failed' })];
       await renderWithEvents(events);
       const iconSpan = document.querySelector('.text-red-600');
       expect(iconSpan).toBeInTheDocument();
@@ -827,7 +827,7 @@ describe('AdminEvents', () => {
 
     it('shows correct color for started events', async () => {
       vi.useRealTimers();
-      const events = [createMockEvent({ event_type: 'execution.started' })];
+      const events = [createMockEvent({ event_type: 'execution_started' })];
       await renderWithEvents(events);
       const iconSpan = document.querySelector('.text-blue-600');
       expect(iconSpan).toBeInTheDocument();

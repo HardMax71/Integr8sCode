@@ -91,7 +91,7 @@ class SettingsHistoryEntry(BaseModel):
     """Single entry in settings history"""
 
     timestamp: datetime
-    event_type: str
+    event_type: EventType
     field: str
     old_value: Any
     new_value: Any
@@ -116,7 +116,7 @@ class RestoreSettingsRequest(BaseModel):
 class SettingsEvent(BaseModel):
     """Minimal event model for user settings service consumption."""
 
-    event_type: str | EventType
+    event_type: EventType
     timestamp: datetime
     payload: Dict[str, Any]
     correlation_id: str | None = None

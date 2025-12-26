@@ -16,8 +16,8 @@ const withFilter = (override: Partial<EventFilters>): EventFilters =>
 describe('eventTypes', () => {
   describe('EVENT_TYPES', () => {
     const expectedEvents = [
-      'execution.requested', 'execution.started', 'execution.completed', 'execution.failed', 'execution.timeout',
-      'pod.created', 'pod.running', 'pod.succeeded', 'pod.failed', 'pod.terminated'
+      'execution_requested', 'execution_started', 'execution_completed', 'execution_failed', 'execution_timeout',
+      'pod_created', 'pod_running', 'pod_succeeded', 'pod_failed', 'pod_terminated'
     ];
 
     it('contains all expected events', () => {
@@ -27,17 +27,17 @@ describe('eventTypes', () => {
 
   describe('getEventTypeColor', () => {
     it.each([
-      ['execution.completed', 'text-green'],
-      ['pod.succeeded', 'text-green'],
-      ['execution.failed', 'text-red'],
-      ['execution.timeout', 'text-red'],
-      ['pod.failed', 'text-red'],
-      ['execution.started', 'text-blue'],
-      ['pod.running', 'text-blue'],
-      ['execution.requested', 'text-purple'],
-      ['pod.created', 'text-indigo'],
-      ['pod.terminated', 'text-orange'],
-      ['unknown.event', 'text-neutral'],
+      ['execution_completed', 'text-green'],
+      ['pod_succeeded', 'text-green'],
+      ['execution_failed', 'text-red'],
+      ['execution_timeout', 'text-red'],
+      ['pod_failed', 'text-red'],
+      ['execution_started', 'text-blue'],
+      ['pod_running', 'text-blue'],
+      ['execution_requested', 'text-purple'],
+      ['pod_created', 'text-indigo'],
+      ['pod_terminated', 'text-orange'],
+      ['unknown_event', 'text-neutral'],
     ])('%s returns %s', (eventType, expectedColor) => {
       const color = getEventTypeColor(eventType);
       expect(color).toContain(expectedColor);
@@ -47,11 +47,11 @@ describe('eventTypes', () => {
 
   describe('getEventTypeLabel', () => {
     it.each([
-      ['execution.requested', ''],
-      ['execution.completed', 'execution.completed'],
-      ['pod.running', 'pod.running'],
+      ['execution_requested', ''],
+      ['execution_completed', 'execution_completed'],
+      ['pod_running', 'pod_running'],
       ['single', 'single'],
-      ['a.b.c', 'a.b.c'],
+      ['a_b_c', 'a_b_c'],
     ])('%s returns %s', (input, expected) => {
       expect(getEventTypeLabel(input)).toBe(expected);
     });
@@ -82,7 +82,7 @@ describe('eventTypes', () => {
     });
 
     it.each([
-      ['event_types', { event_types: ['execution.completed'] }],
+      ['event_types', { event_types: ['execution_completed'] }],
       ['search_text', { search_text: 'test' }],
       ['correlation_id', { correlation_id: 'abc' }],
       ['aggregate_id', { aggregate_id: 'exec-1' }],

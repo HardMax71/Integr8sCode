@@ -4,6 +4,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from app.dlq import DLQMessageStatus, RetryStrategy
+from app.domain.enums.events import EventType
 
 
 class DLQStats(BaseModel):
@@ -20,7 +21,7 @@ class DLQMessageResponse(BaseModel):
     """Response model for a DLQ message."""
 
     event_id: str
-    event_type: str
+    event_type: EventType
     original_topic: str
     error: str
     retry_count: int
@@ -82,7 +83,7 @@ class DLQMessageDetail(BaseModel):
 
     event_id: str
     event: dict[str, Any]  # BaseEvent as dict
-    event_type: str
+    event_type: EventType
     original_topic: str
     error: str
     retry_count: int

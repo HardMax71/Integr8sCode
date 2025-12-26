@@ -26,8 +26,6 @@ class DomainEditorSettings:
     use_tabs: bool = False
     word_wrap: bool = True
     show_line_numbers: bool = True
-    # fixed, non-configurable editor attributes are omitted from domain
-    # as they are UI concerns
 
 
 @dataclass
@@ -55,24 +53,6 @@ class DomainUserSettingsUpdate:
     editor: Optional[DomainEditorSettings] = None
     custom_settings: Optional[Dict[str, Any]] = None
 
-    def to_update_dict(self) -> Dict[str, Any]:
-        out: Dict[str, Any] = {}
-        if self.theme is not None:
-            out["theme"] = self.theme
-        if self.timezone is not None:
-            out["timezone"] = self.timezone
-        if self.date_format is not None:
-            out["date_format"] = self.date_format
-        if self.time_format is not None:
-            out["time_format"] = self.time_format
-        if self.notifications is not None:
-            out["notifications"] = self.notifications
-        if self.editor is not None:
-            out["editor"] = self.editor
-        if self.custom_settings is not None:
-            out["custom_settings"] = self.custom_settings
-        return out
-
 
 @dataclass
 class DomainSettingChange:
@@ -94,7 +74,7 @@ class DomainSettingsEvent:
 @dataclass
 class DomainSettingsHistoryEntry:
     timestamp: datetime
-    event_type: str
+    event_type: EventType
     field: str
     old_value: Any
     new_value: Any

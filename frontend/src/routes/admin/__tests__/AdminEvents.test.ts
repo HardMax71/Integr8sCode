@@ -2,86 +2,15 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { tick } from 'svelte';
-import { mockElementAnimate, mockWindowGlobals } from '$routes/admin/__tests__/test-utils';
-
-interface MockEventOverrides {
-  event_id?: string;
-  event_type?: string;
-  timestamp?: string;
-  correlation_id?: string;
-  aggregate_id?: string;
-  metadata?: Record<string, unknown>;
-  payload?: Record<string, unknown>;
-}
-
-const DEFAULT_EVENT = {
-  event_id: 'evt-1',
-  event_type: 'execution_completed',
-  timestamp: '2024-01-15T10:30:00Z',
-  correlation_id: 'corr-123',
-  aggregate_id: 'exec-456',
-  metadata: { user_id: 'user-1', service_name: 'test-service' },
-  payload: { output: 'hello', exit_code: 0 },
-};
-
-const EVENT_TYPES = [
-  'execution_requested', 'execution_started', 'execution_completed',
-  'execution_failed', 'pod_created', 'pod_running'
-];
-
-const createMockEvent = (overrides: MockEventOverrides = {}) => ({ ...DEFAULT_EVENT, ...overrides });
-
-const createMockEvents = (count: number) =>
-  Array.from({ length: count }, (_, i) => createMockEvent({
-    event_id: `evt-${i + 1}`,
-    event_type: EVENT_TYPES[i % EVENT_TYPES.length],
-    timestamp: new Date(Date.now() - i * 60000).toISOString(),
-    correlation_id: `corr-${i + 1}`,
-    aggregate_id: `exec-${i + 1}`,
-    metadata: { user_id: `user-${(i % 3) + 1}`, service_name: 'execution-service' },
-  }));
-
-function createMockStats(overrides: Partial<{
-  total_events: number;
-  error_rate: number;
-  avg_processing_time: number;
-  top_users: Array<{ user_id: string; count: number }>;
-}> = {}) {
-  return {
-    total_events: 150,
-    error_rate: 2.5,
-    avg_processing_time: 1.23,
-    top_users: [{ user_id: 'user-1', count: 50 }],
-    ...overrides,
-  };
-}
-
-function createMockEventDetail(event = createMockEvent()) {
-  return {
-    event,
-    related_events: [
-      { event_id: 'rel-1', event_type: 'execution_started', timestamp: '2024-01-15T10:29:00Z' },
-      { event_id: 'rel-2', event_type: 'pod_created', timestamp: '2024-01-15T10:29:30Z' },
-    ],
-  };
-}
-
-function createMockUserOverview() {
-  return {
-    user: {
-      user_id: 'user-1',
-      username: 'testuser',
-      email: 'test@example.com',
-      role: 'user',
-      is_active: true,
-      is_superuser: false,
-    },
-    stats: { total_events: 100 },
-    derived_counts: { succeeded: 80, failed: 10, timeout: 5, cancelled: 5, terminal_total: 100 },
-    rate_limit_summary: { bypass_rate_limit: false, global_multiplier: 1.0, has_custom_limits: false },
-    recent_events: [createMockEvent()],
-  };
-}
+import {
+  mockElementAnimate,
+  mockWindowGlobals,
+  createMockEvent,
+  createMockEvents,
+  createMockStats,
+  createMockEventDetail,
+  createMockUserOverview,
+} from '$routes/admin/__tests__/test-utils';
 
 // Hoisted mocks
 const mocks = vi.hoisted(() => ({

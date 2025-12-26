@@ -5,6 +5,7 @@ from typing import Type, TypeVar
 import redis.asyncio as redis
 from pydantic import BaseModel
 
+from app.core.logging import logger
 from app.infrastructure.kafka.events.base import BaseEvent
 from app.schemas_pydantic.sse import RedisNotificationMessage, RedisSSEMessage
 
@@ -25,7 +26,11 @@ class SSERedisSubscription:
             return None
         try:
             return model.model_validate_json(msg["data"])
-        except Exception:
+        except Exception as e:
+            logger.warning(
+                f"Failed to parse Redis message on channel {self._channel}: {e}",
+                extra={"channel": self._channel, "model": model.__name__},
+            )
             return None
 
     async def close(self) -> None:

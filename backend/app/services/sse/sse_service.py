@@ -151,8 +151,11 @@ class SSEService:
                 if msg.event_type in self.TERMINAL_EVENT_TYPES:
                     logger.info(f"Terminal event for execution {execution_id}: {msg.event_type}")
                     break
-            except Exception:
-                # Ignore malformed messages
+            except Exception as e:
+                logger.warning(
+                    f"Failed to process SSE message for execution {execution_id}: {e}",
+                    extra={"execution_id": execution_id, "event_type": str(msg.event_type)},
+                )
                 continue
 
     async def _build_sse_event_from_redis(self, execution_id: str, msg: RedisSSEMessage) -> SSEExecutionEventData:

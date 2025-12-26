@@ -14,6 +14,7 @@ from app.domain.enums.events import EventType
 from app.domain.events import Event
 from app.events.core import UnifiedProducer
 from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.infrastructure.mappers.event_mapper import infra_metadata_to_domain
 from app.infrastructure.kafka.mappings import get_event_class_for_type
 from app.settings import get_settings
 
@@ -68,14 +69,14 @@ class KafkaEventService:
             # Create event
             event_id = str(uuid4())
             timestamp = datetime.now(timezone.utc)
-            # Create domain event (using the unified EventMetadata)
+            # Create domain event (convert infrastructure metadata to domain)
             event = Event(
                 event_id=event_id,
                 event_type=event_type,
                 event_version="1.0",
                 timestamp=timestamp,
                 aggregate_id=aggregate_id,
-                metadata=event_metadata,
+                metadata=infra_metadata_to_domain(event_metadata),
                 payload=payload,
             )
             _ = await self.event_repository.store_event(event)

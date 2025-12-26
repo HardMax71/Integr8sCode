@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Dict, List
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.enums.events import EventType
 
@@ -72,6 +72,8 @@ class EventReplayResponse(BaseModel):
 class EventReplayStatusResponse(BaseModel):
     """Response model for replay status"""
 
+    model_config = ConfigDict(from_attributes=True)
+
     session_id: str
     status: str
     total_events: int
@@ -97,6 +99,8 @@ class EventDeleteResponse(BaseModel):
 
 class EventStatsResponse(BaseModel):
     """Response model for event statistics"""
+
+    model_config = ConfigDict(from_attributes=True)
 
     total_events: int
     events_by_type: Dict[str, int]

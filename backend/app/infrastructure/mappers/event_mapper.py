@@ -1,8 +1,11 @@
+from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Any
+from uuid import uuid4
 
 from app.domain.events.event_models import (
     ArchivedEvent,
+    DomainEventMetadata,
     Event,
     EventBrowseResult,
     EventDetail,
@@ -20,6 +23,37 @@ from app.infrastructure.kafka.events.metadata import EventMetadata
 from app.schemas_pydantic.admin_events import EventFilter as AdminEventFilter
 
 
+def metadata_to_dict(metadata: DomainEventMetadata) -> dict[str, Any]:
+    """Convert domain metadata to dict for storage."""
+    return {k: v for k, v in asdict(metadata).items() if v is not None}
+
+
+def metadata_from_dict(data: dict[str, Any]) -> DomainEventMetadata:
+    """Create domain metadata from dict."""
+    return DomainEventMetadata(
+        service_name=data.get("service_name", "unknown"),
+        service_version=data.get("service_version", "1.0"),
+        correlation_id=data.get("correlation_id", str(uuid4())),
+        user_id=data.get("user_id"),
+        ip_address=data.get("ip_address"),
+        user_agent=data.get("user_agent"),
+        environment=data.get("environment", "production"),
+    )
+
+
+def infra_metadata_to_domain(infra: EventMetadata) -> DomainEventMetadata:
+    """Convert infrastructure EventMetadata to domain DomainEventMetadata."""
+    return DomainEventMetadata(
+        service_name=infra.service_name,
+        service_version=infra.service_version,
+        correlation_id=infra.correlation_id,
+        user_id=infra.user_id,
+        ip_address=infra.ip_address,
+        user_agent=infra.user_agent,
+        environment=str(infra.environment) if infra.environment else "production",
+    )
+
+
 class EventMapper:
     """Handles all Event serialization/deserialization."""
 
@@ -31,7 +65,7 @@ class EventMapper:
             EventFields.EVENT_TYPE: event.event_type,
             EventFields.EVENT_VERSION: event.event_version,
             EventFields.TIMESTAMP: event.timestamp,
-            EventFields.METADATA: event.metadata.to_dict(),
+            EventFields.METADATA: metadata_to_dict(event.metadata),
             EventFields.PAYLOAD: event.payload,
         }
 
@@ -75,7 +109,7 @@ class EventMapper:
             event_type=document[EventFields.EVENT_TYPE],
             event_version=document.get(EventFields.EVENT_VERSION, "1.0"),
             timestamp=document.get(EventFields.TIMESTAMP, datetime.now(timezone.utc)),
-            metadata=EventMetadata.from_dict(document.get(EventFields.METADATA, {})),
+            metadata=metadata_from_dict(document.get(EventFields.METADATA, {})),
             payload=payload,
             aggregate_id=document.get(EventFields.AGGREGATE_ID),
             stored_at=document.get(EventFields.STORED_AT),
@@ -92,7 +126,7 @@ class EventMapper:
             "event_type": event.event_type,
             "event_version": event.event_version,
             "timestamp": event.timestamp,
-            "metadata": event.metadata.to_dict(),
+            "metadata": metadata_to_dict(event.metadata),
             "payload": event.payload,
         }
 
@@ -119,7 +153,7 @@ class EventMapper:
             event_type=data["event_type"],
             event_version=data.get("event_version", "1.0"),
             timestamp=data.get("timestamp", datetime.now(timezone.utc)),
-            metadata=EventMetadata.from_dict(data.get("metadata", {})),
+            metadata=metadata_from_dict(data.get("metadata", {})),
             payload=data.get("payload", {}),
             aggregate_id=data.get("aggregate_id"),
             stored_at=data.get("stored_at"),

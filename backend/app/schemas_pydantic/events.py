@@ -12,10 +12,25 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.domain.enums.common import SortOrder
 from app.domain.enums.events import EventType
-from app.infrastructure.kafka.events.metadata import EventMetadata
+
+
+class EventMetadataResponse(BaseModel):
+    """Pydantic schema for event metadata in API responses."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    service_name: str
+    service_version: str
+    correlation_id: str
+    user_id: str | None = None
+    ip_address: str | None = None
+    user_agent: str | None = None
+    environment: str = "production"
 
 
 class EventResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     event_id: str
     event_type: EventType
     event_version: str
@@ -23,12 +38,14 @@ class EventResponse(BaseModel):
     aggregate_id: str | None = None
     correlation_id: str | None = None
     causation_id: str | None = None
-    metadata: Dict[str, Any]
+    metadata: EventMetadataResponse
     payload: Dict[str, Any]
     stored_at: datetime | None = None
 
 
 class EventListResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     events: List[EventResponse]
     total: int
     limit: int
@@ -89,7 +106,7 @@ class EventBase(BaseModel):
     aggregate_id: str | None = None
     correlation_id: str | None = None
     causation_id: str | None = None  # ID of the event that caused this event
-    metadata: EventMetadata
+    metadata: EventMetadataResponse
     payload: Dict[str, Any]
 
     model_config = ConfigDict(
@@ -193,6 +210,7 @@ class EventStatistics(BaseModel):
     end_time: datetime | None = None
 
     model_config = ConfigDict(
+        from_attributes=True,
         json_schema_extra={
             "example": {
                 "total_events": 1543,
@@ -207,7 +225,7 @@ class EventStatistics(BaseModel):
                     {"hour": "2024-01-20 11:00", "count": 92},
                 ],
             }
-        }
+        },
     )
 
 

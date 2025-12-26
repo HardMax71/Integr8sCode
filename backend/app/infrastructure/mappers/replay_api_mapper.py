@@ -94,10 +94,19 @@ class ReplayApiMapper:
             end_time=req.end_time if req.end_time else None,
             user_id=req.user_id,
             service_name=req.service_name,
+            custom_query=req.custom_query,
+            exclude_event_types=req.exclude_event_types,
         )
 
     @staticmethod
     def request_to_config(req: ReplayRequest) -> ReplayConfig:
+        # Convert string keys to EventType for target_topics if provided
+        target_topics = None
+        if req.target_topics:
+            from app.domain.enums.events import EventType
+
+            target_topics = {EventType(k): v for k, v in req.target_topics.items()}
+
         return ReplayConfig(
             replay_type=req.replay_type,
             target=req.target,
@@ -108,6 +117,10 @@ class ReplayApiMapper:
             max_events=req.max_events,
             skip_errors=req.skip_errors,
             target_file_path=req.target_file_path,
+            target_topics=target_topics,
+            retry_failed=req.retry_failed,
+            retry_attempts=req.retry_attempts,
+            enable_progress_tracking=req.enable_progress_tracking,
         )
 
     @staticmethod

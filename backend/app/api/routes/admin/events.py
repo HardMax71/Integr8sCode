@@ -15,8 +15,6 @@ from app.infrastructure.mappers import (
     EventDetailMapper,
     EventFilterMapper,
     EventMapper,
-    EventStatisticsMapper,
-    ReplaySessionMapper,
 )
 from app.schemas_pydantic.admin_events import (
     EventBrowseRequest,
@@ -69,8 +67,7 @@ async def get_event_stats(
 ) -> EventStatsResponse:
     try:
         stats = await service.get_event_stats(hours=hours)
-        stats_mapper = EventStatisticsMapper()
-        return EventStatsResponse(**stats_mapper.to_dict(stats))
+        return EventStatsResponse.model_validate(stats)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -209,8 +206,7 @@ async def get_replay_status(session_id: str, service: FromDishka[AdminEventsServ
         if not status:
             raise HTTPException(status_code=404, detail="Replay session not found")
 
-        replay_mapper = ReplaySessionMapper()
-        return EventReplayStatusResponse(**replay_mapper.status_detail_to_dict(status))
+        return EventReplayStatusResponse.model_validate(status)
 
     except HTTPException:
         raise

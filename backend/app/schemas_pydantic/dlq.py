@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from app.dlq import DLQMessageStatus, RetryStrategy
 from app.domain.enums.events import EventType
@@ -9,6 +9,8 @@ from app.domain.enums.events import EventType
 
 class DLQStats(BaseModel):
     """Statistics for the Dead Letter Queue."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     by_status: dict[str, int]
     by_topic: list[dict[str, Any]]
@@ -20,6 +22,8 @@ class DLQStats(BaseModel):
 class DLQMessageResponse(BaseModel):
     """Response model for a DLQ message."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     event_id: str
     event_type: EventType
     original_topic: str
@@ -28,7 +32,11 @@ class DLQMessageResponse(BaseModel):
     failed_at: datetime
     status: DLQMessageStatus
     age_seconds: float
-    details: dict[str, Any]
+    producer_id: str
+    dlq_offset: int | None = None
+    dlq_partition: int | None = None
+    last_error: str | None = None
+    next_retry_at: datetime | None = None
 
 
 class RetryPolicyRequest(BaseModel):
@@ -51,6 +59,8 @@ class ManualRetryRequest(BaseModel):
 class DLQMessagesResponse(BaseModel):
     """Response model for listing DLQ messages."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     messages: list[DLQMessageResponse]
     total: int
     offset: int
@@ -60,6 +70,8 @@ class DLQMessagesResponse(BaseModel):
 class DLQBatchRetryResponse(BaseModel):
     """Response model for batch retry operation."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     total: int
     successful: int
     failed: int
@@ -68,6 +80,8 @@ class DLQBatchRetryResponse(BaseModel):
 
 class DLQTopicSummaryResponse(BaseModel):
     """Response model for topic summary."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     topic: str
     total_messages: int
@@ -80,6 +94,8 @@ class DLQTopicSummaryResponse(BaseModel):
 
 class DLQMessageDetail(BaseModel):
     """Detailed DLQ message response."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     event_id: str
     event: dict[str, Any]  # BaseEvent as dict

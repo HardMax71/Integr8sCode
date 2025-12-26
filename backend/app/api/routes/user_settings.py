@@ -5,12 +5,17 @@ from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends
 
 from app.api.dependencies import current_user
-from app.infrastructure.mappers import UserSettingsApiMapper
+from app.domain.user.settings_models import (
+    DomainEditorSettings,
+    DomainNotificationSettings,
+    DomainUserSettingsUpdate,
+)
 from app.schemas_pydantic.user import UserResponse
 from app.schemas_pydantic.user_settings import (
     EditorSettings,
     NotificationSettings,
     RestoreSettingsRequest,
+    SettingsHistoryEntry,
     SettingsHistoryResponse,
     ThemeUpdateRequest,
     UserSettings,
@@ -27,7 +32,7 @@ async def get_user_settings(
     settings_service: FromDishka[UserSettingsService],
 ) -> UserSettings:
     domain = await settings_service.get_user_settings(current_user.user_id)
-    return UserSettingsApiMapper.to_api_settings(domain)
+    return UserSettings.model_validate(domain)
 
 
 @router.put("/", response_model=UserSettings)
@@ -36,9 +41,17 @@ async def update_user_settings(
     updates: UserSettingsUpdate,
     settings_service: FromDishka[UserSettingsService],
 ) -> UserSettings:
-    domain_updates = UserSettingsApiMapper.to_domain_update(updates)
+    domain_updates = DomainUserSettingsUpdate(
+        theme=updates.theme,
+        timezone=updates.timezone,
+        date_format=updates.date_format,
+        time_format=updates.time_format,
+        notifications=DomainNotificationSettings(**updates.notifications.model_dump()) if updates.notifications else None,
+        editor=DomainEditorSettings(**updates.editor.model_dump()) if updates.editor else None,
+        custom_settings=updates.custom_settings,
+    )
     domain = await settings_service.update_user_settings(current_user.user_id, domain_updates)
-    return UserSettingsApiMapper.to_api_settings(domain)
+    return UserSettings.model_validate(domain)
 
 
 @router.put("/theme", response_model=UserSettings)
@@ -48,7 +61,7 @@ async def update_theme(
     settings_service: FromDishka[UserSettingsService],
 ) -> UserSettings:
     domain = await settings_service.update_theme(current_user.user_id, update_request.theme)
-    return UserSettingsApiMapper.to_api_settings(domain)
+    return UserSettings.model_validate(domain)
 
 
 @router.put("/notifications", response_model=UserSettings)
@@ -59,9 +72,9 @@ async def update_notification_settings(
 ) -> UserSettings:
     domain = await settings_service.update_notification_settings(
         current_user.user_id,
-        UserSettingsApiMapper._to_domain_notifications(notifications),
+        DomainNotificationSettings(**notifications.model_dump()),
     )
-    return UserSettingsApiMapper.to_api_settings(domain)
+    return UserSettings.model_validate(domain)
 
 
 @router.put("/editor", response_model=UserSettings)
@@ -72,9 +85,9 @@ async def update_editor_settings(
 ) -> UserSettings:
     domain = await settings_service.update_editor_settings(
         current_user.user_id,
-        UserSettingsApiMapper._to_domain_editor(editor),
+        DomainEditorSettings(**editor.model_dump()),
     )
-    return UserSettingsApiMapper.to_api_settings(domain)
+    return UserSettings.model_validate(domain)
 
 
 @router.get("/history", response_model=SettingsHistoryResponse)
@@ -84,7 +97,8 @@ async def get_settings_history(
     limit: int = 50,
 ) -> SettingsHistoryResponse:
     history = await settings_service.get_settings_history(current_user.user_id, limit=limit)
-    return UserSettingsApiMapper.history_to_api(history)
+    entries = [SettingsHistoryEntry.model_validate(entry) for entry in history]
+    return SettingsHistoryResponse(history=entries, total=len(entries))
 
 
 @router.post("/restore", response_model=UserSettings)
@@ -94,7 +108,7 @@ async def restore_settings(
     settings_service: FromDishka[UserSettingsService],
 ) -> UserSettings:
     domain = await settings_service.restore_settings_to_point(current_user.user_id, restore_request.timestamp)
-    return UserSettingsApiMapper.to_api_settings(domain)
+    return UserSettings.model_validate(domain)
 
 
 @router.put("/custom/{key}")
@@ -105,4 +119,4 @@ async def update_custom_setting(
     settings_service: FromDishka[UserSettingsService],
 ) -> UserSettings:
     domain = await settings_service.update_custom_setting(current_user.user_id, key, value)
-    return UserSettingsApiMapper.to_api_settings(domain)
+    return UserSettings.model_validate(domain)

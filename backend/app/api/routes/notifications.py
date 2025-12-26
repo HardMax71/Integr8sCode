@@ -3,10 +3,10 @@ from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Query, Request, Response
 
 from app.domain.enums.notification import NotificationChannel, NotificationStatus
-from app.infrastructure.mappers import NotificationApiMapper
 from app.schemas_pydantic.notification import (
     DeleteNotificationResponse,
     NotificationListResponse,
+    NotificationResponse,
     NotificationSubscription,
     SubscriptionsResponse,
     SubscriptionUpdate,
@@ -40,7 +40,11 @@ async def get_notifications(
         exclude_tags=exclude_tags,
         tag_prefix=tag_prefix,
     )
-    return NotificationApiMapper.list_result_to_response(result)
+    return NotificationListResponse(
+        notifications=[NotificationResponse.model_validate(n) for n in result.notifications],
+        total=result.total,
+        unread_count=result.unread_count,
+    )
 
 
 @router.put("/{notification_id}/read", status_code=204)
@@ -72,7 +76,9 @@ async def get_subscriptions(
 ) -> SubscriptionsResponse:
     current_user = await auth_service.get_current_user(request)
     subscriptions_dict = await notification_service.get_subscriptions(current_user.user_id)
-    return NotificationApiMapper.subscriptions_dict_to_response(subscriptions_dict)
+    return SubscriptionsResponse(
+        subscriptions=[NotificationSubscription.model_validate(s) for s in subscriptions_dict.values()]
+    )
 
 
 @router.put("/subscriptions/{channel}", response_model=NotificationSubscription)
@@ -94,7 +100,7 @@ async def update_subscription(
         include_tags=subscription.include_tags,
         exclude_tags=subscription.exclude_tags,
     )
-    return NotificationApiMapper.subscription_to_pydantic(updated_sub)
+    return NotificationSubscription.model_validate(updated_sub)
 
 
 @router.get("/unread-count", response_model=UnreadCountResponse)

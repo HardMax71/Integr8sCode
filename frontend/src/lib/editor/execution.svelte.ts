@@ -9,7 +9,7 @@ import { getErrorMessage } from '$lib/api-interceptors';
 export type ExecutionPhase = 'idle' | 'starting' | 'queued' | 'scheduled' | 'running';
 
 // Failure event types that should trigger fallback fetch
-const FAILURE_EVENTS: EventType[] = ['execution_failed', 'execution_timeout', 'result_failed'];
+const FAILURE_EVENTS = new Set<EventType>(['execution_failed', 'execution_timeout', 'result_failed']);
 
 export function createExecutionState() {
     let phase = $state<ExecutionPhase>('idle');
@@ -70,7 +70,7 @@ export function createExecutionState() {
                             return;
                         }
 
-                        if (FAILURE_EVENTS.includes(eventType as EventType)) {
+                        if (FAILURE_EVENTS.has(eventType)) {
                             eventSource.close();
                             await fetchFallback();
                         }

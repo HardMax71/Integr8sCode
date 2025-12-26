@@ -27,8 +27,8 @@ describe('rateLimits', () => {
     it.each([
       ['execution', GROUP_COLORS.execution],
       ['admin', GROUP_COLORS.admin],
-      ['unknown', GROUP_COLORS.api],
-    ])('returns correct color for %s', (group, expected) => {
+      ['api', GROUP_COLORS.api],
+    ] as const)('returns correct color for %s', (group, expected) => {
       expect(getGroupColor(group)).toBe(expected);
     });
   });
@@ -84,15 +84,15 @@ describe('rateLimits', () => {
 
   describe('getDefaultRulesWithMultiplier', () => {
     it('returns rules with effective_requests', () => {
-      getDefaultRulesWithMultiplier(1.0).forEach(rule => {
+      getDefaultRulesWithMultiplier(1).forEach(rule => {
         expect(rule).toHaveProperty('effective_requests');
       });
     });
 
     it.each([
-      [2.0, 20, 120],
+      [2, 20, 120],
       [0.5, 5, 30],
-      [1.0, 10, 60],
+      [1, 10, 60],
       [1.5, 15, 90],
       [1.3, 13, 78],
     ])('with multiplier %d: execution=%d, api=%d', (multiplier, execExpected, apiExpected) => {
@@ -101,7 +101,7 @@ describe('rateLimits', () => {
       expect(findRuleByGroup(rules, 'api')?.effective_requests).toBe(apiExpected);
     });
 
-    it('handles non-positive multipliers as 1.0', () => {
+    it('handles non-positive multipliers as 1', () => {
       [undefined, 0, -1, -0.5].forEach(mult => {
         const rules = getDefaultRulesWithMultiplier(mult);
         expect(findRuleByGroup(rules, 'execution')?.effective_requests).toBe(10);

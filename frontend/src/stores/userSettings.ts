@@ -1,4 +1,4 @@
-import { writable, derived, get } from 'svelte/store';
+import { writable, derived } from 'svelte/store';
 import type { UserSettings, EditorSettings } from '$lib/api';
 
 const DEFAULT_EDITOR_SETTINGS: EditorSettings = {

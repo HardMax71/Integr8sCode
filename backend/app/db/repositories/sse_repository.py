@@ -15,9 +15,7 @@ class SSERepository:
         self.mapper = SSEMapper()
 
     async def get_execution_status(self, execution_id: str) -> SSEExecutionStatusDomain | None:
-        doc = await self.executions_collection.find_one(
-            {"execution_id": execution_id}, {"status": 1, "_id": 0}
-        )
+        doc = await self.executions_collection.find_one({"execution_id": execution_id}, {"status": 1, "_id": 0})
         if not doc:
             return None
         return SSEExecutionStatusDomain(

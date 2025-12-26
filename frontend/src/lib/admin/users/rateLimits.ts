@@ -4,7 +4,7 @@
 import type { RateLimitRule, EndpointGroup } from '$lib/api';
 
 // Group colors for rate limit endpoint groups
-export const GROUP_COLORS: Record<string, string> = {
+export const GROUP_COLORS: Record<EndpointGroup, string> = {
     execution: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
     admin: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
     sse: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
@@ -14,12 +14,12 @@ export const GROUP_COLORS: Record<string, string> = {
     public: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200'
 };
 
-export function getGroupColor(group: EndpointGroup | string): string {
-    return GROUP_COLORS[group] || GROUP_COLORS.api;
+export function getGroupColor(group: EndpointGroup): string {
+    return GROUP_COLORS[group];
 }
 
 // Patterns to detect endpoint groups from URL patterns
-export const ENDPOINT_GROUP_PATTERNS: Array<{ pattern: RegExp; group: string }> = [
+export const ENDPOINT_GROUP_PATTERNS: Array<{ pattern: RegExp; group: EndpointGroup }> = [
     { pattern: /\/execute/i, group: 'execution' },
     { pattern: /\/admin\//i, group: 'admin' },
     { pattern: /\/events\//i, group: 'sse' },
@@ -28,8 +28,8 @@ export const ENDPOINT_GROUP_PATTERNS: Array<{ pattern: RegExp; group: string }> 
     { pattern: /\/health/i, group: 'public' }
 ];
 
-export function detectGroupFromEndpoint(endpoint: string): string {
-    const cleanEndpoint = endpoint.replace(/^\^?/, '').replace(/\$?/, '').replace(/\.\*/g, '');
+export function detectGroupFromEndpoint(endpoint: string): EndpointGroup {
+    const cleanEndpoint = endpoint.replaceAll(/^\^?/g, '').replaceAll(/\$?/g, '').replaceAll(/\.\*/g, '');
     for (const { pattern, group } of ENDPOINT_GROUP_PATTERNS) {
         if (pattern.test(cleanEndpoint)) return group;
     }
@@ -52,10 +52,10 @@ export function getDefaultRules(): DefaultRateLimitRule[] {
     ];
 }
 
-export function getDefaultRulesWithMultiplier(multiplier: number = 1.0): DefaultRateLimitRule[] {
+export function getDefaultRulesWithMultiplier(multiplier: number = 1): DefaultRateLimitRule[] {
     const rules = getDefaultRules();
-    // Only positive multipliers are valid; 0 and negative values fall back to 1.0
-    const effectiveMultiplier = multiplier > 0 ? multiplier : 1.0;
+    // Only positive multipliers are valid; 0 and negative values fall back to 1
+    const effectiveMultiplier = multiplier > 0 ? multiplier : 1;
     return rules.map(rule => ({
         ...rule,
         effective_requests: Math.floor(rule.requests * effectiveMultiplier)

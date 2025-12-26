@@ -6,9 +6,9 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.domain.enums.storage import ExecutionErrorType
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
+from app.domain.enums.storage import ExecutionErrorType
 from app.settings import get_settings
 
 
@@ -80,8 +80,9 @@ class ExecutionRequest(BaseModel):
         if not (lang_info := runtimes.get(self.lang)):
             raise ValueError(f"Language '{self.lang}' not supported. Supported: {list(runtimes.keys())}")
         if self.lang_version not in lang_info.versions:
-            raise ValueError(f"Version '{self.lang_version}' not supported for {self.lang}. "
-                             f"Supported: {lang_info.versions}")
+            raise ValueError(
+                f"Version '{self.lang_version}' not supported for {self.lang}. Supported: {lang_info.versions}"
+            )
         return self
 
 

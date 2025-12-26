@@ -6,7 +6,8 @@ from uuid import uuid4
 import pytest
 from httpx import AsyncClient
 
-from app.schemas_pydantic.sse import SSEHealthResponse
+from app.domain.enums.notification import NotificationSeverity, NotificationStatus
+from app.schemas_pydantic.sse import RedisNotificationMessage, SSEHealthResponse
 from app.infrastructure.kafka.events.pod import PodCreatedEvent
 from app.infrastructure.kafka.events.metadata import EventMetadata
 from app.services.sse.redis_bus import SSERedisBus
@@ -73,7 +74,17 @@ class TestSSERoutes:
         await eventually(_connected, timeout=2.0, interval=0.05)
         
         # Publish a notification
-        await bus.publish_notification(user_id, {"subject": "Hello", "body": "World", "event_type": "notification"})
+        notification = RedisNotificationMessage(
+            notification_id=f"notif-{uuid4().hex[:8]}",
+            severity=NotificationSeverity.MEDIUM,
+            status=NotificationStatus.PENDING,
+            tags=[],
+            subject="Hello",
+            body="World",
+            action_url="",
+            created_at="2024-01-01T00:00:00Z",
+        )
+        await bus.publish_notification(user_id, notification)
         
         # Wait for collection to complete
         try:

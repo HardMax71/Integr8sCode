@@ -51,24 +51,28 @@ class SSEService:
 
         shutdown_event = await self.shutdown_manager.register_connection(execution_id, connection_id)
         if shutdown_event is None:
-            yield self._format_sse_event(SSEExecutionEventData(
-                event_type="error",
-                execution_id=execution_id,
-                timestamp=datetime.now(timezone.utc).isoformat(),
-                error="Server is shutting down",
-            ))
+            yield self._format_sse_event(
+                SSEExecutionEventData(
+                    event_type="error",
+                    execution_id=execution_id,
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    error="Server is shutting down",
+                )
+            )
             return
 
         subscription = None
         try:
             # Start opening subscription concurrently, then yield handshake
             sub_task = asyncio.create_task(self.sse_bus.open_subscription(execution_id))
-            yield self._format_sse_event(SSEExecutionEventData(
-                event_type="connected",
-                execution_id=execution_id,
-                timestamp=datetime.now(timezone.utc).isoformat(),
-                connection_id=connection_id,
-            ))
+            yield self._format_sse_event(
+                SSEExecutionEventData(
+                    event_type="connected",
+                    execution_id=execution_id,
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    connection_id=connection_id,
+                )
+            )
 
             # Complete Redis subscription after handshake
             logger.info(f"Opening Redis subscription for execution {execution_id}")
@@ -77,12 +81,14 @@ class SSEService:
 
             initial_status = await self.repository.get_execution_status(execution_id)
             if initial_status:
-                yield self._format_sse_event(SSEExecutionEventData(
-                    event_type="status",
-                    execution_id=initial_status.execution_id,
-                    timestamp=initial_status.timestamp,
-                    status=initial_status.status,
-                ))
+                yield self._format_sse_event(
+                    SSEExecutionEventData(
+                        event_type="status",
+                        execution_id=initial_status.execution_id,
+                        timestamp=initial_status.timestamp,
+                        status=initial_status.status,
+                    )
+                )
                 self.metrics.record_sse_message_sent("executions", "status")
 
             async for event_data in self._stream_events_redis(
@@ -109,26 +115,30 @@ class SSEService:
         last_heartbeat = datetime.now(timezone.utc)
         while True:
             if shutdown_event.is_set():
-                yield self._format_sse_event(SSEExecutionEventData(
-                    event_type="shutdown",
-                    execution_id=execution_id,
-                    timestamp=datetime.now(timezone.utc).isoformat(),
-                    message="Server is shutting down",
-                    grace_period=30,
-                ))
+                yield self._format_sse_event(
+                    SSEExecutionEventData(
+                        event_type="shutdown",
+                        execution_id=execution_id,
+                        timestamp=datetime.now(timezone.utc).isoformat(),
+                        message="Server is shutting down",
+                        grace_period=30,
+                    )
+                )
                 break
 
             now = datetime.now(timezone.utc)
             if include_heartbeat and (now - last_heartbeat).total_seconds() >= self.heartbeat_interval:
-                yield self._format_sse_event(SSEExecutionEventData(
-                    event_type="heartbeat",
-                    execution_id=execution_id,
-                    timestamp=now.isoformat(),
-                    message="SSE connection active",
-                ))
+                yield self._format_sse_event(
+                    SSEExecutionEventData(
+                        event_type="heartbeat",
+                        execution_id=execution_id,
+                        timestamp=now.isoformat(),
+                        message="SSE connection active",
+                    )
+                )
                 last_heartbeat = now
 
-            msg: RedisSSEMessage | None = await subscription.get(RedisSSEMessage, timeout=0.5)
+            msg: RedisSSEMessage | None = await subscription.get(RedisSSEMessage)
             if not msg:
                 continue
 
@@ -145,9 +155,7 @@ class SSEService:
                 # Ignore malformed messages
                 continue
 
-    async def _build_sse_event_from_redis(
-        self, execution_id: str, msg: RedisSSEMessage
-    ) -> SSEExecutionEventData:
+    async def _build_sse_event_from_redis(self, execution_id: str, msg: RedisSSEMessage) -> SSEExecutionEventData:
         """Build typed SSE event from Redis message."""
         result: ExecutionResult | None = None
         if msg.event_type == EventType.RESULT_STORED:
@@ -155,13 +163,15 @@ class SSEService:
             if exec_domain:
                 result = ExecutionResult.model_validate(exec_domain)
 
-        return SSEExecutionEventData.model_validate({
-            **msg.data,
-            "event_type": msg.event_type,
-            "execution_id": execution_id,
-            "type": msg.event_type,
-            "result": result,
-        })
+        return SSEExecutionEventData.model_validate(
+            {
+                **msg.data,
+                "event_type": msg.event_type,
+                "execution_id": execution_id,
+                "type": msg.event_type,
+                "result": result,
+            }
+        )
 
     async def create_notification_stream(self, user_id: str) -> AsyncGenerator[Dict[str, Any], None]:
         subscription = None
@@ -169,12 +179,14 @@ class SSEService:
         try:
             # Start opening subscription concurrently, then yield handshake
             sub_task = asyncio.create_task(self.sse_bus.open_notification_subscription(user_id))
-            yield self._format_notification_event(SSENotificationEventData(
-                event_type="connected",
-                user_id=user_id,
-                timestamp=datetime.now(timezone.utc).isoformat(),
-                message="Connected to notification stream",
-            ))
+            yield self._format_notification_event(
+                SSENotificationEventData(
+                    event_type="connected",
+                    user_id=user_id,
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    message="Connected to notification stream",
+                )
+            )
 
             # Complete Redis subscription after handshake
             subscription = await sub_task
@@ -184,28 +196,32 @@ class SSEService:
                 # Heartbeat
                 now = datetime.now(timezone.utc)
                 if (now - last_heartbeat).total_seconds() >= self.heartbeat_interval:
-                    yield self._format_notification_event(SSENotificationEventData(
-                        event_type="heartbeat",
-                        user_id=user_id,
-                        timestamp=now.isoformat(),
-                        message="Notification stream active",
-                    ))
+                    yield self._format_notification_event(
+                        SSENotificationEventData(
+                            event_type="heartbeat",
+                            user_id=user_id,
+                            timestamp=now.isoformat(),
+                            message="Notification stream active",
+                        )
+                    )
                     last_heartbeat = now
 
                 # Forward notification messages as SSE data
-                redis_msg = await subscription.get(RedisNotificationMessage, timeout=0.5)
+                redis_msg = await subscription.get(RedisNotificationMessage)
                 if redis_msg:
-                    yield self._format_notification_event(SSENotificationEventData(
-                        event_type="notification",
-                        notification_id=redis_msg.notification_id,
-                        severity=redis_msg.severity,
-                        status=redis_msg.status,
-                        tags=redis_msg.tags,
-                        subject=redis_msg.subject,
-                        body=redis_msg.body,
-                        action_url=redis_msg.action_url,
-                        created_at=redis_msg.created_at,
-                    ))
+                    yield self._format_notification_event(
+                        SSENotificationEventData(
+                            event_type="notification",
+                            notification_id=redis_msg.notification_id,
+                            severity=redis_msg.severity,
+                            status=redis_msg.status,
+                            tags=redis_msg.tags,
+                            subject=redis_msg.subject,
+                            body=redis_msg.body,
+                            action_url=redis_msg.action_url,
+                            created_at=redis_msg.created_at,
+                        )
+                    )
         finally:
             try:
                 if subscription is not None:

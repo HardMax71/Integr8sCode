@@ -11,7 +11,7 @@ export interface SagaStateConfig {
     icon: typeof CheckCircle;
 }
 
-export const SAGA_STATES: Record<SagaState | string, SagaStateConfig> = {
+export const SAGA_STATES: Record<SagaState, SagaStateConfig> = {
     created: {
         label: 'Created',
         color: 'badge-neutral',
@@ -47,6 +47,12 @@ export const SAGA_STATES: Record<SagaState | string, SagaStateConfig> = {
         color: 'badge-warning',
         bgColor: 'bg-orange-50 dark:bg-orange-900/20',
         icon: Clock
+    },
+    cancelled: {
+        label: 'Cancelled',
+        color: 'badge-neutral',
+        bgColor: 'bg-neutral-50 dark:bg-neutral-900/20',
+        icon: XCircle
     }
 };
 

@@ -34,9 +34,9 @@ from app.infrastructure.kafka.events.execution import (
     ExecutionTimeoutEvent,
 )
 from app.infrastructure.kafka.mappings import get_topic_for_event
+from app.schemas_pydantic.sse import RedisNotificationMessage
 from app.services.event_bus import EventBusManager
 from app.services.kafka_event_service import KafkaEventService
-from app.schemas_pydantic.sse import RedisNotificationMessage
 from app.services.sse.redis_bus import SSERedisBus
 from app.settings import Settings, get_settings
 

@@ -8,6 +8,13 @@ import { getErrorMessage } from '$lib/api-interceptors';
 
 export type ExecutionPhase = 'idle' | 'starting' | 'queued' | 'scheduled' | 'running';
 
+// Valid phases that can come from backend status updates
+const VALID_BACKEND_PHASES = new Set<string>(['queued', 'scheduled', 'running']);
+
+function toExecutionPhase(status: string | undefined, fallback: ExecutionPhase): ExecutionPhase {
+    return status && VALID_BACKEND_PHASES.has(status) ? status as ExecutionPhase : fallback;
+}
+
 // Failure event types that should trigger fallback fetch
 const FAILURE_EVENTS = new Set<EventType>(['execution_failed', 'execution_timeout', 'result_failed']);
 
@@ -34,7 +41,7 @@ export function createExecutionState() {
             if (execError) throw execError;
 
             executionId = data.execution_id;
-            phase = (data.status as ExecutionPhase) || 'queued';
+            phase = toExecutionPhase(data.status, 'queued');
 
             const finalResult = await new Promise<ExecutionResult>((resolve, reject) => {
                 const eventSource = new EventSource(`/api/v1/events/executions/${executionId}`, {
@@ -61,7 +68,7 @@ export function createExecutionState() {
                         if (eventType === 'heartbeat' || eventType === 'connected') return;
 
                         if (eventData.status) {
-                            phase = eventData.status as ExecutionPhase;
+                            phase = toExecutionPhase(eventData.status, phase);
                         }
 
                         if (eventType === 'result_stored' && eventData.result) {

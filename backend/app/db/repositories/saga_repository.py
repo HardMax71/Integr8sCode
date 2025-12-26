@@ -55,8 +55,8 @@ class SagaRepository:
         docs = await cursor.to_list(length=None)
         return [self.mapper.from_mongo(doc) for doc in docs]
 
-    async def list_sagas(self, filter: SagaFilter, limit: int = 100, skip: int = 0) -> SagaListResult:
-        query = self.filter_mapper.to_mongodb_query(filter)
+    async def list_sagas(self, saga_filter: SagaFilter, limit: int = 100, skip: int = 0) -> SagaListResult:
+        query = self.filter_mapper.to_mongodb_query(saga_filter)
 
         # Get total count
         total = await self.sagas.count_documents(query)
@@ -108,8 +108,8 @@ class SagaRepository:
         docs = await cursor.to_list(length=limit)
         return [self.mapper.from_mongo(doc) for doc in docs]
 
-    async def get_saga_statistics(self, filter: SagaFilter | None = None) -> dict[str, object]:
-        query = self.filter_mapper.to_mongodb_query(filter) if filter else {}
+    async def get_saga_statistics(self, saga_filter: SagaFilter | None = None) -> dict[str, object]:
+        query = self.filter_mapper.to_mongodb_query(saga_filter) if saga_filter else {}
 
         # Basic counts
         total = await self.sagas.count_documents(query)

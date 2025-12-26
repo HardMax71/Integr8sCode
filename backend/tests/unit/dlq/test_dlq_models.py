@@ -1,19 +1,18 @@
-from datetime import datetime, timezone
 import json
-
-import pytest
+from datetime import datetime, timezone
 
 from app.dlq import (
     AgeStatistics,
     DLQFields,
     DLQMessageFilter,
     DLQMessageStatus,
+    DLQStatistics,
     EventTypeStatistic,
     RetryPolicy,
     RetryStrategy,
     TopicStatistic,
-    DLQStatistics,
 )
+from app.domain.enums.events import EventType
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.events.metadata import EventMetadata
 from app.infrastructure.kafka.events.user import UserLoggedInEvent
@@ -22,6 +21,7 @@ from app.infrastructure.mappers.dlq_mapper import DLQMapper
 
 def _make_event() -> UserLoggedInEvent:
     from app.domain.enums.auth import LoginMethod
+
     return UserLoggedInEvent(
         user_id="u1",
         login_method=LoginMethod.PASSWORD,
@@ -95,10 +95,11 @@ def test_retry_policy_bounds() -> None:
 
 
 def test_filter_and_stats_models() -> None:
-    f = DLQMessageFilter(status=DLQMessageStatus.PENDING, topic="t", event_type="X")
+    f = DLQMessageFilter(status=DLQMessageStatus.PENDING, topic="t", event_type=EventType.EXECUTION_REQUESTED)
     q = DLQMapper.filter_to_query(f)
     assert q[DLQFields.STATUS] == DLQMessageStatus.PENDING
     assert q[DLQFields.ORIGINAL_TOPIC] == "t"
+    assert q[DLQFields.EVENT_TYPE] == EventType.EXECUTION_REQUESTED
 
     ts = TopicStatistic(topic="t", count=2, avg_retry_count=1.5)
     es = EventTypeStatistic(event_type="X", count=3)
@@ -106,4 +107,3 @@ def test_filter_and_stats_models() -> None:
     stats = DLQStatistics(by_status={"pending": 1}, by_topic=[ts], by_event_type=[es], age_stats=ages)
     assert stats.by_status["pending"] == 1
     assert isinstance(stats.timestamp, datetime)
-

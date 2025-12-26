@@ -214,31 +214,34 @@ class SagaEventMapper:
 class SagaFilterMapper:
     """Maps saga filters to MongoDB queries."""
 
-    def to_mongodb_query(self, filter: SagaFilter) -> dict[str, Any]:
+    def to_mongodb_query(self, saga_filter: SagaFilter | None) -> dict[str, Any]:
         """Convert filter to MongoDB query."""
         query: dict[str, Any] = {}
 
-        if filter.state:
-            query["state"] = filter.state.value
+        if not saga_filter:
+            return query
 
-        if filter.execution_ids:
-            query["execution_id"] = {"$in": filter.execution_ids}
+        if saga_filter.state:
+            query["state"] = saga_filter.state.value
 
-        if filter.saga_name:
-            query["saga_name"] = filter.saga_name
+        if saga_filter.execution_ids:
+            query["execution_id"] = {"$in": saga_filter.execution_ids}
 
-        if filter.error_status is not None:
-            if filter.error_status:
+        if saga_filter.saga_name:
+            query["saga_name"] = saga_filter.saga_name
+
+        if saga_filter.error_status is not None:
+            if saga_filter.error_status:
                 query["error_message"] = {"$ne": None}
             else:
                 query["error_message"] = None
 
-        if filter.created_after or filter.created_before:
+        if saga_filter.created_after or saga_filter.created_before:
             time_query: dict[str, Any] = {}
-            if filter.created_after:
-                time_query["$gte"] = filter.created_after
-            if filter.created_before:
-                time_query["$lte"] = filter.created_before
+            if saga_filter.created_after:
+                time_query["$gte"] = saga_filter.created_after
+            if saga_filter.created_before:
+                time_query["$lte"] = saga_filter.created_before
             query["created_at"] = time_query
 
         return query

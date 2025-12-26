@@ -181,15 +181,22 @@
         rateLimitUser = user;
         showRateLimitModal = true;
         loadingRateLimits = true;
-        const result = await getUserRateLimitsApiV1AdminUsersUserIdRateLimitsGet({
-            path: { user_id: user.user_id }
-        });
-        loadingRateLimits = false;
-        const response = unwrap(result);
-        rateLimitConfig = response?.rate_limit_config || {
-            user_id: user.user_id, rules: [], global_multiplier: 1.0, bypass_rate_limit: false, notes: ''
-        };
-        rateLimitUsage = response?.current_usage || {};
+        try {
+            const result = await getUserRateLimitsApiV1AdminUsersUserIdRateLimitsGet({
+                path: { user_id: user.user_id }
+            });
+            const response = unwrap(result);
+            rateLimitConfig = response?.rate_limit_config || {
+                user_id: user.user_id, rules: [], global_multiplier: 1.0, bypass_rate_limit: false, notes: ''
+            };
+            rateLimitUsage = response?.current_usage || {};
+        } catch {
+            showRateLimitModal = false;
+            rateLimitUser = null;
+            addToast('Failed to load rate limits', 'error');
+        } finally {
+            loadingRateLimits = false;
+        }
     }
 
     async function saveRateLimits(): Promise<void> {

@@ -89,16 +89,16 @@ class ReplayRepository:
         result = await self.replay_collection.update_one({"session_id": session_id}, {"$set": mongo_updates})
         return result.modified_count > 0
 
-    async def count_events(self, filter: ReplayFilter) -> int:
+    async def count_events(self, replay_filter: ReplayFilter) -> int:
         """Count events matching the given filter"""
-        query = filter.to_mongo_query()
+        query = replay_filter.to_mongo_query()
         return await self.events_collection.count_documents(query)
 
     async def fetch_events(
-        self, filter: ReplayFilter, batch_size: int = 100, skip: int = 0
+        self, replay_filter: ReplayFilter, batch_size: int = 100, skip: int = 0
     ) -> AsyncIterator[List[Dict[str, Any]]]:
         """Fetch events in batches based on filter"""
-        query = filter.to_mongo_query()
+        query = replay_filter.to_mongo_query()
         cursor = self.events_collection.find(query).sort("timestamp", 1).skip(skip)
 
         batch = []

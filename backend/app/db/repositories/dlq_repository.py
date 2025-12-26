@@ -112,10 +112,8 @@ class DLQRepository:
         limit: int = 50,
         offset: int = 0,
     ) -> DLQMessageListResult:
-        # Create filter
-        filter = DLQMessageFilter(status=status, topic=topic, event_type=event_type)
-
-        query = DLQMapper.filter_to_query(filter)
+        msg_filter = DLQMessageFilter(status=status, topic=topic, event_type=event_type)
+        query = DLQMapper.filter_to_query(msg_filter)
         total_count = await self.dlq_collection.count_documents(query)
 
         cursor = self.dlq_collection.find(query).sort(DLQFields.FAILED_AT, -1).skip(offset).limit(limit)

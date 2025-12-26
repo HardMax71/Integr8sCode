@@ -51,9 +51,9 @@ class AggregationStages:
         return {"$size": field}
 
     @staticmethod
-    def date_to_string(date_field: str, format: str = "%Y-%m-%d-%H") -> dict[str, Any]:
+    def date_to_string(date_field: str, date_format: str = "%Y-%m-%d-%H") -> dict[str, Any]:
         """Create a $dateToString expression."""
-        return {"$dateToString": {"format": format, "date": date_field}}
+        return {"$dateToString": {"format": date_format, "date": date_field}}
 
 
 class EventStatsAggregation:

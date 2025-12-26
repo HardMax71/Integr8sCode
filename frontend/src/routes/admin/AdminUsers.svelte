@@ -10,6 +10,7 @@
         resetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPost,
         type UserResponse,
         type UserRateLimit,
+        type UserRole,
     } from '$lib/api';
     import { unwrap, unwrapOr } from '$lib/api-interceptors';
     import { addToast } from '$stores/toastStore';
@@ -24,6 +25,18 @@
         DeleteUserModal,
         RateLimitsModal
     } from '$components/admin/users';
+
+    // Filter types - 'all' means no filter applied
+    type RoleFilter = 'all' | UserRole;
+    type StatusFilter = 'all' | 'active' | 'disabled';
+    type BooleanFilter = 'all' | 'yes' | 'no';
+    type MultiplierFilter = 'all' | 'custom' | 'default';
+
+    interface AdvancedFilters {
+        bypassRateLimit: BooleanFilter;
+        hasCustomLimits: BooleanFilter;
+        globalMultiplier: MultiplierFilter;
+    }
 
     // User list state
     let users = $state<UserResponse[]>([]);
@@ -55,13 +68,13 @@
 
     // Filters
     let searchQuery = $state('');
-    let roleFilter = $state('all');
-    let statusFilter = $state('all');
+    let roleFilter = $state<RoleFilter>('all');
+    let statusFilter = $state<StatusFilter>('all');
     let showAdvancedFilters = $state(false);
-    let advancedFilters = $state({
-        bypassRateLimit: 'all' as string,
-        hasCustomLimits: 'all' as string,
-        globalMultiplier: 'all' as string
+    let advancedFilters = $state<AdvancedFilters>({
+        bypassRateLimit: 'all',
+        hasCustomLimits: 'all',
+        globalMultiplier: 'all'
     });
 
     // Derived state
@@ -86,17 +99,11 @@
         users = data ? (Array.isArray(data) ? data : data?.users || []) : [];
     }
 
-    interface AdvancedFilters {
-        bypassRateLimit: string;
-        hasCustomLimits: string;
-        globalMultiplier: string;
-    }
-
     function filterUsers(
         userList: UserResponse[],
         search: string,
-        role: string,
-        status: string,
+        role: RoleFilter,
+        status: StatusFilter,
         advanced: AdvancedFilters
     ): UserResponse[] {
         let filtered = [...userList];

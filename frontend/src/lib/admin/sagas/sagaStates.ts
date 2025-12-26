@@ -63,9 +63,12 @@ const DEFAULT_STATE: SagaStateConfig = {
     icon: Plus
 };
 
-export function getSagaStateInfo(state: SagaState | string): SagaStateConfig {
+export function getSagaStateInfo(state: SagaState): SagaStateConfig {
     return SAGA_STATES[state] || { ...DEFAULT_STATE, label: state };
 }
+
+// Filter type for saga state filters - empty string means "all"
+export type SagaStateFilter = '' | SagaState;
 
 // Execution saga step definitions
 export interface SagaStep {

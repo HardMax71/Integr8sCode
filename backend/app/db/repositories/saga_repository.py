@@ -46,10 +46,10 @@ class SagaRepository:
         doc = await self.sagas.find_one({"saga_id": saga_id})
         return self.mapper.from_mongo(doc) if doc else None
 
-    async def get_sagas_by_execution(self, execution_id: str, state: str | None = None) -> list[Saga]:
+    async def get_sagas_by_execution(self, execution_id: str, state: SagaState | None = None) -> list[Saga]:
         query: dict[str, object] = {"execution_id": execution_id}
         if state:
-            query["state"] = state
+            query["state"] = state.value
 
         cursor = self.sagas.find(query).sort("created_at", DESCENDING)
         docs = await cursor.to_list(length=None)
@@ -69,8 +69,8 @@ class SagaRepository:
 
         return SagaListResult(sagas=sagas, total=total, skip=skip, limit=limit)
 
-    async def update_saga_state(self, saga_id: str, state: str, error_message: str | None = None) -> bool:
-        update_data = {"state": state, "updated_at": datetime.now(timezone.utc)}
+    async def update_saga_state(self, saga_id: str, state: SagaState, error_message: str | None = None) -> bool:
+        update_data: dict[str, object] = {"state": state.value, "updated_at": datetime.now(timezone.utc)}
 
         if error_message:
             update_data["error_message"] = error_message

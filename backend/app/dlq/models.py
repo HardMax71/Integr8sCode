@@ -115,7 +115,7 @@ class DLQMessageFilter:
 
     status: DLQMessageStatus | None = None
     topic: str | None = None
-    event_type: str | None = None
+    event_type: EventType | None = None
 
 
 @dataclass

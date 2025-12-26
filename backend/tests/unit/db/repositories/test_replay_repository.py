@@ -26,7 +26,7 @@ async def test_indexes_and_session_crud(repo: ReplayRepository) -> None:
     assert got and got.session_id == "s1"
     lst = await repo.list_sessions(limit=5)
     assert any(s.session_id == "s1" for s in lst)
-    assert await repo.update_session_status("s1", "running") is True
+    assert await repo.update_session_status("s1", ReplayStatus.RUNNING) is True
     session_update = ReplaySessionUpdate(status=ReplayStatus.COMPLETED)
     assert await repo.update_replay_session("s1", session_update) is True
 

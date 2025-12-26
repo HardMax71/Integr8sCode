@@ -1,10 +1,10 @@
 <script lang="ts">
     import { X } from '@lucide/svelte';
-    import { SAGA_STATES } from '$lib/admin/sagas';
+    import { SAGA_STATES, type SagaStateFilter } from '$lib/admin/sagas';
 
     interface Props {
         searchQuery: string;
-        stateFilter: string;
+        stateFilter: SagaStateFilter;
         executionIdFilter: string;
         onSearch: () => void;
         onClear: () => void;
@@ -12,7 +12,7 @@
 
     let {
         searchQuery = $bindable(''),
-        stateFilter = $bindable(''),
+        stateFilter = $bindable<SagaStateFilter>(''),
         executionIdFilter = $bindable(''),
         onSearch,
         onClear

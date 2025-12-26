@@ -1,16 +1,23 @@
 <script lang="ts">
     import { ChevronDown } from '@lucide/svelte';
+    import type { UserRole } from '$lib/api';
+
+    // Filter types - 'all' means no filter applied
+    type RoleFilter = 'all' | UserRole;
+    type StatusFilter = 'all' | 'active' | 'disabled';
+    type BooleanFilter = 'all' | 'yes' | 'no';
+    type MultiplierFilter = 'all' | 'custom' | 'default';
 
     interface AdvancedFilters {
-        bypassRateLimit: string;
-        hasCustomLimits: string;
-        globalMultiplier: string;
+        bypassRateLimit: BooleanFilter;
+        hasCustomLimits: BooleanFilter;
+        globalMultiplier: MultiplierFilter;
     }
 
     interface Props {
         searchQuery: string;
-        roleFilter: string;
-        statusFilter: string;
+        roleFilter: RoleFilter;
+        statusFilter: StatusFilter;
         advancedFilters: AdvancedFilters;
         showAdvancedFilters: boolean;
         hasFiltersActive: boolean;
@@ -19,9 +26,9 @@
 
     let {
         searchQuery = $bindable(''),
-        roleFilter = $bindable('all'),
-        statusFilter = $bindable('all'),
-        advancedFilters = $bindable({ bypassRateLimit: 'all', hasCustomLimits: 'all', globalMultiplier: 'all' }),
+        roleFilter = $bindable<RoleFilter>('all'),
+        statusFilter = $bindable<StatusFilter>('all'),
+        advancedFilters = $bindable<AdvancedFilters>({ bypassRateLimit: 'all', hasCustomLimits: 'all', globalMultiplier: 'all' }),
         showAdvancedFilters = $bindable(false),
         hasFiltersActive,
         onReset
@@ -50,6 +57,7 @@
                 <select id="role-filter" bind:value={roleFilter} class="form-select-standard w-full">
                     <option value="all">All Roles</option>
                     <option value="user">User</option>
+                    <option value="moderator">Moderator</option>
                     <option value="admin">Admin</option>
                 </select>
             </div>

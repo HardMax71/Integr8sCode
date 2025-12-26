@@ -16,6 +16,7 @@
         SagasTable,
         SagaDetailsModal
     } from '$components/admin/sagas';
+    import { type SagaStateFilter } from '$lib/admin/sagas';
 
     // State
     let loading = $state(true);
@@ -29,7 +30,7 @@
     let refreshRate = $state(5);
 
     // Filters
-    let stateFilter = $state('');
+    let stateFilter = $state<SagaStateFilter>('');
     let executionIdFilter = $state('');
     let searchQuery = $state('');
 

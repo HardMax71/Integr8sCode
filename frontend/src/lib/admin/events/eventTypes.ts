@@ -21,7 +21,7 @@ export const EVENT_TYPES: EventType[] = [
 ];
 
 // Event type color mapping
-export function getEventTypeColor(eventType: string): string {
+export function getEventTypeColor(eventType: EventType): string {
     if (eventType.includes('_completed') || eventType.includes('_succeeded')) {
         return 'text-green-600 dark:text-green-400';
     }
@@ -44,7 +44,7 @@ export function getEventTypeColor(eventType: string): string {
 }
 
 // Get display label for event type
-export function getEventTypeLabel(eventType: string): string {
+export function getEventTypeLabel(eventType: EventType): string {
     // For execution_requested, show icon only (with tooltip)
     if (eventType === 'execution_requested') {
         return '';

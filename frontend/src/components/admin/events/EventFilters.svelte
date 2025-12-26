@@ -1,5 +1,4 @@
 <script lang="ts">
-    import { X } from '@lucide/svelte';
     import { EVENT_TYPES, type EventFilters as EventFiltersType } from '../../../lib/admin/events';
 
     interface Props {

@@ -54,7 +54,8 @@ export function getDefaultRules(): DefaultRateLimitRule[] {
 
 export function getDefaultRulesWithMultiplier(multiplier: number = 1.0): DefaultRateLimitRule[] {
     const rules = getDefaultRules();
-    const effectiveMultiplier = multiplier || 1.0;
+    // Only positive multipliers are valid; 0 and negative values fall back to 1.0
+    const effectiveMultiplier = multiplier > 0 ? multiplier : 1.0;
     return rules.map(rule => ({
         ...rule,
         effective_requests: Math.floor(rule.requests * effectiveMultiplier)

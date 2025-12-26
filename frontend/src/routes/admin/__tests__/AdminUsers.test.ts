@@ -2,47 +2,45 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { tick } from 'svelte';
+import { mockElementAnimate } from './test-utils';
 
-// Mock data factories
-function createMockUser(overrides: Partial<{
-  user_id: string;
-  username: string;
-  email: string | null;
-  role: string;
-  is_active: boolean;
-  is_disabled: boolean;
-  created_at: string;
+interface MockUserOverrides {
+  user_id?: string;
+  username?: string;
+  email?: string | null;
+  role?: string;
+  is_active?: boolean;
+  is_disabled?: boolean;
+  created_at?: string;
   bypass_rate_limit?: boolean;
   has_custom_limits?: boolean;
   global_multiplier?: number;
-}> = {}) {
-  return {
-    user_id: 'user-1',
-    username: 'testuser',
-    email: 'test@example.com',
-    role: 'user',
-    is_active: true,
-    is_disabled: false,
-    created_at: '2024-01-15T10:30:00Z',
-    bypass_rate_limit: false,
-    has_custom_limits: false,
-    global_multiplier: 1.0,
-    ...overrides,
-  };
 }
 
-function createMockUsers(count: number) {
-  return Array.from({ length: count }, (_, i) =>
-    createMockUser({
-      user_id: `user-${i + 1}`,
-      username: `user${i + 1}`,
-      email: `user${i + 1}@example.com`,
-      role: i === 0 ? 'admin' : 'user',
-      is_active: i % 3 !== 0,
-      is_disabled: i % 3 === 0,
-    })
-  );
-}
+const DEFAULT_USER = {
+  user_id: 'user-1',
+  username: 'testuser',
+  email: 'test@example.com',
+  role: 'user',
+  is_active: true,
+  is_disabled: false,
+  created_at: '2024-01-15T10:30:00Z',
+  bypass_rate_limit: false,
+  has_custom_limits: false,
+  global_multiplier: 1.0,
+};
+
+const createMockUser = (overrides: MockUserOverrides = {}) => ({ ...DEFAULT_USER, ...overrides });
+
+const createMockUsers = (count: number) =>
+  Array.from({ length: count }, (_, i) => createMockUser({
+    user_id: `user-${i + 1}`,
+    username: `user${i + 1}`,
+    email: `user${i + 1}@example.com`,
+    role: i === 0 ? 'admin' : 'user',
+    is_active: i % 3 !== 0,
+    is_disabled: i % 3 === 0,
+  }));
 
 // Hoisted mocks - must be self-contained
 const mocks = vi.hoisted(() => ({
@@ -94,38 +92,6 @@ vi.mock('../AdminLayout.svelte', async () => {
 
 import AdminUsers from '../AdminUsers.svelte';
 
-// Setup helpers
-function setupMocks() {
-  // Setup Element.prototype.animate for Svelte transitions
-  Element.prototype.animate = vi.fn().mockImplementation(() => ({
-    onfinish: null,
-    cancel: vi.fn(),
-    finish: vi.fn(),
-    pause: vi.fn(),
-    play: vi.fn(),
-    reverse: vi.fn(),
-    commitStyles: vi.fn(),
-    persist: vi.fn(),
-    currentTime: 0,
-    playbackRate: 1,
-    pending: false,
-    playState: 'running',
-    replaceState: 'active',
-    startTime: 0,
-    timeline: null,
-    id: '',
-    effect: null,
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(() => true),
-    updatePlaybackRate: vi.fn(),
-    get finished() { return Promise.resolve(this); },
-    get ready() { return Promise.resolve(this); },
-    oncancel: null,
-    onremove: null,
-  }));
-}
-
 async function renderWithUsers(users = createMockUsers(3)) {
   mocks.listUsersApiV1AdminUsersGet.mockResolvedValue({ data: users, error: null });
   const result = render(AdminUsers);
@@ -136,7 +102,7 @@ async function renderWithUsers(users = createMockUsers(3)) {
 
 describe('AdminUsers', () => {
   beforeEach(() => {
-    setupMocks();
+    mockElementAnimate();
     vi.clearAllMocks();
     mocks.listUsersApiV1AdminUsersGet.mockResolvedValue({ data: [], error: null });
   });
@@ -425,6 +391,28 @@ describe('AdminUsers', () => {
       });
     });
 
+    it('confirms deletion without cascade by default', async () => {
+      mocks.deleteUserApiV1AdminUsersUserIdDelete.mockResolvedValue({ data: { message: 'Deleted' }, error: null });
+      const users = [createMockUser({ user_id: 'del1', username: 'deleteme' })];
+      const user = userEvent.setup();
+      await renderWithUsers(users);
+
+      const deleteButtons = screen.getAllByTitle('Delete User');
+      await user.click(deleteButtons[0]);
+      await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+
+      const allDeleteButtons = screen.getAllByRole('button', { name: /Delete User/i });
+      const confirmDeleteBtn = allDeleteButtons.find(btn => btn.closest('[role="dialog"]'));
+      await user.click(confirmDeleteBtn!);
+
+      await waitFor(() => {
+        expect(mocks.deleteUserApiV1AdminUsersUserIdDelete).toHaveBeenCalledWith({
+          path: { user_id: 'del1' },
+          query: { cascade: false },
+        });
+      });
+    });
+
     it('confirms deletion with cascade option', async () => {
       mocks.deleteUserApiV1AdminUsersUserIdDelete.mockResolvedValue({ data: { message: 'Deleted' }, error: null });
       const users = [createMockUser({ user_id: 'del1', username: 'deleteme' })];
@@ -434,6 +422,10 @@ describe('AdminUsers', () => {
       const deleteButtons = screen.getAllByTitle('Delete User');
       await user.click(deleteButtons[0]);
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+
+      // Enable cascade delete (defaults to false for safety)
+      const cascadeCheckbox = screen.getByRole('checkbox');
+      await user.click(cascadeCheckbox);
 
       // Find the delete button in the modal (not the action button)
       const allDeleteButtons = screen.getAllByRole('button', { name: /Delete User/i });
@@ -493,6 +485,14 @@ describe('AdminUsers', () => {
 
       const deleteButtons = screen.getAllByTitle('Delete User');
       await user.click(deleteButtons[0]);
+      await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+
+      // Warning should not show when cascade is disabled (default)
+      expect(screen.queryByText(/permanently delete all data/i)).not.toBeInTheDocument();
+
+      // Enable cascade delete
+      const cascadeCheckbox = screen.getByRole('checkbox');
+      await user.click(cascadeCheckbox);
 
       await waitFor(() => {
         expect(screen.getByText(/permanently delete all data/i)).toBeInTheDocument();

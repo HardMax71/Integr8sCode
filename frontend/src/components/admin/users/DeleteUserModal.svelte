@@ -16,7 +16,7 @@
     let {
         open,
         user,
-        cascadeDelete = $bindable(true),
+        cascadeDelete = $bindable(false),
         deleting,
         onClose,
         onDelete,

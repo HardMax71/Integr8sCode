@@ -37,6 +37,9 @@
     let currentPage = $state(1);
     let pageSize = $state(10);
     let totalItems = $state(0);
+    let serverReturnedCount = $state(0); // Items returned by server before client-side filtering
+    // When client-side filters are active, pagination reflects server totals (current page filtering only)
+    let hasClientFilters = $derived(Boolean(executionIdFilter || searchQuery));
     let totalPages = $derived(Math.ceil(totalItems / pageSize));
 
     async function loadSagas(): Promise<void> {
@@ -52,8 +55,9 @@
 
         let result = data?.sagas || [];
         totalItems = data?.total || 0;
+        serverReturnedCount = result.length;
 
-        // Client-side filtering for execution ID and search
+        // Client-side filtering for execution ID and search (filters within current page only)
         if (executionIdFilter) {
             result = result.filter(s => s.execution_id.includes(executionIdFilter));
         }
@@ -186,6 +190,11 @@
 
         {#if totalItems > 0}
             <div class="p-4 border-t divider">
+                {#if hasClientFilters && sagas.length < serverReturnedCount}
+                    <p class="text-sm text-fg-muted dark:text-dark-fg-muted mb-2">
+                        Showing {sagas.length} of {serverReturnedCount} on this page (filtered locally)
+                    </p>
+                {/if}
                 <Pagination
                     {currentPage}
                     {totalPages}

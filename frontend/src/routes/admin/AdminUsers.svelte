@@ -46,7 +46,7 @@
     // User form state
     let userForm = $state({ username: '', email: '', password: '', role: 'user', is_active: true });
     let savingUser = $state(false);
-    let cascadeDelete = $state(true);
+    let cascadeDelete = $state(false);
     let deletingUser = $state(false);
 
     // Pagination

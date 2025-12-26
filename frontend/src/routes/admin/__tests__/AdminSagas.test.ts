@@ -2,52 +2,52 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { tick } from 'svelte';
+import { mockElementAnimate } from './test-utils';
 
-function createMockSaga(overrides: Partial<{
-  saga_id: string;
-  saga_name: string;
-  execution_id: string;
-  state: string;
-  current_step: string;
-  completed_steps: string[];
-  compensated_steps: string[];
-  retry_count: number;
-  error_message: string | null;
-  context_data: Record<string, unknown>;
-  created_at: string;
-  updated_at: string;
-  completed_at: string | null;
-}> = {}) {
-  return {
-    saga_id: 'saga-1',
-    saga_name: 'execution_saga',
-    execution_id: 'exec-123',
-    state: 'running',
-    current_step: 'create_pod',
-    completed_steps: ['validate_execution', 'allocate_resources', 'queue_execution'],
-    compensated_steps: [],
-    retry_count: 0,
-    error_message: null,
-    context_data: { key: 'value' },
-    created_at: '2024-01-15T10:30:00Z',
-    updated_at: '2024-01-15T10:31:00Z',
-    completed_at: null,
-    ...overrides,
-  };
+interface MockSagaOverrides {
+  saga_id?: string;
+  saga_name?: string;
+  execution_id?: string;
+  state?: string;
+  current_step?: string;
+  completed_steps?: string[];
+  compensated_steps?: string[];
+  retry_count?: number;
+  error_message?: string | null;
+  context_data?: Record<string, unknown>;
+  created_at?: string;
+  updated_at?: string;
+  completed_at?: string | null;
 }
 
-function createMockSagas(count: number) {
-  const states = ['created', 'running', 'completed', 'failed', 'compensating', 'timeout'];
-  return Array.from({ length: count }, (_, i) =>
-    createMockSaga({
-      saga_id: `saga-${i + 1}`,
-      execution_id: `exec-${i + 1}`,
-      state: states[i % states.length],
-      created_at: new Date(Date.now() - i * 60000).toISOString(),
-      updated_at: new Date(Date.now() - i * 30000).toISOString(),
-    })
-  );
-}
+const DEFAULT_SAGA = {
+  saga_id: 'saga-1',
+  saga_name: 'execution_saga',
+  execution_id: 'exec-123',
+  state: 'running',
+  current_step: 'create_pod',
+  completed_steps: ['validate_execution', 'allocate_resources', 'queue_execution'],
+  compensated_steps: [] as string[],
+  retry_count: 0,
+  error_message: null as string | null,
+  context_data: { key: 'value' },
+  created_at: '2024-01-15T10:30:00Z',
+  updated_at: '2024-01-15T10:31:00Z',
+  completed_at: null as string | null,
+};
+
+const SAGA_STATES = ['created', 'running', 'completed', 'failed', 'compensating', 'timeout'];
+
+const createMockSaga = (overrides: MockSagaOverrides = {}) => ({ ...DEFAULT_SAGA, ...overrides });
+
+const createMockSagas = (count: number) =>
+  Array.from({ length: count }, (_, i) => createMockSaga({
+    saga_id: `saga-${i + 1}`,
+    execution_id: `exec-${i + 1}`,
+    state: SAGA_STATES[i % SAGA_STATES.length],
+    created_at: new Date(Date.now() - i * 60000).toISOString(),
+    updated_at: new Date(Date.now() - i * 30000).toISOString(),
+  }));
 
 const mocks = vi.hoisted(() => ({
   listSagasApiV1SagasGet: vi.fn(),
@@ -62,32 +62,13 @@ vi.mock('../../../lib/api', () => ({
 }));
 
 vi.mock('../../../lib/api-interceptors');
-
-vi.mock('@mateothegreat/svelte5-router', () => ({
-  route: () => {},
-  goto: vi.fn(),
-}));
-
+vi.mock('@mateothegreat/svelte5-router', () => ({ route: () => {}, goto: vi.fn() }));
 vi.mock('../AdminLayout.svelte', async () => {
   const { default: MockLayout } = await import('./mocks/MockAdminLayout.svelte');
   return { default: MockLayout };
 });
 
 import AdminSagas from '../AdminSagas.svelte';
-
-function setupMocks() {
-  Element.prototype.animate = vi.fn().mockImplementation(() => ({
-    onfinish: null, cancel: vi.fn(), finish: vi.fn(), pause: vi.fn(), play: vi.fn(),
-    reverse: vi.fn(), commitStyles: vi.fn(), persist: vi.fn(), currentTime: 0,
-    playbackRate: 1, pending: false, playState: 'running', replaceState: 'active',
-    startTime: 0, timeline: null, id: '', effect: null,
-    addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn(() => true),
-    updatePlaybackRate: vi.fn(),
-    get finished() { return Promise.resolve(this); },
-    get ready() { return Promise.resolve(this); },
-    oncancel: null, onremove: null,
-  }));
-}
 
 async function renderWithSagas(sagas = createMockSagas(5)) {
   mocks.listSagasApiV1SagasGet.mockResolvedValue({
@@ -104,7 +85,7 @@ async function renderWithSagas(sagas = createMockSagas(5)) {
 describe('AdminSagas', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    setupMocks();
+    mockElementAnimate();
     vi.clearAllMocks();
     mocks.listSagasApiV1SagasGet.mockResolvedValue({ data: { sagas: [], total: 0 }, error: null });
     mocks.getSagaStatusApiV1SagasSagaIdGet.mockResolvedValue({ data: null, error: null });

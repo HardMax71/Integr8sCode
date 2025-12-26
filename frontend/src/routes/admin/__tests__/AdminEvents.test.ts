@@ -2,45 +2,44 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { tick } from 'svelte';
+import { mockElementAnimate, mockWindowGlobals } from './test-utils';
 
-// Mock data factories
-function createMockEvent(overrides: Partial<{
-  event_id: string;
-  event_type: string;
-  timestamp: string;
-  correlation_id: string;
-  aggregate_id: string;
-  metadata: Record<string, unknown>;
-  payload: Record<string, unknown>;
-}> = {}) {
-  return {
-    event_id: 'evt-1',
-    event_type: 'execution.completed',
-    timestamp: '2024-01-15T10:30:00Z',
-    correlation_id: 'corr-123',
-    aggregate_id: 'exec-456',
-    metadata: { user_id: 'user-1', service_name: 'test-service' },
-    payload: { output: 'hello', exit_code: 0 },
-    ...overrides,
-  };
+interface MockEventOverrides {
+  event_id?: string;
+  event_type?: string;
+  timestamp?: string;
+  correlation_id?: string;
+  aggregate_id?: string;
+  metadata?: Record<string, unknown>;
+  payload?: Record<string, unknown>;
 }
 
-function createMockEvents(count: number) {
-  const eventTypes = [
-    'execution.requested', 'execution.started', 'execution.completed',
-    'execution.failed', 'pod.created', 'pod.running'
-  ];
-  return Array.from({ length: count }, (_, i) =>
-    createMockEvent({
-      event_id: `evt-${i + 1}`,
-      event_type: eventTypes[i % eventTypes.length],
-      timestamp: new Date(Date.now() - i * 60000).toISOString(),
-      correlation_id: `corr-${i + 1}`,
-      aggregate_id: `exec-${i + 1}`,
-      metadata: { user_id: `user-${(i % 3) + 1}`, service_name: 'execution-service' },
-    })
-  );
-}
+const DEFAULT_EVENT = {
+  event_id: 'evt-1',
+  event_type: 'execution.completed',
+  timestamp: '2024-01-15T10:30:00Z',
+  correlation_id: 'corr-123',
+  aggregate_id: 'exec-456',
+  metadata: { user_id: 'user-1', service_name: 'test-service' },
+  payload: { output: 'hello', exit_code: 0 },
+};
+
+const EVENT_TYPES = [
+  'execution.requested', 'execution.started', 'execution.completed',
+  'execution.failed', 'pod.created', 'pod.running'
+];
+
+const createMockEvent = (overrides: MockEventOverrides = {}) => ({ ...DEFAULT_EVENT, ...overrides });
+
+const createMockEvents = (count: number) =>
+  Array.from({ length: count }, (_, i) => createMockEvent({
+    event_id: `evt-${i + 1}`,
+    event_type: EVENT_TYPES[i % EVENT_TYPES.length],
+    timestamp: new Date(Date.now() - i * 60000).toISOString(),
+    correlation_id: `corr-${i + 1}`,
+    aggregate_id: `exec-${i + 1}`,
+    metadata: { user_id: `user-${(i % 3) + 1}`, service_name: 'execution-service' },
+  }));
 
 function createMockStats(overrides: Partial<{
   total_events: number;
@@ -129,25 +128,6 @@ vi.mock('../AdminLayout.svelte', async () => {
 
 import AdminEvents from '../AdminEvents.svelte';
 
-// Setup helpers
-function setupMocks() {
-  Element.prototype.animate = vi.fn().mockImplementation(() => ({
-    onfinish: null, cancel: vi.fn(), finish: vi.fn(), pause: vi.fn(), play: vi.fn(),
-    reverse: vi.fn(), commitStyles: vi.fn(), persist: vi.fn(), currentTime: 0,
-    playbackRate: 1, pending: false, playState: 'running', replaceState: 'active',
-    startTime: 0, timeline: null, id: '', effect: null,
-    addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn(() => true),
-    updatePlaybackRate: vi.fn(),
-    get finished() { return Promise.resolve(this); },
-    get ready() { return Promise.resolve(this); },
-    oncancel: null, onremove: null,
-  }));
-
-  // Mock window.open and window.confirm
-  vi.stubGlobal('open', mocks.windowOpen);
-  vi.stubGlobal('confirm', mocks.windowConfirm);
-}
-
 async function renderWithEvents(events = createMockEvents(5), stats = createMockStats()) {
   mocks.browseEventsApiV1AdminEventsBrowsePost.mockResolvedValue({
     data: { events, total: events.length },
@@ -164,7 +144,8 @@ async function renderWithEvents(events = createMockEvents(5), stats = createMock
 describe('AdminEvents', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    setupMocks();
+    mockElementAnimate();
+    mockWindowGlobals(mocks.windowOpen, mocks.windowConfirm);
     vi.clearAllMocks();
     mocks.browseEventsApiV1AdminEventsBrowsePost.mockResolvedValue({ data: { events: [], total: 0 }, error: null });
     mocks.getEventStatsApiV1AdminEventsStatsGet.mockResolvedValue({ data: null, error: null });

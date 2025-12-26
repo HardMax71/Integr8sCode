@@ -9,31 +9,27 @@ import {
   createEmptyRule
 } from '../rateLimits';
 
+const EXPECTED_GROUPS = ['execution', 'admin', 'sse', 'websocket', 'auth', 'api', 'public'];
+const findRuleByGroup = (rules: ReturnType<typeof getDefaultRules>, group: string) =>
+  rules.find(r => r.group === group);
+
 describe('rateLimits', () => {
   describe('GROUP_COLORS', () => {
-    it('has all expected groups', () => {
-      expect(GROUP_COLORS.execution).toBeDefined();
-      expect(GROUP_COLORS.admin).toBeDefined();
-      expect(GROUP_COLORS.sse).toBeDefined();
-      expect(GROUP_COLORS.websocket).toBeDefined();
-      expect(GROUP_COLORS.auth).toBeDefined();
-      expect(GROUP_COLORS.api).toBeDefined();
-      expect(GROUP_COLORS.public).toBeDefined();
-    });
-
-    it('includes dark mode variants', () => {
-      expect(GROUP_COLORS.execution).toContain('dark:');
+    it('has all expected groups with dark mode', () => {
+      EXPECTED_GROUPS.forEach(group => {
+        expect(GROUP_COLORS[group]).toBeDefined();
+        expect(GROUP_COLORS[group]).toContain('dark:');
+      });
     });
   });
 
   describe('getGroupColor', () => {
-    it('returns correct color for known groups', () => {
-      expect(getGroupColor('execution')).toBe(GROUP_COLORS.execution);
-      expect(getGroupColor('admin')).toBe(GROUP_COLORS.admin);
-    });
-
-    it('returns api color for unknown groups', () => {
-      expect(getGroupColor('unknown')).toBe(GROUP_COLORS.api);
+    it.each([
+      ['execution', GROUP_COLORS.execution],
+      ['admin', GROUP_COLORS.admin],
+      ['unknown', GROUP_COLORS.api],
+    ])('returns correct color for %s', (group, expected) => {
+      expect(getGroupColor(group)).toBe(expected);
     });
   });
 
@@ -41,150 +37,95 @@ describe('rateLimits', () => {
     it('has patterns for common endpoints', () => {
       expect(ENDPOINT_GROUP_PATTERNS.length).toBeGreaterThan(0);
       const groups = ENDPOINT_GROUP_PATTERNS.map(p => p.group);
-      expect(groups).toContain('execution');
-      expect(groups).toContain('admin');
-      expect(groups).toContain('auth');
+      ['execution', 'admin', 'auth'].forEach(g => expect(groups).toContain(g));
     });
   });
 
   describe('detectGroupFromEndpoint', () => {
-    it('detects execution endpoints', () => {
-      expect(detectGroupFromEndpoint('/api/v1/execute')).toBe('execution');
-      expect(detectGroupFromEndpoint('^/api/v1/execute$')).toBe('execution');
-    });
-
-    it('detects admin endpoints', () => {
-      expect(detectGroupFromEndpoint('/admin/users')).toBe('admin');
-      expect(detectGroupFromEndpoint('/api/v1/admin/events')).toBe('admin');
-    });
-
-    it('detects sse/events endpoints', () => {
-      expect(detectGroupFromEndpoint('/events/stream')).toBe('sse');
-      expect(detectGroupFromEndpoint('/api/v1/events/123')).toBe('sse');
-    });
-
-    it('detects websocket endpoints', () => {
-      expect(detectGroupFromEndpoint('/ws')).toBe('websocket');
-      expect(detectGroupFromEndpoint('/api/v1/ws/connect')).toBe('websocket');
-    });
-
-    it('detects auth endpoints', () => {
-      expect(detectGroupFromEndpoint('/auth/login')).toBe('auth');
-      expect(detectGroupFromEndpoint('/api/v1/auth/token')).toBe('auth');
-    });
-
-    it('detects public endpoints', () => {
-      expect(detectGroupFromEndpoint('/health')).toBe('public');
-      expect(detectGroupFromEndpoint('/api/health/check')).toBe('public');
-    });
-
-    it('returns api for unknown endpoints', () => {
-      expect(detectGroupFromEndpoint('/api/v1/users')).toBe('api');
-      expect(detectGroupFromEndpoint('/some/random/path')).toBe('api');
-    });
-
-    it('handles regex patterns correctly', () => {
-      expect(detectGroupFromEndpoint('^/api/v1/execute.*$')).toBe('execution');
+    it.each([
+      ['/api/v1/execute', 'execution'],
+      ['^/api/v1/execute$', 'execution'],
+      ['^/api/v1/execute.*$', 'execution'],
+      ['/admin/users', 'admin'],
+      ['/api/v1/admin/events', 'admin'],
+      ['/events/stream', 'sse'],
+      ['/api/v1/events/123', 'sse'],
+      ['/ws', 'websocket'],
+      ['/api/v1/ws/connect', 'websocket'],
+      ['/auth/login', 'auth'],
+      ['/api/v1/auth/token', 'auth'],
+      ['/health', 'public'],
+      ['/api/health/check', 'public'],
+      ['/api/v1/users', 'api'],
+      ['/some/random/path', 'api'],
+    ])('detects %s as %s', (endpoint, expected) => {
+      expect(detectGroupFromEndpoint(endpoint)).toBe(expected);
     });
   });
 
   describe('getDefaultRules', () => {
-    it('returns array of rules', () => {
-      const rules = getDefaultRules();
-      expect(Array.isArray(rules)).toBe(true);
+    const rules = getDefaultRules();
+
+    it('returns array of rules with required properties', () => {
       expect(rules.length).toBeGreaterThan(0);
+      const requiredProps = ['endpoint_pattern', 'group', 'requests', 'window_seconds', 'algorithm', 'priority'];
+      rules.forEach(rule => requiredProps.forEach(prop => expect(rule).toHaveProperty(prop)));
     });
 
-    it('each rule has required properties', () => {
-      const rules = getDefaultRules();
-      rules.forEach(rule => {
-        expect(rule).toHaveProperty('endpoint_pattern');
-        expect(rule).toHaveProperty('group');
-        expect(rule).toHaveProperty('requests');
-        expect(rule).toHaveProperty('window_seconds');
-        expect(rule).toHaveProperty('algorithm');
-        expect(rule).toHaveProperty('priority');
-      });
-    });
-
-    it('includes execution rule with 10 req/min', () => {
-      const rules = getDefaultRules();
-      const execRule = rules.find(r => r.group === 'execution');
-      expect(execRule).toBeDefined();
-      expect(execRule?.requests).toBe(10);
-    });
-
-    it('includes api rule with 60 req/min', () => {
-      const rules = getDefaultRules();
-      const apiRule = rules.find(r => r.group === 'api');
-      expect(apiRule).toBeDefined();
-      expect(apiRule?.requests).toBe(60);
+    it.each([
+      ['execution', 10],
+      ['api', 60],
+    ])('includes %s rule with %d req/min', (group, requests) => {
+      const rule = findRuleByGroup(rules, group);
+      expect(rule).toBeDefined();
+      expect(rule?.requests).toBe(requests);
     });
   });
 
   describe('getDefaultRulesWithMultiplier', () => {
     it('returns rules with effective_requests', () => {
-      const rules = getDefaultRulesWithMultiplier(1.0);
-      rules.forEach(rule => {
+      getDefaultRulesWithMultiplier(1.0).forEach(rule => {
         expect(rule).toHaveProperty('effective_requests');
       });
     });
 
-    it('applies multiplier correctly', () => {
-      const rules = getDefaultRulesWithMultiplier(2.0);
-      const execRule = rules.find(r => r.group === 'execution');
-      expect(execRule?.effective_requests).toBe(20);
-
-      const apiRule = rules.find(r => r.group === 'api');
-      expect(apiRule?.effective_requests).toBe(120);
+    it.each([
+      [2.0, 20, 120],
+      [0.5, 5, 30],
+      [1.0, 10, 60],
+      [1.5, 15, 90],
+      [1.3, 13, 78],
+    ])('with multiplier %d: execution=%d, api=%d', (multiplier, execExpected, apiExpected) => {
+      const rules = getDefaultRulesWithMultiplier(multiplier);
+      expect(findRuleByGroup(rules, 'execution')?.effective_requests).toBe(execExpected);
+      expect(findRuleByGroup(rules, 'api')?.effective_requests).toBe(apiExpected);
     });
 
-    it('handles 0.5 multiplier', () => {
-      const rules = getDefaultRulesWithMultiplier(0.5);
-      const execRule = rules.find(r => r.group === 'execution');
-      expect(execRule?.effective_requests).toBe(5);
-    });
-
-    it('uses 1.0 as default multiplier', () => {
-      const rules = getDefaultRulesWithMultiplier();
-      const execRule = rules.find(r => r.group === 'execution');
-      expect(execRule?.effective_requests).toBe(10);
-    });
-
-    it('handles falsy multiplier as 1.0', () => {
-      const rules = getDefaultRulesWithMultiplier(0);
-      const execRule = rules.find(r => r.group === 'execution');
-      expect(execRule?.effective_requests).toBe(10);
-    });
-
-    it('floors non-integer results', () => {
-      const rules = getDefaultRulesWithMultiplier(1.5);
-      const execRule = rules.find(r => r.group === 'execution');
-      expect(execRule?.effective_requests).toBe(15);
-
-      const rules2 = getDefaultRulesWithMultiplier(1.3);
-      const execRule2 = rules2.find(r => r.group === 'execution');
-      expect(execRule2?.effective_requests).toBe(13);
+    it('handles non-positive multipliers as 1.0', () => {
+      [undefined, 0, -1, -0.5].forEach(mult => {
+        const rules = getDefaultRulesWithMultiplier(mult);
+        expect(findRuleByGroup(rules, 'execution')?.effective_requests).toBe(10);
+      });
     });
   });
 
   describe('createEmptyRule', () => {
-    it('returns rule with default values', () => {
+    it('returns rule with expected defaults', () => {
       const rule = createEmptyRule();
-      expect(rule.endpoint_pattern).toBe('');
-      expect(rule.group).toBe('api');
-      expect(rule.requests).toBe(60);
-      expect(rule.window_seconds).toBe(60);
-      expect(rule.burst_multiplier).toBe(1.5);
-      expect(rule.algorithm).toBe('sliding_window');
-      expect(rule.priority).toBe(0);
-      expect(rule.enabled).toBe(true);
+      expect(rule).toEqual({
+        endpoint_pattern: '',
+        group: 'api',
+        requests: 60,
+        window_seconds: 60,
+        burst_multiplier: 1.5,
+        algorithm: 'sliding_window',
+        priority: 0,
+        enabled: true
+      });
     });
 
     it('returns new object each time', () => {
-      const a = createEmptyRule();
-      const b = createEmptyRule();
-      expect(a).not.toBe(b);
+      expect(createEmptyRule()).not.toBe(createEmptyRule());
     });
   });
 });

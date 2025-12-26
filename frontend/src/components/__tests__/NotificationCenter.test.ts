@@ -133,7 +133,7 @@ vi.stubGlobal('Notification', {
   requestPermission: mockRequestPermission,
 });
 
-import NotificationCenter from '../NotificationCenter.svelte';
+import NotificationCenter from '$components/NotificationCenter.svelte';
 
 // =============================================================================
 // Test Helpers

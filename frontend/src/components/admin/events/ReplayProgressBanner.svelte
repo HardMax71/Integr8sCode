@@ -1,6 +1,6 @@
 <script lang="ts">
     import { X } from '@lucide/svelte';
-    import type { EventReplayStatusResponse } from '../../../lib/api';
+    import type { EventReplayStatusResponse } from '$lib/api';
 
     interface Props {
         session: EventReplayStatusResponse | null;

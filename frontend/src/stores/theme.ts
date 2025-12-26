@@ -28,8 +28,8 @@ let isAuthenticatedStore: import('svelte/store').Readable<boolean | null> | null
 
 if (browser) {
     Promise.all([
-        import('../lib/user-settings'),
-        import('./auth')
+        import('$lib/user-settings'),
+        import('$stores/auth')
     ]).then(([userSettings, auth]) => {
         saveUserSettings = userSettings.saveUserSettings;
         isAuthenticatedStore = auth.isAuthenticated;

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { get } from 'svelte/store';
-import { toasts, addToast, removeToast, TOAST_DURATION } from '../toastStore';
+import { toasts, addToast, removeToast, TOAST_DURATION } from '$stores/toastStore';
 
 describe('toastStore', () => {
   beforeEach(() => {

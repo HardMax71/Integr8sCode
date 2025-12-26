@@ -1,12 +1,12 @@
 <script lang="ts">
   import { goto, route } from "@mateothegreat/svelte5-router";
-  import { login } from "../stores/auth";
-  import { addToast } from "../stores/toastStore";
+  import { login } from "$stores/auth";
+  import { addToast } from "$stores/toastStore";
   import { fade, fly } from "svelte/transition";
-  import Spinner from '../components/Spinner.svelte';
+  import Spinner from '$components/Spinner.svelte';
   import { onMount } from 'svelte';
-  import { updateMetaTags, pageMeta } from '../utils/meta';
-  import { loadUserSettings } from '../lib/user-settings';
+  import { updateMetaTags, pageMeta } from '$utils/meta';
+  import { loadUserSettings } from '$lib/user-settings';
 
   let username = $state("");
   let password = $state("");

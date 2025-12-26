@@ -1,14 +1,14 @@
 import { get } from 'svelte/store';
-import { isAuthenticated } from '../stores/auth';
-import { setTheme } from '../stores/theme';
-import { setUserSettings } from '../stores/userSettings';
+import { isAuthenticated } from '$stores/auth';
+import { setTheme } from '$stores/theme';
+import { setUserSettings } from '$stores/userSettings';
 import {
     getUserSettingsApiV1UserSettingsGet,
     updateUserSettingsApiV1UserSettingsPut,
     type UserSettings,
     type UserSettingsUpdate,
-} from './api';
-import { unwrap } from './api-interceptors';
+} from '$lib/api';
+import { unwrap } from '$lib/api-interceptors';
 
 export async function loadUserSettings(): Promise<UserSettings | undefined> {
     try {

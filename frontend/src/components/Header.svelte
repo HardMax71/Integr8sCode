@@ -1,10 +1,10 @@
 <script lang="ts">
   import { route, goto } from "@mateothegreat/svelte5-router";
-  import { isAuthenticated, username, userRole, logout as authLogout, userEmail } from "../stores/auth";
-  import { theme, toggleTheme } from "../stores/theme";
+  import { isAuthenticated, username, userRole, logout as authLogout, userEmail } from "$stores/auth";
+  import { theme, toggleTheme } from "$stores/theme";
   import { fade } from 'svelte/transition';
   import { onMount, onDestroy } from 'svelte';
-  import NotificationCenter from './NotificationCenter.svelte';
+  import NotificationCenter from '$components/NotificationCenter.svelte';
   import { Sun, Moon, MonitorCog, Menu, X, LogIn, UserPlus, LogOut, User, ChevronDown, Settings } from '@lucide/svelte';
 
   let isMenuActive = $state(false);

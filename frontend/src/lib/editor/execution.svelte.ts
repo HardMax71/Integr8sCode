@@ -2,8 +2,8 @@ import {
     createExecutionApiV1ExecutePost,
     getResultApiV1ResultExecutionIdGet,
     type ExecutionResult,
-} from '../api';
-import { getErrorMessage } from '../api-interceptors';
+} from '$lib/api';
+import { getErrorMessage } from '$lib/api-interceptors';
 
 export type ExecutionPhase = 'idle' | 'starting' | 'queued' | 'scheduled' | 'running';
 

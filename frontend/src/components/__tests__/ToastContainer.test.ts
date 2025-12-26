@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import { get } from 'svelte/store';
-import ToastContainer from '../ToastContainer.svelte';
-import { toasts, addToast, removeToast } from '../../stores/toastStore';
+import ToastContainer from '$components/ToastContainer.svelte';
+import { toasts, addToast, removeToast } from '$stores/toastStore';
 import { setupAnimationMock } from '../../__tests__/test-utils';
 
 describe('ToastContainer', () => {

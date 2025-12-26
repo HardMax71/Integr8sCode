@@ -1,7 +1,7 @@
 <script lang="ts">
-    import type { UserResponse } from '../../../lib/api';
-    import Modal from '../../Modal.svelte';
-    import Spinner from '../../Spinner.svelte';
+    import type { UserResponse } from '$lib/api';
+    import Modal from '$components/Modal.svelte';
+    import Spinner from '$components/Spinner.svelte';
 
     interface UserForm {
         username: string;

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import Footer from '../Footer.svelte';
+import Footer from '$components/Footer.svelte';
 
 describe('Footer', () => {
   let originalDate: DateConstructor;

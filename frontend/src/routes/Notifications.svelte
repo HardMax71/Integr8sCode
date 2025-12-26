@@ -1,13 +1,13 @@
 <script lang="ts">
     import { onMount, type Component } from 'svelte';
     import { goto } from '@mateothegreat/svelte5-router';
-    import { isAuthenticated, verifyAuth } from '../stores/auth';
-    import { addToast } from '../stores/toastStore';
-    import { notificationStore, notifications, unreadCount } from '../stores/notificationStore';
+    import { isAuthenticated, verifyAuth } from '$stores/auth';
+    import { addToast } from '$stores/toastStore';
+    import { notificationStore, notifications, unreadCount } from '$stores/notificationStore';
     import { get } from 'svelte/store';
     import { fly } from 'svelte/transition';
-    import Spinner from '../components/Spinner.svelte';
-    import type { NotificationResponse } from '../lib/api';
+    import Spinner from '$components/Spinner.svelte';
+    import type { NotificationResponse } from '$lib/api';
     import { Bell, Trash2, Clock, CircleCheck, AlertCircle, Info } from '@lucide/svelte';
 
     let loading = $state(false);
@@ -177,6 +177,7 @@
         {:else}
             <div class="space-y-3">
                 {#each $notifications as notification (notification.notification_id)}
+                    {@const NotifIcon = getNotificationIcon(notification.tags)}
                     <div
                         in:fly={{ y: 20, duration: 300 }}
                         class="card transition-all duration-200 cursor-pointer {notification.status !== 'read' ? 'bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800/50' : ''}"
@@ -189,7 +190,7 @@
                         <div class="p-4">
                             <div class="flex items-start gap-4">
                                 <div class="mt-1 {severityColors[notification.severity || 'medium']}">
-                                    <svelte:component this={getNotificationIcon(notification.tags)} class="w-5 h-5" />
+                                    <NotifIcon class="w-5 h-5" />
                                 </div>
                                 
                                 <div class="flex-1">

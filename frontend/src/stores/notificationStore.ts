@@ -5,7 +5,7 @@ import {
     markAllReadApiV1NotificationsMarkAllReadPost,
     deleteNotificationApiV1NotificationsNotificationIdDelete,
     type NotificationResponse,
-} from '../lib/api';
+} from '$lib/api';
 
 interface State {
     notifications: NotificationResponse[];

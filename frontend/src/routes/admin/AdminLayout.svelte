@@ -1,10 +1,10 @@
 <script lang="ts">
     import { route, goto } from '@mateothegreat/svelte5-router';
     import { onMount } from 'svelte';
-    import { addToast } from '../../stores/toastStore';
-    import { isAuthenticated, username, userRole, verifyAuth } from '../../stores/auth';
+    import { addToast } from '$stores/toastStore';
+    import { isAuthenticated, username, userRole, verifyAuth } from '$stores/auth';
     import { get } from 'svelte/store';
-    import Spinner from '../../components/Spinner.svelte';
+    import Spinner from '$components/Spinner.svelte';
     import type { Snippet } from 'svelte';
     import { ShieldCheck } from '@lucide/svelte';
 

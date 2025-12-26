@@ -1,11 +1,11 @@
 <script lang="ts">
     import { onMount, onDestroy, type Component } from 'svelte';
     import { fade, fly } from 'svelte/transition';
-    import { isAuthenticated, username, userId } from '../stores/auth';
+    import { isAuthenticated, username, userId } from '$stores/auth';
     import { get } from 'svelte/store';
     import { goto } from '@mateothegreat/svelte5-router';
-    import { notificationStore, notifications, unreadCount, loading } from '../stores/notificationStore';
-    import type { NotificationResponse } from '../lib/api';
+    import { notificationStore, notifications, unreadCount, loading } from '$stores/notificationStore';
+    import type { NotificationResponse } from '$lib/api';
     import { Bell, AlertCircle, AlertTriangle, CircleCheck, Info } from '@lucide/svelte';
 
     let showDropdown = $state(false);
@@ -267,6 +267,7 @@
                     </div>
                 {:else}
                     {#each $notifications as notification}
+                        {@const NotifIcon = getNotificationIcon(notification.tags)}
                         <div
                             class="p-4 border-b border-border-default/50 dark:border-dark-border-default hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover cursor-pointer transition-colors"
                             class:bg-blue-50={notification.status !== 'read'}
@@ -302,7 +303,7 @@
                         >
                             <div class="flex items-start space-x-3">
                                 <div class={`mt-1 ${priorityColors[notification.severity || 'medium']}`}>
-                                    <svelte:component this={getNotificationIcon(notification.tags)} class="w-5 h-5" />
+                                    <NotifIcon class="w-5 h-5" />
                                 </div>
                                 <div class="flex-1 min-w-0">
                                     <p class="font-medium text-sm">

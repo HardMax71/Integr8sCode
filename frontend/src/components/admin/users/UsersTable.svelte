@@ -1,7 +1,7 @@
 <script lang="ts">
     import { Pencil, Clock, Trash2 } from '@lucide/svelte';
-    import type { UserResponse } from '../../../lib/api';
-    import { formatTimestamp } from '../../../lib/formatters';
+    import type { UserResponse } from '$lib/api';
+    import { formatTimestamp } from '$lib/formatters';
 
     interface Props {
         users: UserResponse[];

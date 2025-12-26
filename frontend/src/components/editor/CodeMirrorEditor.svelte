@@ -7,9 +7,9 @@
     import { autocompletion, completionKeymap } from '@codemirror/autocomplete';
     import { oneDark } from '@codemirror/theme-one-dark';
     import { githubLight } from '@uiw/codemirror-theme-github';
-    import { theme as appTheme } from '../../stores/theme';
-    import { getLanguageExtension } from '../../lib/editor/languages';
-    import type { EditorSettings } from '../../lib/api';
+    import { theme as appTheme } from '$stores/theme';
+    import { getLanguageExtension } from '$lib/editor/languages';
+    import type { EditorSettings } from '$lib/api';
 
     interface Props {
         content: string;

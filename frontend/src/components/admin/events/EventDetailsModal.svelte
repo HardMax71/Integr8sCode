@@ -1,9 +1,9 @@
 <script lang="ts">
-    import type { EventDetailResponse } from '../../../lib/api';
-    import { formatTimestamp } from '../../../lib/formatters';
-    import { getEventTypeColor } from '../../../lib/admin/events';
-    import Modal from '../../Modal.svelte';
-    import EventTypeIcon from '../../EventTypeIcon.svelte';
+    import type { EventDetailResponse } from '$lib/api';
+    import { formatTimestamp } from '$lib/formatters';
+    import { getEventTypeColor } from '$lib/admin/events';
+    import Modal from '$components/Modal.svelte';
+    import EventTypeIcon from '$components/EventTypeIcon.svelte';
 
     interface Props {
         event: EventDetailResponse | null;

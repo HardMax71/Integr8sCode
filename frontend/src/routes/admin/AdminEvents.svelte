@@ -13,12 +13,12 @@
         type EventDetailResponse,
         type EventReplayStatusResponse,
         type AdminUserOverview,
-    } from '../../lib/api';
-    import { unwrap, unwrapOr } from '../../lib/api-interceptors';
-    import { addToast } from '../../stores/toastStore';
-    import AdminLayout from './AdminLayout.svelte';
-    import Spinner from '../../components/Spinner.svelte';
-    import { FilterPanel } from '../../components/admin';
+    } from '$lib/api';
+    import { unwrap, unwrapOr } from '$lib/api-interceptors';
+    import { addToast } from '$stores/toastStore';
+    import AdminLayout from '$routes/admin/AdminLayout.svelte';
+    import Spinner from '$components/Spinner.svelte';
+    import { FilterPanel } from '$components/admin';
     import {
         EventStatsCards,
         EventFilters,
@@ -27,14 +27,14 @@
         ReplayPreviewModal,
         ReplayProgressBanner,
         UserOverviewModal
-    } from '../../components/admin/events';
+    } from '$components/admin/events';
     import {
         createDefaultEventFilters,
         hasActiveFilters,
         getActiveFilterCount,
         getActiveFilterSummary,
         type EventFilters as EventFiltersType
-    } from '../../lib/admin/events';
+    } from '$lib/admin/events';
     import {
         Filter, Download, RefreshCw, X,
         ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight,

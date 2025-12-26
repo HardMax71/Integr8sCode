@@ -1,6 +1,6 @@
 <script lang="ts">
     import { RefreshCw } from '@lucide/svelte';
-    import Spinner from '../Spinner.svelte';
+    import Spinner from '$components/Spinner.svelte';
 
     interface RefreshRateOption {
         value: number;

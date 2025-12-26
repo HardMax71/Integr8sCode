@@ -5,14 +5,14 @@
         updateUserSettingsApiV1UserSettingsPut,
         restoreSettingsApiV1UserSettingsRestorePost,
         getSettingsHistoryApiV1UserSettingsHistoryGet,
-    } from '../lib/api';
-    import { isAuthenticated, username } from '../stores/auth';
-    import { theme as themeStore, setTheme } from '../stores/theme';
-    import { addToast } from '../stores/toastStore';
+    } from '$lib/api';
+    import { isAuthenticated, username } from '$stores/auth';
+    import { theme as themeStore, setTheme } from '$stores/theme';
+    import { addToast } from '$stores/toastStore';
     import { get } from 'svelte/store';
     import { fly } from 'svelte/transition';
-    import { setUserSettings } from '../stores/userSettings';
-    import Spinner from '../components/Spinner.svelte';
+    import { setUserSettings } from '$stores/userSettings';
+    import Spinner from '$components/Spinner.svelte';
     import { ChevronDown } from '@lucide/svelte';
 
     let settings = $state<any>(null);

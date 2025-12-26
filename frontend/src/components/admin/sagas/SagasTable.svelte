@@ -1,8 +1,8 @@
 <script lang="ts">
-    import type { SagaStatusResponse } from '../../../lib/api';
-    import { formatTimestamp, formatDurationBetween } from '../../../lib/formatters';
-    import { getSagaStateInfo, getSagaProgressPercentage } from '../../../lib/admin/sagas';
-    import Spinner from '../../Spinner.svelte';
+    import type { SagaStatusResponse } from '$lib/api';
+    import { formatTimestamp, formatDurationBetween } from '$lib/formatters';
+    import { getSagaStateInfo, getSagaProgressPercentage } from '$lib/admin/sagas';
+    import Spinner from '$components/Spinner.svelte';
 
     interface Props {
         sagas: SagaStatusResponse[];

@@ -1,6 +1,6 @@
 <script lang="ts">
-    import type { SagaStatusResponse } from '../../../lib/api';
-    import { SAGA_STATES, type SagaStateConfig } from '../../../lib/admin/sagas';
+    import type { SagaStatusResponse } from '$lib/api';
+    import { SAGA_STATES, type SagaStateConfig } from '$lib/admin/sagas';
 
     interface Props {
         sagas: SagaStatusResponse[];

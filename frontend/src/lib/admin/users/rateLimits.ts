@@ -1,7 +1,7 @@
 /**
  * Rate limit configurations and utilities for user management
  */
-import type { RateLimitRule, EndpointGroup } from '../../api';
+import type { RateLimitRule, EndpointGroup } from '$lib/api';
 
 // Group colors for rate limit endpoint groups
 export const GROUP_COLORS: Record<string, string> = {

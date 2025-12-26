@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onDestroy } from 'svelte';
-    import { toasts, removeToast, TOAST_DURATION, type Toast, type ToastType } from "../stores/toastStore";
+    import { toasts, removeToast, TOAST_DURATION, type Toast, type ToastType } from "$stores/toastStore";
     import { fly } from "svelte/transition";
     import { CircleCheck, CircleX, AlertTriangle, Info, X } from '@lucide/svelte';
 

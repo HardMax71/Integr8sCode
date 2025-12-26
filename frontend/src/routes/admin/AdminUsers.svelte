@@ -10,12 +10,12 @@
         resetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPost,
         type UserResponse,
         type UserRateLimit,
-    } from '../../lib/api';
-    import { unwrap, unwrapOr } from '../../lib/api-interceptors';
-    import { addToast } from '../../stores/toastStore';
-    import AdminLayout from './AdminLayout.svelte';
-    import Spinner from '../../components/Spinner.svelte';
-    import Pagination from '../../components/Pagination.svelte';
+    } from '$lib/api';
+    import { unwrap, unwrapOr } from '$lib/api-interceptors';
+    import { addToast } from '$stores/toastStore';
+    import AdminLayout from '$routes/admin/AdminLayout.svelte';
+    import Spinner from '$components/Spinner.svelte';
+    import Pagination from '$components/Pagination.svelte';
     import { Plus, RefreshCw } from '@lucide/svelte';
     import {
         UserFilters,
@@ -23,7 +23,7 @@
         UserFormModal,
         DeleteUserModal,
         RateLimitsModal
-    } from '../../components/admin/users';
+    } from '$components/admin/users';
 
     // User list state
     let users = $state<UserResponse[]>([]);

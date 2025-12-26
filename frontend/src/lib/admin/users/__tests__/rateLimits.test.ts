@@ -7,7 +7,7 @@ import {
   getDefaultRules,
   getDefaultRulesWithMultiplier,
   createEmptyRule
-} from '../rateLimits';
+} from '$lib/admin/users/rateLimits';
 
 const EXPECTED_GROUPS = ['execution', 'admin', 'sse', 'websocket', 'auth', 'api', 'public'];
 const findRuleByGroup = (rules: ReturnType<typeof getDefaultRules>, group: string) =>

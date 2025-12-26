@@ -4,7 +4,7 @@ import {
   getSagaStateInfo,
   EXECUTION_SAGA_STEPS,
   getSagaProgressPercentage
-} from '../sagaStates';
+} from '$lib/admin/sagas/sagaStates';
 
 describe('sagaStates', () => {
   describe('SAGA_STATES', () => {

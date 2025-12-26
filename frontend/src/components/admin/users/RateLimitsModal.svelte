@@ -1,14 +1,14 @@
 <script lang="ts">
     import { Plus, X } from '@lucide/svelte';
-    import type { UserResponse, UserRateLimit, RateLimitRule } from '../../../lib/api';
+    import type { UserResponse, UserRateLimit, RateLimitRule } from '$lib/api';
     import {
         getGroupColor,
         getDefaultRulesWithMultiplier,
         detectGroupFromEndpoint,
         createEmptyRule
-    } from '../../../lib/admin/users';
-    import Modal from '../../Modal.svelte';
-    import Spinner from '../../Spinner.svelte';
+    } from '$lib/admin/users';
+    import Modal from '$components/Modal.svelte';
+    import Spinner from '$components/Spinner.svelte';
 
     interface Props {
         open: boolean;

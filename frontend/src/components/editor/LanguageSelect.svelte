@@ -1,7 +1,7 @@
 <script lang="ts">
     import { fly } from 'svelte/transition';
     import { ChevronDown, ChevronRight } from '@lucide/svelte';
-    import type { LanguageInfo } from '../../lib/api';
+    import type { LanguageInfo } from '$lib/api';
 
     interface Props {
         runtimes: Record<string, LanguageInfo>;
@@ -103,6 +103,7 @@
     {#if showOptions && available}
         <div transition:fly={{ y: -5, duration: 150 }}
              role="menu"
+             tabindex="-1"
              aria-label="Select language and version"
              onkeydown={handleMenuKeydown}
              class="absolute bottom-full mb-2 w-36 bg-bg-alt dark:bg-dark-bg-alt rounded-lg shadow-xl ring-1 ring-black/5 dark:ring-white/10 z-30">

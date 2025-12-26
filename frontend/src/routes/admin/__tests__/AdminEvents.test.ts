@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { tick } from 'svelte';
-import { mockElementAnimate, mockWindowGlobals } from './test-utils';
+import { mockElementAnimate, mockWindowGlobals } from '$routes/admin/__tests__/test-utils';
 
 interface MockEventOverrides {
   event_id?: string;
@@ -122,11 +122,11 @@ vi.mock('@mateothegreat/svelte5-router', () => ({
 
 // Simple mock for AdminLayout
 vi.mock('../AdminLayout.svelte', async () => {
-  const { default: MockLayout } = await import('./mocks/MockAdminLayout.svelte');
+  const { default: MockLayout } = await import('$routes/admin/__tests__/mocks/MockAdminLayout.svelte');
   return { default: MockLayout };
 });
 
-import AdminEvents from '../AdminEvents.svelte';
+import AdminEvents from '$routes/admin/AdminEvents.svelte';
 
 async function renderWithEvents(events = createMockEvents(5), stats = createMockStats()) {
   mocks.browseEventsApiV1AdminEventsBrowsePost.mockResolvedValue({

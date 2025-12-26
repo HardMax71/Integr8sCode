@@ -1,7 +1,7 @@
 <script lang="ts">
     import { fly } from 'svelte/transition';
     import { MessageSquare, ChevronUp, ChevronDown, Cpu, MemoryStick, Clock } from '@lucide/svelte';
-    import type { ResourceLimits as ResourceLimitsType } from '../../lib/api';
+    import type { ResourceLimits as ResourceLimitsType } from '$lib/api';
 
     let { limits }: { limits: ResourceLimitsType | null } = $props();
 

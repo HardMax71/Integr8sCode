@@ -1,9 +1,9 @@
 <script lang="ts">
-    import type { AdminUserOverview } from '../../../lib/api';
-    import { formatTimestamp } from '../../../lib/formatters';
-    import { getEventTypeColor, getEventTypeLabel } from '../../../lib/admin/events';
-    import Modal from '../../Modal.svelte';
-    import Spinner from '../../Spinner.svelte';
+    import type { AdminUserOverview } from '$lib/api';
+    import { formatTimestamp } from '$lib/formatters';
+    import { getEventTypeColor, getEventTypeLabel } from '$lib/admin/events';
+    import Modal from '$components/Modal.svelte';
+    import Spinner from '$components/Spinner.svelte';
 
     interface Props {
         overview: AdminUserOverview | null;

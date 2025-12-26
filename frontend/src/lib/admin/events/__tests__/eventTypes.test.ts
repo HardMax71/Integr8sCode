@@ -8,7 +8,7 @@ import {
   getActiveFilterCount,
   getActiveFilterSummary,
   type EventFilters
-} from '../eventTypes';
+} from '$lib/admin/events/eventTypes';
 
 const withFilter = (override: Partial<EventFilters>): EventFilters =>
   ({ ...createDefaultEventFilters(), ...override });

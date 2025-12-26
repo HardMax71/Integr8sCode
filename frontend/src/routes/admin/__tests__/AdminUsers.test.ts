@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { tick } from 'svelte';
-import { mockElementAnimate } from './test-utils';
+import { mockElementAnimate } from '$routes/admin/__tests__/test-utils';
 
 interface MockUserOverrides {
   user_id?: string;
@@ -86,11 +86,11 @@ vi.mock('@mateothegreat/svelte5-router', () => ({
 
 // Simple mock for AdminLayout that just renders children
 vi.mock('../AdminLayout.svelte', async () => {
-  const { default: MockLayout } = await import('./mocks/MockAdminLayout.svelte');
+  const { default: MockLayout } = await import('$routes/admin/__tests__/mocks/MockAdminLayout.svelte');
   return { default: MockLayout };
 });
 
-import AdminUsers from '../AdminUsers.svelte';
+import AdminUsers from '$routes/admin/AdminUsers.svelte';
 
 async function renderWithUsers(users = createMockUsers(3)) {
   mocks.listUsersApiV1AdminUsersGet.mockResolvedValue({ data: users, error: null });

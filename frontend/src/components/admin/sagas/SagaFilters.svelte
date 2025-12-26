@@ -1,6 +1,6 @@
 <script lang="ts">
     import { X } from '@lucide/svelte';
-    import { SAGA_STATES } from '../../../lib/admin/sagas';
+    import { SAGA_STATES } from '$lib/admin/sagas';
 
     interface Props {
         searchQuery: string;

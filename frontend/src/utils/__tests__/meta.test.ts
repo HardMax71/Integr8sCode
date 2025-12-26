@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { updateMetaTags, pageMeta } from '../meta';
+import { updateMetaTags, pageMeta } from '$utils/meta';
 
 describe('meta utilities', () => {
   let originalTitle: string;

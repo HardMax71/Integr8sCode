@@ -1,29 +1,29 @@
 <script lang="ts">
     import { onMount, onDestroy } from 'svelte';
     import { Router, type Route, goto } from "@mateothegreat/svelte5-router";
-    import Header from "./components/Header.svelte";
-    import Footer from "./components/Footer.svelte";
-    import ToastContainer from "./components/ToastContainer.svelte";
-    import Spinner from "./components/Spinner.svelte";
-    import ErrorDisplay from "./components/ErrorDisplay.svelte";
-    import { theme } from './stores/theme';
-    import { initializeAuth, AuthInitializer } from './lib/auth-init';
-    import { appError } from './stores/errorStore';
-    import { isAuthenticated } from './stores/auth';
+    import Header from "$components/Header.svelte";
+    import Footer from "$components/Footer.svelte";
+    import ToastContainer from "$components/ToastContainer.svelte";
+    import Spinner from "$components/Spinner.svelte";
+    import ErrorDisplay from "$components/ErrorDisplay.svelte";
+    import { theme } from '$stores/theme';
+    import { initializeAuth, AuthInitializer } from '$lib/auth-init';
+    import { appError } from '$stores/errorStore';
+    import { isAuthenticated } from '$stores/auth';
     import { get } from 'svelte/store';
 
     // Page components
-    import Home from "./routes/Home.svelte";
-    import Login from "./routes/Login.svelte";
-    import Register from "./routes/Register.svelte";
-    import Privacy from "./routes/Privacy.svelte";
-    import Editor from "./routes/Editor.svelte";
-    import Settings from "./routes/Settings.svelte";
-    import Notifications from "./routes/Notifications.svelte";
-    import AdminEvents from "./routes/admin/AdminEvents.svelte";
-    import AdminSagas from "./routes/admin/AdminSagas.svelte";
-    import AdminUsers from "./routes/admin/AdminUsers.svelte";
-    import AdminSettings from "./routes/admin/AdminSettings.svelte";
+    import Home from "$routes/Home.svelte";
+    import Login from "$routes/Login.svelte";
+    import Register from "$routes/Register.svelte";
+    import Privacy from "$routes/Privacy.svelte";
+    import Editor from "$routes/Editor.svelte";
+    import Settings from "$routes/Settings.svelte";
+    import Notifications from "$routes/Notifications.svelte";
+    import AdminEvents from "$routes/admin/AdminEvents.svelte";
+    import AdminSagas from "$routes/admin/AdminSagas.svelte";
+    import AdminUsers from "$routes/admin/AdminUsers.svelte";
+    import AdminSettings from "$routes/admin/AdminSettings.svelte";
 
     // Theme value derived from store with proper cleanup
     let themeValue = $state('auto');

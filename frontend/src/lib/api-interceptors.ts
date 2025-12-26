@@ -1,5 +1,5 @@
-import { client } from './api/client.gen';
-import { addToast } from '../stores/toastStore';
+import { client } from '$lib/api/client.gen';
+import { addToast } from '$stores/toastStore';
 import { goto } from '@mateothegreat/svelte5-router';
 import {
     isAuthenticated,
@@ -8,9 +8,9 @@ import {
     userRole,
     userEmail,
     csrfToken,
-} from '../stores/auth';
+} from '$stores/auth';
 import { get } from 'svelte/store';
-import type { ValidationError } from './api';
+import type { ValidationError } from '$lib/api';
 
 let isHandling401 = false;
 const AUTH_ENDPOINTS = ['/api/v1/auth/login', '/api/v1/auth/register', '/api/v1/auth/verify-token'];

@@ -1,11 +1,11 @@
 <script lang="ts">
-    import type { ExecutionResult } from '../../lib/api';
-    import type { ExecutionPhase } from '../../lib/editor';
-    import Spinner from '../Spinner.svelte';
+    import type { ExecutionResult } from '$lib/api';
+    import type { ExecutionPhase } from '$lib/editor';
+    import Spinner from '$components/Spinner.svelte';
     import { AlertTriangle, FileText, Copy } from '@lucide/svelte';
     import AnsiToHtml from 'ansi-to-html';
     import DOMPurify from 'dompurify';
-    import { addToast } from '../../stores/toastStore';
+    import { addToast } from '$stores/toastStore';
 
     let { phase, result, error }: {
         phase: ExecutionPhase;

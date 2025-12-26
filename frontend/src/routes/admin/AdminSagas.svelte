@@ -5,17 +5,17 @@
         getSagaStatusApiV1SagasSagaIdGet,
         getExecutionSagasApiV1SagasExecutionExecutionIdGet,
         type SagaStatusResponse,
-    } from '../../lib/api';
-    import { unwrapOr } from '../../lib/api-interceptors';
-    import AdminLayout from './AdminLayout.svelte';
-    import Pagination from '../../components/Pagination.svelte';
-    import { AutoRefreshControl } from '../../components/admin';
+    } from '$lib/api';
+    import { unwrapOr } from '$lib/api-interceptors';
+    import AdminLayout from '$routes/admin/AdminLayout.svelte';
+    import Pagination from '$components/Pagination.svelte';
+    import { AutoRefreshControl } from '$components/admin';
     import {
         SagaStatsCards,
         SagaFilters,
         SagasTable,
         SagaDetailsModal
-    } from '../../components/admin/sagas';
+    } from '$components/admin/sagas';
 
     // State
     let loading = $state(true);

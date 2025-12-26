@@ -1,11 +1,11 @@
 <script lang="ts">
     import { goto, route } from "@mateothegreat/svelte5-router";
-    import { addToast } from "../stores/toastStore";
+    import { addToast } from "$stores/toastStore";
     import { fade, fly } from "svelte/transition";
-    import { registerApiV1AuthRegisterPost } from "../lib/api";
+    import { registerApiV1AuthRegisterPost } from "$lib/api";
     import { onMount } from 'svelte';
-    import { updateMetaTags, pageMeta } from '../utils/meta';
-    import Spinner from '../components/Spinner.svelte';
+    import { updateMetaTags, pageMeta } from '$utils/meta';
+    import Spinner from '$components/Spinner.svelte';
 
     let username = $state("");
     let email = $state("");

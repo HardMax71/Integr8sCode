@@ -5,7 +5,7 @@ import {
   STATS_TEXT_COLORS,
   ROLE_COLORS,
   ACTIVE_STATUS_COLORS
-} from '../constants';
+} from '$lib/admin/constants';
 
 describe('admin constants', () => {
   describe('STATUS_COLORS', () => {

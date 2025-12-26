@@ -1,9 +1,9 @@
 // Shared admin utilities
-export * from './pagination.svelte';
-export * from './autoRefresh.svelte';
-export * from './constants';
+export * from '$lib/admin/pagination.svelte';
+export * from '$lib/admin/autoRefresh.svelte';
+export * from '$lib/admin/constants';
 
 // Domain-specific exports
-export * from './sagas';
-export * from './users';
-export * from './events';
+export * from '$lib/admin/sagas';
+export * from '$lib/admin/users';
+export * from '$lib/admin/events';

@@ -1,7 +1,7 @@
-export { default as CodeMirrorEditor } from './CodeMirrorEditor.svelte';
-export { default as OutputPanel } from './OutputPanel.svelte';
-export { default as LanguageSelect } from './LanguageSelect.svelte';
-export { default as ResourceLimits } from './ResourceLimits.svelte';
-export { default as EditorToolbar } from './EditorToolbar.svelte';
-export { default as ScriptActions } from './ScriptActions.svelte';
-export { default as SavedScripts } from './SavedScripts.svelte';
+export { default as CodeMirrorEditor } from '$components/editor/CodeMirrorEditor.svelte';
+export { default as OutputPanel } from '$components/editor/OutputPanel.svelte';
+export { default as LanguageSelect } from '$components/editor/LanguageSelect.svelte';
+export { default as ResourceLimits } from '$components/editor/ResourceLimits.svelte';
+export { default as EditorToolbar } from '$components/editor/EditorToolbar.svelte';
+export { default as ScriptActions } from '$components/editor/ScriptActions.svelte';
+export { default as SavedScripts } from '$components/editor/SavedScripts.svelte';

@@ -2,7 +2,7 @@
     import { onDestroy, onMount } from 'svelte';
     import { fade, slide } from 'svelte/transition';
     import { get, writable } from 'svelte/store';
-    import { isAuthenticated, verifyAuth } from '../stores/auth';
+    import { isAuthenticated, verifyAuth } from '$stores/auth';
     import {
         getK8sResourceLimitsApiV1K8sLimitsGet,
         getExampleScriptsApiV1ExampleScriptsGet,
@@ -12,14 +12,14 @@
         deleteSavedScriptApiV1ScriptsScriptIdDelete,
         type ResourceLimits,
         type LanguageInfo,
-    } from '../lib/api';
-    import { addToast } from '../stores/toastStore';
-    import { unwrap, unwrapOr } from '../lib/api-interceptors';
-    import Spinner from '../components/Spinner.svelte';
-    import { updateMetaTags, pageMeta } from '../utils/meta';
-    import { editorSettings as editorSettingsStore } from '../stores/userSettings';
+    } from '$lib/api';
+    import { addToast } from '$stores/toastStore';
+    import { unwrap, unwrapOr } from '$lib/api-interceptors';
+    import Spinner from '$components/Spinner.svelte';
+    import { updateMetaTags, pageMeta } from '$utils/meta';
+    import { editorSettings as editorSettingsStore } from '$stores/userSettings';
     import { CirclePlay, Settings, Lightbulb } from '@lucide/svelte';
-    import { createExecutionState } from '../lib/editor';
+    import { createExecutionState } from '$lib/editor';
     import {
         CodeMirrorEditor,
         OutputPanel,
@@ -28,7 +28,7 @@
         EditorToolbar,
         ScriptActions,
         SavedScripts
-    } from '../components/editor';
+    } from '$components/editor';
 
     interface SavedScript {
         id: string;

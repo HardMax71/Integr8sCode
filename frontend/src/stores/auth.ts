@@ -4,7 +4,7 @@ import {
     logoutApiV1AuthLogoutPost,
     verifyTokenApiV1AuthVerifyTokenGet,
     getCurrentUserProfileApiV1AuthMeGet,
-} from '../lib/api';
+} from '$lib/api';
 
 interface AuthState {
     isAuthenticated: boolean | null;

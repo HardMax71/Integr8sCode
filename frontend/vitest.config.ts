@@ -29,6 +29,11 @@ export default defineConfig({
     conditions: ['browser'],
     alias: {
       $lib: '/src/lib',
+      $components: '/src/components',
+      $stores: '/src/stores',
+      $routes: '/src/routes',
+      $utils: '/src/utils',
+      $styles: '/src/styles',
     },
   },
 });

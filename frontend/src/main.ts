@@ -1,8 +1,8 @@
 import { mount } from 'svelte';
 import App from './App.svelte';
-import ErrorDisplay from './components/ErrorDisplay.svelte';
-import { appError } from './stores/errorStore';
-import { initializeApiInterceptors } from './lib/api-interceptors';
+import ErrorDisplay from '$components/ErrorDisplay.svelte';
+import { appError } from '$stores/errorStore';
+import { initializeApiInterceptors } from '$lib/api-interceptors';
 import './app.css';
 
 initializeApiInterceptors();

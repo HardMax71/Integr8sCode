@@ -55,7 +55,7 @@ vi.mock('../Spinner.svelte', () => {
   return { default: MockSpinner };
 });
 
-import ProtectedRoute from '../ProtectedRoute.svelte';
+import ProtectedRoute from '$components/ProtectedRoute.svelte';
 
 describe('ProtectedRoute', () => {
   let sessionStorageData: Record<string, string> = {};

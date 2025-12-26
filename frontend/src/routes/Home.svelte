@@ -2,7 +2,7 @@
   import { route } from "@mateothegreat/svelte5-router";
   import { fade, fly } from "svelte/transition";
   import { onMount, type Component } from 'svelte';
-  import { updateMetaTags, pageMeta } from '../utils/meta';
+  import { updateMetaTags, pageMeta } from '$utils/meta';
   import { Zap, ShieldCheck, Clock } from '@lucide/svelte';
 
   const features: { icon: Component; title: string; content: string }[] = [
@@ -56,11 +56,12 @@
     <!-- Responsive grid with centered lone last item at 2-col breakpoint -->
     <div class="mx-auto max-w-5xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-7 lg:gap-8 features-grid">
       {#each features as feature, i}
+        {@const Icon = feature.icon}
         <div class="feature-card group relative flex flex-col items-start text-left p-6 sm:p-8 bg-bg-alt dark:bg-dark-bg-alt rounded-xl border border-border-default/50 dark:border-dark-border-default/50 shadow-xs transition-transform duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-primary/40 hero-animate-flyIn h-full"
              style="--fly-y: 24px; --fly-delay: {800 + i * 120}ms;">
           <!-- Icon -->
           <div class="flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-full bg-primary/10 text-primary dark:text-primary-light ring-1 ring-primary/20 mb-5 transition-transform duration-300 group-hover:scale-110 group-hover:ring-primary/40">
-            <svelte:component this={feature.icon} class="h-6 w-6" />
+            <Icon class="h-6 w-6" />
           </div>
           <h3 class="text-lg sm:text-xl font-semibold leading-7 sm:leading-8 text-fg-default dark:text-dark-fg-default mb-2 transition-colors duration-200 group-hover:text-primary dark:group-hover:text-primary-light">{feature.title}</h3>
           <p class="flex-grow text-sm sm:text-base leading-6 sm:leading-7 text-fg-muted dark:text-dark-fg-muted">{feature.content}</p>

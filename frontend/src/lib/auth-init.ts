@@ -1,7 +1,7 @@
 import { get } from 'svelte/store';
-import { isAuthenticated, username, userId, userRole, userEmail, csrfToken, verifyAuth } from '../stores/auth';
-import { clearUserSettings } from '../stores/userSettings';
-import { loadUserSettings } from './user-settings';
+import { isAuthenticated, username, userId, userRole, userEmail, csrfToken, verifyAuth } from '$stores/auth';
+import { clearUserSettings } from '$stores/userSettings';
+import { loadUserSettings } from '$lib/user-settings';
 
 interface PersistedAuth {
     isAuthenticated: boolean;

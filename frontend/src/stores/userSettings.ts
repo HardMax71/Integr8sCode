@@ -1,5 +1,5 @@
 import { writable, derived, get } from 'svelte/store';
-import type { UserSettings, EditorSettings } from '../lib/api';
+import type { UserSettings, EditorSettings } from '$lib/api';
 
 const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
     theme: 'auto',

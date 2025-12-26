@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { tick } from 'svelte';
-import { mockElementAnimate } from './test-utils';
+import { mockElementAnimate } from '$routes/admin/__tests__/test-utils';
 
 interface MockSagaOverrides {
   saga_id?: string;
@@ -64,11 +64,11 @@ vi.mock('../../../lib/api', () => ({
 vi.mock('../../../lib/api-interceptors');
 vi.mock('@mateothegreat/svelte5-router', () => ({ route: () => {}, goto: vi.fn() }));
 vi.mock('../AdminLayout.svelte', async () => {
-  const { default: MockLayout } = await import('./mocks/MockAdminLayout.svelte');
+  const { default: MockLayout } = await import('$routes/admin/__tests__/mocks/MockAdminLayout.svelte');
   return { default: MockLayout };
 });
 
-import AdminSagas from '../AdminSagas.svelte';
+import AdminSagas from '$routes/admin/AdminSagas.svelte';
 
 async function renderWithSagas(sagas = createMockSagas(5)) {
   mocks.listSagasApiV1SagasGet.mockResolvedValue({

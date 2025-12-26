@@ -1,9 +1,9 @@
 <script lang="ts">
     import { Eye, Play, Trash2 } from '@lucide/svelte';
-    import type { EventResponse } from '../../../lib/api';
-    import { formatTimestamp } from '../../../lib/formatters';
-    import { getEventTypeColor } from '../../../lib/admin/events';
-    import EventTypeIcon from '../../EventTypeIcon.svelte';
+    import type { EventResponse } from '$lib/api';
+    import { formatTimestamp } from '$lib/formatters';
+    import { getEventTypeColor } from '$lib/admin/events';
+    import EventTypeIcon from '$components/EventTypeIcon.svelte';
 
     interface Props {
         events: EventResponse[];

@@ -39,51 +39,51 @@ describe('theme store', () => {
 
   describe('initial state', () => {
     it('defaults to auto when no stored value', async () => {
-      const { theme } = await import('../theme');
+      const { theme } = await import('$stores/theme');
       expect(get(theme)).toBe('auto');
     });
 
     it('loads stored theme from localStorage', async () => {
       localStorageData['app-theme'] = 'dark';
-      const { theme } = await import('../theme');
+      const { theme } = await import('$stores/theme');
       expect(get(theme)).toBe('dark');
     });
 
     it('ignores invalid stored values', async () => {
       localStorageData['app-theme'] = 'invalid';
-      const { theme } = await import('../theme');
+      const { theme } = await import('$stores/theme');
       expect(get(theme)).toBe('auto');
     });
 
     it('accepts light theme from storage', async () => {
       localStorageData['app-theme'] = 'light';
-      const { theme } = await import('../theme');
+      const { theme } = await import('$stores/theme');
       expect(get(theme)).toBe('light');
     });
   });
 
   describe('theme.set', () => {
     it('updates the store value', async () => {
-      const { theme } = await import('../theme');
+      const { theme } = await import('$stores/theme');
       theme.set('dark');
       expect(get(theme)).toBe('dark');
     });
 
     it('persists to localStorage', async () => {
-      const { theme } = await import('../theme');
+      const { theme } = await import('$stores/theme');
       theme.set('dark');
       expect(localStorage.setItem).toHaveBeenCalledWith('app-theme', 'dark');
     });
 
     it('applies dark class when set to dark', async () => {
-      const { theme } = await import('../theme');
+      const { theme } = await import('$stores/theme');
       theme.set('dark');
       expect(document.documentElement.classList.contains('dark')).toBe(true);
     });
 
     it('removes dark class when set to light', async () => {
       document.documentElement.classList.add('dark');
-      const { theme } = await import('../theme');
+      const { theme } = await import('$stores/theme');
       theme.set('light');
       expect(document.documentElement.classList.contains('dark')).toBe(false);
     });
@@ -92,7 +92,7 @@ describe('theme store', () => {
   describe('toggleTheme', () => {
     it('cycles from light to dark', async () => {
       localStorageData['app-theme'] = 'light';
-      const { theme, toggleTheme } = await import('../theme');
+      const { theme, toggleTheme } = await import('$stores/theme');
 
       toggleTheme();
       expect(get(theme)).toBe('dark');
@@ -100,21 +100,21 @@ describe('theme store', () => {
 
     it('cycles from dark to auto', async () => {
       localStorageData['app-theme'] = 'dark';
-      const { theme, toggleTheme } = await import('../theme');
+      const { theme, toggleTheme } = await import('$stores/theme');
 
       toggleTheme();
       expect(get(theme)).toBe('auto');
     });
 
     it('cycles from auto to light', async () => {
-      const { theme, toggleTheme } = await import('../theme');
+      const { theme, toggleTheme } = await import('$stores/theme');
       // Default is auto
       toggleTheme();
       expect(get(theme)).toBe('light');
     });
 
     it('completes full cycle', async () => {
-      const { theme, toggleTheme } = await import('../theme');
+      const { theme, toggleTheme } = await import('$stores/theme');
 
       expect(get(theme)).toBe('auto');
       toggleTheme();
@@ -128,7 +128,7 @@ describe('theme store', () => {
 
   describe('setTheme', () => {
     it('sets theme to specified value', async () => {
-      const { theme, setTheme } = await import('../theme');
+      const { theme, setTheme } = await import('$stores/theme');
 
       setTheme('dark');
       expect(get(theme)).toBe('dark');
@@ -141,7 +141,7 @@ describe('theme store', () => {
     });
 
     it('persists to localStorage', async () => {
-      const { setTheme } = await import('../theme');
+      const { setTheme } = await import('$stores/theme');
       setTheme('dark');
       expect(localStorage.setItem).toHaveBeenCalledWith('app-theme', 'dark');
     });
@@ -160,7 +160,7 @@ describe('theme store', () => {
         dispatchEvent: vi.fn(),
       }));
 
-      const { theme } = await import('../theme');
+      const { theme } = await import('$stores/theme');
       theme.set('auto');
 
       expect(document.documentElement.classList.contains('dark')).toBe(false);
@@ -179,7 +179,7 @@ describe('theme store', () => {
       }));
 
       vi.resetModules();
-      const { theme } = await import('../theme');
+      const { theme } = await import('$stores/theme');
       theme.set('auto');
 
       expect(document.documentElement.classList.contains('dark')).toBe(true);
@@ -188,7 +188,7 @@ describe('theme store', () => {
 
   describe('subscription', () => {
     it('notifies subscribers on change', async () => {
-      const { theme } = await import('../theme');
+      const { theme } = await import('$stores/theme');
       const values: string[] = [];
 
       const unsubscribe = theme.subscribe((value) => {

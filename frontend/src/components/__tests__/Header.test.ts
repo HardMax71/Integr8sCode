@@ -44,7 +44,7 @@ vi.mock('../NotificationCenter.svelte', () => {
   return { default: Mock };
 });
 
-import Header from '../Header.svelte';
+import Header from '$components/Header.svelte';
 
 // Test helpers
 const setAuth = (isAuth: boolean, username: string | null = null, role: string | null = null, email: string | null = null) => {

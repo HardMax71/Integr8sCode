@@ -3,6 +3,7 @@ from functools import lru_cache
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.domain.execution import LanguageInfoDomain
 from app.runtime_registry import EXAMPLE_SCRIPTS as EXEC_EXAMPLE_SCRIPTS
 from app.runtime_registry import SUPPORTED_RUNTIMES as RUNTIME_MATRIX
 
@@ -37,7 +38,7 @@ class Settings(BaseSettings):
     K8S_POD_EXECUTION_TIMEOUT: int = 300  # in seconds
     K8S_POD_PRIORITY_CLASS_NAME: str | None = None
 
-    SUPPORTED_RUNTIMES: dict[str, list[str]] = Field(default_factory=lambda: RUNTIME_MATRIX)
+    SUPPORTED_RUNTIMES: dict[str, LanguageInfoDomain] = Field(default_factory=lambda: RUNTIME_MATRIX)
 
     EXAMPLE_SCRIPTS: dict[str, str] = Field(default_factory=lambda: EXEC_EXAMPLE_SCRIPTS)
 

@@ -5,8 +5,6 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
-from confluent_kafka import Message
-
 from app.dlq.models import (
     DLQBatchRetryResult,
     DLQFields,
@@ -16,8 +14,11 @@ from app.dlq.models import (
     DLQMessageUpdate,
     DLQRetryResult,
 )
-from tests.helpers import make_execution_requested_event
+from app.domain.enums.events import EventType
 from app.infrastructure.mappers.dlq_mapper import DLQMapper
+from confluent_kafka import Message
+
+from tests.helpers import make_execution_requested_event
 
 
 @pytest.fixture
@@ -112,7 +113,7 @@ class TestDLQMapper:
         """Test creating DLQ message from MongoDB document with all fields."""
         doc = DLQMapper.to_mongo_document(sample_dlq_message)
 
-        with patch('app.infrastructure.mappers.dlq_mapper.SchemaRegistryManager') as mock_registry:
+        with patch("app.infrastructure.mappers.dlq_mapper.SchemaRegistryManager") as mock_registry:
             mock_registry.return_value.deserialize_json.return_value = sample_dlq_message.event
 
             msg = DLQMapper.from_mongo_document(doc)
@@ -136,7 +137,7 @@ class TestDLQMapper:
             DLQFields.FAILED_AT: datetime.now(timezone.utc),
         }
 
-        with patch('app.infrastructure.mappers.dlq_mapper.SchemaRegistryManager') as mock_registry:
+        with patch("app.infrastructure.mappers.dlq_mapper.SchemaRegistryManager") as mock_registry:
             mock_registry.return_value.deserialize_json.return_value = sample_event
 
             msg = DLQMapper.from_mongo_document(doc)
@@ -157,7 +158,7 @@ class TestDLQMapper:
             DLQFields.CREATED_AT: now.isoformat(),
         }
 
-        with patch('app.infrastructure.mappers.dlq_mapper.SchemaRegistryManager') as mock_registry:
+        with patch("app.infrastructure.mappers.dlq_mapper.SchemaRegistryManager") as mock_registry:
             mock_registry.return_value.deserialize_json.return_value = sample_event
 
             msg = DLQMapper.from_mongo_document(doc)
@@ -171,7 +172,7 @@ class TestDLQMapper:
             DLQFields.EVENT: sample_event.to_dict(),
         }
 
-        with patch('app.infrastructure.mappers.dlq_mapper.SchemaRegistryManager') as mock_registry:
+        with patch("app.infrastructure.mappers.dlq_mapper.SchemaRegistryManager") as mock_registry:
             mock_registry.return_value.deserialize_json.return_value = sample_event
 
             with pytest.raises(ValueError, match="Missing failed_at"):
@@ -184,7 +185,7 @@ class TestDLQMapper:
             DLQFields.FAILED_AT: None,
         }
 
-        with patch('app.infrastructure.mappers.dlq_mapper.SchemaRegistryManager') as mock_registry:
+        with patch("app.infrastructure.mappers.dlq_mapper.SchemaRegistryManager") as mock_registry:
             mock_registry.return_value.deserialize_json.return_value = sample_event
 
             with pytest.raises(ValueError, match="Missing failed_at"):
@@ -197,7 +198,7 @@ class TestDLQMapper:
             DLQFields.EVENT: "not a dict",
         }
 
-        with patch('app.infrastructure.mappers.dlq_mapper.SchemaRegistryManager'):
+        with patch("app.infrastructure.mappers.dlq_mapper.SchemaRegistryManager"):
             with pytest.raises(ValueError, match="Missing or invalid event data"):
                 DLQMapper.from_mongo_document(doc)
 
@@ -208,7 +209,7 @@ class TestDLQMapper:
             DLQFields.FAILED_AT: 12345,  # Invalid type
         }
 
-        with patch('app.infrastructure.mappers.dlq_mapper.SchemaRegistryManager') as mock_registry:
+        with patch("app.infrastructure.mappers.dlq_mapper.SchemaRegistryManager") as mock_registry:
             mock_registry.return_value.deserialize_json.return_value = sample_event
 
             with pytest.raises(ValueError, match="Invalid datetime type"):
@@ -321,11 +322,7 @@ class TestDLQMapper:
 
         d = DLQMapper.retry_result_to_dict(result)
 
-        assert d == {
-            "event_id": "event-123",
-            "status": "failed",
-            "error": "Connection error"
-        }
+        assert d == {"event_id": "event-123", "status": "failed", "error": "Connection error"}
 
     def test_batch_retry_result_to_dict(self):
         """Test converting batch retry result to dictionary."""
@@ -403,14 +400,14 @@ class TestDLQMapper:
         f = DLQMessageFilter(
             status=DLQMessageStatus.PENDING,
             topic="test-topic",
-            event_type="execution_requested",
+            event_type=EventType.EXECUTION_REQUESTED,
         )
 
         query = DLQMapper.filter_to_query(f)
 
         assert query[DLQFields.STATUS] == DLQMessageStatus.PENDING
         assert query[DLQFields.ORIGINAL_TOPIC] == "test-topic"
-        assert query[DLQFields.EVENT_TYPE] == "execution_requested"
+        assert query[DLQFields.EVENT_TYPE] == EventType.EXECUTION_REQUESTED
 
     def test_filter_to_query_empty(self):
         """Test converting empty DLQ message filter to MongoDB query."""

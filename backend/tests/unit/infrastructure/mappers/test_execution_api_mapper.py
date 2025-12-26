@@ -2,7 +2,6 @@
 
 import pytest
 
-from app.domain.enums.common import ErrorType
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.storage import ExecutionErrorType
 from app.domain.execution import DomainExecution, ResourceUsageDomain
@@ -93,7 +92,7 @@ class TestExecutionApiMapper:
         assert result.lang == "javascript"
         assert result.lang_version == "20"
         assert result.exit_code == 1
-        assert result.error_type == ErrorType.SCRIPT_ERROR
+        assert result.error_type == ExecutionErrorType.SCRIPT_ERROR
         assert result.resource_usage is None
 
     def test_to_result_with_script_error(self):
@@ -106,7 +105,7 @@ class TestExecutionApiMapper:
 
         result = ExecutionApiMapper.to_result(execution)
 
-        assert result.error_type == ErrorType.SCRIPT_ERROR
+        assert result.error_type == ExecutionErrorType.SCRIPT_ERROR
 
     def test_to_result_with_timeout_error(self):
         """Test converting domain execution with timeout error."""
@@ -118,8 +117,7 @@ class TestExecutionApiMapper:
 
         result = ExecutionApiMapper.to_result(execution)
 
-        # TIMEOUT maps to SYSTEM_ERROR
-        assert result.error_type == ErrorType.SYSTEM_ERROR
+        assert result.error_type == ExecutionErrorType.TIMEOUT
 
     def test_to_result_with_resource_limit_error(self):
         """Test converting domain execution with resource limit error."""
@@ -131,8 +129,7 @@ class TestExecutionApiMapper:
 
         result = ExecutionApiMapper.to_result(execution)
 
-        # RESOURCE_LIMIT maps to SYSTEM_ERROR
-        assert result.error_type == ErrorType.SYSTEM_ERROR
+        assert result.error_type == ExecutionErrorType.RESOURCE_LIMIT
 
     def test_to_result_with_system_error(self):
         """Test converting domain execution with system error."""
@@ -144,8 +141,7 @@ class TestExecutionApiMapper:
 
         result = ExecutionApiMapper.to_result(execution)
 
-        # SYSTEM_ERROR maps to SYSTEM_ERROR
-        assert result.error_type == ErrorType.SYSTEM_ERROR
+        assert result.error_type == ExecutionErrorType.SYSTEM_ERROR
 
     def test_to_result_with_permission_denied_error(self):
         """Test converting domain execution with permission denied error."""
@@ -157,8 +153,7 @@ class TestExecutionApiMapper:
 
         result = ExecutionApiMapper.to_result(execution)
 
-        # PERMISSION_DENIED maps to SYSTEM_ERROR
-        assert result.error_type == ErrorType.SYSTEM_ERROR
+        assert result.error_type == ExecutionErrorType.PERMISSION_DENIED
 
     def test_to_result_with_no_error_type(self):
         """Test converting domain execution with no error type."""
@@ -171,19 +166,6 @@ class TestExecutionApiMapper:
         result = ExecutionApiMapper.to_result(execution)
 
         assert result.error_type is None
-
-    def test_to_result_with_invalid_resource_usage(self):
-        """Test converting domain execution with non-ResourceUsageDomain object."""
-        execution = DomainExecution(
-            execution_id="exec-007",
-            status=ExecutionStatus.COMPLETED,
-            resource_usage="invalid",  # Not a ResourceUsageDomain
-        )
-
-        result = ExecutionApiMapper.to_result(execution)
-
-        # Should handle gracefully and set resource_usage to None
-        assert result.resource_usage is None
 
     def test_to_result_minimal(self):
         """Test converting minimal domain execution to result."""

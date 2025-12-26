@@ -18,6 +18,7 @@ from app.dlq import (
     TopicStatistic,
 )
 from app.dlq.manager import DLQManager
+from app.domain.enums.events import EventType
 from app.domain.events.event_models import CollectionNames
 from app.infrastructure.mappers.dlq_mapper import DLQMapper
 
@@ -105,18 +106,14 @@ class DLQRepository:
 
     async def get_messages(
         self,
-        status: str | None = None,
+        status: DLQMessageStatus | None = None,
         topic: str | None = None,
-        event_type: str | None = None,
+        event_type: EventType | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> DLQMessageListResult:
-        # Create filter
-        filter = DLQMessageFilter(
-            status=DLQMessageStatus(status) if status else None, topic=topic, event_type=event_type
-        )
-
-        query = DLQMapper.filter_to_query(filter)
+        msg_filter = DLQMessageFilter(status=status, topic=topic, event_type=event_type)
+        query = DLQMapper.filter_to_query(msg_filter)
         total_count = await self.dlq_collection.count_documents(query)
 
         cursor = self.dlq_collection.find(query).sort(DLQFields.FAILED_AT, -1).skip(offset).limit(limit)

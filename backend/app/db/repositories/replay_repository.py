@@ -5,6 +5,7 @@ from pymongo import ASCENDING, DESCENDING
 from app.core.database_context import Collection, Database
 from app.core.logging import logger
 from app.domain.admin.replay_updates import ReplaySessionUpdate
+from app.domain.enums.replay import ReplayStatus
 from app.domain.events.event_models import CollectionNames
 from app.domain.replay import ReplayFilter, ReplaySessionState
 from app.infrastructure.mappers import ReplayStateMapper
@@ -42,13 +43,13 @@ class ReplayRepository:
         return self._mapper.from_mongo_document(data) if data else None
 
     async def list_sessions(
-        self, status: str | None = None, user_id: str | None = None, limit: int = 100, skip: int = 0
+        self, status: ReplayStatus | None = None, user_id: str | None = None, limit: int = 100, skip: int = 0
     ) -> list[ReplaySessionState]:
         collection = self.replay_collection
 
-        query = {}
+        query: dict[str, object] = {}
         if status:
-            query["status"] = status
+            query["status"] = status.value
         if user_id:
             query["config.filter.user_id"] = user_id
 
@@ -58,15 +59,20 @@ class ReplayRepository:
             sessions.append(self._mapper.from_mongo_document(doc))
         return sessions
 
-    async def update_session_status(self, session_id: str, status: str) -> bool:
+    async def update_session_status(self, session_id: str, status: ReplayStatus) -> bool:
         """Update the status of a replay session"""
-        result = await self.replay_collection.update_one({"session_id": session_id}, {"$set": {"status": status}})
+        result = await self.replay_collection.update_one({"session_id": session_id}, {"$set": {"status": status.value}})
         return result.modified_count > 0
 
     async def delete_old_sessions(self, cutoff_time: str) -> int:
         """Delete old completed/failed/cancelled sessions"""
+        terminal_statuses = [
+            ReplayStatus.COMPLETED.value,
+            ReplayStatus.FAILED.value,
+            ReplayStatus.CANCELLED.value,
+        ]
         result = await self.replay_collection.delete_many(
-            {"created_at": {"$lt": cutoff_time}, "status": {"$in": ["completed", "failed", "cancelled"]}}
+            {"created_at": {"$lt": cutoff_time}, "status": {"$in": terminal_statuses}}
         )
         return result.deleted_count
 
@@ -83,16 +89,16 @@ class ReplayRepository:
         result = await self.replay_collection.update_one({"session_id": session_id}, {"$set": mongo_updates})
         return result.modified_count > 0
 
-    async def count_events(self, filter: ReplayFilter) -> int:
+    async def count_events(self, replay_filter: ReplayFilter) -> int:
         """Count events matching the given filter"""
-        query = filter.to_mongo_query()
+        query = replay_filter.to_mongo_query()
         return await self.events_collection.count_documents(query)
 
     async def fetch_events(
-        self, filter: ReplayFilter, batch_size: int = 100, skip: int = 0
+        self, replay_filter: ReplayFilter, batch_size: int = 100, skip: int = 0
     ) -> AsyncIterator[List[Dict[str, Any]]]:
         """Fetch events in batches based on filter"""
-        query = filter.to_mongo_query()
+        query = replay_filter.to_mongo_query()
         cursor = self.events_collection.find(query).sort("timestamp", 1).skip(skip)
 
         batch = []

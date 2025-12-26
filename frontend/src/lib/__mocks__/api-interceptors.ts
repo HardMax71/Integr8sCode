@@ -4,4 +4,4 @@ import { vi } from 'vitest';
 export const initializeApiInterceptors = vi.fn();
 
 // Re-export real pure functions - no need to mock these
-export { getErrorMessage, unwrap, unwrapOr } from '../api-interceptors';
+export { getErrorMessage, unwrap, unwrapOr } from '$lib/api-interceptors';

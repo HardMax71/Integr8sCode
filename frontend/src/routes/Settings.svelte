@@ -5,14 +5,15 @@
         updateUserSettingsApiV1UserSettingsPut,
         restoreSettingsApiV1UserSettingsRestorePost,
         getSettingsHistoryApiV1UserSettingsHistoryGet,
-    } from '../lib/api';
-    import { isAuthenticated, username } from '../stores/auth';
-    import { theme as themeStore } from '../stores/theme';
-    import { addToast } from '../stores/toastStore';
+    } from '$lib/api';
+    import { isAuthenticated, username } from '$stores/auth';
+    import { theme as themeStore, setTheme } from '$stores/theme';
+    import { addToast } from '$stores/toastStore';
     import { get } from 'svelte/store';
     import { fly } from 'svelte/transition';
-    import { setCachedSettings, updateCachedSetting } from '../lib/settings-cache';
-    import Spinner from '../components/Spinner.svelte';
+    import { setUserSettings } from '$stores/userSettings';
+    import Spinner from '$components/Spinner.svelte';
+    import { ChevronDown } from '@lucide/svelte';
 
     let settings = $state<any>(null);
     let loading = $state(true);
@@ -99,16 +100,16 @@
             if (error) throw error;
 
             settings = data;
-            setCachedSettings(settings);
+            setUserSettings(settings);
 
             formData = {
-                theme: $themeStore,
+                theme: settings.theme || 'auto',
                 notifications: {
                     execution_completed: settings.notifications?.execution_completed ?? true,
                     execution_failed: settings.notifications?.execution_failed ?? true,
                     system_updates: settings.notifications?.system_updates ?? true,
                     security_alerts: settings.notifications?.security_alerts ?? true,
-                    channels: ['in_app']
+                    channels: settings.notifications?.channels || ['in_app']
                 },
                 editor: {
                     theme: settings.editor?.theme || 'auto',
@@ -145,9 +146,6 @@
             if (!deepEqual(formData.editor, settings.editor)) {
                 updates.editor = formData.editor;
             }
-            if (!deepEqual(formData.preferences, settings.preferences)) {
-                updates.preferences = formData.preferences;
-            }
 
             if (Object.keys(updates).length === 0) {
                 addToast('No changes to save', 'info');
@@ -158,7 +156,7 @@
             if (error) throw error;
 
             settings = data;
-            setCachedSettings(settings);
+            setUserSettings(settings);
 
             formData = {
                 theme: settings.theme || 'auto',
@@ -197,17 +195,11 @@
             if (error) throw error;
 
             history = (data?.history || [])
-                .map(item => {
-                    let displayField = item.field;
-                    if (displayField.startsWith('preferences.')) {
-                        displayField = displayField.replace('preferences.', '');
-                    }
-                    return {
-                        ...item,
-                        displayField,
-                        isRestore: item.reason && item.reason.includes('restore')
-                    };
-                })
+                .map(item => ({
+                    ...item,
+                    displayField: item.field,
+                    isRestore: item.reason?.includes('restore')
+                }))
                 .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
             historyCache = history;
@@ -239,7 +231,7 @@
             await loadSettings();
 
             if (settings.theme) {
-                themeStore.set(settings.theme);
+                setTheme(settings.theme);
             }
 
             showHistory = false;
@@ -321,9 +313,7 @@
                                     class="form-dropdown-button"
                                     aria-expanded={showThemeDropdown}>
                                 <span class="truncate">{themes.find(t => t.value === formData.theme)?.label || 'Select theme'}</span>
-                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                                </svg>
+                                <ChevronDown class="w-5 h-5" />
                             </button>
 
                             {#if showThemeDropdown}
@@ -335,9 +325,8 @@
                                                 <button onclick={() => {
                                     formData.theme = theme.value;
                                     showThemeDropdown = false;
-                                    // Apply theme immediately if it's the theme setting
                                     if (theme.value) {
-                                        themeStore.set(theme.value);
+                                        setTheme(theme.value);
                                     }
                                 }}
                                                         class:selected={formData.theme === theme.value}
@@ -365,9 +354,7 @@
                                         class="form-dropdown-button"
                                         aria-expanded={showEditorThemeDropdown}>
                                     <span class="truncate">{editorThemes.find(t => t.value === formData.editor.theme)?.label || 'Select theme'}</span>
-                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                                    </svg>
+                                    <ChevronDown class="w-5 h-5" />
                                 </button>
 
                                 {#if showEditorThemeDropdown}

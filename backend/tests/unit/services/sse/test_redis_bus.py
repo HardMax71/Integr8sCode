@@ -6,8 +6,9 @@ import pytest
 
 pytestmark = pytest.mark.unit
 
-from app.services.sse.redis_bus import SSERedisBus
 from app.domain.enums.events import EventType
+from app.schemas_pydantic.sse import RedisNotificationMessage, RedisSSEMessage
+from app.services.sse.redis_bus import SSERedisBus
 
 
 class _DummyEvent:
@@ -76,14 +77,13 @@ async def test_publish_and_subscribe_round_trip() -> None:
     assert ch.endswith("exec-1")
     # Push to pubsub and read from subscription
     await r._pubsub.push(ch, payload)
-    msg = await sub.get(timeout=0.02)
-    assert msg and msg["event_type"] == str(EventType.EXECUTION_COMPLETED)
-    assert msg["execution_id"] == "exec-1"
-    assert isinstance(json.dumps(msg), str)
+    msg = await sub.get(RedisSSEMessage, timeout=0.02)
+    assert msg and msg.event_type == EventType.EXECUTION_COMPLETED
+    assert msg.execution_id == "exec-1"
 
     # Non-message / invalid JSON paths
     await r._pubsub.push(ch, b"not-json")
-    assert await sub.get(timeout=0.02) is None
+    assert await sub.get(RedisSSEMessage, timeout=0.02) is None
 
     # Close
     await sub.close()
@@ -97,11 +97,22 @@ async def test_notifications_channels() -> None:
     nsub = await bus.open_notification_subscription("user-1")
     assert "sse:notif:user-1" in r._pubsub.subscribed
 
-    await bus.publish_notification("user-1", {"a": 1})
+    notif = RedisNotificationMessage(
+        notification_id="n1",
+        severity="low",
+        status="pending",
+        tags=[],
+        subject="test",
+        body="body",
+        action_url="",
+        created_at="2025-01-01T00:00:00Z",
+    )
+    await bus.publish_notification("user-1", notif)
     ch, payload = r.published[-1]
     assert ch.endswith("user-1")
     await r._pubsub.push(ch, payload)
-    got = await nsub.get(timeout=0.02)
-    assert got == {"a": 1}
+    got = await nsub.get(RedisNotificationMessage, timeout=0.02)
+    assert got is not None
+    assert got.notification_id == "n1"
 
     await nsub.close()

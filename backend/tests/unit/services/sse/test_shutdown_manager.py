@@ -27,7 +27,7 @@ async def test_shutdown_graceful_notify_and_drain():
     done = await mgr.wait_for_shutdown(timeout=1.0)
     assert done is True
     status = mgr.get_shutdown_status()
-    assert status["phase"] == "complete"
+    assert status.phase == "complete"
     await asyncio.gather(t1, t2)
 
 
@@ -46,7 +46,7 @@ async def test_shutdown_force_close_calls_router_stop_and_rejects_new():
     assert router.stopped is True
     assert mgr.is_shutting_down() is True
     status = mgr.get_shutdown_status()
-    assert status["draining_connections"] == 0
+    assert status.draining_connections == 0
 
     # New connections should be rejected
     ev2 = await mgr.register_connection("e2", "c2")
@@ -63,7 +63,7 @@ from app.services.sse.sse_shutdown_manager import SSEShutdownManager
 async def test_get_shutdown_status_transitions():
     m = SSEShutdownManager(drain_timeout=0.01, notification_timeout=0.0, force_close_timeout=0.0)
     st0 = m.get_shutdown_status()
-    assert st0["phase"] == "ready"
+    assert st0.phase == "ready"
     await m.initiate_shutdown()
     st1 = m.get_shutdown_status()
-    assert st1["phase"] in ("draining", "complete", "closing", "notifying")
+    assert st1.phase in ("draining", "complete", "closing", "notifying")

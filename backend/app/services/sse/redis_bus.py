@@ -1,30 +1,36 @@
 from __future__ import annotations
 
-import json
-from typing import Mapping
+from typing import Type, TypeVar
 
 import redis.asyncio as redis
+from pydantic import BaseModel
 
+from app.core.logging import logger
 from app.infrastructure.kafka.events.base import BaseEvent
+from app.schemas_pydantic.sse import RedisNotificationMessage, RedisSSEMessage
+
+T = TypeVar("T", bound=BaseModel)
 
 
 class SSERedisSubscription:
+    """Subscription wrapper for Redis pubsub with typed message parsing."""
+
     def __init__(self, pubsub: redis.client.PubSub, channel: str) -> None:
         self._pubsub = pubsub
         self._channel = channel
 
-    async def get(self, timeout: float = 0.5) -> dict[str, object] | None:
-        """Get next message from the subscription with timeout seconds."""
-        msg = await self._pubsub.get_message(ignore_subscribe_messages=True, timeout=timeout)
+    async def get(self, model: Type[T]) -> T | None:
+        """Get next typed message from the subscription."""
+        msg = await self._pubsub.get_message(ignore_subscribe_messages=True, timeout=0.5)
         if not msg or msg.get("type") != "message":
             return None
-        data = msg.get("data")
-        if isinstance(data, (bytes, bytearray)):
-            data = data.decode("utf-8", errors="ignore")
         try:
-            parsed = json.loads(data) if isinstance(data, str) else data
-            return parsed if isinstance(parsed, dict) else None
-        except Exception:
+            return model.model_validate_json(msg["data"])
+        except Exception as e:
+            logger.warning(
+                f"Failed to parse Redis message on channel {self._channel}: {e}",
+                extra={"channel": self._channel, "model": model.__name__},
+            )
             return None
 
     async def close(self) -> None:
@@ -51,12 +57,12 @@ class SSERedisBus:
         return f"{self._notif_prefix}{user_id}"
 
     async def publish_event(self, execution_id: str, event: BaseEvent) -> None:
-        payload: dict[str, object] = {
-            "event_type": str(event.event_type),
-            "execution_id": getattr(event, "execution_id", None),
-            "data": event.model_dump(mode="json"),
-        }
-        await self._redis.publish(self._exec_channel(execution_id), json.dumps(payload))
+        message = RedisSSEMessage(
+            event_type=event.event_type,
+            execution_id=execution_id,
+            data=event.model_dump(mode="json"),
+        )
+        await self._redis.publish(self._exec_channel(execution_id), message.model_dump_json())
 
     async def open_subscription(self, execution_id: str) -> SSERedisSubscription:
         pubsub = self._redis.pubsub()
@@ -64,9 +70,9 @@ class SSERedisBus:
         await pubsub.subscribe(channel)
         return SSERedisSubscription(pubsub, channel)
 
-    async def publish_notification(self, user_id: str, payload: Mapping[str, object]) -> None:
-        # Expect a JSON-serializable mapping
-        await self._redis.publish(self._notif_channel(user_id), json.dumps(dict(payload)))
+    async def publish_notification(self, user_id: str, notification: RedisNotificationMessage) -> None:
+        """Publish a typed notification message to Redis for SSE delivery."""
+        await self._redis.publish(self._notif_channel(user_id), notification.model_dump_json())
 
     async def open_notification_subscription(self, user_id: str) -> SSERedisSubscription:
         pubsub = self._redis.pubsub()

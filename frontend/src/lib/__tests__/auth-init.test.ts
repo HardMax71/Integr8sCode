@@ -55,20 +55,20 @@ function setupMatchMedia() {
 }
 
 describe('auth-init', () => {
-  let localStorageData: Record<string, string> = {};
+  let sessionStorageData: Record<string, string> = {};
 
   beforeEach(async () => {
     // Setup matchMedia before module imports (must happen after resetModules)
     setupMatchMedia();
 
-    // Reset localStorage mock
-    localStorageData = {};
-    vi.mocked(localStorage.getItem).mockImplementation((key: string) => localStorageData[key] ?? null);
-    vi.mocked(localStorage.setItem).mockImplementation((key: string, value: string) => {
-      localStorageData[key] = value;
+    // Reset sessionStorage mock
+    sessionStorageData = {};
+    vi.mocked(sessionStorage.getItem).mockImplementation((key: string) => sessionStorageData[key] ?? null);
+    vi.mocked(sessionStorage.setItem).mockImplementation((key: string, value: string) => {
+      sessionStorageData[key] = value;
     });
-    vi.mocked(localStorage.removeItem).mockImplementation((key: string) => {
-      delete localStorageData[key];
+    vi.mocked(sessionStorage.removeItem).mockImplementation((key: string) => {
+      delete sessionStorageData[key];
     });
 
     // Reset all mocks
@@ -105,7 +105,7 @@ describe('auth-init', () => {
     it('returns false when no persisted auth and verification fails', async () => {
       mockVerifyAuth.mockResolvedValue(false);
 
-      const { AuthInitializer } = await import('../auth-init');
+      const { AuthInitializer } = await import('$lib/auth-init');
       const result = await AuthInitializer.initialize();
 
       expect(result).toBe(false);
@@ -114,7 +114,7 @@ describe('auth-init', () => {
     it('returns true when no persisted auth but verification succeeds', async () => {
       mockVerifyAuth.mockResolvedValue(true);
 
-      const { AuthInitializer } = await import('../auth-init');
+      const { AuthInitializer } = await import('$lib/auth-init');
       const result = await AuthInitializer.initialize();
 
       expect(result).toBe(true);
@@ -126,7 +126,7 @@ describe('auth-init', () => {
     it('only initializes once', async () => {
       mockVerifyAuth.mockResolvedValue(true);
 
-      const { AuthInitializer } = await import('../auth-init');
+      const { AuthInitializer } = await import('$lib/auth-init');
       await AuthInitializer.initialize();
       await AuthInitializer.initialize();
       await AuthInitializer.initialize();
@@ -139,7 +139,7 @@ describe('auth-init', () => {
         new Promise(resolve => setTimeout(() => resolve(true), 100))
       );
 
-      const { AuthInitializer } = await import('../auth-init');
+      const { AuthInitializer } = await import('$lib/auth-init');
 
       const results = await Promise.all([
         AuthInitializer.initialize(),
@@ -163,10 +163,10 @@ describe('auth-init', () => {
         csrfToken: 'csrf-token',
         timestamp: Date.now(),
       };
-      localStorageData['authState'] = JSON.stringify(authState);
+      sessionStorageData['authState'] = JSON.stringify(authState);
       mockVerifyAuth.mockResolvedValue(true);
 
-      const { AuthInitializer } = await import('../auth-init');
+      const { AuthInitializer } = await import('$lib/auth-init');
       await AuthInitializer.initialize();
 
       expect(mockIsAuthenticatedSet).toHaveBeenCalledWith(true);
@@ -187,29 +187,14 @@ describe('auth-init', () => {
         csrfToken: 'token',
         timestamp: Date.now(),
       };
-      localStorageData['authState'] = JSON.stringify(authState);
+      sessionStorageData['authState'] = JSON.stringify(authState);
       mockVerifyAuth.mockResolvedValue(false);
 
-      const { AuthInitializer } = await import('../auth-init');
+      const { AuthInitializer } = await import('$lib/auth-init');
       await AuthInitializer.initialize();
 
       expect(mockIsAuthenticatedSet).toHaveBeenLastCalledWith(false);
-      expect(localStorage.removeItem).toHaveBeenCalledWith('authState');
-    });
-
-    it('removes expired persisted auth (>24 hours)', async () => {
-      const authState = {
-        isAuthenticated: true,
-        username: 'testuser',
-        timestamp: Date.now() - 25 * 60 * 60 * 1000, // 25 hours ago
-      };
-      localStorageData['authState'] = JSON.stringify(authState);
-      mockVerifyAuth.mockResolvedValue(false);
-
-      const { AuthInitializer } = await import('../auth-init');
-      await AuthInitializer.initialize();
-
-      expect(localStorage.removeItem).toHaveBeenCalledWith('authState');
+      expect(sessionStorage.removeItem).toHaveBeenCalledWith('authState');
     });
 
     it('keeps recent auth on network error (<5 min)', async () => {
@@ -222,10 +207,10 @@ describe('auth-init', () => {
         csrfToken: 'token',
         timestamp: Date.now() - 2 * 60 * 1000, // 2 minutes ago
       };
-      localStorageData['authState'] = JSON.stringify(authState);
+      sessionStorageData['authState'] = JSON.stringify(authState);
       mockVerifyAuth.mockRejectedValue(new Error('Network error'));
 
-      const { AuthInitializer } = await import('../auth-init');
+      const { AuthInitializer } = await import('$lib/auth-init');
       const result = await AuthInitializer.initialize();
 
       expect(result).toBe(true); // Should keep auth state
@@ -241,10 +226,10 @@ describe('auth-init', () => {
         csrfToken: 'token',
         timestamp: Date.now() - 10 * 60 * 1000, // 10 minutes ago
       };
-      localStorageData['authState'] = JSON.stringify(authState);
+      sessionStorageData['authState'] = JSON.stringify(authState);
       mockVerifyAuth.mockRejectedValue(new Error('Network error'));
 
-      const { AuthInitializer } = await import('../auth-init');
+      const { AuthInitializer } = await import('$lib/auth-init');
       const result = await AuthInitializer.initialize();
 
       expect(result).toBe(false);
@@ -254,7 +239,7 @@ describe('auth-init', () => {
 
   describe('isAuthenticated static method', () => {
     it('returns false before initialization', async () => {
-      const { AuthInitializer } = await import('../auth-init');
+      const { AuthInitializer } = await import('$lib/auth-init');
 
       expect(AuthInitializer.isAuthenticated()).toBe(false);
     });
@@ -263,7 +248,7 @@ describe('auth-init', () => {
       mockVerifyAuth.mockResolvedValue(true);
       mockIsAuthenticatedValue = true;
 
-      const { AuthInitializer } = await import('../auth-init');
+      const { AuthInitializer } = await import('$lib/auth-init');
       await AuthInitializer.initialize();
 
       expect(AuthInitializer.isAuthenticated()).toBe(true);
@@ -274,7 +259,7 @@ describe('auth-init', () => {
     it('returns immediately if already initialized', async () => {
       mockVerifyAuth.mockResolvedValue(true);
 
-      const { AuthInitializer } = await import('../auth-init');
+      const { AuthInitializer } = await import('$lib/auth-init');
       await AuthInitializer.initialize();
 
       const result = await AuthInitializer.waitForInit();
@@ -288,7 +273,7 @@ describe('auth-init', () => {
         new Promise(resolve => { resolveVerify = resolve; })
       );
 
-      const { AuthInitializer } = await import('../auth-init');
+      const { AuthInitializer } = await import('$lib/auth-init');
 
       // Start initialization
       const initPromise = AuthInitializer.initialize();
@@ -308,7 +293,7 @@ describe('auth-init', () => {
     it('initializes if not started', async () => {
       mockVerifyAuth.mockResolvedValue(true);
 
-      const { AuthInitializer } = await import('../auth-init');
+      const { AuthInitializer } = await import('$lib/auth-init');
 
       const result = await AuthInitializer.waitForInit();
 
@@ -321,7 +306,7 @@ describe('auth-init', () => {
     it('initializeAuth calls AuthInitializer.initialize', async () => {
       mockVerifyAuth.mockResolvedValue(true);
 
-      const { initializeAuth } = await import('../auth-init');
+      const { initializeAuth } = await import('$lib/auth-init');
       const result = await initializeAuth();
 
       expect(result).toBe(true);
@@ -330,7 +315,7 @@ describe('auth-init', () => {
     it('waitForAuth calls AuthInitializer.waitForInit', async () => {
       mockVerifyAuth.mockResolvedValue(true);
 
-      const { waitForAuth } = await import('../auth-init');
+      const { waitForAuth } = await import('$lib/auth-init');
       const result = await waitForAuth();
 
       expect(result).toBe(true);
@@ -340,7 +325,7 @@ describe('auth-init', () => {
       mockVerifyAuth.mockResolvedValue(true);
       mockIsAuthenticatedValue = true;
 
-      const { initializeAuth, checkAuth } = await import('../auth-init');
+      const { initializeAuth, checkAuth } = await import('$lib/auth-init');
       await initializeAuth();
 
       expect(checkAuth()).toBe(true);
@@ -348,11 +333,11 @@ describe('auth-init', () => {
   });
 
   describe('error handling', () => {
-    it('handles malformed JSON in localStorage', async () => {
-      localStorageData['authState'] = 'not valid json{';
+    it('handles malformed JSON in sessionStorage', async () => {
+      sessionStorageData['authState'] = 'not valid json{';
       mockVerifyAuth.mockResolvedValue(false);
 
-      const { AuthInitializer } = await import('../auth-init');
+      const { AuthInitializer } = await import('$lib/auth-init');
       const result = await AuthInitializer.initialize();
 
       expect(result).toBe(false);
@@ -362,7 +347,7 @@ describe('auth-init', () => {
       mockVerifyAuth.mockResolvedValue(true);
       mockLoadUserSettings.mockRejectedValue(new Error('Settings error'));
 
-      const { AuthInitializer } = await import('../auth-init');
+      const { AuthInitializer } = await import('$lib/auth-init');
       const result = await AuthInitializer.initialize();
 
       // Should still return true even if settings fail

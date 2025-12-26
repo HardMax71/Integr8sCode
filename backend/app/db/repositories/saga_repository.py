@@ -46,17 +46,17 @@ class SagaRepository:
         doc = await self.sagas.find_one({"saga_id": saga_id})
         return self.mapper.from_mongo(doc) if doc else None
 
-    async def get_sagas_by_execution(self, execution_id: str, state: str | None = None) -> list[Saga]:
+    async def get_sagas_by_execution(self, execution_id: str, state: SagaState | None = None) -> list[Saga]:
         query: dict[str, object] = {"execution_id": execution_id}
         if state:
-            query["state"] = state
+            query["state"] = state.value
 
         cursor = self.sagas.find(query).sort("created_at", DESCENDING)
         docs = await cursor.to_list(length=None)
         return [self.mapper.from_mongo(doc) for doc in docs]
 
-    async def list_sagas(self, filter: SagaFilter, limit: int = 100, skip: int = 0) -> SagaListResult:
-        query = self.filter_mapper.to_mongodb_query(filter)
+    async def list_sagas(self, saga_filter: SagaFilter, limit: int = 100, skip: int = 0) -> SagaListResult:
+        query = self.filter_mapper.to_mongodb_query(saga_filter)
 
         # Get total count
         total = await self.sagas.count_documents(query)
@@ -69,8 +69,8 @@ class SagaRepository:
 
         return SagaListResult(sagas=sagas, total=total, skip=skip, limit=limit)
 
-    async def update_saga_state(self, saga_id: str, state: str, error_message: str | None = None) -> bool:
-        update_data = {"state": state, "updated_at": datetime.now(timezone.utc)}
+    async def update_saga_state(self, saga_id: str, state: SagaState, error_message: str | None = None) -> bool:
+        update_data: dict[str, object] = {"state": state.value, "updated_at": datetime.now(timezone.utc)}
 
         if error_message:
             update_data["error_message"] = error_message
@@ -108,8 +108,8 @@ class SagaRepository:
         docs = await cursor.to_list(length=limit)
         return [self.mapper.from_mongo(doc) for doc in docs]
 
-    async def get_saga_statistics(self, filter: SagaFilter | None = None) -> dict[str, object]:
-        query = self.filter_mapper.to_mongodb_query(filter) if filter else {}
+    async def get_saga_statistics(self, saga_filter: SagaFilter | None = None) -> dict[str, object]:
+        query = self.filter_mapper.to_mongodb_query(saga_filter) if saga_filter else {}
 
         # Basic counts
         total = await self.sagas.count_documents(query)

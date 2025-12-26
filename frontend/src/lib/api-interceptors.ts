@@ -1,5 +1,5 @@
-import { client } from './api/client.gen';
-import { addToast } from '../stores/toastStore';
+import { client } from '$lib/api/client.gen';
+import { addToast } from '$stores/toastStore';
 import { goto } from '@mateothegreat/svelte5-router';
 import {
     isAuthenticated,
@@ -8,22 +8,34 @@ import {
     userRole,
     userEmail,
     csrfToken,
-} from '../stores/auth';
+} from '$stores/auth';
 import { get } from 'svelte/store';
-import type { ValidationError } from './api';
+import type { ValidationError } from '$lib/api';
 
 let isHandling401 = false;
 const AUTH_ENDPOINTS = ['/api/v1/auth/login', '/api/v1/auth/register', '/api/v1/auth/verify-token'];
 
+type ToastType = 'error' | 'warning' | 'info' | 'success';
+
+const STATUS_MESSAGES: Record<number, { message: string; type: ToastType }> = {
+    403: { message: 'Access denied.', type: 'error' },
+    429: { message: 'Too many requests. Please slow down.', type: 'warning' },
+};
+
+function extractDetail(err: unknown): string | ValidationError[] | null {
+    if (typeof err === 'object' && err !== null && 'detail' in err) {
+        return (err as { detail: string | ValidationError[] }).detail;
+    }
+    return null;
+}
+
 export function getErrorMessage(err: unknown, fallback = 'An error occurred'): string {
     if (!err) return fallback;
 
-    if (typeof err === 'object' && 'detail' in err) {
-        const detail = (err as { detail?: ValidationError[] | string }).detail;
-        if (typeof detail === 'string') return detail;
-        if (Array.isArray(detail) && detail.length > 0) {
-            return detail.map((e) => `${e.loc[e.loc.length - 1]}: ${e.msg}`).join(', ');
-        }
+    const detail = extractDetail(err);
+    if (typeof detail === 'string') return detail;
+    if (Array.isArray(detail) && detail.length > 0) {
+        return detail.map((e) => `${e.loc[e.loc.length - 1]}: ${e.msg}`).join(', ');
     }
 
     if (err instanceof Error) return err.message;
@@ -46,15 +58,59 @@ function clearAuthState(): void {
     userRole.set(null);
     userEmail.set(null);
     csrfToken.set(null);
-    localStorage.removeItem('authState');
+    sessionStorage.removeItem('authState');
 }
 
-function handleAuthFailure(currentPath: string): void {
-    clearAuthState();
-    if (currentPath !== '/login' && currentPath !== '/register') {
-        sessionStorage.setItem('redirectAfterLogin', currentPath);
+function handle401(isAuthEndpoint: boolean): void {
+    if (isAuthEndpoint) return;
+
+    const wasAuthenticated = get(isAuthenticated);
+    if (wasAuthenticated && !isHandling401) {
+        isHandling401 = true;
+        const currentPath = window.location.pathname + window.location.search;
+        addToast('Session expired. Please log in again.', 'warning');
+        clearAuthState();
+        if (currentPath !== '/login' && currentPath !== '/register') {
+            sessionStorage.setItem('redirectAfterLogin', currentPath);
+        }
+        goto('/login');
+        setTimeout(() => { isHandling401 = false; }, 1000);
+    } else {
+        clearAuthState();
     }
-    goto('/login');
+}
+
+function handleErrorStatus(status: number | undefined, error: unknown, isAuthEndpoint: boolean): boolean {
+    if (!status) {
+        if (!isAuthEndpoint) addToast('Network error. Check your connection.', 'error');
+        return true;
+    }
+
+    if (status === 401) {
+        handle401(isAuthEndpoint);
+        return true;
+    }
+
+    const mapped = STATUS_MESSAGES[status];
+    if (mapped) {
+        addToast(mapped.message, mapped.type);
+        return true;
+    }
+
+    if (status === 422) {
+        const detail = extractDetail(error);
+        if (Array.isArray(detail) && detail.length > 0) {
+            addToast(`Validation error:\n${formatValidationErrors(detail)}`, 'error');
+            return true;
+        }
+    }
+
+    if (status >= 500) {
+        addToast('Server error. Please try again later.', 'error');
+        return true;
+    }
+
+    return false;
 }
 
 export function initializeApiInterceptors(): void {
@@ -70,47 +126,11 @@ export function initializeApiInterceptors(): void {
 
         console.error('[API Error]', { status, url, error });
 
-        if (status === 401 && !isAuthEndpoint && !isHandling401) {
-            isHandling401 = true;
-            try {
-                const currentPath = window.location.pathname + window.location.search;
-                addToast('Session expired. Please log in again.', 'warning');
-                handleAuthFailure(currentPath);
-            } finally {
-                setTimeout(() => { isHandling401 = false; }, 1000);
-            }
-            return { _handled: true, _status: 401 };
+        const handled = handleErrorStatus(status, error, isAuthEndpoint);
+        if (!handled && !isAuthEndpoint) {
+            addToast(getErrorMessage(error, 'An error occurred'), 'error');
         }
 
-        if (status === 403) {
-            addToast('Access denied.', 'error');
-            return error;
-        }
-
-        if (status === 422 && typeof error === 'object' && error !== null && 'detail' in error) {
-            const detail = (error as { detail: ValidationError[] }).detail;
-            if (Array.isArray(detail) && detail.length > 0) {
-                addToast(`Validation error:\n${formatValidationErrors(detail)}`, 'error');
-                return error;
-            }
-        }
-
-        if (status === 429) {
-            addToast('Too many requests. Please slow down.', 'warning');
-            return error;
-        }
-
-        if (status && status >= 500) {
-            addToast('Server error. Please try again later.', 'error');
-            return error;
-        }
-
-        if (!response && !url.includes('/verify-token')) {
-            addToast('Network error. Check your connection.', 'error');
-            return error;
-        }
-
-        addToast(getErrorMessage(error, 'An error occurred'), 'error');
         return error;
     });
 

@@ -48,6 +48,7 @@ const mocks = vi.hoisted(() => {
     mockNotificationsState,
     mockNotifications: createDerivedStore(mockNotificationsState, s => s.notifications),
     mockUnreadCount: createDerivedStore(mockNotificationsState, s => s.notifications.filter(n => n.status !== 'read').length),
+    mockLoading: createDerivedStore(mockNotificationsState, s => s.loading),
     mockGoto: null as unknown as ReturnType<typeof vi.fn>,
     mockNotificationStore: null as unknown as {
       subscribe: typeof mockNotificationsState.subscribe;
@@ -85,6 +86,7 @@ vi.mock('../../stores/notificationStore', () => ({
   get notificationStore() { return mocks.mockNotificationStore; },
   get notifications() { return mocks.mockNotifications; },
   get unreadCount() { return mocks.mockUnreadCount; },
+  get loading() { return mocks.mockLoading; },
 }));
 
 // Mock EventSource with instance tracking
@@ -122,9 +124,16 @@ class MockEventSource {
   static getLastInstance() { return MockEventSource.instances[MockEventSource.instances.length - 1]; }
 }
 vi.stubGlobal('EventSource', MockEventSource);
-vi.stubGlobal('Notification', { permission: 'default', requestPermission: vi.fn().mockResolvedValue('granted') });
 
-import NotificationCenter from '../NotificationCenter.svelte';
+// Configurable Notification mock
+const mockRequestPermission = vi.fn().mockResolvedValue('granted');
+let mockNotificationPermission = 'default';
+vi.stubGlobal('Notification', {
+  get permission() { return mockNotificationPermission; },
+  requestPermission: mockRequestPermission,
+});
+
+import NotificationCenter from '$components/NotificationCenter.svelte';
 
 // =============================================================================
 // Test Helpers
@@ -199,15 +208,15 @@ const interactWithButton = async (
 // =============================================================================
 
 const iconTestCases = [
-  { tags: ['completed'], svgPath: 'M9 12l2 2 4-4', desc: 'check' },
-  { tags: ['success'], svgPath: 'M9 12l2 2 4-4', desc: 'check' },
-  { tags: ['failed'], svgPath: 'M12 8v4m0 4h.01', desc: 'error' },
-  { tags: ['error'], svgPath: 'M12 8v4m0 4h.01', desc: 'error' },
-  { tags: ['security'], svgPath: 'M12 8v4m0 4h.01', desc: 'error' },
-  { tags: ['timeout'], svgPath: 'M12 9v2m0 4h.01', desc: 'warning' },
-  { tags: ['warning'], svgPath: 'M12 9v2m0 4h.01', desc: 'warning' },
-  { tags: ['unknown'], svgPath: 'M13 16h-1v-4h-1', desc: 'info' },
-  { tags: [] as string[], svgPath: 'M13 16h-1v-4h-1', desc: 'info' },
+  { tags: ['completed'], iconClass: 'lucide-circle-check', desc: 'check' },
+  { tags: ['success'], iconClass: 'lucide-circle-check', desc: 'check' },
+  { tags: ['failed'], iconClass: 'lucide-circle-alert', desc: 'error' },
+  { tags: ['error'], iconClass: 'lucide-circle-alert', desc: 'error' },
+  { tags: ['security'], iconClass: 'lucide-circle-alert', desc: 'error' },
+  { tags: ['timeout'], iconClass: 'lucide-triangle-alert', desc: 'warning' },
+  { tags: ['warning'], iconClass: 'lucide-triangle-alert', desc: 'warning' },
+  { tags: ['unknown'], iconClass: 'lucide-info', desc: 'info' },
+  { tags: [] as string[], iconClass: 'lucide-info', desc: 'info' },
 ];
 
 const priorityTestCases = [
@@ -260,6 +269,8 @@ describe('NotificationCenter', () => {
     mocks.mockNotificationStore.clear.mockReset();
     mocks.mockNotificationStore.add.mockReset();
     MockEventSource.clearInstances();
+    mockNotificationPermission = 'default';
+    mockRequestPermission.mockReset().mockResolvedValue('granted');
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'debug').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -348,12 +359,13 @@ describe('NotificationCenter', () => {
   });
 
   describe('notification icons', () => {
-    it.each(iconTestCases)('shows $desc icon for tags=$tags', async ({ tags, svgPath }) => {
+    it.each(iconTestCases)('shows $desc icon for tags=$tags', async ({ tags, iconClass }) => {
       const subject = tags[0] || 'NoTags';
       setNotifications([createNotification({ tags, subject })]);
       const { container } = await openDropdownWithContainer();
       await waitFor(() => {
-        expect(container.querySelector(`[aria-label*="${subject}"] svg`)?.innerHTML).toContain(svgPath);
+        const svg = container.querySelector(`[aria-label*="${subject}"] svg`);
+        expect(svg?.classList.contains(iconClass)).toBe(true);
       });
     });
   });
@@ -508,6 +520,62 @@ describe('NotificationCenter', () => {
       await vi.advanceTimersByTimeAsync(10000);
       expect(MockEventSource.instances.length).toBe(count);
       vi.useRealTimers();
+    });
+  });
+
+  describe('desktop notification permission', () => {
+    it('shows enable button when permission is default', async () => {
+      mockNotificationPermission = 'default';
+      await openDropdown();
+      await waitFor(() => {
+        expect(screen.getByText('Enable desktop notifications')).toBeInTheDocument();
+      });
+    });
+
+    it('hides enable button when permission is granted', async () => {
+      mockNotificationPermission = 'granted';
+      await openDropdown();
+      await waitFor(() => {
+        expect(screen.queryByText('Enable desktop notifications')).not.toBeInTheDocument();
+      });
+    });
+
+    it('hides enable button when permission is denied', async () => {
+      mockNotificationPermission = 'denied';
+      await openDropdown();
+      await waitFor(() => {
+        expect(screen.queryByText('Enable desktop notifications')).not.toBeInTheDocument();
+      });
+    });
+
+    it('calls requestPermission when enable button clicked', async () => {
+      mockNotificationPermission = 'default';
+      const user = await openDropdown();
+      await user.click(await screen.findByText('Enable desktop notifications'));
+      expect(mockRequestPermission).toHaveBeenCalled();
+    });
+
+    it('shows browser notification when SSE notification received and permission granted', async () => {
+      mockNotificationPermission = 'granted';
+      const mockNotificationConstructor = vi.fn();
+      vi.stubGlobal('Notification', {
+        get permission() { return 'granted'; },
+        requestPermission: mockRequestPermission,
+      });
+      (globalThis as unknown as { Notification: unknown }).Notification = class {
+        constructor(title: string, options?: NotificationOptions) {
+          mockNotificationConstructor(title, options);
+        }
+        static get permission() { return 'granted'; }
+        static requestPermission = mockRequestPermission;
+      };
+
+      const instance = await setupSSE();
+      instance.simulateMessage({ notification_id: 'n1', subject: 'Test Title', body: 'Test Body' });
+
+      await waitFor(() => {
+        expect(mockNotificationConstructor).toHaveBeenCalledWith('Test Title', expect.objectContaining({ body: 'Test Body' }));
+      });
     });
   });
 });

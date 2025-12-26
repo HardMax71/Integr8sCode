@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
+from app.domain.enums.execution import ExecutionStatus
+
 
 @dataclass
 class ShutdownStatus:
@@ -31,7 +33,7 @@ class SSEHealthDomain:
 @dataclass
 class SSEExecutionStatusDomain:
     execution_id: str
-    status: str
+    status: ExecutionStatus
     timestamp: str
 
 

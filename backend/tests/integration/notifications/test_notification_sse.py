@@ -4,6 +4,7 @@ from uuid import uuid4
 import pytest
 
 from app.domain.enums.notification import NotificationChannel, NotificationSeverity
+from app.schemas_pydantic.sse import RedisNotificationMessage
 from app.services.notification_service import NotificationService
 from app.services.sse.redis_bus import SSERedisBus
 from tests.helpers.eventually import eventually
@@ -34,13 +35,13 @@ async def test_in_app_notification_published_to_sse(scope) -> None:  # type: ign
     )
 
     # Receive published SSE payload
-    async def _recv():
-        m = await sub.get(timeout=0.5)
+    async def _recv() -> RedisNotificationMessage:
+        m = await sub.get(RedisNotificationMessage)
         assert m is not None
         return m
 
     msg = await eventually(_recv, timeout=5.0, interval=0.1)
     # Basic shape assertions
-    assert msg.get("subject") == "Hello"
-    assert msg.get("body") == "World"
-    assert "notification_id" in msg
+    assert msg.subject == "Hello"
+    assert msg.body == "World"
+    assert msg.notification_id

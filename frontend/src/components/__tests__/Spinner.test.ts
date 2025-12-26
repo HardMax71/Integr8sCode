@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import Spinner from '../Spinner.svelte';
+import Spinner from '$components/Spinner.svelte';
 
 describe('Spinner', () => {
   const getSpinner = () => screen.getByRole('status');

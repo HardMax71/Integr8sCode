@@ -10,6 +10,7 @@ from app.db.repositories.dlq_repository import DLQRepository
 from app.dlq import RetryPolicy
 from app.dlq.manager import DLQManager
 from app.dlq.models import DLQMessageStatus
+from app.domain.enums.events import EventType
 from app.schemas_pydantic.dlq import (
     DLQBatchRetryResponse,
     DLQMessageDetail,
@@ -50,7 +51,7 @@ async def get_dlq_messages(
     repository: FromDishka[DLQRepository],
     status: DLQMessageStatus | None = Query(None),
     topic: str | None = None,
-    event_type: str | None = None,
+    event_type: EventType | None = Query(None),
     limit: int = Query(50, ge=1, le=1000),
     offset: int = Query(0, ge=0),
 ) -> DLQMessagesResponse:

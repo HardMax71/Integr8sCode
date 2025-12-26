@@ -10,10 +10,8 @@ from app.api.dependencies import admin_user, current_user
 from app.core.exceptions import IntegrationException
 from app.core.tracing import EventAttributes, add_span_attributes
 from app.core.utils import get_client_ip
-from app.domain.enums.common import ErrorType
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
-from app.domain.enums.storage import ExecutionErrorType
 from app.domain.enums.user import UserRole
 from app.infrastructure.kafka.events.base import BaseEvent
 from app.infrastructure.kafka.events.metadata import EventMetadata
@@ -30,7 +28,6 @@ from app.schemas_pydantic.execution import (
     ExecutionResponse,
     ExecutionResult,
     ResourceLimits,
-    ResourceUsage,
     RetryExecutionRequest,
 )
 from app.schemas_pydantic.user import UserResponse
@@ -54,35 +51,7 @@ async def get_execution_with_access(
     if domain_exec.user_id and domain_exec.user_id != current_user.user_id and current_user.role != UserRole.ADMIN:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    # Map domain to Pydantic for dependency consumer
-    ru = None
-    if domain_exec.resource_usage is not None:
-        ru = ResourceUsage(**vars(domain_exec.resource_usage))
-    # Map error_type to public ErrorType in API model via mapper rules
-    error_type = (
-        (
-            ErrorType.SCRIPT_ERROR
-            if domain_exec.error_type == ExecutionErrorType.SCRIPT_ERROR
-            else ErrorType.SYSTEM_ERROR
-        )
-        if domain_exec.error_type is not None
-        else None
-    )
-    return ExecutionInDB(
-        execution_id=domain_exec.execution_id,
-        script=domain_exec.script,
-        status=domain_exec.status,
-        stdout=domain_exec.stdout,
-        stderr=domain_exec.stderr,
-        lang=domain_exec.lang,
-        lang_version=domain_exec.lang_version,
-        resource_usage=ru,
-        user_id=domain_exec.user_id,
-        exit_code=domain_exec.exit_code,
-        error_type=error_type,
-        created_at=domain_exec.created_at,
-        updated_at=domain_exec.updated_at,
-    )
+    return ExecutionInDB.model_validate(domain_exec)
 
 
 @router.post("/execute", response_model=ExecutionResponse)
@@ -268,24 +237,14 @@ async def retry_execution(
 async def get_execution_events(
     execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
     event_service: FromDishka[EventService],
-    event_types: str | None = Query(None, description="Comma-separated event types to filter"),
+    event_types: list[EventType] | None = Query(None, description="Event types to filter"),
     limit: int = Query(100, ge=1, le=1000),
 ) -> list[ExecutionEventResponse]:
     """Get all events for an execution."""
-    event_type_list = None
-    if event_types:
-        event_type_list = [t.strip() for t in event_types.split(",")]
-
     events = await event_service.get_events_by_aggregate(
-        aggregate_id=execution.execution_id, event_types=event_type_list, limit=limit
+        aggregate_id=execution.execution_id, event_types=event_types, limit=limit
     )
-
-    return [
-        ExecutionEventResponse(
-            event_id=event.event_id, event_type=event.event_type, timestamp=event.timestamp, payload=event.payload
-        )
-        for event in events
-    ]
+    return [ExecutionEventResponse.model_validate(e) for e in events]
 
 
 @router.get("/user/executions", response_model=ExecutionListResponse)
@@ -336,7 +295,7 @@ async def get_k8s_resource_limits(
 ) -> ResourceLimits:
     try:
         limits = await execution_service.get_k8s_resource_limits()
-        return ResourceLimits(**vars(limits))
+        return ResourceLimits.model_validate(limits)
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to retrieve resource limits") from e
 

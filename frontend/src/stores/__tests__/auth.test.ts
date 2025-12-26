@@ -16,17 +16,17 @@ vi.mock('../../lib/api', () => ({
 }));
 
 describe('auth store', () => {
-  let localStorageData: Record<string, string> = {};
+  let sessionStorageData: Record<string, string> = {};
 
   beforeEach(async () => {
-    // Reset localStorage mock
-    localStorageData = {};
-    vi.mocked(localStorage.getItem).mockImplementation((key: string) => localStorageData[key] ?? null);
-    vi.mocked(localStorage.setItem).mockImplementation((key: string, value: string) => {
-      localStorageData[key] = value;
+    // Reset sessionStorage mock
+    sessionStorageData = {};
+    vi.mocked(sessionStorage.getItem).mockImplementation((key: string) => sessionStorageData[key] ?? null);
+    vi.mocked(sessionStorage.setItem).mockImplementation((key: string, value: string) => {
+      sessionStorageData[key] = value;
     });
-    vi.mocked(localStorage.removeItem).mockImplementation((key: string) => {
-      delete localStorageData[key];
+    vi.mocked(sessionStorage.removeItem).mockImplementation((key: string) => {
+      delete sessionStorageData[key];
     });
 
     // Reset all mocks
@@ -45,21 +45,21 @@ describe('auth store', () => {
 
   describe('initial state', () => {
     it('has null authentication state initially', async () => {
-      const { isAuthenticated } = await import('../auth');
+      const { isAuthenticated } = await import('$stores/auth');
       expect(get(isAuthenticated)).toBe(null);
     });
 
     it('has null username initially', async () => {
-      const { username } = await import('../auth');
+      const { username } = await import('$stores/auth');
       expect(get(username)).toBe(null);
     });
 
     it('has null userRole initially', async () => {
-      const { userRole } = await import('../auth');
+      const { userRole } = await import('$stores/auth');
       expect(get(userRole)).toBe(null);
     });
 
-    it('restores auth state from localStorage', async () => {
+    it('restores auth state from sessionStorage', async () => {
       const authState = {
         isAuthenticated: true,
         username: 'testuser',
@@ -69,32 +69,14 @@ describe('auth store', () => {
         userEmail: 'test@example.com',
         timestamp: Date.now(),
       };
-      localStorageData['authState'] = JSON.stringify(authState);
+      sessionStorageData['authState'] = JSON.stringify(authState);
 
-      const { isAuthenticated, username, userRole, csrfToken } = await import('../auth');
+      const { isAuthenticated, username, userRole, csrfToken } = await import('$stores/auth');
 
       expect(get(isAuthenticated)).toBe(true);
       expect(get(username)).toBe('testuser');
       expect(get(userRole)).toBe('user');
       expect(get(csrfToken)).toBe('test-token');
-    });
-
-    it('clears expired auth state from localStorage', async () => {
-      const authState = {
-        isAuthenticated: true,
-        username: 'testuser',
-        userRole: 'user',
-        csrfToken: 'test-token',
-        userId: 'user-123',
-        userEmail: 'test@example.com',
-        timestamp: Date.now() - 25 * 60 * 60 * 1000, // 25 hours ago
-      };
-      localStorageData['authState'] = JSON.stringify(authState);
-
-      const { isAuthenticated } = await import('../auth');
-
-      expect(get(isAuthenticated)).toBe(null);
-      expect(localStorage.removeItem).toHaveBeenCalledWith('authState');
     });
   });
 
@@ -113,7 +95,7 @@ describe('auth store', () => {
         error: null,
       });
 
-      const { login, isAuthenticated, username, userRole, csrfToken } = await import('../auth');
+      const { login, isAuthenticated, username, userRole, csrfToken } = await import('$stores/auth');
 
       const result = await login('testuser', 'password123');
 
@@ -124,7 +106,7 @@ describe('auth store', () => {
       expect(get(csrfToken)).toBe('new-csrf-token');
     });
 
-    it('persists auth state to localStorage on login', async () => {
+    it('persists auth state to sessionStorage on login', async () => {
       mockLoginApi.mockResolvedValue({
         data: {
           username: 'testuser',
@@ -138,10 +120,10 @@ describe('auth store', () => {
         error: null,
       });
 
-      const { login } = await import('../auth');
+      const { login } = await import('$stores/auth');
       await login('testuser', 'password123');
 
-      expect(localStorage.setItem).toHaveBeenCalledWith(
+      expect(sessionStorage.setItem).toHaveBeenCalledWith(
         'authState',
         expect.stringContaining('testuser')
       );
@@ -153,7 +135,7 @@ describe('auth store', () => {
         error: { detail: 'Invalid credentials' },
       });
 
-      const { login } = await import('../auth');
+      const { login } = await import('$stores/auth');
 
       await expect(login('baduser', 'badpass')).rejects.toBeDefined();
     });
@@ -168,7 +150,7 @@ describe('auth store', () => {
         error: null,
       });
 
-      const { login } = await import('../auth');
+      const { login } = await import('$stores/auth');
       await login('testuser', 'mypassword');
 
       expect(mockLoginApi).toHaveBeenCalledWith({
@@ -190,7 +172,7 @@ describe('auth store', () => {
       });
       mockLogoutApi.mockResolvedValue({ data: {}, error: null });
 
-      const { login, logout, isAuthenticated, username } = await import('../auth');
+      const { login, logout, isAuthenticated, username } = await import('$stores/auth');
 
       await login('testuser', 'password');
       expect(get(isAuthenticated)).toBe(true);
@@ -201,13 +183,13 @@ describe('auth store', () => {
       expect(get(username)).toBe(null);
     });
 
-    it('clears localStorage on logout', async () => {
+    it('clears sessionStorage on logout', async () => {
       mockLogoutApi.mockResolvedValue({ data: {}, error: null });
 
-      const { logout } = await import('../auth');
+      const { logout } = await import('$stores/auth');
       await logout();
 
-      expect(localStorage.removeItem).toHaveBeenCalledWith('authState');
+      expect(sessionStorage.removeItem).toHaveBeenCalledWith('authState');
     });
 
     it('still clears state even if API call fails', async () => {
@@ -223,7 +205,7 @@ describe('auth store', () => {
       });
       mockLogoutApi.mockRejectedValue(new Error('Network error'));
 
-      const { login, logout, isAuthenticated } = await import('../auth');
+      const { login, logout, isAuthenticated } = await import('$stores/auth');
 
       await login('testuser', 'password');
       await logout();
@@ -244,7 +226,7 @@ describe('auth store', () => {
         error: null,
       });
 
-      const { verifyAuth } = await import('../auth');
+      const { verifyAuth } = await import('$stores/auth');
       const result = await verifyAuth(true);
 
       expect(result).toBe(true);
@@ -256,7 +238,7 @@ describe('auth store', () => {
         error: null,
       });
 
-      const { verifyAuth, isAuthenticated } = await import('../auth');
+      const { verifyAuth, isAuthenticated } = await import('$stores/auth');
       const result = await verifyAuth(true);
 
       expect(result).toBe(false);
@@ -273,7 +255,7 @@ describe('auth store', () => {
         error: null,
       });
 
-      const { verifyAuth } = await import('../auth');
+      const { verifyAuth } = await import('$stores/auth');
 
       // First call - should hit API
       await verifyAuth(true);
@@ -294,7 +276,7 @@ describe('auth store', () => {
         error: null,
       });
 
-      const { verifyAuth } = await import('../auth');
+      const { verifyAuth } = await import('$stores/auth');
 
       await verifyAuth(true);
       await verifyAuth(true);
@@ -315,7 +297,7 @@ describe('auth store', () => {
         error: null,
       });
 
-      const { verifyAuth } = await import('../auth');
+      const { verifyAuth } = await import('$stores/auth');
 
       const firstResult = await verifyAuth(true);
       expect(firstResult).toBe(true);
@@ -341,7 +323,7 @@ describe('auth store', () => {
         error: null,
       });
 
-      const { login, userId, userEmail } = await import('../auth');
+      const { login, userId, userEmail } = await import('$stores/auth');
       await login('testuser', 'password');
 
       expect(get(userId)).toBe('user-456');
@@ -354,7 +336,7 @@ describe('auth store', () => {
         error: { detail: 'Unauthorized' },
       });
 
-      const { fetchUserProfile } = await import('../auth');
+      const { fetchUserProfile } = await import('$stores/auth');
 
       await expect(fetchUserProfile()).rejects.toBeDefined();
     });

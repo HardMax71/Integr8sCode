@@ -325,7 +325,7 @@ async def replay_aggregate_events(
                 user_id=admin.user_id,
             )
             await kafka_event_service.publish_event(
-                event_type=f"replay.{event.event_type}",
+                event_type=event.event_type,
                 payload=event.payload,
                 aggregate_id=aggregate_id,
                 correlation_id=replay_correlation_id,

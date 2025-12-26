@@ -1,9 +1,9 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { goto } from '@mateothegreat/svelte5-router';
-    import { isAuthenticated } from '../stores/auth';
-    import { AuthInitializer } from '../lib/auth-init';
-    import Spinner from './Spinner.svelte';
+    import { isAuthenticated } from '$stores/auth';
+    import { AuthInitializer } from '$lib/auth-init';
+    import Spinner from '$components/Spinner.svelte';
     import type { Snippet } from 'svelte';
 
     let {

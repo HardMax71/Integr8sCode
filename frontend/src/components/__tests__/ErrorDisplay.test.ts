@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import ErrorDisplay from '../ErrorDisplay.svelte';
+import ErrorDisplay from '$components/ErrorDisplay.svelte';
 
 describe('ErrorDisplay', () => {
   let originalLocation: Location;

@@ -44,7 +44,7 @@ vi.mock('../NotificationCenter.svelte', () => {
   return { default: Mock };
 });
 
-import Header from '../Header.svelte';
+import Header from '$components/Header.svelte';
 
 // Test helpers
 const setAuth = (isAuth: boolean, username: string | null = null, role: string | null = null, email: string | null = null) => {
@@ -116,15 +116,15 @@ describe('Header', () => {
     });
 
     it.each([
-      { theme: 'light', svgPathContains: 'M12 3v1' },
-      { theme: 'dark', svgPathContains: 'M20.354' },
-      { theme: 'auto', svgPathContains: 'M9.663 17h4.673' },
-    ])('shows correct icon for $theme theme', async ({ theme, svgPathContains }) => {
+      { theme: 'light', iconClass: 'lucide-sun' },
+      { theme: 'dark', iconClass: 'lucide-moon' },
+      { theme: 'auto', iconClass: 'lucide-monitor-cog' },
+    ])('shows correct icon for $theme theme', async ({ theme, iconClass }) => {
       mocks.mockTheme.set(theme);
       const { container } = render(Header);
       await waitFor(() => {
         const svg = container.querySelector('[title="Toggle theme"] svg');
-        expect(svg?.innerHTML).toContain(svgPathContains);
+        expect(svg?.classList.contains(iconClass)).toBe(true);
       });
     });
   });

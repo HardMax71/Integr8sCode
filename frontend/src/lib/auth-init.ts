@@ -1,6 +1,7 @@
 import { get } from 'svelte/store';
-import { isAuthenticated, username, userId, userRole, userEmail, csrfToken, verifyAuth } from '../stores/auth';
-import { loadUserSettings } from './user-settings';
+import { isAuthenticated, username, userId, userRole, userEmail, csrfToken, verifyAuth } from '$stores/auth';
+import { clearUserSettings } from '$stores/userSettings';
+import { loadUserSettings } from '$lib/user-settings';
 
 interface PersistedAuth {
     isAuthenticated: boolean;
@@ -126,17 +127,9 @@ export class AuthInitializer {
 
     private static _getPersistedAuth(): PersistedAuth | null {
         try {
-            const authData = localStorage.getItem('authState');
+            const authData = sessionStorage.getItem('authState');
             if (!authData) return null;
-
-            const parsed: PersistedAuth = JSON.parse(authData);
-
-            if (Date.now() - parsed.timestamp > 24 * 60 * 60 * 1000) {
-                localStorage.removeItem('authState');
-                return null;
-            }
-
-            return parsed;
+            return JSON.parse(authData);
         } catch (e) {
             console.error('[AuthInit] Failed to parse persisted auth:', e);
             return null;
@@ -154,7 +147,8 @@ export class AuthInitializer {
         userRole.set(null);
         userEmail.set(null);
         csrfToken.set(null);
-        localStorage.removeItem('authState');
+        clearUserSettings();
+        sessionStorage.removeItem('authState');
     }
 
     static isAuthenticated(): boolean {

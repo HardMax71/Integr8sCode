@@ -31,7 +31,7 @@ async def test_register_unregister_and_shutdown_flow() -> None:
     from tests.helpers.eventually import eventually
 
     async def _is_notifying():
-        return mgr.get_shutdown_status()["phase"] == "notifying"
+        return mgr.get_shutdown_status().phase == "notifying"
 
     await eventually(_is_notifying, timeout=1.0, interval=0.02)
 
@@ -42,7 +42,7 @@ async def test_register_unregister_and_shutdown_flow() -> None:
     await mgr.unregister_connection("exec-1", "c2")
 
     await task
-    assert mgr.get_shutdown_status()["complete"] is True
+    assert mgr.get_shutdown_status().complete is True
 
 
 @pytest.mark.asyncio

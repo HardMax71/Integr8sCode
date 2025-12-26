@@ -4,10 +4,10 @@
         getSystemSettingsApiV1AdminSettingsGet,
         updateSystemSettingsApiV1AdminSettingsPut,
         resetSystemSettingsApiV1AdminSettingsResetPost,
-    } from '../../lib/api';
-    import { addToast } from '../../stores/toastStore';
-    import AdminLayout from './AdminLayout.svelte';
-    import Spinner from '../../components/Spinner.svelte';
+    } from '$lib/api';
+    import { addToast } from '$stores/toastStore';
+    import AdminLayout from '$routes/admin/AdminLayout.svelte';
+    import Spinner from '$components/Spinner.svelte';
 
     let settings = $state<{
         execution_limits: Record<string, unknown>;

@@ -2,87 +2,15 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { tick } from 'svelte';
-
-// Mock data factories
-function createMockEvent(overrides: Partial<{
-  event_id: string;
-  event_type: string;
-  timestamp: string;
-  correlation_id: string;
-  aggregate_id: string;
-  metadata: Record<string, unknown>;
-  payload: Record<string, unknown>;
-}> = {}) {
-  return {
-    event_id: 'evt-1',
-    event_type: 'execution.completed',
-    timestamp: '2024-01-15T10:30:00Z',
-    correlation_id: 'corr-123',
-    aggregate_id: 'exec-456',
-    metadata: { user_id: 'user-1', service_name: 'test-service' },
-    payload: { output: 'hello', exit_code: 0 },
-    ...overrides,
-  };
-}
-
-function createMockEvents(count: number) {
-  const eventTypes = [
-    'execution.requested', 'execution.started', 'execution.completed',
-    'execution.failed', 'pod.created', 'pod.running'
-  ];
-  return Array.from({ length: count }, (_, i) =>
-    createMockEvent({
-      event_id: `evt-${i + 1}`,
-      event_type: eventTypes[i % eventTypes.length],
-      timestamp: new Date(Date.now() - i * 60000).toISOString(),
-      correlation_id: `corr-${i + 1}`,
-      aggregate_id: `exec-${i + 1}`,
-      metadata: { user_id: `user-${(i % 3) + 1}`, service_name: 'execution-service' },
-    })
-  );
-}
-
-function createMockStats(overrides: Partial<{
-  total_events: number;
-  error_rate: number;
-  avg_processing_time: number;
-  top_users: Array<{ user_id: string; count: number }>;
-}> = {}) {
-  return {
-    total_events: 150,
-    error_rate: 2.5,
-    avg_processing_time: 1.23,
-    top_users: [{ user_id: 'user-1', count: 50 }],
-    ...overrides,
-  };
-}
-
-function createMockEventDetail(event = createMockEvent()) {
-  return {
-    event,
-    related_events: [
-      { event_id: 'rel-1', event_type: 'execution.started', timestamp: '2024-01-15T10:29:00Z' },
-      { event_id: 'rel-2', event_type: 'pod.created', timestamp: '2024-01-15T10:29:30Z' },
-    ],
-  };
-}
-
-function createMockUserOverview() {
-  return {
-    user: {
-      user_id: 'user-1',
-      username: 'testuser',
-      email: 'test@example.com',
-      role: 'user',
-      is_active: true,
-      is_superuser: false,
-    },
-    stats: { total_events: 100 },
-    derived_counts: { succeeded: 80, failed: 10, timeout: 5, cancelled: 5, terminal_total: 100 },
-    rate_limit_summary: { bypass_rate_limit: false, global_multiplier: 1.0, has_custom_limits: false },
-    recent_events: [createMockEvent()],
-  };
-}
+import {
+  mockElementAnimate,
+  mockWindowGlobals,
+  createMockEvent,
+  createMockEvents,
+  createMockStats,
+  createMockEventDetail,
+  createMockUserOverview,
+} from '$routes/admin/__tests__/test-utils';
 
 // Hoisted mocks
 const mocks = vi.hoisted(() => ({
@@ -123,30 +51,11 @@ vi.mock('@mateothegreat/svelte5-router', () => ({
 
 // Simple mock for AdminLayout
 vi.mock('../AdminLayout.svelte', async () => {
-  const { default: MockLayout } = await import('./mocks/MockAdminLayout.svelte');
+  const { default: MockLayout } = await import('$routes/admin/__tests__/mocks/MockAdminLayout.svelte');
   return { default: MockLayout };
 });
 
-import AdminEvents from '../AdminEvents.svelte';
-
-// Setup helpers
-function setupMocks() {
-  Element.prototype.animate = vi.fn().mockImplementation(() => ({
-    onfinish: null, cancel: vi.fn(), finish: vi.fn(), pause: vi.fn(), play: vi.fn(),
-    reverse: vi.fn(), commitStyles: vi.fn(), persist: vi.fn(), currentTime: 0,
-    playbackRate: 1, pending: false, playState: 'running', replaceState: 'active',
-    startTime: 0, timeline: null, id: '', effect: null,
-    addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn(() => true),
-    updatePlaybackRate: vi.fn(),
-    get finished() { return Promise.resolve(this); },
-    get ready() { return Promise.resolve(this); },
-    oncancel: null, onremove: null,
-  }));
-
-  // Mock window.open and window.confirm
-  vi.stubGlobal('open', mocks.windowOpen);
-  vi.stubGlobal('confirm', mocks.windowConfirm);
-}
+import AdminEvents from '$routes/admin/AdminEvents.svelte';
 
 async function renderWithEvents(events = createMockEvents(5), stats = createMockStats()) {
   mocks.browseEventsApiV1AdminEventsBrowsePost.mockResolvedValue({
@@ -164,7 +73,8 @@ async function renderWithEvents(events = createMockEvents(5), stats = createMock
 describe('AdminEvents', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    setupMocks();
+    mockElementAnimate();
+    mockWindowGlobals(mocks.windowOpen, mocks.windowConfirm);
     vi.clearAllMocks();
     mocks.browseEventsApiV1AdminEventsBrowsePost.mockResolvedValue({ data: { events: [], total: 0 }, error: null });
     mocks.getEventStatsApiV1AdminEventsStatsGet.mockResolvedValue({ data: null, error: null });
@@ -481,7 +391,7 @@ describe('AdminEvents', () => {
     it('displays event information in modal', async () => {
       vi.useRealTimers();
       const user = userEvent.setup();
-      const event = createMockEvent({ event_id: 'evt-123', event_type: 'execution.completed', correlation_id: 'corr-abc' });
+      const event = createMockEvent({ event_id: 'evt-123', event_type: 'execution_completed', correlation_id: 'corr-abc' });
       mocks.getEventDetailApiV1AdminEventsEventIdGet.mockResolvedValue({
         data: createMockEventDetail(event),
         error: null,
@@ -494,7 +404,7 @@ describe('AdminEvents', () => {
       await waitFor(() => {
         // Using getAllByText because values may appear in table + modal
         expect(screen.getAllByText('evt-123').length).toBeGreaterThan(0);
-        expect(screen.getAllByText('execution.completed').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('execution_completed').length).toBeGreaterThan(0);
         expect(screen.getAllByText('corr-abc').length).toBeGreaterThan(0);
       });
     });
@@ -514,8 +424,8 @@ describe('AdminEvents', () => {
 
       await waitFor(() => {
         expect(screen.getByText(/Related Events/i)).toBeInTheDocument();
-        expect(screen.getByText('execution.started')).toBeInTheDocument();
-        expect(screen.getByText('pod.created')).toBeInTheDocument();
+        expect(screen.getByText('execution_started')).toBeInTheDocument();
+        expect(screen.getByText('pod_created')).toBeInTheDocument();
       });
     });
 
@@ -829,7 +739,7 @@ describe('AdminEvents', () => {
   describe('event type display', () => {
     it('shows correct color for completed events', async () => {
       vi.useRealTimers();
-      const events = [createMockEvent({ event_type: 'execution.completed' })];
+      const events = [createMockEvent({ event_type: 'execution_completed' })];
       await renderWithEvents(events);
       // The icon container should have green color class
       const iconSpan = document.querySelector('.text-green-600');
@@ -838,7 +748,7 @@ describe('AdminEvents', () => {
 
     it('shows correct color for failed events', async () => {
       vi.useRealTimers();
-      const events = [createMockEvent({ event_type: 'execution.failed' })];
+      const events = [createMockEvent({ event_type: 'execution_failed' })];
       await renderWithEvents(events);
       const iconSpan = document.querySelector('.text-red-600');
       expect(iconSpan).toBeInTheDocument();
@@ -846,7 +756,7 @@ describe('AdminEvents', () => {
 
     it('shows correct color for started events', async () => {
       vi.useRealTimers();
-      const events = [createMockEvent({ event_type: 'execution.started' })];
+      const events = [createMockEvent({ event_type: 'execution_started' })];
       await renderWithEvents(events);
       const iconSpan = document.querySelector('.text-blue-600');
       expect(iconSpan).toBeInTheDocument();

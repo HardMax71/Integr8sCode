@@ -7,6 +7,7 @@ from .exceptions import (
 from .models import (
     DomainExecution,
     ExecutionResultDomain,
+    LanguageInfoDomain,
     ResourceLimitsDomain,
     ResourceUsageDomain,
 )
@@ -14,6 +15,7 @@ from .models import (
 __all__ = [
     "DomainExecution",
     "ExecutionResultDomain",
+    "LanguageInfoDomain",
     "ResourceLimitsDomain",
     "ResourceUsageDomain",
     "ExecutionServiceError",

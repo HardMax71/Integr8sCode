@@ -59,14 +59,14 @@ class AdminEventsService:
     async def browse_events(
         self,
         *,
-        filter: EventFilter,
+        event_filter: EventFilter,
         skip: int,
         limit: int,
         sort_by: str,
         sort_order: int,
     ) -> EventBrowseResult:
         return await self._repo.browse_events(
-            filter=filter, skip=skip, limit=limit, sort_by=sort_by, sort_order=sort_order
+            event_filter=event_filter, skip=skip, limit=limit, sort_by=sort_by, sort_order=sort_order
         )
 
     async def get_event_detail(self, event_id: str) -> EventDetail | None:
@@ -180,12 +180,12 @@ class AdminEventsService:
         status = await self._repo.get_replay_status_with_progress(session_id)
         return status
 
-    async def export_events_csv(self, filter: EventFilter) -> List[EventExportRow]:
-        rows = await self._repo.export_events_csv(filter)
+    async def export_events_csv(self, event_filter: EventFilter) -> List[EventExportRow]:
+        rows = await self._repo.export_events_csv(event_filter)
         return rows
 
-    async def export_events_csv_content(self, *, filter: EventFilter, limit: int) -> ExportResult:
-        rows = await self._repo.export_events_csv(filter)
+    async def export_events_csv_content(self, *, event_filter: EventFilter, limit: int) -> ExportResult:
+        rows = await self._repo.export_events_csv(event_filter)
         output = StringIO()
         writer = csv.DictWriter(
             output,
@@ -216,8 +216,10 @@ class AdminEventsService:
         )
         return ExportResult(file_name=filename, content=output.getvalue(), media_type="text/csv")
 
-    async def export_events_json_content(self, *, filter: EventFilter, limit: int) -> ExportResult:
-        result = await self._repo.browse_events(filter=filter, skip=0, limit=limit, sort_by="timestamp", sort_order=-1)
+    async def export_events_json_content(self, *, event_filter: EventFilter, limit: int) -> ExportResult:
+        result = await self._repo.browse_events(
+            event_filter=event_filter, skip=0, limit=limit, sort_by="timestamp", sort_order=-1
+        )
         event_mapper = EventMapper()
         events_data: list[dict[str, Any]] = []
         for event in result.events:
@@ -232,13 +234,13 @@ class AdminEventsService:
                 "exported_at": datetime.now(timezone.utc).isoformat(),
                 "total_events": len(events_data),
                 "filters_applied": {
-                    "event_types": filter.event_types,
-                    "aggregate_id": filter.aggregate_id,
-                    "correlation_id": filter.correlation_id,
-                    "user_id": filter.user_id,
-                    "service_name": filter.service_name,
-                    "start_time": filter.start_time.isoformat() if filter.start_time else None,
-                    "end_time": filter.end_time.isoformat() if filter.end_time else None,
+                    "event_types": event_filter.event_types,
+                    "aggregate_id": event_filter.aggregate_id,
+                    "correlation_id": event_filter.correlation_id,
+                    "user_id": event_filter.user_id,
+                    "service_name": event_filter.service_name,
+                    "start_time": event_filter.start_time.isoformat() if event_filter.start_time else None,
+                    "end_time": event_filter.end_time.isoformat() if event_filter.end_time else None,
                 },
                 "export_limit": limit,
             },

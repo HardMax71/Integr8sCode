@@ -29,7 +29,7 @@ class KafkaEventService:
 
     async def publish_event(
         self,
-        event_type: str,
+        event_type: EventType,
         payload: Dict[str, Any],
         aggregate_id: str | None,
         correlation_id: str | None = None,
@@ -81,15 +81,14 @@ class KafkaEventService:
             _ = await self.event_repository.store_event(event)
 
             # Get event class and create proper event instance
-            event_type_enum = EventType(event_type)
-            event_class = get_event_class_for_type(event_type_enum)
+            event_class = get_event_class_for_type(event_type)
             if not event_class:
                 raise ValueError(f"No event class found for event type: {event_type}")
 
             # Create proper event instance with all required fields
             event_data = {
                 "event_id": event.event_id,
-                "event_type": event_type_enum,
+                "event_type": event_type,
                 "event_version": "1.0",
                 "timestamp": timestamp,
                 "aggregate_id": aggregate_id,
@@ -138,7 +137,7 @@ class KafkaEventService:
 
     async def publish_execution_event(
         self,
-        event_type: str,
+        event_type: EventType,
         execution_id: str,
         status: str,
         metadata: EventMetadata | None = None,
@@ -179,7 +178,7 @@ class KafkaEventService:
 
     async def publish_pod_event(
         self,
-        event_type: str,
+        event_type: EventType,
         pod_name: str,
         execution_id: str,
         namespace: str = "integr8scode",

@@ -43,7 +43,7 @@ async def browse_events(request: EventBrowseRequest, service: FromDishka[AdminEv
         event_filter = EventFilterMapper.from_admin_pydantic(request.filters)
 
         result = await service.browse_events(
-            filter=event_filter,
+            event_filter=event_filter,
             skip=request.skip,
             limit=request.limit,
             sort_by=request.sort_by,
@@ -92,7 +92,7 @@ async def export_events_csv(
                 end_time=end_time,
             )
         )
-        result = await service.export_events_csv_content(filter=export_filter, limit=limit)
+        result = await service.export_events_csv_content(event_filter=export_filter, limit=limit)
         return StreamingResponse(
             iter([result.content]),
             media_type=result.media_type,
@@ -128,7 +128,7 @@ async def export_events_json(
                 end_time=end_time,
             )
         )
-        result = await service.export_events_json_content(filter=export_filter, limit=limit)
+        result = await service.export_events_json_content(event_filter=export_filter, limit=limit)
         return StreamingResponse(
             iter([result.content]),
             media_type=result.media_type,

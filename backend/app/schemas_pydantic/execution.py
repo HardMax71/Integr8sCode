@@ -6,8 +6,9 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.domain.enums.common import ErrorType
+from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
+from app.domain.enums.storage import ExecutionErrorType
 from app.settings import get_settings
 
 
@@ -37,9 +38,9 @@ class ExecutionInDB(ExecutionBase):
     resource_usage: ResourceUsage | None = None
     user_id: str | None = None
     exit_code: int | None = None
-    error_type: ErrorType | None = None
+    error_type: ExecutionErrorType | None = None
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
 
 
 class ExecutionUpdate(BaseModel):
@@ -50,7 +51,7 @@ class ExecutionUpdate(BaseModel):
     stderr: str | None = None
     resource_usage: ResourceUsage | None = None
     exit_code: int | None = None
-    error_type: ErrorType | None = None
+    error_type: ExecutionErrorType | None = None
 
 
 class ResourceUsage(BaseModel):
@@ -63,6 +64,8 @@ class ResourceUsage(BaseModel):
     clk_tck_hertz: int | None = Field(default=None, description="Clock ticks per second (usually 100)")
     peak_memory_kb: int | None = Field(default=None, description="Peak memory usage in KB")
 
+    model_config = ConfigDict(from_attributes=True)
+
 
 class ExecutionRequest(BaseModel):
     """Model for execution request."""
@@ -73,13 +76,13 @@ class ExecutionRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_runtime_supported(self) -> "ExecutionRequest":  # noqa: D401
-        settings = get_settings()
-        runtimes = settings.SUPPORTED_RUNTIMES or {}
-        if self.lang not in runtimes:
+        runtimes = get_settings().SUPPORTED_RUNTIMES
+        if not (lang_info := runtimes.get(self.lang)):
             raise ValueError(f"Language '{self.lang}' not supported. Supported: {list(runtimes.keys())}")
-        versions = runtimes.get(self.lang, [])
-        if self.lang_version not in versions:
-            raise ValueError(f"Version '{self.lang_version}' not supported for {self.lang}. Supported: {versions}")
+        if self.lang_version not in lang_info.versions:
+            raise ValueError(
+                f"Version '{self.lang_version}' not supported for {self.lang}. Supported: {lang_info.versions}"
+            )
         return self
 
 
@@ -103,7 +106,16 @@ class ExecutionResult(BaseModel):
     lang_version: str
     resource_usage: ResourceUsage | None = None
     exit_code: int | None = None
-    error_type: ErrorType | None = None
+    error_type: ExecutionErrorType | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class LanguageInfo(BaseModel):
+    """Language runtime information."""
+
+    versions: list[str]
+    file_ext: str
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -116,7 +128,9 @@ class ResourceLimits(BaseModel):
     cpu_request: str
     memory_request: str
     execution_timeout: int
-    supported_runtimes: dict[str, list[str]]
+    supported_runtimes: dict[str, LanguageInfo]
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ExampleScripts(BaseModel):
@@ -142,9 +156,11 @@ class ExecutionEventResponse(BaseModel):
     """Model for execution event response."""
 
     event_id: str
-    event_type: str
+    event_type: EventType
     timestamp: datetime
     payload: dict[str, Any]
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ExecutionListResponse(BaseModel):

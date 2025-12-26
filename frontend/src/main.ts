@@ -1,8 +1,8 @@
 import { mount } from 'svelte';
 import App from './App.svelte';
-import ErrorDisplay from './components/ErrorDisplay.svelte';
-import { appError } from './stores/errorStore';
-import { initializeApiInterceptors } from './lib/api-interceptors';
+import ErrorDisplay from '$components/ErrorDisplay.svelte';
+import { appError } from '$stores/errorStore';
+import { initializeApiInterceptors } from '$lib/api-interceptors';
 import './app.css';
 
 initializeApiInterceptors();
@@ -15,7 +15,9 @@ window.onerror = (message, source, lineno, colno, error) => {
 };
 
 window.onunhandledrejection = (event) => {
-  console.info('[Promise Rejection Handled]', event.reason);
+  console.error('[Unhandled Promise Rejection]', event.reason);
+  const error = event.reason instanceof Error ? event.reason : new Error(String(event.reason));
+  appError.setError(error, 'Unexpected Error');
   event.preventDefault();
 };
 

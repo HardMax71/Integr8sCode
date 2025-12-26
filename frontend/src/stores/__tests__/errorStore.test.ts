@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { get } from 'svelte/store';
-import { appError } from '../errorStore';
+import { appError } from '$stores/errorStore';
 
 describe('errorStore', () => {
   beforeEach(() => {

@@ -21,18 +21,12 @@ class NotificationSettings(BaseModel):
 class EditorSettings(BaseModel):
     """Code editor preferences"""
 
-    theme: str = "one-dark"
+    theme: str = "auto"
     font_size: int = 14
     tab_size: int = 4
     use_tabs: bool = False
     word_wrap: bool = True
     show_line_numbers: bool = True
-    # These are always on in the editor, not user-configurable
-    font_family: str = "Monaco, Consolas, 'Courier New', monospace"
-    auto_complete: bool = True
-    bracket_matching: bool = True
-    highlight_active_line: bool = True
-    default_language: str = "python"
 
     @field_validator("font_size")
     @classmethod
@@ -97,7 +91,7 @@ class SettingsHistoryEntry(BaseModel):
     """Single entry in settings history"""
 
     timestamp: datetime
-    event_type: str
+    event_type: EventType
     field: str
     old_value: Any
     new_value: Any
@@ -122,7 +116,7 @@ class RestoreSettingsRequest(BaseModel):
 class SettingsEvent(BaseModel):
     """Minimal event model for user settings service consumption."""
 
-    event_type: str | EventType
+    event_type: EventType
     timestamp: datetime
     payload: Dict[str, Any]
     correlation_id: str | None = None

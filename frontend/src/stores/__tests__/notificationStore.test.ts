@@ -43,17 +43,17 @@ describe('notificationStore', () => {
 
   describe('initial state', () => {
     it('has empty notifications array', async () => {
-      const { notificationStore } = await import('../notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore');
       expect(get(notificationStore).notifications).toEqual([]);
     });
 
     it('has loading false', async () => {
-      const { notificationStore } = await import('../notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore');
       expect(get(notificationStore).loading).toBe(false);
     });
 
     it('has null error', async () => {
-      const { notificationStore } = await import('../notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore');
       expect(get(notificationStore).error).toBe(null);
     });
   });
@@ -67,7 +67,7 @@ describe('notificationStore', () => {
         });
       });
 
-      const { notificationStore } = await import('../notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore');
       const loadPromise = notificationStore.load();
 
       capturedLoading = get(notificationStore).loading;
@@ -86,7 +86,7 @@ describe('notificationStore', () => {
         error: null,
       });
 
-      const { notificationStore } = await import('../notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore');
       await notificationStore.load();
 
       expect(get(notificationStore).notifications).toHaveLength(2);
@@ -99,7 +99,7 @@ describe('notificationStore', () => {
         error: null,
       });
 
-      const { notificationStore } = await import('../notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore');
       await notificationStore.load();
 
       expect(get(notificationStore).loading).toBe(false);
@@ -112,7 +112,7 @@ describe('notificationStore', () => {
         error: null,
       });
 
-      const { notificationStore } = await import('../notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore');
       const result = await notificationStore.load();
 
       expect(result).toEqual(notifications);
@@ -124,7 +124,7 @@ describe('notificationStore', () => {
         error: { detail: [{ msg: 'Failed to fetch' }] },
       });
 
-      const { notificationStore } = await import('../notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore');
       await notificationStore.load();
 
       expect(get(notificationStore).error).toBe('Failed to fetch');
@@ -136,7 +136,7 @@ describe('notificationStore', () => {
         error: { detail: [{ msg: 'Error' }] },
       });
 
-      const { notificationStore } = await import('../notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore');
       const result = await notificationStore.load();
 
       expect(result).toEqual([]);
@@ -148,7 +148,7 @@ describe('notificationStore', () => {
         error: null,
       });
 
-      const { notificationStore } = await import('../notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore');
       await notificationStore.load(50);
 
       expect(mockGetNotifications).toHaveBeenCalledWith({
@@ -162,7 +162,7 @@ describe('notificationStore', () => {
         error: null,
       });
 
-      const { notificationStore } = await import('../notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore');
       await notificationStore.load(20, {
         include_tags: ['important'],
         exclude_tags: ['spam'],
@@ -187,7 +187,7 @@ describe('notificationStore', () => {
         error: null,
       });
 
-      const { notificationStore } = await import('../notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore');
       await notificationStore.load();
 
       const newNotification = createMockNotification({ notification_id: 'new', subject: 'New' });
@@ -199,7 +199,7 @@ describe('notificationStore', () => {
     });
 
     it('caps notifications at 100', async () => {
-      const { notificationStore } = await import('../notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore');
 
       // Add 100 notifications
       for (let i = 0; i < 100; i++) {
@@ -229,7 +229,7 @@ describe('notificationStore', () => {
       });
       mockMarkRead.mockResolvedValue({ error: null });
 
-      const { notificationStore } = await import('../notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore');
       await notificationStore.load();
 
       const result = await notificationStore.markAsRead('n1');
@@ -245,7 +245,7 @@ describe('notificationStore', () => {
       });
       mockMarkRead.mockResolvedValue({ error: { detail: 'Failed' } });
 
-      const { notificationStore } = await import('../notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore');
       await notificationStore.load();
 
       const result = await notificationStore.markAsRead('n1');
@@ -257,7 +257,7 @@ describe('notificationStore', () => {
     it('calls API with correct notification ID', async () => {
       mockMarkRead.mockResolvedValue({ error: null });
 
-      const { notificationStore } = await import('../notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore');
       await notificationStore.markAsRead('test-id-123');
 
       expect(mockMarkRead).toHaveBeenCalledWith({
@@ -279,7 +279,7 @@ describe('notificationStore', () => {
       });
       mockMarkAllRead.mockResolvedValue({ error: null });
 
-      const { notificationStore } = await import('../notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore');
       await notificationStore.load();
 
       const result = await notificationStore.markAllAsRead();
@@ -292,7 +292,7 @@ describe('notificationStore', () => {
     it('returns false on failure', async () => {
       mockMarkAllRead.mockResolvedValue({ error: { detail: 'Failed' } });
 
-      const { notificationStore } = await import('../notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore');
       const result = await notificationStore.markAllAsRead();
 
       expect(result).toBe(false);
@@ -312,7 +312,7 @@ describe('notificationStore', () => {
       });
       mockDeleteNotification.mockResolvedValue({ error: null });
 
-      const { notificationStore } = await import('../notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore');
       await notificationStore.load();
 
       const result = await notificationStore.delete('n1');
@@ -330,7 +330,7 @@ describe('notificationStore', () => {
       });
       mockDeleteNotification.mockResolvedValue({ error: { detail: 'Failed' } });
 
-      const { notificationStore } = await import('../notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore');
       await notificationStore.load();
 
       const result = await notificationStore.delete('n1');
@@ -342,7 +342,7 @@ describe('notificationStore', () => {
     it('calls API with correct notification ID', async () => {
       mockDeleteNotification.mockResolvedValue({ error: null });
 
-      const { notificationStore } = await import('../notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore');
       await notificationStore.delete('delete-me-123');
 
       expect(mockDeleteNotification).toHaveBeenCalledWith({
@@ -363,7 +363,7 @@ describe('notificationStore', () => {
         error: null,
       });
 
-      const { notificationStore } = await import('../notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore');
       await notificationStore.load();
       expect(get(notificationStore).notifications).toHaveLength(2);
 
@@ -380,7 +380,7 @@ describe('notificationStore', () => {
         error: null,
       });
 
-      const { notificationStore } = await import('../notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore');
       await notificationStore.refresh();
 
       expect(mockGetNotifications).toHaveBeenCalledWith({
@@ -402,7 +402,7 @@ describe('notificationStore', () => {
         error: null,
       });
 
-      const { notificationStore, unreadCount } = await import('../notificationStore');
+      const { notificationStore, unreadCount } = await import('$stores/notificationStore');
       await notificationStore.load();
 
       expect(get(unreadCount)).toBe(2);
@@ -418,7 +418,7 @@ describe('notificationStore', () => {
         error: null,
       });
 
-      const { notificationStore, unreadCount } = await import('../notificationStore');
+      const { notificationStore, unreadCount } = await import('$stores/notificationStore');
       await notificationStore.load();
 
       expect(get(unreadCount)).toBe(0);
@@ -435,7 +435,7 @@ describe('notificationStore', () => {
       });
       mockMarkRead.mockResolvedValue({ error: null });
 
-      const { notificationStore, unreadCount } = await import('../notificationStore');
+      const { notificationStore, unreadCount } = await import('$stores/notificationStore');
       await notificationStore.load();
       expect(get(unreadCount)).toBe(1);
 
@@ -455,7 +455,7 @@ describe('notificationStore', () => {
         error: null,
       });
 
-      const { notificationStore, notifications } = await import('../notificationStore');
+      const { notificationStore, notifications } = await import('$stores/notificationStore');
       await notificationStore.load();
 
       expect(get(notifications)).toHaveLength(2);

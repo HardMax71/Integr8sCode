@@ -6,11 +6,25 @@ import postcss from 'rollup-plugin-postcss';
 import sveltePreprocess from 'svelte-preprocess';
 import replace from '@rollup/plugin-replace';
 import typescript from '@rollup/plugin-typescript';
+import alias from '@rollup/plugin-alias';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import https from 'https';
 import path from 'path';
 import json from '@rollup/plugin-json';
+
+// Path aliases - must match tsconfig.json paths
+const projectRoot = path.resolve('.');
+const aliases = alias({
+    entries: [
+        { find: '$lib', replacement: path.resolve(projectRoot, 'src/lib') },
+        { find: '$components', replacement: path.resolve(projectRoot, 'src/components') },
+        { find: '$stores', replacement: path.resolve(projectRoot, 'src/stores') },
+        { find: '$routes', replacement: path.resolve(projectRoot, 'src/routes') },
+        { find: '$utils', replacement: path.resolve(projectRoot, 'src/utils') },
+        { find: '$styles', replacement: path.resolve(projectRoot, 'src/styles') }
+    ]
+});
 
 dotenv.config();
 const production = !process.env.ROLLUP_WATCH;
@@ -144,6 +158,8 @@ export default {
                 '@codemirror/language',
                 '@codemirror/autocomplete',
                 '@codemirror/lang-python',
+                '@codemirror/lang-javascript',
+                '@codemirror/lang-go',
                 '@codemirror/theme-one-dark',
                 '@uiw/codemirror-theme-github'
             ]
@@ -155,6 +171,7 @@ export default {
         }
     },
     plugins: [
+        aliases,
         replace({
             'process.env.VITE_BACKEND_URL': JSON.stringify(''),
             preventAssignment: true
@@ -182,7 +199,7 @@ export default {
             // Prefer ES modules
             mainFields: ['svelte', 'module', 'browser', 'main'],
             exportConditions: ['svelte'],
-            extensions: ['.mjs', '.js', '.json', '.node', '.svelte']
+            extensions: ['.mjs', '.js', '.ts', '.json', '.node', '.svelte']
         }),
         commonjs(),
         !production && {

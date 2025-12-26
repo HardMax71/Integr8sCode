@@ -23,15 +23,15 @@ function getInitialTheme(): ThemeValue {
 const initialTheme = getInitialTheme();
 const { subscribe, set: internalSet, update } = writable<ThemeValue>(initialTheme);
 
-let saveThemeSetting: ((theme: string) => Promise<boolean | undefined>) | null = null;
+let saveUserSettings: ((partial: { theme?: ThemeValue }) => Promise<boolean>) | null = null;
 let isAuthenticatedStore: import('svelte/store').Readable<boolean | null> | null = null;
 
 if (browser) {
     Promise.all([
-        import('../lib/user-settings'),
-        import('./auth')
+        import('$lib/user-settings'),
+        import('$stores/auth')
     ]).then(([userSettings, auth]) => {
-        saveThemeSetting = userSettings.saveThemeSetting;
+        saveUserSettings = userSettings.saveUserSettings;
         isAuthenticatedStore = auth.isAuthenticated;
     });
 }
@@ -42,9 +42,6 @@ export const theme = {
         internalSet(value);
         if (browser) {
             localStorage.setItem(storageKey, value);
-        }
-        if (saveThemeSetting && isAuthenticatedStore && get(isAuthenticatedStore)) {
-            saveThemeSetting(value);
         }
     },
     update
@@ -72,16 +69,11 @@ export function toggleTheme(): void {
     const current = get(theme);
     const next: ThemeValue = current === 'light' ? 'dark' : current === 'dark' ? 'auto' : 'light';
     theme.set(next);
+    if (saveUserSettings && isAuthenticatedStore && get(isAuthenticatedStore)) {
+        saveUserSettings({ theme: next });
+    }
 }
 
 export function setTheme(newTheme: ThemeValue): void {
     theme.set(newTheme);
-}
-
-export function setThemeLocal(newTheme: ThemeValue): void {
-    internalSet(newTheme);
-    if (browser) {
-        localStorage.setItem(storageKey, newTheme);
-    }
-    applyTheme(newTheme);
 }

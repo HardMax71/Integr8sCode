@@ -4,7 +4,7 @@ import {
     logoutApiV1AuthLogoutPost,
     verifyTokenApiV1AuthVerifyTokenGet,
     getCurrentUserProfileApiV1AuthMeGet,
-} from '../lib/api';
+} from '$lib/api';
 
 interface AuthState {
     isAuthenticated: boolean | null;
@@ -19,24 +19,19 @@ interface AuthState {
 function getPersistedAuthState(): AuthState | null {
     if (typeof window === 'undefined') return null;
     try {
-        const data = localStorage.getItem('authState');
+        const data = sessionStorage.getItem('authState');
         if (!data) return null;
-        const parsed = JSON.parse(data) as AuthState;
-        if (Date.now() - parsed.timestamp > 24 * 60 * 60 * 1000) {
-            localStorage.removeItem('authState');
-            return null;
-        }
-        return parsed;
+        return JSON.parse(data) as AuthState;
     } catch { return null; }
 }
 
 function persistAuthState(state: Partial<AuthState> | null) {
     if (typeof window === 'undefined') return;
     if (!state || state.isAuthenticated === false) {
-        localStorage.removeItem('authState');
+        sessionStorage.removeItem('authState');
         return;
     }
-    localStorage.setItem('authState', JSON.stringify({ ...state, timestamp: Date.now() }));
+    sessionStorage.setItem('authState', JSON.stringify({ ...state, timestamp: Date.now() }));
 }
 
 const persisted = getPersistedAuthState();

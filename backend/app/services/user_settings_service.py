@@ -249,7 +249,7 @@ class UserSettingsService:
                 history.append(
                     DomainSettingsHistoryEntry(
                         timestamp=event.timestamp,
-                        event_type=str(event.event_type),
+                        event_type=event.event_type,
                         field="/theme",
                         old_value=event.payload.get("old_theme"),
                         new_value=event.payload.get("new_theme"),
@@ -266,7 +266,7 @@ class UserSettingsService:
                 history.append(
                     DomainSettingsHistoryEntry(
                         timestamp=event.timestamp,
-                        event_type=str(event.event_type),
+                        event_type=event.event_type,
                         field=path,
                         old_value=None,
                         new_value=None,

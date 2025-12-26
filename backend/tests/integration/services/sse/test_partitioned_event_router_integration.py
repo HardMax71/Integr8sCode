@@ -8,6 +8,7 @@ from app.events.core import EventDispatcher
 from app.events.schema.schema_registry import SchemaRegistryManager
 from tests.helpers import make_execution_requested_event
 from app.infrastructure.kafka.events.pod import PodCreatedEvent
+from app.schemas_pydantic.sse import RedisSSEMessage
 from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
 from app.services.sse.redis_bus import SSERedisBus
 from app.settings import Settings
@@ -42,12 +43,12 @@ async def test_router_bridges_to_redis(redis_client) -> None:  # type: ignore[va
     await handler(ev)
 
     async def _recv():
-        m = await subscription.get(timeout=0.2)
+        m = await subscription.get(RedisSSEMessage)
         assert m is not None
         return m
 
     msg = await eventually(_recv, timeout=2.0, interval=0.05)
-    assert msg.get("event_type") == str(ev.event_type)
+    assert str(msg.event_type) == str(ev.event_type)
 
 
 @pytest.mark.asyncio

@@ -13,90 +13,83 @@
         type EventDetailResponse,
         type EventReplayStatusResponse,
         type AdminUserOverview,
-    } from '../../lib/api';
-    import { unwrap, unwrapOr } from '../../lib/api-interceptors';
-    import { addToast } from '../../stores/toastStore';
-    import { formatTimestamp } from '../../lib/formatters';
-    import AdminLayout from './AdminLayout.svelte';
-    import Spinner from '../../components/Spinner.svelte';
-    import Modal from '../../components/Modal.svelte';
-    import EventTypeIcon from '../../components/EventTypeIcon.svelte';
+    } from '$lib/api';
+    import { unwrap, unwrapOr } from '$lib/api-interceptors';
+    import { addToast } from '$stores/toastStore';
+    import AdminLayout from '$routes/admin/AdminLayout.svelte';
+    import Spinner from '$components/Spinner.svelte';
+    import { FilterPanel } from '$components/admin';
     import {
-        Filter, Download, RefreshCw, X, Eye, Play, Trash2,
+        EventStatsCards,
+        EventFilters,
+        EventsTable,
+        EventDetailsModal,
+        ReplayPreviewModal,
+        ReplayProgressBanner,
+        UserOverviewModal
+    } from '$components/admin/events';
+    import {
+        createDefaultEventFilters,
+        hasActiveFilters,
+        getActiveFilterCount,
+        getActiveFilterSummary,
+        type EventFilters as EventFiltersType
+    } from '$lib/admin/events';
+    import {
+        Filter, Download, RefreshCw, X,
         ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight,
-        FileText, Code, AlertTriangle
+        FileText, Code
     } from '@lucide/svelte';
 
+    // State
     let events = $state<EventResponse[]>([]);
     let loading = $state(false);
     let totalEvents = $state(0);
+    let stats = $state<EventStatsResponse | null>(null);
+
+    // Pagination
     let currentPage = $state(1);
     let pageSize = $state(10);
-    let selectedEvent = $state<EventDetailResponse | null>(null);
+    let totalPages = $derived(Math.ceil(totalEvents / pageSize));
+    let skip = $derived((currentPage - 1) * pageSize);
+
+    // Filters
     let showFilters = $state(false);
-    let stats = $state<EventStatsResponse | null>(null);
-    let refreshInterval: ReturnType<typeof setInterval> | null = null;
+    let filters = $state<EventFiltersType>(createDefaultEventFilters());
+
+    // Modals
+    let selectedEvent = $state<EventDetailResponse | null>(null);
+    let showExportMenu = $state(false);
+
+    // Replay state
     let activeReplaySession = $state<EventReplayStatusResponse | null>(null);
     let replayCheckInterval: ReturnType<typeof setInterval> | null = null;
     let replayPreview = $state<{ eventId: string; total_events: number; events_preview?: EventResponse[] } | null>(null);
     let showReplayPreview = $state(false);
-    let showExportMenu = $state(false);
 
-    // User overview modal state
+    // User overview modal
     let showUserOverview = $state(false);
     let userOverviewLoading = $state(false);
-    let selectedUserId = $state<string | null>(null);
     let userOverview = $state<AdminUserOverview | null>(null);
 
-    // Filters
-    let filters = $state({
-        event_types: [] as string[],
-        aggregate_id: '',
-        correlation_id: '',
-        user_id: '',
-        service_name: '',
-        search_text: '',
-        start_time: '',
-        end_time: ''
-    });
+    // Auto-refresh
+    let refreshInterval: ReturnType<typeof setInterval> | null = null;
 
-    // Event type options
-    const eventTypes = [
-        'execution.requested',
-        'execution.started',
-        'execution.completed',
-        'execution.failed',
-        'execution.timeout',
-        'pod.created',
-        'pod.running',
-        'pod.succeeded',
-        'pod.failed',
-        'pod.terminated'
-    ];
-
-    let totalPages = $derived(Math.ceil(totalEvents / pageSize));
-    let skip = $derived((currentPage - 1) * pageSize);
-    
     onMount(() => {
         loadEvents();
         loadStats();
-        // Auto-refresh every 30 seconds
         refreshInterval = setInterval(() => {
             loadEvents();
             loadStats();
         }, 30000);
     });
-    
+
     onDestroy(() => {
-        if (refreshInterval) {
-            clearInterval(refreshInterval);
-        }
-        if (replayCheckInterval) {
-            clearInterval(replayCheckInterval);
-        }
+        if (refreshInterval) clearInterval(refreshInterval);
+        if (replayCheckInterval) clearInterval(replayCheckInterval);
     });
-    
-    async function loadEvents() {
+
+    async function loadEvents(): Promise<void> {
         loading = true;
         const data = unwrapOr(await browseEventsApiV1AdminEventsBrowsePost({
             body: {
@@ -155,7 +148,7 @@
 
         if (dryRun) {
             if (response?.events_preview && response.events_preview.length > 0) {
-                replayPreview = { ...response, eventId: eventId };
+                replayPreview = { ...response, eventId };
                 showReplayPreview = true;
             } else {
                 addToast(`Dry run: ${response?.total_events} events would be replayed`, 'info');
@@ -201,7 +194,6 @@
 
     async function openUserOverview(userId: string): Promise<void> {
         if (!userId) return;
-        selectedUserId = userId;
         userOverview = null;
         showUserOverview = true;
         userOverviewLoading = true;
@@ -211,82 +203,41 @@
         userOverview = data;
     }
 
-    function getEventTypeColor(eventType: string): string {
-        if (eventType.includes('.completed') || eventType.includes('.succeeded')) return 'text-green-600 dark:text-green-400';
-        if (eventType.includes('.failed') || eventType.includes('.timeout')) return 'text-red-600 dark:text-red-400';
-        if (eventType.includes('.started') || eventType.includes('.running')) return 'text-blue-600 dark:text-blue-400';
-        if (eventType.includes('.requested')) return 'text-purple-600 dark:text-purple-400';
-        if (eventType.includes('.created')) return 'text-indigo-600 dark:text-indigo-400';
-        if (eventType.includes('.terminated')) return 'text-orange-600 dark:text-orange-400';
-        return 'text-neutral-600 dark:text-neutral-400';
-    }
-
-    function getEventTypeLabel(eventType: string): string {
-        // For execution.requested, show icon only (with tooltip)
-        if (eventType === 'execution.requested') {
-            return '';
-        }
-        
-        // For all other events, show full name
-        const parts = eventType.split('.');
-        if (parts.length === 2) {
-            return `${parts[0]}.${parts[1]}`;
-        }
-        return eventType;
-    }
-    
     function clearFilters(): void {
-        filters = {
-            event_types: [],
-            aggregate_id: '',
-            correlation_id: '',
-            user_id: '',
-            service_name: '',
-            search_text: '',
-            start_time: '',
-            end_time: ''
-        };
+        filters = createDefaultEventFilters();
         currentPage = 1;
         loadEvents();
     }
-    
-    function getActiveFilterCount(): number {
-        let count = 0;
-        if (filters.event_types.length > 0) count++;
-        if (filters.search_text) count++;
-        if (filters.correlation_id) count++;
-        if (filters.aggregate_id) count++;
-        if (filters.user_id) count++;
-        if (filters.service_name) count++;
-        if (filters.start_time) count++;
-        if (filters.end_time) count++;
-        return count;
-    }
-    
-    function hasActiveFilters(): boolean {
-        return getActiveFilterCount() > 0;
+
+    function applyFilters(): void {
+        currentPage = 1;
+        loadEvents();
     }
 
-    function getActiveFilterSummary(): string {
-        const items: string[] = [];
-        if (filters.event_types.length > 0) {
-            items.push(`${filters.event_types.length} event type${filters.event_types.length > 1 ? 's' : ''}`);
-        }
-        if (filters.search_text) items.push('search');
-        if (filters.correlation_id) items.push('correlation');
-        if (filters.aggregate_id) items.push('aggregate');
-        if (filters.user_id) items.push('user');
-        if (filters.service_name) items.push('service');
-        if (filters.start_time || filters.end_time) items.push('time range');
-        return items;
+    function handlePreviewReplay(eventId: string): void {
+        replayEvent(eventId, true);
+    }
+
+    function handleReplay(eventId: string): void {
+        replayEvent(eventId, false);
+    }
+
+    function handleReplayFromModal(eventId: string): void {
+        selectedEvent = null;
+        replayEvent(eventId, false);
+    }
+
+    function handleReplayConfirm(eventId: string): void {
+        replayEvent(eventId, false);
     }
 </script>
 
 <AdminLayout path="/admin/events">
     <div class="container mx-auto px-4 pb-8">
+        <!-- Header -->
         <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
             <h1 class="text-2xl sm:text-3xl font-bold">Event Browser</h1>
-            
+
             <div class="flex flex-wrap gap-2">
                 <button
                     onclick={() => showFilters = !showFilters}
@@ -302,13 +253,13 @@
                         <Filter size={16} />
                     </span>
                     <span class="hidden sm:inline">Filters</span>
-                    {#if hasActiveFilters()}
+                    {#if hasActiveFilters(filters)}
                         <span class="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-xs font-bold {showFilters ? 'bg-white text-primary' : 'bg-primary text-white'}">
-                            {getActiveFilterCount()}
+                            {getActiveFilterCount(filters)}
                         </span>
                     {/if}
                 </button>
-                
+
                 <!-- Export dropdown -->
                 <div class="relative">
                     <button
@@ -341,152 +292,22 @@
                     {/if}
                 </div>
 
-                <button
-                    onclick={loadEvents}
-                    class="btn btn-sm sm:btn-md btn-primary flex items-center gap-1 sm:gap-2"
-                    disabled={loading}
-                >
-                    {#if loading}
-                        <Spinner size="small" />
-                    {:else}
-                        <RefreshCw size={16} />
-                    {/if}
+                <button onclick={loadEvents} class="btn btn-sm sm:btn-md btn-primary flex items-center gap-1 sm:gap-2" disabled={loading}>
+                    {#if loading}<Spinner size="small" />{:else}<RefreshCw size={16} />{/if}
                     <span class="hidden sm:inline">Refresh</span>
                 </button>
             </div>
         </div>
-        
-        {#if activeReplaySession}
-            <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6 relative">
-                <!-- Close button in top right corner -->
-                <button
-                    onclick={() => activeReplaySession = null}
-                    class="absolute top-2 right-2 p-1 hover:bg-blue-100 dark:hover:bg-blue-800 rounded-lg transition-colors"
-                    title="Close"
-                >
-                    <X size={20} class="text-blue-600 dark:text-blue-400" />
-                </button>
-                
-                <div class="flex items-center justify-between mb-2 pr-8">
-                    <h3 class="font-semibold text-blue-900 dark:text-blue-100">Replay in Progress</h3>
-                    <span class="text-sm text-blue-700 dark:text-blue-300">
-                        {activeReplaySession.status}
-                    </span>
-                </div>
-                <div class="mb-2">
-                    <div class="flex justify-between text-sm text-blue-700 dark:text-blue-300 mb-1">
-                        <span>Progress: {activeReplaySession.replayed_events} / {activeReplaySession.total_events} events</span>
-                        <span>{activeReplaySession.progress_percentage}%</span>
-                    </div>
-                    <div class="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
-                        <div 
-                            class="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-300"
-                            style="width: {activeReplaySession.progress_percentage}%"
-                        ></div>
-                    </div>
-                </div>
-                {#if activeReplaySession.failed_events > 0}
-                    <div class="mt-2">
-                        <div class="text-sm text-red-600 dark:text-red-400">
-                            Failed: {activeReplaySession.failed_events} events
-                        </div>
-                        {#if activeReplaySession.error_message}
-                            <div class="mt-1 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded">
-                                <p class="text-xs text-red-700 dark:text-red-300 font-mono">
-                                    Error: {activeReplaySession.error_message}
-                                </p>
-                            </div>
-                        {/if}
-                        {#if activeReplaySession.failed_event_errors && activeReplaySession.failed_event_errors.length > 0}
-                            <div class="mt-2 space-y-1">
-                                {#each activeReplaySession.failed_event_errors as error}
-                                    <div class="p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-xs">
-                                        <div class="font-mono text-neutral-600 dark:text-neutral-400">{error.event_id}</div>
-                                        <div class="text-red-700 dark:text-red-300 mt-1">{error.error}</div>
-                                    </div>
-                                {/each}
-                            </div>
-                        {/if}
-                    </div>
-                {/if}
-                
-                {#if activeReplaySession.execution_results && activeReplaySession.execution_results.length > 0}
-                    <div class="mt-4 border-t border-blue-200 dark:border-blue-800 pt-3">
-                        <h4 class="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">Execution Results:</h4>
-                        <div class="space-y-2">
-                            {#each activeReplaySession.execution_results as result}
-                                <div class="bg-surface-overlay dark:bg-dark-surface-overlay rounded p-2 text-sm">
-                                    <div class="flex justify-between items-start">
-                                        <div>
-                                            <span class="font-mono text-xs text-neutral-500">{result.execution_id}</span>
-                                            <div class="flex items-center gap-2 mt-1">
-                                                <span class={`px-2 py-0.5 rounded text-xs ${
-                                                    result.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
-                                                    result.status === 'failed' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
-                                                    'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                                                }`}>
-                                                    {result.status}
-                                                </span>
-                                                {#if result.execution_time}
-                                                    <span class="text-neutral-500 dark:text-neutral-400">
-                                                        {result.execution_time.toFixed(2)}s
-                                                    </span>
-                                                {/if}
-                                            </div>
-                                        </div>
-                                        {#if result.output || result.errors}
-                                            <div class="text-right">
-                                                {#if result.output}
-                                                    <div class="font-mono text-green-600 dark:text-green-400">
-                                                        Output: {result.output}
-                                                    </div>
-                                                {/if}
-                                                {#if result.errors}
-                                                    <div class="font-mono text-red-600 dark:text-red-400">
-                                                        Error: {result.errors}
-                                                    </div>
-                                                {/if}
-                                            </div>
-                                        {/if}
-                                    </div>
-                                </div>
-                            {/each}
-                        </div>
-                    </div>
-                {/if}
-            </div>
-        {/if}
-        
-        {#if stats}
-            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
-                <div class="card p-4">
-                    <div class="text-sm text-fg-muted dark:text-dark-fg-muted mb-1">Events (Last 24h)</div>
-                    <div class="text-2xl font-bold text-fg-default dark:text-dark-fg-default">{stats?.total_events?.toLocaleString() || '0'}</div>
-                    <div class="text-xs text-fg-muted dark:text-dark-fg-muted">of {totalEvents?.toLocaleString() || '0'} total</div>
-                </div>
-                
-                <div class="card p-4">
-                    <div class="text-sm text-fg-muted dark:text-dark-fg-muted mb-1">Error Rate (24h)</div>
-                    <div class="text-2xl font-bold {stats?.error_rate > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}">{stats?.error_rate || 0}%</div>
-                </div>
-                
-                <div class="card p-4">
-                    <div class="text-sm text-fg-muted dark:text-dark-fg-muted mb-1">Avg Execution Time (24h)</div>
-                    <div class="text-2xl font-bold text-fg-default dark:text-dark-fg-default">{stats?.avg_processing_time ? stats.avg_processing_time.toFixed(2) : '0'}s</div>
-                </div>
-                
-                <div class="card p-4">
-                    <div class="text-sm text-fg-muted dark:text-dark-fg-muted mb-1">Active Users (24h)</div>
-                    <div class="text-2xl font-bold text-fg-default dark:text-dark-fg-default">{stats?.top_users?.length || 0}</div>
-                    <div class="text-xs text-fg-muted dark:text-dark-fg-muted">with events</div>
-                </div>
-            </div>
-        {/if}
-        
-        {#if !showFilters && hasActiveFilters()}
+
+        <ReplayProgressBanner session={activeReplaySession} onClose={() => activeReplaySession = null} />
+
+        <EventStatsCards {stats} {totalEvents} />
+
+        <!-- Active filters summary (when filters panel closed) -->
+        {#if !showFilters && hasActiveFilters(filters)}
             <div class="mb-4 flex flex-wrap items-center gap-2">
                 <span class="text-xs font-medium text-fg-muted dark:text-dark-fg-muted">Active filters:</span>
-                {#each getActiveFilterSummary() as filter}
+                {#each getActiveFilterSummary(filters) as filter}
                     <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary-light">
                         {filter}
                     </span>
@@ -500,351 +321,32 @@
                 </button>
             </div>
         {/if}
-        
+
         {#if showFilters}
-            <div class="card mb-6">
-                <div class="p-4">
-                    <div class="flex items-center justify-between mb-3">
-                        <h3 class="text-sm font-semibold text-fg-default dark:text-dark-fg-default uppercase tracking-wide">Filter Events</h3>
-                        <div class="flex gap-2">
-                            <button
-                                onclick={clearFilters}
-                                class="btn btn-ghost btn-sm"
-                            >
-                                Clear All
-                            </button>
-                            <button
-                                onclick={() => { currentPage = 1; loadEvents(); }}
-                                class="btn btn-primary btn-sm"
-                            >
-                                Apply
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div class="space-y-3">
-                        <!-- Primary filters row -->
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                            <div class="lg:col-span-1">
-                                <label for="event-types-filter" class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
-                                    Event Types
-                                </label>
-                                <select
-                                    id="event-types-filter"
-                                    bind:value={filters.event_types}
-                                    multiple
-                                    class="form-select-standard text-sm h-20"
-                                    title="Hold Ctrl/Cmd to select multiple"
-                                >
-                                    {#each eventTypes as type}
-                                        <option value={type} class="text-xs">{type}</option>
-                                    {/each}
-                                </select>
-                            </div>
-
-                            <div>
-                                <label for="search-filter" class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
-                                    Search
-                                </label>
-                                <input
-                                    id="search-filter"
-                                    type="text"
-                                    bind:value={filters.search_text}
-                                    placeholder="Search events..."
-                                    class="form-input-standard text-sm"
-                                />
-                            </div>
-
-                            <div>
-                                <label for="correlation-filter" class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
-                                    Correlation ID
-                                </label>
-                                <input
-                                    id="correlation-filter"
-                                    type="text"
-                                    bind:value={filters.correlation_id}
-                                    placeholder="req_abc123"
-                                    class="form-input-standard text-sm font-mono"
-                                />
-                            </div>
-
-                            <div>
-                                <label for="aggregate-filter" class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
-                                    Aggregate ID
-                                </label>
-                                <input
-                                    id="aggregate-filter"
-                                    type="text"
-                                    bind:value={filters.aggregate_id}
-                                    placeholder="exec_id"
-                                    class="form-input-standard text-sm font-mono"
-                                />
-                            </div>
-
-                            <div>
-                                <label for="user-filter" class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
-                                    User ID
-                                </label>
-                                <input
-                                    id="user-filter"
-                                    type="text"
-                                    bind:value={filters.user_id}
-                                    placeholder="user_123"
-                                    class="form-input-standard text-sm font-mono"
-                                />
-                            </div>
-                        </div>
-                        
-                        <!-- Secondary filters row - collapsible on mobile -->
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                            <div>
-                                <label for="service-filter" class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
-                                    Service
-                                </label>
-                                <input
-                                    id="service-filter"
-                                    type="text"
-                                    bind:value={filters.service_name}
-                                    placeholder="execution-service"
-                                    class="form-input-standard text-sm"
-                                />
-                            </div>
-
-                            <div>
-                                <label for="start-time-filter" class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
-                                    Start Time
-                                </label>
-                                <input
-                                    id="start-time-filter"
-                                    type="datetime-local"
-                                    bind:value={filters.start_time}
-                                    class="form-input-standard text-sm"
-                                />
-                            </div>
-
-                            <div>
-                                <label for="end-time-filter" class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
-                                    End Time
-                                </label>
-                                <input
-                                    id="end-time-filter"
-                                    type="datetime-local"
-                                    bind:value={filters.end_time}
-                                    class="form-input-standard text-sm"
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <EventFilters bind:filters onApply={applyFilters} onClear={clearFilters} />
         {/if}
-        
+
+        <!-- Events table -->
         <div class="card">
             <div class="p-6">
                 <div class="mb-4">
-                    <h3 class="text-lg font-semibold text-fg-default dark:text-dark-fg-default mb-2">
-                        Events
-                    </h3>
-                </div>
-                
-                <!-- Desktop view - Table -->
-                <div class="hidden md:block overflow-x-auto">
-                    <table class="w-full divide-y divide-border-default dark:divide-dark-border-default">
-                        <thead class="bg-neutral-50 dark:bg-neutral-900">
-                            <tr>
-                                <th class="px-3 py-2 text-left text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider">Time</th>
-                                <th class="px-3 py-2 text-left text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider">Type</th>
-                                <th class="px-3 py-2 text-left text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider hidden lg:table-cell">User</th>
-                                <th class="px-3 py-2 text-left text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider hidden xl:table-cell">Service</th>
-                                <th class="px-3 py-2 text-center text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-bg-default dark:bg-dark-bg-default divide-y divide-border-default dark:divide-dark-border-default">
-                            {#each events || [] as event}
-                                <tr
-                                    class="hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer transition-colors border-b border-border-default dark:border-dark-border-default"
-                                    onclick={() => loadEventDetail(event.event_id)}
-                                    onkeydown={(e) => e.key === 'Enter' && loadEventDetail(event.event_id)}
-                                    tabindex="0"
-                                    role="button"
-                                    aria-label="View event details"
-                                >
-                                    <td class="px-3 py-2 text-sm text-fg-default dark:text-dark-fg-default">
-                                        <div class="text-xs text-fg-muted dark:text-dark-fg-muted">
-                                            {new Date(event.timestamp).toLocaleDateString()}
-                                        </div>
-                                        <div class="text-sm">
-                                            {new Date(event.timestamp).toLocaleTimeString()}
-                                        </div>
-                                    </td>
-                                    <td class="px-3 py-2 text-sm text-fg-default dark:text-dark-fg-default">
-                                        <div class="relative group">
-                                            <span class={`${getEventTypeColor(event.event_type)} shrink-0 cursor-help`}>
-                                                <EventTypeIcon eventType={event.event_type} />
-                                            </span>
-                                            <!-- Tooltip on hover -->
-                                            <div class="absolute z-10 invisible group-hover:visible bg-tooltip-bg text-white text-xs rounded py-1 px-2 left-0 top-8 min-w-max">
-                                                <div class="font-medium">{event.event_type}</div>
-                                                <div class="text-neutral-400 text-[10px] font-mono mt-0.5">
-                                                    {event.event_id.slice(0, 8)}...
-                                                </div>
-                                                <!-- Tooltip arrow -->
-                                                <div class="absolute -top-1 left-2 w-2 h-2 bg-tooltip-bg transform rotate-45"></div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td class="table-cell-sm hidden lg:table-cell">
-                                        {#if event.metadata?.user_id}
-                                            <button
-                                                class="text-blue-600 dark:text-blue-400 hover:underline text-left"
-                                                title="View user overview"
-                                                onclick={(e) => { e.stopPropagation(); openUserOverview(event.metadata.user_id); }}
-                                            >
-                                                <div class="font-mono text-xs truncate">
-                                                    {event.metadata.user_id}
-                                                </div>
-                                            </button>
-                                        {:else}
-                                            <span class="text-fg-muted dark:text-dark-fg-muted">-</span>
-                                        {/if}
-                                    </td>
-                                    <td class="table-cell-sm hidden xl:table-cell">
-                                        <div class="truncate" title={event.metadata?.service_name || '-'}>
-                                            {event.metadata?.service_name || '-'}
-                                        </div>
-                                    </td>
-                                    <td class="px-3 py-2 text-sm text-fg-default dark:text-dark-fg-default">
-                                        <div class="flex gap-1 justify-center">
-                                            <button
-                                                onclick={(e) => { e.stopPropagation(); replayEvent(event.event_id); }}
-                                                class="p-1 hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover rounded"
-                                                title="Preview replay"
-                                            >
-                                                <Eye size={16} />
-                                            </button>
-                                            <button
-                                                onclick={(e) => { e.stopPropagation(); replayEvent(event.event_id, false); }}
-                                                class="p-1 hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover rounded text-blue-600 dark:text-blue-400"
-                                                title="Replay"
-                                            >
-                                                <Play size={16} />
-                                            </button>
-                                            <button
-                                                onclick={(e) => { e.stopPropagation(); deleteEvent(event.event_id); }}
-                                                class="p-1 hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover rounded text-red-600 dark:text-red-400"
-                                                title="Delete"
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            {/each}
-                        </tbody>
-                    </table>
+                    <h3 class="text-lg font-semibold text-fg-default dark:text-dark-fg-default mb-2">Events</h3>
                 </div>
 
-                <!-- Mobile view - Cards -->
-                <div class="md:hidden space-y-3">
-                    {#each events || [] as event}
-                        <div
-                            class="mobile-card"
-                            onclick={() => loadEventDetail(event.event_id)}
-                            onkeydown={(e) => e.key === 'Enter' && loadEventDetail(event.event_id)}
-                            tabindex="0"
-                            role="button"
-                            aria-label="View event details"
-                        >
-                            <div class="flex justify-between items-start mb-2">
-                                <div class="flex-1 min-w-0">
-                                    <div class="flex items-center gap-2">
-                                        <div class="relative group">
-                                            <span class={`${getEventTypeColor(event.event_type)} shrink-0 cursor-help`}>
-                                                <EventTypeIcon eventType={event.event_type} />
-                                            </span>
-                                            <!-- Mobile tooltip -->
-                                            <div class="absolute z-10 invisible group-hover:visible bg-tooltip-bg text-white text-xs rounded py-1 px-2 left-0 top-7 min-w-max">
-                                                <div class="font-medium">{event.event_type}</div>
-                                                <div class="text-neutral-400 text-[10px] font-mono mt-0.5">
-                                                    {event.event_id.slice(0, 8)}...
-                                                </div>
-                                                <div class="absolute -top-1 left-2 w-2 h-2 bg-tooltip-bg transform rotate-45"></div>
-                                            </div>
-                                        </div>
-                                        <div class="text-sm text-fg-muted dark:text-dark-fg-muted">
-                                            {formatTimestamp(event.timestamp)}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="flex gap-1 ml-2">
-                                    <button
-                                        onclick={(e) => { e.stopPropagation(); replayEvent(event.event_id); }}
-                                        class="btn btn-ghost btn-xs p-1"
-                                        title="Preview replay"
-                                    >
-                                        <Eye size={16} />
-                                    </button>
-                                    <button
-                                        onclick={(e) => { e.stopPropagation(); replayEvent(event.event_id, false); }}
-                                        class="btn btn-ghost btn-xs p-1 text-blue-600 dark:text-blue-400"
-                                        title="Replay"
-                                    >
-                                        <Play size={16} />
-                                    </button>
-                                    <button
-                                        onclick={(e) => { e.stopPropagation(); deleteEvent(event.event_id); }}
-                                        class="btn btn-ghost btn-xs p-1 text-red-600 dark:text-red-400"
-                                        title="Delete"
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="grid grid-cols-2 gap-2 text-sm">
-                                <div>
-                                    <span class="text-fg-muted dark:text-dark-fg-muted">User:</span>
-                                    {#if event.metadata?.user_id}
-                                        <button
-                                            class="ml-1 text-blue-600 dark:text-blue-400 hover:underline font-mono"
-                                            title="View user overview"
-                                            onclick={(e) => { e.stopPropagation(); openUserOverview(event.metadata.user_id); }}
-                                        >
-                                            {event.metadata.user_id}
-                                        </button>
-                                    {:else}
-                                        <span class="ml-1 font-mono">-</span>
-                                    {/if}
-                                </div>
-                                <div>
-                                    <span class="text-fg-muted dark:text-dark-fg-muted">Service:</span>
-                                    <span class="ml-1 truncate inline-block max-w-[120px] align-bottom" title={event.metadata?.service_name || '-'}>
-                                        {event.metadata?.service_name || '-'}
-                                    </span>
-                                </div>
-                                <div class="col-span-2">
-                                    <span class="text-fg-muted dark:text-dark-fg-muted">Correlation:</span>
-                                    <span class="ml-1 font-mono text-xs truncate inline-block max-w-[200px] align-bottom" title={event.correlation_id}>
-                                        {event.correlation_id}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    {/each}
-                </div>
-                    
-                    {#if events.length === 0}
-                        <div class="empty-state">
-                            No events found
-                        </div>
-                    {/if}
-                    
-                    <!-- Pagination controls -->
-                    {#if totalEvents > 0}
+                <EventsTable
+                    {events}
+                    onViewDetails={loadEventDetail}
+                    onPreviewReplay={handlePreviewReplay}
+                    onReplay={handleReplay}
+                    onDelete={deleteEvent}
+                    onViewUser={openUserOverview}
+                />
+
+                <!-- Pagination -->
+                {#if totalEvents > 0}
                     <div class="divider pt-4 mt-4">
                         <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
-                            <!-- Left side container -->
                             <div class="flex items-center gap-4">
-                                <!-- Page size selector -->
                                 <div class="flex items-center gap-2">
                                     <label for="events-page-size" class="text-sm text-fg-muted dark:text-dark-fg-muted">Show:</label>
                                     <select
@@ -861,314 +363,66 @@
                                     </select>
                                     <span class="text-sm text-fg-muted dark:text-dark-fg-muted">per page</span>
                                 </div>
-                                
-                                <!-- Pagination controls -->
+
                                 {#if totalPages > 1}
-                                <div class="flex items-center gap-1">
-                                <!-- First page -->
-                                <button
-                                    onclick={() => { currentPage = 1; loadEvents(); }}
-                                    disabled={currentPage === 1}
-                                    class="pagination-button"
-                                    title="First page"
-                                >
-                                    <ChevronsLeft size={16} />
-                                </button>
-
-                                <!-- Previous page -->
-                                <button
-                                    onclick={() => { currentPage--; loadEvents(); }}
-                                    disabled={currentPage === 1}
-                                    class="pagination-button"
-                                    title="Previous page"
-                                >
-                                    <ChevronLeft size={16} />
-                                </button>
-
-                                <!-- Page numbers -->
-                                <div class="pagination-text">
-                                    <span class="font-medium">{currentPage}</span>
-                                    <span class="text-fg-muted dark:text-dark-fg-muted mx-1">/</span>
-                                    <span class="font-medium">{totalPages}</span>
-                                </div>
-
-                                <!-- Next page -->
-                                <button
-                                    onclick={() => { currentPage++; loadEvents(); }}
-                                    disabled={currentPage === totalPages}
-                                    class="pagination-button"
-                                    title="Next page"
-                                >
-                                    <ChevronRight size={16} />
-                                </button>
-
-                                <!-- Last page -->
-                                <button
-                                    onclick={() => { currentPage = totalPages; loadEvents(); }}
-                                    disabled={currentPage === totalPages}
-                                    class="pagination-button"
-                                    title="Last page"
-                                >
-                                    <ChevronsRight size={16} />
-                                </button>
-                                </div>
+                                    <div class="flex items-center gap-1">
+                                        <button onclick={() => { currentPage = 1; loadEvents(); }} disabled={currentPage === 1} class="pagination-button" title="First page">
+                                            <ChevronsLeft size={16} />
+                                        </button>
+                                        <button onclick={() => { currentPage--; loadEvents(); }} disabled={currentPage === 1} class="pagination-button" title="Previous page">
+                                            <ChevronLeft size={16} />
+                                        </button>
+                                        <div class="pagination-text">
+                                            <span class="font-medium">{currentPage}</span>
+                                            <span class="text-fg-muted dark:text-dark-fg-muted mx-1">/</span>
+                                            <span class="font-medium">{totalPages}</span>
+                                        </div>
+                                        <button onclick={() => { currentPage++; loadEvents(); }} disabled={currentPage === totalPages} class="pagination-button" title="Next page">
+                                            <ChevronRight size={16} />
+                                        </button>
+                                        <button onclick={() => { currentPage = totalPages; loadEvents(); }} disabled={currentPage === totalPages} class="pagination-button" title="Last page">
+                                            <ChevronsRight size={16} />
+                                        </button>
+                                    </div>
                                 {/if}
                             </div>
-                            
-                            <!-- Info text at the right -->
+
                             <div class="text-xs sm:text-sm text-fg-muted dark:text-dark-fg-muted">
                                 Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, totalEvents)} of {totalEvents} events
                             </div>
                         </div>
                     </div>
-                    {/if}
+                {/if}
             </div>
         </div>
     </div>
-
-    <Modal open={!!selectedEvent} title="Event Details" onClose={() => selectedEvent = null} size="lg">
-        {#if selectedEvent}
-            <div class="space-y-4">
-                <div>
-                    <h4 class="font-semibold mb-2">Basic Information</h4>
-                    <table class="w-full">
-                        <tbody>
-                            <tr class="border-b border-border-default dark:border-dark-border-default">
-                                <td class="px-4 py-2 font-semibold text-fg-default dark:text-dark-fg-default">Event ID</td>
-                                <td class="px-4 py-2 font-mono text-sm text-fg-default dark:text-dark-fg-default">{selectedEvent.event.event_id}</td>
-                            </tr>
-                            <tr class="border-b border-border-default dark:border-dark-border-default">
-                                <td class="px-4 py-2 font-semibold text-fg-default dark:text-dark-fg-default">Event Type</td>
-                                <td class="px-4 py-2">
-                                    <div class="flex items-center gap-2">
-                                        <span class={`${getEventTypeColor(selectedEvent.event.event_type)} shrink-0`} title={selectedEvent.event.event_type}>
-                                            <EventTypeIcon eventType={selectedEvent.event.event_type} />
-                                        </span>
-                                        <span class={getEventTypeColor(selectedEvent.event.event_type)}>
-                                            {selectedEvent.event.event_type}
-                                        </span>
-                                    </div>
-                                </td>
-                            </tr>
-                            <tr class="border-b border-border-default dark:border-dark-border-default">
-                                <td class="px-4 py-2 font-semibold text-fg-default dark:text-dark-fg-default">Timestamp</td>
-                                <td class="px-4 py-2 text-sm text-fg-default dark:text-dark-fg-default">{formatTimestamp(selectedEvent.event.timestamp)}</td>
-                            </tr>
-                            <tr class="border-b border-border-default dark:border-dark-border-default">
-                                <td class="px-4 py-2 font-semibold text-fg-default dark:text-dark-fg-default">Correlation ID</td>
-                                <td class="px-4 py-2 font-mono text-sm text-fg-default dark:text-dark-fg-default">{selectedEvent.event.correlation_id}</td>
-                            </tr>
-                            <tr class="border-b border-border-default dark:border-dark-border-default">
-                                <td class="px-4 py-2 font-semibold text-fg-default dark:text-dark-fg-default">Aggregate ID</td>
-                                <td class="px-4 py-2 font-mono text-sm text-fg-default dark:text-dark-fg-default">{selectedEvent.event.aggregate_id || '-'}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <div>
-                    <h4 class="font-semibold mb-2">Metadata</h4>
-                    <pre class="bg-neutral-100 dark:bg-neutral-800 p-3 rounded overflow-auto text-sm font-mono text-fg-default dark:text-dark-fg-default">{JSON.stringify(selectedEvent.event.metadata, null, 2)}</pre>
-                </div>
-
-                <div>
-                    <h4 class="font-semibold mb-2">Payload</h4>
-                    <pre class="bg-neutral-100 dark:bg-neutral-800 p-3 rounded overflow-auto text-sm font-mono text-fg-default dark:text-dark-fg-default">{JSON.stringify(selectedEvent.event.payload, null, 2)}</pre>
-                </div>
-
-                {#if selectedEvent.related_events && selectedEvent.related_events.length > 0}
-                    <div>
-                        <h4 class="font-semibold mb-2">Related Events</h4>
-                        <div class="space-y-1">
-                            {#each selectedEvent.related_events || [] as related}
-                                <button
-                                    onclick={() => loadEventDetail(related.event_id)}
-                                    class="flex justify-between items-center w-full p-2 bg-neutral-100 dark:bg-neutral-800 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
-                                >
-                                    <span class={getEventTypeColor(related.event_type)}>
-                                        {related.event_type}
-                                    </span>
-                                    <span class="text-sm text-fg-muted dark:text-dark-fg-muted">
-                                        {formatTimestamp(related.timestamp)}
-                                    </span>
-                                </button>
-                            {/each}
-                        </div>
-                    </div>
-                {/if}
-            </div>
-        {/if}
-
-        {#snippet footer()}
-            <button
-                onclick={() => selectedEvent && replayEvent(selectedEvent.event.event_id, false)}
-                class="btn btn-primary"
-            >
-                Replay Event
-            </button>
-            <button
-                onclick={() => selectedEvent = null}
-                class="btn btn-secondary-outline"
-            >
-                Close
-            </button>
-        {/snippet}
-    </Modal>
-
-    <!-- Replay Preview Modal -->
-    <Modal open={showReplayPreview && !!replayPreview} title="Replay Preview" onClose={() => { showReplayPreview = false; replayPreview = null; }} size="md">
-        {#if replayPreview}
-            <p class="text-sm text-neutral-500 dark:text-neutral-400 -mt-2 mb-4">
-                Review the events that will be replayed
-            </p>
-
-            <div class="mb-4">
-                <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                    <div class="flex items-center justify-between">
-                        <span class="font-semibold text-blue-900 dark:text-blue-100">
-                            {replayPreview.total_events} event{replayPreview.total_events !== 1 ? 's' : ''} will be replayed
-                        </span>
-                        <span class="text-sm text-blue-700 dark:text-blue-300">Dry Run</span>
-                    </div>
-                </div>
-            </div>
-
-            {#if replayPreview.events_preview && replayPreview.events_preview.length > 0}
-                <div class="space-y-3">
-                    <h3 class="font-medium text-fg-default dark:text-dark-fg-default mb-2">Events to Replay:</h3>
-                    {#each replayPreview.events_preview as event}
-                        <div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-3">
-                            <div class="flex justify-between items-start">
-                                <div>
-                                    <div class="font-mono text-xs text-neutral-500 dark:text-neutral-400 mb-1">{event.event_id}</div>
-                                    <div class="font-medium text-fg-default dark:text-dark-fg-default">{event.event_type}</div>
-                                    {#if event.aggregate_id}
-                                        <div class="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Aggregate: {event.aggregate_id}</div>
-                                    {/if}
-                                </div>
-                                <div class="text-sm text-neutral-500 dark:text-neutral-400">{formatTimestamp(event.timestamp)}</div>
-                            </div>
-                        </div>
-                    {/each}
-                </div>
-            {/if}
-
-            <div class="mt-6 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-                <div class="flex">
-                    <AlertTriangle size={20} class="text-yellow-400 dark:text-yellow-300 mt-0.5 shrink-0" />
-                    <div class="ml-3">
-                        <h3 class="text-sm font-medium text-yellow-800 dark:text-yellow-200">Warning</h3>
-                        <div class="mt-1 text-sm text-yellow-700 dark:text-yellow-300">
-                            Replaying events will re-process them through the system. This may trigger new executions
-                            and create duplicate results if the events have already been processed.
-                        </div>
-                    </div>
-                </div>
-            </div>
-        {/if}
-
-        {#snippet footer()}
-            <button
-                onclick={() => {
-                    showReplayPreview = false;
-                    if (replayPreview) replayEvent(replayPreview.eventId, false);
-                }}
-                class="btn btn-primary"
-            >
-                Proceed with Replay
-            </button>
-            <button
-                onclick={() => { showReplayPreview = false; replayPreview = null; }}
-                class="btn btn-secondary-outline"
-            >
-                Cancel
-            </button>
-        {/snippet}
-    </Modal>
-
-    <!-- User Overview Modal -->
-    <Modal open={showUserOverview} title="User Overview" onClose={() => showUserOverview = false} size="lg">
-        {#if userOverviewLoading}
-            <div class="flex items-center justify-center py-10">
-                <Spinner />
-            </div>
-        {:else if userOverview}
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- User info -->
-                <div>
-                    <h3 class="font-semibold mb-3 text-fg-default dark:text-dark-fg-default">Profile</h3>
-                    <div class="space-y-2 text-sm">
-                        <div><span class="text-fg-muted dark:text-dark-fg-muted">User ID:</span> <span class="font-mono">{userOverview.user.user_id}</span></div>
-                        <div><span class="text-fg-muted dark:text-dark-fg-muted">Username:</span> {userOverview.user.username}</div>
-                        <div><span class="text-fg-muted dark:text-dark-fg-muted">Email:</span> {userOverview.user.email}</div>
-                        <div><span class="text-fg-muted dark:text-dark-fg-muted">Role:</span> {userOverview.user.role}</div>
-                        <div><span class="text-fg-muted dark:text-dark-fg-muted">Active:</span> {userOverview.user.is_active ? 'Yes' : 'No'}</div>
-                        <div><span class="text-fg-muted dark:text-dark-fg-muted">Superuser:</span> {userOverview.user.is_superuser ? 'Yes' : 'No'}</div>
-                    </div>
-                    {#if userOverview.rate_limit_summary}
-                        <div class="mt-4">
-                            <h4 class="font-medium mb-2 text-fg-default dark:text-dark-fg-default">Rate Limits</h4>
-                            <div class="text-sm space-y-1">
-                                <div><span class="text-fg-muted dark:text-dark-fg-muted">Bypass:</span> {userOverview.rate_limit_summary.bypass_rate_limit ? 'Yes' : 'No'}</div>
-                                <div><span class="text-fg-muted dark:text-dark-fg-muted">Global Multiplier:</span> {userOverview.rate_limit_summary.global_multiplier ?? 1.0}</div>
-                                <div><span class="text-fg-muted dark:text-dark-fg-muted">Custom Rules:</span> {userOverview.rate_limit_summary.has_custom_limits ? 'Yes' : 'No'}</div>
-                            </div>
-                        </div>
-                    {/if}
-                </div>
-
-                <!-- Stats -->
-                <div>
-                    <h3 class="font-semibold mb-3 text-fg-default dark:text-dark-fg-default">Execution Stats (last 24h)</h3>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div class="p-3 rounded-lg bg-green-50 dark:bg-green-900/20">
-                            <div class="text-xs text-green-700 dark:text-green-300">Succeeded</div>
-                            <div class="text-xl font-semibold text-green-800 dark:text-green-200">{userOverview.derived_counts.succeeded}</div>
-                        </div>
-                        <div class="p-3 rounded-lg bg-red-50 dark:bg-red-900/20">
-                            <div class="text-xs text-red-700 dark:text-red-300">Failed</div>
-                            <div class="text-xl font-semibold text-red-800 dark:text-red-200">{userOverview.derived_counts.failed}</div>
-                        </div>
-                        <div class="p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/20">
-                            <div class="text-xs text-yellow-700 dark:text-yellow-300">Timeout</div>
-                            <div class="text-xl font-semibold text-yellow-800 dark:text-yellow-200">{userOverview.derived_counts.timeout}</div>
-                        </div>
-                        <div class="p-3 rounded-lg bg-neutral-100 dark:bg-neutral-800">
-                            <div class="text-xs text-neutral-700 dark:text-neutral-300">Cancelled</div>
-                            <div class="text-xl font-semibold text-neutral-900 dark:text-neutral-100">{userOverview.derived_counts.cancelled}</div>
-                        </div>
-                    </div>
-                    <div class="mt-3 text-sm text-fg-muted dark:text-dark-fg-muted">
-                        Terminal Total: <span class="font-semibold text-fg-default dark:text-dark-fg-default">{userOverview.derived_counts.terminal_total}</span>
-                    </div>
-                    <div class="mt-2 text-sm text-fg-muted dark:text-dark-fg-muted">
-                        Total Events: <span class="font-semibold text-fg-default dark:text-dark-fg-default">{userOverview.stats.total_events}</span>
-                    </div>
-                </div>
-            </div>
-
-            {#if userOverview.recent_events && userOverview.recent_events.length > 0}
-                <div class="mt-6">
-                    <h3 class="font-semibold mb-2 text-fg-default dark:text-dark-fg-default">Recent Execution Events</h3>
-                    <div class="space-y-1 max-h-48 overflow-auto">
-                        {#each userOverview.recent_events as ev}
-                            <div class="flex justify-between items-center p-2 bg-neutral-50 dark:bg-neutral-800 rounded">
-                                <div class="text-sm">
-                                    <span class={getEventTypeColor(ev.event_type)}>{getEventTypeLabel(ev.event_type) || ev.event_type}</span>
-                                    <span class="ml-2 font-mono text-xs text-fg-muted dark:text-dark-fg-muted">{ev.aggregate_id || '-'}</span>
-                                </div>
-                                <div class="text-xs text-fg-muted dark:text-dark-fg-muted">{formatTimestamp(ev.timestamp)}</div>
-                            </div>
-                        {/each}
-                    </div>
-                </div>
-            {/if}
-        {:else}
-            <div class="text-sm text-fg-muted dark:text-dark-fg-muted">No data available</div>
-        {/if}
-
-        {#snippet footer()}
-            <a href="/admin/users" class="btn btn-outline">Open User Management</a>
-        {/snippet}
-    </Modal>
 </AdminLayout>
+
+<!-- Modals -->
+{#if selectedEvent}
+    <EventDetailsModal
+        event={selectedEvent}
+        open={!!selectedEvent}
+        onClose={() => selectedEvent = null}
+        onReplay={handleReplayFromModal}
+        onViewRelated={loadEventDetail}
+    />
+{/if}
+
+{#if showReplayPreview && replayPreview}
+    <ReplayPreviewModal
+        preview={replayPreview}
+        open={showReplayPreview && !!replayPreview}
+        onClose={() => { showReplayPreview = false; replayPreview = null; }}
+        onConfirm={handleReplayConfirm}
+    />
+{/if}
+
+{#if showUserOverview}
+    <UserOverviewModal
+        overview={userOverview}
+        loading={userOverviewLoading}
+        open={showUserOverview}
+        onClose={() => showUserOverview = false}
+    />
+{/if}

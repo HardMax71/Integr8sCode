@@ -58,14 +58,14 @@ class AdminEventsRepository:
 
     async def browse_events(
         self,
-        filter: EventFilter,
+        event_filter: EventFilter,
         skip: int = 0,
         limit: int = 50,
         sort_by: str = EventFields.TIMESTAMP,
         sort_order: int = SortDirection.DESCENDING,
     ) -> EventBrowseResult:
         """Browse events with filters using domain models."""
-        query = EventFilterMapper.to_mongo_query(filter)
+        query = EventFilterMapper.to_mongo_query(event_filter)
 
         # Get total count
         total = await self.events_collection.count_documents(query)
@@ -191,9 +191,9 @@ class AdminEventsRepository:
 
         return statistics
 
-    async def export_events_csv(self, filter: EventFilter) -> List[EventExportRow]:
+    async def export_events_csv(self, event_filter: EventFilter) -> List[EventExportRow]:
         """Export events as CSV data."""
-        query = EventFilterMapper.to_mongo_query(filter)
+        query = EventFilterMapper.to_mongo_query(event_filter)
 
         cursor = self.events_collection.find(query).sort(EventFields.TIMESTAMP, SortDirection.DESCENDING).limit(10000)
 

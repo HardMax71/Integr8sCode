@@ -10,7 +10,12 @@ from app.core.metrics.context import get_execution_metrics
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
-from app.domain.execution import DomainExecution, ExecutionResultDomain, ResourceLimitsDomain, ResourceUsageDomain
+from app.domain.execution import (
+    DomainExecution,
+    ExecutionResultDomain,
+    ResourceLimitsDomain,
+    ResourceUsageDomain,
+)
 from app.events.core import UnifiedProducer
 from app.events.event_store import EventStore
 from app.infrastructure.kafka.events.base import BaseEvent

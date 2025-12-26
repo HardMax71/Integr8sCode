@@ -187,7 +187,7 @@ class EventReplayService:
         max_events = session.config.max_events
 
         async for batch_docs in self._repository.fetch_events(
-            filter=session.config.filter, batch_size=session.config.batch_size
+            replay_filter=session.config.filter, batch_size=session.config.batch_size
         ):
             batch: List[BaseEvent] = []
             for doc in batch_docs:

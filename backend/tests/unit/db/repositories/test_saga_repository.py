@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import pytest
 
 from app.db.repositories.saga_repository import SagaRepository
+from app.domain.enums.saga import SagaState
 from app.domain.saga.models import Saga, SagaFilter, SagaListResult
 
 pytestmark = pytest.mark.unit
@@ -30,7 +31,7 @@ async def test_saga_crud_and_queries(repo: SagaRepository, db) -> None:  # type:
     result = await repo.list_sagas(f, limit=2)
     assert isinstance(result, SagaListResult)
 
-    assert await repo.update_saga_state("s1", "completed") in (True, False)
+    assert await repo.update_saga_state("s1", SagaState.COMPLETED) in (True, False)
 
     # user execution ids
     await db.get_collection("executions").insert_many([

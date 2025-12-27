@@ -3,7 +3,7 @@ import uuid
 
 import pytest
 
-from pymongo.asynchronous.database import AsyncDatabase as AsyncIOMotorDatabase
+from app.core.database_context import Database
 
 from app.domain.enums.kafka import KafkaTopic
 from app.events.core import UnifiedProducer
@@ -25,7 +25,7 @@ async def test_event_store_consumer_stores_events(scope) -> None:  # type: ignor
 
     # Resolve DI
     producer: UnifiedProducer = await scope.get(UnifiedProducer)
-    db: AsyncIOMotorDatabase = await scope.get(AsyncIOMotorDatabase)
+    db: Database = await scope.get(Database)
     store: EventStore = await scope.get(EventStore)
 
     # Build an event

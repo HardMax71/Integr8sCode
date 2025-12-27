@@ -68,7 +68,8 @@ class EventStore:
             ),
         ]
 
-        existing = await self.collection.list_indexes().to_list(None)
+        indexes_cursor = await self.collection.list_indexes()
+        existing = await indexes_cursor.to_list(None)
         if len(existing) <= 1:
             await self.collection.create_indexes(event_indexes)
         logger.info(f"Created {len(event_indexes)} indexes for events collection")
@@ -300,7 +301,7 @@ class EventStore:
             ]
         )
 
-        cursor = self.collection.aggregate(pipeline)
+        cursor = await self.collection.aggregate(pipeline)
         stats: Dict[str, Any] = {"total_events": 0, "event_types": {}, "start_time": start_time, "end_time": end_time}
         async for r in cursor:
             et = r["_id"]

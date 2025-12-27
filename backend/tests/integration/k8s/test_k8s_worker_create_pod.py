@@ -9,7 +9,7 @@ from app.infrastructure.kafka.events.saga import CreatePodCommandEvent
 from app.services.k8s_worker.config import K8sWorkerConfig
 from app.services.k8s_worker.worker import KubernetesWorker
 
-from pymongo.asynchronous.database import AsyncDatabase as AsyncIOMotorDatabase
+from app.core.database_context import Database
 from app.events.event_store import EventStore
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.events.core import UnifiedProducer
@@ -26,7 +26,7 @@ async def test_worker_creates_configmap_and_pod(scope, monkeypatch):  # type: ig
         ns = "integr8scode"
         monkeypatch.setenv("K8S_NAMESPACE", ns)
 
-    database: AsyncIOMotorDatabase = await scope.get(AsyncIOMotorDatabase)
+    database: Database = await scope.get(Database)
     schema: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
     store: EventStore = await scope.get(EventStore)
     producer: UnifiedProducer = await scope.get(UnifiedProducer)

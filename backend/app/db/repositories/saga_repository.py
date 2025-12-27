@@ -93,7 +93,7 @@ class SagaRepository:
         pipeline = [{"$group": {"_id": "$state", "count": {"$sum": 1}}}]
 
         result = {}
-        async for doc in self.sagas.aggregate(pipeline):
+        async for doc in await self.sagas.aggregate(pipeline):
             result[doc["_id"]] = doc["count"]
 
         return result
@@ -123,7 +123,7 @@ class SagaRepository:
         state_pipeline = [{"$match": query}, {"$group": {"_id": "$state", "count": {"$sum": 1}}}]
 
         states = {}
-        async for doc in self.sagas.aggregate(state_pipeline):
+        async for doc in await self.sagas.aggregate(state_pipeline):
             states[doc["_id"]] = doc["count"]
 
         # Average duration for completed sagas
@@ -134,7 +134,7 @@ class SagaRepository:
         ]
 
         avg_duration = 0.0
-        async for doc in self.sagas.aggregate(duration_pipeline):
+        async for doc in await self.sagas.aggregate(duration_pipeline):
             # Convert milliseconds to seconds
             avg_duration = doc["avg_duration"] / 1000.0 if doc["avg_duration"] else 0.0
 

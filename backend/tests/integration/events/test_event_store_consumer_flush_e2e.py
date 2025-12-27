@@ -2,7 +2,7 @@ import asyncio
 from uuid import uuid4
 
 import pytest
-from pymongo.asynchronous.database import AsyncDatabase as AsyncIOMotorDatabase
+from app.core.database_context import Database
 
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
@@ -20,7 +20,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.kafka, pytest.mark.mongodb]
 async def test_event_store_consumer_flush_on_timeout(scope):  # type: ignore[valid-type]
     producer: UnifiedProducer = await scope.get(UnifiedProducer)
     schema: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
-    db: AsyncIOMotorDatabase = await scope.get(AsyncIOMotorDatabase)
+    db: Database = await scope.get(Database)
     store = EventStore(db=db, schema_registry=schema)
     await store.initialize()
 

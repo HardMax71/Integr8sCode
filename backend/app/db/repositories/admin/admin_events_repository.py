@@ -120,7 +120,8 @@ class AdminEventsRepository:
 
         # Get overview statistics
         overview_pipeline = EventStatsAggregation.build_overview_pipeline(start_time)
-        overview_result = await self.events_collection.aggregate(overview_pipeline).to_list(1)
+        overview_cursor = await self.events_collection.aggregate(overview_pipeline)
+        overview_result = await overview_cursor.to_list(1)
 
         stats = (
             overview_result[0]
@@ -140,19 +141,20 @@ class AdminEventsRepository:
 
         # Get event types with counts
         type_pipeline = EventStatsAggregation.build_event_types_pipeline(start_time)
-        top_types = await self.events_collection.aggregate(type_pipeline).to_list(10)
+        type_cursor = await self.events_collection.aggregate(type_pipeline)
+        top_types = await type_cursor.to_list(10)
         events_by_type = {t["_id"]: t["count"] for t in top_types}
 
         # Get events by hour
         hourly_pipeline = EventStatsAggregation.build_hourly_events_pipeline(start_time)
-        hourly_cursor = self.events_collection.aggregate(hourly_pipeline)
+        hourly_cursor = await self.events_collection.aggregate(hourly_pipeline)
         events_by_hour: list[HourlyEventCount | dict[str, Any]] = [
             HourlyEventCount(hour=doc["_id"], count=doc["count"]) async for doc in hourly_cursor
         ]
 
         # Get top users
         user_pipeline = EventStatsAggregation.build_top_users_pipeline(start_time)
-        top_users_cursor = self.events_collection.aggregate(user_pipeline)
+        top_users_cursor = await self.events_collection.aggregate(user_pipeline)
         top_users = [
             UserEventCount(user_id=doc["_id"], event_count=doc["count"])
             async for doc in top_users_cursor
@@ -175,7 +177,8 @@ class AdminEventsRepository:
             {"$group": {"_id": None, "avg_duration": {"$avg": "$resource_usage.execution_time_wall_seconds"}}},
         ]
 
-        exec_result = await executions_collection.aggregate(exec_pipeline).to_list(1)
+        exec_cursor = await executions_collection.aggregate(exec_pipeline)
+        exec_result = await exec_cursor.to_list(1)
         avg_processing_time = (
             exec_result[0]["avg_duration"] if exec_result and exec_result[0].get("avg_duration") else 0
         )

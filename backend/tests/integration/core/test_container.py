@@ -1,6 +1,6 @@
 import pytest
 from dishka import AsyncContainer
-from pymongo.asynchronous.database import AsyncDatabase as AsyncIOMotorDatabase
+from app.core.database_context import Database
 
 from app.services.event_service import EventService
 
@@ -13,7 +13,7 @@ async def test_container_resolves_services(app_container, scope) -> None:  # typ
     assert isinstance(app_container, AsyncContainer)
 
     # Can resolve core dependencies from DI
-    db: AsyncIOMotorDatabase = await scope.get(AsyncIOMotorDatabase)
+    db: Database = await scope.get(Database)
     assert db.name and isinstance(db.name, str)
 
     svc: EventService = await scope.get(EventService)

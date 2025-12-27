@@ -130,9 +130,10 @@ class ExecutionRepository:
         executions: list[DomainExecution] = []
         async for doc in cursor:
             sv = doc.get("status")
+            resource_usage_data = doc.get("resource_usage")
             executions.append(
                 DomainExecution(
-                    execution_id=doc.get("execution_id"),
+                    execution_id=str(doc.get("execution_id", "")),
                     script=doc.get("script", ""),
                     status=ExecutionStatus(str(sv)),
                     stdout=doc.get("stdout"),
@@ -142,8 +143,8 @@ class ExecutionRepository:
                     created_at=doc.get("created_at", datetime.now(timezone.utc)),
                     updated_at=doc.get("updated_at", datetime.now(timezone.utc)),
                     resource_usage=(
-                        ResourceUsageDomain.from_dict(doc.get("resource_usage"))
-                        if doc.get("resource_usage") is not None
+                        ResourceUsageDomain.from_dict(dict(resource_usage_data))
+                        if resource_usage_data is not None
                         else None
                     ),
                     user_id=doc.get("user_id"),

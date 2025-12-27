@@ -35,7 +35,7 @@ class DLQRepository:
         ]
 
         status_results = []
-        async for doc in self.dlq_collection.aggregate(status_pipeline):
+        async for doc in await self.dlq_collection.aggregate(status_pipeline):
             status_results.append(doc)
 
         # Convert status results to dict
@@ -58,7 +58,7 @@ class DLQRepository:
         ]
 
         by_topic: List[TopicStatistic] = []
-        async for doc in self.dlq_collection.aggregate(topic_pipeline):
+        async for doc in await self.dlq_collection.aggregate(topic_pipeline):
             by_topic.append(
                 TopicStatistic(topic=doc["_id"], count=doc["count"], avg_retry_count=round(doc["avg_retry_count"], 2))
             )
@@ -71,7 +71,7 @@ class DLQRepository:
         ]
 
         by_event_type: List[EventTypeStatistic] = []
-        async for doc in self.dlq_collection.aggregate(event_type_pipeline):
+        async for doc in await self.dlq_collection.aggregate(event_type_pipeline):
             if doc["_id"]:  # Skip null event types
                 by_event_type.append(EventTypeStatistic(event_type=doc["_id"], count=doc["count"]))
 
@@ -94,7 +94,8 @@ class DLQRepository:
             },
         ]
 
-        age_result = await self.dlq_collection.aggregate(age_pipeline).to_list(1)
+        age_cursor = await self.dlq_collection.aggregate(age_pipeline)
+        age_result = await age_cursor.to_list(1)
         age_stats_data = age_result[0] if age_result else {}
         age_stats = AgeStatistics(
             min_age_seconds=age_stats_data.get("min_age", 0.0),
@@ -148,7 +149,7 @@ class DLQRepository:
         ]
 
         topics = []
-        async for result in self.dlq_collection.aggregate(pipeline):
+        async for result in await self.dlq_collection.aggregate(pipeline):
             status_counts: dict[str, int] = {}
             for status in result["statuses"]:
                 status_counts[status] = status_counts.get(status, 0) + 1

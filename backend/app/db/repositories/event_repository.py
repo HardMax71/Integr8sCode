@@ -234,7 +234,8 @@ class EventRepository:
             ]
         )
 
-        result = await self._collection.aggregate(pipeline).to_list(length=1)
+        cursor = await self._collection.aggregate(pipeline)
+        result = await cursor.to_list(length=1)
 
         if result:
             stats = result[0]
@@ -296,7 +297,8 @@ class EventRepository:
             ]
         )
 
-        result = await self._collection.aggregate(pipeline).to_list(length=1)
+        cursor = await self._collection.aggregate(pipeline)
+        result = await cursor.to_list(length=1)
         if result:
             stats = result[0]
             return EventStatistics(
@@ -321,7 +323,9 @@ class EventRepository:
         if filters:
             pipeline.append({"$match": filters})
 
-        async with self._collection.watch(pipeline, start_after=start_after, full_document="updateLookup") as stream:
+        async with await self._collection.watch(
+            pipeline, start_after=start_after, full_document="updateLookup"
+        ) as stream:
             async for change in stream:
                 if change["operationType"] in ["insert", "update", "replace"]:
                     yield change["fullDocument"]
@@ -438,7 +442,7 @@ class EventRepository:
         pipeline.append({"$limit": limit})
 
         results = []
-        async for doc in self._collection.aggregate(pipeline):
+        async for doc in await self._collection.aggregate(pipeline):
             if "_id" in doc and isinstance(doc["_id"], dict):
                 doc["_id"] = str(doc["_id"])
             results.append(doc)
@@ -451,7 +455,7 @@ class EventRepository:
             pipeline.append({"$match": dict(match)})
         pipeline.extend([{"$group": {"_id": f"${EventFields.EVENT_TYPE}"}}, {"$sort": {"_id": 1}}])
         event_types: list[str] = []
-        async for doc in self._collection.aggregate(pipeline):
+        async for doc in await self._collection.aggregate(pipeline):
             event_types.append(doc["_id"])
         return event_types
 

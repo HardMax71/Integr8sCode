@@ -7,14 +7,14 @@ from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.infrastructure.kafka.events.pod import PodCreatedEvent
 from app.infrastructure.kafka.events.user import UserLoggedInEvent
-from pymongo.asynchronous.database import AsyncDatabase as AsyncIOMotorDatabase
+from app.core.database_context import Database
 
 pytestmark = [pytest.mark.integration, pytest.mark.mongodb]
 
 
 @pytest.fixture()
 async def event_store(scope) -> EventStore:  # type: ignore[valid-type]
-    db: AsyncIOMotorDatabase = await scope.get(AsyncIOMotorDatabase)
+    db: Database = await scope.get(Database)
     schema_registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
     store = EventStore(db=db, schema_registry=schema_registry)
     await store.initialize()

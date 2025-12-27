@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 import pytest
-from pymongo.asynchronous.database import AsyncDatabase as AsyncIOMotorDatabase
+from app.core.database_context import Database
 
 from app.domain.enums.user import UserRole
 from app.services.admin import AdminUserService
@@ -12,7 +12,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.mongodb]
 @pytest.mark.asyncio
 async def test_get_user_overview_basic(scope) -> None:  # type: ignore[valid-type]
     svc: AdminUserService = await scope.get(AdminUserService)
-    db: AsyncIOMotorDatabase = await scope.get(AsyncIOMotorDatabase)
+    db: Database = await scope.get(Database)
     await db.get_collection("users").insert_one({
         "user_id": "u1",
         "username": "bob",

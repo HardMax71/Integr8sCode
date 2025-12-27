@@ -11,7 +11,7 @@ import pytest_asyncio
 from dishka import AsyncContainer
 from dotenv import load_dotenv
 from httpx import ASGITransport
-from pymongo.asynchronous.database import AsyncDatabase as AsyncIOMotorDatabase
+from app.core.database_context import Database
 import redis.asyncio as redis
 
 # Load test environment variables BEFORE any app imports
@@ -175,8 +175,8 @@ async def scope(app_container: AsyncContainer):  # type: ignore[valid-type]
 
 
 @pytest_asyncio.fixture(scope="function")
-async def db(scope) -> AsyncGenerator[AsyncIOMotorDatabase, None]:  # type: ignore[valid-type]
-    database: AsyncIOMotorDatabase = await scope.get(AsyncIOMotorDatabase)
+async def db(scope) -> AsyncGenerator[Database, None]:  # type: ignore[valid-type]
+    database: Database = await scope.get(Database)
     yield database
 
 

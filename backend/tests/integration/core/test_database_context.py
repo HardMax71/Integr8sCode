@@ -1,7 +1,7 @@
 import pytest
 
 from app.core.database_context import AsyncDatabaseConnection, ContextualDatabaseProvider, DatabaseNotInitializedError
-from pymongo.asynchronous.database import AsyncDatabase as AsyncIOMotorDatabase
+from app.core.database_context import Database
 
 pytestmark = [pytest.mark.integration, pytest.mark.mongodb]
 
@@ -10,7 +10,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.mongodb]
 async def test_database_connection_from_di(scope) -> None:  # type: ignore[valid-type]
     # Resolve both the raw connection and the database via DI
     conn: AsyncDatabaseConnection = await scope.get(AsyncDatabaseConnection)
-    db: AsyncIOMotorDatabase = await scope.get(AsyncIOMotorDatabase)
+    db: Database = await scope.get(Database)
     assert conn.is_connected() is True
     assert db.name and isinstance(db.name, str)
 

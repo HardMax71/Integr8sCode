@@ -1,7 +1,7 @@
 from datetime import datetime, timezone, timedelta
 
 import pytest
-from pymongo.asynchronous.database import AsyncDatabase as AsyncIOMotorDatabase
+from app.core.database_context import Database
 
 from app.domain.enums.events import EventType
 from app.events.event_store import EventStore
@@ -15,7 +15,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.mongodb]
 @pytest.mark.asyncio
 async def test_event_store_initialize_and_crud(scope):  # type: ignore[valid-type]
     schema: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
-    db: AsyncIOMotorDatabase = await scope.get(AsyncIOMotorDatabase)
+    db: Database = await scope.get(Database)
     store = EventStore(db=db, schema_registry=schema, ttl_days=1)
     await store.initialize()
 

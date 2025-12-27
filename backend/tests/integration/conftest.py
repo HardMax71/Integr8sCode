@@ -1,11 +1,12 @@
 """Integration tests conftest - with infrastructure cleanup."""
 import pytest_asyncio
-from pymongo.asynchronous.database import AsyncDatabase as AsyncIOMotorDatabase
 import redis.asyncio as redis
+
+from app.core.database_context import Database
 
 
 @pytest_asyncio.fixture(scope="function", autouse=True)
-async def _cleanup(db: AsyncIOMotorDatabase, redis_client: redis.Redis):
+async def _cleanup(db: Database, redis_client: redis.Redis):
     """Clean DB and Redis before/after each integration test."""
     # Pre-test cleanup
     collections = await db.list_collection_names()

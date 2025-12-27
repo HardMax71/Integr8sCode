@@ -167,8 +167,8 @@ class AsyncDatabaseConnection:
             async with connection.session() as session:
                 await collection.insert_one(doc, session=session)
         """
-        async with await self.client.start_session() as session:
-            async with session.start_transaction():
+        async with self.client.start_session() as session:
+            async with await session.start_transaction():
                 yield session
 
 

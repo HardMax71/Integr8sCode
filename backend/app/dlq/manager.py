@@ -334,7 +334,7 @@ class DLQManager(LifecycleEnabled):
             {"$group": {"_id": f"${DLQFields.ORIGINAL_TOPIC}", "count": {"$sum": 1}}},
         ]
 
-        async for result in self.dlq_collection.aggregate(pipeline):
+        async for result in await self.dlq_collection.aggregate(pipeline):
             # Note: OpenTelemetry doesn't have direct gauge set, using delta tracking
             self.metrics.update_dlq_queue_size(result["_id"], result["count"])
 

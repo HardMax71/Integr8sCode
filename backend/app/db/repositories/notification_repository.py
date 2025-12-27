@@ -25,7 +25,8 @@ class NotificationRepository:
 
     async def create_indexes(self) -> None:
         # Create indexes if only _id exists
-        notif_indexes = await self.notifications_collection.list_indexes().to_list(None)
+        notif_cursor = await self.notifications_collection.list_indexes()
+        notif_indexes = await notif_cursor.to_list(None)
         if len(notif_indexes) <= 1:
             await self.notifications_collection.create_indexes(
                 [
@@ -38,7 +39,8 @@ class NotificationRepository:
                 ]
             )
 
-        subs_indexes = await self.subscriptions_collection.list_indexes().to_list(None)
+        subs_cursor = await self.subscriptions_collection.list_indexes()
+        subs_indexes = await subs_cursor.to_list(None)
         if len(subs_indexes) <= 1:
             await self.subscriptions_collection.create_indexes(
                 [

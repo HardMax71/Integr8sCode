@@ -3,7 +3,7 @@ import uuid
 from tests.helpers.eventually import eventually
 import pytest
 
-from pymongo.asynchronous.database import AsyncDatabase as AsyncIOMotorDatabase
+from app.core.database_context import Database
 
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
@@ -30,7 +30,7 @@ async def test_result_processor_persists_and_emits(scope) -> None:  # type: igno
     await initialize_event_schemas(registry)
 
     # Dependencies
-    db: AsyncIOMotorDatabase = await scope.get(AsyncIOMotorDatabase)
+    db: Database = await scope.get(Database)
     repo: ExecutionRepository = await scope.get(ExecutionRepository)
     producer: UnifiedProducer = await scope.get(UnifiedProducer)
     idem: IdempotencyManager = await scope.get(IdempotencyManager)

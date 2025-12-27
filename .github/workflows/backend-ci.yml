@@ -19,7 +19,7 @@ on:
 env:
   MONGO_IMAGE: mongo:8.0
   REDIS_IMAGE: redis:7-alpine
-  KAFKA_IMAGE: bitnami/kafka:3.9
+  KAFKA_IMAGE: apache/kafka:3.9.0
   SCHEMA_REGISTRY_IMAGE: confluentinc/cp-schema-registry:7.5.0
 
 jobs:

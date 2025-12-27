@@ -14,6 +14,15 @@ from app.domain.enums.common import SortOrder
 from app.domain.enums.events import EventType
 
 
+class HourlyEventCountSchema(BaseModel):
+    """Hourly event count for statistics."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    hour: str
+    count: int
+
+
 class EventMetadataResponse(BaseModel):
     """Pydantic schema for event metadata in API responses."""
 
@@ -205,7 +214,7 @@ class EventStatistics(BaseModel):
     total_events: int
     events_by_type: Dict[str, int]
     events_by_service: Dict[str, int]
-    events_by_hour: List[Dict[str, Any]]
+    events_by_hour: List[HourlyEventCountSchema]
     start_time: datetime | None = None
     end_time: datetime | None = None
 

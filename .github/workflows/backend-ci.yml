@@ -15,6 +15,13 @@ on:
       - 'docker-compose.ci.yaml'
   workflow_dispatch:
 
+# Pin image versions for cache key consistency
+env:
+  MONGO_IMAGE: mongo:8.0
+  REDIS_IMAGE: redis:7-alpine
+  KAFKA_IMAGE: bitnami/kafka:3.6
+  SCHEMA_REGISTRY_IMAGE: confluentinc/cp-schema-registry:7.5.0
+
 jobs:
   integration:
     name: Integration Tests
@@ -22,6 +29,47 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+
+      # ========== DOCKER IMAGE CACHING ==========
+      - name: Cache Docker images
+        uses: actions/cache@v5
+        id: docker-cache
+        with:
+          path: /tmp/docker-cache
+          key: docker-${{ runner.os }}-${{ env.MONGO_IMAGE }}-${{ env.REDIS_IMAGE }}-${{ env.KAFKA_IMAGE }}-${{ env.SCHEMA_REGISTRY_IMAGE }}
+
+      - name: Load cached Docker images
+        if: steps.docker-cache.outputs.cache-hit == 'true'
+        run: |
+          echo "Loading cached images..."
+          for f in /tmp/docker-cache/*.tar.zst; do
+            zstd -d -c "$f" | docker load &
+          done
+          wait
+          docker images
+
+      - name: Pull and save Docker images
+        if: steps.docker-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p /tmp/docker-cache
+
+          echo "Pulling images in parallel..."
+          docker pull $MONGO_IMAGE &
+          docker pull $REDIS_IMAGE &
+          docker pull $KAFKA_IMAGE &
+          docker pull $SCHEMA_REGISTRY_IMAGE &
+          wait
+
+          echo "Saving images with zstd compression..."
+          docker save $MONGO_IMAGE | zstd -T0 -3 > /tmp/docker-cache/mongo.tar.zst &
+          docker save $REDIS_IMAGE | zstd -T0 -3 > /tmp/docker-cache/redis.tar.zst &
+          docker save $KAFKA_IMAGE | zstd -T0 -3 > /tmp/docker-cache/kafka.tar.zst &
+          docker save $SCHEMA_REGISTRY_IMAGE | zstd -T0 -3 > /tmp/docker-cache/schema-registry.tar.zst &
+          wait
+
+          echo "Cache size:"
+          du -sh /tmp/docker-cache/
+      # ==========================================
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
@@ -93,6 +141,47 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+
+      # ========== DOCKER IMAGE CACHING ==========
+      - name: Cache Docker images
+        uses: actions/cache@v5
+        id: docker-cache
+        with:
+          path: /tmp/docker-cache
+          key: docker-${{ runner.os }}-${{ env.MONGO_IMAGE }}-${{ env.REDIS_IMAGE }}-${{ env.KAFKA_IMAGE }}-${{ env.SCHEMA_REGISTRY_IMAGE }}
+
+      - name: Load cached Docker images
+        if: steps.docker-cache.outputs.cache-hit == 'true'
+        run: |
+          echo "Loading cached images..."
+          for f in /tmp/docker-cache/*.tar.zst; do
+            zstd -d -c "$f" | docker load &
+          done
+          wait
+          docker images
+
+      - name: Pull and save Docker images
+        if: steps.docker-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p /tmp/docker-cache
+
+          echo "Pulling images in parallel..."
+          docker pull $MONGO_IMAGE &
+          docker pull $REDIS_IMAGE &
+          docker pull $KAFKA_IMAGE &
+          docker pull $SCHEMA_REGISTRY_IMAGE &
+          wait
+
+          echo "Saving images with zstd compression..."
+          docker save $MONGO_IMAGE | zstd -T0 -3 > /tmp/docker-cache/mongo.tar.zst &
+          docker save $REDIS_IMAGE | zstd -T0 -3 > /tmp/docker-cache/redis.tar.zst &
+          docker save $KAFKA_IMAGE | zstd -T0 -3 > /tmp/docker-cache/kafka.tar.zst &
+          docker save $SCHEMA_REGISTRY_IMAGE | zstd -T0 -3 > /tmp/docker-cache/schema-registry.tar.zst &
+          wait
+
+          echo "Cache size:"
+          du -sh /tmp/docker-cache/
+      # ==========================================
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v7

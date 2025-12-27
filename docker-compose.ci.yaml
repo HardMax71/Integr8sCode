@@ -33,10 +33,10 @@ services:
       - ci-network
     healthcheck:
       test: mongosh --eval 'db.runCommand("ping").ok' --quiet
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
+      interval: 2s
+      timeout: 3s
+      retries: 15
+      start_period: 5s
 
   redis:
     image: redis:7-alpine
@@ -48,9 +48,10 @@ services:
       - ci-network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+      interval: 2s
+      timeout: 2s
+      retries: 10
+      start_period: 2s
 
   # KRaft mode Kafka - no Zookeeper needed, much simpler
   kafka:
@@ -82,10 +83,10 @@ services:
       - ci-network
     healthcheck:
       test: kafka-broker-api-versions.sh --bootstrap-server localhost:9092 || exit 1
-      interval: 5s
-      timeout: 10s
-      retries: 15
-      start_period: 20s
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 8s
 
   schema-registry:
     image: confluentinc/cp-schema-registry:7.5.0
@@ -104,10 +105,10 @@ services:
       - ci-network
     healthcheck:
       test: curl -f http://localhost:8081/config || exit 1
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 15s
+      interval: 2s
+      timeout: 3s
+      retries: 20
+      start_period: 3s
 
   # =============================================================================
   # APPLICATION SERVICES (profile: full - only for E2E tests)

@@ -2,7 +2,7 @@ import json
 import pytest
 
 from app.domain.enums.storage import ExecutionErrorType
-from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.services.pod_monitor.event_mapper import PodContext, PodEventMapper
 from tests.helpers.k8s_fakes import (
     Meta,
@@ -21,7 +21,7 @@ pytestmark = pytest.mark.unit
 
 
 def _ctx(pod: Pod, event_type: str = "ADDED") -> PodContext:
-    return PodContext(pod=pod, execution_id="e1", metadata=EventMetadata(service_name="t", service_version="1"), phase=pod.status.phase or "", event_type=event_type)
+    return PodContext(pod=pod, execution_id="e1", metadata=AvroEventMetadata(service_name="t", service_version="1"), phase=pod.status.phase or "", event_type=event_type)
 
 
 def test_pending_running_and_succeeded_mapping() -> None:

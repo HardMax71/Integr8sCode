@@ -4,7 +4,7 @@ import uuid
 import pytest
 from kubernetes.client.rest import ApiException
 
-from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.infrastructure.kafka.events.saga import CreatePodCommandEvent
 from app.services.k8s_worker.config import K8sWorkerConfig
 from app.services.k8s_worker.worker import KubernetesWorker
@@ -63,7 +63,7 @@ async def test_worker_creates_configmap_and_pod(scope, monkeypatch):  # type: ig
         cpu_request="50m",
         memory_request="64Mi",
         priority=5,
-        metadata=EventMetadata(service_name="tests", service_version="1", user_id="u1"),
+        metadata=AvroEventMetadata(service_name="tests", service_version="1", user_id="u1"),
     )
 
     # Build and create ConfigMap + Pod

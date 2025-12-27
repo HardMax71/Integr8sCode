@@ -33,7 +33,7 @@ from app.infrastructure.kafka.events.execution import (
     ExecutionFailedEvent,
     ExecutionRequestedEvent,
 )
-from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.infrastructure.kafka.events.metadata import AvroEventMetadata as EventMetadata
 from app.infrastructure.kafka.events.saga import CreatePodCommandEvent
 from app.services.coordinator.queue_manager import QueueManager, QueuePriority
 from app.services.coordinator.resource_manager import ResourceAllocation, ResourceManager

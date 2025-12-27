@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List
+from typing import Any, Dict, List
 
 from pydantic import BaseModel, Field
 
@@ -20,6 +20,8 @@ class ReplayRequest(BaseModel):
     end_time: datetime | None = None
     user_id: str | None = None
     service_name: str | None = None
+    custom_query: Dict[str, Any] | None = None
+    exclude_event_types: List[EventType] | None = None
 
     # Replay configuration
     speed_multiplier: float = Field(default=1.0, ge=0.1, le=100.0)
@@ -28,6 +30,10 @@ class ReplayRequest(BaseModel):
     max_events: int | None = Field(default=None, ge=1)
     skip_errors: bool = True
     target_file_path: str | None = None
+    target_topics: Dict[str, str] | None = None
+    retry_failed: bool = False
+    retry_attempts: int = Field(default=3, ge=1, le=10)
+    enable_progress_tracking: bool = True
 
 
 class ReplayResponse(BaseModel):

@@ -6,7 +6,7 @@ from app.db.repositories import EventRepository
 from app.domain.events.event_models import EventFields, Event, EventFilter
 from app.domain.enums.common import SortOrder
 from app.domain.enums.user import UserRole
-from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.domain.enums.events import EventType
 from app.services.event_service import EventService
 
@@ -20,8 +20,8 @@ async def test_event_service_access_and_queries(scope) -> None:  # type: ignore[
 
     now = datetime.now(timezone.utc)
     # Seed some events (domain Event, not infra BaseEvent)
-    md1 = EventMetadata(service_name="svc", service_version="1", user_id="u1", correlation_id="c1")
-    md2 = EventMetadata(service_name="svc", service_version="1", user_id="u2", correlation_id="c1")
+    md1 = AvroEventMetadata(service_name="svc", service_version="1", user_id="u1", correlation_id="c1")
+    md2 = AvroEventMetadata(service_name="svc", service_version="1", user_id="u2", correlation_id="c1")
     e1 = Event(event_id="e1", event_type=str(EventType.USER_LOGGED_IN), event_version="1.0", timestamp=now,
                metadata=md1, payload={"user_id": "u1", "login_method": "password"}, aggregate_id="agg1")
     e2 = Event(event_id="e2", event_type=str(EventType.USER_LOGGED_IN), event_version="1.0", timestamp=now,
@@ -29,11 +29,11 @@ async def test_event_service_access_and_queries(scope) -> None:  # type: ignore[
     await repo.store_event(e1)
     await repo.store_event(e2)
 
-    # get_execution_events returns [] when non-admin for different user; then admin sees
+    # get_execution_events returns None when non-admin for different user; then admin sees
     events_user = await svc.get_execution_events("agg1", "u2", UserRole.USER)
     assert events_user is None
     events_admin = await svc.get_execution_events("agg1", "admin", UserRole.ADMIN)
-    assert any(ev.aggregate_id == "agg1" for ev in events_admin)
+    assert any(ev.aggregate_id == "agg1" for ev in events_admin.events)
 
     # query_events_advanced: basic run (empty filters) should return a result structure
     res = await svc.query_events_advanced("u1", UserRole.USER, filters=EventFilter(), sort_by="correlation_id", sort_order=SortOrder.ASC)
@@ -41,9 +41,9 @@ async def test_event_service_access_and_queries(scope) -> None:  # type: ignore[
 
     # get_events_by_correlation filters non-admin to their own user_id
     by_corr_user = await svc.get_events_by_correlation("c1", user_id="u1", user_role=UserRole.USER, include_all_users=False)
-    assert all(ev.metadata.user_id == "u1" for ev in by_corr_user)
+    assert all(ev.metadata.user_id == "u1" for ev in by_corr_user.events)
     by_corr_admin = await svc.get_events_by_correlation("c1", user_id="admin", user_role=UserRole.ADMIN, include_all_users=True)
-    assert len(by_corr_admin) >= 2
+    assert len(by_corr_admin.events) >= 2
 
     # get_event_statistics (time window)
     _ = await svc.get_event_statistics("u1", UserRole.USER, start_time=now - timedelta(days=1), end_time=now + timedelta(days=1))

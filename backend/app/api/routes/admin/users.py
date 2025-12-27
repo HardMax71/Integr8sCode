@@ -9,8 +9,12 @@ from app.db.repositories.admin.admin_user_repository import AdminUserRepository
 from app.domain.enums.user import UserRole
 from app.domain.rate_limit import UserRateLimit
 from app.domain.user import UserUpdate as DomainUserUpdate
-from app.infrastructure.mappers import AdminOverviewApiMapper, UserMapper
-from app.schemas_pydantic.admin_user_overview import AdminUserOverview
+from app.schemas_pydantic.admin_user_overview import (
+    AdminUserOverview,
+    DerivedCounts,
+    RateLimitSummary,
+)
+from app.schemas_pydantic.events import EventResponse, EventStatistics
 from app.schemas_pydantic.user import (
     DeleteUserResponse,
     MessageResponse,
@@ -48,17 +52,20 @@ async def list_users(
         role=role,
     )
 
-    user_mapper = UserMapper()
     summaries = await rate_limit_service.get_user_rate_limit_summaries([u.user_id for u in result.users])
     user_responses: list[UserResponse] = []
     for user in result.users:
-        user_dict = user_mapper.to_response_dict(user)
+        user_response = UserResponse.model_validate(user)
         summary = summaries.get(user.user_id)
         if summary:
-            user_dict["bypass_rate_limit"] = summary.bypass_rate_limit
-            user_dict["global_multiplier"] = summary.global_multiplier
-            user_dict["has_custom_limits"] = summary.has_custom_limits
-        user_responses.append(UserResponse(**user_dict))
+            user_response = user_response.model_copy(
+                update={
+                    "bypass_rate_limit": summary.bypass_rate_limit,
+                    "global_multiplier": summary.global_multiplier,
+                    "has_custom_limits": summary.has_custom_limits,
+                }
+            )
+        user_responses.append(user_response)
 
     return UserListResponse(
         users=user_responses,
@@ -80,8 +87,7 @@ async def create_user(
         domain_user = await admin_user_service.create_user(admin_username=admin.username, user_data=user_data)
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
-    user_mapper = UserMapper()
-    return UserResponse(**user_mapper.to_response_dict(domain_user))
+    return UserResponse.model_validate(domain_user)
 
 
 @router.get("/{user_id}", response_model=UserResponse)
@@ -94,8 +100,7 @@ async def get_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    user_mapper = UserMapper()
-    return UserResponse(**user_mapper.to_response_dict(user))
+    return UserResponse.model_validate(user)
 
 
 @router.get("/{user_id}/overview", response_model=AdminUserOverview)
@@ -109,8 +114,13 @@ async def get_user_overview(
         domain = await admin_user_service.get_user_overview(user_id=user_id, hours=24)
     except ValueError:
         raise HTTPException(status_code=404, detail="User not found")
-    mapper = AdminOverviewApiMapper()
-    return mapper.to_response(domain)
+    return AdminUserOverview(
+        user=UserResponse.model_validate(domain.user),
+        stats=EventStatistics.model_validate(domain.stats),
+        derived_counts=DerivedCounts.model_validate(domain.derived_counts),
+        rate_limit_summary=RateLimitSummary.model_validate(domain.rate_limit_summary),
+        recent_events=[EventResponse.model_validate(e).model_dump() for e in domain.recent_events],
+    )
 
 
 @router.put("/{user_id}", response_model=UserResponse)
@@ -141,8 +151,7 @@ async def update_user(
     if not updated_user:
         raise HTTPException(status_code=500, detail="Failed to update user")
 
-    user_mapper = UserMapper()
-    return UserResponse(**user_mapper.to_response_dict(updated_user))
+    return UserResponse.model_validate(updated_user)
 
 
 @router.delete("/{user_id}", response_model=DeleteUserResponse)

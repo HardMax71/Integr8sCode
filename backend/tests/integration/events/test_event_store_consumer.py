@@ -11,7 +11,7 @@ from app.events.event_store_consumer import EventStoreConsumer, create_event_sto
 from app.events.event_store import EventStore
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.infrastructure.kafka.events.user import UserLoggedInEvent
-from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.kafka, pytest.mark.mongodb]
@@ -32,7 +32,7 @@ async def test_event_store_consumer_stores_events(scope) -> None:  # type: ignor
     ev = UserLoggedInEvent(
         user_id=f"u-{uuid.uuid4().hex[:6]}",
         login_method="password",
-        metadata=EventMetadata(service_name="tests", service_version="1.0.0"),
+        metadata=AvroEventMetadata(service_name="tests", service_version="1.0.0"),
     )
 
     # Create a tuned consumer (fast batch timeout) limited to user-events

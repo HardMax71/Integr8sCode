@@ -6,13 +6,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from app.dlq.models import (
-    DLQBatchRetryResult,
     DLQFields,
     DLQMessage,
     DLQMessageFilter,
     DLQMessageStatus,
     DLQMessageUpdate,
-    DLQRetryResult,
 )
 from app.domain.enums.events import EventType
 from app.infrastructure.mappers.dlq_mapper import DLQMapper
@@ -285,61 +283,6 @@ class TestDLQMapper:
         assert msg.dlq_offset is None
         assert msg.dlq_partition is None
         assert msg.headers == {}
-
-    def test_to_response_dict(self, sample_dlq_message):
-        """Test converting DLQ message to response dictionary."""
-        result = DLQMapper.to_response_dict(sample_dlq_message)
-
-        assert result["event_id"] == "event-123"
-        assert result["event_type"] == sample_dlq_message.event_type
-        assert result["event"] == sample_dlq_message.event.to_dict()
-        assert result["original_topic"] == "execution-events"
-        assert result["error"] == "Test error"
-        assert result["retry_count"] == 2
-        assert result["status"] == DLQMessageStatus.PENDING
-        assert result["producer_id"] == "test-producer"
-        assert result["dlq_offset"] == 100
-        assert result["dlq_partition"] == 1
-        assert result["last_error"] == "Connection timeout"
-        assert result["discard_reason"] == "Max retries exceeded"
-        assert "age_seconds" in result
-        assert "failed_at" in result
-        assert "next_retry_at" in result
-        assert "retried_at" in result
-        assert "discarded_at" in result
-
-    def test_retry_result_to_dict_success(self):
-        """Test converting successful retry result to dictionary."""
-        result = DLQRetryResult(event_id="event-123", status="success")
-
-        d = DLQMapper.retry_result_to_dict(result)
-
-        assert d == {"event_id": "event-123", "status": "success"}
-
-    def test_retry_result_to_dict_with_error(self):
-        """Test converting retry result with error to dictionary."""
-        result = DLQRetryResult(event_id="event-123", status="failed", error="Connection error")
-
-        d = DLQMapper.retry_result_to_dict(result)
-
-        assert d == {"event_id": "event-123", "status": "failed", "error": "Connection error"}
-
-    def test_batch_retry_result_to_dict(self):
-        """Test converting batch retry result to dictionary."""
-        details = [
-            DLQRetryResult(event_id="event-1", status="success"),
-            DLQRetryResult(event_id="event-2", status="failed", error="Error"),
-        ]
-        result = DLQBatchRetryResult(total=2, successful=1, failed=1, details=details)
-
-        d = DLQMapper.batch_retry_result_to_dict(result)
-
-        assert d["total"] == 2
-        assert d["successful"] == 1
-        assert d["failed"] == 1
-        assert len(d["details"]) == 2
-        assert d["details"][0] == {"event_id": "event-1", "status": "success"}
-        assert d["details"][1] == {"event_id": "event-2", "status": "failed", "error": "Error"}
 
     def test_from_failed_event(self, sample_event):
         """Test creating DLQ message from failed event."""

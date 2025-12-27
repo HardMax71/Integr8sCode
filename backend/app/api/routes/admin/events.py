@@ -12,11 +12,7 @@ from app.core.correlation import CorrelationContext
 from app.domain.enums.events import EventType
 from app.infrastructure.mappers import (
     AdminReplayApiMapper,
-    EventDetailMapper,
     EventFilterMapper,
-    EventMapper,
-    EventStatisticsMapper,
-    ReplaySessionMapper,
 )
 from app.schemas_pydantic.admin_events import (
     EventBrowseRequest,
@@ -50,9 +46,8 @@ async def browse_events(request: EventBrowseRequest, service: FromDishka[AdminEv
             sort_order=request.sort_order,
         )
 
-        event_mapper = EventMapper()
         return EventBrowseResponse(
-            events=[jsonable_encoder(event_mapper.to_dict(event)) for event in result.events],
+            events=[jsonable_encoder(event) for event in result.events],
             total=result.total,
             skip=result.skip,
             limit=result.limit,
@@ -69,8 +64,7 @@ async def get_event_stats(
 ) -> EventStatsResponse:
     try:
         stats = await service.get_event_stats(hours=hours)
-        stats_mapper = EventStatisticsMapper()
-        return EventStatsResponse(**stats_mapper.to_dict(stats))
+        return EventStatsResponse.model_validate(stats)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -147,12 +141,10 @@ async def get_event_detail(event_id: str, service: FromDishka[AdminEventsService
         if not result:
             raise HTTPException(status_code=404, detail="Event not found")
 
-        detail_mapper = EventDetailMapper()
-        serialized_result = jsonable_encoder(detail_mapper.to_dict(result))
         return EventDetailResponse(
-            event=serialized_result["event"],
-            related_events=serialized_result["related_events"],
-            timeline=serialized_result["timeline"],
+            event=jsonable_encoder(result.event),
+            related_events=[jsonable_encoder(e) for e in result.related_events],
+            timeline=[jsonable_encoder(e) for e in result.timeline],
         )
 
     except HTTPException:
@@ -209,8 +201,7 @@ async def get_replay_status(session_id: str, service: FromDishka[AdminEventsServ
         if not status:
             raise HTTPException(status_code=404, detail="Replay session not found")
 
-        replay_mapper = ReplaySessionMapper()
-        return EventReplayStatusResponse(**replay_mapper.status_detail_to_dict(status))
+        return EventReplayStatusResponse.model_validate(status)
 
     except HTTPException:
         raise

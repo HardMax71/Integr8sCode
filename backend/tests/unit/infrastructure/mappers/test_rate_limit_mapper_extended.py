@@ -3,19 +3,16 @@
 from datetime import datetime, timezone
 
 import pytest
-
 from app.domain.rate_limit import (
     EndpointGroup,
     RateLimitAlgorithm,
     RateLimitConfig,
     RateLimitRule,
-    RateLimitStatus,
     UserRateLimit,
 )
 from app.infrastructure.mappers.rate_limit_mapper import (
     RateLimitConfigMapper,
     RateLimitRuleMapper,
-    RateLimitStatusMapper,
     UserRateLimitMapper,
 )
 
@@ -322,42 +319,3 @@ class TestRateLimitConfigMapper:
         assert data["default_rules"][0]["endpoint_pattern"] == "/test"
         assert data["global_enabled"] is True
         assert data["redis_ttl"] == 3600
-
-
-class TestRateLimitStatusMapper:
-    """Test RateLimitStatusMapper."""
-
-    def test_to_dict(self):
-        """Test converting RateLimitStatus to dict using asdict."""
-        status = RateLimitStatus(
-            allowed=True,
-            limit=100,
-            remaining=75,
-            reset_at=datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
-            retry_after=None,
-        )
-
-        result = RateLimitStatusMapper.to_dict(status)
-
-        assert result["allowed"] is True
-        assert result["limit"] == 100
-        assert result["remaining"] == 75
-        assert result["reset_at"] == status.reset_at
-        assert result["retry_after"] is None
-
-    def test_to_dict_with_retry_after(self):
-        """Test converting RateLimitStatus with retry_after set."""
-        status = RateLimitStatus(
-            allowed=False,
-            limit=100,
-            remaining=0,
-            reset_at=datetime(2024, 1, 1, 12, 5, 0, tzinfo=timezone.utc),
-            retry_after=300,  # 5 minutes
-        )
-
-        result = RateLimitStatusMapper.to_dict(status)
-
-        assert result["allowed"] is False
-        assert result["limit"] == 100
-        assert result["remaining"] == 0
-        assert result["retry_after"] == 300

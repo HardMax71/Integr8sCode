@@ -12,8 +12,7 @@ from app.core.logging import logger
 from app.core.utils import get_client_ip
 from app.domain.enums.common import SortOrder
 from app.domain.events.event_models import EventFilter
-from app.infrastructure.kafka.events.metadata import EventMetadata
-from app.infrastructure.mappers import EventMapper, EventStatisticsMapper
+from app.infrastructure.kafka.events.metadata import AvroEventMetadata as EventMetadata
 from app.schemas_pydantic.events import (
     DeleteEventResponse,
     EventAggregationRequest,
@@ -39,21 +38,30 @@ async def get_execution_events(
     current_user: Annotated[UserResponse, Depends(current_user)],
     event_service: FromDishka[EventService],
     include_system_events: bool = Query(False, description="Include system-generated events"),
+    limit: int = Query(100, ge=1, le=1000),
+    skip: int = Query(0, ge=0),
 ) -> EventListResponse:
-    mapper = EventMapper()
-    events = await event_service.get_execution_events(
+    result = await event_service.get_execution_events(
         execution_id=execution_id,
         user_id=current_user.user_id,
         user_role=current_user.role,
         include_system_events=include_system_events,
+        limit=limit,
+        skip=skip,
     )
 
-    if events is None:
+    if result is None:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    event_responses = [EventResponse(**mapper.to_dict(event)) for event in events]
+    event_responses = [EventResponse.model_validate(event) for event in result.events]
 
-    return EventListResponse(events=event_responses, total=len(event_responses), limit=1000, skip=0, has_more=False)
+    return EventListResponse(
+        events=event_responses,
+        total=result.total,
+        limit=limit,
+        skip=skip,
+        has_more=result.has_more,
+    )
 
 
 @router.get("/user", response_model=EventListResponse)
@@ -68,7 +76,6 @@ async def get_user_events(
     sort_order: SortOrder = Query(SortOrder.DESC),
 ) -> EventListResponse:
     """Get events for the current user"""
-    mapper = EventMapper()
     result = await event_service.get_user_events_paginated(
         user_id=current_user.user_id,
         event_types=event_types,
@@ -79,7 +86,7 @@ async def get_user_events(
         sort_order=sort_order,
     )
 
-    event_responses = [EventResponse(**mapper.to_dict(event)) for event in result.events]
+    event_responses = [EventResponse.model_validate(event) for event in result.events]
 
     return EventListResponse(
         events=event_responses, total=result.total, limit=limit, skip=skip, has_more=result.has_more
@@ -92,7 +99,6 @@ async def query_events(
     filter_request: EventFilterRequest,
     event_service: FromDishka[EventService],
 ) -> EventListResponse:
-    mapper = EventMapper()
     event_filter = EventFilter(
         event_types=[str(et) for et in filter_request.event_types] if filter_request.event_types else None,
         aggregate_id=filter_request.aggregate_id,
@@ -116,7 +122,7 @@ async def query_events(
     if result is None:
         raise HTTPException(status_code=403, detail="Cannot query other users' events")
 
-    event_responses = [EventResponse(**mapper.to_dict(event)) for event in result.events]
+    event_responses = [EventResponse.model_validate(event) for event in result.events]
 
     return EventListResponse(
         events=event_responses, total=result.total, limit=result.limit, skip=result.skip, has_more=result.has_more
@@ -130,19 +136,26 @@ async def get_events_by_correlation(
     event_service: FromDishka[EventService],
     include_all_users: bool = Query(False, description="Include events from all users (admin only)"),
     limit: int = Query(100, ge=1, le=1000),
+    skip: int = Query(0, ge=0),
 ) -> EventListResponse:
-    mapper = EventMapper()
-    events = await event_service.get_events_by_correlation(
+    result = await event_service.get_events_by_correlation(
         correlation_id=correlation_id,
         user_id=current_user.user_id,
         user_role=current_user.role,
         include_all_users=include_all_users,
         limit=limit,
+        skip=skip,
     )
 
-    event_responses = [EventResponse(**mapper.to_dict(event)) for event in events]
+    event_responses = [EventResponse.model_validate(event) for event in result.events]
 
-    return EventListResponse(events=event_responses, total=len(event_responses), limit=limit, skip=0, has_more=False)
+    return EventListResponse(
+        events=event_responses,
+        total=result.total,
+        limit=limit,
+        skip=skip,
+        has_more=result.has_more,
+    )
 
 
 @router.get("/current-request", response_model=EventListResponse)
@@ -150,23 +163,30 @@ async def get_current_request_events(
     current_user: Annotated[UserResponse, Depends(current_user)],
     event_service: FromDishka[EventService],
     limit: int = Query(100, ge=1, le=1000),
+    skip: int = Query(0, ge=0),
 ) -> EventListResponse:
-    mapper = EventMapper()
     correlation_id = CorrelationContext.get_correlation_id()
     if not correlation_id:
-        return EventListResponse(events=[], total=0, limit=limit, skip=0, has_more=False)
+        return EventListResponse(events=[], total=0, limit=limit, skip=skip, has_more=False)
 
-    events = await event_service.get_events_by_correlation(
+    result = await event_service.get_events_by_correlation(
         correlation_id=correlation_id,
         user_id=current_user.user_id,
         user_role=current_user.role,
         include_all_users=False,
         limit=limit,
+        skip=skip,
     )
 
-    event_responses = [EventResponse(**mapper.to_dict(event)) for event in events]
+    event_responses = [EventResponse.model_validate(event) for event in result.events]
 
-    return EventListResponse(events=event_responses, total=len(event_responses), limit=limit, skip=0, has_more=False)
+    return EventListResponse(
+        events=event_responses,
+        total=result.total,
+        limit=limit,
+        skip=skip,
+        has_more=result.has_more,
+    )
 
 
 @router.get("/statistics", response_model=EventStatistics)
@@ -190,8 +210,7 @@ async def get_event_statistics(
         include_all_users=include_all_users,
     )
 
-    stats_mapper = EventStatisticsMapper()
-    return EventStatistics(**stats_mapper.to_dict(stats))
+    return EventStatistics.model_validate(stats)
 
 
 @router.get("/{event_id}", response_model=EventResponse)
@@ -199,11 +218,10 @@ async def get_event(
     event_id: str, current_user: Annotated[UserResponse, Depends(current_user)], event_service: FromDishka[EventService]
 ) -> EventResponse:
     """Get a specific event by ID"""
-    mapper = EventMapper()
     event = await event_service.get_event(event_id=event_id, user_id=current_user.user_id, user_role=current_user.role)
     if event is None:
         raise HTTPException(status_code=404, detail="Event not found")
-    return EventResponse(**mapper.to_dict(event))
+    return EventResponse.model_validate(event)
 
 
 @router.post("/publish", response_model=PublishEventResponse)

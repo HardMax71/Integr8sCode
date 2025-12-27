@@ -3,9 +3,8 @@
 from datetime import datetime, timezone
 
 import pytest
-
 from app.domain.enums.events import EventType
-from app.domain.enums.replay import ReplayStatus, ReplayType, ReplayTarget
+from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
 from app.domain.replay import ReplayConfig, ReplayFilter, ReplaySessionState
 from app.infrastructure.mappers.replay_api_mapper import ReplayApiMapper
 from app.schemas_pydantic.replay import ReplayRequest

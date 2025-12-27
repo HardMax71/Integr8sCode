@@ -15,7 +15,7 @@ from app.events.core.dispatcher import EventDispatcher
 from app.events.core.types import ConsumerConfig
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.infrastructure.kafka.events.execution import ExecutionCompletedEvent
-from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.services.idempotency import IdempotencyManager
 from app.services.result_processor.processor import ResultProcessor
 from app.settings import get_settings
@@ -88,7 +88,7 @@ async def test_result_processor_persists_and_emits(scope) -> None:  # type: igno
                 stdout="hello",
                 stderr="",
                 resource_usage=usage,
-                metadata=EventMetadata(service_name="tests", service_version="1.0.0"),
+                metadata=AvroEventMetadata(service_name="tests", service_version="1.0.0"),
             )
             await producer.produce(evt, key=execution_id)
 

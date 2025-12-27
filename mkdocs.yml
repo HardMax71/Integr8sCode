@@ -139,3 +139,4 @@ nav:
   - Testing:
     - Load Testing: testing/load-testing.md
     - Frontend Testing: testing/frontend-testing.md
+    - Kafka Test Stability: testing/kafka-test-stability.md

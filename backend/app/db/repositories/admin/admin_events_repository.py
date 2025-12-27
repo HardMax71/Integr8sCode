@@ -353,20 +353,11 @@ class AdminEventsRepository:
         """Count events matching replay query."""
         return await self.events_collection.count_documents(query)
 
-    async def get_events_preview_for_replay(self, query: Dict[str, Any], limit: int = 100) -> List[Dict[str, Any]]:
+    async def get_events_preview_for_replay(self, query: Dict[str, Any], limit: int = 100) -> List[EventSummary]:
         """Get preview of events for replay."""
         cursor = self.events_collection.find(query).limit(limit)
         event_docs = await cursor.to_list(length=limit)
-
-        # Convert to event summaries
-        summaries: List[Dict[str, Any]] = []
-        for doc in event_docs:
-            summary = self.summary_mapper.from_mongo_document(doc)
-            summary_dict = self.summary_mapper.to_dict(summary)
-            # Convert EventFields enum keys to strings
-            summaries.append({str(k): v for k, v in summary_dict.items()})
-
-        return summaries
+        return [self.summary_mapper.from_mongo_document(doc) for doc in event_docs]
 
     def build_replay_query(self, replay_query: ReplayQuery) -> Dict[str, Any]:
         """Build MongoDB query from replay query model."""
@@ -385,8 +376,7 @@ class AdminEventsRepository:
         # Get events preview for dry run
         events_preview: List[EventSummary] = []
         if dry_run:
-            preview_docs = await self.get_events_preview_for_replay(query, limit=100)
-            events_preview = [self.summary_mapper.from_mongo_document(e) for e in preview_docs]
+            events_preview = await self.get_events_preview_for_replay(query, limit=100)
 
         # Return unified session data
         session_data = ReplaySessionData(

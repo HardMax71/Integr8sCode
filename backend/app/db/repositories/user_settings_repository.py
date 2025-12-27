@@ -59,7 +59,10 @@ class UserSettingsRepository:
         until: datetime | None = None,
         limit: int | None = None,
     ) -> List[DomainSettingsEvent]:
-        query = {"aggregate_id": f"user_settings_{user_id}", "event_type": {"$in": [str(et) for et in event_types]}}
+        query: Dict[str, Any] = {
+            "aggregate_id": f"user_settings_{user_id}",
+            "event_type": {"$in": [str(et) for et in event_types]},
+        }
 
         if since or until:
             timestamp_query: Dict[str, Any] = {}

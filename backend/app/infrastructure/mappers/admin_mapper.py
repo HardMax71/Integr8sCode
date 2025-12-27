@@ -19,7 +19,6 @@ from app.domain.user import (
 from app.domain.user import (
     UserCreation,
     UserFields,
-    UserListResult,
     UserRole,
     UserSearchFilter,
     UserUpdate,
@@ -66,22 +65,6 @@ class UserMapper:
             created_at=data.get(UserFields.CREATED_AT, datetime.now(timezone.utc)),
             updated_at=data.get(UserFields.UPDATED_AT, datetime.now(timezone.utc)),
         )
-
-    @staticmethod
-    def to_response_dict(user: DomainAdminUser) -> Dict[str, Any]:
-        created_at_ts = user.created_at.timestamp() if user.created_at else 0.0
-        updated_at_ts = user.updated_at.timestamp() if user.updated_at else 0.0
-
-        return {
-            "user_id": user.user_id,
-            "username": user.username,
-            "email": user.email,
-            "role": user.role.value,
-            "is_active": user.is_active,
-            "is_superuser": user.is_superuser,
-            "created_at": created_at_ts,
-            "updated_at": updated_at_ts,
-        }
 
     @staticmethod
     def from_pydantic_service_user(user: ServiceUser) -> DomainAdminUser:
@@ -137,18 +120,6 @@ class UserMapper:
             UserFields.IS_SUPERUSER: creation.is_superuser,
             UserFields.CREATED_AT: datetime.now(timezone.utc),
             UserFields.UPDATED_AT: datetime.now(timezone.utc),
-        }
-
-
-class UserListResultMapper:
-    @staticmethod
-    def to_dict(result: UserListResult) -> Dict[str, Any]:
-        user_mapper = UserMapper()
-        return {
-            "users": [user_mapper.to_response_dict(user) for user in result.users],
-            "total": result.total,
-            "offset": result.offset,
-            "limit": result.limit,
         }
 
 

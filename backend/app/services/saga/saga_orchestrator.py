@@ -15,7 +15,7 @@ from app.domain.saga.models import Saga, SagaConfig
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
 from app.events.event_store import EventStore
 from app.infrastructure.kafka.events.base import BaseEvent
-from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.infrastructure.kafka.events.metadata import AvroEventMetadata as EventMetadata
 from app.infrastructure.kafka.events.saga import SagaCancelledEvent
 from app.infrastructure.kafka.mappings import get_topic_for_event
 from app.services.idempotency import IdempotentConsumerWrapper
@@ -390,8 +390,8 @@ class SagaOrchestrator(LifecycleEnabled):
 
     async def get_execution_sagas(self, execution_id: str) -> list[Saga]:
         """Get all sagas for an execution, sorted by created_at descending (newest first)"""
-        sagas = await self._repo.get_sagas_by_execution(execution_id)
-        return sagas
+        result = await self._repo.get_sagas_by_execution(execution_id)
+        return result.sagas
 
     async def cancel_saga(self, saga_id: str) -> bool:
         """Cancel a running saga and trigger compensation.

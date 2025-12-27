@@ -46,14 +46,19 @@ class SagaRepository:
         doc = await self.sagas.find_one({"saga_id": saga_id})
         return self.mapper.from_mongo(doc) if doc else None
 
-    async def get_sagas_by_execution(self, execution_id: str, state: SagaState | None = None) -> list[Saga]:
+    async def get_sagas_by_execution(
+        self, execution_id: str, state: SagaState | None = None, limit: int = 100, skip: int = 0
+    ) -> SagaListResult:
         query: dict[str, object] = {"execution_id": execution_id}
         if state:
             query["state"] = state.value
 
-        cursor = self.sagas.find(query).sort("created_at", DESCENDING)
-        docs = await cursor.to_list(length=None)
-        return [self.mapper.from_mongo(doc) for doc in docs]
+        total = await self.sagas.count_documents(query)
+        cursor = self.sagas.find(query).sort("created_at", DESCENDING).skip(skip).limit(limit)
+        docs = await cursor.to_list(length=limit)
+        sagas = [self.mapper.from_mongo(doc) for doc in docs]
+
+        return SagaListResult(sagas=sagas, total=total, skip=skip, limit=limit)
 
     async def list_sagas(self, saga_filter: SagaFilter, limit: int = 100, skip: int = 0) -> SagaListResult:
         query = self.filter_mapper.to_mongodb_query(saga_filter)

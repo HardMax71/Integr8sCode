@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
 from app.domain.replay import ReplayConfig as DomainReplayConfig
@@ -10,6 +10,8 @@ from app.domain.replay import ReplayFilter as DomainReplayFilter
 
 
 class ReplayFilterSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     execution_id: str | None = None
     event_types: List[str] | None = None
     start_time: datetime | None = None
@@ -34,6 +36,8 @@ class ReplayFilterSchema(BaseModel):
 
 
 class ReplayConfigSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     replay_type: ReplayType
     target: ReplayTarget = ReplayTarget.KAFKA
     filter: ReplayFilterSchema
@@ -77,6 +81,8 @@ class ReplayConfigSchema(BaseModel):
 
 
 class ReplaySession(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     session_id: str = Field(default_factory=lambda: str(uuid4()))
     config: ReplayConfigSchema
     status: ReplayStatus = ReplayStatus.CREATED

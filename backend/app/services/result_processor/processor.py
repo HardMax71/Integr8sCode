@@ -23,7 +23,7 @@ from app.infrastructure.kafka.events.execution import (
     ExecutionFailedEvent,
     ExecutionTimeoutEvent,
 )
-from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.infrastructure.kafka.events.metadata import AvroEventMetadata as EventMetadata
 from app.infrastructure.kafka.events.system import (
     ResultFailedEvent,
     ResultStoredEvent,

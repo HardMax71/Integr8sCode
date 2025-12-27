@@ -59,27 +59,8 @@ async def get_dlq_messages(
         status=status, topic=topic, event_type=event_type, limit=limit, offset=offset
     )
 
-    # Convert domain messages to response models
-    messages = [
-        DLQMessageResponse(
-            event_id=msg.event_id or "unknown",
-            event_type=msg.event_type,
-            original_topic=msg.original_topic,
-            error=msg.error,
-            retry_count=msg.retry_count,
-            failed_at=msg.failed_at or datetime(1970, 1, 1, tzinfo=timezone.utc),
-            status=DLQMessageStatus(msg.status),
-            age_seconds=msg.age_seconds,
-            details={
-                "producer_id": msg.producer_id,
-                "dlq_offset": msg.dlq_offset,
-                "dlq_partition": msg.dlq_partition,
-                "last_error": msg.last_error,
-                "next_retry_at": msg.next_retry_at,
-            },
-        )
-        for msg in result.messages
-    ]
+    # Convert domain messages to response models using model_validate
+    messages = [DLQMessageResponse.model_validate(msg) for msg in result.messages]
 
     return DLQMessagesResponse(messages=messages, total=result.total, offset=result.offset, limit=result.limit)
 
@@ -163,15 +144,4 @@ async def discard_dlq_message(
 @router.get("/topics", response_model=List[DLQTopicSummaryResponse])
 async def get_dlq_topics(repository: FromDishka[DLQRepository]) -> List[DLQTopicSummaryResponse]:
     topics = await repository.get_topics_summary()
-    return [
-        DLQTopicSummaryResponse(
-            topic=topic.topic,
-            total_messages=topic.total_messages,
-            status_breakdown=topic.status_breakdown,
-            oldest_message=topic.oldest_message,
-            newest_message=topic.newest_message,
-            avg_retry_count=topic.avg_retry_count,
-            max_retry_count=topic.max_retry_count,
-        )
-        for topic in topics
-    ]
+    return [DLQTopicSummaryResponse.model_validate(topic) for topic in topics]

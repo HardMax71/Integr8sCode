@@ -125,14 +125,19 @@ class EventRepository:
         docs = await cursor.to_list(length=limit)
         return [self.mapper.from_mongo_document(doc) for doc in docs]
 
-    async def get_events_by_correlation(self, correlation_id: str, limit: int = 100) -> list[Event]:
-        cursor = (
-            self._collection.find({EventFields.METADATA_CORRELATION_ID: correlation_id})
-            .sort(EventFields.TIMESTAMP, ASCENDING)
-            .limit(limit)
-        )
+    async def get_events_by_correlation(self, correlation_id: str, limit: int = 100, skip: int = 0) -> EventListResult:
+        query: dict[str, Any] = {EventFields.METADATA_CORRELATION_ID: correlation_id}
+        total_count = await self._collection.count_documents(query)
+
+        cursor = self._collection.find(query).sort(EventFields.TIMESTAMP, ASCENDING).skip(skip).limit(limit)
         docs = await cursor.to_list(length=limit)
-        return [self.mapper.from_mongo_document(doc) for doc in docs]
+        return EventListResult(
+            events=[self.mapper.from_mongo_document(doc) for doc in docs],
+            total=total_count,
+            skip=skip,
+            limit=limit,
+            has_more=(skip + limit) < total_count,
+        )
 
     async def get_events_by_user(
         self,
@@ -154,12 +159,28 @@ class EventRepository:
         docs = await cursor.to_list(length=limit)
         return [self.mapper.from_mongo_document(doc) for doc in docs]
 
-    async def get_execution_events(self, execution_id: str, limit: int = 100) -> list[Event]:
-        query = {"$or": [{EventFields.PAYLOAD_EXECUTION_ID: execution_id}, {EventFields.AGGREGATE_ID: execution_id}]}
+    async def get_execution_events(
+        self, execution_id: str, limit: int = 100, skip: int = 0, exclude_system_events: bool = False
+    ) -> EventListResult:
+        query: dict[str, Any] = {
+            "$or": [{EventFields.PAYLOAD_EXECUTION_ID: execution_id}, {EventFields.AGGREGATE_ID: execution_id}]
+        }
 
-        cursor = self._collection.find(query).sort(EventFields.TIMESTAMP, ASCENDING).limit(limit)
+        # Filter out system events at DB level for accurate pagination
+        if exclude_system_events:
+            query[EventFields.METADATA_SERVICE_NAME] = {"$not": {"$regex": "^system-"}}
+
+        total_count = await self._collection.count_documents(query)
+
+        cursor = self._collection.find(query).sort(EventFields.TIMESTAMP, ASCENDING).skip(skip).limit(limit)
         docs = await cursor.to_list(length=limit)
-        return [self.mapper.from_mongo_document(doc) for doc in docs]
+        return EventListResult(
+            events=[self.mapper.from_mongo_document(doc) for doc in docs],
+            total=total_count,
+            skip=skip,
+            limit=limit,
+            has_more=(skip + limit) < total_count,
+        )
 
     async def search_events(
         self, text_query: str, filters: dict[str, object] | None = None, limit: int = 100, skip: int = 0

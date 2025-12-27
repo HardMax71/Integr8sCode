@@ -14,7 +14,7 @@ from app.dlq import (
 )
 from app.domain.enums.events import EventType
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.infrastructure.kafka.events.user import UserLoggedInEvent
 from app.infrastructure.mappers.dlq_mapper import DLQMapper
 
@@ -25,7 +25,7 @@ def _make_event() -> UserLoggedInEvent:
     return UserLoggedInEvent(
         user_id="u1",
         login_method=LoginMethod.PASSWORD,
-        metadata=EventMetadata(service_name="svc", service_version="1"),
+        metadata=AvroEventMetadata(service_name="svc", service_version="1"),
     )
 
 

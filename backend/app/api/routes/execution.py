@@ -14,8 +14,7 @@ from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.user import UserRole
 from app.infrastructure.kafka.events.base import BaseEvent
-from app.infrastructure.kafka.events.metadata import EventMetadata
-from app.infrastructure.mappers import ExecutionApiMapper
+from app.infrastructure.kafka.events.metadata import AvroEventMetadata as EventMetadata
 from app.schemas_pydantic.execution import (
     CancelExecutionRequest,
     CancelResponse,
@@ -118,7 +117,7 @@ async def create_execution(
 
         # Store result for idempotency if key was provided
         if idempotency_key and pseudo_event:
-            response_model = ExecutionApiMapper.to_response(exec_result)
+            response_model = ExecutionResponse.model_validate(exec_result)
             await idempotency_manager.mark_completed_with_json(
                 event=pseudo_event,
                 cached_json=response_model.model_dump_json(),
@@ -126,7 +125,7 @@ async def create_execution(
                 custom_key=f"http:{current_user.user_id}:{idempotency_key}",
             )
 
-        return ExecutionApiMapper.to_response(exec_result)
+        return ExecutionResponse.model_validate(exec_result)
 
     except IntegrationException as e:
         # Mark as failed for idempotency
@@ -230,7 +229,7 @@ async def retry_execution(
         client_ip=client_ip,
         user_agent=user_agent,
     )
-    return ExecutionApiMapper.to_response(new_result)
+    return ExecutionResponse.model_validate(new_result)
 
 
 @router.get("/executions/{execution_id}/events", response_model=list[ExecutionEventResponse])
@@ -274,7 +273,7 @@ async def get_user_executions(
         user_id=current_user.user_id, status=status, lang=lang, start_time=start_time, end_time=end_time
     )
 
-    execution_results = [ExecutionApiMapper.to_result(e) for e in executions]
+    execution_results = [ExecutionResult.model_validate(e) for e in executions]
 
     return ExecutionListResponse(
         executions=execution_results, total=total_count, limit=limit, skip=skip, has_more=(skip + limit) < total_count

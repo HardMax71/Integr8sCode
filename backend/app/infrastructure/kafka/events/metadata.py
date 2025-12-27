@@ -7,7 +7,7 @@ from pydantic_avro import AvroBase  # type: ignore[attr-defined]
 from app.domain.enums.common import Environment
 
 
-class EventMetadata(AvroBase):
+class AvroEventMetadata(AvroBase):
     """Unified event metadata for auditing and tracing."""
 
     service_name: str
@@ -24,7 +24,7 @@ class EventMetadata(AvroBase):
         return self.model_dump(exclude_none=exclude_none)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "EventMetadata":
+    def from_dict(cls, data: Dict[str, Any]) -> "AvroEventMetadata":
         return cls(
             service_name=data.get("service_name", "unknown"),
             service_version=data.get("service_version", "1.0"),
@@ -35,13 +35,13 @@ class EventMetadata(AvroBase):
             environment=data.get("environment", Environment.PRODUCTION),
         )
 
-    def with_correlation(self, correlation_id: str) -> "EventMetadata":
+    def with_correlation(self, correlation_id: str) -> "AvroEventMetadata":
         return self.model_copy(update={"correlation_id": correlation_id})
 
-    def with_user(self, user_id: str) -> "EventMetadata":
+    def with_user(self, user_id: str) -> "AvroEventMetadata":
         return self.model_copy(update={"user_id": user_id})
 
-    def ensure_correlation_id(self) -> "EventMetadata":
+    def ensure_correlation_id(self) -> "AvroEventMetadata":
         if self.correlation_id:
             return self
         return self.model_copy(update={"correlation_id": str(uuid4())})

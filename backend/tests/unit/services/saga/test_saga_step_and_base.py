@@ -37,7 +37,7 @@ class _DummyComp(CompensationStep):
 
 @pytest.mark.asyncio
 async def test_context_adders() -> None:
-    from app.infrastructure.kafka.events.metadata import EventMetadata
+    from app.infrastructure.kafka.events.metadata import AvroEventMetadata
     from app.infrastructure.kafka.events.base import BaseEvent
     from app.domain.enums.events import EventType
 
@@ -46,7 +46,7 @@ async def test_context_adders() -> None:
         topic = None  # type: ignore[assignment]
 
     ctx = SagaContext("s1", "e1")
-    evt = E(metadata=EventMetadata(service_name="t", service_version="1"))
+    evt = E(metadata=AvroEventMetadata(service_name="t", service_version="1"))
     ctx.add_event(evt)
     assert len(ctx.events) == 1
     comp = _DummyComp()

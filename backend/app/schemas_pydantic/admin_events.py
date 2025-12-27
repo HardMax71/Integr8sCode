@@ -1,9 +1,10 @@
 from datetime import datetime
 from typing import Any, Dict, List
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.enums.events import EventType
+from app.schemas_pydantic.events import HourlyEventCountSchema
 
 
 class EventFilter(BaseModel):
@@ -72,6 +73,8 @@ class EventReplayResponse(BaseModel):
 class EventReplayStatusResponse(BaseModel):
     """Response model for replay status"""
 
+    model_config = ConfigDict(from_attributes=True)
+
     session_id: str
     status: str
     total_events: int
@@ -95,12 +98,23 @@ class EventDeleteResponse(BaseModel):
     event_id: str
 
 
+class UserEventCountSchema(BaseModel):
+    """User event count schema"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    user_id: str
+    event_count: int
+
+
 class EventStatsResponse(BaseModel):
     """Response model for event statistics"""
 
+    model_config = ConfigDict(from_attributes=True)
+
     total_events: int
     events_by_type: Dict[str, int]
-    events_by_hour: List[Dict[str, Any]]
-    top_users: List[Dict[str, Any]]
+    events_by_hour: List[HourlyEventCountSchema]
+    top_users: List[UserEventCountSchema]
     error_rate: float
     avg_processing_time: float

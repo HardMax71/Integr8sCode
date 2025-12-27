@@ -21,9 +21,16 @@ class UserSettingsMapper:
         editor = doc.get("editor", {})
         theme = Theme(doc.get("theme", Theme.AUTO))
 
-        # Coerce channels to NotificationChannel list
-        channels_raw = notifications.get("channels", [])
-        channels: list[NotificationChannel] = [NotificationChannel(c) for c in channels_raw]
+        # Use domain dataclass defaults for fallback values
+        default_notifications = DomainNotificationSettings()
+        default_editor = DomainEditorSettings()
+
+        # Coerce channels to NotificationChannel list, using domain default if not present
+        channels_raw = notifications.get("channels")
+        if channels_raw is not None:
+            channels: list[NotificationChannel] = [NotificationChannel(c) for c in channels_raw]
+        else:
+            channels = default_notifications.channels
 
         return DomainUserSettings(
             user_id=str(doc.get("user_id")),
@@ -32,19 +39,19 @@ class UserSettingsMapper:
             date_format=doc.get("date_format", "YYYY-MM-DD"),
             time_format=doc.get("time_format", "24h"),
             notifications=DomainNotificationSettings(
-                execution_completed=notifications.get("execution_completed", True),
-                execution_failed=notifications.get("execution_failed", True),
-                system_updates=notifications.get("system_updates", True),
-                security_alerts=notifications.get("security_alerts", True),
+                execution_completed=notifications.get("execution_completed", default_notifications.execution_completed),
+                execution_failed=notifications.get("execution_failed", default_notifications.execution_failed),
+                system_updates=notifications.get("system_updates", default_notifications.system_updates),
+                security_alerts=notifications.get("security_alerts", default_notifications.security_alerts),
                 channels=channels,
             ),
             editor=DomainEditorSettings(
-                theme=editor.get("theme", "one-dark"),
-                font_size=editor.get("font_size", 14),
-                tab_size=editor.get("tab_size", 4),
-                use_tabs=editor.get("use_tabs", False),
-                word_wrap=editor.get("word_wrap", True),
-                show_line_numbers=editor.get("show_line_numbers", True),
+                theme=editor.get("theme", default_editor.theme),
+                font_size=editor.get("font_size", default_editor.font_size),
+                tab_size=editor.get("tab_size", default_editor.tab_size),
+                use_tabs=editor.get("use_tabs", default_editor.use_tabs),
+                word_wrap=editor.get("word_wrap", default_editor.word_wrap),
+                show_line_numbers=editor.get("show_line_numbers", default_editor.show_line_numbers),
             ),
             custom_settings=doc.get("custom_settings", {}),
             version=doc.get("version", 1),

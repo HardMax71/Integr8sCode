@@ -34,13 +34,21 @@ class EventService:
         user_id: str,
         user_role: UserRole,
         include_system_events: bool = False,
-    ) -> list[Event] | None:
-        events = await self.repository.get_events_by_aggregate(aggregate_id=execution_id, limit=1000)
-        if not events:
-            return []
+        limit: int = 1000,
+        skip: int = 0,
+    ) -> EventListResult | None:
+        # Filter system events at DB level for accurate pagination
+        result = await self.repository.get_execution_events(
+            execution_id=execution_id,
+            limit=limit,
+            skip=skip,
+            exclude_system_events=not include_system_events,
+        )
+        if not result.events:
+            return EventListResult(events=[], total=0, skip=skip, limit=limit, has_more=False)
 
         owner = None
-        for e in events:
+        for e in result.events:
             if e.metadata and e.metadata.user_id:
                 owner = e.metadata.user_id
                 break
@@ -48,10 +56,7 @@ class EventService:
         if owner and owner != user_id and user_role != UserRole.ADMIN:
             return None
 
-        if not include_system_events:
-            events = [e for e in events if not (e.metadata and e.metadata.service_name.startswith("system-"))]
-
-        return events
+        return result
 
     async def get_user_events_paginated(
         self,
@@ -118,11 +123,19 @@ class EventService:
         user_role: UserRole,
         include_all_users: bool = False,
         limit: int = 100,
-    ) -> list[Event]:
-        events = await self.repository.get_events_by_correlation(correlation_id=correlation_id, limit=limit)
+        skip: int = 0,
+    ) -> EventListResult:
+        result = await self.repository.get_events_by_correlation(correlation_id=correlation_id, limit=limit, skip=skip)
         if not include_all_users or user_role != UserRole.ADMIN:
-            events = [e for e in events if (e.metadata and e.metadata.user_id == user_id)]
-        return events
+            filtered = [e for e in result.events if (e.metadata and e.metadata.user_id == user_id)]
+            return EventListResult(
+                events=filtered,
+                total=result.total,
+                skip=skip,
+                limit=limit,
+                has_more=result.has_more,
+            )
+        return result
 
     async def get_event_statistics(
         self,

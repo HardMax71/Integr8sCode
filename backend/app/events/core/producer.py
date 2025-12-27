@@ -1,6 +1,7 @@
 import asyncio
 import json
 import socket
+import threading
 from datetime import datetime, timezone
 from typing import Any, Callable, TypeAlias
 
@@ -17,6 +18,10 @@ from app.infrastructure.mappers.dlq_mapper import DLQMapper
 from app.settings import get_settings
 
 from .types import ProducerConfig, ProducerMetrics, ProducerState
+
+# Global lock to serialize Producer initialization (workaround for librdkafka race condition)
+# See: https://github.com/confluentinc/confluent-kafka-python/issues/1797
+_producer_init_lock = threading.Lock()
 
 DeliveryCallback: TypeAlias = Callable[[KafkaError | None, Message], None]
 StatsCallback: TypeAlias = Callable[[dict[str, Any]], None]
@@ -113,7 +118,9 @@ class UnifiedProducer(LifecycleEnabled):
         producer_config["stats_cb"] = self._handle_stats
         producer_config["statistics.interval.ms"] = 30000
 
-        self._producer = Producer(producer_config)
+        # Serialize Producer initialization to prevent librdkafka race condition
+        with _producer_init_lock:
+            self._producer = Producer(producer_config)
         self._running = True
         self._poll_task = asyncio.create_task(self._poll_loop())
         self._state = ProducerState.RUNNING

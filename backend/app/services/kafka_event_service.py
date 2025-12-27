@@ -12,8 +12,9 @@ from app.core.tracing.utils import inject_trace_context
 from app.db.repositories.event_repository import EventRepository
 from app.domain.enums.events import EventType
 from app.domain.events import Event
+from app.domain.events import EventMetadata as DomainEventMetadata
 from app.events.core import UnifiedProducer
-from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.infrastructure.kafka.mappings import get_event_class_for_type
 from app.settings import get_settings
 
@@ -33,7 +34,7 @@ class KafkaEventService:
         payload: Dict[str, Any],
         aggregate_id: str | None,
         correlation_id: str | None = None,
-        metadata: EventMetadata | None = None,
+        metadata: AvroEventMetadata | None = None,
     ) -> str:
         """
         Publish an event to Kafka and store an audit copy via the repository
@@ -58,24 +59,27 @@ class KafkaEventService:
             if not correlation_id:
                 correlation_id = CorrelationContext.get_correlation_id()
 
-            # Create or enrich event metadata
-            event_metadata = metadata or EventMetadata(
+            # Create or enrich event metadata (Avro for Kafka)
+            avro_metadata = metadata or AvroEventMetadata(
                 service_name=self.settings.SERVICE_NAME,
                 service_version=self.settings.SERVICE_VERSION,
             )
-            event_metadata = event_metadata.with_correlation(correlation_id or str(uuid4()))
+            avro_metadata = avro_metadata.with_correlation(correlation_id or str(uuid4()))
 
             # Create event
             event_id = str(uuid4())
             timestamp = datetime.now(timezone.utc)
-            # Create domain event (using the unified EventMetadata)
+
+            # Convert to domain metadata for storage
+            domain_metadata = DomainEventMetadata.from_dict(avro_metadata.to_dict())
+
             event = Event(
                 event_id=event_id,
                 event_type=event_type,
                 event_version="1.0",
                 timestamp=timestamp,
                 aggregate_id=aggregate_id,
-                metadata=event_metadata,
+                metadata=domain_metadata,
                 payload=payload,
             )
             _ = await self.event_repository.store_event(event)
@@ -92,7 +96,7 @@ class KafkaEventService:
                 "event_version": "1.0",
                 "timestamp": timestamp,
                 "aggregate_id": aggregate_id,
-                "metadata": event_metadata,
+                "metadata": avro_metadata,
                 **payload,  # Include event-specific payload fields
             }
 
@@ -103,7 +107,7 @@ class KafkaEventService:
             headers: Dict[str, str] = {
                 "event_type": event_type,
                 "correlation_id": event.correlation_id or "",
-                "service": event_metadata.service_name,
+                "service": avro_metadata.service_name,
             }
 
             # Add trace context
@@ -140,7 +144,7 @@ class KafkaEventService:
         event_type: EventType,
         execution_id: str,
         status: str,
-        metadata: EventMetadata | None = None,
+        metadata: AvroEventMetadata | None = None,
         error_message: str | None = None,
     ) -> str:
         """Publish execution-related event using provided metadata (no framework coupling)."""
@@ -183,7 +187,7 @@ class KafkaEventService:
         execution_id: str,
         namespace: str = "integr8scode",
         status: str | None = None,
-        metadata: EventMetadata | None = None,
+        metadata: AvroEventMetadata | None = None,
     ) -> str:
         """Publish pod-related event"""
         payload = {"pod_name": pod_name, "execution_id": execution_id, "namespace": namespace}

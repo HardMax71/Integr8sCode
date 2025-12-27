@@ -3,7 +3,6 @@ from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Query, Request
 
 from app.domain.enums.saga import SagaState
-from app.infrastructure.mappers import SagaResponseMapper
 from app.infrastructure.mappers import UserMapper as AdminUserMapper
 from app.schemas_pydantic.saga import (
     SagaCancellationResponse,
@@ -47,8 +46,7 @@ async def get_saga_status(
     service_user = User.from_response(current_user)
     domain_user = AdminUserMapper.from_pydantic_service_user(service_user)
     saga = await saga_service.get_saga_with_access_check(saga_id, domain_user)
-    mapper = SagaResponseMapper()
-    return mapper.to_response(saga)
+    return SagaStatusResponse.from_domain(saga)
 
 
 @router.get("/execution/{execution_id}", response_model=SagaListResponse)
@@ -58,6 +56,8 @@ async def get_execution_sagas(
     saga_service: FromDishka[SagaService],
     auth_service: FromDishka[AuthService],
     state: SagaState | None = Query(None, description="Filter by saga state"),
+    limit: int = Query(100, ge=1, le=1000),
+    skip: int = Query(0, ge=0),
 ) -> SagaListResponse:
     """Get all sagas for an execution.
 
@@ -67,9 +67,11 @@ async def get_execution_sagas(
         saga_service: Saga service from DI
         auth_service: Auth service from DI
         state: Optional state filter
+        limit: Maximum number of results
+        skip: Number of results to skip
 
     Returns:
-        List of sagas for the execution
+        Paginated list of sagas for the execution
 
     Raises:
         HTTPException: 403 if access denied
@@ -78,10 +80,15 @@ async def get_execution_sagas(
 
     service_user = User.from_response(current_user)
     domain_user = AdminUserMapper.from_pydantic_service_user(service_user)
-    sagas = await saga_service.get_execution_sagas(execution_id, domain_user, state)
-    mapper = SagaResponseMapper()
-    saga_responses = mapper.list_to_responses(sagas)
-    return SagaListResponse(sagas=saga_responses, total=len(saga_responses))
+    result = await saga_service.get_execution_sagas(execution_id, domain_user, state, limit=limit, skip=skip)
+    saga_responses = [SagaStatusResponse.from_domain(s) for s in result.sagas]
+    return SagaListResponse(
+        sagas=saga_responses,
+        total=result.total,
+        skip=skip,
+        limit=limit,
+        has_more=result.has_more,
+    )
 
 
 @router.get("/", response_model=SagaListResponse)
@@ -91,7 +98,7 @@ async def list_sagas(
     auth_service: FromDishka[AuthService],
     state: SagaState | None = Query(None, description="Filter by saga state"),
     limit: int = Query(100, ge=1, le=1000),
-    offset: int = Query(0, ge=0),
+    skip: int = Query(0, ge=0),
 ) -> SagaListResponse:
     """List sagas accessible by the current user.
 
@@ -101,7 +108,7 @@ async def list_sagas(
         auth_service: Auth service from DI
         state: Optional state filter
         limit: Maximum number of results
-        offset: Number of results to skip
+        skip: Number of results to skip
 
     Returns:
         Paginated list of sagas
@@ -110,10 +117,15 @@ async def list_sagas(
 
     service_user = User.from_response(current_user)
     domain_user = AdminUserMapper.from_pydantic_service_user(service_user)
-    result = await saga_service.list_user_sagas(domain_user, state, limit, offset)
-    mapper = SagaResponseMapper()
-    saga_responses = mapper.list_to_responses(result.sagas)
-    return SagaListResponse(sagas=saga_responses, total=result.total)
+    result = await saga_service.list_user_sagas(domain_user, state, limit, skip)
+    saga_responses = [SagaStatusResponse.from_domain(s) for s in result.sagas]
+    return SagaListResponse(
+        sagas=saga_responses,
+        total=result.total,
+        skip=skip,
+        limit=limit,
+        has_more=result.has_more,
+    )
 
 
 @router.post("/{saga_id}/cancel", response_model=SagaCancellationResponse)

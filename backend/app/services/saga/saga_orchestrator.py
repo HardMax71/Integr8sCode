@@ -390,8 +390,8 @@ class SagaOrchestrator(LifecycleEnabled):
 
     async def get_execution_sagas(self, execution_id: str) -> list[Saga]:
         """Get all sagas for an execution, sorted by created_at descending (newest first)"""
-        sagas = await self._repo.get_sagas_by_execution(execution_id)
-        return sagas
+        result = await self._repo.get_sagas_by_execution(execution_id)
+        return result.sagas
 
     async def cancel_saga(self, saga_id: str) -> bool:
         """Cancel a running saga and trigger compensation.

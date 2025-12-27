@@ -128,7 +128,7 @@ class EventRepository:
     async def get_events_by_correlation(
         self, correlation_id: str, limit: int = 100, skip: int = 0
     ) -> EventListResult:
-        query = {EventFields.METADATA_CORRELATION_ID: correlation_id}
+        query: dict[str, Any] = {EventFields.METADATA_CORRELATION_ID: correlation_id}
         total_count = await self._collection.count_documents(query)
 
         cursor = (

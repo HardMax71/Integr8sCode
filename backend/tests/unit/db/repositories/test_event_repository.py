@@ -41,11 +41,11 @@ async def test_store_get_and_queries(repo: EventRepository, db) -> None:  # type
     by_agg = await repo.get_events_by_aggregate("x2")
     assert any(ev.event_id == "e2" for ev in by_agg)
     by_corr = await repo.get_events_by_correlation("c1")
-    assert len(by_corr) >= 2
+    assert len(by_corr.events) >= 2
     by_user = await repo.get_events_by_user("u1", limit=10)
     assert len(by_user) >= 2
     exec_events = await repo.get_execution_events("x1")
-    assert any(ev.event_id == "e1" for ev in exec_events)
+    assert any(ev.event_id == "e1" for ev in exec_events.events)
 
 
 @pytest.mark.asyncio

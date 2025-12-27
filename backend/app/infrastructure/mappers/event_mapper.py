@@ -78,7 +78,6 @@ class EventMapper:
         )
 
 
-
 class EventSummaryMapper:
     """Handles EventSummary serialization."""
 
@@ -211,5 +210,3 @@ class EventFilterMapper:
             search_text=pflt.search_text,
             text_search=pflt.search_text,
         )
-
-

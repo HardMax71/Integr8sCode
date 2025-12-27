@@ -125,18 +125,11 @@ class EventRepository:
         docs = await cursor.to_list(length=limit)
         return [self.mapper.from_mongo_document(doc) for doc in docs]
 
-    async def get_events_by_correlation(
-        self, correlation_id: str, limit: int = 100, skip: int = 0
-    ) -> EventListResult:
+    async def get_events_by_correlation(self, correlation_id: str, limit: int = 100, skip: int = 0) -> EventListResult:
         query: dict[str, Any] = {EventFields.METADATA_CORRELATION_ID: correlation_id}
         total_count = await self._collection.count_documents(query)
 
-        cursor = (
-            self._collection.find(query)
-            .sort(EventFields.TIMESTAMP, ASCENDING)
-            .skip(skip)
-            .limit(limit)
-        )
+        cursor = self._collection.find(query).sort(EventFields.TIMESTAMP, ASCENDING).skip(skip).limit(limit)
         docs = await cursor.to_list(length=limit)
         return EventListResult(
             events=[self.mapper.from_mongo_document(doc) for doc in docs],
@@ -166,18 +159,11 @@ class EventRepository:
         docs = await cursor.to_list(length=limit)
         return [self.mapper.from_mongo_document(doc) for doc in docs]
 
-    async def get_execution_events(
-        self, execution_id: str, limit: int = 100, skip: int = 0
-    ) -> EventListResult:
+    async def get_execution_events(self, execution_id: str, limit: int = 100, skip: int = 0) -> EventListResult:
         query = {"$or": [{EventFields.PAYLOAD_EXECUTION_ID: execution_id}, {EventFields.AGGREGATE_ID: execution_id}]}
         total_count = await self._collection.count_documents(query)
 
-        cursor = (
-            self._collection.find(query)
-            .sort(EventFields.TIMESTAMP, ASCENDING)
-            .skip(skip)
-            .limit(limit)
-        )
+        cursor = self._collection.find(query).sort(EventFields.TIMESTAMP, ASCENDING).skip(skip).limit(limit)
         docs = await cursor.to_list(length=limit)
         return EventListResult(
             events=[self.mapper.from_mongo_document(doc) for doc in docs],

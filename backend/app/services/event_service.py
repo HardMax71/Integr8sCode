@@ -37,9 +37,7 @@ class EventService:
         limit: int = 1000,
         skip: int = 0,
     ) -> EventListResult | None:
-        result = await self.repository.get_execution_events(
-            execution_id=execution_id, limit=limit, skip=skip
-        )
+        result = await self.repository.get_execution_events(execution_id=execution_id, limit=limit, skip=skip)
         if not result.events:
             return EventListResult(events=[], total=0, skip=skip, limit=limit, has_more=False)
 
@@ -132,9 +130,7 @@ class EventService:
         limit: int = 100,
         skip: int = 0,
     ) -> EventListResult:
-        result = await self.repository.get_events_by_correlation(
-            correlation_id=correlation_id, limit=limit, skip=skip
-        )
+        result = await self.repository.get_events_by_correlation(correlation_id=correlation_id, limit=limit, skip=skip)
         if not include_all_users or user_role != UserRole.ADMIN:
             filtered = [e for e in result.events if (e.metadata and e.metadata.user_id == user_id)]
             return EventListResult(

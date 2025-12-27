@@ -8,10 +8,6 @@ from typing import Any, Callable, TypeAlias
 from confluent_kafka import Message, Producer
 from confluent_kafka.error import KafkaError
 
-# Global lock to serialize Producer initialization (workaround for librdkafka race condition)
-# See: https://github.com/confluentinc/confluent-kafka-python/issues/1797
-_producer_init_lock = threading.Lock()
-
 from app.core.lifecycle import LifecycleEnabled
 from app.core.logging import logger
 from app.core.metrics.context import get_event_metrics
@@ -22,6 +18,10 @@ from app.infrastructure.mappers.dlq_mapper import DLQMapper
 from app.settings import get_settings
 
 from .types import ProducerConfig, ProducerMetrics, ProducerState
+
+# Global lock to serialize Producer initialization (workaround for librdkafka race condition)
+# See: https://github.com/confluentinc/confluent-kafka-python/issues/1797
+_producer_init_lock = threading.Lock()
 
 DeliveryCallback: TypeAlias = Callable[[KafkaError | None, Message], None]
 StatsCallback: TypeAlias = Callable[[dict[str, Any]], None]

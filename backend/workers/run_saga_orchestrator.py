@@ -111,7 +111,7 @@ async def run_saga_orchestrator() -> None:
         await producer.stop()
         await idempotency_manager.close()
         await r.aclose()
-        db_client.close()
+        await db_client.close()
         logger.info("Saga orchestrator shutdown complete")
 
 

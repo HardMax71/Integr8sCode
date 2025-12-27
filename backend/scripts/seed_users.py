@@ -104,7 +104,7 @@ async def seed_users() -> None:
     print("Admin:   admin / admin123 (or ADMIN_USER_PASSWORD)")
     print("=" * 50)
 
-    client.close()
+    await client.close()
 
 
 if __name__ == "__main__":

@@ -98,7 +98,7 @@ class TestServiceConnections:
         # Drop test MongoDB database
         if self.mongo_client:
             await self.mongo_client.drop_database(self.db_name)
-            self.mongo_client.close()
+            await self.mongo_client.close()
         
         # Clear Redis test database
         if self.redis_client:

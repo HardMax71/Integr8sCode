@@ -23,7 +23,7 @@ from app.infrastructure.kafka.events.execution import (
     ExecutionCancelledEvent,
     ExecutionRequestedEvent,
 )
-from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.infrastructure.kafka.events.metadata import AvroEventMetadata as EventMetadata
 from app.runtime_registry import RUNTIME_REGISTRY
 from app.settings import Settings
 

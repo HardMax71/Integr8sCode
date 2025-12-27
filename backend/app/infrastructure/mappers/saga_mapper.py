@@ -2,7 +2,7 @@ from typing import Any
 
 from app.domain.enums.saga import SagaState
 from app.domain.saga.models import Saga, SagaFilter, SagaInstance
-from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.infrastructure.kafka.events.metadata import AvroEventMetadata as EventMetadata
 from app.infrastructure.kafka.events.saga import SagaCancelledEvent
 
 

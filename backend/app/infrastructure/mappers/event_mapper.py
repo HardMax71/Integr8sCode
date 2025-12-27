@@ -1,13 +1,13 @@
 from datetime import datetime, timezone
 from typing import Any
 
+from app.domain.events.event_metadata import EventMetadata
 from app.domain.events.event_models import (
     ArchivedEvent,
     Event,
     EventExportRow,
     EventFields,
     EventFilter,
-    EventMetadata,
     EventSummary,
 )
 from app.schemas_pydantic.admin_events import EventFilter as AdminEventFilter

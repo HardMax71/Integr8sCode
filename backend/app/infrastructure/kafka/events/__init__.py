@@ -10,7 +10,7 @@ from app.infrastructure.kafka.events.execution import (
     ExecutionStartedEvent,
     ExecutionTimeoutEvent,
 )
-from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.infrastructure.kafka.events.notification import (
     NotificationClickedEvent,
     NotificationCreatedEvent,
@@ -70,7 +70,7 @@ from app.infrastructure.kafka.events.user import (
 __all__ = [
     # Base
     "BaseEvent",
-    "EventMetadata",
+    "AvroEventMetadata",
     # Execution
     "ExecutionRequestedEvent",
     "ExecutionAcceptedEvent",

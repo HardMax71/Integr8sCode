@@ -46,7 +46,9 @@ async def update_user_settings(
         timezone=updates.timezone,
         date_format=updates.date_format,
         time_format=updates.time_format,
-        notifications=DomainNotificationSettings(**updates.notifications.model_dump()) if updates.notifications else None,
+        notifications=(
+            DomainNotificationSettings(**updates.notifications.model_dump()) if updates.notifications else None
+        ),
         editor=DomainEditorSettings(**updates.editor.model_dump()) if updates.editor else None,
         custom_settings=updates.custom_settings,
     )

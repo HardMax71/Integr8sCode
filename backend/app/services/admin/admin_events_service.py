@@ -1,6 +1,6 @@
 import csv
 import json
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from io import StringIO
 from typing import Any, Dict, List
@@ -21,7 +21,7 @@ from app.domain.events.event_models import (
     EventStatistics,
 )
 from app.domain.replay import ReplayConfig, ReplayFilter
-from app.infrastructure.mappers import EventExportRowMapper, EventMapper
+from app.infrastructure.mappers import EventExportRowMapper
 from app.services.replay_service import ReplayService
 
 
@@ -220,13 +220,12 @@ class AdminEventsService:
         result = await self._repo.browse_events(
             event_filter=event_filter, skip=0, limit=limit, sort_by="timestamp", sort_order=-1
         )
-        event_mapper = EventMapper()
         events_data: list[dict[str, Any]] = []
         for event in result.events:
-            event_dict = event_mapper.to_dict(event)
-            for field in ["timestamp", "created_at", "updated_at", "stored_at", "ttl_expires_at"]:
-                if field in event_dict and isinstance(event_dict[field], datetime):
-                    event_dict[field] = event_dict[field].isoformat()
+            event_dict = asdict(event)
+            for fld in ["timestamp", "created_at", "updated_at", "stored_at", "ttl_expires_at"]:
+                if fld in event_dict and isinstance(event_dict[fld], datetime):
+                    event_dict[fld] = event_dict[fld].isoformat()
             events_data.append(event_dict)
 
         export_data: dict[str, Any] = {

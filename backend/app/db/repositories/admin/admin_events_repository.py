@@ -1,3 +1,4 @@
+from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 
@@ -362,9 +363,7 @@ class AdminEventsRepository:
         summaries: List[Dict[str, Any]] = []
         for doc in event_docs:
             summary = self.summary_mapper.from_mongo_document(doc)
-            summary_dict = self.summary_mapper.to_dict(summary)
-            # Convert EventFields enum keys to strings
-            summaries.append({str(k): v for k, v in summary_dict.items()})
+            summaries.append(asdict(summary))
 
         return summaries
 

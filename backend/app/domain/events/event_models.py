@@ -4,7 +4,7 @@ from typing import Any
 
 from app.core.utils import StringEnum
 from app.domain.enums.events import EventType
-from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.domain.events.event_metadata import EventMetadata
 
 MongoQueryValue = str | dict[str, str | list[str] | float | datetime]
 MongoQuery = dict[str, MongoQueryValue]

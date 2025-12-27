@@ -7,7 +7,7 @@ from pydantic_avro import AvroBase  # type: ignore[attr-defined]
 
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
-from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 
 
 class BaseEvent(AvroBase):
@@ -18,7 +18,7 @@ class BaseEvent(AvroBase):
     event_version: str = "1.0"
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     aggregate_id: str | None = None
-    metadata: EventMetadata
+    metadata: AvroEventMetadata
 
     # Each subclass must define its topic
     topic: ClassVar[KafkaTopic]

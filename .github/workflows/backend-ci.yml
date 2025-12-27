@@ -76,12 +76,7 @@ jobs:
 
       - name: Start services
         run: |
-          docker compose -f docker-compose.ci.yaml up -d --remove-orphans
-          docker compose -f docker-compose.ci.yaml ps
-
-      - name: Wait for backend
-        run: |
-          curl --retry 60 --retry-delay 5 --retry-all-errors -ksf https://127.0.0.1:443/api/v1/health/live
+          docker compose -f docker-compose.ci.yaml up -d --remove-orphans --wait --wait-timeout 180
           docker compose -f docker-compose.ci.yaml ps
           kubectl get pods -A -o wide
 
@@ -95,6 +90,7 @@ jobs:
           MONGODB_PORT: 27017
           MONGODB_URL: mongodb://root:rootpassword@127.0.0.1:27017/?authSource=admin
           SCHEMA_SUBJECT_PREFIX: "ci.${{ github.run_id }}."
+          COVERAGE_CORE: sysmon  # Python 3.12+ faster coverage instrumentation
         run: |
           cd backend
           uv run pytest tests/integration -v -rs --cov=app --cov-branch --cov-report=xml --cov-report=term

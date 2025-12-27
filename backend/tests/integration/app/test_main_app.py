@@ -12,7 +12,7 @@ from app.core.middlewares import (
     RequestSizeLimitMiddleware,
 )
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.integration
 
 
 def test_create_app_real_instance(app) -> None:  # type: ignore[valid-type]

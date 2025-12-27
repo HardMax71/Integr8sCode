@@ -9,7 +9,7 @@ from app.domain.enums.replay import ReplayStatus
 from app.domain.events.event_models import EventFields, EventFilter, EventStatistics, Event
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture()

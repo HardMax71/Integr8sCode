@@ -6,7 +6,7 @@ from app.db.repositories.user_settings_repository import UserSettingsRepository
 from app.domain.enums.events import EventType
 from app.domain.user.settings_models import DomainUserSettings
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.integration
 
 
 @pytest.mark.asyncio

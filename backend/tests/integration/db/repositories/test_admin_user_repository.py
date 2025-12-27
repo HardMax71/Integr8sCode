@@ -5,7 +5,7 @@ from app.db.repositories.admin.admin_user_repository import AdminUserRepository
 from app.domain.user import UserFields, UserUpdate, PasswordReset
 from app.core.security import SecurityService
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture()

@@ -8,7 +8,7 @@ from app.domain.enums.replay import ReplayStatus, ReplayType
 from app.domain.replay import ReplayConfig, ReplayFilter
 from app.schemas_pydantic.replay_models import ReplaySession
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture()

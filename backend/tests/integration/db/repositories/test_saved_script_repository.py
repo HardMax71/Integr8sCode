@@ -3,7 +3,7 @@ import pytest
 from app.db.repositories.saved_script_repository import SavedScriptRepository
 from app.domain.saved_script import DomainSavedScriptCreate, DomainSavedScriptUpdate
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.integration
 
 @pytest.mark.asyncio
 async def test_create_get_update_delete_saved_script(db) -> None:  # type: ignore[valid-type]

@@ -6,7 +6,7 @@ from app.db.repositories.saga_repository import SagaRepository
 from app.domain.enums.saga import SagaState
 from app.domain.saga.models import Saga, SagaFilter, SagaListResult
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture()
@@ -25,7 +25,7 @@ async def test_saga_crud_and_queries(repo: SagaRepository, db) -> None:  # type:
     saga = await repo.get_saga("s1")
     assert saga and saga.saga_id == "s1"
     lst = await repo.get_sagas_by_execution("e1")
-    assert len(lst) >= 1
+    assert len(lst.sagas) >= 1
 
     f = SagaFilter(execution_ids=["e1"])
     result = await repo.list_sagas(f, limit=2)

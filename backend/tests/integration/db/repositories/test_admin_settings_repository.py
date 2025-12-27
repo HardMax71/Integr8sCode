@@ -3,7 +3,7 @@ import pytest
 from app.db.repositories.admin.admin_settings_repository import AdminSettingsRepository
 from app.domain.admin import SystemSettings
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture()

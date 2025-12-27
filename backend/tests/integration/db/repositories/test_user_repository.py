@@ -5,7 +5,7 @@ from app.db.repositories.user_repository import UserRepository
 from app.domain.user.user_models import User as DomainUser, UserUpdate
 from app.domain.enums.user import UserRole
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.integration
 
 
 @pytest.mark.asyncio

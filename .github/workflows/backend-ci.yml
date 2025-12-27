@@ -175,8 +175,8 @@ jobs:
           name: backend-logs
           path: logs/
 
-  k8s-integration:
-    name: K8s Integration Tests
+  e2e:
+    name: E2E Tests
     runs-on: ubuntu-latest
 
     steps:
@@ -250,7 +250,7 @@ jobs:
           timeout 90 bash -c 'until sudo k3s kubectl cluster-info; do sleep 5; done'
           kubectl create namespace integr8scode --dry-run=client -o yaml | kubectl apply -f -
 
-      - name: Run k8s integration tests
+      - name: Run E2E tests
         timeout-minutes: 10
         env:
           MONGO_ROOT_USER: root

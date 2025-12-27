@@ -3,7 +3,7 @@ import pytest
 from app.db.repositories.sse_repository import SSERepository
 from app.domain.enums.execution import ExecutionStatus
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.integration
 
 
 @pytest.mark.asyncio

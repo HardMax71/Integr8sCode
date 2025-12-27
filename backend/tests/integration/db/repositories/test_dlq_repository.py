@@ -6,7 +6,7 @@ from app.db.repositories.dlq_repository import DLQRepository
 from app.domain.enums.events import EventType
 from app.dlq import DLQFields, DLQMessageStatus
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture()

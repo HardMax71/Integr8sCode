@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.integration
 
 from app.domain.enums.events import EventType
 from app.schemas_pydantic.sse import RedisNotificationMessage, RedisSSEMessage
@@ -77,13 +77,13 @@ async def test_publish_and_subscribe_round_trip() -> None:
     assert ch.endswith("exec-1")
     # Push to pubsub and read from subscription
     await r._pubsub.push(ch, payload)
-    msg = await sub.get(RedisSSEMessage, timeout=0.02)
+    msg = await sub.get(RedisSSEMessage)
     assert msg and msg.event_type == EventType.EXECUTION_COMPLETED
     assert msg.execution_id == "exec-1"
 
     # Non-message / invalid JSON paths
     await r._pubsub.push(ch, b"not-json")
-    assert await sub.get(RedisSSEMessage, timeout=0.02) is None
+    assert await sub.get(RedisSSEMessage) is None
 
     # Close
     await sub.close()
@@ -111,7 +111,7 @@ async def test_notifications_channels() -> None:
     ch, payload = r.published[-1]
     assert ch.endswith("user-1")
     await r._pubsub.push(ch, payload)
-    got = await nsub.get(RedisNotificationMessage, timeout=0.02)
+    got = await nsub.get(RedisNotificationMessage)
     assert got is not None
     assert got.notification_id == "n1"
 

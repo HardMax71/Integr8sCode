@@ -12,7 +12,7 @@ from app.domain.notification import (
 )
 from app.domain.user import UserFields
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture()

@@ -6,7 +6,7 @@ from app.db.repositories.event_repository import EventRepository
 from app.domain.events.event_models import Event, EventFields, EventFilter
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture()

@@ -12,7 +12,7 @@ from app.events.event_store import create_event_store
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.event_replay.replay_service import EventReplayService
 from app.settings import get_settings
-from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 
 async def cleanup_task(replay_service: EventReplayService, interval_hours: int = 6) -> None:
@@ -36,7 +36,7 @@ async def run_replay_service() -> None:
     settings = get_settings()
 
     # Create database connection
-    db_client: DBClient = AsyncIOMotorClient(settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000)
+    db_client: DBClient = AsyncMongoClient(settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000)
     db_name = settings.DATABASE_NAME
     database = db_client[db_name]
 

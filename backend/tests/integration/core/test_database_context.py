@@ -1,7 +1,7 @@
 import pytest
 
 from app.core.database_context import AsyncDatabaseConnection, ContextualDatabaseProvider, DatabaseNotInitializedError
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase as AsyncIOMotorDatabase
 
 pytestmark = [pytest.mark.integration, pytest.mark.mongodb]
 

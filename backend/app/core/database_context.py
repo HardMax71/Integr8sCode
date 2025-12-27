@@ -4,25 +4,23 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any, AsyncContextManager, Protocol, TypeVar, runtime_checkable
 
-from motor.motor_asyncio import (
-    AsyncIOMotorClient,
-    AsyncIOMotorClientSession,
-    AsyncIOMotorCollection,
-    AsyncIOMotorCursor,
-    AsyncIOMotorDatabase,
-)
+from pymongo.asynchronous.client_session import AsyncClientSession
+from pymongo.asynchronous.collection import AsyncCollection
+from pymongo.asynchronous.cursor import AsyncCursor
+from pymongo.asynchronous.database import AsyncDatabase
+from pymongo.asynchronous.mongo_client import AsyncMongoClient
 from pymongo.errors import ServerSelectionTimeoutError
 
 from app.core.logging import logger
 
 # Python 3.12 type aliases using the new 'type' statement
-# MongoDocument represents the raw document type returned by Motor operations
+# MongoDocument represents the raw document type returned by PyMongo operations
 type MongoDocument = dict[str, Any]
-type DBClient = AsyncIOMotorClient[MongoDocument]
-type Database = AsyncIOMotorDatabase[MongoDocument]
-type Collection = AsyncIOMotorCollection[MongoDocument]
-type Cursor = AsyncIOMotorCursor[MongoDocument]
-type DBSession = AsyncIOMotorClientSession
+type DBClient = AsyncMongoClient[MongoDocument]
+type Database = AsyncDatabase[MongoDocument]
+type Collection = AsyncCollection[MongoDocument]
+type Cursor = AsyncCursor[MongoDocument]
+type DBSession = AsyncClientSession
 
 # Type variable for generic database provider
 T = TypeVar("T")
@@ -106,10 +104,8 @@ class AsyncDatabaseConnection:
 
         logger.info(f"Connecting to MongoDB database: {self._db_name}")
 
-        # Always explicitly bind to current event loop for consistency
-        import asyncio
-
-        client: DBClient = AsyncIOMotorClient(
+        # PyMongo Async automatically uses the current event loop
+        client: DBClient = AsyncMongoClient(
             self._config.mongodb_url,
             serverSelectionTimeoutMS=self._config.server_selection_timeout_ms,
             connectTimeoutMS=self._config.connect_timeout_ms,
@@ -119,7 +115,6 @@ class AsyncDatabaseConnection:
             retryReads=self._config.retry_reads,
             w=self._config.write_concern,
             journal=self._config.journal,
-            io_loop=asyncio.get_running_loop(),  # Always bind to current loop
         )
 
         # Verify connection
@@ -128,7 +123,7 @@ class AsyncDatabaseConnection:
             logger.info("Successfully connected to MongoDB")
         except ServerSelectionTimeoutError as e:
             logger.error(f"Failed to connect to MongoDB: {e}")
-            client.close()
+            await client.close()
             raise
 
         self._client = client
@@ -137,7 +132,7 @@ class AsyncDatabaseConnection:
     async def disconnect(self) -> None:
         if self._client is not None:
             logger.info("Closing MongoDB connection")
-            self._client.close()
+            await self._client.close()
             self._client = None
             self._database = None
 

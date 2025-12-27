@@ -2,7 +2,7 @@ import asyncio
 from uuid import uuid4
 
 import pytest
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase as AsyncIOMotorDatabase
 
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic

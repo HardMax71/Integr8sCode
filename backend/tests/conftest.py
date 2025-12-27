@@ -11,7 +11,7 @@ import pytest_asyncio
 from dishka import AsyncContainer
 from dotenv import load_dotenv
 from httpx import ASGITransport
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase as AsyncIOMotorDatabase
 import redis.asyncio as redis
 
 # Load test environment variables BEFORE any app imports

@@ -17,7 +17,7 @@ from app.services.idempotency import IdempotencyConfig, create_idempotency_manag
 from app.services.idempotency.redis_repository import RedisIdempotencyRepository
 from app.services.saga import create_saga_orchestrator
 from app.settings import get_settings
-from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 
 async def run_saga_orchestrator() -> None:
@@ -27,7 +27,7 @@ async def run_saga_orchestrator() -> None:
     logger = logging.getLogger(__name__)
 
     # Create database connection
-    db_client: DBClient = AsyncIOMotorClient(settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000)
+    db_client: DBClient = AsyncMongoClient(settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000)
     db_name = settings.DATABASE_NAME
     database = db_client[db_name]
 

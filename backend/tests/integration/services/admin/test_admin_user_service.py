@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 import pytest
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase as AsyncIOMotorDatabase
 
 from app.domain.enums.user import UserRole
 from app.services.admin import AdminUserService

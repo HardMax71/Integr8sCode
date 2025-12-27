@@ -1,6 +1,6 @@
 """Integration tests conftest - with infrastructure cleanup."""
 import pytest_asyncio
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase as AsyncIOMotorDatabase
 import redis.asyncio as redis
 
 

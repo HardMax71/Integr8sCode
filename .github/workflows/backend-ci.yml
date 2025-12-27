@@ -128,7 +128,7 @@ jobs:
           docker compose -f docker-compose.ci.yaml up -d --wait --wait-timeout 120
           docker compose -f docker-compose.ci.yaml ps
 
-      - name: Run integration tests (non-k8s)
+      - name: Run integration tests
         timeout-minutes: 10
         env:
           MONGO_ROOT_USER: root
@@ -144,7 +144,7 @@ jobs:
           COVERAGE_CORE: sysmon
         run: |
           cd backend
-          uv run pytest tests/integration -v -rs \
+          uv run pytest tests/integration -p no:xdist -v -rs \
             --ignore=tests/integration/k8s \
             --cov=app --cov-branch \
             --cov-report=xml --cov-report=term

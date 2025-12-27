@@ -3,7 +3,7 @@ import uuid
 from tests.helpers.eventually import eventually
 import pytest
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase as AsyncIOMotorDatabase
 
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType

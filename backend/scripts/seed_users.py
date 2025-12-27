@@ -18,14 +18,15 @@ from datetime import datetime, timezone
 from typing import Any
 
 from bson import ObjectId
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from passlib.context import CryptContext
+from pymongo.asynchronous.database import AsyncDatabase
+from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 async def upsert_user(
-    db: AsyncIOMotorDatabase[dict[str, Any]],
+    db: AsyncDatabase[dict[str, Any]],
     username: str,
     email: str,
     password: str,
@@ -73,7 +74,7 @@ async def seed_users() -> None:
 
     print(f"Connecting to MongoDB (database: {db_name})...")
 
-    client: AsyncIOMotorClient[dict[str, Any]] = AsyncIOMotorClient(mongodb_url)
+    client: AsyncMongoClient[dict[str, Any]] = AsyncMongoClient(mongodb_url)
     db = client[db_name]
 
     # Default user

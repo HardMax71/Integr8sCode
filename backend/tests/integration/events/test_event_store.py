@@ -7,7 +7,7 @@ from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.infrastructure.kafka.events.pod import PodCreatedEvent
 from app.infrastructure.kafka.events.user import UserLoggedInEvent
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase as AsyncIOMotorDatabase
 
 pytestmark = [pytest.mark.integration, pytest.mark.mongodb]
 

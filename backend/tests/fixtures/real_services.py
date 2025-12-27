@@ -9,7 +9,8 @@ from contextlib import asynccontextmanager
 
 import pytest
 import pytest_asyncio
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase as AsyncIOMotorDatabase
+from pymongo.asynchronous.mongo_client import AsyncMongoClient as AsyncIOMotorClient
 import redis.asyncio as redis
 from aiokafka import AIOKafkaProducer, AIOKafkaConsumer
 from aiokafka.errors import KafkaConnectionError

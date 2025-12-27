@@ -1,7 +1,7 @@
 from datetime import datetime, timezone, timedelta
 
 import pytest
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase as AsyncIOMotorDatabase
 
 from app.domain.enums.events import EventType
 from app.events.event_store import EventStore

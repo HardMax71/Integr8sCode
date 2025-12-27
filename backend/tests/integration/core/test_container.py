@@ -1,6 +1,6 @@
 import pytest
 from dishka import AsyncContainer
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase as AsyncIOMotorDatabase
 
 from app.services.event_service import EventService
 

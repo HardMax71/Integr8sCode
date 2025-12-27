@@ -9,7 +9,7 @@ import redis.asyncio as redis
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
 from kubernetes.client.rest import ApiException
-from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 from app.core.database_context import Database, DBClient
 from app.core.lifecycle import LifecycleEnabled
@@ -521,7 +521,7 @@ async def run_kubernetes_worker() -> None:
 
     logger.info("Initializing database connection...")
     settings = get_settings()
-    db_client: DBClient = AsyncIOMotorClient(settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000)
+    db_client: DBClient = AsyncMongoClient(settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000)
     db_name = settings.DATABASE_NAME
     database = db_client[db_name]
     await db_client.admin.command("ping")

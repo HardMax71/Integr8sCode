@@ -155,8 +155,8 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: backend/coverage.xml
-          flags: backend
-          name: backend-coverage
+          flags: backend-integration
+          name: backend-integration-coverage
           fail_ci_if_error: false
           verbose: true
 
@@ -276,8 +276,8 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: backend/coverage.xml
-          flags: backend-k8s
-          name: backend-k8s-coverage
+          flags: backend-e2e
+          name: backend-e2e-coverage
           fail_ci_if_error: false
           verbose: true
 

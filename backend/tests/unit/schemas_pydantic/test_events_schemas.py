@@ -74,12 +74,15 @@ def test_event_query_schema_and_list_response():
     assert len(q.event_types or []) == 2 and q.limit == 50
 
     # Minimal list response compose/decompose
+    from app.schemas_pydantic.events import EventMetadataResponse
     er = EventResponse(
         event_id="id",
         event_type=EventType.POD_CREATED,
         event_version="1.0",
         timestamp=datetime.now(timezone.utc),
-        metadata={},
+        metadata=EventMetadataResponse(
+            service_name="test", service_version="1.0", correlation_id="cid-1"
+        ),
         payload={},
     )
     lst = EventListResponse(events=[er], total=1, limit=1, skip=0, has_more=False)

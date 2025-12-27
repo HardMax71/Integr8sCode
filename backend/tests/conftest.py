@@ -186,24 +186,9 @@ async def redis_client(scope) -> AsyncGenerator[redis.Redis, None]:  # type: ign
     yield client
 
 
-# ===== Per-test cleanup =====
-@pytest_asyncio.fixture(scope="function", autouse=True)
-async def _cleanup(db: AsyncIOMotorDatabase, redis_client: redis.Redis):
-    # Pre-test: ensure clean state
-    collections = await db.list_collection_names()
-    for name in collections:
-        if not name.startswith("system."):
-            await db.drop_collection(name)
-    await redis_client.flushdb()
-
-    yield
-
-    # Post-test: cleanup for next test
-    collections = await db.list_collection_names()
-    for name in collections:
-        if not name.startswith("system."):
-            await db.drop_collection(name)
-    await redis_client.flushdb()
+# ===== Per-test cleanup (only for integration tests, see integration/conftest.py) =====
+# Note: autouse cleanup moved to tests/integration/conftest.py to avoid
+# requiring DB/Redis for unit tests. Unit tests use tests/unit/conftest.py instead.
 
 
 # ===== HTTP helpers (auth) =====

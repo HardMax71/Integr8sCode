@@ -6,7 +6,7 @@ from app.db.repositories import EventRepository
 from app.domain.events.event_models import EventFields, Event, EventFilter
 from app.domain.enums.common import SortOrder
 from app.domain.enums.user import UserRole
-from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.domain.enums.events import EventType
 from app.services.event_service import EventService
 
@@ -20,8 +20,8 @@ async def test_event_service_access_and_queries(scope) -> None:  # type: ignore[
 
     now = datetime.now(timezone.utc)
     # Seed some events (domain Event, not infra BaseEvent)
-    md1 = EventMetadata(service_name="svc", service_version="1", user_id="u1", correlation_id="c1")
-    md2 = EventMetadata(service_name="svc", service_version="1", user_id="u2", correlation_id="c1")
+    md1 = AvroEventMetadata(service_name="svc", service_version="1", user_id="u1", correlation_id="c1")
+    md2 = AvroEventMetadata(service_name="svc", service_version="1", user_id="u2", correlation_id="c1")
     e1 = Event(event_id="e1", event_type=str(EventType.USER_LOGGED_IN), event_version="1.0", timestamp=now,
                metadata=md1, payload={"user_id": "u1", "login_method": "password"}, aggregate_id="agg1")
     e2 = Event(event_id="e2", event_type=str(EventType.USER_LOGGED_IN), event_version="1.0", timestamp=now,

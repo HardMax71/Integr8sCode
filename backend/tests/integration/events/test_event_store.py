@@ -4,7 +4,7 @@ import pytest
 
 from app.events.event_store import EventStore
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.infrastructure.kafka.events.pod import PodCreatedEvent
 from app.infrastructure.kafka.events.user import UserLoggedInEvent
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -27,7 +27,7 @@ async def test_store_and_query_events(event_store: EventStore) -> None:
         execution_id="x1",
         pod_name="pod1",
         namespace="ns",
-        metadata=EventMetadata(service_name="svc", service_version="1", user_id="u1", correlation_id="cid"),
+        metadata=AvroEventMetadata(service_name="svc", service_version="1", user_id="u1", correlation_id="cid"),
     )
     assert await event_store.store_event(ev1) is True
 
@@ -35,7 +35,7 @@ async def test_store_and_query_events(event_store: EventStore) -> None:
         execution_id="x2",
         pod_name="pod2",
         namespace="ns",
-        metadata=EventMetadata(service_name="svc", service_version="1", user_id="u1"),
+        metadata=AvroEventMetadata(service_name="svc", service_version="1", user_id="u1"),
     )
     res = await event_store.store_batch([ev1, ev2])
     assert res["total"] == 2 and res["stored"] >= 1
@@ -55,7 +55,7 @@ async def test_store_and_query_events(event_store: EventStore) -> None:
 @pytest.mark.asyncio
 async def test_replay_events(event_store: EventStore) -> None:
     ev = UserLoggedInEvent(user_id="u1", login_method="password",
-                           metadata=EventMetadata(service_name="svc", service_version="1"))
+                           metadata=AvroEventMetadata(service_name="svc", service_version="1"))
     await event_store.store_event(ev)
 
     called = {"n": 0}

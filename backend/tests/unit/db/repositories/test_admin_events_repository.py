@@ -7,7 +7,7 @@ from app.domain.admin import ReplaySession, ReplayQuery
 from app.domain.admin.replay_updates import ReplaySessionUpdate
 from app.domain.enums.replay import ReplayStatus
 from app.domain.events.event_models import EventFields, EventFilter, EventStatistics, Event
-from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 
 pytestmark = pytest.mark.unit
 
@@ -21,8 +21,8 @@ def repo(db) -> AdminEventsRepository:  # type: ignore[valid-type]
 async def test_browse_detail_delete_and_export(repo: AdminEventsRepository, db) -> None:  # type: ignore[valid-type]
     now = datetime.now(timezone.utc)
     await db.get_collection("events").insert_many([
-        {EventFields.EVENT_ID: "e1", EventFields.EVENT_TYPE: "X", EventFields.TIMESTAMP: now, EventFields.METADATA: EventMetadata(service_name="svc", service_version="1", correlation_id="c1").to_dict()},
-        {EventFields.EVENT_ID: "e2", EventFields.EVENT_TYPE: "X", EventFields.TIMESTAMP: now, EventFields.METADATA: EventMetadata(service_name="svc", service_version="1", correlation_id="c1").to_dict()},
+        {EventFields.EVENT_ID: "e1", EventFields.EVENT_TYPE: "X", EventFields.TIMESTAMP: now, EventFields.METADATA: AvroEventMetadata(service_name="svc", service_version="1", correlation_id="c1").to_dict()},
+        {EventFields.EVENT_ID: "e2", EventFields.EVENT_TYPE: "X", EventFields.TIMESTAMP: now, EventFields.METADATA: AvroEventMetadata(service_name="svc", service_version="1", correlation_id="c1").to_dict()},
     ])
     res = await repo.browse_events(EventFilter())
     assert res.total >= 2
@@ -37,12 +37,12 @@ async def test_browse_detail_delete_and_export(repo: AdminEventsRepository, db) 
 async def test_event_stats_and_archive(repo: AdminEventsRepository, db) -> None:  # type: ignore[valid-type]
     now = datetime.now(timezone.utc)
     await db.get_collection("events").insert_many([
-        {EventFields.EVENT_ID: "e10", EventFields.EVENT_TYPE: "step.completed", EventFields.TIMESTAMP: now, EventFields.METADATA: EventMetadata(service_name="svc", service_version="1", user_id="u1").to_dict()},
+        {EventFields.EVENT_ID: "e10", EventFields.EVENT_TYPE: "step.completed", EventFields.TIMESTAMP: now, EventFields.METADATA: AvroEventMetadata(service_name="svc", service_version="1", user_id="u1").to_dict()},
     ])
     await db.get_collection("executions").insert_one({"created_at": now, "status": "completed", "resource_usage": {"execution_time_wall_seconds": 1.25}})
     stats = await repo.get_event_stats(hours=1)
     assert isinstance(stats, EventStatistics)
-    ev = Event(event_id="a1", event_type="X", event_version="1.0", timestamp=now, metadata=EventMetadata(service_name="s", service_version="1"), payload={})
+    ev = Event(event_id="a1", event_type="X", event_version="1.0", timestamp=now, metadata=AvroEventMetadata(service_name="s", service_version="1"), payload={})
     assert await repo.archive_event(ev, deleted_by="admin") is True
 
 

@@ -1,8 +1,8 @@
-from app.events.metadata import EventMetadata
+from app.events.metadata import AvroEventMetadata
 
 
 def test_event_metadata_helpers():
-    m = EventMetadata(service_name="svc", service_version="1")
+    m = AvroEventMetadata(service_name="svc", service_version="1")
     # ensure_correlation_id returns self if present
     same = m.ensure_correlation_id()
     assert same.correlation_id == m.correlation_id

@@ -9,7 +9,7 @@ from httpx import AsyncClient
 from app.domain.enums.notification import NotificationSeverity, NotificationStatus
 from app.schemas_pydantic.sse import RedisNotificationMessage, SSEHealthResponse
 from app.infrastructure.kafka.events.pod import PodCreatedEvent
-from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.services.sse.redis_bus import SSERedisBus
 from app.services.sse.sse_service import SSEService
 from tests.helpers.eventually import eventually
@@ -131,7 +131,7 @@ class TestSSERoutes:
             execution_id=exec_id,
             pod_name=f"executor-{exec_id}",
             namespace="default",
-            metadata=EventMetadata(service_name="tests", service_version="1"),
+            metadata=AvroEventMetadata(service_name="tests", service_version="1"),
         )
         await bus.publish_event(exec_id, ev)
         

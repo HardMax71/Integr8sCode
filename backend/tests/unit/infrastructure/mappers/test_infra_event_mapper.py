@@ -5,7 +5,7 @@ from app.domain.events.event_models import (
     Event,
     EventSummary,
 )
-from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.infrastructure.mappers import (
     ArchivedEventMapper,
     EventExportRowMapper,
@@ -22,7 +22,7 @@ def _event(eid: str = "e1") -> Event:
         event_type="X",
         event_version="1.0",
         timestamp=datetime.now(timezone.utc),
-        metadata=EventMetadata(service_name="svc", service_version="1", user_id="u1"),
+        metadata=AvroEventMetadata(service_name="svc", service_version="1", user_id="u1"),
         payload={"k": 1},
         aggregate_id="agg",
         status="ok",

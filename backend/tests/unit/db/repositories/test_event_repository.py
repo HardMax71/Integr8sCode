@@ -4,7 +4,7 @@ import pytest
 
 from app.db.repositories.event_repository import EventRepository
 from app.domain.events.event_models import Event, EventFields, EventFilter
-from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 
 pytestmark = pytest.mark.unit
 
@@ -20,7 +20,7 @@ def make_event(event_id: str, etype: str = "UserLoggedIn", user: str | None = "u
         event_type=etype,
         event_version="1.0",
         timestamp=datetime.now(timezone.utc),
-        metadata=EventMetadata(service_name="svc", service_version="1", user_id=user, correlation_id="c1"),
+        metadata=AvroEventMetadata(service_name="svc", service_version="1", user_id=user, correlation_id="c1"),
         payload={"k": 1, "execution_id": agg} if agg else {"k": 1},
         aggregate_id=agg,
     )
@@ -52,7 +52,7 @@ async def test_store_get_and_queries(repo: EventRepository, db) -> None:  # type
 async def test_statistics_and_search_and_delete(repo: EventRepository, db) -> None:  # type: ignore[valid-type]
     now = datetime.now(timezone.utc)
     await db.get_collection("events").insert_many([
-        {EventFields.EVENT_ID: "e3", EventFields.EVENT_TYPE: "C", EventFields.EVENT_VERSION: "1.0", EventFields.TIMESTAMP: now, EventFields.METADATA: EventMetadata(service_name="svc", service_version="1").to_dict(), EventFields.PAYLOAD: {}},
+        {EventFields.EVENT_ID: "e3", EventFields.EVENT_TYPE: "C", EventFields.EVENT_VERSION: "1.0", EventFields.TIMESTAMP: now, EventFields.METADATA: AvroEventMetadata(service_name="svc", service_version="1").to_dict(), EventFields.PAYLOAD: {}},
     ])
     stats = await repo.get_event_statistics(start_time=now - timedelta(days=1), end_time=now + timedelta(days=1))
     assert stats.total_events >= 1

@@ -2,7 +2,7 @@ import uuid
 from typing import Iterable
 
 from app.infrastructure.kafka.events.execution import ExecutionRequestedEvent
-from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 
 
 def make_execution_requested_event(
@@ -31,7 +31,7 @@ def make_execution_requested_event(
     if execution_id is None:
         execution_id = f"exec-{uuid.uuid4().hex[:8]}"
 
-    metadata = EventMetadata(service_name=service_name, service_version=service_version, user_id=user_id)
+    metadata = AvroEventMetadata(service_name=service_name, service_version=service_version, user_id=user_id)
     return ExecutionRequestedEvent(
         execution_id=execution_id,
         script=script,

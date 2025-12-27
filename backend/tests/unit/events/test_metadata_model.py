@@ -1,11 +1,11 @@
-from app.events.metadata import EventMetadata
+from app.events.metadata import AvroEventMetadata
 
 
 def test_metadata_helpers():
-    m = EventMetadata(service_name="s", service_version="1")
+    m = AvroEventMetadata(service_name="s", service_version="1")
     d = m.to_dict()
     assert d["service_name"] == "s"
-    m2 = EventMetadata.from_dict({"service_name": "a", "service_version": "2", "user_id": "u"})
+    m2 = AvroEventMetadata.from_dict({"service_name": "a", "service_version": "2", "user_id": "u"})
     assert m2.user_id == "u"
     m3 = m.with_correlation("cid")
     assert m3.correlation_id == "cid"

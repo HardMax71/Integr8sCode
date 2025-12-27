@@ -9,7 +9,7 @@ from app.domain.events.event_models import (
     EventFields,
     EventFilter,
 )
-from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.infrastructure.mappers.event_mapper import (
     ArchivedEventMapper,
     EventExportRowMapper,
@@ -21,7 +21,7 @@ from app.infrastructure.mappers.event_mapper import (
 @pytest.fixture
 def sample_metadata():
     """Create sample event metadata."""
-    return EventMetadata(
+    return AvroEventMetadata(
         service_name="test-service",
         service_version="1.0.0",
         correlation_id="corr-123",
@@ -56,7 +56,7 @@ def minimal_event():
         event_type="minimal.event",
         event_version="1.0",
         timestamp=datetime.now(timezone.utc),
-        metadata=EventMetadata(service_name="minimal-service", service_version="1.0.0"),
+        metadata=AvroEventMetadata(service_name="minimal-service", service_version="1.0.0"),
         payload={},
     )
 

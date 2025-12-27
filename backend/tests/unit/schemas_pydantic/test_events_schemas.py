@@ -5,7 +5,7 @@ import pytest
 
 from app.domain.enums.common import SortOrder
 from app.domain.enums.events import EventType
-from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.schemas_pydantic.events import (
     EventAggregationRequest,
     EventBase,
@@ -37,7 +37,7 @@ def test_event_filter_request_sort_validator_rejects_invalid():
 
 
 def test_event_base_and_in_db_defaults_and_metadata():
-    meta = EventMetadata(service_name="tests", service_version="1.0", user_id="u1")
+    meta = AvroEventMetadata(service_name="tests", service_version="1.0", user_id="u1")
     ev = EventBase(
         event_type=EventType.EXECUTION_REQUESTED,
         metadata=meta,

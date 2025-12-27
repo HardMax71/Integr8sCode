@@ -3,7 +3,7 @@ from uuid import uuid4
 import pytest
 from kubernetes import client as k8s_client
 
-from app.infrastructure.kafka.events.metadata import EventMetadata
+from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.infrastructure.kafka.events.saga import CreatePodCommandEvent
 from app.services.k8s_worker.config import K8sWorkerConfig
 from app.services.k8s_worker.pod_builder import PodBuilder
@@ -41,7 +41,7 @@ class TestPodBuilder:
             cpu_limit="1000m",
             memory_limit="1Gi",
             priority=5,
-            metadata=EventMetadata(
+            metadata=AvroEventMetadata(
                 user_id=str(uuid4()),
                 correlation_id=str(uuid4()),
                 service_name="test-service",
@@ -155,7 +155,7 @@ class TestPodBuilder:
             cpu_limit="",
             memory_limit="",
             priority=5,
-            metadata=EventMetadata(
+            metadata=AvroEventMetadata(
                 service_name="svc",
                 service_version="1",
                 user_id=str(uuid4()),
@@ -288,7 +288,7 @@ class TestPodBuilder:
             cpu_limit="500m",
             memory_limit="512Mi",
             priority=5,
-            metadata=EventMetadata(user_id=str(uuid4()), service_name="t", service_version="1")
+            metadata=AvroEventMetadata(user_id=str(uuid4()), service_name="t", service_version="1")
         )
 
         pod = pod_builder.build_pod_manifest(command)
@@ -345,7 +345,7 @@ class TestPodBuilder:
             cpu_request="50m",
             memory_request="64Mi",
             priority=5,
-            metadata=EventMetadata(
+            metadata=AvroEventMetadata(
                 service_name="svc",
                 service_version="1",
                 user_id=long_id,
@@ -402,7 +402,7 @@ class TestPodBuilder:
                 cpu_limit="200m",
                 memory_limit="256Mi",
                 priority=5,
-                metadata=EventMetadata(user_id=str(uuid4()), service_name="t", service_version="1")
+                metadata=AvroEventMetadata(user_id=str(uuid4()), service_name="t", service_version="1")
             )
 
             pod = pod_builder.build_pod_manifest(cmd)

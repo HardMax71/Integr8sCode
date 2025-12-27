@@ -1,0 +1,227 @@
+# CI-optimized Docker Compose configuration
+#
+# Usage:
+#   Backend integration tests (infra only, no builds):
+#     docker compose -f docker-compose.ci.yaml up -d --wait
+#
+#   Frontend E2E tests (full stack with builds):
+#     docker compose -f docker-compose.ci.yaml --profile full up -d --wait
+#
+# Key differences from docker-compose.yaml:
+#   - KRaft Kafka (no Zookeeper) - simpler, faster startup
+#   - No SASL/TLS for Kafka - not needed for tests
+#   - Profiles separate infra from app services
+#   - Minimal services for fast CI
+
+services:
+  # =============================================================================
+  # INFRASTRUCTURE SERVICES (no profile = always started)
+  # =============================================================================
+
+  mongo:
+    image: mongo:8.0
+    container_name: mongo
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: rootpassword
+      MONGO_INITDB_DATABASE: integr8scode
+    tmpfs:
+      - /data/db  # Use tmpfs for faster CI
+    networks:
+      - ci-network
+    healthcheck:
+      test: mongosh --eval 'db.runCommand("ping").ok' --quiet
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru --save ""
+    networks:
+      - ci-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # KRaft mode Kafka - no Zookeeper needed, much simpler
+  kafka:
+    image: bitnami/kafka:3.6
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      # KRaft mode configuration
+      KAFKA_CFG_NODE_ID: 0
+      KAFKA_CFG_PROCESS_ROLES: controller,broker
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 0@kafka:9093
+      # Dual listeners: internal for service-to-service, external for host
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:29092,CONTROLLER://:9093,EXTERNAL://:9092
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      # CI optimizations
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_CFG_NUM_PARTITIONS: 1
+      KAFKA_CFG_DEFAULT_REPLICATION_FACTOR: 1
+      # Reduce memory usage
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx512m"
+    networks:
+      - ci-network
+    healthcheck:
+      test: kafka-broker-api-versions.sh --bootstrap-server localhost:9092 || exit 1
+      interval: 5s
+      timeout: 10s
+      retries: 15
+      start_period: 20s
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.5.0
+    container_name: schema-registry
+    ports:
+      - "8081:8081"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:29092
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_HEAP_OPTS: "-Xms128m -Xmx256m"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - ci-network
+    healthcheck:
+      test: curl -f http://localhost:8081/config || exit 1
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # =============================================================================
+  # APPLICATION SERVICES (profile: full - only for E2E tests)
+  # =============================================================================
+
+  # Certificate generator for TLS
+  shared-ca:
+    image: alpine:latest
+    profiles: ["full"]
+    volumes:
+      - shared_ca:/shared_ca
+    command: sh -c "mkdir -p /shared_ca && chmod 777 /shared_ca && sleep 1"
+    networks:
+      - ci-network
+
+  cert-generator:
+    build:
+      context: ./cert-generator
+      dockerfile: Dockerfile
+    profiles: ["full"]
+    volumes:
+      - ./backend/certs:/backend-certs
+      - ./frontend/certs:/frontend-certs
+      - shared_ca:/shared_ca
+      - ./backend:/backend
+    environment:
+      - SHARED_CA_DIR=/shared_ca
+      - BACKEND_CERT_DIR=/backend-certs
+      - FRONTEND_CERT_DIR=/frontend-certs
+      - CI=true
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: "no"
+    network_mode: host
+    depends_on:
+      shared-ca:
+        condition: service_completed_successfully
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    profiles: ["full"]
+    container_name: backend
+    ports:
+      - "443:443"
+    environment:
+      - SERVER_HOST=0.0.0.0
+      - TESTING=true
+      - MONGODB_URL=mongodb://root:rootpassword@mongo:27017/integr8scode?authSource=admin
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - SCHEMA_REGISTRY_URL=http://schema-registry:8081
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - OTEL_SDK_DISABLED=true
+      - ENABLE_TRACING=false
+      - SECRET_KEY=ci-test-secret-key-for-testing-only-32chars!!
+    volumes:
+      - ./backend/certs:/app/certs:ro
+      - shared_ca:/shared_ca:ro
+      - ./backend/kubeconfig.yaml:/app/kubeconfig.yaml:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      cert-generator:
+        condition: service_completed_successfully
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+    networks:
+      - ci-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -k -f -s https://localhost:443/api/v1/health/live || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    profiles: ["full"]
+    container_name: frontend
+    ports:
+      - "5001:5001"
+    environment:
+      - VITE_BACKEND_URL=https://backend:443
+      - NODE_EXTRA_CA_CERTS=/shared_ca/mkcert-ca.pem
+    volumes:
+      - ./frontend/certs:/app/certs:ro
+      - shared_ca:/shared_ca:ro
+    depends_on:
+      cert-generator:
+        condition: service_completed_successfully
+      backend:
+        condition: service_healthy
+    networks:
+      - ci-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -k -f -s https://localhost:5001/ || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+volumes:
+  shared_ca:
+
+networks:
+  ci-network:
+    driver: bridge

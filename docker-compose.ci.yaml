@@ -55,7 +55,7 @@ services:
 
   # KRaft mode Kafka - no Zookeeper needed, much simpler
   kafka:
-    image: bitnami/kafka:3.6
+    image: bitnami/kafka:3.9
     container_name: kafka
     ports:
       - "9092:9092"

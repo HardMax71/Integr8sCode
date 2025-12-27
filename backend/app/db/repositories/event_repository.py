@@ -159,8 +159,17 @@ class EventRepository:
         docs = await cursor.to_list(length=limit)
         return [self.mapper.from_mongo_document(doc) for doc in docs]
 
-    async def get_execution_events(self, execution_id: str, limit: int = 100, skip: int = 0) -> EventListResult:
-        query = {"$or": [{EventFields.PAYLOAD_EXECUTION_ID: execution_id}, {EventFields.AGGREGATE_ID: execution_id}]}
+    async def get_execution_events(
+        self, execution_id: str, limit: int = 100, skip: int = 0, exclude_system_events: bool = False
+    ) -> EventListResult:
+        query: dict[str, Any] = {
+            "$or": [{EventFields.PAYLOAD_EXECUTION_ID: execution_id}, {EventFields.AGGREGATE_ID: execution_id}]
+        }
+
+        # Filter out system events at DB level for accurate pagination
+        if exclude_system_events:
+            query[EventFields.METADATA_SERVICE_NAME] = {"$not": {"$regex": "^system-"}}
+
         total_count = await self._collection.count_documents(query)
 
         cursor = self._collection.find(query).sort(EventFields.TIMESTAMP, ASCENDING).skip(skip).limit(limit)

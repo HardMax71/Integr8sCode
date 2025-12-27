@@ -4,7 +4,7 @@
 
 When running tests in parallel (e.g., with `pytest-xdist`), you might encounter sporadic crashes with messages like:
 
-```
+```text
 Fatal Python error: Aborted
 ```
 

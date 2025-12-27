@@ -37,7 +37,13 @@ class EventService:
         limit: int = 1000,
         skip: int = 0,
     ) -> EventListResult | None:
-        result = await self.repository.get_execution_events(execution_id=execution_id, limit=limit, skip=skip)
+        # Filter system events at DB level for accurate pagination
+        result = await self.repository.get_execution_events(
+            execution_id=execution_id,
+            limit=limit,
+            skip=skip,
+            exclude_system_events=not include_system_events,
+        )
         if not result.events:
             return EventListResult(events=[], total=0, skip=skip, limit=limit, has_more=False)
 
@@ -49,17 +55,6 @@ class EventService:
 
         if owner and owner != user_id and user_role != UserRole.ADMIN:
             return None
-
-        if not include_system_events:
-            filtered = [e for e in result.events if not (e.metadata and e.metadata.service_name.startswith("system-"))]
-            # Recalculate has_more based on filtered count
-            return EventListResult(
-                events=filtered,
-                total=result.total,
-                skip=skip,
-                limit=limit,
-                has_more=result.has_more,
-            )
 
         return result
 

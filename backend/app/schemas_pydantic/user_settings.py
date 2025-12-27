@@ -110,12 +110,12 @@ class SettingsHistoryEntry(BaseModel):
 
 
 class SettingsHistoryResponse(BaseModel):
-    """Response model for settings history"""
+    """Response model for settings history (limited snapshot of recent changes)"""
 
     model_config = ConfigDict(from_attributes=True)
 
     history: List[SettingsHistoryEntry]
-    total: int
+    limit: int
 
 
 class RestoreSettingsRequest(BaseModel):

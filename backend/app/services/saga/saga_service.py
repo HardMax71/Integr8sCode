@@ -63,7 +63,9 @@ class SagaService:
 
         return saga
 
-    async def get_execution_sagas(self, execution_id: str, user: User, state: SagaState | None = None) -> list[Saga]:
+    async def get_execution_sagas(
+        self, execution_id: str, user: User, state: SagaState | None = None, limit: int = 100, skip: int = 0
+    ) -> SagaListResult:
         """Get sagas for an execution with access control."""
         # Check access to execution
         if not await self.check_execution_access(execution_id, user):
@@ -72,7 +74,7 @@ class SagaService:
             )
             raise SagaAccessDeniedError(f"Access denied - no access to execution {execution_id}")
 
-        return await self.saga_repo.get_sagas_by_execution(execution_id, state)
+        return await self.saga_repo.get_sagas_by_execution(execution_id, state, limit=limit, skip=skip)
 
     async def list_user_sagas(
         self, user: User, state: SagaState | None = None, limit: int = 100, skip: int = 0

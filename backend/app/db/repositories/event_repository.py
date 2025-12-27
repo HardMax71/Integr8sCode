@@ -125,14 +125,26 @@ class EventRepository:
         docs = await cursor.to_list(length=limit)
         return [self.mapper.from_mongo_document(doc) for doc in docs]
 
-    async def get_events_by_correlation(self, correlation_id: str, limit: int = 100) -> list[Event]:
+    async def get_events_by_correlation(
+        self, correlation_id: str, limit: int = 100, skip: int = 0
+    ) -> EventListResult:
+        query = {EventFields.METADATA_CORRELATION_ID: correlation_id}
+        total_count = await self._collection.count_documents(query)
+
         cursor = (
-            self._collection.find({EventFields.METADATA_CORRELATION_ID: correlation_id})
+            self._collection.find(query)
             .sort(EventFields.TIMESTAMP, ASCENDING)
+            .skip(skip)
             .limit(limit)
         )
         docs = await cursor.to_list(length=limit)
-        return [self.mapper.from_mongo_document(doc) for doc in docs]
+        return EventListResult(
+            events=[self.mapper.from_mongo_document(doc) for doc in docs],
+            total=total_count,
+            skip=skip,
+            limit=limit,
+            has_more=(skip + limit) < total_count,
+        )
 
     async def get_events_by_user(
         self,
@@ -154,12 +166,26 @@ class EventRepository:
         docs = await cursor.to_list(length=limit)
         return [self.mapper.from_mongo_document(doc) for doc in docs]
 
-    async def get_execution_events(self, execution_id: str, limit: int = 100) -> list[Event]:
+    async def get_execution_events(
+        self, execution_id: str, limit: int = 100, skip: int = 0
+    ) -> EventListResult:
         query = {"$or": [{EventFields.PAYLOAD_EXECUTION_ID: execution_id}, {EventFields.AGGREGATE_ID: execution_id}]}
+        total_count = await self._collection.count_documents(query)
 
-        cursor = self._collection.find(query).sort(EventFields.TIMESTAMP, ASCENDING).limit(limit)
+        cursor = (
+            self._collection.find(query)
+            .sort(EventFields.TIMESTAMP, ASCENDING)
+            .skip(skip)
+            .limit(limit)
+        )
         docs = await cursor.to_list(length=limit)
-        return [self.mapper.from_mongo_document(doc) for doc in docs]
+        return EventListResult(
+            events=[self.mapper.from_mongo_document(doc) for doc in docs],
+            total=total_count,
+            skip=skip,
+            limit=limit,
+            has_more=(skip + limit) < total_count,
+        )
 
     async def search_events(
         self, text_query: str, filters: dict[str, object] | None = None, limit: int = 100, skip: int = 0

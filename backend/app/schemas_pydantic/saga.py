@@ -44,6 +44,9 @@ class SagaListResponse(BaseModel):
 
     sagas: list[SagaStatusResponse]
     total: int
+    skip: int
+    limit: int
+    has_more: bool
 
 
 class SagaCancellationResponse(BaseModel):

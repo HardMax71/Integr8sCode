@@ -100,7 +100,7 @@ async def get_settings_history(
 ) -> SettingsHistoryResponse:
     history = await settings_service.get_settings_history(current_user.user_id, limit=limit)
     entries = [SettingsHistoryEntry.model_validate(entry) for entry in history]
-    return SettingsHistoryResponse(history=entries, total=len(entries))
+    return SettingsHistoryResponse(history=entries, limit=limit)
 
 
 @router.post("/restore", response_model=UserSettings)

@@ -38,20 +38,30 @@ async def get_execution_events(
     current_user: Annotated[UserResponse, Depends(current_user)],
     event_service: FromDishka[EventService],
     include_system_events: bool = Query(False, description="Include system-generated events"),
+    limit: int = Query(100, ge=1, le=1000),
+    skip: int = Query(0, ge=0),
 ) -> EventListResponse:
-    events = await event_service.get_execution_events(
+    result = await event_service.get_execution_events(
         execution_id=execution_id,
         user_id=current_user.user_id,
         user_role=current_user.role,
         include_system_events=include_system_events,
+        limit=limit,
+        skip=skip,
     )
 
-    if events is None:
+    if result is None:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    event_responses = [EventResponse.model_validate(event) for event in events]
+    event_responses = [EventResponse.model_validate(event) for event in result.events]
 
-    return EventListResponse(events=event_responses, total=len(event_responses), limit=1000, skip=0, has_more=False)
+    return EventListResponse(
+        events=event_responses,
+        total=result.total,
+        limit=limit,
+        skip=skip,
+        has_more=result.has_more,
+    )
 
 
 @router.get("/user", response_model=EventListResponse)
@@ -126,18 +136,26 @@ async def get_events_by_correlation(
     event_service: FromDishka[EventService],
     include_all_users: bool = Query(False, description="Include events from all users (admin only)"),
     limit: int = Query(100, ge=1, le=1000),
+    skip: int = Query(0, ge=0),
 ) -> EventListResponse:
-    events = await event_service.get_events_by_correlation(
+    result = await event_service.get_events_by_correlation(
         correlation_id=correlation_id,
         user_id=current_user.user_id,
         user_role=current_user.role,
         include_all_users=include_all_users,
         limit=limit,
+        skip=skip,
     )
 
-    event_responses = [EventResponse.model_validate(event) for event in events]
+    event_responses = [EventResponse.model_validate(event) for event in result.events]
 
-    return EventListResponse(events=event_responses, total=len(event_responses), limit=limit, skip=0, has_more=False)
+    return EventListResponse(
+        events=event_responses,
+        total=result.total,
+        limit=limit,
+        skip=skip,
+        has_more=result.has_more,
+    )
 
 
 @router.get("/current-request", response_model=EventListResponse)
@@ -145,22 +163,30 @@ async def get_current_request_events(
     current_user: Annotated[UserResponse, Depends(current_user)],
     event_service: FromDishka[EventService],
     limit: int = Query(100, ge=1, le=1000),
+    skip: int = Query(0, ge=0),
 ) -> EventListResponse:
     correlation_id = CorrelationContext.get_correlation_id()
     if not correlation_id:
-        return EventListResponse(events=[], total=0, limit=limit, skip=0, has_more=False)
+        return EventListResponse(events=[], total=0, limit=limit, skip=skip, has_more=False)
 
-    events = await event_service.get_events_by_correlation(
+    result = await event_service.get_events_by_correlation(
         correlation_id=correlation_id,
         user_id=current_user.user_id,
         user_role=current_user.role,
         include_all_users=False,
         limit=limit,
+        skip=skip,
     )
 
-    event_responses = [EventResponse.model_validate(event) for event in events]
+    event_responses = [EventResponse.model_validate(event) for event in result.events]
 
-    return EventListResponse(events=event_responses, total=len(event_responses), limit=limit, skip=0, has_more=False)
+    return EventListResponse(
+        events=event_responses,
+        total=result.total,
+        limit=limit,
+        skip=skip,
+        has_more=result.has_more,
+    )
 
 
 @router.get("/statistics", response_model=EventStatistics)

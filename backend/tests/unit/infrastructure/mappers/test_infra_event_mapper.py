@@ -57,7 +57,9 @@ def test_archived_export_mapper() -> None:
     arch = ArchivedEventMapper.from_event(e, deleted_by="admin", deletion_reason="r")
     assert arch.deleted_by == "admin"
     arch_doc = ArchivedEventMapper.to_mongo_document(arch)
-    assert "_deleted_at" in arch_doc or "_deletion_reason" in arch_doc or True  # enum names vary
+    assert "_deleted_at" in arch_doc
+    assert "_deleted_by" in arch_doc
+    assert "_deletion_reason" in arch_doc
 
     row = type("Row", (), {})()
     row.event_id = e.event_id

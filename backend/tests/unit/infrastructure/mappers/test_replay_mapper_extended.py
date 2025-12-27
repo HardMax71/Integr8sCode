@@ -1,25 +1,20 @@
 """Extended tests for replay mapper to achieve 95%+ coverage."""
 
 from datetime import datetime, timezone
-from typing import Any
 
 import pytest
-
 from app.domain.admin import (
     ReplayQuery,
     ReplaySession,
-    ReplaySessionData,
     ReplaySessionStatusDetail,
     ReplaySessionStatusInfo,
 )
 from app.domain.enums.events import EventType
 from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
-from app.domain.events.event_models import EventSummary
 from app.domain.replay import ReplayConfig, ReplayFilter, ReplaySessionState
 from app.infrastructure.mappers.replay_mapper import (
     ReplayApiMapper,
     ReplayQueryMapper,
-    ReplaySessionDataMapper,
     ReplaySessionMapper,
     ReplayStateMapper,
 )
@@ -222,77 +217,6 @@ class TestReplayQueryMapper:
         result = ReplayQueryMapper.to_mongodb_query(query)
 
         assert result == {}
-
-
-class TestReplaySessionDataMapper:
-    """Extended tests for ReplaySessionDataMapper."""
-
-    def test_to_dict_without_events_preview(self):
-        """Test converting data without events preview."""
-        data = ReplaySessionData(
-            dry_run=False,  # Not dry run
-            total_events=50,
-            replay_correlation_id="replay-corr-123",
-            query={"status": "completed"},
-            events_preview=None,
-        )
-
-        result = ReplaySessionDataMapper.to_dict(data)
-
-        assert result["dry_run"] is False
-        assert result["total_events"] == 50
-        assert result["replay_correlation_id"] == "replay-corr-123"
-        assert result["query"] == {"status": "completed"}
-        assert "events_preview" not in result
-
-    def test_to_dict_dry_run_without_preview(self):
-        """Test dry run but no events preview."""
-        data = ReplaySessionData(
-            dry_run=True,
-            total_events=20,
-            replay_correlation_id="dry-corr-456",
-            query={"type": "test"},
-            events_preview=None,  # No preview even though dry run
-        )
-
-        result = ReplaySessionDataMapper.to_dict(data)
-
-        assert result["dry_run"] is True
-        assert "events_preview" not in result
-
-    def test_to_dict_with_events_preview(self):
-        """Test converting data with events preview."""
-        events = [
-            EventSummary(
-                event_id="event-1",
-                event_type="type-1",
-                timestamp=datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
-                aggregate_id="agg-1",
-            ),
-            EventSummary(
-                event_id="event-2",
-                event_type="type-2",
-                timestamp=datetime(2024, 1, 1, 10, 1, 0, tzinfo=timezone.utc),
-                aggregate_id=None,  # No aggregate_id
-            ),
-        ]
-
-        data = ReplaySessionData(
-            dry_run=True,
-            total_events=2,
-            replay_correlation_id="preview-corr",
-            query={},
-            events_preview=events,
-        )
-
-        result = ReplaySessionDataMapper.to_dict(data)
-
-        assert result["dry_run"] is True
-        assert len(result["events_preview"]) == 2
-        assert result["events_preview"][0]["event_id"] == "event-1"
-        assert result["events_preview"][0]["aggregate_id"] == "agg-1"
-        assert result["events_preview"][1]["event_id"] == "event-2"
-        assert result["events_preview"][1]["aggregate_id"] is None
 
 
 class TestReplayApiMapper:

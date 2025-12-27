@@ -1,5 +1,4 @@
 import json
-from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Any, Dict
 
@@ -8,7 +7,6 @@ from app.domain.rate_limit import (
     RateLimitAlgorithm,
     RateLimitConfig,
     RateLimitRule,
-    RateLimitStatus,
     UserRateLimit,
 )
 
@@ -124,9 +122,3 @@ class RateLimitConfigMapper:
     def model_dump_json(config: RateLimitConfig) -> str:
         """Pydantic-compatible method for serialization to JSON."""
         return json.dumps(RateLimitConfigMapper.to_dict(config))
-
-
-class RateLimitStatusMapper:
-    @staticmethod
-    def to_dict(status: RateLimitStatus) -> Dict[str, Any]:
-        return asdict(status)

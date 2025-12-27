@@ -3,11 +3,9 @@
 from datetime import datetime, timezone
 
 import pytest
-
 from app.domain.events.event_models import (
     ArchivedEvent,
     Event,
-    EventExportRow,
     EventFields,
     EventFilter,
 )

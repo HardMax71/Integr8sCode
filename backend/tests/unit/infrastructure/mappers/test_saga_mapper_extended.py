@@ -1,14 +1,11 @@
 """Extended tests for saga mapper to achieve 95%+ coverage."""
 
 from datetime import datetime, timezone
-from typing import Any
 
 import pytest
-
 from app.domain.enums.saga import SagaState
 from app.domain.saga.models import Saga, SagaFilter, SagaInstance
 from app.infrastructure.mappers.saga_mapper import (
-    SagaEventMapper,
     SagaFilterMapper,
     SagaInstanceMapper,
     SagaMapper,
@@ -252,52 +249,6 @@ class TestSagaInstanceMapper:
 
         # Should use str(state) fallback (line 171)
         assert doc["state"] == "MOCK_STATE"
-
-
-class TestSagaEventMapper:
-    """Extended tests for SagaEventMapper."""
-
-    def test_to_cancelled_event_with_user_id_param(self, sample_saga_instance):
-        """Test cancelled event with user_id parameter."""
-        event = SagaEventMapper.to_cancelled_event(
-            sample_saga_instance,
-            user_id="param-user",
-            service_name="test-service",
-            service_version="2.0.0",
-        )
-
-        assert event.cancelled_by == "param-user"
-        assert event.metadata.user_id == "param-user"
-        assert event.metadata.service_name == "test-service"
-        assert event.metadata.service_version == "2.0.0"
-
-    def test_to_cancelled_event_from_context(self):
-        """Test cancelled event taking user_id from context_data."""
-        instance = SagaInstance(
-            saga_name="test",
-            execution_id="exec-129",
-            context_data={"user_id": "context-user"},
-            error_message="Context error",
-        )
-
-        event = SagaEventMapper.to_cancelled_event(instance)
-
-        assert event.cancelled_by == "context-user"
-        assert event.reason == "Context error"
-
-    def test_to_cancelled_event_default_system(self):
-        """Test cancelled event defaulting to 'system' when no user_id."""
-        instance = SagaInstance(
-            saga_name="test",
-            execution_id="exec-130",
-            context_data={},  # No user_id
-            error_message=None,  # No error message
-        )
-
-        event = SagaEventMapper.to_cancelled_event(instance)
-
-        assert event.cancelled_by == "system"
-        assert event.reason == "User requested cancellation"  # Default reason
 
 
 class TestSagaFilterMapper:

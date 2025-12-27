@@ -5,9 +5,7 @@ from unittest.mock import patch
 from uuid import UUID
 
 import pytest
-
 from app.domain.saved_script.models import (
-    DomainSavedScript,
     DomainSavedScriptCreate,
     DomainSavedScriptUpdate,
 )

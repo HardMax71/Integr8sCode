@@ -4,7 +4,6 @@ from typing import Any
 from app.domain.admin import (
     ReplayQuery,
     ReplaySession,
-    ReplaySessionData,
     ReplaySessionFields,
     ReplaySessionStatusDetail,
     ReplaySessionStatusInfo,
@@ -148,30 +147,6 @@ class ReplayQueryMapper:
             mongo_query[EventFields.TIMESTAMP] = time_query
 
         return mongo_query
-
-
-class ReplaySessionDataMapper:
-    @staticmethod
-    def to_dict(data: ReplaySessionData) -> dict[str, Any]:
-        result = {
-            "dry_run": data.dry_run,
-            "total_events": data.total_events,
-            "replay_correlation_id": data.replay_correlation_id,
-            "query": data.query,
-        }
-
-        if data.dry_run and data.events_preview:
-            result["events_preview"] = [
-                {
-                    "event_id": e.event_id,
-                    "event_type": e.event_type,
-                    "timestamp": e.timestamp,
-                    "aggregate_id": e.aggregate_id,
-                }
-                for e in data.events_preview
-            ]
-
-        return result
 
 
 class ReplayApiMapper:

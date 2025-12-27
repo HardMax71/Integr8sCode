@@ -2,8 +2,6 @@ from typing import Any
 
 from app.domain.enums.saga import SagaState
 from app.domain.saga.models import Saga, SagaFilter, SagaInstance
-from app.infrastructure.kafka.events.metadata import AvroEventMetadata as EventMetadata
-from app.infrastructure.kafka.events.saga import SagaCancelledEvent
 
 
 class SagaMapper:
@@ -137,37 +135,6 @@ class SagaInstanceMapper:
             "completed_at": instance.completed_at,
             "retry_count": instance.retry_count,
         }
-
-
-class SagaEventMapper:
-    """Maps saga domain objects to typed Kafka events."""
-
-    @staticmethod
-    def to_cancelled_event(
-        instance: SagaInstance,
-        *,
-        user_id: str | None = None,
-        service_name: str = "saga-orchestrator",
-        service_version: str = "1.0.0",
-    ) -> SagaCancelledEvent:
-        cancelled_by = user_id or instance.context_data.get("user_id") or "system"
-        metadata = EventMetadata(
-            service_name=service_name,
-            service_version=service_version,
-            user_id=cancelled_by,
-        )
-
-        return SagaCancelledEvent(
-            saga_id=instance.saga_id,
-            saga_name=instance.saga_name,
-            execution_id=instance.execution_id,
-            reason=instance.error_message or "User requested cancellation",
-            completed_steps=instance.completed_steps,
-            compensated_steps=instance.compensated_steps,
-            cancelled_at=instance.completed_at,
-            cancelled_by=cancelled_by,
-            metadata=metadata,
-        )
 
 
 class SagaFilterMapper:

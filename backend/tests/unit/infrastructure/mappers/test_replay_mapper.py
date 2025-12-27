@@ -1,16 +1,13 @@
 from datetime import datetime, timezone
 
 import pytest
-
 from app.domain.admin import (
     ReplayQuery,
     ReplaySession,
     ReplaySessionStatusDetail,
 )
-from app.domain.admin import ReplaySessionData
 from app.domain.enums.replay import ReplayStatus
-from app.domain.events.event_models import EventSummary
-from app.infrastructure.mappers import ReplayQueryMapper, ReplaySessionDataMapper, ReplaySessionMapper
+from app.infrastructure.mappers import ReplayQueryMapper, ReplaySessionMapper
 
 pytestmark = pytest.mark.unit
 
@@ -52,9 +49,3 @@ def test_replay_query_mapper() -> None:
     assert "timestamp" in mq2 and "$gte" in mq2["timestamp"] and "$lte" in mq2["timestamp"]
 
 
-def test_replay_session_data_mapper() -> None:
-    es = [EventSummary(event_id="e1", event_type="X", timestamp=datetime.now(timezone.utc))]
-    data = ReplaySessionData(total_events=1, replay_correlation_id="rc", dry_run=True, query={"x": 1},
-                             events_preview=es)
-    dd = ReplaySessionDataMapper.to_dict(data)
-    assert dd["dry_run"] is True and len(dd.get("events_preview", [])) == 1

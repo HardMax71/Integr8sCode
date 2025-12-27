@@ -1,7 +1,6 @@
-import pytest
 from datetime import datetime, timezone
 
-from app.infrastructure.mappers import AuditLogMapper, SettingsMapper, UserMapper
+import pytest
 from app.domain.admin import (
     AuditAction,
     AuditLogEntry,
@@ -11,9 +10,9 @@ from app.domain.admin import (
     SystemSettings,
 )
 from app.domain.user import User as DomainAdminUser
-from app.domain.user import UserRole, UserUpdate, UserCreation
+from app.domain.user import UserCreation, UserRole, UserUpdate
+from app.infrastructure.mappers import AuditLogMapper, SettingsMapper, UserMapper
 from app.schemas_pydantic.user import User as ServiceUser
-
 
 pytestmark = pytest.mark.unit
 

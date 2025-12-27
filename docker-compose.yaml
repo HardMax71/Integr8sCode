@@ -82,6 +82,8 @@ services:
         condition: service_completed_successfully
       cert-generator:
         condition: service_completed_successfully
+      user-seed:
+        condition: service_completed_successfully
       mongo:
         condition: service_healthy
       redis:

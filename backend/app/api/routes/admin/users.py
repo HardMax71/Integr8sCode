@@ -9,8 +9,12 @@ from app.db.repositories.admin.admin_user_repository import AdminUserRepository
 from app.domain.enums.user import UserRole
 from app.domain.rate_limit import UserRateLimit
 from app.domain.user import UserUpdate as DomainUserUpdate
-from app.infrastructure.mappers import AdminOverviewApiMapper
-from app.schemas_pydantic.admin_user_overview import AdminUserOverview
+from app.schemas_pydantic.admin_user_overview import (
+    AdminUserOverview,
+    DerivedCounts,
+    RateLimitSummary,
+)
+from app.schemas_pydantic.events import EventResponse, EventStatistics
 from app.schemas_pydantic.user import (
     DeleteUserResponse,
     MessageResponse,
@@ -110,8 +114,13 @@ async def get_user_overview(
         domain = await admin_user_service.get_user_overview(user_id=user_id, hours=24)
     except ValueError:
         raise HTTPException(status_code=404, detail="User not found")
-    mapper = AdminOverviewApiMapper()
-    return mapper.to_response(domain)
+    return AdminUserOverview(
+        user=UserResponse.model_validate(domain.user),
+        stats=EventStatistics.model_validate(domain.stats),
+        derived_counts=DerivedCounts.model_validate(domain.derived_counts),
+        rate_limit_summary=RateLimitSummary.model_validate(domain.rate_limit_summary),
+        recent_events=[EventResponse.model_validate(e).model_dump() for e in domain.recent_events],
+    )
 
 
 @router.put("/{user_id}", response_model=UserResponse)

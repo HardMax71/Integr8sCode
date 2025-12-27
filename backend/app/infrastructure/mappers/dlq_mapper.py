@@ -7,13 +7,11 @@ from typing import Mapping
 from confluent_kafka import Message
 
 from app.dlq.models import (
-    DLQBatchRetryResult,
     DLQFields,
     DLQMessage,
     DLQMessageFilter,
     DLQMessageStatus,
     DLQMessageUpdate,
-    DLQRetryResult,
 )
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.events import BaseEvent
@@ -146,44 +144,6 @@ class DLQMapper:
             dlq_offset=offset if offset >= 0 else None,
             dlq_partition=partition if partition >= 0 else None,
         )
-
-    @staticmethod
-    def to_response_dict(message: DLQMessage) -> dict[str, object]:
-        return {
-            "event_id": message.event_id,
-            "event_type": message.event_type,
-            "event": message.event.to_dict(),
-            "original_topic": message.original_topic,
-            "error": message.error,
-            "retry_count": message.retry_count,
-            "failed_at": message.failed_at,
-            "status": message.status,
-            "age_seconds": message.age_seconds,
-            "producer_id": message.producer_id,
-            "dlq_offset": message.dlq_offset,
-            "dlq_partition": message.dlq_partition,
-            "last_error": message.last_error,
-            "next_retry_at": message.next_retry_at,
-            "retried_at": message.retried_at,
-            "discarded_at": message.discarded_at,
-            "discard_reason": message.discard_reason,
-        }
-
-    @staticmethod
-    def retry_result_to_dict(result: DLQRetryResult) -> dict[str, object]:
-        d: dict[str, object] = {"event_id": result.event_id, "status": result.status}
-        if result.error:
-            d["error"] = result.error
-        return d
-
-    @staticmethod
-    def batch_retry_result_to_dict(result: DLQBatchRetryResult) -> dict[str, object]:
-        return {
-            "total": result.total,
-            "successful": result.successful,
-            "failed": result.failed,
-            "details": [DLQMapper.retry_result_to_dict(d) for d in result.details],
-        }
 
     # Domain construction and updates
     @staticmethod

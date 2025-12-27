@@ -7,15 +7,12 @@ import pytest
 
 from app.domain.enums.saga import SagaState
 from app.domain.saga.models import Saga, SagaFilter, SagaInstance
-from app.infrastructure.kafka.events.metadata import EventMetadata
 from app.infrastructure.mappers.saga_mapper import (
     SagaEventMapper,
     SagaFilterMapper,
     SagaInstanceMapper,
     SagaMapper,
-    SagaResponseMapper,
 )
-from app.schemas_pydantic.saga import SagaStatusResponse
 
 
 @pytest.fixture
@@ -101,21 +98,6 @@ class TestSagaMapper:
 
         # Should return the non-dict value as-is (line 38 checks isinstance)
         assert doc["context_data"] == "not a dict"
-
-    def test_to_dict_without_completed_at(self):
-        """Test to_dict when completed_at is None."""
-        saga = Saga(
-            saga_id="saga-003",
-            saga_name="incomplete",
-            execution_id="exec-003",
-            state=SagaState.RUNNING,
-            completed_at=None,  # Not completed
-        )
-
-        mapper = SagaMapper()
-        result = mapper.to_dict(saga)
-
-        assert result["completed_at"] is None
 
     def test_from_instance(self, sample_saga_instance):
         """Test converting SagaInstance to Saga."""
@@ -392,49 +374,3 @@ class TestSagaFilterMapper:
         query = mapper.to_mongodb_query(filter_obj)
 
         assert query == {}
-
-
-class TestSagaResponseMapper:
-    """Extended tests for SagaResponseMapper."""
-
-    def test_to_response_with_none_completed_at(self):
-        """Test response mapping when completed_at is None."""
-        saga = Saga(
-            saga_id="saga-200",
-            saga_name="incomplete",
-            execution_id="exec-200",
-            state=SagaState.RUNNING,
-            completed_at=None,
-        )
-
-        mapper = SagaResponseMapper()
-        response = mapper.to_response(saga)
-
-        assert response.saga_id == "saga-200"
-        assert response.completed_at is None
-
-    def test_list_to_responses_empty(self):
-        """Test converting empty list of sagas."""
-        mapper = SagaResponseMapper()
-        responses = mapper.list_to_responses([])
-
-        assert responses == []
-
-    def test_list_to_responses_multiple(self):
-        """Test converting multiple sagas to responses."""
-        sagas = [
-            Saga(
-                saga_id=f"saga-{i}",
-                saga_name="test",
-                execution_id=f"exec-{i}",
-                state=SagaState.COMPLETED,
-            )
-            for i in range(3)
-        ]
-
-        mapper = SagaResponseMapper()
-        responses = mapper.list_to_responses(sagas)
-
-        assert len(responses) == 3
-        assert all(isinstance(r, SagaStatusResponse) for r in responses)
-        assert [r.saga_id for r in responses] == ["saga-0", "saga-1", "saga-2"]

@@ -3,7 +3,6 @@ from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Query, Request
 
 from app.domain.enums.saga import SagaState
-from app.infrastructure.mappers import SagaResponseMapper
 from app.infrastructure.mappers import UserMapper as AdminUserMapper
 from app.schemas_pydantic.saga import (
     SagaCancellationResponse,
@@ -47,8 +46,7 @@ async def get_saga_status(
     service_user = User.from_response(current_user)
     domain_user = AdminUserMapper.from_pydantic_service_user(service_user)
     saga = await saga_service.get_saga_with_access_check(saga_id, domain_user)
-    mapper = SagaResponseMapper()
-    return mapper.to_response(saga)
+    return SagaStatusResponse.from_domain(saga)
 
 
 @router.get("/execution/{execution_id}", response_model=SagaListResponse)
@@ -79,8 +77,7 @@ async def get_execution_sagas(
     service_user = User.from_response(current_user)
     domain_user = AdminUserMapper.from_pydantic_service_user(service_user)
     sagas = await saga_service.get_execution_sagas(execution_id, domain_user, state)
-    mapper = SagaResponseMapper()
-    saga_responses = mapper.list_to_responses(sagas)
+    saga_responses = [SagaStatusResponse.from_domain(s) for s in sagas]
     return SagaListResponse(sagas=saga_responses, total=len(saga_responses))
 
 
@@ -111,8 +108,7 @@ async def list_sagas(
     service_user = User.from_response(current_user)
     domain_user = AdminUserMapper.from_pydantic_service_user(service_user)
     result = await saga_service.list_user_sagas(domain_user, state, limit, offset)
-    mapper = SagaResponseMapper()
-    saga_responses = mapper.list_to_responses(result.sagas)
+    saga_responses = [SagaStatusResponse.from_domain(s) for s in result.sagas]
     return SagaListResponse(sagas=saga_responses, total=result.total)
 
 

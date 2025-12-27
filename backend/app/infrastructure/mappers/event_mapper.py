@@ -1,57 +1,16 @@
-from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Any
-from uuid import uuid4
 
 from app.domain.events.event_models import (
     ArchivedEvent,
-    DomainEventMetadata,
     Event,
-    EventBrowseResult,
-    EventDetail,
     EventExportRow,
     EventFields,
     EventFilter,
-    EventListResult,
-    EventProjection,
-    EventReplayInfo,
-    EventStatistics,
+    EventMetadata,
     EventSummary,
-    HourlyEventCount,
 )
-from app.infrastructure.kafka.events.metadata import EventMetadata
 from app.schemas_pydantic.admin_events import EventFilter as AdminEventFilter
-
-
-def metadata_to_dict(metadata: DomainEventMetadata) -> dict[str, Any]:
-    """Convert domain metadata to dict for storage."""
-    return {k: v for k, v in asdict(metadata).items() if v is not None}
-
-
-def metadata_from_dict(data: dict[str, Any]) -> DomainEventMetadata:
-    """Create domain metadata from dict."""
-    return DomainEventMetadata(
-        service_name=data.get("service_name", "unknown"),
-        service_version=data.get("service_version", "1.0"),
-        correlation_id=data.get("correlation_id", str(uuid4())),
-        user_id=data.get("user_id"),
-        ip_address=data.get("ip_address"),
-        user_agent=data.get("user_agent"),
-        environment=data.get("environment", "production"),
-    )
-
-
-def infra_metadata_to_domain(infra: EventMetadata) -> DomainEventMetadata:
-    """Convert infrastructure EventMetadata to domain DomainEventMetadata."""
-    return DomainEventMetadata(
-        service_name=infra.service_name,
-        service_version=infra.service_version,
-        correlation_id=infra.correlation_id,
-        user_id=infra.user_id,
-        ip_address=infra.ip_address,
-        user_agent=infra.user_agent,
-        environment=str(infra.environment) if infra.environment else "production",
-    )
 
 
 class EventMapper:
@@ -65,7 +24,7 @@ class EventMapper:
             EventFields.EVENT_TYPE: event.event_type,
             EventFields.EVENT_VERSION: event.event_version,
             EventFields.TIMESTAMP: event.timestamp,
-            EventFields.METADATA: metadata_to_dict(event.metadata),
+            EventFields.METADATA: event.metadata.to_dict(exclude_none=True),
             EventFields.PAYLOAD: event.payload,
         }
 
@@ -109,7 +68,7 @@ class EventMapper:
             event_type=document[EventFields.EVENT_TYPE],
             event_version=document.get(EventFields.EVENT_VERSION, "1.0"),
             timestamp=document.get(EventFields.TIMESTAMP, datetime.now(timezone.utc)),
-            metadata=metadata_from_dict(document.get(EventFields.METADATA, {})),
+            metadata=EventMetadata.from_dict(document.get(EventFields.METADATA, {})),
             payload=payload,
             aggregate_id=document.get(EventFields.AGGREGATE_ID),
             stored_at=document.get(EventFields.STORED_AT),
@@ -118,64 +77,10 @@ class EventMapper:
             error=document.get(EventFields.ERROR),
         )
 
-    @staticmethod
-    def to_dict(event: Event) -> dict[str, Any]:
-        """Convert event to API response dictionary."""
-        result: dict[str, Any] = {
-            "event_id": event.event_id,
-            "event_type": event.event_type,
-            "event_version": event.event_version,
-            "timestamp": event.timestamp,
-            "metadata": metadata_to_dict(event.metadata),
-            "payload": event.payload,
-        }
-
-        if event.aggregate_id is not None:
-            result["aggregate_id"] = event.aggregate_id
-        if event.correlation_id:
-            result["correlation_id"] = event.correlation_id
-        if event.stored_at is not None:
-            result["stored_at"] = event.stored_at
-        if event.ttl_expires_at is not None:
-            result["ttl_expires_at"] = event.ttl_expires_at
-        if event.status is not None:
-            result["status"] = event.status
-        if event.error is not None:
-            result["error"] = event.error
-
-        return result
-
-    @staticmethod
-    def from_dict(data: dict[str, Any]) -> Event:
-        """Create event from API request dictionary."""
-        return Event(
-            event_id=data["event_id"],
-            event_type=data["event_type"],
-            event_version=data.get("event_version", "1.0"),
-            timestamp=data.get("timestamp", datetime.now(timezone.utc)),
-            metadata=metadata_from_dict(data.get("metadata", {})),
-            payload=data.get("payload", {}),
-            aggregate_id=data.get("aggregate_id"),
-            stored_at=data.get("stored_at"),
-            ttl_expires_at=data.get("ttl_expires_at"),
-            status=data.get("status"),
-            error=data.get("error"),
-        )
 
 
 class EventSummaryMapper:
     """Handles EventSummary serialization."""
-
-    @staticmethod
-    def to_dict(summary: EventSummary) -> dict[EventFields, Any]:
-        result = {
-            EventFields.EVENT_ID: summary.event_id,
-            EventFields.EVENT_TYPE: summary.event_type,
-            EventFields.TIMESTAMP: summary.timestamp,
-        }
-        if summary.aggregate_id is not None:
-            result[EventFields.AGGREGATE_ID] = summary.aggregate_id
-        return result
 
     @staticmethod
     def from_mongo_document(document: dict[str, Any]) -> EventSummary:
@@ -185,98 +90,6 @@ class EventSummaryMapper:
             timestamp=document[EventFields.TIMESTAMP],
             aggregate_id=document.get(EventFields.AGGREGATE_ID),
         )
-
-
-class EventDetailMapper:
-    """Handles EventDetail serialization."""
-
-    @staticmethod
-    def to_dict(detail: EventDetail) -> dict[str, Any]:
-        event_mapper = EventMapper()
-        summary_mapper = EventSummaryMapper()
-
-        return {
-            "event": event_mapper.to_dict(detail.event),
-            "related_events": [summary_mapper.to_dict(e) for e in detail.related_events],
-            "timeline": [summary_mapper.to_dict(e) for e in detail.timeline],
-        }
-
-
-class EventListResultMapper:
-    """Handles EventListResult serialization."""
-
-    @staticmethod
-    def to_dict(result: EventListResult) -> dict[str, Any]:
-        event_mapper = EventMapper()
-        return {
-            "events": [event_mapper.to_dict(event) for event in result.events],
-            "total": result.total,
-            "skip": result.skip,
-            "limit": result.limit,
-            "has_more": result.has_more,
-        }
-
-
-class EventBrowseResultMapper:
-    """Handles EventBrowseResult serialization."""
-
-    @staticmethod
-    def to_dict(result: EventBrowseResult) -> dict[str, Any]:
-        event_mapper = EventMapper()
-        return {
-            "events": [event_mapper.to_dict(event) for event in result.events],
-            "total": result.total,
-            "skip": result.skip,
-            "limit": result.limit,
-        }
-
-
-class EventStatisticsMapper:
-    """Handles EventStatistics serialization."""
-
-    @staticmethod
-    def to_dict(stats: EventStatistics) -> dict[str, Any]:
-        result: dict[str, Any] = {
-            "total_events": stats.total_events,
-            "events_by_type": stats.events_by_type,
-            "events_by_service": stats.events_by_service,
-            "events_by_hour": [
-                {"hour": h.hour, "count": h.count} if isinstance(h, HourlyEventCount) else h
-                for h in stats.events_by_hour
-            ],
-            "top_users": [{"user_id": u.user_id, "event_count": u.event_count} for u in stats.top_users],
-            "error_rate": stats.error_rate,
-            "avg_processing_time": stats.avg_processing_time,
-        }
-
-        if stats.start_time is not None:
-            result["start_time"] = stats.start_time
-        if stats.end_time is not None:
-            result["end_time"] = stats.end_time
-
-        return result
-
-
-class EventProjectionMapper:
-    """Handles EventProjection serialization."""
-
-    @staticmethod
-    def to_dict(projection: EventProjection) -> dict[str, Any]:
-        result: dict[str, Any] = {
-            "name": projection.name,
-            "pipeline": projection.pipeline,
-            "output_collection": projection.output_collection,
-            "refresh_interval_seconds": projection.refresh_interval_seconds,
-        }
-
-        if projection.description is not None:
-            result["description"] = projection.description
-        if projection.source_events is not None:
-            result["source_events"] = projection.source_events
-        if projection.last_updated is not None:
-            result["last_updated"] = projection.last_updated
-
-        return result
 
 
 class ArchivedEventMapper:
@@ -400,16 +213,3 @@ class EventFilterMapper:
         )
 
 
-class EventReplayInfoMapper:
-    """Handles EventReplayInfo serialization."""
-
-    @staticmethod
-    def to_dict(info: EventReplayInfo) -> dict[str, Any]:
-        event_mapper = EventMapper()
-        return {
-            "events": [event_mapper.to_dict(event) for event in info.events],
-            "event_count": info.event_count,
-            "event_types": info.event_types,
-            "start_time": info.start_time,
-            "end_time": info.end_time,
-        }

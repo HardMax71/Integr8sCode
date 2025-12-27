@@ -1,7 +1,7 @@
 import pytest
 from datetime import datetime, timezone
 
-from app.infrastructure.mappers import AuditLogMapper, SettingsMapper, UserListResultMapper, UserMapper
+from app.infrastructure.mappers import AuditLogMapper, SettingsMapper, UserMapper
 from app.domain.admin import (
     AuditAction,
     AuditLogEntry,
@@ -11,7 +11,7 @@ from app.domain.admin import (
     SystemSettings,
 )
 from app.domain.user import User as DomainAdminUser
-from app.domain.user import UserListResult, UserRole, UserUpdate, UserCreation
+from app.domain.user import UserRole, UserUpdate, UserCreation
 from app.schemas_pydantic.user import User as ServiceUser
 
 
@@ -38,9 +38,6 @@ def test_user_mapper_roundtrip_and_validation() -> None:
     doc = UserMapper.to_mongo_document(user)
     back = UserMapper.from_mongo_document(doc)
     assert back.user_id == user.user_id and back.email == user.email
-
-    resp = UserMapper.to_response_dict(user)
-    assert isinstance(resp["created_at"], float) and isinstance(resp["updated_at"], float)
 
     # invalid email
     doc_bad = {**doc, "email": "bad"}
@@ -75,18 +72,6 @@ def test_user_mapper_from_service_and_update_dict() -> None:
     creation = UserCreation(username="c", email="c@example.com", password="12345678")
     cdict = UserMapper.user_creation_to_dict(creation)
     assert "created_at" in cdict and "updated_at" in cdict
-
-
-def test_user_list_result_mapper() -> None:
-    users = [
-        DomainAdminUser(
-            user_id="u1", username="a", email="a@example.com", role=UserRole.USER,
-            is_active=True, is_superuser=False, hashed_password="h", created_at=_now(), updated_at=_now()
-        )
-    ]
-    res = UserListResult(users=users, total=1, offset=0, limit=10)
-    out = UserListResultMapper.to_dict(res)
-    assert out["total"] == 1 and len(out["users"]) == 1
 
 
 def test_settings_mapper_roundtrip_defaults_and_custom() -> None:

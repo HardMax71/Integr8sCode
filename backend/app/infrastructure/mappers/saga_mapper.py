@@ -1,10 +1,9 @@
-from typing import Any, List
+from typing import Any
 
 from app.domain.enums.saga import SagaState
 from app.domain.saga.models import Saga, SagaFilter, SagaInstance
 from app.infrastructure.kafka.events.metadata import EventMetadata
 from app.infrastructure.kafka.events.saga import SagaCancelledEvent
-from app.schemas_pydantic.saga import SagaStatusResponse
 
 
 class SagaMapper:
@@ -71,46 +70,6 @@ class SagaMapper:
             completed_at=instance.completed_at,
             retry_count=instance.retry_count,
         )
-
-    def to_dict(self, saga: Saga) -> dict[str, Any]:
-        """Convert domain model to dictionary for API responses."""
-        return {
-            "saga_id": saga.saga_id,
-            "saga_name": saga.saga_name,
-            "execution_id": saga.execution_id,
-            "state": saga.state.value,
-            "current_step": saga.current_step,
-            "completed_steps": saga.completed_steps,
-            "compensated_steps": saga.compensated_steps,
-            "error_message": saga.error_message,
-            "created_at": saga.created_at.isoformat(),
-            "updated_at": saga.updated_at.isoformat(),
-            "completed_at": saga.completed_at.isoformat() if saga.completed_at else None,
-            "retry_count": saga.retry_count,
-        }
-
-
-class SagaResponseMapper:
-    """Maps saga domain models to Pydantic response models (API edge only)."""
-
-    def to_response(self, saga: Saga) -> SagaStatusResponse:
-        return SagaStatusResponse(
-            saga_id=saga.saga_id,
-            saga_name=saga.saga_name,
-            execution_id=saga.execution_id,
-            state=saga.state,
-            current_step=saga.current_step,
-            completed_steps=saga.completed_steps,
-            compensated_steps=saga.compensated_steps,
-            error_message=saga.error_message,
-            created_at=saga.created_at.isoformat(),
-            updated_at=saga.updated_at.isoformat(),
-            completed_at=saga.completed_at.isoformat() if saga.completed_at else None,
-            retry_count=saga.retry_count,
-        )
-
-    def list_to_responses(self, sagas: List[Saga]) -> List[SagaStatusResponse]:
-        return [self.to_response(s) for s in sagas]
 
 
 class SagaInstanceMapper:

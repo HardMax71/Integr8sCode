@@ -70,7 +70,7 @@ async def list_replay_sessions(
 @router.get("/sessions/{session_id}", response_model=ReplaySession)
 async def get_replay_session(session_id: str, service: FromDishka[ReplayService]) -> ReplaySession:
     state = service.get_session(session_id)
-    return ReplayApiMapper.session_to_response(state)
+    return ReplaySession.model_validate(state)
 
 
 @router.post("/cleanup", response_model=CleanupResponse)

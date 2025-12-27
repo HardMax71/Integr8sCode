@@ -1,10 +1,10 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
-from uuid import uuid4
 
 from app.core.utils import StringEnum
 from app.domain.enums.events import EventType
+from app.infrastructure.kafka.events.metadata import EventMetadata
 
 MongoQueryValue = str | dict[str, str | list[str] | float | datetime]
 MongoQuery = dict[str, MongoQueryValue]
@@ -74,19 +74,6 @@ class CollectionNames(StringEnum):
 
 
 @dataclass
-class DomainEventMetadata:
-    """Domain model for event metadata."""
-
-    service_name: str
-    service_version: str
-    correlation_id: str = field(default_factory=lambda: str(uuid4()))
-    user_id: str | None = None
-    ip_address: str | None = None
-    user_agent: str | None = None
-    environment: str = "production"
-
-
-@dataclass
 class Event:
     """Domain model for an event."""
 
@@ -94,7 +81,7 @@ class Event:
     event_type: EventType
     event_version: str
     timestamp: datetime
-    metadata: DomainEventMetadata
+    metadata: EventMetadata
     payload: dict[str, Any]
     aggregate_id: str | None = None
     stored_at: datetime | None = None

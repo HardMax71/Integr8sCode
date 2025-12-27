@@ -12,9 +12,7 @@ from app.core.correlation import CorrelationContext
 from app.domain.enums.events import EventType
 from app.infrastructure.mappers import (
     AdminReplayApiMapper,
-    EventDetailMapper,
     EventFilterMapper,
-    EventMapper,
 )
 from app.schemas_pydantic.admin_events import (
     EventBrowseRequest,
@@ -48,9 +46,8 @@ async def browse_events(request: EventBrowseRequest, service: FromDishka[AdminEv
             sort_order=request.sort_order,
         )
 
-        event_mapper = EventMapper()
         return EventBrowseResponse(
-            events=[jsonable_encoder(event_mapper.to_dict(event)) for event in result.events],
+            events=[jsonable_encoder(event) for event in result.events],
             total=result.total,
             skip=result.skip,
             limit=result.limit,
@@ -144,12 +141,10 @@ async def get_event_detail(event_id: str, service: FromDishka[AdminEventsService
         if not result:
             raise HTTPException(status_code=404, detail="Event not found")
 
-        detail_mapper = EventDetailMapper()
-        serialized_result = jsonable_encoder(detail_mapper.to_dict(result))
         return EventDetailResponse(
-            event=serialized_result["event"],
-            related_events=serialized_result["related_events"],
-            timeline=serialized_result["timeline"],
+            event=jsonable_encoder(result.event),
+            related_events=[jsonable_encoder(e) for e in result.related_events],
+            timeline=[jsonable_encoder(e) for e in result.timeline],
         )
 
     except HTTPException:

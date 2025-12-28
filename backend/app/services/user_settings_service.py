@@ -393,13 +393,13 @@ class UserSettingsService:
         if "notifications" in upd:
             n = parse_value(upd["notifications"])
             if isinstance(n, dict):
-                channels: list[NotificationChannel] = [NotificationChannel(c) for c in n.get("channels", [])]
+                notif_channels: list[NotificationChannel] = [NotificationChannel(c) for c in n.get("channels", [])]
                 settings.notifications = DomainNotificationSettings(
                     execution_completed=n.get("execution_completed", settings.notifications.execution_completed),
                     execution_failed=n.get("execution_failed", settings.notifications.execution_failed),
                     system_updates=n.get("system_updates", settings.notifications.system_updates),
                     security_alerts=n.get("security_alerts", settings.notifications.security_alerts),
-                    channels=channels or settings.notifications.channels,
+                    channels=notif_channels or settings.notifications.channels,
                 )
         if "editor" in upd:
             e = parse_value(upd["editor"])

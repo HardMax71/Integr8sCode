@@ -127,12 +127,15 @@ def create_test_app():
 
 # ===== App without lifespan for tests =====
 @pytest_asyncio.fixture(scope="session")
-async def app():
+async def app(_test_env):  # type: ignore[valid-type]
     """Create FastAPI app once per session/worker.
 
     Session-scoped to avoid Pydantic schema validator memory issues when
     FastAPI recreates OpenAPI schemas hundreds of times with pytest-xdist.
     See: https://github.com/pydantic/pydantic/issues/1864
+
+    Depends on _test_env to ensure env vars (REDIS_DB, DATABASE_NAME, etc.)
+    are set before the app/Settings are created.
 
     Note: Tests must not modify app.state or registered routes.
     Use function-scoped `client` fixture for test isolation.

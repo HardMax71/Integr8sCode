@@ -133,7 +133,7 @@ class ExecutionRepository:
             resource_usage_data = doc.get("resource_usage")
             executions.append(
                 DomainExecution(
-                    execution_id=str(doc.get("execution_id", "")),
+                    execution_id=doc["execution_id"],
                     script=doc.get("script", ""),
                     status=ExecutionStatus(str(sv)),
                     stdout=doc.get("stdout"),

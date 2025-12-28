@@ -48,11 +48,11 @@ class TestHealthRoutes:
         assert all(r.status_code == 200 for r in responses)
 
     @pytest.mark.asyncio
-    async def test_app_responds_during_load(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_app_responds_during_load(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         # Login first for creating load
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200

@@ -27,12 +27,12 @@ class TestAdminSettings:
         assert "not authenticated" in error["detail"].lower() or "unauthorized" in error["detail"].lower()
 
     @pytest.mark.asyncio
-    async def test_get_settings_with_admin_auth(self, client: AsyncClient, shared_admin: Dict[str, str]) -> None:
+    async def test_get_settings_with_admin_auth(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
         """Test getting system settings with admin authentication."""
         # Login and get cookies
         login_data = {
-            "username": shared_admin["username"],
-            "password": shared_admin["password"]
+            "username": test_admin["username"],
+            "password": test_admin["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -68,12 +68,12 @@ class TestAdminSettings:
         assert settings.monitoring_settings.sampling_rate == 0.1
 
     @pytest.mark.asyncio
-    async def test_update_and_reset_settings(self, client: AsyncClient, shared_admin: Dict[str, str]) -> None:
+    async def test_update_and_reset_settings(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
         """Test updating and resetting system settings."""
         # Login as admin
         login_data = {
-            "username": shared_admin["username"],
-            "password": shared_admin["password"]
+            "username": test_admin["username"],
+            "password": test_admin["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -125,12 +125,12 @@ class TestAdminSettings:
         assert reset_settings.monitoring_settings.log_level == "INFO"
 
     @pytest.mark.asyncio
-    async def test_regular_user_cannot_access_settings(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_regular_user_cannot_access_settings(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test that regular users cannot access admin settings."""
         # Login as regular user
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -149,12 +149,12 @@ class TestAdminUsers:
     """Test admin user management endpoints against real backend."""
 
     @pytest.mark.asyncio
-    async def test_list_users_with_pagination(self, client: AsyncClient, shared_admin: Dict[str, str]) -> None:
+    async def test_list_users_with_pagination(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
         """Test listing users with pagination."""
         # Login as admin
         login_data = {
-            "username": shared_admin["username"],
-            "password": shared_admin["password"]
+            "username": test_admin["username"],
+            "password": test_admin["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -188,12 +188,12 @@ class TestAdminUsers:
             assert "updated_at" in user
 
     @pytest.mark.asyncio
-    async def test_create_and_manage_user(self, client: AsyncClient, shared_admin: Dict[str, str]) -> None:
+    async def test_create_and_manage_user(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
         """Test full user CRUD operations."""
         # Login as admin
         login_data = {
-            "username": shared_admin["username"],
-            "password": shared_admin["password"]
+            "username": test_admin["username"],
+            "password": test_admin["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -257,12 +257,12 @@ class TestAdminEvents:
     """Test admin event management endpoints against real backend."""
 
     @pytest.mark.asyncio
-    async def test_browse_events(self, client: AsyncClient, shared_admin: Dict[str, str]) -> None:
+    async def test_browse_events(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
         """Test browsing events with filters."""
         # Login as admin
         login_data = {
-            "username": shared_admin["username"],
-            "password": shared_admin["password"]
+            "username": test_admin["username"],
+            "password": test_admin["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -291,12 +291,12 @@ class TestAdminEvents:
         assert data["total"] >= 0
 
     @pytest.mark.asyncio
-    async def test_event_statistics(self, client: AsyncClient, shared_admin: Dict[str, str]) -> None:
+    async def test_event_statistics(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
         """Test getting event statistics."""
         # Login as admin
         login_data = {
-            "username": shared_admin["username"],
-            "password": shared_admin["password"]
+            "username": test_admin["username"],
+            "password": test_admin["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -324,10 +324,10 @@ class TestAdminEvents:
             assert data["error_rate"] >= 0.0
 
     @pytest.mark.asyncio
-    async def test_admin_events_export_csv_and_json(self, client: AsyncClient, shared_admin: Dict[str, str]) -> None:
+    async def test_admin_events_export_csv_and_json(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
         """Export admin events as CSV and JSON and validate basic structure."""
         # Login as admin
-        login_data = {"username": shared_admin["username"], "password": shared_admin["password"]}
+        login_data = {"username": test_admin["username"], "password": test_admin["password"]}
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
 
@@ -352,10 +352,10 @@ class TestAdminEvents:
 
     @pytest.mark.asyncio
     async def test_admin_user_rate_limits_and_password_reset(self, client: AsyncClient,
-                                                             shared_admin: Dict[str, str]) -> None:
+                                                             test_admin: Dict[str, str]) -> None:
         """Create a user, manage rate limits, and reset password via admin endpoints."""
         # Login as admin
-        login_data = {"username": shared_admin["username"], "password": shared_admin["password"]}
+        login_data = {"username": test_admin["username"], "password": test_admin["password"]}
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
 

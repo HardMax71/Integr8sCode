@@ -38,7 +38,7 @@ class TestSSERoutes:
         assert r.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_sse_health_status(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_sse_health_status(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         r = await client.get("/api/v1/events/health")
         assert r.status_code == 200
         health = SSEHealthResponse(**r.json())
@@ -46,7 +46,7 @@ class TestSSERoutes:
         assert isinstance(health.active_connections, int) and health.active_connections >= 0
 
     @pytest.mark.asyncio
-    async def test_notification_stream_service(self, scope, shared_user: Dict[str, str]) -> None:  # type: ignore[valid-type]
+    async def test_notification_stream_service(self, scope, test_user: Dict[str, str]) -> None:  # type: ignore[valid-type]
         """Test SSE notification stream directly through service (httpx doesn't support SSE streaming)."""
         sse_service: SSEService = await scope.get(SSEService)
         bus: SSERedisBus = await scope.get(SSERedisBus)
@@ -97,7 +97,7 @@ class TestSSERoutes:
         assert len(notif_events) > 0
 
     @pytest.mark.asyncio
-    async def test_execution_event_stream_service(self, scope, shared_user: Dict[str, str]) -> None:  # type: ignore[valid-type]
+    async def test_execution_event_stream_service(self, scope, test_user: Dict[str, str]) -> None:  # type: ignore[valid-type]
         """Test SSE execution stream directly through service (httpx doesn't support SSE streaming)."""
         exec_id = f"e-{uuid4().hex[:8]}"
         user_id = "test-user-id"
@@ -158,7 +158,7 @@ class TestSSERoutes:
         assert r.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_sse_endpoint_returns_correct_headers(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_sse_endpoint_returns_correct_headers(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         task = asyncio.create_task(client.get("/api/v1/events/notifications/stream"))
         
         async def _tick() -> None:
@@ -176,7 +176,7 @@ class TestSSERoutes:
         assert isinstance(r.json(), dict)
 
     @pytest.mark.asyncio
-    async def test_multiple_concurrent_sse_service_connections(self, scope, shared_user: Dict[str, str]) -> None:  # type: ignore[valid-type]
+    async def test_multiple_concurrent_sse_service_connections(self, scope, test_user: Dict[str, str]) -> None:  # type: ignore[valid-type]
         """Test multiple concurrent SSE connections through the service."""
         sse_service: SSEService = await scope.get(SSEService)
         

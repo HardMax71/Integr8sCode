@@ -53,12 +53,12 @@ class TestExecution:
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(not has_k8s_workers(), reason="K8s workers not available")
-    async def test_execute_simple_python_script(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_execute_simple_python_script(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test executing a simple Python script."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -97,12 +97,12 @@ class TestExecution:
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(not has_k8s_workers(), reason="K8s workers not available")
-    async def test_get_execution_result(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_get_execution_result(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test getting execution result after completion using SSE (event-driven)."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -138,12 +138,12 @@ class TestExecution:
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(not has_k8s_workers(), reason="K8s workers not available")
-    async def test_execute_with_error(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_execute_with_error(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test executing a script that produces an error."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -164,12 +164,12 @@ class TestExecution:
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(not has_k8s_workers(), reason="K8s workers not available")
-    async def test_execute_with_resource_tracking(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_execute_with_resource_tracking(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test that execution tracks resource usage."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -207,12 +207,12 @@ print('Done')
     @pytest.mark.asyncio
     @pytest.mark.skipif(not has_k8s_workers(), reason="K8s workers not available")
     async def test_execute_with_different_language_versions(self, client: AsyncClient,
-                                                            shared_user: Dict[str, str]) -> None:
+                                                            test_user: Dict[str, str]) -> None:
         """Test execution with different Python versions."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -241,12 +241,12 @@ print('Done')
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(not has_k8s_workers(), reason="K8s workers not available")
-    async def test_execute_with_large_output(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_execute_with_large_output(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test execution with large output."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -280,12 +280,12 @@ print('End of output')
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(not has_k8s_workers(), reason="K8s workers not available")
-    async def test_cancel_running_execution(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_cancel_running_execution(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test cancelling a running execution."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -327,7 +327,7 @@ print('Should not reach here if cancelled')
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(not has_k8s_workers(), reason="K8s workers not available")
-    async def test_execution_with_timeout(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_execution_with_timeout(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Bounded check: long-running executions don't finish immediately.
 
         The backend's default timeout is 300s. To keep integration fast,
@@ -336,8 +336,8 @@ print('Should not reach here if cancelled')
         """
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -365,12 +365,12 @@ while True:
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(not has_k8s_workers(), reason="K8s workers not available")
-    async def test_sandbox_restrictions(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_sandbox_restrictions(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test that dangerous operations are blocked by sandbox."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -422,12 +422,12 @@ while True:
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(not has_k8s_workers(), reason="K8s workers not available")
-    async def test_concurrent_executions_by_same_user(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_concurrent_executions_by_same_user(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test running multiple executions concurrently."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -490,10 +490,10 @@ while True:
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(not has_k8s_workers(), reason="K8s workers not available")
-    async def test_get_user_executions_list(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_get_user_executions_list(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """User executions list returns paginated executions for current user."""
         # Login first
-        login_data = {"username": shared_user["username"], "password": shared_user["password"]}
+        login_data = {"username": test_user["username"], "password": test_user["password"]}
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
 
@@ -506,10 +506,10 @@ while True:
     @pytest.mark.asyncio
     @pytest.mark.skipif(not has_k8s_workers(), reason="K8s workers not available")
     async def test_execution_idempotency_same_key_returns_same_execution(self, client: AsyncClient,
-                                                                         shared_user: Dict[str, str]) -> None:
+                                                                         test_user: Dict[str, str]) -> None:
         """Submitting the same request with the same Idempotency-Key yields the same execution_id."""
         # Login first
-        login_data = {"username": shared_user["username"], "password": shared_user["password"]}
+        login_data = {"username": test_user["username"], "password": test_user["password"]}
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
 

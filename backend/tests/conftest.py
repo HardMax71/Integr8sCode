@@ -128,7 +128,15 @@ def create_test_app():
 # ===== App without lifespan for tests =====
 @pytest_asyncio.fixture(scope="session")
 async def app():
-    """Create FastAPI app once per session/worker to avoid Pydantic schema crashes."""
+    """Create FastAPI app once per session/worker.
+
+    Session-scoped to avoid Pydantic schema validator memory issues when
+    FastAPI recreates OpenAPI schemas hundreds of times with pytest-xdist.
+    See: https://github.com/pydantic/pydantic/issues/1864
+
+    Note: Tests must not modify app.state or registered routes.
+    Use function-scoped `client` fixture for test isolation.
+    """
     application = create_test_app()
 
     yield application
@@ -201,7 +209,7 @@ async def _http_login(client: httpx.AsyncClient, username: str, password: str) -
 
 # Session-scoped shared users for convenience
 @pytest.fixture(scope="session")
-def shared_user_credentials():
+def test_user_credentials():
     uid = os.environ.get("PYTEST_SESSION_ID", uuid.uuid4().hex[:8])
     return {
         "username": f"test_user_{uid}",
@@ -212,7 +220,7 @@ def shared_user_credentials():
 
 
 @pytest.fixture(scope="session")
-def shared_admin_credentials():
+def test_admin_credentials():
     uid = os.environ.get("PYTEST_SESSION_ID", uuid.uuid4().hex[:8])
     return {
         "username": f"admin_user_{uid}",
@@ -223,22 +231,23 @@ def shared_admin_credentials():
 
 
 @pytest_asyncio.fixture
-async def shared_user(client: httpx.AsyncClient, shared_user_credentials):
-    creds = shared_user_credentials
-    # Always attempt to register; DB is wiped after each test
+async def test_user(client: httpx.AsyncClient, test_user_credentials):
+    """Function-scoped authenticated user. Recreated each test (DB wiped between tests)."""
+    creds = test_user_credentials
     r = await client.post("/api/v1/auth/register", json=creds)
     if r.status_code not in (200, 201, 400):
-        pytest.skip(f"Cannot create shared user (status {r.status_code}).")
+        pytest.skip(f"Cannot create test user (status {r.status_code}).")
     csrf = await _http_login(client, creds["username"], creds["password"])
     return {**creds, "csrf_token": csrf, "headers": {"X-CSRF-Token": csrf}}
 
 
 @pytest_asyncio.fixture
-async def shared_admin(client: httpx.AsyncClient, shared_admin_credentials):
-    creds = shared_admin_credentials
+async def test_admin(client: httpx.AsyncClient, test_admin_credentials):
+    """Function-scoped authenticated admin. Recreated each test (DB wiped between tests)."""
+    creds = test_admin_credentials
     r = await client.post("/api/v1/auth/register", json=creds)
     if r.status_code not in (200, 201, 400):
-        pytest.skip(f"Cannot create shared admin (status {r.status_code}).")
+        pytest.skip(f"Cannot create test admin (status {r.status_code}).")
     csrf = await _http_login(client, creds["username"], creds["password"])
     return {**creds, "csrf_token": csrf, "headers": {"X-CSRF-Token": csrf}}
 

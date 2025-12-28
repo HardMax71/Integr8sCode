@@ -25,10 +25,10 @@ class TestSagaRoutes:
 
     @pytest.mark.asyncio
     async def test_get_saga_not_found(
-            self, client: AsyncClient, shared_user: Dict[str, str]
+            self, client: AsyncClient, test_user: Dict[str, str]
     ) -> None:
         """Test getting non-existent saga returns 404."""
-        # Already authenticated via shared_user fixture
+        # Already authenticated via test_user fixture
 
         # Try to get non-existent saga
         saga_id = str(uuid.uuid4())
@@ -47,10 +47,10 @@ class TestSagaRoutes:
 
     @pytest.mark.asyncio
     async def test_get_execution_sagas_empty(
-            self, client: AsyncClient, shared_user: Dict[str, str]
+            self, client: AsyncClient, test_user: Dict[str, str]
     ) -> None:
         """Test getting sagas for execution with no sagas."""
-        # Already authenticated via shared_user fixture
+        # Already authenticated via test_user fixture
 
         # Get sagas for non-existent execution
         execution_id = str(uuid.uuid4())
@@ -60,10 +60,10 @@ class TestSagaRoutes:
 
     @pytest.mark.asyncio
     async def test_get_execution_sagas_with_state_filter(
-            self, client: AsyncClient, shared_user: Dict[str, str]
+            self, client: AsyncClient, test_user: Dict[str, str]
     ) -> None:
         """Test getting execution sagas filtered by state."""
-        # Already authenticated via shared_user fixture
+        # Already authenticated via test_user fixture
 
         # Get sagas filtered by running state
         execution_id = str(uuid.uuid4())
@@ -86,10 +86,10 @@ class TestSagaRoutes:
 
     @pytest.mark.asyncio
     async def test_list_sagas_paginated(
-            self, client: AsyncClient, shared_user: Dict[str, str]
+            self, client: AsyncClient, test_user: Dict[str, str]
     ) -> None:
         """Test listing sagas with pagination."""
-        # Already authenticated via shared_user fixture
+        # Already authenticated via test_user fixture
 
         # List sagas with pagination
         response = await client.get(
@@ -105,13 +105,13 @@ class TestSagaRoutes:
 
     @pytest.mark.asyncio
     async def test_list_sagas_with_state_filter(
-            self, client: AsyncClient, shared_user: Dict[str, str]
+            self, client: AsyncClient, test_user: Dict[str, str]
     ) -> None:
         """Test listing sagas filtered by state."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -131,13 +131,13 @@ class TestSagaRoutes:
 
     @pytest.mark.asyncio
     async def test_list_sagas_large_limit(
-            self, client: AsyncClient, shared_user: Dict[str, str]
+            self, client: AsyncClient, test_user: Dict[str, str]
     ) -> None:
         """Test listing sagas with maximum limit."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -154,13 +154,13 @@ class TestSagaRoutes:
 
     @pytest.mark.asyncio
     async def test_list_sagas_invalid_limit(
-            self, client: AsyncClient, shared_user: Dict[str, str]
+            self, client: AsyncClient, test_user: Dict[str, str]
     ) -> None:
         """Test listing sagas with invalid limit."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -181,13 +181,13 @@ class TestSagaRoutes:
 
     @pytest.mark.asyncio
     async def test_cancel_saga_not_found(
-            self, client: AsyncClient, shared_user: Dict[str, str]
+            self, client: AsyncClient, test_user: Dict[str, str]
     ) -> None:
         """Test cancelling non-existent saga returns 404."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -202,14 +202,14 @@ class TestSagaRoutes:
     async def test_saga_access_control(
             self,
             client: AsyncClient,
-            shared_user: Dict[str, str],
+            test_user: Dict[str, str],
             another_user: Dict[str, str]
     ) -> None:
         """Test that users can only access their own sagas."""
         # User 1 lists their sagas
         login_data1 = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response1 = await client.post("/api/v1/auth/login", data=login_data1)
         assert login_response1.status_code == 200
@@ -241,13 +241,13 @@ class TestSagaRoutes:
 
     @pytest.mark.asyncio
     async def test_get_saga_with_details(
-            self, client: AsyncClient, shared_user: Dict[str, str]
+            self, client: AsyncClient, test_user: Dict[str, str]
     ) -> None:
         """Test getting saga with all details when it exists."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -272,13 +272,13 @@ class TestSagaRoutes:
 
     @pytest.mark.asyncio
     async def test_list_sagas_with_offset(
-            self, client: AsyncClient, shared_user: Dict[str, str]
+            self, client: AsyncClient, test_user: Dict[str, str]
     ) -> None:
         """Test listing sagas with offset for pagination."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -308,13 +308,13 @@ class TestSagaRoutes:
 
     @pytest.mark.asyncio
     async def test_cancel_saga_invalid_state(
-            self, client: AsyncClient, shared_user: Dict[str, str]
+            self, client: AsyncClient, test_user: Dict[str, str]
     ) -> None:
         """Test cancelling a saga in invalid state (if one exists)."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -336,13 +336,13 @@ class TestSagaRoutes:
 
     @pytest.mark.asyncio
     async def test_get_execution_sagas_multiple_states(
-            self, client: AsyncClient, shared_user: Dict[str, str]
+            self, client: AsyncClient, test_user: Dict[str, str]
     ) -> None:
         """Test getting execution sagas across different states."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -368,13 +368,13 @@ class TestSagaRoutes:
 
     @pytest.mark.asyncio
     async def test_saga_response_structure(
-            self, client: AsyncClient, shared_user: Dict[str, str]
+            self, client: AsyncClient, test_user: Dict[str, str]
     ) -> None:
         """Test that saga responses have correct structure."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -399,13 +399,13 @@ class TestSagaRoutes:
 
     @pytest.mark.asyncio
     async def test_concurrent_saga_access(
-            self, client: AsyncClient, shared_user: Dict[str, str]
+            self, client: AsyncClient, test_user: Dict[str, str]
     ) -> None:
         """Test concurrent access to saga endpoints."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200

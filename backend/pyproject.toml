@@ -208,3 +208,8 @@ log_cli = false
 log_cli_level = "ERROR"
 log_level = "ERROR"
 addopts = "-n 4 --dist loadfile --tb=short -q --no-header -q"
+
+# Coverage configuration
+[tool.coverage.run]
+# Use sysmon for faster coverage (requires Python 3.12+)
+core = "sysmon"

@@ -44,8 +44,6 @@ jobs:
 
       - name: Run unit tests
         timeout-minutes: 5
-        env:
-          COVERAGE_CORE: sysmon
         run: |
           cd backend
           uv run pytest tests/unit -v -rs \
@@ -70,46 +68,10 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      # ========== DOCKER IMAGE CACHING ==========
-      - name: Cache Docker images
-        uses: actions/cache@v5
-        id: docker-cache
+      - name: Cache and load Docker images
+        uses: ./.github/actions/docker-cache
         with:
-          path: /tmp/docker-cache
-          key: docker-${{ runner.os }}-${{ env.MONGO_IMAGE }}-${{ env.REDIS_IMAGE }}-${{ env.KAFKA_IMAGE }}-${{ env.SCHEMA_REGISTRY_IMAGE }}
-
-      - name: Load cached Docker images
-        if: steps.docker-cache.outputs.cache-hit == 'true'
-        run: |
-          echo "Loading cached images..."
-          for f in /tmp/docker-cache/*.tar.zst; do
-            zstd -d -c "$f" | docker load &
-          done
-          wait
-          docker images
-
-      - name: Pull and save Docker images
-        if: steps.docker-cache.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p /tmp/docker-cache
-
-          echo "Pulling images in parallel..."
-          docker pull $MONGO_IMAGE &
-          docker pull $REDIS_IMAGE &
-          docker pull $KAFKA_IMAGE &
-          docker pull $SCHEMA_REGISTRY_IMAGE &
-          wait
-
-          echo "Saving images with zstd compression..."
-          docker save $MONGO_IMAGE | zstd -T0 -3 > /tmp/docker-cache/mongo.tar.zst &
-          docker save $REDIS_IMAGE | zstd -T0 -3 > /tmp/docker-cache/redis.tar.zst &
-          docker save $KAFKA_IMAGE | zstd -T0 -3 > /tmp/docker-cache/kafka.tar.zst &
-          docker save $SCHEMA_REGISTRY_IMAGE | zstd -T0 -3 > /tmp/docker-cache/schema-registry.tar.zst &
-          wait
-
-          echo "Cache size:"
-          du -sh /tmp/docker-cache/
-      # ==========================================
+          images: ${{ env.MONGO_IMAGE }} ${{ env.REDIS_IMAGE }} ${{ env.KAFKA_IMAGE }} ${{ env.SCHEMA_REGISTRY_IMAGE }}
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
@@ -141,7 +103,6 @@ jobs:
           REDIS_HOST: localhost
           REDIS_PORT: 6379
           SCHEMA_SUBJECT_PREFIX: "ci.${{ github.run_id }}."
-          COVERAGE_CORE: sysmon
         run: |
           cd backend
           uv run pytest tests/integration -v -rs \
@@ -182,46 +143,10 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      # ========== DOCKER IMAGE CACHING ==========
-      - name: Cache Docker images
-        uses: actions/cache@v5
-        id: docker-cache
+      - name: Cache and load Docker images
+        uses: ./.github/actions/docker-cache
         with:
-          path: /tmp/docker-cache
-          key: docker-${{ runner.os }}-${{ env.MONGO_IMAGE }}-${{ env.REDIS_IMAGE }}-${{ env.KAFKA_IMAGE }}-${{ env.SCHEMA_REGISTRY_IMAGE }}
-
-      - name: Load cached Docker images
-        if: steps.docker-cache.outputs.cache-hit == 'true'
-        run: |
-          echo "Loading cached images..."
-          for f in /tmp/docker-cache/*.tar.zst; do
-            zstd -d -c "$f" | docker load &
-          done
-          wait
-          docker images
-
-      - name: Pull and save Docker images
-        if: steps.docker-cache.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p /tmp/docker-cache
-
-          echo "Pulling images in parallel..."
-          docker pull $MONGO_IMAGE &
-          docker pull $REDIS_IMAGE &
-          docker pull $KAFKA_IMAGE &
-          docker pull $SCHEMA_REGISTRY_IMAGE &
-          wait
-
-          echo "Saving images with zstd compression..."
-          docker save $MONGO_IMAGE | zstd -T0 -3 > /tmp/docker-cache/mongo.tar.zst &
-          docker save $REDIS_IMAGE | zstd -T0 -3 > /tmp/docker-cache/redis.tar.zst &
-          docker save $KAFKA_IMAGE | zstd -T0 -3 > /tmp/docker-cache/kafka.tar.zst &
-          docker save $SCHEMA_REGISTRY_IMAGE | zstd -T0 -3 > /tmp/docker-cache/schema-registry.tar.zst &
-          wait
-
-          echo "Cache size:"
-          du -sh /tmp/docker-cache/
-      # ==========================================
+          images: ${{ env.MONGO_IMAGE }} ${{ env.REDIS_IMAGE }} ${{ env.KAFKA_IMAGE }} ${{ env.SCHEMA_REGISTRY_IMAGE }}
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
@@ -263,7 +188,6 @@ jobs:
           SCHEMA_SUBJECT_PREFIX: "ci.${{ github.run_id }}."
           KUBECONFIG: /home/runner/.kube/config
           K8S_NAMESPACE: integr8scode
-          COVERAGE_CORE: sysmon
         run: |
           cd backend
           uv run pytest tests/integration/k8s -v -rs \

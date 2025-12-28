@@ -5,10 +5,13 @@ import redis.asyncio as redis
 from app.core.database_context import Database
 
 
-@pytest_asyncio.fixture(scope="function", loop_scope="session", autouse=True)
+@pytest_asyncio.fixture(autouse=True)
 async def _cleanup(db: Database, redis_client: redis.Redis):
-    """Clean DB and Redis before/after each integration test."""
-    # Pre-test cleanup
+    """Clean DB and Redis before each integration test.
+
+    Only pre-test cleanup - post-test cleanup causes event loop issues
+    when SSE/streaming tests hold connections across loop boundaries.
+    """
     collections = await db.list_collection_names()
     for name in collections:
         if not name.startswith("system."):
@@ -16,10 +19,4 @@ async def _cleanup(db: Database, redis_client: redis.Redis):
     await redis_client.flushdb()
 
     yield
-
-    # Post-test cleanup
-    collections = await db.list_collection_names()
-    for name in collections:
-        if not name.startswith("system."):
-            await db.drop_collection(name)
-    await redis_client.flushdb()
+    # No post-test cleanup to avoid "Event loop is closed" errors

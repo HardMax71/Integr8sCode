@@ -17,7 +17,7 @@ from tests.helpers.eventually import eventually
 pytestmark = pytest.mark.xdist_group(name="user_settings")
 
 
-@pytest_asyncio.fixture(loop_scope="session")
+@pytest_asyncio.fixture
 async def test_user(client: AsyncClient) -> Dict[str, str]:
     """Create a fresh user for each test."""
     uid = uuid4().hex[:8]
@@ -49,7 +49,7 @@ async def test_user(client: AsyncClient) -> Dict[str, str]:
     }
 
 
-@pytest_asyncio.fixture(loop_scope="session")
+@pytest_asyncio.fixture
 async def test_user2(client: AsyncClient) -> Dict[str, str]:
     """Create a second fresh user for isolation tests."""
     uid = uuid4().hex[:8]

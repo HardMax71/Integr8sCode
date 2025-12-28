@@ -126,7 +126,7 @@ def create_test_app():
 
 
 # ===== App without lifespan for tests =====
-@pytest_asyncio.fixture(scope="session", loop_scope="session")
+@pytest_asyncio.fixture(scope="session")
 async def app():
     """Create FastAPI app once per session/worker to avoid Pydantic schema crashes."""
     application = create_test_app()
@@ -138,7 +138,7 @@ async def app():
         await container.close()
 
 
-@pytest_asyncio.fixture(scope="session", loop_scope="session")
+@pytest_asyncio.fixture(scope="session")
 async def app_container(app):  # type: ignore[valid-type]
     """Expose the Dishka container attached to the app."""
     container: AsyncContainer = app.state.dishka_container  # type: ignore[attr-defined]
@@ -146,7 +146,7 @@ async def app_container(app):  # type: ignore[valid-type]
 
 
 # ===== Client (function-scoped for clean cookies per test) =====
-@pytest_asyncio.fixture(scope="function", loop_scope="session")
+@pytest_asyncio.fixture
 async def client(app) -> AsyncGenerator[httpx.AsyncClient, None]:  # type: ignore[valid-type]
     # Use httpx with ASGI app directly
     # The app fixture already handles lifespan via LifespanManager
@@ -168,19 +168,19 @@ async def _container_scope(container: AsyncContainer):
         yield scope
 
 
-@pytest_asyncio.fixture(scope="function", loop_scope="session")
+@pytest_asyncio.fixture
 async def scope(app_container: AsyncContainer):  # type: ignore[valid-type]
     async with _container_scope(app_container) as s:
         yield s
 
 
-@pytest_asyncio.fixture(scope="function", loop_scope="session")
+@pytest_asyncio.fixture
 async def db(scope) -> AsyncGenerator[Database, None]:  # type: ignore[valid-type]
     database: Database = await scope.get(Database)
     yield database
 
 
-@pytest_asyncio.fixture(scope="function", loop_scope="session")
+@pytest_asyncio.fixture
 async def redis_client(scope) -> AsyncGenerator[redis.Redis, None]:  # type: ignore[valid-type]
     client: redis.Redis = await scope.get(redis.Redis)
     yield client
@@ -222,7 +222,7 @@ def shared_admin_credentials():
     }
 
 
-@pytest_asyncio.fixture(scope="function", loop_scope="session")
+@pytest_asyncio.fixture
 async def shared_user(client: httpx.AsyncClient, shared_user_credentials):
     creds = shared_user_credentials
     # Always attempt to register; DB is wiped after each test
@@ -233,7 +233,7 @@ async def shared_user(client: httpx.AsyncClient, shared_user_credentials):
     return {**creds, "csrf_token": csrf, "headers": {"X-CSRF-Token": csrf}}
 
 
-@pytest_asyncio.fixture(scope="function", loop_scope="session")
+@pytest_asyncio.fixture
 async def shared_admin(client: httpx.AsyncClient, shared_admin_credentials):
     creds = shared_admin_credentials
     r = await client.post("/api/v1/auth/register", json=creds)
@@ -243,7 +243,7 @@ async def shared_admin(client: httpx.AsyncClient, shared_admin_credentials):
     return {**creds, "csrf_token": csrf, "headers": {"X-CSRF-Token": csrf}}
 
 
-@pytest_asyncio.fixture(scope="function", loop_scope="session")
+@pytest_asyncio.fixture
 async def another_user(client: httpx.AsyncClient):
     username = f"test_user_{uuid.uuid4().hex[:8]}"
     email = f"{username}@example.com"

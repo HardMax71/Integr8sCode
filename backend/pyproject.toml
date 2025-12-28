@@ -202,7 +202,7 @@ markers = [
     "performance: marks tests as performance tests"
 ]
 asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "function"
+asyncio_default_fixture_loop_scope = "session"
 log_cli = false
 log_cli_level = "ERROR"
 log_level = "ERROR"

@@ -49,7 +49,7 @@ jobs:
         run: |
           cd backend
           uv run pytest tests/unit -v -rs \
-            --cov=app --cov-branch \
+            --cov=app \
             --cov-report=xml --cov-report=term
 
       - name: Upload coverage to Codecov
@@ -146,7 +146,7 @@ jobs:
           cd backend
           uv run pytest tests/integration -v -rs \
             --ignore=tests/integration/k8s \
-            --cov=app --cov-branch \
+            --cov=app \
             --cov-report=xml --cov-report=term
 
       - name: Upload coverage to Codecov
@@ -267,7 +267,7 @@ jobs:
         run: |
           cd backend
           uv run pytest tests/integration/k8s -v -rs \
-            --cov=app --cov-branch \
+            --cov=app \
             --cov-report=xml --cov-report=term
 
       - name: Upload coverage to Codecov

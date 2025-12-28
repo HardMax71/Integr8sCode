@@ -28,7 +28,8 @@ async def test_apply_all_idempotent_and_creates_indexes(db) -> None:  # type: ig
 
     # Verify some expected indexes exist
     async def idx_names(coll: str) -> set[str]:
-        lst = await db[coll].list_indexes().to_list(length=None)
+        cursor = await db[coll].list_indexes()
+        lst = await cursor.to_list(length=None)
         return {i.get("name", "") for i in lst}
 
     # events

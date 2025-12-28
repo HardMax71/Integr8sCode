@@ -143,7 +143,7 @@ class ExecutionRepository:
                     created_at=doc.get("created_at", datetime.now(timezone.utc)),
                     updated_at=doc.get("updated_at", datetime.now(timezone.utc)),
                     resource_usage=(
-                        ResourceUsageDomain.from_dict(dict(resource_usage_data))
+                        ResourceUsageDomain.from_dict(resource_usage_data)
                         if resource_usage_data is not None
                         else None
                     ),

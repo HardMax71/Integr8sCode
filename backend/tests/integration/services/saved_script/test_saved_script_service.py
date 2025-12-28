@@ -6,8 +6,6 @@ from app.services.saved_script_service import SavedScriptService
 
 pytestmark = [pytest.mark.integration, pytest.mark.mongodb]
 
-pytestmark = pytest.mark.integration
-
 
 def _create_payload() -> DomainSavedScriptCreate:
     return DomainSavedScriptCreate(name="n", description=None, script="print(1)")

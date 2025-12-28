@@ -126,9 +126,9 @@ def create_test_app():
 
 
 # ===== App without lifespan for tests =====
-@pytest_asyncio.fixture(scope="function")
+@pytest_asyncio.fixture(scope="session")
 async def app():
-    """Create FastAPI app for the function without starting lifespan."""
+    """Create FastAPI app once per session/worker to avoid Pydantic schema crashes."""
     application = create_test_app()
 
     yield application
@@ -138,7 +138,7 @@ async def app():
         await container.close()
 
 
-@pytest_asyncio.fixture(scope="function")
+@pytest_asyncio.fixture(scope="session")
 async def app_container(app):  # type: ignore[valid-type]
     """Expose the Dishka container attached to the app."""
     container: AsyncContainer = app.state.dishka_container  # type: ignore[attr-defined]

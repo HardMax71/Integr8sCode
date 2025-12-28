@@ -311,33 +311,37 @@ async def ensure_services_running():
     import subprocess
 
     # Check MongoDB
-    try:
+    async def check_mongo() -> None:
         client = AsyncMongoClient(
             "mongodb://root:rootpassword@localhost:27017",
             serverSelectionTimeoutMS=5000
         )
-        await client.admin.command("ping")
-        await client.close()
+        try:
+            await client.admin.command("ping")
+        finally:
+            await client.close()
+
+    try:
+        await check_mongo()
     except Exception:
         print("Starting MongoDB...")
         subprocess.run(["docker-compose", "up", "-d", "mongo"], check=False)
-        await wait_for_service(
-            lambda: AsyncMongoClient("mongodb://root:rootpassword@localhost:27017").admin.command("ping"),
-            service_name="MongoDB"
-        )
-    
+        await wait_for_service(check_mongo, service_name="MongoDB")
+
     # Check Redis
-    try:
+    async def check_redis() -> None:
         r = redis.Redis(host="localhost", port=6379, socket_connect_timeout=5)
-        await r.execute_command("PING")
-        await r.aclose()
+        try:
+            await r.execute_command("PING")
+        finally:
+            await r.aclose()
+
+    try:
+        await check_redis()
     except Exception:
         print("Starting Redis...")
         subprocess.run(["docker-compose", "up", "-d", "redis"], check=False)
-        await wait_for_service(
-            lambda: redis.Redis(host="localhost", port=6379).execute_command("PING"),
-            service_name="Redis"
-        )
+        await wait_for_service(check_redis, service_name="Redis")
     
     # Kafka is optional - don't fail if not available
     try:

@@ -112,7 +112,7 @@ class TestServiceConnections:
             await self.kafka_consumer.stop()
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(loop_scope="session")
 async def real_services(request) -> AsyncGenerator[TestServiceConnections, None]:
     """
     Provides real service connections for testing.
@@ -130,7 +130,7 @@ async def real_services(request) -> AsyncGenerator[TestServiceConnections, None]
     await connections.cleanup()
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(loop_scope="session")
 async def real_mongodb(real_services: TestServiceConnections) -> Database:
     """Get real MongoDB database for testing."""
     # Use MongoDB from docker-compose with auth
@@ -139,19 +139,19 @@ async def real_mongodb(real_services: TestServiceConnections) -> Database:
     )
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(loop_scope="session")
 async def real_redis(real_services: TestServiceConnections) -> redis.Redis:
     """Get real Redis client for testing."""
     return await real_services.connect_redis()
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(loop_scope="session")
 async def real_kafka_producer(real_services: TestServiceConnections) -> Optional[AIOKafkaProducer]:
     """Get real Kafka producer if available."""
     return await real_services.connect_kafka_producer("localhost:9092")
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(loop_scope="session")
 async def real_kafka_consumer(real_services: TestServiceConnections) -> Optional[AIOKafkaConsumer]:
     """Get real Kafka consumer if available."""
     test_group = f"test_group_{real_services.test_id}"
@@ -305,7 +305,7 @@ async def wait_for_service(check_func, timeout: int = 30, service_name: str = "s
     raise TimeoutError(f"{service_name} not ready after {timeout}s: {last_error}")
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def ensure_services_running():
     """Ensure required Docker services are running."""
     import subprocess

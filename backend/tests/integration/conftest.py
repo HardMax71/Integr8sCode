@@ -5,7 +5,7 @@ import redis.asyncio as redis
 from app.core.database_context import Database
 
 
-@pytest_asyncio.fixture(scope="function", autouse=True)
+@pytest_asyncio.fixture(scope="function", loop_scope="session", autouse=True)
 async def _cleanup(db: Database, redis_client: redis.Redis):
     """Clean DB and Redis before/after each integration test."""
     # Pre-test cleanup

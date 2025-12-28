@@ -12,9 +12,12 @@ runs:
     - name: Generate cache key from images
       id: cache-key
       shell: bash
+      env:
+        IMAGES_INPUT: ${{ inputs.images }}
       run: |
         # Create a stable hash from the sorted image list
-        IMAGES_HASH=$(echo "${{ inputs.images }}" | tr ' ' '\n' | sort | md5sum | cut -d' ' -f1)
+        # Using env var to prevent script injection
+        IMAGES_HASH=$(echo "$IMAGES_INPUT" | tr ' ' '\n' | sort | md5sum | cut -d' ' -f1)
         echo "key=docker-${{ runner.os }}-${IMAGES_HASH}" >> $GITHUB_OUTPUT
 
     - name: Cache Docker images
@@ -38,17 +41,19 @@ runs:
     - name: Pull and save Docker images
       if: steps.docker-cache.outputs.cache-hit != 'true'
       shell: bash
+      env:
+        IMAGES_INPUT: ${{ inputs.images }}
       run: |
         mkdir -p /tmp/docker-cache
 
         echo "Pulling images in parallel..."
-        for img in ${{ inputs.images }}; do
+        for img in $IMAGES_INPUT; do
           docker pull "$img" &
         done
         wait
 
         echo "Saving images with zstd compression..."
-        for img in ${{ inputs.images }}; do
+        for img in $IMAGES_INPUT; do
           # Create filename from image name (replace special chars)
           filename=$(echo "$img" | tr '/:' '_')
           docker save "$img" | zstd -T0 -3 > "/tmp/docker-cache/${filename}.tar.zst" &

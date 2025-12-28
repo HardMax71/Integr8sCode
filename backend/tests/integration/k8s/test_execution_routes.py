@@ -14,23 +14,7 @@ from app.schemas_pydantic.execution import (
 )
 
 
-def has_k8s_workers() -> bool:
-    """Check if K8s workers are available for execution."""
-    # Check if K8s worker container is running
-    import subprocess
-    try:
-        result = subprocess.run(
-            ["docker", "ps", "--filter", "name=k8s-worker", "--format", "{{.Names}}"],
-            capture_output=True,
-            text=True,
-            timeout=2
-        )
-        return "k8s-worker" in result.stdout
-    except Exception:
-        return False
-
-
-@pytest.mark.integration
+@pytest.mark.k8s
 class TestExecution:
     """Test execution endpoints against real backend."""
 
@@ -52,7 +36,6 @@ class TestExecution:
                    for word in ["not authenticated", "unauthorized", "login"])
 
     @pytest.mark.asyncio
-    @pytest.mark.skipif(not has_k8s_workers(), reason="K8s workers not available")
     async def test_execute_simple_python_script(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test executing a simple Python script."""
         # Login first
@@ -96,7 +79,6 @@ class TestExecution:
         ]
 
     @pytest.mark.asyncio
-    @pytest.mark.skipif(not has_k8s_workers(), reason="K8s workers not available")
     async def test_get_execution_result(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test getting execution result after completion using SSE (event-driven)."""
         # Login first
@@ -137,7 +119,6 @@ class TestExecution:
             assert "Line 2" in execution_result.stdout
 
     @pytest.mark.asyncio
-    @pytest.mark.skipif(not has_k8s_workers(), reason="K8s workers not available")
     async def test_execute_with_error(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test executing a script that produces an error."""
         # Login first
@@ -163,7 +144,6 @@ class TestExecution:
         # No waiting - execution was accepted, error will be processed asynchronously
 
     @pytest.mark.asyncio
-    @pytest.mark.skipif(not has_k8s_workers(), reason="K8s workers not available")
     async def test_execute_with_resource_tracking(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test that execution tracks resource usage."""
         # Login first
@@ -205,7 +185,6 @@ print('Done')
                 assert resource_usage.peak_memory_kb >= 0
 
     @pytest.mark.asyncio
-    @pytest.mark.skipif(not has_k8s_workers(), reason="K8s workers not available")
     async def test_execute_with_different_language_versions(self, client: AsyncClient,
                                                             test_user: Dict[str, str]) -> None:
         """Test execution with different Python versions."""
@@ -240,7 +219,6 @@ print('Done')
                 assert "execution_id" in data
 
     @pytest.mark.asyncio
-    @pytest.mark.skipif(not has_k8s_workers(), reason="K8s workers not available")
     async def test_execute_with_large_output(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test execution with large output."""
         # Login first
@@ -279,7 +257,6 @@ print('End of output')
                 assert "End of output" in result_data["stdout"] or len(result_data["stdout"]) > 10000
 
     @pytest.mark.asyncio
-    @pytest.mark.skipif(not has_k8s_workers(), reason="K8s workers not available")
     async def test_cancel_running_execution(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test cancelling a running execution."""
         # Login first
@@ -326,7 +303,6 @@ print('Should not reach here if cancelled')
         # Cancel response of 200 means cancellation was accepted
 
     @pytest.mark.asyncio
-    @pytest.mark.skipif(not has_k8s_workers(), reason="K8s workers not available")
     async def test_execution_with_timeout(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Bounded check: long-running executions don't finish immediately.
 
@@ -364,7 +340,6 @@ while True:
         # No need to wait or observe states
 
     @pytest.mark.asyncio
-    @pytest.mark.skipif(not has_k8s_workers(), reason="K8s workers not available")
     async def test_sandbox_restrictions(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test that dangerous operations are blocked by sandbox."""
         # Login first
@@ -421,7 +396,6 @@ while True:
                 assert exec_response.status_code in [400, 422]
 
     @pytest.mark.asyncio
-    @pytest.mark.skipif(not has_k8s_workers(), reason="K8s workers not available")
     async def test_concurrent_executions_by_same_user(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test running multiple executions concurrently."""
         # Login first
@@ -489,7 +463,6 @@ while True:
             assert key in limits
 
     @pytest.mark.asyncio
-    @pytest.mark.skipif(not has_k8s_workers(), reason="K8s workers not available")
     async def test_get_user_executions_list(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """User executions list returns paginated executions for current user."""
         # Login first
@@ -504,7 +477,6 @@ while True:
         assert set(["executions", "total", "limit", "skip", "has_more"]).issubset(payload.keys())
 
     @pytest.mark.asyncio
-    @pytest.mark.skipif(not has_k8s_workers(), reason="K8s workers not available")
     async def test_execution_idempotency_same_key_returns_same_execution(self, client: AsyncClient,
                                                                          test_user: Dict[str, str]) -> None:
         """Submitting the same request with the same Idempotency-Key yields the same execution_id."""

@@ -51,7 +51,7 @@ class UserSettingsUpdatedEvent(BaseEvent):
     topic: ClassVar[KafkaTopic] = KafkaTopic.USER_SETTINGS_EVENTS
     user_id: str
     settings_type: SettingsType
-    changes: dict[str, str]
+    updated: dict[str, str]
 
 
 class UserThemeChangedEvent(BaseEvent):

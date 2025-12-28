@@ -1,4 +1,5 @@
 import asyncio
+import json
 from datetime import datetime, timedelta, timezone
 from typing import Any, List
 
@@ -182,17 +183,17 @@ class UserSettingsService:
                 settings_type = SettingsType.DISPLAY
             else:
                 settings_type = SettingsType.PREFERENCES
-            # Flatten changes to string map for the generic event
-            changes: dict[str, str] = {}
-            for k, v in updated.items():
-                changes[k] = str(v)
+            # Stringify all values for Avro compatibility (nested dicts become JSON strings)
+            updated_stringified: dict[str, str] = {
+                k: json.dumps(v) if isinstance(v, dict) else str(v) for k, v in updated.items()
+            }
             await self.event_service.publish_event(
                 event_type=EventType.USER_SETTINGS_UPDATED,
                 aggregate_id=f"user_settings_{user_id}",
                 payload={
                     "user_id": user_id,
                     "settings_type": settings_type,
-                    "changes": changes,
+                    "updated": updated_stringified,
                     "reason": reason,
                 },
                 metadata=None,
@@ -297,7 +298,7 @@ class UserSettingsService:
             payload={
                 "user_id": user_id,
                 "settings_type": SettingsType.PREFERENCES,
-                "changes": {"restored_to": timestamp.isoformat()},
+                "updated": {"restored_to": timestamp.isoformat()},
             },
             metadata=None,
         )
@@ -339,23 +340,10 @@ class UserSettingsService:
                 settings.theme = Theme(new_theme)
             return settings
 
-        upd = event.payload.get("updated")
-        if not upd:
-            return settings
-
-        # Top-level
-        if "theme" in upd:
-            settings.theme = Theme(upd["theme"])
-        if "timezone" in upd:
-            settings.timezone = upd["timezone"]
-        if "date_format" in upd:
-            settings.date_format = upd["date_format"]
-        if "time_format" in upd:
-            settings.time_format = upd["time_format"]
-        # Nested
-        if "notifications" in upd and isinstance(upd["notifications"], dict):
-            n = upd["notifications"]
-            channels: list[NotificationChannel] = [NotificationChannel(c) for c in n.get("channels", [])]
+        if event.event_type == EventType.USER_NOTIFICATION_SETTINGS_UPDATED:
+            n = event.payload.get("settings", {})
+            channels_raw = event.payload.get("channels", [])
+            channels: list[NotificationChannel] = [NotificationChannel(c) for c in channels_raw] if channels_raw else []
             settings.notifications = DomainNotificationSettings(
                 execution_completed=n.get("execution_completed", settings.notifications.execution_completed),
                 execution_failed=n.get("execution_failed", settings.notifications.execution_failed),
@@ -363,8 +351,11 @@ class UserSettingsService:
                 security_alerts=n.get("security_alerts", settings.notifications.security_alerts),
                 channels=channels or settings.notifications.channels,
             )
-        if "editor" in upd and isinstance(upd["editor"], dict):
-            e = upd["editor"]
+            settings.updated_at = event.timestamp
+            return settings
+
+        if event.event_type == EventType.USER_EDITOR_SETTINGS_UPDATED:
+            e = event.payload.get("settings", {})
             settings.editor = DomainEditorSettings(
                 theme=e.get("theme", settings.editor.theme),
                 font_size=e.get("font_size", settings.editor.font_size),
@@ -373,8 +364,58 @@ class UserSettingsService:
                 word_wrap=e.get("word_wrap", settings.editor.word_wrap),
                 show_line_numbers=e.get("show_line_numbers", settings.editor.show_line_numbers),
             )
-        if "custom_settings" in upd and isinstance(upd["custom_settings"], dict):
-            settings.custom_settings = upd["custom_settings"]
+            settings.updated_at = event.timestamp
+            return settings
+
+        upd = event.payload.get("updated")
+        if not upd:
+            return settings
+
+        # Helper to parse JSON strings or return dict as-is
+        def parse_value(val: object) -> object:
+            if isinstance(val, str):
+                try:
+                    return json.loads(val)
+                except (json.JSONDecodeError, ValueError):
+                    return val
+            return val
+
+        # Top-level
+        if "theme" in upd:
+            settings.theme = Theme(str(upd["theme"]))
+        if "timezone" in upd:
+            settings.timezone = str(upd["timezone"])
+        if "date_format" in upd:
+            settings.date_format = str(upd["date_format"])
+        if "time_format" in upd:
+            settings.time_format = str(upd["time_format"])
+        # Nested (may be JSON strings or dicts)
+        if "notifications" in upd:
+            n = parse_value(upd["notifications"])
+            if isinstance(n, dict):
+                channels: list[NotificationChannel] = [NotificationChannel(c) for c in n.get("channels", [])]
+                settings.notifications = DomainNotificationSettings(
+                    execution_completed=n.get("execution_completed", settings.notifications.execution_completed),
+                    execution_failed=n.get("execution_failed", settings.notifications.execution_failed),
+                    system_updates=n.get("system_updates", settings.notifications.system_updates),
+                    security_alerts=n.get("security_alerts", settings.notifications.security_alerts),
+                    channels=channels or settings.notifications.channels,
+                )
+        if "editor" in upd:
+            e = parse_value(upd["editor"])
+            if isinstance(e, dict):
+                settings.editor = DomainEditorSettings(
+                    theme=e.get("theme", settings.editor.theme),
+                    font_size=e.get("font_size", settings.editor.font_size),
+                    tab_size=e.get("tab_size", settings.editor.tab_size),
+                    use_tabs=e.get("use_tabs", settings.editor.use_tabs),
+                    word_wrap=e.get("word_wrap", settings.editor.word_wrap),
+                    show_line_numbers=e.get("show_line_numbers", settings.editor.show_line_numbers),
+                )
+        if "custom_settings" in upd:
+            cs = parse_value(upd["custom_settings"])
+            if isinstance(cs, dict):
+                settings.custom_settings = cs
         settings.version = event.payload.get("version", settings.version)
         settings.updated_at = event.timestamp
         return settings

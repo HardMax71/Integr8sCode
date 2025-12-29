@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Dict
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from app.domain.enums.events import EventType
 from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
@@ -51,8 +51,20 @@ class SessionSummary(BaseModel):
     created_at: datetime
     started_at: datetime | None
     completed_at: datetime | None
-    duration_seconds: float | None = None
-    throughput_events_per_second: float | None = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def duration_seconds(self) -> float | None:
+        if self.started_at and self.completed_at:
+            return (self.completed_at - self.started_at).total_seconds()
+        return None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def throughput_events_per_second(self) -> float | None:
+        if self.duration_seconds and self.duration_seconds > 0 and self.replayed_events > 0:
+            return self.replayed_events / self.duration_seconds
+        return None
 
 
 class CleanupResponse(BaseModel):

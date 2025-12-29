@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies import admin_user
 from app.domain.enums.replay import ReplayStatus
-from app.domain.replay import ReplayConfig, ReplaySessionState
+from app.domain.replay import ReplayConfig
 from app.schemas_pydantic.replay import (
     CleanupResponse,
     ReplayRequest,
@@ -15,22 +15,6 @@ from app.schemas_pydantic.replay import (
 )
 from app.schemas_pydantic.replay_models import ReplaySession
 from app.services.replay_service import ReplayService
-
-
-def _session_to_summary(state: ReplaySessionState) -> SessionSummary:
-    """Convert ReplaySessionState to SessionSummary."""
-    state_data = asdict(state)
-    state_data.update(state_data.pop("config"))  # flatten config fields
-
-    duration = None
-    throughput = None
-    if state.started_at and state.completed_at:
-        duration = (state.completed_at - state.started_at).total_seconds()
-        if state.replayed_events > 0 and duration > 0:
-            throughput = state.replayed_events / duration
-
-    return SessionSummary(**state_data, duration_seconds=duration, throughput_events_per_second=throughput)
-
 
 router = APIRouter(prefix="/replay", tags=["Event Replay"], route_class=DishkaRoute, dependencies=[Depends(admin_user)])
 
@@ -80,8 +64,10 @@ async def list_replay_sessions(
     status: ReplayStatus | None = Query(None),
     limit: int = Query(100, ge=1, le=1000),
 ) -> list[SessionSummary]:
-    states = service.list_sessions(status=status, limit=limit)
-    return [_session_to_summary(s) for s in states]
+    return [
+        SessionSummary.model_validate({**asdict(s), **asdict(s)["config"]})
+        for s in service.list_sessions(status=status, limit=limit)
+    ]
 
 
 @router.get("/sessions/{session_id}", response_model=ReplaySession)

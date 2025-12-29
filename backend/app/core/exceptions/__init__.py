@@ -1,4 +1,3 @@
-from app.core.exceptions.base import IntegrationException
 from app.core.exceptions.handlers import configure_exception_handlers
 from app.domain.exceptions import (
     ConflictError,
@@ -17,7 +16,6 @@ __all__ = [
     "DomainError",
     "ForbiddenError",
     "InfrastructureError",
-    "IntegrationException",
     "InvalidStateError",
     "NotFoundError",
     "ThrottledError",

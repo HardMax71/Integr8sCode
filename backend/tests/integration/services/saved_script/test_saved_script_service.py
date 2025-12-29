@@ -1,7 +1,6 @@
 import pytest
 
-from app.core.exceptions import ServiceError
-from app.domain.saved_script import DomainSavedScriptCreate, DomainSavedScriptUpdate
+from app.domain.saved_script import DomainSavedScriptCreate, DomainSavedScriptUpdate, SavedScriptNotFoundError
 from app.services.saved_script_service import SavedScriptService
 
 pytestmark = [pytest.mark.integration, pytest.mark.mongodb]
@@ -27,5 +26,5 @@ async def test_crud_saved_script(scope) -> None:  # type: ignore[valid-type]
     assert any(s.script_id == created.script_id for s in lst)
 
     await service.delete_saved_script(str(created.script_id), "u1")
-    with pytest.raises(ServiceError):
+    with pytest.raises(SavedScriptNotFoundError):
         await service.get_saved_script(str(created.script_id), "u1")

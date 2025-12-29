@@ -5,11 +5,11 @@ from time import time
 from typing import Any, Generator, TypeAlias
 
 from app.core.correlation import CorrelationContext
-from app.core.exceptions import IntegrationException
 from app.core.metrics.context import get_execution_metrics
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
+from app.domain.exceptions import InfrastructureError
 from app.domain.execution import (
     DomainExecution,
     DomainExecutionCreate,
@@ -148,7 +148,7 @@ class ExecutionService:
             DomainExecution record with queued status.
 
         Raises:
-            IntegrationException: If validation fails or event publishing fails.
+            InfrastructureError: If validation fails or event publishing fails.
         """
         lang_and_version = f"{lang}-{lang_version}"
         start_time = time()
@@ -219,7 +219,7 @@ class ExecutionService:
                     created_execution.execution_id,
                     f"Failed to submit execution: {str(e)}",
                 )
-                raise IntegrationException(status_code=500, detail="Failed to submit execution request") from e
+                raise InfrastructureError("Failed to submit execution request") from e
 
             # Success metrics and return
             duration = time() - start_time
@@ -262,12 +262,12 @@ class ExecutionService:
             Current execution state.
 
         Raises:
-            IntegrationException: If execution not found.
+            ExecutionNotFoundError: If execution not found.
         """
         execution = await self.execution_repo.get_execution(execution_id)
         if not execution:
             self.logger.warning("Execution not found", extra={"execution_id": execution_id})
-            raise IntegrationException(status_code=404, detail=f"Execution {execution_id} not found")
+            raise ExecutionNotFoundError(execution_id)
 
         self.logger.info(
             "Execution result retrieved successfully",

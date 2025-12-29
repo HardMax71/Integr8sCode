@@ -7,12 +7,12 @@ from dishka.integrations.fastapi import DishkaRoute, inject
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Request
 
 from app.api.dependencies import admin_user, current_user
-from app.core.exceptions import IntegrationException
 from app.core.tracing import EventAttributes, add_span_attributes
 from app.core.utils import get_client_ip
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.user import UserRole
+from app.domain.exceptions import DomainError
 from app.infrastructure.kafka.events.base import BaseEvent
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata as EventMetadata
 from app.schemas_pydantic.execution import (
@@ -127,7 +127,7 @@ async def create_execution(
 
         return ExecutionResponse.model_validate(exec_result)
 
-    except IntegrationException as e:
+    except DomainError as e:
         # Mark as failed for idempotency
         if idempotency_key and pseudo_event:
             await idempotency_manager.mark_failed(
@@ -136,7 +136,7 @@ async def create_execution(
                 key_strategy="custom",
                 custom_key=f"http:{current_user.user_id}:{idempotency_key}",
             )
-        raise HTTPException(status_code=e.status_code, detail=e.detail) from e
+        raise
     except Exception as e:
         # Mark as failed for idempotency
         if idempotency_key and pseudo_event:

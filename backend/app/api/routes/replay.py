@@ -1,11 +1,12 @@
+from dataclasses import asdict
+
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies import admin_user
-from app.domain.enums.events import EventType
 from app.domain.enums.replay import ReplayStatus
-from app.domain.replay import ReplayConfig, ReplayFilter, ReplaySessionState
+from app.domain.replay import ReplayConfig, ReplaySessionState
 from app.schemas_pydantic.replay import (
     CleanupResponse,
     ReplayRequest,
@@ -15,66 +16,20 @@ from app.schemas_pydantic.replay import (
 from app.schemas_pydantic.replay_models import ReplaySession
 from app.services.replay_service import ReplayService
 
-# Fields from ReplayRequest that map to ReplayFilter
-_FILTER_FIELDS = {
-    "execution_id",
-    "event_types",
-    "start_time",
-    "end_time",
-    "user_id",
-    "service_name",
-    "custom_query",
-    "exclude_event_types",
-}
-
-
-def _request_to_config(req: ReplayRequest) -> ReplayConfig:
-    """Convert ReplayRequest to ReplayConfig."""
-    filter_data = req.model_dump(include=_FILTER_FIELDS)
-    target_topics = {EventType(k): v for k, v in req.target_topics.items()} if req.target_topics else None
-
-    return ReplayConfig(
-        replay_type=req.replay_type,
-        target=req.target,
-        filter=ReplayFilter(**filter_data),
-        speed_multiplier=req.speed_multiplier,
-        preserve_timestamps=req.preserve_timestamps,
-        batch_size=req.batch_size,
-        max_events=req.max_events,
-        skip_errors=req.skip_errors,
-        target_file_path=req.target_file_path,
-        target_topics=target_topics,
-        retry_failed=req.retry_failed,
-        retry_attempts=req.retry_attempts,
-        enable_progress_tracking=req.enable_progress_tracking,
-    )
-
 
 def _session_to_summary(state: ReplaySessionState) -> SessionSummary:
     """Convert ReplaySessionState to SessionSummary."""
+    state_data = asdict(state)
+    state_data.update(state_data.pop("config"))  # flatten config fields
+
     duration = None
     throughput = None
     if state.started_at and state.completed_at:
-        d = (state.completed_at - state.started_at).total_seconds()
-        duration = d
-        if state.replayed_events > 0 and d > 0:
-            throughput = state.replayed_events / d
+        duration = (state.completed_at - state.started_at).total_seconds()
+        if state.replayed_events > 0 and duration > 0:
+            throughput = state.replayed_events / duration
 
-    return SessionSummary(
-        session_id=state.session_id,
-        replay_type=state.config.replay_type,
-        target=state.config.target,
-        status=state.status,
-        total_events=state.total_events,
-        replayed_events=state.replayed_events,
-        failed_events=state.failed_events,
-        skipped_events=state.skipped_events,
-        created_at=state.created_at,
-        started_at=state.started_at,
-        completed_at=state.completed_at,
-        duration_seconds=duration,
-        throughput_events_per_second=throughput,
-    )
+    return SessionSummary(**state_data, duration_seconds=duration, throughput_events_per_second=throughput)
 
 
 router = APIRouter(prefix="/replay", tags=["Event Replay"], route_class=DishkaRoute, dependencies=[Depends(admin_user)])
@@ -85,8 +40,7 @@ async def create_replay_session(
     replay_request: ReplayRequest,
     service: FromDishka[ReplayService],
 ) -> ReplayResponse:
-    cfg = _request_to_config(replay_request)
-    result = await service.create_session_from_config(cfg)
+    result = await service.create_session_from_config(ReplayConfig(**replay_request.model_dump()))
     return ReplayResponse(session_id=result.session_id, status=result.status, message=result.message)
 
 

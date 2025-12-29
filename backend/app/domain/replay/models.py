@@ -56,7 +56,7 @@ class ReplayFilter(BaseModel):
 class ReplayConfig(BaseModel):
     replay_type: ReplayType
     target: ReplayTarget = ReplayTarget.KAFKA
-    filter: ReplayFilter
+    filter: ReplayFilter = Field(default_factory=ReplayFilter)
 
     speed_multiplier: float = Field(default=1.0, ge=0.1, le=100.0)
     preserve_timestamps: bool = False

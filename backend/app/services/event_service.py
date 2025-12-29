@@ -42,9 +42,8 @@ def _filter_to_mongo_query(flt: EventFilter) -> dict[str, Any]:
             time_query["$lte"] = flt.end_time
         query["timestamp"] = time_query
 
-    search = getattr(flt, "text_search", None) or getattr(flt, "search_text", None)
-    if search:
-        query["$text"] = {"$search": search}
+    if flt.search_text:
+        query["$text"] = {"$search": flt.search_text}
 
     return query
 

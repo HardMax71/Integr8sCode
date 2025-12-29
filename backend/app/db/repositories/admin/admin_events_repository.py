@@ -41,7 +41,6 @@ class ReplaySessionStatusDetail:
 class AdminEventsRepository:
     def _event_filter_conditions(self, f: EventFilter) -> list[Any]:
         """Build Beanie query conditions from EventFilter."""
-        text_search = f.text_search or f.search_text
         conditions = [
             In(EventDocument.event_type, f.event_types) if f.event_types else None,
             EventDocument.aggregate_id == f.aggregate_id if f.aggregate_id else None,
@@ -50,7 +49,7 @@ class AdminEventsRepository:
             EventDocument.metadata.service_name == f.service_name if f.service_name else None,
             GTE(EventDocument.timestamp, f.start_time) if f.start_time else None,
             LTE(EventDocument.timestamp, f.end_time) if f.end_time else None,
-            Text(text_search) if text_search else None,
+            Text(f.search_text) if f.search_text else None,
         ]
         return [c for c in conditions if c is not None]
 

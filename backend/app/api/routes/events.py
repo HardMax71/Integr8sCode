@@ -107,7 +107,7 @@ async def query_events(
         service_name=filter_request.service_name,
         start_time=filter_request.start_time,
         end_time=filter_request.end_time,
-        text_search=filter_request.text_search,
+        search_text=filter_request.search_text,
     )
 
     result = await event_service.query_events_advanced(

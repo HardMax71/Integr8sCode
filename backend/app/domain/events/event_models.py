@@ -81,7 +81,6 @@ class EventFilter:
     start_time: datetime | None = None
     end_time: datetime | None = None
     search_text: str | None = None
-    text_search: str | None = None
     status: str | None = None
 
 

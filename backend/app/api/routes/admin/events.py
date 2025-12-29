@@ -22,17 +22,8 @@ from app.schemas_pydantic.admin_events import (
     EventReplayStatusResponse,
     EventStatsResponse,
 )
-from app.schemas_pydantic.admin_events import EventFilter as AdminEventFilter
 from app.schemas_pydantic.user import UserResponse
 from app.services.admin import AdminEventsService
-
-
-def _to_event_filter(pydantic_filter: AdminEventFilter) -> EventFilter:
-    """Convert Pydantic EventFilter to domain EventFilter."""
-    data = pydantic_filter.model_dump(mode="json")  # auto-converts enums to strings
-    data["text_search"] = data.pop("search_text", None)
-    return EventFilter(**data)
-
 
 router = APIRouter(
     prefix="/admin/events", tags=["admin-events"], route_class=DishkaRoute, dependencies=[Depends(admin_user)]
@@ -42,7 +33,7 @@ router = APIRouter(
 @router.post("/browse")
 async def browse_events(request: EventBrowseRequest, service: FromDishka[AdminEventsService]) -> EventBrowseResponse:
     try:
-        event_filter = _to_event_filter(request.filters)
+        event_filter = EventFilter(**request.filters.model_dump(mode="json"))
 
         result = await service.browse_events(
             event_filter=event_filter,
@@ -85,12 +76,10 @@ async def export_events_csv(
     limit: int = Query(default=10000, le=50000),
 ) -> StreamingResponse:
     try:
-        export_filter = _to_event_filter(
-            AdminEventFilter(
-                event_types=event_types,
-                start_time=start_time,
-                end_time=end_time,
-            )
+        export_filter = EventFilter(
+            event_types=[str(et) for et in event_types] if event_types else None,
+            start_time=start_time,
+            end_time=end_time,
         )
         result = await service.export_events_csv_content(event_filter=export_filter, limit=limit)
         return StreamingResponse(
@@ -117,16 +106,14 @@ async def export_events_json(
 ) -> StreamingResponse:
     """Export events as JSON with comprehensive filtering."""
     try:
-        export_filter = _to_event_filter(
-            AdminEventFilter(
-                event_types=event_types,
-                aggregate_id=aggregate_id,
-                correlation_id=correlation_id,
-                user_id=user_id,
-                service_name=service_name,
-                start_time=start_time,
-                end_time=end_time,
-            )
+        export_filter = EventFilter(
+            event_types=[str(et) for et in event_types] if event_types else None,
+            aggregate_id=aggregate_id,
+            correlation_id=correlation_id,
+            user_id=user_id,
+            service_name=service_name,
+            start_time=start_time,
+            end_time=end_time,
         )
         result = await service.export_events_json_content(event_filter=export_filter, limit=limit)
         return StreamingResponse(

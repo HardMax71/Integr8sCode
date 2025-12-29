@@ -1195,7 +1195,7 @@ requires-dist = [
     { name = "pyasn1", specifier = "==0.6.1" },
     { name = "pyasn1-modules", specifier = "==0.4.2" },
     { name = "pydantic", specifier = "==2.9.2" },
-    { name = "pydantic-avro", specifier = "==0.7.1" },
+    { name = "pydantic-avro", specifier = "==0.9.1" },
     { name = "pydantic-core", specifier = "==2.23.4" },
     { name = "pydantic-settings", specifier = "==2.5.2" },
     { name = "pygments", specifier = "==2.19.2" },
@@ -2277,14 +2277,14 @@ wheels = [
 
 [[package]]
 name = "pydantic-avro"
-version = "0.7.1"
+version = "0.9.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d0/a9/518fc926a368090d2668115585f6a8a06da265bfa752da667080884e43d2/pydantic_avro-0.7.1.tar.gz", hash = "sha256:75b691cd82edf977a637c7e3aa8f6bd731c761b268e2800d7eaabf7b6e69c2cc", size = 8667, upload-time = "2024-06-17T20:22:39.208Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e9/8b/47ea4be231ba90984228486fe9a332cb6f18db6963d04207a1a9f310c45b/pydantic_avro-0.9.1.tar.gz", hash = "sha256:22f728340fad3353b232ec2b138496c26efb2ede5b74a2f18ab491d4ea37ec5b", size = 10015, upload-time = "2025-10-16T12:00:29.536Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2d/a3/57e991b6bbd555c70d684ba0803704ed5cc6a6e854f508aad0fd8c072512/pydantic_avro-0.7.1-py3-none-any.whl", hash = "sha256:515058cd11a256b85e7b22c02ace87761392e8ca4eb0b7548663a69763b82170", size = 11028, upload-time = "2024-06-17T20:22:37.664Z" },
+    { url = "https://files.pythonhosted.org/packages/25/69/6bb45c70da28c3aa82772c136e9c87ff0498c4fd4875594ebe3f7a4cd47c/pydantic_avro-0.9.1-py3-none-any.whl", hash = "sha256:dcbec25c6f2021db594f3116dd94e029a4cb96ab63eec3dcb3ad4405b434c23a", size = 11510, upload-time = "2025-10-16T12:00:28.718Z" },
 ]
 
 [[package]]

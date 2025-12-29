@@ -30,7 +30,7 @@ dependencies = [
     "dishka==1.6.0",
     "dnspython==2.7.0",
     "durationpy==0.9",
-    "email_validator==2.2.0",
+    "email_validator==2.3.0",
     "exceptiongroup==1.2.2",
     "fastapi==0.124.0",
     "fastavro==1.12.1",

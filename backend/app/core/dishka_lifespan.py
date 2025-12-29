@@ -6,8 +6,8 @@ import redis.asyncio as redis
 from beanie import init_beanie
 from dishka import AsyncContainer
 from fastapi import FastAPI
+from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
-from app.core.database_context import Database
 from app.core.startup import initialize_metrics_context, initialize_rate_limits
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
@@ -70,10 +70,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await initialize_event_schemas(schema_registry)
 
     # Initialize Beanie ODM with PyMongo async database
-    # Beanie handles index creation via Document Settings.indexes
-    database = await container.get(Database)
-    await init_beanie(database=database, document_models=ALL_DOCUMENTS)
-    logger.info(f"Beanie ODM initialized with {len(ALL_DOCUMENTS)} document models (indexes auto-created)")
+    db_client: AsyncMongoClient[dict[str, object]] = AsyncMongoClient(
+        settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000
+    )
+    await init_beanie(database=db_client[settings.DATABASE_NAME], document_models=ALL_DOCUMENTS)
+    logger.info(f"Beanie ODM initialized with {len(ALL_DOCUMENTS)} document models")
 
     # Initialize metrics context with instances from DI container
     # This must happen early so services can access metrics via contextvars
@@ -92,6 +93,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     event_store_consumer = await container.get(EventStoreConsumer)
 
     async with AsyncExitStack() as stack:
+        stack.callback(db_client.close)
         await stack.enter_async_context(sse_bridge)
         logger.info("SSE Kafka→Redis bridge started with consumer pool")
         await stack.enter_async_context(event_store_consumer)

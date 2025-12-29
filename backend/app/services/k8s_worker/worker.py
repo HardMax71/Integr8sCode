@@ -13,7 +13,7 @@ from kubernetes import config as k8s_config
 from kubernetes.client.rest import ApiException
 from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
-from app.core.database_context import Database, DBClient
+from app.core.database_context import DBClient
 from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics import ExecutionMetrics, KubernetesMetrics
 from app.db.docs import ALL_DOCUMENTS
@@ -60,7 +60,6 @@ class KubernetesWorker(LifecycleEnabled):
     def __init__(
         self,
         config: K8sWorkerConfig,
-        database: Database,
         producer: UnifiedProducer,
         schema_registry_manager: SchemaRegistryManager,
         event_store: EventStore,
@@ -74,7 +73,6 @@ class KubernetesWorker(LifecycleEnabled):
         settings = get_settings()
 
         self.kafka_servers = self.config.kafka_bootstrap_servers or settings.KAFKA_BOOTSTRAP_SERVERS
-        self._db: Database = database
         self._event_store = event_store
 
         # Kubernetes clients
@@ -567,7 +565,6 @@ async def run_kubernetes_worker() -> None:
 
     worker = KubernetesWorker(
         config=config,
-        database=database,
         producer=producer,
         schema_registry_manager=schema_registry_manager,
         event_store=event_store,

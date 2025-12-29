@@ -7,7 +7,6 @@ from app.core.providers import (
     BusinessServicesProvider,
     ConnectionProvider,
     CoreServicesProvider,
-    DatabaseProvider,
     EventProvider,
     LoggingProvider,
     MessagingProvider,
@@ -25,7 +24,6 @@ def create_app_container() -> AsyncContainer:
     return make_async_container(
         SettingsProvider(),
         LoggingProvider(),
-        DatabaseProvider(),
         RedisProvider(),
         CoreServicesProvider(),
         MessagingProvider(),
@@ -47,7 +45,6 @@ def create_result_processor_container() -> AsyncContainer:
     return make_async_container(
         SettingsProvider(),
         LoggingProvider(),
-        DatabaseProvider(),
         CoreServicesProvider(),
         ConnectionProvider(),
         RedisProvider(),

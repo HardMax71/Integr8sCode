@@ -4,12 +4,6 @@ from typing import AsyncIterator
 import redis.asyncio as redis
 from dishka import Provider, Scope, provide
 
-from app.core.database_context import (
-    AsyncDatabaseConnection,
-    Database,
-    DatabaseConfig,
-    create_database_connection,
-)
 from app.core.k8s_clients import K8sClients, close_k8s_clients, create_k8s_clients
 from app.core.logging import setup_logger
 from app.core.metrics import (
@@ -90,34 +84,6 @@ class LoggingProvider(Provider):
     @provide
     def get_logger(self, settings: Settings) -> logging.Logger:
         return setup_logger(settings.LOG_LEVEL)
-
-
-class DatabaseProvider(Provider):
-    scope = Scope.APP
-
-    @provide(scope=Scope.APP)
-    async def get_database_connection(
-        self, settings: Settings, logger: logging.Logger
-    ) -> AsyncIterator[AsyncDatabaseConnection]:
-        db_config = DatabaseConfig(
-            mongodb_url=settings.MONGODB_URL,
-            db_name=settings.DATABASE_NAME,
-            server_selection_timeout_ms=5000,
-            connect_timeout_ms=5000,
-            max_pool_size=50,
-            min_pool_size=10,
-        )
-
-        db_connection = create_database_connection(db_config, logger)
-        await db_connection.connect()
-        try:
-            yield db_connection
-        finally:
-            await db_connection.disconnect()
-
-    @provide
-    def get_database(self, db_connection: AsyncDatabaseConnection) -> Database:
-        return db_connection.database
 
 
 class RedisProvider(Provider):

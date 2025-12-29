@@ -15,7 +15,38 @@ from app.domain.events import (
     EventReplayInfo,
     EventStatistics,
 )
-from app.infrastructure.mappers import EventFilterMapper
+
+
+def _filter_to_mongo_query(flt: EventFilter) -> dict[str, Any]:
+    """Convert EventFilter to MongoDB query dict."""
+    query: dict[str, Any] = {}
+
+    if flt.event_types:
+        query["event_type"] = {"$in": flt.event_types}
+    if flt.aggregate_id:
+        query["aggregate_id"] = flt.aggregate_id
+    if flt.correlation_id:
+        query["metadata.correlation_id"] = flt.correlation_id
+    if flt.user_id:
+        query["metadata.user_id"] = flt.user_id
+    if flt.service_name:
+        query["metadata.service_name"] = flt.service_name
+    if getattr(flt, "status", None):
+        query["status"] = flt.status
+
+    if flt.start_time or flt.end_time:
+        time_query: dict[str, Any] = {}
+        if flt.start_time:
+            time_query["$gte"] = flt.start_time
+        if flt.end_time:
+            time_query["$lte"] = flt.end_time
+        query["timestamp"] = time_query
+
+    search = getattr(flt, "text_search", None) or getattr(flt, "search_text", None)
+    if search:
+        query["$text"] = {"$search": search}
+
+    return query
 
 
 class EventService:
@@ -92,7 +123,7 @@ class EventService:
         if filters.user_id and filters.user_id != user_id and user_role != UserRole.ADMIN:
             return None
 
-        query = EventFilterMapper.to_mongo_query(filters)
+        query = _filter_to_mongo_query(filters)
         if not filters.user_id and user_role != UserRole.ADMIN:
             query["metadata.user_id"] = user_id
 

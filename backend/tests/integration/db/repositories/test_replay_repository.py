@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import logging
 
 import pytest
 
@@ -10,10 +11,12 @@ from app.schemas_pydantic.replay_models import ReplaySession
 
 pytestmark = pytest.mark.integration
 
+_test_logger = logging.getLogger("test.db.repositories.replay_repository")
+
 
 @pytest.fixture()
 def repo(db) -> ReplayRepository:  # type: ignore[valid-type]
-    return ReplayRepository(db)
+    return ReplayRepository(db, logger=_test_logger)
 
 
 @pytest.mark.asyncio
@@ -47,4 +50,4 @@ async def test_count_fetch_events_and_delete(repo: ReplayRepository, db) -> None
         batches.append(b)
     assert sum(len(b) for b in batches) >= 3
     # Delete old sessions (none match date predicate likely)
-    assert await repo.delete_old_sessions("2000-01-01T00:00:00Z") >= 0
+    assert await repo.delete_old_sessions(datetime(2000, 1, 1, tzinfo=timezone.utc)) >= 0

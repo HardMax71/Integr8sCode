@@ -30,7 +30,7 @@ from app.core.container import create_app_container
 from app.core.correlation import CorrelationMiddleware
 from app.core.dishka_lifespan import lifespan
 from app.core.exceptions import configure_exception_handlers
-from app.core.logging import logger
+from app.core.logging import setup_logger
 from app.core.middlewares import (
     CacheControlMiddleware,
     MetricsMiddleware,
@@ -43,6 +43,7 @@ from app.settings import get_settings
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    logger = setup_logger(settings.LOG_LEVEL)
     # Disable OpenAPI/Docs in production for security; health endpoints provide readiness
     app = FastAPI(
         title=settings.PROJECT_NAME,
@@ -55,7 +56,7 @@ def create_app() -> FastAPI:
     container = create_app_container()
     setup_dishka(container, app)
 
-    setup_metrics(app)
+    setup_metrics(app, logger)
     app.add_middleware(MetricsMiddleware)
     if settings.RATE_LIMIT_ENABLED:
         app.add_middleware(RateLimitMiddleware)
@@ -123,7 +124,7 @@ app = create_app()
 
 if __name__ == "__main__":
     settings = get_settings()
-
+    logger = setup_logger(settings.LOG_LEVEL)
     logger.info(
         "Starting uvicorn server",
         extra={

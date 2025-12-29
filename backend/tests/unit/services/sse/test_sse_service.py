@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import datetime, timezone
 from typing import Any, Type
 
@@ -6,6 +7,8 @@ import pytest
 from pydantic import BaseModel
 
 pytestmark = pytest.mark.unit
+
+_test_logger = logging.getLogger("test.services.sse.sse_service")
 
 from app.domain.enums.events import EventType
 from app.domain.execution import DomainExecution, ResourceUsageDomain
@@ -119,7 +122,7 @@ async def test_execution_stream_closes_on_failed_event() -> None:
     repo = _FakeRepo()
     bus = _FakeBus()
     sm = _FakeShutdown()
-    svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm, settings=_FakeSettings())
+    svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm, settings=_FakeSettings(), logger=_test_logger)
 
     agen = svc.create_execution_stream("exec-1", user_id="u1")
     first = await agen.__anext__()
@@ -156,7 +159,7 @@ async def test_execution_stream_result_stored_includes_result_payload() -> None:
     )
     bus = _FakeBus()
     sm = _FakeShutdown()
-    svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm, settings=_FakeSettings())
+    svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm, settings=_FakeSettings(), logger=_test_logger)
 
     agen = svc.create_execution_stream("exec-2", user_id="u1")
     await agen.__anext__()  # connected
@@ -179,7 +182,7 @@ async def test_notification_stream_connected_and_heartbeat_and_message() -> None
     sm = _FakeShutdown()
     settings = _FakeSettings()
     settings.SSE_HEARTBEAT_INTERVAL = 0  # emit immediately
-    svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm, settings=settings)
+    svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm, settings=settings, logger=_test_logger)
 
     agen = svc.create_notification_stream("u1")
     connected = await agen.__anext__()
@@ -214,7 +217,7 @@ async def test_notification_stream_connected_and_heartbeat_and_message() -> None
 
 @pytest.mark.asyncio
 async def test_health_status_shape() -> None:
-    svc = SSEService(repository=_FakeRepo(), router=_FakeRouter(), sse_bus=_FakeBus(), shutdown_manager=_FakeShutdown(), settings=_FakeSettings())
+    svc = SSEService(repository=_FakeRepo(), router=_FakeRouter(), sse_bus=_FakeBus(), shutdown_manager=_FakeShutdown(), settings=_FakeSettings(), logger=_test_logger)
     h = await svc.get_health_status()
     assert isinstance(h, SSEHealthDomain)
     assert h.active_consumers == 3 and h.active_executions == 2

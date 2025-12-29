@@ -1,4 +1,11 @@
+import asyncio
+import logging
+
 import pytest
+
+from app.services.sse.sse_shutdown_manager import SSEShutdownManager
+
+_test_logger = logging.getLogger("test.services.sse.shutdown_manager")
 
 
 class DummyRouter:
@@ -9,7 +16,7 @@ class DummyRouter:
 
 @pytest.mark.asyncio
 async def test_shutdown_graceful_notify_and_drain():
-    mgr = SSEShutdownManager(drain_timeout=1.0, notification_timeout=0.01, force_close_timeout=0.1)
+    mgr = SSEShutdownManager(drain_timeout=1.0, notification_timeout=0.01, force_close_timeout=0.1, logger=_test_logger)
 
     # Register two connections and arrange that they unregister when notified
     ev1 = await mgr.register_connection("e1", "c1")
@@ -33,7 +40,7 @@ async def test_shutdown_graceful_notify_and_drain():
 
 @pytest.mark.asyncio
 async def test_shutdown_force_close_calls_router_stop_and_rejects_new():
-    mgr = SSEShutdownManager(drain_timeout=0.01, notification_timeout=0.01, force_close_timeout=0.01)
+    mgr = SSEShutdownManager(drain_timeout=0.01, notification_timeout=0.01, force_close_timeout=0.01, logger=_test_logger)
     router = DummyRouter()
     mgr.set_router(router)
 
@@ -53,15 +60,9 @@ async def test_shutdown_force_close_calls_router_stop_and_rejects_new():
     assert ev2 is None
 
 
-import asyncio
-import pytest
-
-from app.services.sse.sse_shutdown_manager import SSEShutdownManager
-
-
 @pytest.mark.asyncio
 async def test_get_shutdown_status_transitions():
-    m = SSEShutdownManager(drain_timeout=0.01, notification_timeout=0.0, force_close_timeout=0.0)
+    m = SSEShutdownManager(drain_timeout=0.01, notification_timeout=0.0, force_close_timeout=0.0, logger=_test_logger)
     st0 = m.get_shutdown_status()
     assert st0.phase == "ready"
     await m.initiate_shutdown()

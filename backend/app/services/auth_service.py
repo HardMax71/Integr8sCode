@@ -1,24 +1,23 @@
-from fastapi import HTTPException, Request, status
+import logging
 
-from app.core.logging import logger
+from fastapi import Request
+
 from app.core.security import security_service
 from app.db.repositories.user_repository import UserRepository
 from app.domain.enums.user import UserRole
+from app.domain.user import AdminAccessRequiredError, AuthenticationRequiredError
 from app.schemas_pydantic.user import UserResponse
 
 
 class AuthService:
-    def __init__(self, user_repo: UserRepository):
+    def __init__(self, user_repo: UserRepository, logger: logging.Logger):
         self.user_repo = user_repo
+        self.logger = logger
 
     async def get_current_user(self, request: Request) -> UserResponse:
         token = request.cookies.get("access_token")
         if not token:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Not authenticated",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+            raise AuthenticationRequiredError()
 
         user = await security_service.get_current_user(token, self.user_repo)
 
@@ -35,9 +34,6 @@ class AuthService:
     async def get_admin(self, request: Request) -> UserResponse:
         user = await self.get_current_user(request)
         if user.role != UserRole.ADMIN:
-            logger.warning(f"Admin access denied for user: {user.username} (role: {user.role})")
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Admin access required",
-            )
+            self.logger.warning(f"Admin access denied for user: {user.username} (role: {user.role})")
+            raise AdminAccessRequiredError(user.username)
         return user

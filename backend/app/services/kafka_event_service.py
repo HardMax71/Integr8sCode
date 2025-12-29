@@ -1,3 +1,4 @@
+import logging
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict
@@ -6,7 +7,6 @@ from uuid import uuid4
 from opentelemetry import trace
 
 from app.core.correlation import CorrelationContext
-from app.core.logging import logger
 from app.core.metrics.context import get_event_metrics
 from app.core.tracing.utils import inject_trace_context
 from app.db.repositories.event_repository import EventRepository
@@ -22,9 +22,10 @@ tracer = trace.get_tracer(__name__)
 
 
 class KafkaEventService:
-    def __init__(self, event_repository: EventRepository, kafka_producer: UnifiedProducer):
+    def __init__(self, event_repository: EventRepository, kafka_producer: UnifiedProducer, logger: logging.Logger):
         self.event_repository = event_repository
         self.kafka_producer = kafka_producer
+        self.logger = logger
         self.metrics = get_event_metrics()
         self.settings = get_settings()
 
@@ -128,7 +129,7 @@ class KafkaEventService:
             duration = time.time() - start_time
             self.metrics.record_event_processing_duration(duration, event_type)
 
-            logger.info(
+            self.logger.info(
                 "Event published",
                 extra={
                     "event_type": event_type,
@@ -148,7 +149,7 @@ class KafkaEventService:
         error_message: str | None = None,
     ) -> str:
         """Publish execution-related event using provided metadata (no framework coupling)."""
-        logger.info(
+        self.logger.info(
             "Publishing execution event",
             extra={
                 "event_type": event_type,
@@ -169,7 +170,7 @@ class KafkaEventService:
             metadata=metadata,
         )
 
-        logger.info(
+        self.logger.info(
             "Execution event published successfully",
             extra={
                 "event_type": event_type,

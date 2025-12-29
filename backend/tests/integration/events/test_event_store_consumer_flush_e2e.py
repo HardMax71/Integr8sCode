@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from uuid import uuid4
 
 import pytest
@@ -15,19 +16,22 @@ from tests.helpers.eventually import eventually
 
 pytestmark = [pytest.mark.integration, pytest.mark.kafka, pytest.mark.mongodb]
 
+_test_logger = logging.getLogger("test.events.event_store_consumer_flush_e2e")
+
 
 @pytest.mark.asyncio
 async def test_event_store_consumer_flush_on_timeout(scope):  # type: ignore[valid-type]
     producer: UnifiedProducer = await scope.get(UnifiedProducer)
     schema: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
     db: Database = await scope.get(Database)
-    store = EventStore(db=db, schema_registry=schema)
+    store = EventStore(db=db, schema_registry=schema, logger=_test_logger)
     await store.initialize()
 
     consumer = create_event_store_consumer(
         event_store=store,
         topics=[KafkaTopic.EXECUTION_EVENTS],
         schema_registry_manager=schema,
+        logger=_test_logger,
         producer=producer,
         batch_size=100,
         batch_timeout_seconds=0.2,

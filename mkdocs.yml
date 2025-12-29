@@ -103,6 +103,7 @@ nav:
   - Architecture:
     - Overview: architecture/overview.md
     - Services: architecture/services-overview.md
+    - Domain Exceptions: architecture/domain-exceptions.md
     - Frontend Build: architecture/frontend-build.md
     - Svelte 5 Migration: architecture/svelte5-migration.md
     - Kafka Topics: architecture/kafka-topic-architecture.md
@@ -118,6 +119,8 @@ nav:
     - Workers:
       - Pod Monitor: components/workers/pod_monitor.md
       - Result Processor: components/workers/result_processor.md
+    - Saga:
+      - Resource Allocation: components/saga/resource-allocation.md
     - Dead Letter Queue: components/dead-letter-queue.md
     - Schema Manager: components/schema-manager.md
 

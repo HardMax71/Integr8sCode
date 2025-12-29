@@ -1,11 +1,15 @@
+import logging
+
 import pytest
 
 from app.services.coordinator.resource_manager import ResourceManager
 
+_test_logger = logging.getLogger("test.services.coordinator.resource_manager")
+
 
 @pytest.mark.asyncio
 async def test_request_allocation_defaults_and_limits() -> None:
-    rm = ResourceManager(total_cpu_cores=8.0, total_memory_mb=16384, total_gpu_count=0)
+    rm = ResourceManager(total_cpu_cores=8.0, total_memory_mb=16384, total_gpu_count=0, logger=_test_logger)
 
     # Default for python
     alloc = await rm.request_allocation("e1", "python")
@@ -23,7 +27,7 @@ async def test_request_allocation_defaults_and_limits() -> None:
 
 @pytest.mark.asyncio
 async def test_release_and_can_allocate() -> None:
-    rm = ResourceManager(total_cpu_cores=4.0, total_memory_mb=8192, total_gpu_count=0)
+    rm = ResourceManager(total_cpu_cores=4.0, total_memory_mb=8192, total_gpu_count=0, logger=_test_logger)
 
     a = await rm.request_allocation("e1", "python", requested_cpu=1.0, requested_memory_mb=512)
     assert a is not None
@@ -43,7 +47,7 @@ async def test_release_and_can_allocate() -> None:
 
 @pytest.mark.asyncio
 async def test_resource_stats() -> None:
-    rm = ResourceManager(total_cpu_cores=2.0, total_memory_mb=4096, total_gpu_count=0)
+    rm = ResourceManager(total_cpu_cores=2.0, total_memory_mb=4096, total_gpu_count=0, logger=_test_logger)
     # Make sure the allocation succeeds
     alloc = await rm.request_allocation("e1", "python", requested_cpu=0.5, requested_memory_mb=256)
     assert alloc is not None, "Allocation should have succeeded"

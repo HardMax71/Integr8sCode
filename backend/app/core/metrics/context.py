@@ -1,7 +1,7 @@
 import contextvars
+import logging
 from typing import Any, Generic, Optional, Type, TypeVar
 
-from app.core.logging import logger
 from app.core.metrics import (
     ConnectionMetrics,
     CoordinatorMetrics,
@@ -29,17 +29,19 @@ class MetricsContextVar(Generic[T]):
     and provides a clean interface for getting and setting metrics.
     """
 
-    def __init__(self, name: str, metric_class: Type[T]) -> None:
+    def __init__(self, name: str, metric_class: Type[T], logger: logging.Logger) -> None:
         """
         Initialize a metrics context variable.
 
         Args:
             name: Name for the context variable (for debugging)
             metric_class: The class of the metric this context holds
+            logger: Logger instance for logging
         """
         self._context_var: contextvars.ContextVar[Optional[T]] = contextvars.ContextVar(f"metrics_{name}", default=None)
         self._metric_class = metric_class
         self._name = name
+        self.logger = logger
 
     def get(self) -> T:
         """
@@ -55,7 +57,7 @@ class MetricsContextVar(Generic[T]):
         metric = self._context_var.get()
         if metric is None:
             # Lazy initialization with logging
-            logger.debug(f"Lazy initializing {self._name} metrics in context")
+            self.logger.debug(f"Lazy initializing {self._name} metrics in context")
             metric = self._metric_class()
             self._context_var.set(metric)
         return metric
@@ -81,20 +83,32 @@ class MetricsContextVar(Generic[T]):
         return self._context_var.get() is not None
 
 
+# Module-level logger for lazy initialization
+_module_logger: Optional[logging.Logger] = None
+
+
+def _get_module_logger() -> logging.Logger:
+    """Get or create module logger for lazy initialization."""
+    global _module_logger
+    if _module_logger is None:
+        _module_logger = logging.getLogger(__name__)
+    return _module_logger
+
+
 # Create module-level context variables for each metric type
 # These are singletons that live for the lifetime of the application
-_connection_ctx = MetricsContextVar("connection", ConnectionMetrics)
-_coordinator_ctx = MetricsContextVar("coordinator", CoordinatorMetrics)
-_database_ctx = MetricsContextVar("database", DatabaseMetrics)
-_dlq_ctx = MetricsContextVar("dlq", DLQMetrics)
-_event_ctx = MetricsContextVar("event", EventMetrics)
-_execution_ctx = MetricsContextVar("execution", ExecutionMetrics)
-_health_ctx = MetricsContextVar("health", HealthMetrics)
-_kubernetes_ctx = MetricsContextVar("kubernetes", KubernetesMetrics)
-_notification_ctx = MetricsContextVar("notification", NotificationMetrics)
-_rate_limit_ctx = MetricsContextVar("rate_limit", RateLimitMetrics)
-_replay_ctx = MetricsContextVar("replay", ReplayMetrics)
-_security_ctx = MetricsContextVar("security", SecurityMetrics)
+_connection_ctx = MetricsContextVar("connection", ConnectionMetrics, _get_module_logger())
+_coordinator_ctx = MetricsContextVar("coordinator", CoordinatorMetrics, _get_module_logger())
+_database_ctx = MetricsContextVar("database", DatabaseMetrics, _get_module_logger())
+_dlq_ctx = MetricsContextVar("dlq", DLQMetrics, _get_module_logger())
+_event_ctx = MetricsContextVar("event", EventMetrics, _get_module_logger())
+_execution_ctx = MetricsContextVar("execution", ExecutionMetrics, _get_module_logger())
+_health_ctx = MetricsContextVar("health", HealthMetrics, _get_module_logger())
+_kubernetes_ctx = MetricsContextVar("kubernetes", KubernetesMetrics, _get_module_logger())
+_notification_ctx = MetricsContextVar("notification", NotificationMetrics, _get_module_logger())
+_rate_limit_ctx = MetricsContextVar("rate_limit", RateLimitMetrics, _get_module_logger())
+_replay_ctx = MetricsContextVar("replay", ReplayMetrics, _get_module_logger())
+_security_ctx = MetricsContextVar("security", SecurityMetrics, _get_module_logger())
 
 
 class MetricsContext:
@@ -107,7 +121,7 @@ class MetricsContext:
     """
 
     @classmethod
-    def initialize_all(cls, **metrics: Any) -> None:
+    def initialize_all(cls, logger: logging.Logger, **metrics: Any) -> None:
         """
         Initialize all metrics contexts at application startup.
 
@@ -150,7 +164,7 @@ class MetricsContext:
             logger.info(f"Initialized {name} metrics in context")
 
     @classmethod
-    def reset_all(cls) -> None:
+    def reset_all(cls, logger: logging.Logger) -> None:
         """
         Reset all metrics contexts.
 

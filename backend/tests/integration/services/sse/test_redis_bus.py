@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from typing import Any
 
 import pytest
@@ -9,6 +10,8 @@ pytestmark = pytest.mark.integration
 from app.domain.enums.events import EventType
 from app.schemas_pydantic.sse import RedisNotificationMessage, RedisSSEMessage
 from app.services.sse.redis_bus import SSERedisBus
+
+_test_logger = logging.getLogger("test.services.sse.redis_bus")
 
 
 class _DummyEvent:
@@ -62,7 +65,7 @@ class _FakeRedis:
 @pytest.mark.asyncio
 async def test_publish_and_subscribe_round_trip() -> None:
     r = _FakeRedis()
-    bus = SSERedisBus(r)
+    bus = SSERedisBus(r, logger=_test_logger)
 
     # Subscribe
     sub = await bus.open_subscription("exec-1")
@@ -93,7 +96,7 @@ async def test_publish_and_subscribe_round_trip() -> None:
 @pytest.mark.asyncio
 async def test_notifications_channels() -> None:
     r = _FakeRedis()
-    bus = SSERedisBus(r)
+    bus = SSERedisBus(r, logger=_test_logger)
     nsub = await bus.open_notification_subscription("user-1")
     assert "sse:notif:user-1" in r._pubsub.subscribed
 

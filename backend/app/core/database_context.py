@@ -1,4 +1,5 @@
 import contextvars
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -10,8 +11,6 @@ from pymongo.asynchronous.cursor import AsyncCursor
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.asynchronous.mongo_client import AsyncMongoClient
 from pymongo.errors import ServerSelectionTimeoutError
-
-from app.core.logging import logger
 
 # Python 3.12 type aliases using the new 'type' statement
 # MongoDocument represents the raw document type returned by PyMongo operations
@@ -83,13 +82,14 @@ class DatabaseProvider(Protocol):
 
 
 class AsyncDatabaseConnection:
-    __slots__ = ("_client", "_database", "_db_name", "_config")
+    __slots__ = ("_client", "_database", "_db_name", "_config", "logger")
 
-    def __init__(self, config: DatabaseConfig) -> None:
+    def __init__(self, config: DatabaseConfig, logger: logging.Logger) -> None:
         self._config = config
         self._client: DBClient | None = None
         self._database: Database | None = None
         self._db_name: str = config.db_name
+        self.logger = logger
 
     async def connect(self) -> None:
         """
@@ -102,7 +102,7 @@ class AsyncDatabaseConnection:
         if self._client is not None:
             raise DatabaseAlreadyInitializedError("Connection already established")
 
-        logger.info(f"Connecting to MongoDB database: {self._db_name}")
+        self.logger.info(f"Connecting to MongoDB database: {self._db_name}")
 
         # PyMongo Async automatically uses the current event loop
         client: DBClient = AsyncMongoClient(
@@ -120,9 +120,9 @@ class AsyncDatabaseConnection:
         # Verify connection
         try:
             await client.admin.command("ping")
-            logger.info("Successfully connected to MongoDB")
+            self.logger.info("Successfully connected to MongoDB")
         except ServerSelectionTimeoutError as e:
-            logger.error(f"Failed to connect to MongoDB: {e}")
+            self.logger.error(f"Failed to connect to MongoDB: {e}")
             await client.close()
             raise
 
@@ -131,7 +131,7 @@ class AsyncDatabaseConnection:
 
     async def disconnect(self) -> None:
         if self._client is not None:
-            logger.info("Closing MongoDB connection")
+            self.logger.info("Closing MongoDB connection")
             await self._client.close()
             self._client = None
             self._database = None
@@ -214,8 +214,9 @@ class ContextualDatabaseProvider(DatabaseProvider):
 
 
 class DatabaseConnectionPool:
-    def __init__(self) -> None:
+    def __init__(self, logger: logging.Logger) -> None:
         self._connections: dict[str, AsyncDatabaseConnection] = {}
+        self.logger = logger
 
     async def create_connection(self, key: str, config: DatabaseConfig) -> AsyncDatabaseConnection:
         """
@@ -260,16 +261,16 @@ class DatabaseConnectionPool:
 
 
 # Factory functions for dependency injection
-def create_database_connection(config: DatabaseConfig) -> AsyncDatabaseConnection:
-    return AsyncDatabaseConnection(config)
+def create_database_connection(config: DatabaseConfig, logger: logging.Logger) -> AsyncDatabaseConnection:
+    return AsyncDatabaseConnection(config, logger)
 
 
 def create_contextual_provider() -> ContextualDatabaseProvider:
     return ContextualDatabaseProvider()
 
 
-def create_connection_pool() -> DatabaseConnectionPool:
-    return DatabaseConnectionPool()
+def create_connection_pool(logger: logging.Logger) -> DatabaseConnectionPool:
+    return DatabaseConnectionPool(logger)
 
 
 async def get_database_provider() -> DatabaseProvider:

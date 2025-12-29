@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 import pytest
@@ -13,6 +14,9 @@ from app.services.idempotency.redis_repository import RedisIdempotencyRepository
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.redis]
+
+# Test logger for all tests
+_test_logger = logging.getLogger("test.idempotency")
 
 
 class TestIdempotencyManager:
@@ -30,7 +34,7 @@ class TestIdempotencyManager:
             enable_metrics=False,
         )
         repo = RedisIdempotencyRepository(redis_client, key_prefix=prefix)
-        m = IdempotencyManager(cfg, repo)
+        m = IdempotencyManager(cfg, repo, _test_logger)
         await m.initialize()
         try:
             yield m
@@ -248,7 +252,7 @@ class TestIdempotentEventHandlerIntegration:
         prefix = f"handler_test:{uuid.uuid4().hex[:6]}"
         config = IdempotencyConfig(key_prefix=prefix, enable_metrics=False)
         repo = RedisIdempotencyRepository(redis_client, key_prefix=prefix)
-        m = IdempotencyManager(config, repo)
+        m = IdempotencyManager(config, repo, _test_logger)
         await m.initialize()
         try:
             yield m
@@ -267,7 +271,8 @@ class TestIdempotentEventHandlerIntegration:
         handler = IdempotentEventHandler(
             handler=actual_handler,
             idempotency_manager=manager,
-            key_strategy="event_based"
+            key_strategy="event_based",
+            logger=_test_logger,
         )
 
         # Process event
@@ -290,7 +295,8 @@ class TestIdempotentEventHandlerIntegration:
         handler = IdempotentEventHandler(
             handler=actual_handler,
             idempotency_manager=manager,
-            key_strategy="event_based"
+            key_strategy="event_based",
+            logger=_test_logger,
         )
 
         # Process event twice
@@ -311,7 +317,8 @@ class TestIdempotentEventHandlerIntegration:
         handler = IdempotentEventHandler(
             handler=failing_handler,
             idempotency_manager=manager,
-            key_strategy="event_based"
+            key_strategy="event_based",
+            logger=_test_logger,
         )
 
         # Process event (should raise)
@@ -340,7 +347,8 @@ class TestIdempotentEventHandlerIntegration:
             handler=actual_handler,
             idempotency_manager=manager,
             key_strategy="event_based",
-            on_duplicate=on_duplicate
+            on_duplicate=on_duplicate,
+            logger=_test_logger,
         )
 
         # Process twice
@@ -361,7 +369,8 @@ class TestIdempotentEventHandlerIntegration:
         @idempotent_handler(
             idempotency_manager=manager,
             key_strategy="content_hash",
-            ttl_seconds=300
+            ttl_seconds=300,
+            logger=_test_logger,
         )
         async def my_handler(event: BaseEvent):
             processed_events.append(event)
@@ -402,7 +411,8 @@ class TestIdempotentEventHandlerIntegration:
             handler=process_script,
             idempotency_manager=manager,
             key_strategy="custom",
-            custom_key_func=extract_script_key
+            custom_key_func=extract_script_key,
+            logger=_test_logger,
         )
 
         # Events with same script
@@ -495,7 +505,7 @@ class TestIdempotentEventHandlerIntegration:
         """Test manager with metrics enabled"""
         config = IdempotencyConfig(key_prefix=f"metrics:{uuid.uuid4().hex[:6]}", enable_metrics=True)
         repository = RedisIdempotencyRepository(redis_client, key_prefix=config.key_prefix)
-        manager = IdempotencyManager(config, repository)
+        manager = IdempotencyManager(config, repository, _test_logger)
 
         # Initialize with metrics
         await manager.initialize()

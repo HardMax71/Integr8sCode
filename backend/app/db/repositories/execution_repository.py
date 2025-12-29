@@ -1,163 +1,97 @@
+import logging
+from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Any
 
-from app.core.database_context import Collection, Database
-from app.core.logging import logger
-from app.domain.enums.execution import ExecutionStatus
-from app.domain.events.event_models import CollectionNames
-from app.domain.execution import DomainExecution, ExecutionResultDomain, ResourceUsageDomain
+from beanie.odm.enums import SortDirection
+
+from app.db.docs import ExecutionDocument, ResourceUsage
+from app.domain.execution import DomainExecution, DomainExecutionCreate, DomainExecutionUpdate, ExecutionResultDomain, ResourceUsageDomain
 
 
 class ExecutionRepository:
-    def __init__(self, db: Database):
-        self.db = db
-        self.collection: Collection = self.db.get_collection(CollectionNames.EXECUTIONS)
-        self.results_collection: Collection = self.db.get_collection(CollectionNames.EXECUTION_RESULTS)
 
-    async def create_execution(self, execution: DomainExecution) -> DomainExecution:
-        execution_dict = {
-            "execution_id": execution.execution_id,
-            "script": execution.script,
-            "status": execution.status,
-            "stdout": execution.stdout,
-            "stderr": execution.stderr,
-            "lang": execution.lang,
-            "lang_version": execution.lang_version,
-            "created_at": execution.created_at,
-            "updated_at": execution.updated_at,
-            "resource_usage": execution.resource_usage.to_dict() if execution.resource_usage else None,
-            "user_id": execution.user_id,
-            "exit_code": execution.exit_code,
-            "error_type": execution.error_type,
-        }
-        logger.info(f"Inserting execution {execution.execution_id} into MongoDB")
-        result = await self.collection.insert_one(execution_dict)
-        logger.info(f"Inserted execution {execution.execution_id} with _id: {result.inserted_id}")
-        return execution
+    def __init__(self, logger: logging.Logger):
+        self.logger = logger
+
+    async def create_execution(self, create_data: DomainExecutionCreate) -> DomainExecution:
+        doc = ExecutionDocument(**asdict(create_data))
+        self.logger.info(f"Inserting execution {doc.execution_id} into MongoDB")
+        await doc.insert()
+        self.logger.info(f"Inserted execution {doc.execution_id}")
+        return DomainExecution(**{
+            **doc.model_dump(exclude={'id'}),
+            'resource_usage': ResourceUsageDomain.from_dict(doc.resource_usage.model_dump()) if doc.resource_usage else None
+        })
 
     async def get_execution(self, execution_id: str) -> DomainExecution | None:
-        logger.info(f"Searching for execution {execution_id} in MongoDB")
-        document = await self.collection.find_one({"execution_id": execution_id})
-        if not document:
-            logger.warning(f"Execution {execution_id} not found in MongoDB")
+        self.logger.info(f"Searching for execution {execution_id} in MongoDB")
+        doc = await ExecutionDocument.find_one({"execution_id": execution_id})
+        if not doc:
+            self.logger.warning(f"Execution {execution_id} not found in MongoDB")
             return None
 
-        logger.info(f"Found execution {execution_id} in MongoDB")
+        self.logger.info(f"Found execution {execution_id} in MongoDB")
+        return DomainExecution(**{
+            **doc.model_dump(exclude={'id'}),
+            'resource_usage': ResourceUsageDomain.from_dict(doc.resource_usage.model_dump()) if doc.resource_usage else None
+        })
 
-        result_doc = await self.results_collection.find_one({"execution_id": execution_id})
-        if result_doc:
-            document["stdout"] = result_doc.get("stdout")
-            document["stderr"] = result_doc.get("stderr")
-            document["exit_code"] = result_doc.get("exit_code")
-            document["resource_usage"] = result_doc.get("resource_usage")
-            document["error_type"] = result_doc.get("error_type")
-            if result_doc.get("status"):
-                document["status"] = result_doc.get("status")
+    async def update_execution(self, execution_id: str, update_data: DomainExecutionUpdate) -> bool:
+        doc = await ExecutionDocument.find_one({"execution_id": execution_id})
+        if not doc:
+            return False
 
-        sv = document.get("status")
-        resource_usage_data = document.get("resource_usage")
-        return DomainExecution(
-            execution_id=document["execution_id"],
-            script=document.get("script", ""),
-            status=ExecutionStatus(str(sv)),
-            stdout=document.get("stdout"),
-            stderr=document.get("stderr"),
-            lang=document.get("lang", "python"),
-            lang_version=document.get("lang_version", "3.11"),
-            created_at=document.get("created_at", datetime.now(timezone.utc)),
-            updated_at=document.get("updated_at", datetime.now(timezone.utc)),
-            resource_usage=(
-                ResourceUsageDomain.from_dict(resource_usage_data) if resource_usage_data is not None else None
-            ),
-            user_id=document.get("user_id"),
-            exit_code=document.get("exit_code"),
-            error_type=document.get("error_type"),
-        )
+        update_dict = {k: v for k, v in asdict(update_data).items() if v is not None}
+        if "resource_usage" in update_dict:
+            update_dict["resource_usage"] = ResourceUsage.model_validate(update_data.resource_usage)
+        if update_dict:
+            update_dict["updated_at"] = datetime.now(timezone.utc)
+            await doc.set(update_dict)
+        return True
 
-    async def update_execution(self, execution_id: str, update_data: dict[str, Any]) -> bool:
-        update_data.setdefault("updated_at", datetime.now(timezone.utc))
-        update_payload = {"$set": update_data}
+    async def write_terminal_result(self, result: ExecutionResultDomain) -> bool:
+        doc = await ExecutionDocument.find_one({"execution_id": result.execution_id})
+        if not doc:
+            self.logger.warning(f"No execution found for {result.execution_id}")
+            return False
 
-        result = await self.collection.update_one({"execution_id": execution_id}, update_payload)
-        return result.matched_count > 0
-
-    async def write_terminal_result(self, exec_result: ExecutionResultDomain) -> bool:
-        base = await self.collection.find_one({"execution_id": exec_result.execution_id}, {"user_id": 1}) or {}
-        user_id = base.get("user_id")
-
-        doc = {
-            "_id": exec_result.execution_id,
-            "execution_id": exec_result.execution_id,
-            "status": exec_result.status.value,
-            "exit_code": exec_result.exit_code,
-            "stdout": exec_result.stdout,
-            "stderr": exec_result.stderr,
-            "resource_usage": exec_result.resource_usage.to_dict(),
-            "created_at": exec_result.created_at,
-            "metadata": exec_result.metadata,
-        }
-        if exec_result.error_type is not None:
-            doc["error_type"] = exec_result.error_type
-        if user_id is not None:
-            doc["user_id"] = user_id
-
-        await self.results_collection.replace_one({"_id": exec_result.execution_id}, doc, upsert=True)
-
-        update_data = {
-            "status": exec_result.status.value,
+        await doc.set({
+            "status": result.status,
+            "exit_code": result.exit_code,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "resource_usage": ResourceUsage.model_validate(result.resource_usage),
+            "error_type": result.error_type,
             "updated_at": datetime.now(timezone.utc),
-            "stdout": exec_result.stdout,
-            "stderr": exec_result.stderr,
-            "exit_code": exec_result.exit_code,
-            "resource_usage": exec_result.resource_usage.to_dict(),
-        }
-        if exec_result.error_type is not None:
-            update_data["error_type"] = exec_result.error_type
-
-        res = await self.collection.update_one({"execution_id": exec_result.execution_id}, {"$set": update_data})
-        if res.matched_count == 0:
-            logger.warning(f"No execution found to patch for {exec_result.execution_id} after result upsert")
+        })
         return True
 
     async def get_executions(
         self, query: dict[str, Any], limit: int = 50, skip: int = 0, sort: list[tuple[str, int]] | None = None
     ) -> list[DomainExecution]:
-        cursor = self.collection.find(query)
+        find_query = ExecutionDocument.find(query)
         if sort:
-            cursor = cursor.sort(sort)
-        cursor = cursor.skip(skip).limit(limit)
-
-        executions: list[DomainExecution] = []
-        async for doc in cursor:
-            sv = doc.get("status")
-            resource_usage_data = doc.get("resource_usage")
-            executions.append(
-                DomainExecution(
-                    execution_id=doc["execution_id"],
-                    script=doc.get("script", ""),
-                    status=ExecutionStatus(str(sv)),
-                    stdout=doc.get("stdout"),
-                    stderr=doc.get("stderr"),
-                    lang=doc.get("lang", "python"),
-                    lang_version=doc.get("lang_version", "3.11"),
-                    created_at=doc.get("created_at", datetime.now(timezone.utc)),
-                    updated_at=doc.get("updated_at", datetime.now(timezone.utc)),
-                    resource_usage=(
-                        ResourceUsageDomain.from_dict(resource_usage_data)
-                        if resource_usage_data is not None
-                        else None
-                    ),
-                    user_id=doc.get("user_id"),
-                    exit_code=doc.get("exit_code"),
-                    error_type=doc.get("error_type"),
-                )
-            )
-
-        return executions
+            beanie_sort = [
+                (field, SortDirection.ASCENDING if direction == 1 else SortDirection.DESCENDING)
+                for field, direction in sort
+            ]
+            find_query = find_query.sort(beanie_sort)
+        docs = await find_query.skip(skip).limit(limit).to_list()
+        return [
+            DomainExecution(**{
+                **doc.model_dump(exclude={'id'}),
+                'resource_usage': ResourceUsageDomain.from_dict(doc.resource_usage.model_dump()) if doc.resource_usage else None
+            })
+            for doc in docs
+        ]
 
     async def count_executions(self, query: dict[str, Any]) -> int:
-        return await self.collection.count_documents(query)
+        return await ExecutionDocument.find(query).count()
 
     async def delete_execution(self, execution_id: str) -> bool:
-        result = await self.collection.delete_one({"execution_id": execution_id})
-        return result.deleted_count > 0
+        doc = await ExecutionDocument.find_one({"execution_id": execution_id})
+        if not doc:
+            return False
+        await doc.delete()
+        return True

@@ -1,11 +1,12 @@
 from .exceptions import (
     EventPublishError,
     ExecutionNotFoundError,
-    ExecutionServiceError,
     RuntimeNotSupportedError,
 )
 from .models import (
     DomainExecution,
+    DomainExecutionCreate,
+    DomainExecutionUpdate,
     ExecutionResultDomain,
     LanguageInfoDomain,
     ResourceLimitsDomain,
@@ -14,11 +15,12 @@ from .models import (
 
 __all__ = [
     "DomainExecution",
+    "DomainExecutionCreate",
+    "DomainExecutionUpdate",
     "ExecutionResultDomain",
     "LanguageInfoDomain",
     "ResourceLimitsDomain",
     "ResourceUsageDomain",
-    "ExecutionServiceError",
     "RuntimeNotSupportedError",
     "EventPublishError",
     "ExecutionNotFoundError",

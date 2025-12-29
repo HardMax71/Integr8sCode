@@ -2,12 +2,15 @@ import asyncio
 import logging
 
 import redis.asyncio as redis
+from beanie import init_beanie
+from pymongo.asynchronous.mongo_client import AsyncMongoClient
+
 from app.core.database_context import DBClient
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
+from app.db.docs import ALL_DOCUMENTS
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.db.repositories.saga_repository import SagaRepository
-from app.db.schema.schema_manager import SchemaManager
 from app.domain.enums.kafka import GroupId
 from app.domain.saga.models import SagaConfig
 from app.events.core import ProducerConfig, UnifiedProducer
@@ -17,7 +20,6 @@ from app.services.idempotency import IdempotencyConfig, create_idempotency_manag
 from app.services.idempotency.redis_repository import RedisIdempotencyRepository
 from app.services.saga import create_saga_orchestrator
 from app.settings import get_settings
-from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 
 async def run_saga_orchestrator() -> None:
@@ -35,23 +37,23 @@ async def run_saga_orchestrator() -> None:
     await db_client.admin.command("ping")
     logger.info(f"Connected to database: {db_name}")
 
-    # Ensure DB schema (indexes/validators)
-    await SchemaManager(database).apply_all()
+    # Initialize Beanie ODM (indexes are idempotently created via Document.Settings.indexes)
+    await init_beanie(database=database, document_models=ALL_DOCUMENTS)
 
     # Initialize schema registry
     logger.info("Initializing schema registry...")
-    schema_registry_manager = SchemaRegistryManager()
+    schema_registry_manager = SchemaRegistryManager(logger)
     await schema_registry_manager.initialize_schemas()
 
     # Initialize Kafka producer
     logger.info("Initializing Kafka producer...")
     producer_config = ProducerConfig(bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS)
-    producer = UnifiedProducer(producer_config, schema_registry_manager)
+    producer = UnifiedProducer(producer_config, schema_registry_manager, logger)
     await producer.start()
 
     # Create event store (schema ensured separately)
     logger.info("Creating event store...")
-    event_store = create_event_store(db=database, schema_registry=schema_registry_manager, ttl_days=90)
+    event_store = create_event_store(db=database, schema_registry=schema_registry_manager, logger=logger, ttl_days=90)
 
     # Create repository and idempotency manager (Redis-backed)
     saga_repository = SagaRepository(database)
@@ -67,7 +69,7 @@ async def run_saga_orchestrator() -> None:
         socket_timeout=5,
     )
     idem_repo = RedisIdempotencyRepository(r, key_prefix="idempotency")
-    idempotency_manager = create_idempotency_manager(repository=idem_repo, config=IdempotencyConfig())
+    idempotency_manager = create_idempotency_manager(repository=idem_repo, config=IdempotencyConfig(), logger=logger)
     resource_allocation_repository = ResourceAllocationRepository(database)
 
     # Create saga orchestrator

@@ -1,16 +1,14 @@
 import csv
 import json
+import logging
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from io import StringIO
 from typing import Any, Dict, List
 
-from app.core.logging import logger
 from app.db.repositories.admin import AdminEventsRepository
-from app.domain.admin import (
-    ReplayQuery,
-    ReplaySessionStatusDetail,
-)
+from app.db.repositories.admin.admin_events_repository import ReplaySessionStatusDetail
+from app.domain.admin import ReplayQuery
 from app.domain.admin.replay_updates import ReplaySessionUpdate
 from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
 from app.domain.events.event_models import (
@@ -21,8 +19,22 @@ from app.domain.events.event_models import (
     EventStatistics,
 )
 from app.domain.replay import ReplayConfig, ReplayFilter
-from app.infrastructure.mappers import EventExportRowMapper
 from app.services.replay_service import ReplayService
+
+
+def _export_row_to_dict(row: EventExportRow) -> dict[str, str]:
+    """Convert EventExportRow to dict with display names."""
+    return {
+        "Event ID": row.event_id,
+        "Event Type": row.event_type,
+        "Timestamp": row.timestamp,
+        "Correlation ID": row.correlation_id,
+        "Aggregate ID": row.aggregate_id,
+        "User ID": row.user_id,
+        "Service": row.service,
+        "Status": row.status,
+        "Error": row.error,
+    }
 
 
 class AdminReplayResult:
@@ -52,9 +64,10 @@ class ExportResult:
 
 
 class AdminEventsService:
-    def __init__(self, repository: AdminEventsRepository, replay_service: ReplayService) -> None:
+    def __init__(self, repository: AdminEventsRepository, replay_service: ReplayService, logger: logging.Logger) -> None:
         self._repo = repository
         self._replay_service = replay_service
+        self.logger = logger
 
     async def browse_events(
         self,
@@ -83,12 +96,11 @@ class AdminEventsService:
         replay_correlation_id: str,
         target_service: str | None,
     ) -> AdminReplayResult:
-        query = self._repo.build_replay_query(replay_query)
-        if not query:
+        if replay_query.is_empty():
             raise ValueError("Must specify at least one filter for replay")
 
         # Prepare and optionally preview
-        logger.info(
+        self.logger.info(
             "Preparing replay session",
             extra={
                 "dry_run": dry_run,
@@ -96,7 +108,7 @@ class AdminEventsService:
             },
         )
         session_data = await self._repo.prepare_replay_session(
-            query=query,
+            replay_query=replay_query,
             dry_run=dry_run,
             replay_correlation_id=replay_correlation_id,
             max_events=1000,
@@ -120,7 +132,7 @@ class AdminEventsService:
                 status="Preview",
                 events_preview=previews,
             )
-            logger.info(
+            self.logger.info(
                 "Replay dry-run prepared",
                 extra={
                     "total_events": result.total_events,
@@ -130,7 +142,10 @@ class AdminEventsService:
             return result
 
         # Build config for actual replay and create session via replay service
-        replay_filter = ReplayFilter(custom_query=query)
+        replay_filter = ReplayFilter(
+            start_time=replay_query.start_time,
+            end_time=replay_query.end_time,
+        )
         config = ReplayConfig(
             replay_type=ReplayType.QUERY,
             target=ReplayTarget.KAFKA if target_service else ReplayTarget.TEST,
@@ -163,7 +178,7 @@ class AdminEventsService:
             session_id=session_id,
             status="Replay scheduled",
         )
-        logger.info(
+        self.logger.info(
             "Replay scheduled",
             extra={
                 "session_id": result.session_id,
@@ -202,12 +217,11 @@ class AdminEventsService:
             ],
         )
         writer.writeheader()
-        row_mapper = EventExportRowMapper()
         for row in rows[:limit]:
-            writer.writerow(row_mapper.to_dict(row))
+            writer.writerow(_export_row_to_dict(row))
         output.seek(0)
         filename = f"events_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
-        logger.info(
+        self.logger.info(
             "Exported events CSV",
             extra={
                 "row_count": len(rows),
@@ -247,7 +261,7 @@ class AdminEventsService:
         }
         json_content = json.dumps(export_data, indent=2, default=str)
         filename = f"events_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"
-        logger.info(
+        self.logger.info(
             "Exported events JSON",
             extra={
                 "event_count": len(events_data),
@@ -258,14 +272,14 @@ class AdminEventsService:
 
     async def delete_event(self, *, event_id: str, deleted_by: str) -> bool:
         # Load event for archival; archive then delete
-        logger.warning("Admin attempting to delete event", extra={"event_id": event_id, "deleted_by": deleted_by})
+        self.logger.warning("Admin attempting to delete event", extra={"event_id": event_id, "deleted_by": deleted_by})
         detail = await self._repo.get_event_detail(event_id)
         if not detail:
             return False
         await self._repo.archive_event(detail.event, deleted_by)
         deleted = await self._repo.delete_event(event_id)
         if deleted:
-            logger.info(
+            self.logger.info(
                 "Event deleted",
                 extra={
                     "event_id": event_id,

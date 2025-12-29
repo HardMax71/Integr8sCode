@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import uuid
 
 import pytest
@@ -15,6 +16,8 @@ from app.settings import get_settings
 
 pytestmark = [pytest.mark.integration, pytest.mark.kafka]
 
+_test_logger = logging.getLogger("test.events.event_dispatcher")
+
 
 @pytest.mark.asyncio
 async def test_dispatcher_with_multiple_handlers(scope) -> None:  # type: ignore[valid-type]
@@ -23,7 +26,7 @@ async def test_dispatcher_with_multiple_handlers(scope) -> None:  # type: ignore
     await initialize_event_schemas(registry)
 
     # Build dispatcher with two handlers for the same event
-    dispatcher = EventDispatcher()
+    dispatcher = EventDispatcher(logger=_test_logger)
     h1_called = asyncio.Event()
     h2_called = asyncio.Event()
 
@@ -43,7 +46,7 @@ async def test_dispatcher_with_multiple_handlers(scope) -> None:  # type: ignore
         enable_auto_commit=True,
         auto_offset_reset="earliest",
     )
-    consumer = UnifiedConsumer(cfg, dispatcher)
+    consumer = UnifiedConsumer(cfg, dispatcher, logger=_test_logger)
     await consumer.start([str(KafkaTopic.EXECUTION_EVENTS)])
 
     # Produce a request event via DI

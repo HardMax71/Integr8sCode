@@ -1,3 +1,4 @@
+from .exceptions import SavedScriptNotFoundError
 from .models import (
     DomainSavedScript,
     DomainSavedScriptCreate,
@@ -8,4 +9,5 @@ __all__ = [
     "DomainSavedScript",
     "DomainSavedScriptCreate",
     "DomainSavedScriptUpdate",
+    "SavedScriptNotFoundError",
 ]

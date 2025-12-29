@@ -1,23 +1,29 @@
 import asyncio
 import json
+import logging
+import os
 from datetime import datetime, timezone
 
 import pytest
 from confluent_kafka import Producer
 
+from app.db.docs import DLQMessageDocument
 from app.dlq.manager import create_dlq_manager
-from app.dlq.models import DLQFields, DLQMessageStatus, RetryPolicy, RetryStrategy
-import os
+from app.dlq.models import DLQMessageStatus, RetryPolicy, RetryStrategy
 from app.domain.enums.kafka import KafkaTopic
+from app.events.schema.schema_registry import create_schema_registry_manager
 from tests.helpers import make_execution_requested_event
 from tests.helpers.eventually import eventually
 
 pytestmark = [pytest.mark.integration, pytest.mark.kafka, pytest.mark.mongodb]
 
+_test_logger = logging.getLogger("test.dlq.discard_policy")
+
 
 @pytest.mark.asyncio
 async def test_dlq_manager_discards_with_manual_policy(db) -> None:  # type: ignore[valid-type]
-    manager = create_dlq_manager(database=db)
+    schema_registry = create_schema_registry_manager(_test_logger)
+    manager = create_dlq_manager(schema_registry=schema_registry, logger=_test_logger)
     prefix = os.environ.get("KAFKA_TOPIC_PREFIX", "")
     topic = f"{prefix}{str(KafkaTopic.EXECUTION_EVENTS)}"
     manager.set_retry_policy(topic, RetryPolicy(topic=topic, strategy=RetryStrategy.MANUAL))
@@ -42,11 +48,9 @@ async def test_dlq_manager_discards_with_manual_policy(db) -> None:  # type: ign
     producer.flush(5)
 
     async with manager:
-        coll = db.get_collection("dlq_messages")
-
         async def _discarded() -> None:
-            doc = await coll.find_one({"event_id": ev.event_id})
+            doc = await DLQMessageDocument.find_one({"event_id": ev.event_id})
             assert doc is not None
-            assert doc.get(str(DLQFields.STATUS)) == DLQMessageStatus.DISCARDED
+            assert doc.status == DLQMessageStatus.DISCARDED
 
         await eventually(_discarded, timeout=10.0, interval=0.2)

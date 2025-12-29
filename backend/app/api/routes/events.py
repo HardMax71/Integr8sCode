@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Any, Dict, List
 
@@ -8,7 +9,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from app.api.dependencies import admin_user, current_user
 from app.core.correlation import CorrelationContext
-from app.core.logging import logger
 from app.core.utils import get_client_ip
 from app.domain.enums.common import SortOrder
 from app.domain.events.event_models import EventFilter
@@ -283,6 +283,7 @@ async def delete_event(
     event_id: str,
     admin: Annotated[UserResponse, Depends(admin_user)],
     event_service: FromDishka[EventService],
+    logger: FromDishka[logging.Logger],
 ) -> DeleteEventResponse:
     result = await event_service.delete_event_with_archival(event_id=event_id, deleted_by=str(admin.email))
 
@@ -309,6 +310,7 @@ async def replay_aggregate_events(
     admin: Annotated[UserResponse, Depends(admin_user)],
     event_service: FromDishka[EventService],
     kafka_event_service: FromDishka[KafkaEventService],
+    logger: FromDishka[logging.Logger],
     target_service: str | None = Query(None, description="Service to replay events to"),
     dry_run: bool = Query(True, description="If true, only show what would be replayed"),
 ) -> ReplayAggregateResponse:

@@ -1,133 +1,120 @@
+import re
+from dataclasses import asdict
 from datetime import datetime, timezone
 
-from app.core.database_context import Collection, Database
+from beanie.odm.operators.find import BaseFindOperator
+from beanie.operators import Eq, Or, RegEx
+
 from app.core.security import SecurityService
-from app.domain.enums import UserRole
-from app.domain.events.event_models import CollectionNames
-from app.domain.user import (
-    PasswordReset,
-    User,
-    UserFields,
-    UserListResult,
-    UserSearchFilter,
-    UserUpdate,
+from app.db.docs import (
+    UserDocument,
+    ExecutionDocument,
+    SavedScriptDocument,
+    NotificationDocument,
+    UserSettingsDocument,
+    EventDocument,
+    SagaDocument,
 )
-from app.infrastructure.mappers import UserMapper
+from app.domain.enums import UserRole
+from app.domain.user import DomainUserCreate, PasswordReset, User, UserListResult, UserUpdate
 
 
 class AdminUserRepository:
-    def __init__(self, db: Database):
-        self.db = db
-        self.users_collection: Collection = self.db.get_collection(CollectionNames.USERS)
 
-        # Related collections used by this repository (e.g., cascade deletes)
-        self.executions_collection: Collection = self.db.get_collection(CollectionNames.EXECUTIONS)
-        self.saved_scripts_collection: Collection = self.db.get_collection(CollectionNames.SAVED_SCRIPTS)
-        self.notifications_collection: Collection = self.db.get_collection(CollectionNames.NOTIFICATIONS)
-        self.user_settings_collection: Collection = self.db.get_collection(CollectionNames.USER_SETTINGS)
-        self.events_collection: Collection = self.db.get_collection(CollectionNames.EVENTS)
-        self.sagas_collection: Collection = self.db.get_collection(CollectionNames.SAGAS)
+    def __init__(self) -> None:
         self.security_service = SecurityService()
-        self.mapper = UserMapper()
+
+    async def create_user(self, create_data: DomainUserCreate) -> UserDocument:
+        doc = UserDocument(
+            username=create_data.username,
+            email=create_data.email,
+            hashed_password=create_data.hashed_password,
+            role=create_data.role,
+            is_active=create_data.is_active,
+            is_superuser=create_data.is_superuser,
+        )
+        await doc.insert()
+        return doc
 
     async def list_users(
         self, limit: int = 100, offset: int = 0, search: str | None = None, role: UserRole | None = None
     ) -> UserListResult:
-        """List all users with optional filtering."""
-        # Create search filter
-        search_filter = UserSearchFilter(search_text=search, role=role)
+        conditions: list[BaseFindOperator] = []
 
-        query = self.mapper.search_filter_to_query(search_filter)
+        if search:
+            escaped_search = re.escape(search)
+            conditions.append(Or(
+                RegEx(UserDocument.username, escaped_search, options="i"),
+                RegEx(UserDocument.email, escaped_search, options="i"),
+            ))
 
-        # Get total count
-        total = await self.users_collection.count_documents(query)
+        if role:
+            conditions.append(Eq(UserDocument.role, role))
 
-        # Get users with pagination
-        cursor = self.users_collection.find(query).skip(offset).limit(limit)
-
-        users = []
-        async for user_doc in cursor:
-            users.append(self.mapper.from_mongo_document(user_doc))
-
+        query = UserDocument.find(*conditions)
+        total = await query.count()
+        docs = await query.skip(offset).limit(limit).to_list()
+        users = [User(**doc.model_dump(exclude={'id'})) for doc in docs]
         return UserListResult(users=users, total=total, offset=offset, limit=limit)
 
-    async def get_user_by_id(self, user_id: str) -> User | None:
-        """Get user by ID."""
-        user_doc = await self.users_collection.find_one({UserFields.USER_ID: user_id})
-        if user_doc:
-            return self.mapper.from_mongo_document(user_doc)
-        return None
+    async def get_user_by_id(self, user_id: str) -> UserDocument | None:
+        return await UserDocument.find_one({"user_id": user_id})
 
-    async def update_user(self, user_id: str, update_data: UserUpdate) -> User | None:
-        """Update user details."""
-        if not update_data.has_updates():
-            return await self.get_user_by_id(user_id)
+    async def update_user(self, user_id: str, update_data: UserUpdate) -> UserDocument | None:
+        doc = await self.get_user_by_id(user_id)
+        if not doc:
+            return None
 
-        # Get update dict
-        update_dict = self.mapper.to_update_dict(update_data)
+        update_dict = {k: v for k, v in asdict(update_data).items() if v is not None}
+        # Handle password hashing
+        if "password" in update_dict:
+            update_dict["hashed_password"] = self.security_service.get_password_hash(update_dict.pop("password"))
 
-        # Hash password if provided
-        if update_data.password:
-            update_dict[UserFields.HASHED_PASSWORD] = self.security_service.get_password_hash(update_data.password)
-            # Ensure no plaintext password field is persisted
-            update_dict.pop("password", None)
-
-        # Add updated_at timestamp
-        update_dict[UserFields.UPDATED_AT] = datetime.now(timezone.utc)
-
-        result = await self.users_collection.update_one({UserFields.USER_ID: user_id}, {"$set": update_dict})
-
-        if result.modified_count > 0:
-            return await self.get_user_by_id(user_id)
-
-        return None
+        if update_dict:
+            update_dict["updated_at"] = datetime.now(timezone.utc)
+            await doc.set(update_dict)
+        return doc
 
     async def delete_user(self, user_id: str, cascade: bool = True) -> dict[str, int]:
-        """Delete user with optional cascade deletion of related data."""
         deleted_counts = {}
 
-        result = await self.users_collection.delete_one({UserFields.USER_ID: user_id})
-        deleted_counts["user"] = result.deleted_count
+        doc = await self.get_user_by_id(user_id)
+        if doc:
+            await doc.delete()
+            deleted_counts["user"] = 1
+        else:
+            deleted_counts["user"] = 0
 
         if not cascade:
             return deleted_counts
 
-        # Delete user's executions
-        executions_result = await self.executions_collection.delete_many({"user_id": user_id})
-        deleted_counts["executions"] = executions_result.deleted_count
+        # Cascade delete related data
+        exec_result = await ExecutionDocument.find({"user_id": user_id}).delete()
+        deleted_counts["executions"] = exec_result.deleted_count if exec_result else 0
 
-        # Delete user's saved scripts
-        scripts_result = await self.saved_scripts_collection.delete_many({"user_id": user_id})
-        deleted_counts["saved_scripts"] = scripts_result.deleted_count
+        scripts_result = await SavedScriptDocument.find({"user_id": user_id}).delete()
+        deleted_counts["saved_scripts"] = scripts_result.deleted_count if scripts_result else 0
 
-        # Delete user's notifications
-        notifications_result = await self.notifications_collection.delete_many({"user_id": user_id})
-        deleted_counts["notifications"] = notifications_result.deleted_count
+        notif_result = await NotificationDocument.find({"user_id": user_id}).delete()
+        deleted_counts["notifications"] = notif_result.deleted_count if notif_result else 0
 
-        # Delete user's settings
-        settings_result = await self.user_settings_collection.delete_many({"user_id": user_id})
-        deleted_counts["user_settings"] = settings_result.deleted_count
+        settings_result = await UserSettingsDocument.find({"user_id": user_id}).delete()
+        deleted_counts["user_settings"] = settings_result.deleted_count if settings_result else 0
 
-        # Delete user's events (if needed)
-        events_result = await self.events_collection.delete_many({"user_id": user_id})
-        deleted_counts["events"] = events_result.deleted_count
+        events_result = await EventDocument.find({"metadata.user_id": user_id}).delete()
+        deleted_counts["events"] = events_result.deleted_count if events_result else 0
 
-        # Delete user's sagas
-        sagas_result = await self.sagas_collection.delete_many({"user_id": user_id})
-        deleted_counts["sagas"] = sagas_result.deleted_count
+        sagas_result = await SagaDocument.find({"context_data.user_id": user_id}).delete()
+        deleted_counts["sagas"] = sagas_result.deleted_count if sagas_result else 0
 
         return deleted_counts
 
-    async def reset_user_password(self, password_reset: PasswordReset) -> bool:
-        """Reset user password."""
-        if not password_reset.is_valid():
-            raise ValueError("Invalid password reset data")
+    async def reset_user_password(self, reset_data: PasswordReset) -> bool:
+        doc = await self.get_user_by_id(reset_data.user_id)
+        if not doc:
+            return False
 
-        hashed_password = self.security_service.get_password_hash(password_reset.new_password)
-
-        result = await self.users_collection.update_one(
-            {UserFields.USER_ID: password_reset.user_id},
-            {"$set": {UserFields.HASHED_PASSWORD: hashed_password, UserFields.UPDATED_AT: datetime.now(timezone.utc)}},
-        )
-
-        return result.modified_count > 0
+        doc.hashed_password = self.security_service.get_password_hash(reset_data.new_password)
+        doc.updated_at = datetime.now(timezone.utc)
+        await doc.save()
+        return True

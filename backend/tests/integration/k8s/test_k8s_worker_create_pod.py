@@ -1,3 +1,4 @@
+import logging
 import os
 import uuid
 
@@ -16,6 +17,8 @@ from app.events.core import UnifiedProducer
 from app.services.idempotency import IdempotencyManager
 
 pytestmark = [pytest.mark.integration, pytest.mark.k8s]
+
+_test_logger = logging.getLogger("test.k8s.worker_create_pod")
 
 
 @pytest.mark.asyncio
@@ -40,6 +43,7 @@ async def test_worker_creates_configmap_and_pod(scope, monkeypatch):  # type: ig
         schema_registry_manager=schema,
         event_store=store,
         idempotency_manager=idem,
+        logger=_test_logger,
     )
 
     # Initialize k8s clients using worker's own method

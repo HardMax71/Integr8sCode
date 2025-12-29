@@ -1,9 +1,9 @@
 import asyncio
+import logging
 from collections import defaultdict
 from collections.abc import Awaitable, Callable
 from typing import TypeAlias, TypeVar
 
-from app.core.logging import logger
 from app.domain.enums.events import EventType
 from app.infrastructure.kafka.events.base import BaseEvent
 from app.infrastructure.kafka.mappings import get_event_class_for_type
@@ -20,7 +20,8 @@ class EventDispatcher:
     a direct mapping from event types to their handlers.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, logger: logging.Logger) -> None:
+        self.logger = logger
         # Map event types to their handlers
         self._handlers: dict[EventType, list[Callable[[BaseEvent], Awaitable[None]]]] = defaultdict(list)
 
@@ -41,7 +42,7 @@ class EventDispatcher:
             if hasattr(event_class, "topic"):
                 topic = str(event_class.topic)
                 self._topic_event_types[topic].add(event_class)
-                logger.debug(f"Mapped {event_class.__name__} to topic {topic}")
+                self.logger.debug(f"Mapped {event_class.__name__} to topic {topic}")
 
     def register(self, event_type: EventType) -> Callable[[EventHandler], EventHandler]:
         """
@@ -54,7 +55,7 @@ class EventDispatcher:
         """
 
         def decorator(handler: EventHandler) -> EventHandler:
-            logger.info(f"Registering handler '{handler.__name__}' for event type '{event_type.value}'")
+            self.logger.info(f"Registering handler '{handler.__name__}' for event type '{event_type.value}'")
             self._handlers[event_type].append(handler)
             return handler
 
@@ -68,7 +69,7 @@ class EventDispatcher:
             event_type: The event type this handler processes
             handler: The async handler function
         """
-        logger.info(f"Registering handler '{handler.__name__}' for event type '{event_type.value}'")
+        self.logger.info(f"Registering handler '{handler.__name__}' for event type '{event_type.value}'")
         self._handlers[event_type].append(handler)
 
     def remove_handler(self, event_type: EventType, handler: EventHandler) -> bool:
@@ -84,7 +85,7 @@ class EventDispatcher:
         """
         if event_type in self._handlers and handler in self._handlers[event_type]:
             self._handlers[event_type].remove(handler)
-            logger.info(f"Removed handler '{handler.__name__}' for event type '{event_type.value}'")
+            self.logger.info(f"Removed handler '{handler.__name__}' for event type '{event_type.value}'")
             # Clean up empty lists
             if not self._handlers[event_type]:
                 del self._handlers[event_type]
@@ -100,17 +101,17 @@ class EventDispatcher:
         """
         event_type = event.event_type
         handlers = self._handlers.get(event_type, [])
-        logger.debug(f"Dispatcher has {len(self._handlers)} event types registered")
-        logger.debug(
+        self.logger.debug(f"Dispatcher has {len(self._handlers)} event types registered")
+        self.logger.debug(
             f"For event type {event_type}, found {len(handlers)} handlers: {[h.__class__.__name__ for h in handlers]}"
         )
 
         if not handlers:
             self._event_metrics[event_type]["skipped"] += 1
-            logger.debug(f"No handlers registered for event type {event_type.value}")
+            self.logger.debug(f"No handlers registered for event type {event_type.value}")
             return
 
-        logger.debug(f"Dispatching {event_type.value} to {len(handlers)} handler(s)")
+        self.logger.debug(f"Dispatching {event_type.value} to {len(handlers)} handler(s)")
 
         # Run handlers concurrently for better performance
         tasks = []
@@ -135,11 +136,11 @@ class EventDispatcher:
             event: The event to process
         """
         try:
-            logger.debug(f"Executing handler {handler.__class__.__name__} for event {event.event_id}")
+            self.logger.debug(f"Executing handler {handler.__class__.__name__} for event {event.event_id}")
             await handler(event)
-            logger.debug(f"Handler {handler.__class__.__name__} completed")
+            self.logger.debug(f"Handler {handler.__class__.__name__} completed")
         except Exception as e:
-            logger.error(
+            self.logger.error(
                 f"Handler '{handler.__class__.__name__}' failed for event {event.event_id}: {e}", exc_info=True
             )
             raise
@@ -166,7 +167,7 @@ class EventDispatcher:
     def clear_handlers(self) -> None:
         """Clear all registered handlers (useful for testing)."""
         self._handlers.clear()
-        logger.info("All event handlers cleared")
+        self.logger.info("All event handlers cleared")
 
     def get_handlers(self, event_type: EventType) -> list[Callable[[BaseEvent], Awaitable[None]]]:
         """Get all handlers for a specific event type."""

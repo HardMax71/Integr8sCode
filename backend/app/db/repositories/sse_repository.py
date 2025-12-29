@@ -1,31 +1,27 @@
 from datetime import datetime, timezone
 
-from app.core.database_context import Collection, Database
+from app.db.docs import ExecutionDocument
 from app.domain.enums.execution import ExecutionStatus
-from app.domain.events.event_models import CollectionNames
-from app.domain.execution import DomainExecution
-from app.domain.sse import SSEExecutionStatusDomain
-from app.infrastructure.mappers import SSEMapper
+
+
+class SSEExecutionStatus:
+    def __init__(self, execution_id: str, status: ExecutionStatus, timestamp: str):
+        self.execution_id = execution_id
+        self.status = status
+        self.timestamp = timestamp
 
 
 class SSERepository:
-    def __init__(self, database: Database) -> None:
-        self.db = database
-        self.executions_collection: Collection = self.db.get_collection(CollectionNames.EXECUTIONS)
-        self.mapper = SSEMapper()
 
-    async def get_execution_status(self, execution_id: str) -> SSEExecutionStatusDomain | None:
-        doc = await self.executions_collection.find_one({"execution_id": execution_id}, {"status": 1, "_id": 0})
+    async def get_execution_status(self, execution_id: str) -> SSEExecutionStatus | None:
+        doc = await ExecutionDocument.find_one({"execution_id": execution_id})
         if not doc:
             return None
-        return SSEExecutionStatusDomain(
+        return SSEExecutionStatus(
             execution_id=execution_id,
-            status=ExecutionStatus(doc["status"]),
+            status=doc.status,
             timestamp=datetime.now(timezone.utc).isoformat(),
         )
 
-    async def get_execution(self, execution_id: str) -> DomainExecution | None:
-        doc = await self.executions_collection.find_one({"execution_id": execution_id})
-        if not doc:
-            return None
-        return self.mapper.execution_from_mongo_document(doc)
+    async def get_execution(self, execution_id: str) -> ExecutionDocument | None:
+        return await ExecutionDocument.find_one({"execution_id": execution_id})

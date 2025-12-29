@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from uuid import uuid4
 
 import pytest
@@ -11,11 +12,13 @@ from tests.helpers import make_execution_requested_event
 
 pytestmark = [pytest.mark.integration, pytest.mark.kafka]
 
+_test_logger = logging.getLogger("test.events.producer_e2e")
+
 
 @pytest.mark.asyncio
 async def test_unified_producer_start_produce_send_to_dlq_stop(scope):  # type: ignore[valid-type]
     schema: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
-    prod = UnifiedProducer(ProducerConfig(bootstrap_servers="localhost:9092"), schema)
+    prod = UnifiedProducer(ProducerConfig(bootstrap_servers="localhost:9092"), schema, logger=_test_logger)
     await prod.start()
 
     try:

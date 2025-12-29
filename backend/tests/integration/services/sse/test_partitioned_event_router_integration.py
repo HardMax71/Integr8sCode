@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from uuid import uuid4
 from tests.helpers.eventually import eventually
 import pytest
@@ -15,6 +16,8 @@ from app.settings import Settings
 
 pytestmark = [pytest.mark.integration, pytest.mark.redis]
 
+_test_logger = logging.getLogger("test.services.sse.partitioned_event_router_integration")
+
 
 @pytest.mark.asyncio
 async def test_router_bridges_to_redis(redis_client) -> None:  # type: ignore[valid-type]
@@ -24,14 +27,16 @@ async def test_router_bridges_to_redis(redis_client) -> None:  # type: ignore[va
         redis_client,
         exec_prefix=f"sse:exec:{suffix}:",
         notif_prefix=f"sse:notif:{suffix}:",
+        logger=_test_logger,
     )
     router = SSEKafkaRedisBridge(
-        schema_registry=SchemaRegistryManager(),
+        schema_registry=SchemaRegistryManager(logger=_test_logger),
         settings=settings,
         event_metrics=EventMetrics(),
         sse_bus=bus,
+        logger=_test_logger,
     )
-    disp = EventDispatcher()
+    disp = EventDispatcher(logger=_test_logger)
     router._register_routing_handlers(disp)
 
     # Open Redis subscription for our execution id
@@ -57,14 +62,16 @@ async def test_router_start_and_stop(redis_client) -> None:  # type: ignore[vali
     settings.SSE_CONSUMER_POOL_SIZE = 1
     suffix = uuid4().hex[:6]
     router = SSEKafkaRedisBridge(
-        schema_registry=SchemaRegistryManager(),
+        schema_registry=SchemaRegistryManager(logger=_test_logger),
         settings=settings,
         event_metrics=EventMetrics(),
         sse_bus=SSERedisBus(
             redis_client,
             exec_prefix=f"sse:exec:{suffix}:",
             notif_prefix=f"sse:notif:{suffix}:",
+            logger=_test_logger,
         ),
+        logger=_test_logger,
     )
 
     await router.start()

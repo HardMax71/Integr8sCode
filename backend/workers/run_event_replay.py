@@ -2,17 +2,19 @@ import asyncio
 import logging
 from contextlib import AsyncExitStack
 
+from beanie import init_beanie
+from pymongo.asynchronous.mongo_client import AsyncMongoClient
+
 from app.core.database_context import DBClient
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
+from app.db.docs import ALL_DOCUMENTS
 from app.db.repositories.replay_repository import ReplayRepository
-from app.db.schema.schema_manager import SchemaManager
 from app.events.core import ProducerConfig, UnifiedProducer
 from app.events.event_store import create_event_store
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.event_replay.replay_service import EventReplayService
 from app.settings import get_settings
-from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 
 async def cleanup_task(replay_service: EventReplayService, interval_hours: int = 6) -> None:
@@ -44,23 +46,19 @@ async def run_replay_service() -> None:
     await db_client.admin.command("ping")
     logger.info(f"Connected to database: {db_name}")
 
-    # Ensure DB schema
-    await SchemaManager(database).apply_all()
+    # Initialize Beanie ODM (indexes are idempotently created via Document.Settings.indexes)
+    await init_beanie(database=database, document_models=ALL_DOCUMENTS)
 
     # Initialize services
-    schema_registry = SchemaRegistryManager()
+    schema_registry = SchemaRegistryManager(logger)
     producer_config = ProducerConfig(bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS)
-    producer = UnifiedProducer(producer_config, schema_registry)
+    producer = UnifiedProducer(producer_config, schema_registry, logger)
 
     # Create event store
-    event_store = create_event_store(db=database, schema_registry=schema_registry)
-
-    # Ensure schema (indexes) for this worker process
-    schema_manager = SchemaManager(database)
-    await schema_manager.apply_all()
+    event_store = create_event_store(db=database, schema_registry=schema_registry, logger=logger)
 
     # Create repository
-    replay_repository = ReplayRepository(database)
+    replay_repository = ReplayRepository(database, logger)
 
     # Create replay service
     replay_service = EventReplayService(repository=replay_repository, producer=producer, event_store=event_store)

@@ -1,11 +1,11 @@
 import asyncio
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, List
 
 from cachetools import TTLCache
 
-from app.core.logging import logger
 from app.db.repositories.user_settings_repository import UserSettingsRepository
 from app.domain.enums import Theme
 from app.domain.enums.auth import SettingsType
@@ -24,9 +24,10 @@ from app.services.kafka_event_service import KafkaEventService
 
 
 class UserSettingsService:
-    def __init__(self, repository: UserSettingsRepository, event_service: KafkaEventService) -> None:
+    def __init__(self, repository: UserSettingsRepository, event_service: KafkaEventService, logger: logging.Logger) -> None:
         self.repository = repository
         self.event_service = event_service
+        self.logger = logger
         # TTL+LRU cache for settings
         self._cache_ttl = timedelta(minutes=5)
         self._max_cache_size = 1000
@@ -37,7 +38,7 @@ class UserSettingsService:
         self._event_bus_manager: EventBusManager | None = None
         self._subscription_id: str | None = None
 
-        logger.info(
+        self.logger.info(
             "UserSettingsService initialized",
             extra={"cache_ttl_seconds": self._cache_ttl.total_seconds(), "max_cache_size": self._max_cache_size},
         )
@@ -46,7 +47,7 @@ class UserSettingsService:
         """Get settings with cache; rebuild and cache on miss."""
         if user_id in self._cache:
             cached = self._cache[user_id]
-            logger.debug(f"Settings cache hit for user {user_id}", extra={"cache_size": len(self._cache)})
+            self.logger.debug(f"Settings cache hit for user {user_id}", extra={"cache_size": len(self._cache)})
             return cached
 
         return await self.get_user_settings_fresh(user_id)
@@ -424,12 +425,12 @@ class UserSettingsService:
         """Invalidate cached settings for a user"""
         removed = self._cache.pop(user_id, None) is not None
         if removed:
-            logger.debug(f"Invalidated cache for user {user_id}", extra={"cache_size": len(self._cache)})
+            self.logger.debug(f"Invalidated cache for user {user_id}", extra={"cache_size": len(self._cache)})
 
     def _add_to_cache(self, user_id: str, settings: DomainUserSettings) -> None:
         """Add settings to TTL+LRU cache."""
         self._cache[user_id] = settings
-        logger.debug(f"Cached settings for user {user_id}", extra={"cache_size": len(self._cache)})
+        self.logger.debug(f"Cached settings for user {user_id}", extra={"cache_size": len(self._cache)})
 
     def get_cache_stats(self) -> dict[str, Any]:
         """Get cache statistics for monitoring."""
@@ -448,4 +449,4 @@ class UserSettingsService:
         # Delete from database
         await self.repository.delete_user_settings(user_id)
 
-        logger.info(f"Reset settings for user {user_id}")
+        self.logger.info(f"Reset settings for user {user_id}")

@@ -84,5 +84,5 @@ def test_correlation_middleware_sets_header() -> None:
 
 
 def test_setup_logger_returns_logger():
-    lg = setup_logger()
+    lg = setup_logger(log_level="INFO")
     assert hasattr(lg, "info")

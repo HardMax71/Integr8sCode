@@ -1,5 +1,6 @@
 import pytest
 
+from app.domain.saga import DomainResourceAllocation
 from app.services.saga.execution_saga import (
     ValidateExecutionStep,
     AllocateResourcesStep,
@@ -39,16 +40,24 @@ async def test_validate_execution_step_success_and_failures() -> None:
 
 
 class _FakeAllocRepo:
-    def __init__(self, active: int = 0, ok: bool = True) -> None:
+    def __init__(self, active: int = 0, alloc_id: str = "alloc-1") -> None:
         self.active = active
-        self.ok = ok
+        self.alloc_id = alloc_id
         self.released: list[str] = []
 
     async def count_active(self, language: str) -> int:  # noqa: ARG002
         return self.active
 
-    async def create_allocation(self, _id: str, **_kwargs) -> bool:  # noqa: ARG002
-        return self.ok
+    async def create_allocation(self, create_data) -> DomainResourceAllocation:  # noqa: ARG002
+        return DomainResourceAllocation(
+            allocation_id=self.alloc_id,
+            execution_id=create_data.execution_id,
+            language=create_data.language,
+            cpu_request=create_data.cpu_request,
+            memory_request=create_data.memory_request,
+            cpu_limit=create_data.cpu_limit,
+            memory_limit=create_data.memory_limit,
+        )
 
     async def release_allocation(self, allocation_id: str) -> None:
         self.released.append(allocation_id)
@@ -58,13 +67,13 @@ class _FakeAllocRepo:
 async def test_allocate_resources_step_paths() -> None:
     ctx = SagaContext("s1", "e1")
     ctx.set("execution_id", "e1")
-    ok = await AllocateResourcesStep(alloc_repo=_FakeAllocRepo(active=0, ok=True)).execute(ctx, _req())
-    assert ok is True and ctx.get("resources_allocated") is True and ctx.get("allocation_id") == "e1"
+    ok = await AllocateResourcesStep(alloc_repo=_FakeAllocRepo(active=0, alloc_id="alloc-1")).execute(ctx, _req())
+    assert ok is True and ctx.get("resources_allocated") is True and ctx.get("allocation_id") == "alloc-1"
 
     # Limit exceeded
     ctx2 = SagaContext("s2", "e2")
     ctx2.set("execution_id", "e2")
-    ok2 = await AllocateResourcesStep(alloc_repo=_FakeAllocRepo(active=100, ok=True)).execute(ctx2, _req())
+    ok2 = await AllocateResourcesStep(alloc_repo=_FakeAllocRepo(active=100)).execute(ctx2, _req())
     assert ok2 is False
 
     # Missing repo
@@ -72,12 +81,6 @@ async def test_allocate_resources_step_paths() -> None:
     ctx3.set("execution_id", "e3")
     ok3 = await AllocateResourcesStep(alloc_repo=None).execute(ctx3, _req())
     assert ok3 is False
-
-    # Create allocation returns False -> failure path hitting line 92
-    ctx4 = SagaContext("s4", "e4")
-    ctx4.set("execution_id", "e4")
-    ok4 = await AllocateResourcesStep(alloc_repo=_FakeAllocRepo(active=0, ok=False)).execute(ctx4, _req())
-    assert ok4 is False
 
 
 @pytest.mark.asyncio

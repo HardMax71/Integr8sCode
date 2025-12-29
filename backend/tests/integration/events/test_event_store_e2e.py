@@ -1,4 +1,5 @@
 from datetime import datetime, timezone, timedelta
+import logging
 
 import pytest
 from app.core.database_context import Database
@@ -11,12 +12,14 @@ from tests.helpers import make_execution_requested_event
 
 pytestmark = [pytest.mark.integration, pytest.mark.mongodb]
 
+_test_logger = logging.getLogger("test.events.event_store_e2e")
+
 
 @pytest.mark.asyncio
 async def test_event_store_initialize_and_crud(scope):  # type: ignore[valid-type]
     schema: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
     db: Database = await scope.get(Database)
-    store = EventStore(db=db, schema_registry=schema, ttl_days=1)
+    store = EventStore(db=db, schema_registry=schema, ttl_days=1, logger=_test_logger)
     await store.initialize()
 
     # Store single event

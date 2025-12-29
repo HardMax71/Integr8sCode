@@ -1,4 +1,5 @@
 from datetime import datetime, timezone, timedelta
+import logging
 
 import pytest
 
@@ -11,12 +12,14 @@ from app.core.database_context import Database
 
 pytestmark = [pytest.mark.integration, pytest.mark.mongodb]
 
+_test_logger = logging.getLogger("test.events.event_store")
+
 
 @pytest.fixture()
 async def event_store(scope) -> EventStore:  # type: ignore[valid-type]
     db: Database = await scope.get(Database)
     schema_registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
-    store = EventStore(db=db, schema_registry=schema_registry)
+    store = EventStore(db=db, schema_registry=schema_registry, logger=_test_logger)
     await store.initialize()
     return store
 

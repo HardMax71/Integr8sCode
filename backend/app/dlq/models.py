@@ -26,29 +26,6 @@ class RetryStrategy(StringEnum):
     MANUAL = "manual"
 
 
-class DLQFields(StringEnum):
-    """Database field names for DLQ messages collection."""
-
-    EVENT_ID = "event_id"
-    EVENT = "event"
-    EVENT_TYPE = "event.event_type"
-    ORIGINAL_TOPIC = "original_topic"
-    ERROR = "error"
-    RETRY_COUNT = "retry_count"
-    FAILED_AT = "failed_at"
-    STATUS = "status"
-    CREATED_AT = "created_at"
-    LAST_UPDATED = "last_updated"
-    NEXT_RETRY_AT = "next_retry_at"
-    RETRIED_AT = "retried_at"
-    DISCARDED_AT = "discarded_at"
-    DISCARD_REASON = "discard_reason"
-    PRODUCER_ID = "producer_id"
-    DLQ_OFFSET = "dlq_offset"
-    DLQ_PARTITION = "dlq_partition"
-    LAST_ERROR = "last_error"
-
-
 @dataclass
 class DLQMessage:
     """Unified DLQ message model for the entire system."""

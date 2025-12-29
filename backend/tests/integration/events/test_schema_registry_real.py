@@ -1,3 +1,4 @@
+import logging
 import pytest
 
 from app.events.schema.schema_registry import SchemaRegistryManager
@@ -6,10 +7,12 @@ from app.infrastructure.kafka.events.pod import PodCreatedEvent
 
 pytestmark = [pytest.mark.integration, pytest.mark.kafka]
 
+_test_logger = logging.getLogger("test.events.schema_registry_real")
+
 
 def test_serialize_and_deserialize_event_real_registry() -> None:
     # Uses real Schema Registry configured via env (SCHEMA_REGISTRY_URL)
-    m = SchemaRegistryManager()
+    m = SchemaRegistryManager(logger=_test_logger)
     ev = PodCreatedEvent(
         execution_id="e1",
         pod_name="p",

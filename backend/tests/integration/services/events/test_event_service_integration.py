@@ -3,7 +3,7 @@ from datetime import datetime, timezone, timedelta
 import pytest
 
 from app.db.repositories import EventRepository
-from app.domain.events.event_models import EventFields, Event, EventFilter
+from app.domain.events.event_models import Event, EventFilter
 from app.domain.enums.common import SortOrder
 from app.domain.enums.user import UserRole
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata
@@ -55,7 +55,7 @@ async def test_event_service_access_and_queries(scope) -> None:  # type: ignore[
     assert one_denied is None
 
     # aggregate_events injects user filter for non-admin
-    pipe = [{"$match": {EventFields.EVENT_TYPE: str(e1.event_type)}}]
+    pipe = [{"$match": {"event_type": str(e1.event_type)}}]
     _ = await svc.aggregate_events("u1", UserRole.USER, pipe)
 
     # list_event_types returns at least one type

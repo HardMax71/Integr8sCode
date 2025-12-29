@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Dict
 
 import pytest
@@ -386,15 +387,15 @@ class TestDLQRoutes:
 
             # Check status breakdown
             for status, count in topic_summary.status_breakdown.items():
-                assert status in ["pending", "retrying", "failed", "discarded"]
+                assert status in ["pending", "scheduled", "retried", "discarded"]
                 assert isinstance(count, int)
                 assert count >= 0
 
-            # Check dates if present
+            # Check dates if present (may be str or datetime)
             if topic_summary.oldest_message:
-                assert isinstance(topic_summary.oldest_message, str)
+                assert isinstance(topic_summary.oldest_message, (str, datetime))
             if topic_summary.newest_message:
-                assert isinstance(topic_summary.newest_message, str)
+                assert isinstance(topic_summary.newest_message, (str, datetime))
 
             # Check retry stats
             if topic_summary.avg_retry_count is not None:

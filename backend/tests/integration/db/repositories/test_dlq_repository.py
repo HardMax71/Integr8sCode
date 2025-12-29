@@ -1,49 +1,86 @@
 from datetime import datetime, timezone
+import logging
 
 import pytest
 
+from app.db.docs import DLQMessageDocument
 from app.db.repositories.dlq_repository import DLQRepository
 from app.domain.enums.events import EventType
-from app.dlq import DLQFields, DLQMessageStatus
+from app.dlq import DLQMessageStatus
 
 pytestmark = pytest.mark.integration
 
+_test_logger = logging.getLogger("test.db.repositories.dlq_repository")
+
 
 @pytest.fixture()
-def repo(db) -> DLQRepository:  # type: ignore[valid-type]
-    return DLQRepository(db)
+def repo() -> DLQRepository:
+    return DLQRepository(_test_logger)
 
 
-def make_dlq_doc(eid: str, topic: str, etype: str, status: str = DLQMessageStatus.PENDING) -> dict:
+async def insert_test_dlq_docs():
+    """Insert test DLQ documents using Beanie."""
     now = datetime.now(timezone.utc)
-    # Build event dict compatible with event schema (top-level fields)
-    event: dict[str, object] = {
-        "event_type": etype,
-        "metadata": {"service_name": "svc", "service_version": "1"},
-    }
-    if etype == str(EventType.USER_LOGGED_IN):
-        event.update({"user_id": "u1", "login_method": "password"})
-    elif etype == str(EventType.EXECUTION_STARTED):
-        event.update({"execution_id": "x1", "pod_name": "p1"})
-    return {
-        DLQFields.EVENT: event,
-        DLQFields.ORIGINAL_TOPIC: topic,
-        DLQFields.ERROR: "err",
-        DLQFields.RETRY_COUNT: 0,
-        DLQFields.FAILED_AT: now,
-        DLQFields.STATUS: status,
-        DLQFields.PRODUCER_ID: "p1",
-        DLQFields.EVENT_ID: eid,
-    }
+
+    docs = [
+        DLQMessageDocument(
+            event_id="id1",
+            event_type=str(EventType.USER_LOGGED_IN),
+            event={
+                "event_type": str(EventType.USER_LOGGED_IN),
+                "metadata": {"service_name": "svc", "service_version": "1"},
+                "user_id": "u1",
+                "login_method": "password",
+            },
+            original_topic="t1",
+            error="err",
+            retry_count=0,
+            failed_at=now,
+            status=DLQMessageStatus.PENDING,
+            producer_id="p1",
+        ),
+        DLQMessageDocument(
+            event_id="id2",
+            event_type=str(EventType.USER_LOGGED_IN),
+            event={
+                "event_type": str(EventType.USER_LOGGED_IN),
+                "metadata": {"service_name": "svc", "service_version": "1"},
+                "user_id": "u1",
+                "login_method": "password",
+            },
+            original_topic="t1",
+            error="err",
+            retry_count=0,
+            failed_at=now,
+            status=DLQMessageStatus.RETRIED,
+            producer_id="p1",
+        ),
+        DLQMessageDocument(
+            event_id="id3",
+            event_type=str(EventType.EXECUTION_STARTED),
+            event={
+                "event_type": str(EventType.EXECUTION_STARTED),
+                "metadata": {"service_name": "svc", "service_version": "1"},
+                "execution_id": "x1",
+                "pod_name": "p1",
+            },
+            original_topic="t2",
+            error="err",
+            retry_count=0,
+            failed_at=now,
+            status=DLQMessageStatus.PENDING,
+            producer_id="p1",
+        ),
+    ]
+
+    for doc in docs:
+        await doc.insert()
 
 
 @pytest.mark.asyncio
-async def test_stats_list_get_and_updates(repo: DLQRepository, db) -> None:  # type: ignore[valid-type]
-    await db.get_collection("dlq_messages").insert_many([
-        make_dlq_doc("id1", "t1", str(EventType.USER_LOGGED_IN), DLQMessageStatus.PENDING),
-        make_dlq_doc("id2", "t1", str(EventType.USER_LOGGED_IN), DLQMessageStatus.RETRIED),
-        make_dlq_doc("id3", "t2", str(EventType.EXECUTION_STARTED), DLQMessageStatus.PENDING),
-    ])
+async def test_stats_list_get_and_updates(repo: DLQRepository) -> None:
+    await insert_test_dlq_docs()
+
     stats = await repo.get_dlq_stats()
     assert isinstance(stats.by_status, dict) and len(stats.by_topic) >= 1
 

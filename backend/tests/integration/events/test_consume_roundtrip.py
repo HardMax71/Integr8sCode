@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import uuid
 
 import pytest
@@ -16,6 +17,8 @@ from app.settings import get_settings
 
 pytestmark = [pytest.mark.integration, pytest.mark.kafka]
 
+_test_logger = logging.getLogger("test.events.consume_roundtrip")
+
 
 @pytest.mark.asyncio
 async def test_produce_consume_roundtrip(scope) -> None:  # type: ignore[valid-type]
@@ -28,7 +31,7 @@ async def test_produce_consume_roundtrip(scope) -> None:  # type: ignore[valid-t
 
     # Build a consumer that handles EXECUTION_REQUESTED
     settings = get_settings()
-    dispatcher = EventDispatcher()
+    dispatcher = EventDispatcher(logger=_test_logger)
     received = asyncio.Event()
 
     @dispatcher.register(EventType.EXECUTION_REQUESTED)
@@ -43,7 +46,7 @@ async def test_produce_consume_roundtrip(scope) -> None:  # type: ignore[valid-t
         auto_offset_reset="earliest",
     )
 
-    consumer = UnifiedConsumer(config, dispatcher)
+    consumer = UnifiedConsumer(config, dispatcher, logger=_test_logger)
     await consumer.start([str(KafkaTopic.EXECUTION_EVENTS)])
 
     try:

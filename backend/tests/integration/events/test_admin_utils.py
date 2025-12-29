@@ -1,8 +1,11 @@
+import logging
 import os
 
 import pytest
 
 from app.events.admin_utils import AdminUtils
+
+_test_logger = logging.getLogger("test.events.admin_utils")
 
 
 @pytest.mark.kafka
@@ -10,7 +13,7 @@ from app.events.admin_utils import AdminUtils
 async def test_admin_utils_real_topic_checks() -> None:
     prefix = os.environ.get("KAFKA_TOPIC_PREFIX", "test.")
     topic = f"{prefix}adminutils.{os.environ.get('PYTEST_SESSION_ID','sid')}"
-    au = AdminUtils()
+    au = AdminUtils(logger=_test_logger)
 
     # Ensure topic exists (idempotent)
     res = await au.ensure_topics_exist([(topic, 1)])

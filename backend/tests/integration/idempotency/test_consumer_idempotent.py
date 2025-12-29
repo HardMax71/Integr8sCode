@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import uuid
 
 import pytest
@@ -15,6 +16,8 @@ from tests.helpers.eventually import eventually
 
 pytestmark = [pytest.mark.integration, pytest.mark.kafka, pytest.mark.redis]
 
+_test_logger = logging.getLogger("test.idempotency.consumer_idempotent")
+
 
 @pytest.mark.asyncio
 async def test_consumer_idempotent_wrapper_blocks_duplicates(scope) -> None:  # type: ignore[valid-type]
@@ -22,7 +25,7 @@ async def test_consumer_idempotent_wrapper_blocks_duplicates(scope) -> None:  # 
     idm: IdempotencyManager = await scope.get(IdempotencyManager)
 
     # Build a dispatcher with a counter
-    disp: Disp = EventDispatcher()
+    disp: Disp = EventDispatcher(logger=_test_logger)
     seen = {"n": 0}
 
     @disp.register(EventType.EXECUTION_REQUESTED)
@@ -37,13 +40,14 @@ async def test_consumer_idempotent_wrapper_blocks_duplicates(scope) -> None:  # 
         enable_auto_commit=True,
         auto_offset_reset="earliest",
     )
-    base = UnifiedConsumer(cfg, event_dispatcher=disp)
+    base = UnifiedConsumer(cfg, event_dispatcher=disp, logger=_test_logger)
     wrapper = IdempotentConsumerWrapper(
         consumer=base,
         idempotency_manager=idm,
         dispatcher=disp,
         default_key_strategy="event_based",
         enable_for_all_handlers=True,
+        logger=_test_logger,
     )
 
     await wrapper.start([KafkaTopic.EXECUTION_EVENTS])

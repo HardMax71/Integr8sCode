@@ -9,11 +9,9 @@ from fastapi.responses import StreamingResponse
 
 from app.api.dependencies import admin_user
 from app.core.correlation import CorrelationContext
+from app.domain.admin import ReplayQuery
 from app.domain.enums.events import EventType
-from app.infrastructure.mappers import (
-    AdminReplayApiMapper,
-    EventFilterMapper,
-)
+from app.domain.events.event_models import EventFilter
 from app.schemas_pydantic.admin_events import (
     EventBrowseRequest,
     EventBrowseResponse,
@@ -28,6 +26,13 @@ from app.schemas_pydantic.admin_events import EventFilter as AdminEventFilter
 from app.schemas_pydantic.user import UserResponse
 from app.services.admin import AdminEventsService
 
+
+def _to_event_filter(pydantic_filter: AdminEventFilter) -> EventFilter:
+    """Convert Pydantic EventFilter to domain EventFilter."""
+    data = pydantic_filter.model_dump(mode="json")  # auto-converts enums to strings
+    data["text_search"] = data.pop("search_text", None)
+    return EventFilter(**data)
+
 router = APIRouter(
     prefix="/admin/events", tags=["admin-events"], route_class=DishkaRoute, dependencies=[Depends(admin_user)]
 )
@@ -36,7 +41,7 @@ router = APIRouter(
 @router.post("/browse")
 async def browse_events(request: EventBrowseRequest, service: FromDishka[AdminEventsService]) -> EventBrowseResponse:
     try:
-        event_filter = EventFilterMapper.from_admin_pydantic(request.filters)
+        event_filter = _to_event_filter(request.filters)
 
         result = await service.browse_events(
             event_filter=event_filter,
@@ -79,7 +84,7 @@ async def export_events_csv(
     limit: int = Query(default=10000, le=50000),
 ) -> StreamingResponse:
     try:
-        export_filter = EventFilterMapper.from_admin_pydantic(
+        export_filter = _to_event_filter(
             AdminEventFilter(
                 event_types=event_types,
                 start_time=start_time,
@@ -111,7 +116,7 @@ async def export_events_json(
 ) -> StreamingResponse:
     """Export events as JSON with comprehensive filtering."""
     try:
-        export_filter = EventFilterMapper.from_admin_pydantic(
+        export_filter = _to_event_filter(
             AdminEventFilter(
                 event_types=event_types,
                 aggregate_id=aggregate_id,
@@ -159,7 +164,13 @@ async def replay_events(
 ) -> EventReplayResponse:
     try:
         replay_correlation_id = f"replay_{CorrelationContext.get_correlation_id()}"
-        rq = AdminReplayApiMapper.request_to_query(request)
+        rq = ReplayQuery(
+            event_ids=request.event_ids,
+            correlation_id=request.correlation_id,
+            aggregate_id=request.aggregate_id,
+            start_time=request.start_time,
+            end_time=request.end_time,
+        )
         try:
             result = await service.prepare_or_schedule_replay(
                 replay_query=rq,

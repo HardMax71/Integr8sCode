@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import auto
@@ -6,8 +7,6 @@ from typing import Awaitable, Callable
 
 import httpx
 
-from app.core.exceptions import ServiceError
-from app.core.logging import logger
 from app.core.metrics.context import get_notification_metrics
 from app.core.tracing.utils import add_span_attributes
 from app.core.utils import StringEnum
@@ -22,8 +21,14 @@ from app.domain.enums.notification import (
 from app.domain.enums.user import UserRole
 from app.domain.notification import (
     DomainNotification,
+    DomainNotificationCreate,
     DomainNotificationListResult,
     DomainNotificationSubscription,
+    DomainNotificationUpdate,
+    DomainSubscriptionUpdate,
+    NotificationNotFoundError,
+    NotificationThrottledError,
+    NotificationValidationError,
 )
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer
 from app.events.schema.schema_registry import SchemaRegistryManager
@@ -116,6 +121,7 @@ class NotificationService:
         schema_registry_manager: SchemaRegistryManager,
         sse_bus: SSERedisBus,
         settings: Settings,
+        logger: logging.Logger,
     ) -> None:
         self.repository = notification_repository
         self.event_service = event_service
@@ -124,6 +130,7 @@ class NotificationService:
         self.settings = settings
         self.schema_registry_manager = schema_registry_manager
         self.sse_bus = sse_bus
+        self.logger = logger
 
         # State
         self._state = ServiceState.IDLE
@@ -136,7 +143,7 @@ class NotificationService:
         self._dispatcher: EventDispatcher | None = None
         self._consumer_task: asyncio.Task[None] | None = None
 
-        logger.info(
+        self.logger.info(
             "NotificationService initialized",
             extra={
                 "repository": type(notification_repository).__name__,
@@ -158,7 +165,7 @@ class NotificationService:
 
     def initialize(self) -> None:
         if self._state != ServiceState.IDLE:
-            logger.warning(f"Cannot initialize in state: {self._state}")
+            self.logger.warning(f"Cannot initialize in state: {self._state}")
             return
 
         self._state = ServiceState.INITIALIZING
@@ -167,14 +174,14 @@ class NotificationService:
         self._state = ServiceState.RUNNING
         self._start_background_tasks()
 
-        logger.info("Notification service initialized (without Kafka consumer)")
+        self.logger.info("Notification service initialized (without Kafka consumer)")
 
     async def shutdown(self) -> None:
         """Shutdown notification service."""
         if self._state == ServiceState.STOPPED:
             return
 
-        logger.info("Shutting down notification service...")
+        self.logger.info("Shutting down notification service...")
         self._state = ServiceState.STOPPING
 
         # Cancel all tasks
@@ -193,7 +200,7 @@ class NotificationService:
         await self._throttle_cache.clear()
 
         self._state = ServiceState.STOPPED
-        logger.info("Notification service stopped")
+        self.logger.info("Notification service stopped")
 
     def _start_background_tasks(self) -> None:
         """Start background processing tasks."""
@@ -220,7 +227,7 @@ class NotificationService:
         execution_results_topic = get_topic_for_event(EventType.EXECUTION_COMPLETED)
 
         # Log topics for debugging
-        logger.info(f"Notification service will subscribe to topics: {execution_results_topic}")
+        self.logger.info(f"Notification service will subscribe to topics: {execution_results_topic}")
 
         # Create dispatcher and register handlers for specific event types
         self._dispatcher = EventDispatcher()
@@ -240,7 +247,7 @@ class NotificationService:
         self._tasks.add(self._consumer_task)
         self._consumer_task.add_done_callback(self._tasks.discard)
 
-        logger.info("Notification service subscribed to execution events")
+        self.logger.info("Notification service subscribed to execution events")
 
     async def create_notification(
         self,
@@ -255,8 +262,8 @@ class NotificationService:
         metadata: NotificationContext | None = None,
     ) -> DomainNotification:
         if not tags:
-            raise ServiceError("tags must be a non-empty list", status_code=422)
-        logger.info(
+            raise NotificationValidationError("tags must be a non-empty list")
+        self.logger.info(
             f"Creating notification for user {user_id}",
             extra={
                 "user_id": user_id,
@@ -279,12 +286,15 @@ class NotificationService:
                 f"Max {self.settings.NOTIF_THROTTLE_MAX_PER_HOUR} "
                 f"per {self.settings.NOTIF_THROTTLE_WINDOW_HOURS} hour(s)"
             )
-            logger.warning(error_msg)
-            # Throttling is a client-driven rate issue
-            raise ServiceError(error_msg, status_code=429)
+            self.logger.warning(error_msg)
+            raise NotificationThrottledError(
+                user_id,
+                self.settings.NOTIF_THROTTLE_MAX_PER_HOUR,
+                self.settings.NOTIF_THROTTLE_WINDOW_HOURS,
+            )
 
         # Create notification
-        notification = DomainNotification(
+        create_data = DomainNotificationCreate(
             user_id=user_id,
             channel=channel,
             subject=subject,
@@ -293,12 +303,11 @@ class NotificationService:
             severity=severity,
             tags=tags,
             scheduled_for=scheduled_for,
-            status=NotificationStatus.PENDING,
             metadata=metadata or {},
         )
 
         # Save to database
-        await self.repository.create_notification(notification)
+        notification = await self.repository.create_notification(create_data)
 
         # Publish event
         event_bus = await self.event_bus_manager.get_event_bus()
@@ -353,7 +362,7 @@ class NotificationService:
         throttled = sum(1 for r in results if r == "throttled")
         failed = sum(1 for r in results if r == "failed")
 
-        logger.info(
+        self.logger.info(
             "System notification completed",
             extra={
                 "severity": str(cfg.severity),
@@ -408,7 +417,7 @@ class NotificationService:
             )
             return "created"
         except Exception as e:
-            logger.error("Failed to create system notification for user", extra={"user_id": user_id, "error": str(e)})
+            self.logger.error("Failed to create system notification for user", extra={"user_id": user_id, "error": str(e)})
             return "failed"
 
     async def _send_in_app(
@@ -443,7 +452,7 @@ class NotificationService:
         headers = notification.webhook_headers or {}
         headers["Content-Type"] = "application/json"
 
-        logger.debug(
+        self.logger.debug(
             f"Sending webhook notification to {webhook_url}",
             extra={
                 "notification_id": str(notification.notification_id),
@@ -462,7 +471,7 @@ class NotificationService:
         async with httpx.AsyncClient() as client:
             response = await client.post(webhook_url, json=payload, headers=headers, timeout=30.0)
             response.raise_for_status()
-            logger.debug(
+            self.logger.debug(
                 "Webhook delivered successfully",
                 extra={
                     "notification_id": str(notification.notification_id),
@@ -498,7 +507,7 @@ class NotificationService:
             if attachments and isinstance(attachments, list):
                 attachments[0]["actions"] = [{"type": "button", "text": "View Details", "url": notification.action_url}]
 
-        logger.debug(
+        self.logger.debug(
             "Sending Slack notification",
             extra={
                 "notification_id": str(notification.notification_id),
@@ -516,7 +525,7 @@ class NotificationService:
         async with httpx.AsyncClient() as client:
             response = await client.post(subscription.slack_webhook, json=slack_message, timeout=30.0)
             response.raise_for_status()
-            logger.debug(
+            self.logger.debug(
                 "Slack notification delivered successfully",
                 extra={"notification_id": str(notification.notification_id), "status_code": response.status_code},
             )
@@ -549,7 +558,7 @@ class NotificationService:
                 await asyncio.sleep(5)
 
             except Exception as e:
-                logger.error(f"Error processing pending notifications: {e}")
+                self.logger.error(f"Error processing pending notifications: {e}")
                 await asyncio.sleep(10)
 
     async def _cleanup_old_notifications(self) -> None:
@@ -565,10 +574,10 @@ class NotificationService:
                 # Delete old notifications
                 deleted_count = await self.repository.cleanup_old_notifications(self.settings.NOTIF_OLD_DAYS)
 
-                logger.info(f"Cleaned up {deleted_count} old notifications")
+                self.logger.info(f"Cleaned up {deleted_count} old notifications")
 
             except Exception as e:
-                logger.error(f"Error cleaning up old notifications: {e}")
+                self.logger.error(f"Error cleaning up old notifications: {e}")
 
     async def _run_consumer(self) -> None:
         """Run the event consumer loop."""
@@ -577,17 +586,17 @@ class NotificationService:
                 # Consumer handles polling internally
                 await asyncio.sleep(1)
             except asyncio.CancelledError:
-                logger.info("Notification consumer task cancelled")
+                self.logger.info("Notification consumer task cancelled")
                 break
             except Exception as e:
-                logger.error(f"Error in notification consumer loop: {e}")
+                self.logger.error(f"Error in notification consumer loop: {e}")
                 await asyncio.sleep(5)
 
     async def _handle_execution_timeout_typed(self, event: ExecutionTimeoutEvent) -> None:
         """Handle typed execution timeout event."""
         user_id = event.metadata.user_id
         if not user_id:
-            logger.error("No user_id in event metadata")
+            self.logger.error("No user_id in event metadata")
             return
 
         title = f"Execution Timeout: {event.execution_id}"
@@ -607,7 +616,7 @@ class NotificationService:
         """Handle typed execution completed event."""
         user_id = event.metadata.user_id
         if not user_id:
-            logger.error("No user_id in event metadata")
+            self.logger.error("No user_id in event metadata")
             return
 
         title = f"Execution Completed: {event.execution_id}"
@@ -635,15 +644,15 @@ class NotificationService:
             elif isinstance(event, ExecutionTimeoutEvent):
                 await self._handle_execution_timeout_typed(event)
             else:
-                logger.warning(f"Unhandled execution event type: {event.event_type}")
+                self.logger.warning(f"Unhandled execution event type: {event.event_type}")
         except Exception as e:
-            logger.error(f"Error handling execution event: {e}", exc_info=True)
+            self.logger.error(f"Error handling execution event: {e}", exc_info=True)
 
     async def _handle_execution_failed_typed(self, event: ExecutionFailedEvent) -> None:
         """Handle typed execution failed event."""
         user_id = event.metadata.user_id
         if not user_id:
-            logger.error("No user_id in event metadata")
+            self.logger.error("No user_id in event metadata")
             return
 
         # Use model_dump to get all event data
@@ -677,7 +686,7 @@ class NotificationService:
                 {"notification_id": str(notification_id), "user_id": user_id, "read_at": datetime.now(UTC).isoformat()},
             )
         else:
-            raise ServiceError("Notification not found", status_code=404)
+            raise NotificationNotFoundError(notification_id)
 
         return True
 
@@ -729,42 +738,26 @@ class NotificationService:
         # Validate channel-specific requirements
         if channel == NotificationChannel.WEBHOOK and enabled:
             if not webhook_url:
-                raise ServiceError("webhook_url is required when enabling WEBHOOK", status_code=422)
+                raise NotificationValidationError("webhook_url is required when enabling WEBHOOK")
             if not (webhook_url.startswith("http://") or webhook_url.startswith("https://")):
-                raise ServiceError("webhook_url must start with http:// or https://", status_code=422)
+                raise NotificationValidationError("webhook_url must start with http:// or https://")
         if channel == NotificationChannel.SLACK and enabled:
             if not slack_webhook:
-                raise ServiceError("slack_webhook is required when enabling SLACK", status_code=422)
+                raise NotificationValidationError("slack_webhook is required when enabling SLACK")
             if not slack_webhook.startswith("https://hooks.slack.com/"):
-                raise ServiceError("slack_webhook must be a valid Slack webhook URL", status_code=422)
+                raise NotificationValidationError("slack_webhook must be a valid Slack webhook URL")
 
-        # Get existing or create new
-        subscription = await self.repository.get_subscription(user_id, channel)
+        # Build update data
+        update_data = DomainSubscriptionUpdate(
+            enabled=enabled,
+            webhook_url=webhook_url,
+            slack_webhook=slack_webhook,
+            severities=severities,
+            include_tags=include_tags,
+            exclude_tags=exclude_tags,
+        )
 
-        if not subscription:
-            subscription = DomainNotificationSubscription(
-                user_id=user_id,
-                channel=channel,
-                enabled=enabled,
-            )
-        else:
-            subscription.enabled = enabled
-
-        # Update URLs if provided
-        if webhook_url is not None:
-            subscription.webhook_url = webhook_url
-        if slack_webhook is not None:
-            subscription.slack_webhook = slack_webhook
-        if severities is not None:
-            subscription.severities = severities
-        if include_tags is not None:
-            subscription.include_tags = include_tags
-        if exclude_tags is not None:
-            subscription.exclude_tags = exclude_tags
-
-        await self.repository.upsert_subscription(user_id, channel, subscription)
-
-        return subscription
+        return await self.repository.upsert_subscription(user_id, channel, update_data)
 
     async def mark_all_as_read(self, user_id: str) -> int:
         """Mark all notifications as read for a user."""
@@ -778,7 +771,7 @@ class NotificationService:
 
         return count
 
-    async def get_subscriptions(self, user_id: str) -> dict[str, DomainNotificationSubscription]:
+    async def get_subscriptions(self, user_id: str) -> dict[NotificationChannel, DomainNotificationSubscription]:
         """Get all notification subscriptions for a user."""
         return await self.repository.get_all_subscriptions(user_id)
 
@@ -786,7 +779,7 @@ class NotificationService:
         """Delete a notification."""
         deleted = await self.repository.delete_notification(str(notification_id), user_id)
         if not deleted:
-            raise ServiceError("Notification not found", status_code=404)
+            raise NotificationNotFoundError(notification_id)
         return deleted
 
     async def _publish_notification_sse(self, notification: DomainNotification) -> None:
@@ -834,7 +827,7 @@ class NotificationService:
         if not claimed:
             return
 
-        logger.info(
+        self.logger.info(
             f"Delivering notification {notification.notification_id}",
             extra={
                 "notification_id": str(notification.notification_id),
@@ -851,10 +844,12 @@ class NotificationService:
         # Check if notification should be skipped
         skip_reason = await self._should_skip_notification(notification, subscription)
         if skip_reason:
-            logger.info(skip_reason)
-            notification.status = NotificationStatus.SKIPPED
-            notification.error_message = skip_reason
-            await self.repository.update_notification(notification)
+            self.logger.info(skip_reason)
+            await self.repository.update_notification(
+                notification.notification_id,
+                notification.user_id,
+                DomainNotificationUpdate(status=NotificationStatus.SKIPPED, error_message=skip_reason),
+            )
             return
 
         # At this point, subscription is guaranteed to be non-None (checked in _should_skip_notification)
@@ -870,16 +865,18 @@ class NotificationService:
                     f"Available channels: {list(self._channel_handlers.keys())}"
                 )
 
-            logger.debug(f"Using handler {handler.__name__} for channel {notification.channel}")
+            self.logger.debug(f"Using handler {handler.__name__} for channel {notification.channel}")
             await handler(notification, subscription)
             delivery_time = asyncio.get_event_loop().time() - start_time
 
-            # Mark delivered if handler didn't change it
-            notification.status = NotificationStatus.DELIVERED
-            notification.delivered_at = datetime.now(UTC)
-            await self.repository.update_notification(notification)
+            # Mark delivered
+            await self.repository.update_notification(
+                notification.notification_id,
+                notification.user_id,
+                DomainNotificationUpdate(status=NotificationStatus.DELIVERED, delivered_at=datetime.now(UTC)),
+            )
 
-            logger.info(
+            self.logger.info(
                 f"Successfully delivered notification {notification.notification_id}",
                 extra={
                     "notification_id": str(notification.notification_id),
@@ -904,26 +901,44 @@ class NotificationService:
                 "max_retries": notification.max_retries,
             }
 
-            logger.error(
+            self.logger.error(
                 f"Failed to deliver notification {notification.notification_id}: {str(e)}",
                 extra=error_details,
                 exc_info=True,
             )
 
-            notification.status = NotificationStatus.FAILED
-            notification.failed_at = datetime.now(UTC)
-            notification.error_message = f"Delivery failed via {notification.channel}: {str(e)}"
-            notification.retry_count = notification.retry_count + 1
+            new_retry_count = notification.retry_count + 1
+            error_message = f"Delivery failed via {notification.channel}: {str(e)}"
+            failed_at = datetime.now(UTC)
 
             # Schedule retry if under limit
-            if notification.retry_count < notification.max_retries:
+            if new_retry_count < notification.max_retries:
                 retry_time = datetime.now(UTC) + timedelta(minutes=self.settings.NOTIF_RETRY_DELAY_MINUTES)
-                notification.scheduled_for = retry_time
-                notification.status = NotificationStatus.PENDING
-                logger.info(
-                    f"Scheduled retry {notification.retry_count}/{notification.max_retries} "
+                self.logger.info(
+                    f"Scheduled retry {new_retry_count}/{notification.max_retries} "
                     f"for {notification.notification_id}",
                     extra={"retry_at": retry_time.isoformat()},
                 )
-
-            await self.repository.update_notification(notification)
+                # Will be retried - keep as PENDING but with scheduled_for
+                # Note: scheduled_for not in DomainNotificationUpdate, so we update status fields only
+                await self.repository.update_notification(
+                    notification.notification_id,
+                    notification.user_id,
+                    DomainNotificationUpdate(
+                        status=NotificationStatus.PENDING,
+                        failed_at=failed_at,
+                        error_message=error_message,
+                        retry_count=new_retry_count,
+                    ),
+                )
+            else:
+                await self.repository.update_notification(
+                    notification.notification_id,
+                    notification.user_id,
+                    DomainNotificationUpdate(
+                        status=NotificationStatus.FAILED,
+                        failed_at=failed_at,
+                        error_message=error_message,
+                        retry_count=new_retry_count,
+                    ),
+                )

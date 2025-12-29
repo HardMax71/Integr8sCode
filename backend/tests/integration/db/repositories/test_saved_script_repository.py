@@ -5,6 +5,7 @@ from app.domain.saved_script import DomainSavedScriptCreate, DomainSavedScriptUp
 
 pytestmark = pytest.mark.integration
 
+
 @pytest.mark.asyncio
 async def test_create_get_update_delete_saved_script(db) -> None:  # type: ignore[valid-type]
     repo = SavedScriptRepository(db)

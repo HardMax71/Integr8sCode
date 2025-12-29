@@ -82,3 +82,26 @@ class ResourceLimitsDomain:
     memory_request: str
     execution_timeout: int
     supported_runtimes: dict[str, LanguageInfoDomain]
+
+
+@dataclass
+class DomainExecutionCreate:
+    """Execution creation data for repository."""
+
+    script: str
+    user_id: str
+    lang: str = "python"
+    lang_version: str = "3.11"
+    status: ExecutionStatus = ExecutionStatus.QUEUED
+
+
+@dataclass
+class DomainExecutionUpdate:
+    """Execution update data for repository."""
+
+    status: Optional[ExecutionStatus] = None
+    stdout: Optional[str] = None
+    stderr: Optional[str] = None
+    exit_code: Optional[int] = None
+    error_type: Optional[ExecutionErrorType] = None
+    resource_usage: Optional[ResourceUsageDomain] = None

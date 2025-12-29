@@ -1,45 +1,53 @@
-from app.core.database_context import Collection, Database
-from app.domain.events.event_models import CollectionNames
-from app.domain.saved_script import (
-    DomainSavedScript,
-    DomainSavedScriptCreate,
-    DomainSavedScriptUpdate,
-)
-from app.infrastructure.mappers import SavedScriptMapper
+from dataclasses import asdict
+
+from beanie.operators import Eq
+
+from app.db.docs import SavedScriptDocument
+from app.domain.saved_script import DomainSavedScriptCreate, DomainSavedScriptUpdate
 
 
 class SavedScriptRepository:
-    def __init__(self, database: Database):
-        self.db = database
-        self.collection: Collection = self.db.get_collection(CollectionNames.SAVED_SCRIPTS)
-        self.mapper = SavedScriptMapper()
 
-    async def create_saved_script(self, saved_script: DomainSavedScriptCreate, user_id: str) -> DomainSavedScript:
-        # Build DB document with defaults
-        doc = self.mapper.to_insert_document(saved_script, user_id)
+    async def create_saved_script(
+        self, create_data: DomainSavedScriptCreate, user_id: str
+    ) -> SavedScriptDocument:
+        doc = SavedScriptDocument(
+            name=create_data.name,
+            script=create_data.script,
+            user_id=user_id,
+            lang=create_data.lang,
+            lang_version=create_data.lang_version,
+            description=create_data.description,
+        )
+        await doc.insert()
+        return doc
 
-        result = await self.collection.insert_one(doc)
-        if result.inserted_id is None:
-            raise ValueError("Insert not acknowledged")
-        return self.mapper.from_mongo_document(doc)
+    async def get_saved_script(self, script_id: str, user_id: str) -> SavedScriptDocument | None:
+        return await SavedScriptDocument.find_one(
+            Eq(SavedScriptDocument.script_id, script_id),
+            Eq(SavedScriptDocument.user_id, user_id),
+        )
 
-    async def get_saved_script(self, script_id: str, user_id: str) -> DomainSavedScript | None:
-        saved_script = await self.collection.find_one({"script_id": script_id, "user_id": user_id})
-        if not saved_script:
+    async def update_saved_script(
+        self,
+        script_id: str,
+        user_id: str,
+        update_data: DomainSavedScriptUpdate,
+    ) -> SavedScriptDocument | None:
+        doc = await self.get_saved_script(script_id, user_id)
+        if not doc:
             return None
-        return self.mapper.from_mongo_document(saved_script)
 
-    async def update_saved_script(self, script_id: str, user_id: str, update_data: DomainSavedScriptUpdate) -> None:
-        update = self.mapper.to_update_dict(update_data)
+        update_dict = {k: v for k, v in asdict(update_data).items() if v is not None}
+        await doc.set(update_dict)
+        return doc
 
-        await self.collection.update_one({"script_id": script_id, "user_id": user_id}, {"$set": update})
+    async def delete_saved_script(self, script_id: str, user_id: str) -> bool:
+        doc = await self.get_saved_script(script_id, user_id)
+        if not doc:
+            return False
+        await doc.delete()
+        return True
 
-    async def delete_saved_script(self, script_id: str, user_id: str) -> None:
-        await self.collection.delete_one({"script_id": script_id, "user_id": user_id})
-
-    async def list_saved_scripts(self, user_id: str) -> list[DomainSavedScript]:
-        cursor = self.collection.find({"user_id": user_id})
-        scripts: list[DomainSavedScript] = []
-        async for script in cursor:
-            scripts.append(self.mapper.from_mongo_document(script))
-        return scripts
+    async def list_saved_scripts(self, user_id: str) -> list[SavedScriptDocument]:
+        return await SavedScriptDocument.find(Eq(SavedScriptDocument.user_id, user_id)).to_list()

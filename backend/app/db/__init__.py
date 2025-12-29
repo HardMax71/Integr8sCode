@@ -11,7 +11,6 @@ from app.db.repositories import (
     UserRepository,
     UserSettingsRepository,
 )
-from app.db.schema.schema_manager import SchemaManager
 
 __all__ = [
     "AdminSettingsRepository",
@@ -25,5 +24,4 @@ __all__ = [
     "SSERepository",
     "UserRepository",
     "UserSettingsRepository",
-    "SchemaManager",
 ]

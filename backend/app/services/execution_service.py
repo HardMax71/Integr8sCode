@@ -1,17 +1,19 @@
+import logging
 from contextlib import contextmanager
 from datetime import datetime
 from time import time
 from typing import Any, Generator, TypeAlias
 
 from app.core.correlation import CorrelationContext
-from app.core.exceptions import IntegrationException, ServiceError
-from app.core.logging import logger
+from app.core.exceptions import IntegrationException
 from app.core.metrics.context import get_execution_metrics
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.execution import (
     DomainExecution,
+    DomainExecutionCreate,
+    ExecutionNotFoundError,
     ExecutionResultDomain,
     ResourceLimitsDomain,
     ResourceUsageDomain,
@@ -50,6 +52,7 @@ class ExecutionService:
         producer: UnifiedProducer,
         event_store: EventStore,
         settings: Settings,
+        logger: logging.Logger,
     ) -> None:
         """
         Initialize execution service.
@@ -59,11 +62,13 @@ class ExecutionService:
             producer: Kafka producer for publishing events.
             event_store: Event store for event persistence.
             settings: Application settings.
+            logger: Logger instance.
         """
         self.execution_repo = execution_repo
         self.producer = producer
         self.event_store = event_store
         self.settings = settings
+        self.logger = logger
         self.metrics = get_execution_metrics()
 
     @contextmanager
@@ -149,7 +154,7 @@ class ExecutionService:
         start_time = time()
 
         # Log incoming request
-        logger.info(
+        self.logger.info(
             "Received script execution request",
             extra={
                 "lang": lang,
@@ -165,16 +170,15 @@ class ExecutionService:
         with self._track_active_execution():
             # Create execution record
             created_execution = await self.execution_repo.create_execution(
-                DomainExecution(
+                DomainExecutionCreate(
                     script=script,
                     lang=lang,
                     lang_version=lang_version,
-                    status=ExecutionStatus.QUEUED,
                     user_id=user_id,
                 )
             )
 
-            logger.info(
+            self.logger.info(
                 "Created execution record",
                 extra={
                     "execution_id": str(created_execution.execution_id),
@@ -221,7 +225,7 @@ class ExecutionService:
             duration = time() - start_time
             self.metrics.record_script_execution(ExecutionStatus.QUEUED, lang_and_version)
             self.metrics.record_queue_wait_time(duration, lang_and_version)
-            logger.info(
+            self.logger.info(
                 "Script execution submitted successfully",
                 extra={
                     "execution_id": str(created_execution.execution_id),
@@ -262,10 +266,10 @@ class ExecutionService:
         """
         execution = await self.execution_repo.get_execution(execution_id)
         if not execution:
-            logger.warning("Execution not found", extra={"execution_id": execution_id})
+            self.logger.warning("Execution not found", extra={"execution_id": execution_id})
             raise IntegrationException(status_code=404, detail=f"Execution {execution_id} not found")
 
-        logger.info(
+        self.logger.info(
             "Execution result retrieved successfully",
             extra={
                 "execution_id": execution_id,
@@ -304,7 +308,7 @@ class ExecutionService:
         if len(events) > limit:
             events = events[:limit]
 
-        logger.debug(
+        self.logger.debug(
             f"Retrieved {len(events)} events for execution {execution_id}",
             extra={
                 "execution_id": execution_id,
@@ -346,7 +350,7 @@ class ExecutionService:
             query=query, limit=limit, skip=skip, sort=[("created_at", -1)]
         )
 
-        logger.debug(
+        self.logger.debug(
             f"Retrieved {len(executions)} executions for user",
             extra={
                 "user_id": str(user_id),
@@ -435,10 +439,10 @@ class ExecutionService:
         deleted = await self.execution_repo.delete_execution(execution_id)
 
         if not deleted:
-            logger.warning(f"Execution {execution_id} not found for deletion")
-            raise ServiceError("Execution not found", status_code=404)
+            self.logger.warning(f"Execution {execution_id} not found for deletion")
+            raise ExecutionNotFoundError(execution_id)
 
-        logger.info("Deleted execution", extra={"execution_id": execution_id})
+        self.logger.info("Deleted execution", extra={"execution_id": execution_id})
 
         await self._publish_deletion_event(execution_id)
 
@@ -459,7 +463,7 @@ class ExecutionService:
 
         await self.producer.produce(event_to_produce=event, key=execution_id)
 
-        logger.info(
+        self.logger.info(
             "Published cancellation event",
             extra={
                 "execution_id": execution_id,

@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 from unittest.mock import MagicMock
 
@@ -7,6 +9,8 @@ from app.services.result_processor.processor import ResultProcessor, ResultProce
 
 
 pytestmark = pytest.mark.unit
+
+_test_logger = logging.getLogger("test.services.result_processor.processor")
 
 
 class TestResultProcessorConfig:
@@ -27,7 +31,7 @@ class TestResultProcessorConfig:
 
 
 def test_create_dispatcher_registers_handlers():
-    rp = ResultProcessor(execution_repo=MagicMock(), producer=MagicMock(), idempotency_manager=MagicMock())
+    rp = ResultProcessor(execution_repo=MagicMock(), producer=MagicMock(), idempotency_manager=MagicMock(), logger=_test_logger)
     dispatcher = rp._create_dispatcher()
     assert dispatcher is not None
     assert EventType.EXECUTION_COMPLETED in dispatcher._handlers

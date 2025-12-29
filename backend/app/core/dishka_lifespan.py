@@ -1,15 +1,16 @@
+import logging
 from contextlib import AsyncExitStack, asynccontextmanager
 from typing import AsyncGenerator
 
 import redis.asyncio as redis
+from beanie import init_beanie
 from dishka import AsyncContainer
 from fastapi import FastAPI
 
 from app.core.database_context import Database
-from app.core.logging import logger
 from app.core.startup import initialize_metrics_context, initialize_rate_limits
 from app.core.tracing import init_tracing
-from app.db.schema.schema_manager import SchemaManager
+from app.db.docs import ALL_DOCUMENTS
 from app.events.event_store_consumer import EventStoreConsumer
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
@@ -27,6 +28,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     - Dishka handles all lifecycle automatically
     """
     settings = get_settings()
+
+    # Get logger from DI container
+    container: AsyncContainer = app.state.dishka_container
+    logger = await container.get(logging.Logger)
+
     logger.info(
         "Starting application with dishka DI",
         extra={
@@ -41,6 +47,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Initialize tracing
     instrumentation_report = init_tracing(
         service_name=settings.TRACING_SERVICE_NAME,
+        logger=logger,
         service_version=settings.TRACING_SERVICE_VERSION,
         sampling_rate=settings.TRACING_SAMPLING_RATE,
         enable_console_exporter=settings.TESTING,
@@ -59,24 +66,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         )
 
     # Initialize schema registry once at startup
-    container: AsyncContainer = app.state.dishka_container
     schema_registry = await container.get(SchemaRegistryManager)
     await initialize_event_schemas(schema_registry)
 
-    # Initialize database schema at application scope using app-scoped DB
+    # Initialize Beanie ODM with PyMongo async database
+    # Beanie handles index creation via Document Settings.indexes
     database = await container.get(Database)
-    schema_manager = SchemaManager(database)
-    await schema_manager.apply_all()
-    logger.info("Database schema ensured by SchemaManager")
+    await init_beanie(database=database, document_models=ALL_DOCUMENTS)
+    logger.info(f"Beanie ODM initialized with {len(ALL_DOCUMENTS)} document models (indexes auto-created)")
 
     # Initialize metrics context with instances from DI container
     # This must happen early so services can access metrics via contextvars
-    await initialize_metrics_context(container)
+    await initialize_metrics_context(container, logger)
     logger.info("Metrics context initialized with contextvars")
 
     # Initialize default rate limits in Redis
     redis_client = await container.get(redis.Redis)
-    await initialize_rate_limits(redis_client, settings)
+    await initialize_rate_limits(redis_client, settings, logger)
     logger.info("Rate limits initialized in Redis")
 
     # Rate limit middleware added during app creation; service resolved lazily at runtime

@@ -1,13 +1,16 @@
+import logging
 import pytest
 
 from app.events.consumer_group_monitor import NativeConsumerGroupMonitor, ConsumerGroupHealth
+
+_test_logger = logging.getLogger("test.events.consumer_group_monitor")
 
 
 @pytest.mark.integration
 @pytest.mark.kafka
 @pytest.mark.asyncio
 async def test_list_groups_and_error_status():
-    mon = NativeConsumerGroupMonitor()
+    mon = NativeConsumerGroupMonitor(logger=_test_logger)
     groups = await mon.list_consumer_groups()
     assert isinstance(groups, list)
 

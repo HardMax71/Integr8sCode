@@ -1,8 +1,7 @@
 import asyncio
+import logging
 from dataclasses import dataclass
 from typing import Dict, List
-
-from app.core.logging import logger
 from app.core.metrics.context import get_coordinator_metrics
 
 
@@ -85,11 +84,13 @@ class ResourceManager:
 
     def __init__(
         self,
+        logger: logging.Logger,
         total_cpu_cores: float = 32.0,
         total_memory_mb: int = 65536,  # 64GB
         total_gpu_count: int = 0,
         overcommit_factor: float = 1.2,  # Allow 20% overcommit
     ):
+        self.logger = logger
         self.metrics = get_coordinator_metrics()
         self.pool = ResourcePool(
             total_cpu_cores=total_cpu_cores * overcommit_factor,
@@ -147,7 +148,7 @@ class ResourceManager:
         async with self._allocation_lock:
             # Check if already allocated
             if execution_id in self._allocations:
-                logger.warning(f"Execution {execution_id} already has allocation")
+                self.logger.warning(f"Execution {execution_id} already has allocation")
                 return self._allocations[execution_id]
 
             # Determine requested resources
@@ -172,7 +173,7 @@ class ResourceManager:
                 or memory_after < self.pool.min_available_memory_mb
                 or gpu_after < 0
             ):
-                logger.warning(
+                self.logger.warning(
                     f"Insufficient resources for execution {execution_id}. "
                     f"Requested: {requested_cpu} CPU, {requested_memory_mb}MB RAM, "
                     f"{requested_gpu} GPU. Available: {self.pool.available_cpu_cores} CPU, "
@@ -196,7 +197,7 @@ class ResourceManager:
             # Update metrics
             self._update_metrics()
 
-            logger.info(
+            self.logger.info(
                 f"Allocated resources for execution {execution_id}: "
                 f"{allocation.cpu_cores} CPU, {allocation.memory_mb}MB RAM, "
                 f"{allocation.gpu_count} GPU"
@@ -208,7 +209,7 @@ class ResourceManager:
         """Release resource allocation"""
         async with self._allocation_lock:
             if execution_id not in self._allocations:
-                logger.warning(f"No allocation found for execution {execution_id}")
+                self.logger.warning(f"No allocation found for execution {execution_id}")
                 return False
 
             allocation = self._allocations[execution_id]
@@ -224,7 +225,7 @@ class ResourceManager:
             # Update metrics
             self._update_metrics()
 
-            logger.info(
+            self.logger.info(
                 f"Released resources for execution {execution_id}: "
                 f"{allocation.cpu_cores} CPU, {allocation.memory_mb}MB RAM, "
                 f"{allocation.gpu_count} GPU"

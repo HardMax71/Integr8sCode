@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import uuid
 
 import pytest
@@ -15,6 +16,8 @@ from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.kafka, pytest.mark.mongodb]
+
+_test_logger = logging.getLogger("test.events.event_store_consumer")
 
 
 @pytest.mark.asyncio
@@ -40,6 +43,7 @@ async def test_event_store_consumer_stores_events(scope) -> None:  # type: ignor
         event_store=store,
         topics=[KafkaTopic.USER_EVENTS],
         schema_registry_manager=registry,
+        logger=_test_logger,
         producer=producer,
         batch_size=10,
         batch_timeout_seconds=0.5,

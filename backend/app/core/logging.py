@@ -7,7 +7,6 @@ from typing import Any, Dict
 
 from opentelemetry import trace
 
-from app.settings import get_settings
 
 correlation_id_context: contextvars.ContextVar[str | None] = contextvars.ContextVar("correlation_id", default=None)
 
@@ -100,9 +99,19 @@ class JSONFormatter(logging.Formatter):
         return json.dumps(log_data, ensure_ascii=False)
 
 
-def setup_logger() -> logging.Logger:
-    logger = logging.getLogger("integr8scode")
-    logger.handlers.clear()
+LOG_LEVELS: dict[str, int] = {
+    "DEBUG": logging.DEBUG,
+    "INFO": logging.INFO,
+    "WARNING": logging.WARNING,
+    "ERROR": logging.ERROR,
+    "CRITICAL": logging.CRITICAL,
+}
+
+
+def setup_logger(log_level: str) -> logging.Logger:
+    """Create and configure the application logger. Called by DI with Settings.LOG_LEVEL."""
+    new_logger = logging.getLogger("integr8scode")
+    new_logger.handlers.clear()
 
     console_handler = logging.StreamHandler()
     formatter = JSONFormatter()
@@ -131,15 +140,9 @@ def setup_logger() -> logging.Logger:
 
     console_handler.addFilter(TracingFilter())
 
-    logger.addHandler(console_handler)
+    new_logger.addHandler(console_handler)
 
-    # Get log level from configuration
-    settings = get_settings()
-    log_level_name = settings.LOG_LEVEL.upper()
-    log_level = getattr(logging, log_level_name, logging.DEBUG)
-    logger.setLevel(log_level)
+    level = LOG_LEVELS.get(log_level.upper(), logging.DEBUG)
+    new_logger.setLevel(level)
 
-    return logger
-
-
-logger = setup_logger()
+    return new_logger

@@ -1,8 +1,8 @@
 """Grafana alert processing service."""
 
+import logging
 from typing import Any
 
-from app.core.logging import logger
 from app.domain.enums.notification import NotificationSeverity
 from app.schemas_pydantic.grafana import GrafanaAlertItem, GrafanaWebhook
 from app.services.notification_service import NotificationService
@@ -23,10 +23,11 @@ class GrafanaAlertProcessor:
     DEFAULT_TITLE = "Grafana Alert"
     DEFAULT_MESSAGE = "Alert triggered"
 
-    def __init__(self, notification_service: NotificationService) -> None:
+    def __init__(self, notification_service: NotificationService, logger: logging.Logger) -> None:
         """Initialize the processor with required services."""
         self.notification_service = notification_service
-        logger.info("GrafanaAlertProcessor initialized")
+        self.logger = logger
+        self.logger.info("GrafanaAlertProcessor initialized")
 
     @classmethod
     def extract_severity(cls, alert: GrafanaAlertItem, webhook: GrafanaWebhook) -> str:
@@ -103,7 +104,7 @@ class GrafanaAlertProcessor:
 
         except Exception as e:
             error_msg = f"Failed to process Grafana alert: {e}"
-            logger.error(error_msg, extra={"correlation_id": correlation_id}, exc_info=True)
+            self.logger.error(error_msg, extra={"correlation_id": correlation_id}, exc_info=True)
             return False, error_msg
 
     async def process_webhook(self, webhook_payload: GrafanaWebhook, correlation_id: str) -> tuple[int, list[str]]:
@@ -120,7 +121,7 @@ class GrafanaAlertProcessor:
         errors: list[str] = []
         processed_count = 0
 
-        logger.info(
+        self.logger.info(
             "Processing Grafana webhook",
             extra={
                 "correlation_id": correlation_id,
@@ -136,7 +137,7 @@ class GrafanaAlertProcessor:
             elif error_msg:
                 errors.append(error_msg)
 
-        logger.info(
+        self.logger.info(
             "Grafana webhook processing completed",
             extra={
                 "correlation_id": correlation_id,

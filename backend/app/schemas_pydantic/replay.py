@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Dict, List
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.enums.events import EventType
 from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
@@ -46,6 +46,8 @@ class ReplayResponse(BaseModel):
 
 class SessionSummary(BaseModel):
     """Summary information for replay sessions"""
+
+    model_config = ConfigDict(from_attributes=True)
 
     session_id: str
     replay_type: ReplayType

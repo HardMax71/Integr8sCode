@@ -99,7 +99,7 @@ class PasswordReset:
 
 @dataclass
 class UserCreation:
-    """User creation domain model."""
+    """User creation domain model (API-facing, with plain password)."""
 
     username: str
     email: str
@@ -117,3 +117,26 @@ class UserCreation:
                 EMAIL_PATTERN.match(self.email) is not None,  # Proper email validation
             ]
         )
+
+
+@dataclass
+class DomainUserCreate:
+    """User creation data for repository (with hashed password)."""
+
+    username: str
+    email: str
+    hashed_password: str
+    role: UserRole = UserRole.USER
+    is_active: bool = True
+    is_superuser: bool = False
+
+
+@dataclass
+class DomainUserUpdate:
+    """User update data for repository (with hashed password)."""
+
+    username: str | None = None
+    email: str | None = None
+    role: UserRole | None = None
+    is_active: bool | None = None
+    hashed_password: str | None = None

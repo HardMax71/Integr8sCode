@@ -1,55 +1,29 @@
+import logging
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import List
 
-from pymongo import ASCENDING, DESCENDING, IndexModel
+from beanie.operators import GT, GTE, In, LTE
 
-from app.core.database_context import Collection, Database
-from app.core.logging import logger
+from pymongo import ASCENDING
+
+from app.db.docs import UserSettingsDocument, EventDocument
 from app.domain.enums.events import EventType
-from app.domain.events.event_models import CollectionNames
-from app.domain.user.settings_models import (
-    DomainSettingsEvent,
-    DomainUserSettings,
-)
-from app.infrastructure.mappers import UserSettingsMapper
 
 
 class UserSettingsRepository:
-    def __init__(self, database: Database) -> None:
-        self.db = database
-        self.snapshots_collection: Collection = self.db.get_collection(CollectionNames.USER_SETTINGS_SNAPSHOTS)
-        self.events_collection: Collection = self.db.get_collection(CollectionNames.EVENTS)
-        self.mapper = UserSettingsMapper()
 
-    async def create_indexes(self) -> None:
-        # Create indexes for settings snapshots
-        await self.snapshots_collection.create_indexes(
-            [
-                IndexModel([("user_id", ASCENDING)], unique=True),
-                IndexModel([("updated_at", DESCENDING)]),
-            ]
-        )
+    def __init__(self, logger: logging.Logger) -> None:
+        self.logger = logger
 
-        # Create indexes for settings events
-        await self.events_collection.create_indexes(
-            [
-                IndexModel([("event_type", ASCENDING), ("aggregate_id", ASCENDING)]),
-                IndexModel([("aggregate_id", ASCENDING), ("timestamp", ASCENDING)]),
-            ]
-        )
+    async def get_snapshot(self, user_id: str) -> UserSettingsDocument | None:
+        return await UserSettingsDocument.find_one({"user_id": user_id})
 
-        logger.info("User settings repository indexes created successfully")
-
-    async def get_snapshot(self, user_id: str) -> DomainUserSettings | None:
-        doc = await self.snapshots_collection.find_one({"user_id": user_id})
-        if not doc:
-            return None
-        return self.mapper.from_snapshot_document(doc)
-
-    async def create_snapshot(self, settings: DomainUserSettings) -> None:
-        doc = self.mapper.to_snapshot_document(settings)
-        await self.snapshots_collection.replace_one({"user_id": settings.user_id}, doc, upsert=True)
-        logger.info(f"Created settings snapshot for user {settings.user_id}")
+    async def create_snapshot(self, settings: UserSettingsDocument) -> None:
+        existing = await self.get_snapshot(settings.user_id)
+        if existing:
+            settings.id = existing.id
+        await settings.save()
+        self.logger.info(f"Created settings snapshot for user {settings.user_id}")
 
     async def get_settings_events(
         self,
@@ -58,47 +32,39 @@ class UserSettingsRepository:
         since: datetime | None = None,
         until: datetime | None = None,
         limit: int | None = None,
-    ) -> List[DomainSettingsEvent]:
-        query: Dict[str, Any] = {
-            "aggregate_id": f"user_settings_{user_id}",
-            "event_type": {"$in": [str(et) for et in event_types]},
-        }
+    ) -> List[EventDocument]:
+        aggregate_id = f"user_settings_{user_id}"
+        conditions = [
+            EventDocument.aggregate_id == aggregate_id,
+            In(EventDocument.event_type, [str(et) for et in event_types]),
+            GT(EventDocument.timestamp, since) if since else None,
+            LTE(EventDocument.timestamp, until) if until else None,
+        ]
+        conditions = [c for c in conditions if c is not None]
 
-        if since or until:
-            timestamp_query: Dict[str, Any] = {}
-            if since:
-                timestamp_query["$gt"] = since
-            if until:
-                timestamp_query["$lte"] = until
-            query["timestamp"] = timestamp_query
-
-        cursor = self.events_collection.find(query).sort("timestamp", ASCENDING)
-
+        find_query = EventDocument.find(*conditions).sort([("timestamp", ASCENDING)])
         if limit:
-            cursor = cursor.limit(limit)
+            find_query = find_query.limit(limit)
 
-        docs = await cursor.to_list(None)
-        return [self.mapper.event_from_mongo_document(d) for d in docs]
+        return await find_query.to_list()
 
     async def count_events_since_snapshot(self, user_id: str) -> int:
+        aggregate_id = f"user_settings_{user_id}"
         snapshot = await self.get_snapshot(user_id)
-
         if not snapshot:
-            return await self.events_collection.count_documents({"aggregate_id": f"user_settings_{user_id}"})
+            return await EventDocument.find(EventDocument.aggregate_id == aggregate_id).count()
 
-        return await self.events_collection.count_documents(
-            {"aggregate_id": f"user_settings_{user_id}", "timestamp": {"$gt": snapshot.updated_at}}
-        )
+        return await EventDocument.find(
+            EventDocument.aggregate_id == aggregate_id,
+            GT(EventDocument.timestamp, snapshot.updated_at),
+        ).count()
 
     async def count_events_for_user(self, user_id: str) -> int:
-        return await self.events_collection.count_documents({"aggregate_id": f"user_settings_{user_id}"})
+        return await EventDocument.find(EventDocument.aggregate_id == f"user_settings_{user_id}").count()
 
     async def delete_user_settings(self, user_id: str) -> None:
-        """Delete all settings data for a user (snapshot and events)."""
-        # Delete snapshot
-        await self.snapshots_collection.delete_one({"user_id": user_id})
-
-        # Delete all events
-        await self.events_collection.delete_many({"aggregate_id": f"user_settings_{user_id}"})
-
-        logger.info(f"Deleted all settings data for user {user_id}")
+        doc = await self.get_snapshot(user_id)
+        if doc:
+            await doc.delete()
+        await EventDocument.find(EventDocument.aggregate_id == f"user_settings_{user_id}").delete()
+        self.logger.info(f"Deleted all settings data for user {user_id}")

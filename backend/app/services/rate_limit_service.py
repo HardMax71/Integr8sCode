@@ -5,13 +5,14 @@ import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any, Awaitable, Generator, Optional, cast
+from typing import Any, Awaitable, Dict, Generator, Optional, cast
 
 import redis.asyncio as redis
 
 from app.core.metrics.rate_limit import RateLimitMetrics
 from app.core.tracing.utils import add_span_attributes
 from app.domain.rate_limit import (
+    EndpointGroup,
     RateLimitAlgorithm,
     RateLimitConfig,
     RateLimitRule,
@@ -19,8 +20,89 @@ from app.domain.rate_limit import (
     UserRateLimit,
     UserRateLimitSummary,
 )
-from app.infrastructure.mappers import RateLimitConfigMapper
 from app.settings import Settings
+
+
+def _rule_to_dict(rule: RateLimitRule) -> Dict[str, Any]:
+    return {
+        "endpoint_pattern": rule.endpoint_pattern,
+        "group": rule.group.value,
+        "requests": rule.requests,
+        "window_seconds": rule.window_seconds,
+        "burst_multiplier": rule.burst_multiplier,
+        "algorithm": rule.algorithm.value,
+        "priority": rule.priority,
+        "enabled": rule.enabled,
+    }
+
+
+def _rule_from_dict(data: Dict[str, Any]) -> RateLimitRule:
+    return RateLimitRule(
+        endpoint_pattern=data["endpoint_pattern"],
+        group=EndpointGroup(data["group"]),
+        requests=data["requests"],
+        window_seconds=data["window_seconds"],
+        burst_multiplier=data.get("burst_multiplier", 1.5),
+        algorithm=RateLimitAlgorithm(data.get("algorithm", RateLimitAlgorithm.SLIDING_WINDOW)),
+        priority=data.get("priority", 0),
+        enabled=data.get("enabled", True),
+    )
+
+
+def _user_limit_to_dict(user_limit: UserRateLimit) -> Dict[str, Any]:
+    return {
+        "user_id": user_limit.user_id,
+        "bypass_rate_limit": user_limit.bypass_rate_limit,
+        "global_multiplier": user_limit.global_multiplier,
+        "rules": [_rule_to_dict(rule) for rule in user_limit.rules],
+        "created_at": user_limit.created_at.isoformat() if user_limit.created_at else None,
+        "updated_at": user_limit.updated_at.isoformat() if user_limit.updated_at else None,
+        "notes": user_limit.notes,
+    }
+
+
+def _user_limit_from_dict(data: Dict[str, Any]) -> UserRateLimit:
+    created_at = data.get("created_at")
+    if created_at and isinstance(created_at, str):
+        created_at = datetime.fromisoformat(created_at)
+    elif not created_at:
+        created_at = datetime.now(timezone.utc)
+
+    updated_at = data.get("updated_at")
+    if updated_at and isinstance(updated_at, str):
+        updated_at = datetime.fromisoformat(updated_at)
+    elif not updated_at:
+        updated_at = datetime.now(timezone.utc)
+
+    return UserRateLimit(
+        user_id=data["user_id"],
+        bypass_rate_limit=data.get("bypass_rate_limit", False),
+        global_multiplier=data.get("global_multiplier", 1.0),
+        rules=[_rule_from_dict(rule_data) for rule_data in data.get("rules", [])],
+        created_at=created_at,
+        updated_at=updated_at,
+        notes=data.get("notes"),
+    )
+
+
+def _config_to_json(config: RateLimitConfig) -> str:
+    data = {
+        "default_rules": [_rule_to_dict(rule) for rule in config.default_rules],
+        "user_overrides": {uid: _user_limit_to_dict(user_limit) for uid, user_limit in config.user_overrides.items()},
+        "global_enabled": config.global_enabled,
+        "redis_ttl": config.redis_ttl,
+    }
+    return json.dumps(data)
+
+
+def _config_from_json(json_str: str | bytes) -> RateLimitConfig:
+    data = json.loads(json_str)
+    return RateLimitConfig(
+        default_rules=[_rule_from_dict(rule_data) for rule_data in data.get("default_rules", [])],
+        user_overrides={uid: _user_limit_from_dict(user_data) for uid, user_data in data.get("user_overrides", {}).items()},
+        global_enabled=data.get("global_enabled", True),
+        redis_ttl=data.get("redis_ttl", 3600),
+    )
 
 
 class RateLimitService:
@@ -380,17 +462,16 @@ class RateLimitService:
         # Try to get from Redis cache
         config_key = f"{self.prefix}config"
         config_data = await self.redis.get(config_key)
-        mapper = RateLimitConfigMapper()
 
         if config_data:
-            config = mapper.model_validate_json(config_data)
+            config = _config_from_json(config_data)
         else:
             # Return default config and cache it
             config = RateLimitConfig.get_default_config()
             await self.redis.setex(
                 config_key,
                 300,  # Cache for 5 minutes
-                mapper.model_dump_json(config),
+                _config_to_json(config),
             )
 
         # Prepare for fast matching
@@ -409,10 +490,9 @@ class RateLimitService:
 
     async def update_config(self, config: RateLimitConfig) -> None:
         config_key = f"{self.prefix}config"
-        mapper = RateLimitConfigMapper()
 
         with self._timer(self.metrics.redis_duration, {"operation": "update_config"}):
-            await self.redis.setex(config_key, 300, mapper.model_dump_json(config))
+            await self.redis.setex(config_key, 300, _config_to_json(config))
 
         # Update configuration metrics - just record the absolute values
         active_rules_count = len([r for r in config.default_rules if r.enabled])

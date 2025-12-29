@@ -1,4 +1,5 @@
 from datetime import datetime, timezone, timedelta
+import logging
 
 import pytest
 
@@ -8,10 +9,12 @@ from app.domain.user.settings_models import DomainUserSettings
 
 pytestmark = pytest.mark.integration
 
+_test_logger = logging.getLogger("test.db.repositories.user_settings_repository")
+
 
 @pytest.mark.asyncio
 async def test_user_settings_snapshot_and_events(db) -> None:  # type: ignore[valid-type]
-    repo = UserSettingsRepository(db)
+    repo = UserSettingsRepository(db, logger=_test_logger)
 
     # Create indexes (should not raise)
     await repo.create_indexes()

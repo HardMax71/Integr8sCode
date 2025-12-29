@@ -1,12 +1,11 @@
 import asyncio
 import heapq
+import logging
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import Any, Dict, List, Tuple
-
-from app.core.logging import logger
 from app.core.metrics.context import get_coordinator_metrics
 from app.infrastructure.kafka.events import ExecutionRequestedEvent
 
@@ -42,10 +41,12 @@ class QueuedExecution:
 class QueueManager:
     def __init__(
         self,
+        logger: logging.Logger,
         max_queue_size: int = 10000,
         max_executions_per_user: int = 100,
         stale_timeout_seconds: int = 3600,
     ) -> None:
+        self.logger = logger
         self.metrics = get_coordinator_metrics()
         self.max_queue_size = max_queue_size
         self.max_executions_per_user = max_executions_per_user
@@ -64,7 +65,7 @@ class QueueManager:
 
         self._running = True
         self._cleanup_task = asyncio.create_task(self._cleanup_stale_executions())
-        logger.info("Queue manager started")
+        self.logger.info("Queue manager started")
 
     async def stop(self) -> None:
         if not self._running:
@@ -79,7 +80,7 @@ class QueueManager:
             except asyncio.CancelledError:
                 pass
 
-        logger.info(f"Queue manager stopped. Final queue size: {len(self._queue)}")
+        self.logger.info(f"Queue manager stopped. Final queue size: {len(self._queue)}")
 
     async def add_execution(
         self, event: ExecutionRequestedEvent, priority: QueuePriority | None = None
@@ -105,7 +106,7 @@ class QueueManager:
             # Update single authoritative metric for execution request queue depth
             self.metrics.update_execution_request_queue_size(len(self._queue))
 
-            logger.info(
+            self.logger.info(
                 f"Added execution {event.execution_id} to queue. "
                 f"Priority: {priority.name}, Position: {position}, "
                 f"Queue size: {len(self._queue)}"
@@ -128,7 +129,7 @@ class QueueManager:
                 # Update metric after removal from the queue
                 self.metrics.update_execution_request_queue_size(len(self._queue))
 
-                logger.info(
+                self.logger.info(
                     f"Retrieved execution {queued.execution_id} from queue. "
                     f"Wait time: {queued.age_seconds:.2f}s, Queue size: {len(self._queue)}"
                 )
@@ -147,7 +148,7 @@ class QueueManager:
                 self._untrack_execution(execution_id)
                 # Update metric after explicit removal
                 self.metrics.update_execution_request_queue_size(len(self._queue))
-                logger.info(f"Removed execution {execution_id} from queue")
+                self.logger.info(f"Removed execution {execution_id} from queue")
                 return True
 
             return False
@@ -262,7 +263,7 @@ class QueueManager:
 
                         # Update metric after stale cleanup
                         self.metrics.update_execution_request_queue_size(len(self._queue))
-                        logger.info(f"Cleaned {len(stale_executions)} stale executions from queue")
+                        self.logger.info(f"Cleaned {len(stale_executions)} stale executions from queue")
 
             except Exception as e:
-                logger.error(f"Error in queue cleanup: {e}")
+                self.logger.error(f"Error in queue cleanup: {e}")

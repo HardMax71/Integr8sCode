@@ -1,16 +1,17 @@
 import asyncio
+import logging
 from typing import Dict, List
 
 from confluent_kafka.admin import AdminClient, NewTopic
 
-from app.core.logging import logger
 from app.settings import get_settings
 
 
 class AdminUtils:
     """Minimal admin utilities using native AdminClient."""
 
-    def __init__(self, bootstrap_servers: str | None = None):
+    def __init__(self, logger: logging.Logger, bootstrap_servers: str | None = None):
+        self.logger = logger
         settings = get_settings()
         self._admin = AdminClient(
             {
@@ -30,7 +31,7 @@ class AdminUtils:
             metadata = self._admin.list_topics(timeout=5.0)
             return topic in metadata.topics
         except Exception as e:
-            logger.error(f"Failed to check topic {topic}: {e}")
+            self.logger.error(f"Failed to check topic {topic}: {e}")
             return False
 
     async def create_topic(self, topic: str, num_partitions: int = 1, replication_factor: int = 1) -> bool:
@@ -41,10 +42,10 @@ class AdminUtils:
 
             # Wait for result - result() returns None on success, raises exception on failure
             await asyncio.get_event_loop().run_in_executor(None, lambda: futures[topic].result(timeout=30.0))
-            logger.info(f"Topic {topic} created successfully")
+            self.logger.info(f"Topic {topic} created successfully")
             return True
         except Exception as e:
-            logger.error(f"Failed to create topic {topic}: {e}")
+            self.logger.error(f"Failed to create topic {topic}: {e}")
             return False
 
     async def ensure_topics_exist(self, topics: List[tuple[str, int]]) -> Dict[str, bool]:
@@ -62,6 +63,6 @@ class AdminUtils:
         return self._admin
 
 
-def create_admin_utils(bootstrap_servers: str | None = None) -> AdminUtils:
+def create_admin_utils(logger: logging.Logger, bootstrap_servers: str | None = None) -> AdminUtils:
     """Create admin utilities."""
-    return AdminUtils(bootstrap_servers)
+    return AdminUtils(logger, bootstrap_servers)

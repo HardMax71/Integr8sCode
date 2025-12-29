@@ -1,75 +1,70 @@
 from datetime import datetime, timezone
+import logging
 
-from app.core.database_context import Collection, Database
-from app.core.logging import logger
-from app.domain.admin import (
-    AuditAction,
-    AuditLogEntry,
-    SystemSettings,
+from app.db.docs import (
+    AuditLogDocument,
+    ExecutionLimitsConfig,
+    MonitoringSettingsConfig,
+    SecuritySettingsConfig,
+    SystemSettingsDocument,
 )
-from app.infrastructure.mappers import AuditLogMapper, SettingsMapper
+from app.domain.admin import AuditAction
 
 
 class AdminSettingsRepository:
-    def __init__(self, db: Database):
-        self.db = db
-        self.settings_collection: Collection = self.db.get_collection("system_settings")
-        self.audit_log_collection: Collection = self.db.get_collection("audit_log")
-        self.settings_mapper = SettingsMapper()
-        self.audit_mapper = AuditLogMapper()
 
-    async def get_system_settings(self) -> SystemSettings:
-        """Get system settings from database, creating defaults if not found."""
-        settings_doc = await self.settings_collection.find_one({"_id": "global"})
-        if not settings_doc:
-            logger.info("System settings not found, creating defaults")
-            # Create default settings
-            default_settings = SystemSettings()
-            settings_dict = self.settings_mapper.system_settings_to_dict(default_settings)
+    def __init__(self, logger: logging.Logger):
+        self.logger = logger
 
-            # Insert default settings
-            await self.settings_collection.insert_one(settings_dict)
-            return default_settings
+    async def get_system_settings(self) -> SystemSettingsDocument:
+        doc = await SystemSettingsDocument.find_one({"settings_id": "global"})
+        if not doc:
+            self.logger.info("System settings not found, creating defaults")
+            doc = SystemSettingsDocument(
+                settings_id="global",
+                execution_limits=ExecutionLimitsConfig(),
+                security_settings=SecuritySettingsConfig(),
+                monitoring_settings=MonitoringSettingsConfig(),
+            )
+            await doc.insert()
+        return doc
 
-        return self.settings_mapper.system_settings_from_dict(settings_doc)
-
-    async def update_system_settings(self, settings: SystemSettings, updated_by: str, user_id: str) -> SystemSettings:
-        """Update system-wide settings."""
-        # Update settings metadata
+    async def update_system_settings(
+        self,
+        settings: SystemSettingsDocument,
+        updated_by: str,
+        user_id: str,
+    ) -> SystemSettingsDocument:
         settings.updated_at = datetime.now(timezone.utc)
+        await settings.save()
 
-        # Convert to dict and save
-        settings_dict = self.settings_mapper.system_settings_to_dict(settings)
-
-        await self.settings_collection.replace_one({"_id": "global"}, settings_dict, upsert=True)
-
-        # Create audit log entry
-        audit_entry = AuditLogEntry(
+        audit_entry = AuditLogDocument(
             action=AuditAction.SYSTEM_SETTINGS_UPDATED,
             user_id=user_id,
             username=updated_by,
             timestamp=datetime.now(timezone.utc),
-            changes=settings_dict,
+            changes=settings.model_dump(exclude={"id", "revision_id"}),
         )
-
-        await self.audit_log_collection.insert_one(self.audit_mapper.to_dict(audit_entry))
+        await audit_entry.insert()
 
         return settings
 
-    async def reset_system_settings(self, username: str, user_id: str) -> SystemSettings:
-        """Reset system settings to defaults."""
-        # Delete current settings
-        await self.settings_collection.delete_one({"_id": "global"})
+    async def reset_system_settings(self, username: str, user_id: str) -> SystemSettingsDocument:
+        doc = await SystemSettingsDocument.find_one({"settings_id": "global"})
+        if doc:
+            await doc.delete()
 
-        # Create audit log entry
-        audit_entry = AuditLogEntry(
+        audit_entry = AuditLogDocument(
             action=AuditAction.SYSTEM_SETTINGS_RESET,
             user_id=user_id,
             username=username,
             timestamp=datetime.now(timezone.utc),
         )
+        await audit_entry.insert()
 
-        await self.audit_log_collection.insert_one(self.audit_mapper.to_dict(audit_entry))
-
-        # Return default settings
-        return SystemSettings()
+        return SystemSettingsDocument(
+            settings_id="global",
+            execution_limits=ExecutionLimitsConfig(),
+            security_settings=SecuritySettingsConfig(),
+            monitoring_settings=MonitoringSettingsConfig(),
+        )

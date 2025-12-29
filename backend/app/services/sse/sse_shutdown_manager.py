@@ -1,9 +1,9 @@
 import asyncio
+import logging
 import time
 from enum import Enum
 from typing import Dict, Set
 
-from app.core.logging import logger
 from app.core.metrics.context import get_connection_metrics
 from app.domain.sse import ShutdownStatus
 from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
@@ -34,8 +34,13 @@ class SSEShutdownManager:
     """
 
     def __init__(
-        self, drain_timeout: float = 30.0, notification_timeout: float = 5.0, force_close_timeout: float = 10.0
+        self,
+        logger: logging.Logger,
+        drain_timeout: float = 30.0,
+        notification_timeout: float = 5.0,
+        force_close_timeout: float = 10.0,
     ):
+        self.logger = logger
         self.drain_timeout = drain_timeout
         self.notification_timeout = notification_timeout
         self.force_close_timeout = force_close_timeout
@@ -59,7 +64,7 @@ class SSEShutdownManager:
         self._shutdown_event = asyncio.Event()
         self._drain_complete_event = asyncio.Event()
 
-        logger.info(
+        self.logger.info(
             f"SSEShutdownManager initialized: "
             f"drain_timeout={drain_timeout}s, "
             f"notification_timeout={notification_timeout}s"
@@ -78,7 +83,7 @@ class SSEShutdownManager:
         """
         async with self._lock:
             if self._shutdown_initiated:
-                logger.warning(
+                self.logger.warning(
                     f"Rejecting new SSE connection during shutdown: "
                     f"execution_id={execution_id}, connection_id={connection_id}"
                 )
@@ -93,7 +98,7 @@ class SSEShutdownManager:
             shutdown_event = asyncio.Event()
             self._connection_callbacks[connection_id] = shutdown_event
 
-            logger.debug(f"Registered SSE connection: {connection_id}")
+            self.logger.debug(f"Registered SSE connection: {connection_id}")
             self.metrics.increment_sse_connections("executions")
 
             return shutdown_event
@@ -109,7 +114,7 @@ class SSEShutdownManager:
             self._connection_callbacks.pop(connection_id, None)
             self._draining_connections.discard(connection_id)
 
-            logger.debug(f"Unregistered SSE connection: {connection_id}")
+            self.logger.debug(f"Unregistered SSE connection: {connection_id}")
             self.metrics.decrement_sse_connections("executions")
 
             # Check if all connections are drained
@@ -120,7 +125,7 @@ class SSEShutdownManager:
         """Initiate graceful shutdown of all SSE connections"""
         async with self._lock:
             if self._shutdown_initiated:
-                logger.warning("SSE shutdown already initiated")
+                self.logger.warning("SSE shutdown already initiated")
                 return
 
             self._shutdown_initiated = True
@@ -128,7 +133,7 @@ class SSEShutdownManager:
             self._phase = ShutdownPhase.DRAINING
 
             total_connections = sum(len(conns) for conns in self._active_connections.values())
-            logger.info(f"Initiating SSE shutdown with {total_connections} active connections")
+            self.logger.info(f"Initiating SSE shutdown with {total_connections} active connections")
 
             self.metrics.update_sse_draining_connections(total_connections)
 
@@ -139,7 +144,7 @@ class SSEShutdownManager:
         try:
             await self._execute_shutdown()
         except Exception as e:
-            logger.error(f"Error during SSE shutdown: {e}")
+            self.logger.error(f"Error during SSE shutdown: {e}")
             raise
         finally:
             self._shutdown_complete = True
@@ -150,7 +155,7 @@ class SSEShutdownManager:
 
         # Phase 1: Stop accepting new connections (already done by setting _shutdown_initiated)
         phase_start = time.time()
-        logger.info("Phase 1: Stopped accepting new SSE connections")
+        self.logger.info("Phase 1: Stopped accepting new SSE connections")
 
         # Phase 2: Notify connections about shutdown
         await self._notify_connections()
@@ -170,9 +175,9 @@ class SSEShutdownManager:
         if self._shutdown_start_time is not None:
             total_duration = time.time() - self._shutdown_start_time
             self.metrics.update_sse_shutdown_duration(total_duration, "total")
-            logger.info(f"SSE shutdown complete in {total_duration:.2f}s")
+            self.logger.info(f"SSE shutdown complete in {total_duration:.2f}s")
         else:
-            logger.info("SSE shutdown complete")
+            self.logger.info("SSE shutdown complete")
 
     async def _notify_connections(self) -> None:
         """Notify all active connections about shutdown"""
@@ -183,7 +188,7 @@ class SSEShutdownManager:
             connection_events = list(self._connection_callbacks.values())
             self._draining_connections = set(self._connection_callbacks.keys())
 
-        logger.info(f"Phase 2: Notifying {active_count} connections about shutdown")
+        self.logger.info(f"Phase 2: Notifying {active_count} connections about shutdown")
         self.metrics.update_sse_draining_connections(active_count)
 
         # Trigger shutdown events for all connections
@@ -194,7 +199,7 @@ class SSEShutdownManager:
         # Give connections time to send shutdown messages
         await asyncio.sleep(self.notification_timeout)
 
-        logger.info("Shutdown notification phase complete")
+        self.logger.info("Shutdown notification phase complete")
 
     async def _drain_connections(self) -> None:
         """Wait for connections to close gracefully"""
@@ -203,7 +208,7 @@ class SSEShutdownManager:
         async with self._lock:
             remaining = sum(len(conns) for conns in self._active_connections.values())
 
-        logger.info(f"Phase 3: Draining {remaining} connections (timeout: {self.drain_timeout}s)")
+        self.logger.info(f"Phase 3: Draining {remaining} connections (timeout: {self.drain_timeout}s)")
         self.metrics.update_sse_draining_connections(remaining)
 
         start_time = time.time()
@@ -223,14 +228,14 @@ class SSEShutdownManager:
                 remaining = sum(len(conns) for conns in self._active_connections.values())
 
             if remaining < last_count:
-                logger.info(f"Connections remaining: {remaining}")
+                self.logger.info(f"Connections remaining: {remaining}")
                 self.metrics.update_sse_draining_connections(remaining)
                 last_count = remaining
 
         if remaining == 0:
-            logger.info("All connections drained gracefully")
+            self.logger.info("All connections drained gracefully")
         else:
-            logger.warning(f"{remaining} connections still active after drain timeout")
+            self.logger.warning(f"{remaining} connections still active after drain timeout")
 
     async def _force_close_connections(self) -> None:
         """Force close any remaining connections"""
@@ -240,10 +245,10 @@ class SSEShutdownManager:
             remaining_count = sum(len(conns) for conns in self._active_connections.values())
 
             if remaining_count == 0:
-                logger.info("Phase 4: No connections to force close")
+                self.logger.info("Phase 4: No connections to force close")
                 return
 
-            logger.warning(f"Phase 4: Force closing {remaining_count} connections")
+            self.logger.warning(f"Phase 4: Force closing {remaining_count} connections")
             self.metrics.update_sse_draining_connections(remaining_count)
 
             # Clear all tracking - connections will be forcibly terminated
@@ -256,7 +261,7 @@ class SSEShutdownManager:
             await self._router.stop()
 
         self.metrics.update_sse_draining_connections(0)
-        logger.info("Force close phase complete")
+        self.logger.info("Force close phase complete")
 
     def is_shutting_down(self) -> bool:
         """Check if shutdown is in progress"""
@@ -300,11 +305,15 @@ class SSEShutdownManager:
 
 
 def create_sse_shutdown_manager(
-    drain_timeout: float = 30.0, notification_timeout: float = 5.0, force_close_timeout: float = 10.0
+    logger: logging.Logger,
+    drain_timeout: float = 30.0,
+    notification_timeout: float = 5.0,
+    force_close_timeout: float = 10.0,
 ) -> SSEShutdownManager:
     """Factory function to create an SSE shutdown manager.
 
     Args:
+        logger: Logger instance
         drain_timeout: Time to wait for connections to close gracefully
         notification_timeout: Time to wait for shutdown notifications to be sent
         force_close_timeout: Time before force closing connections
@@ -313,5 +322,8 @@ def create_sse_shutdown_manager(
         A new SSE shutdown manager instance
     """
     return SSEShutdownManager(
-        drain_timeout=drain_timeout, notification_timeout=notification_timeout, force_close_timeout=force_close_timeout
+        logger=logger,
+        drain_timeout=drain_timeout,
+        notification_timeout=notification_timeout,
+        force_close_timeout=force_close_timeout,
     )

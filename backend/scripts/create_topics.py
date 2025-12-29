@@ -11,10 +11,10 @@ from typing import List
 from app.core.logging import setup_logger
 from app.infrastructure.kafka.topics import get_all_topics, get_topic_configs
 from app.settings import get_settings
-
-logger = setup_logger(os.environ.get("LOG_LEVEL", "INFO"))
 from confluent_kafka import KafkaException
 from confluent_kafka.admin import AdminClient, NewTopic
+
+logger = setup_logger(os.environ.get("LOG_LEVEL", "INFO"))
 
 
 async def create_topics() -> None:

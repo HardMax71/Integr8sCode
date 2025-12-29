@@ -3,13 +3,12 @@ import os
 import signal
 from typing import Optional
 
-from app.core.database_context import Database, DBClient
+from app.core.database_context import DBClient
 from app.core.logging import setup_logger
 from app.dlq import DLQMessage, RetryPolicy, RetryStrategy
 from app.dlq.manager import DLQManager, create_dlq_manager
 from app.domain.enums.kafka import KafkaTopic
 from app.events.schema.schema_registry import create_schema_registry_manager
-from app.infrastructure.mappers.dlq_mapper import DLQMapper
 from app.settings import get_settings
 from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
@@ -111,15 +110,13 @@ async def main() -> None:
         serverSelectionTimeoutMS=5000,
     )
     db_name = settings.DATABASE_NAME
-    database: Database = db_client[db_name]
+    _ = db_client[db_name]  # Access database to verify connection
     await db_client.admin.command("ping")
     logger.info(f"Connected to database: {db_name}")
 
     schema_registry = create_schema_registry_manager(logger)
-    dlq_mapper = DLQMapper(schema_registry)
     manager = create_dlq_manager(
-        database=database,
-        dlq_mapper=dlq_mapper,
+        schema_registry=schema_registry,
         logger=logger,
         dlq_topic=KafkaTopic.DEAD_LETTER_QUEUE,
         retry_topic_suffix="-retry",

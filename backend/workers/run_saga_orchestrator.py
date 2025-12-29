@@ -2,9 +2,6 @@ import asyncio
 import logging
 
 import redis.asyncio as redis
-from beanie import init_beanie
-from pymongo.asynchronous.mongo_client import AsyncMongoClient
-
 from app.core.database_context import DBClient
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
@@ -20,6 +17,8 @@ from app.services.idempotency import IdempotencyConfig, create_idempotency_manag
 from app.services.idempotency.redis_repository import RedisIdempotencyRepository
 from app.services.saga import create_saga_orchestrator
 from app.settings import get_settings
+from beanie import init_beanie
+from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 
 async def run_saga_orchestrator() -> None:
@@ -53,10 +52,10 @@ async def run_saga_orchestrator() -> None:
 
     # Create event store (schema ensured separately)
     logger.info("Creating event store...")
-    event_store = create_event_store(db=database, schema_registry=schema_registry_manager, logger=logger, ttl_days=90)
+    event_store = create_event_store(schema_registry=schema_registry_manager, logger=logger, ttl_days=90)
 
     # Create repository and idempotency manager (Redis-backed)
-    saga_repository = SagaRepository(database)
+    saga_repository = SagaRepository()
     r = redis.Redis(
         host=settings.REDIS_HOST,
         port=settings.REDIS_PORT,
@@ -70,7 +69,7 @@ async def run_saga_orchestrator() -> None:
     )
     idem_repo = RedisIdempotencyRepository(r, key_prefix="idempotency")
     idempotency_manager = create_idempotency_manager(repository=idem_repo, config=IdempotencyConfig(), logger=logger)
-    resource_allocation_repository = ResourceAllocationRepository(database)
+    resource_allocation_repository = ResourceAllocationRepository()
 
     # Create saga orchestrator
     saga_config = SagaConfig(
@@ -119,20 +118,21 @@ async def run_saga_orchestrator() -> None:
 
 def main() -> None:
     """Main entry point for saga orchestrator worker"""
+    settings = get_settings()
+
     # Setup logging
-    setup_logger()
+    logger = setup_logger(settings.LOG_LEVEL)
 
     # Configure root logger for worker
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
-    logger = logging.getLogger(__name__)
     logger.info("Starting Saga Orchestrator worker...")
 
     # Initialize tracing
-    settings = get_settings()
     if settings.ENABLE_TRACING:
         init_tracing(
             service_name=GroupId.SAGA_ORCHESTRATOR,
+            logger=logger,
             service_version=settings.TRACING_SERVICE_VERSION,
             enable_console_exporter=False,
             sampling_rate=settings.TRACING_SAMPLING_RATE,

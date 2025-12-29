@@ -11,10 +11,7 @@ from app.db.docs.event import (
     EventDocument,
     EventStoreDocument,
 )
-from app.db.docs.execution import (
-    ExecutionDocument,
-    ResourceUsage,
-)
+from app.db.docs.execution import ExecutionDocument, ResourceUsage
 from app.db.docs.notification import (
     NotificationDocument,
     NotificationSubscriptionDocument,

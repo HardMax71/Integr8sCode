@@ -90,7 +90,7 @@ class ExecutionCompletedEvent(BaseEvent):
     stdout: str = ""
     stderr: str = ""
     exit_code: int
-    resource_usage: ResourceUsageDomain
+    resource_usage: ResourceUsageDomain | None = None
 
 
 class ExecutionFailedEvent(BaseEvent):
@@ -102,7 +102,7 @@ class ExecutionFailedEvent(BaseEvent):
     exit_code: int
     error_type: ExecutionErrorType
     error_message: str
-    resource_usage: ResourceUsageDomain
+    resource_usage: ResourceUsageDomain | None = None
 
 
 class ExecutionTimeoutEvent(BaseEvent):
@@ -112,7 +112,7 @@ class ExecutionTimeoutEvent(BaseEvent):
     stdout: str = ""
     stderr: str = ""
     timeout_seconds: int
-    resource_usage: ResourceUsageDomain
+    resource_usage: ResourceUsageDomain | None = None
 
 
 class ExecutionCancelledEvent(BaseEvent):

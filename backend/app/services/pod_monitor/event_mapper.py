@@ -263,7 +263,7 @@ class PodEventMapper:
             exit_code=exit_code,
             stdout=logs.stdout,
             stderr=logs.stderr,
-            resource_usage=logs.resource_usage or ResourceUsageDomain.from_dict({}),
+            resource_usage=logs.resource_usage,
             metadata=ctx.metadata,
         )
         self.logger.info(f"POD-EVENT: mapped completed exec={ctx.execution_id} exit_code={exit_code}")
@@ -301,7 +301,7 @@ class PodEventMapper:
             stdout=logs.stdout,
             stderr=stderr,
             error_message=stderr,
-            resource_usage=logs.resource_usage or ResourceUsageDomain.from_dict({}),
+            resource_usage=logs.resource_usage,
             metadata=ctx.metadata,
         )
         self.logger.info(
@@ -342,7 +342,7 @@ class PodEventMapper:
             timeout_seconds=ctx.pod.spec.active_deadline_seconds or 0,
             stdout=logs.stdout,
             stderr=logs.stderr,
-            resource_usage=logs.resource_usage or ResourceUsageDomain.from_dict({}),
+            resource_usage=logs.resource_usage,
             metadata=ctx.metadata,
         )
         self.logger.info(
@@ -499,7 +499,7 @@ class PodEventMapper:
             stdout=data.get("stdout", ""),
             stderr=data.get("stderr", ""),
             exit_code=data.get("exit_code", 0),
-            resource_usage=ResourceUsageDomain.from_dict(data.get("resource_usage", {})),
+            resource_usage=ResourceUsageDomain(**data.get("resource_usage", {})),
         )
 
     def _log_extraction_error(self, pod_name: str, error: str) -> None:

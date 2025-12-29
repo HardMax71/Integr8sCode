@@ -16,7 +16,6 @@ from app.domain.execution import (
     ExecutionNotFoundError,
     ExecutionResultDomain,
     ResourceLimitsDomain,
-    ResourceUsageDomain,
 )
 from app.events.core import UnifiedProducer
 from app.events.event_store import EventStore
@@ -242,7 +241,7 @@ class ExecutionService:
             exit_code=-1,
             stdout="",
             stderr=error_message,
-            resource_usage=ResourceUsageDomain(0.0, 0, 0, 0),
+            resource_usage=None,
             metadata={},
         )
         await self.execution_repo.write_terminal_result(result)

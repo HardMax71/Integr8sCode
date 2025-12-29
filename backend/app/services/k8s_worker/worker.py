@@ -20,7 +20,6 @@ from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.domain.enums.storage import ExecutionErrorType
-from app.domain.execution import ResourceUsageDomain
 from app.events.core import ConsumerConfig, EventDispatcher, ProducerConfig, UnifiedConsumer, UnifiedProducer
 from app.events.event_store import EventStore, create_event_store
 from app.events.schema.schema_registry import (
@@ -425,7 +424,7 @@ exec "$@"
             error_type=ExecutionErrorType.SYSTEM_ERROR,
             exit_code=-1,
             stderr=f"Failed to create pod: {error}",
-            resource_usage=ResourceUsageDomain.from_dict({}),
+            resource_usage=None,
             metadata=command.metadata,
             error_message=str(error),
         )

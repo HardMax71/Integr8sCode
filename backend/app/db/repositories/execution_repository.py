@@ -27,7 +27,7 @@ class ExecutionRepository:
         return DomainExecution(
             **{
                 **doc.model_dump(exclude={"id"}),
-                "resource_usage": ResourceUsageDomain.from_dict(doc.resource_usage.model_dump())
+                "resource_usage": ResourceUsageDomain(**doc.resource_usage.model_dump())
                 if doc.resource_usage
                 else None,
             }
@@ -44,7 +44,7 @@ class ExecutionRepository:
         return DomainExecution(
             **{
                 **doc.model_dump(exclude={"id"}),
-                "resource_usage": ResourceUsageDomain.from_dict(doc.resource_usage.model_dump())
+                "resource_usage": ResourceUsageDomain(**doc.resource_usage.model_dump())
                 if doc.resource_usage
                 else None,
             }
@@ -97,7 +97,7 @@ class ExecutionRepository:
             DomainExecution(
                 **{
                     **doc.model_dump(exclude={"id"}),
-                    "resource_usage": ResourceUsageDomain.from_dict(doc.resource_usage.model_dump())
+                    "resource_usage": ResourceUsageDomain(**doc.resource_usage.model_dump())
                     if doc.resource_usage
                     else None,
                 }

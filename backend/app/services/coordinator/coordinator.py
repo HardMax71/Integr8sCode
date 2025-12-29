@@ -18,7 +18,6 @@ from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.domain.enums.storage import ExecutionErrorType
-from app.domain.execution import ResourceUsageDomain
 from app.events.core import ConsumerConfig, EventDispatcher, ProducerConfig, UnifiedConsumer, UnifiedProducer
 from app.events.event_store import EventStore, create_event_store
 from app.events.schema.schema_registry import (
@@ -460,7 +459,7 @@ class ExecutionCoordinator(LifecycleEnabled):
             error_type=ExecutionErrorType.RESOURCE_LIMIT,
             exit_code=-1,
             stderr=f"Queue full: {error}. Queue size: {queue_stats.get('total_size', 'unknown')}",
-            resource_usage=ResourceUsageDomain.from_dict({}),
+            resource_usage=None,
             metadata=request.metadata,
             error_message=error,
         )
@@ -479,7 +478,7 @@ class ExecutionCoordinator(LifecycleEnabled):
             stderr=f"Failed to schedule execution: {error}. "
             f"Available resources: CPU={resource_stats.available.cpu_cores}, "
             f"Memory={resource_stats.available.memory_mb}MB",
-            resource_usage=ResourceUsageDomain.from_dict({}),
+            resource_usage=None,
             metadata=request.metadata,
             error_message=error,
         )

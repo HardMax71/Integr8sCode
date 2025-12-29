@@ -1,6 +1,5 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
 
 from app.domain.enums.replay import ReplayStatus
 from app.domain.events.event_models import EventSummary

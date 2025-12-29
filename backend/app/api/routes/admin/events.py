@@ -33,6 +33,7 @@ def _to_event_filter(pydantic_filter: AdminEventFilter) -> EventFilter:
     data["text_search"] = data.pop("search_text", None)
     return EventFilter(**data)
 
+
 router = APIRouter(
     prefix="/admin/events", tags=["admin-events"], route_class=DishkaRoute, dependencies=[Depends(admin_user)]
 )

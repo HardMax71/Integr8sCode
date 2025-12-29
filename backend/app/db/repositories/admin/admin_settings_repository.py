@@ -1,5 +1,5 @@
-from datetime import datetime, timezone
 import logging
+from datetime import datetime, timezone
 
 from app.db.docs import (
     AuditLogDocument,
@@ -12,7 +12,6 @@ from app.domain.admin import AuditAction
 
 
 class AdminSettingsRepository:
-
     def __init__(self, logger: logging.Logger):
         self.logger = logger
 

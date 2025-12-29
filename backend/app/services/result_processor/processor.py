@@ -62,7 +62,11 @@ class ResultProcessor(LifecycleEnabled):
     """Service for processing execution completion events and storing results."""
 
     def __init__(
-        self, execution_repo: ExecutionRepository, producer: UnifiedProducer, idempotency_manager: IdempotencyManager, logger: logging.Logger
+        self,
+        execution_repo: ExecutionRepository,
+        producer: UnifiedProducer,
+        idempotency_manager: IdempotencyManager,
+        logger: logging.Logger,
     ) -> None:
         """Initialize the result processor."""
         self.config = ResultProcessorConfig()

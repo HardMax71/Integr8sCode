@@ -15,7 +15,13 @@ from app.services.saga import SagaOrchestrator
 class SagaService:
     """Service for saga business logic and orchestration."""
 
-    def __init__(self, saga_repo: SagaRepository, execution_repo: ExecutionRepository, orchestrator: SagaOrchestrator, logger: logging.Logger):
+    def __init__(
+        self,
+        saga_repo: SagaRepository,
+        execution_repo: ExecutionRepository,
+        orchestrator: SagaOrchestrator,
+        logger: logging.Logger,
+    ):
         self.saga_repo = saga_repo
         self.execution_repo = execution_repo
         self.orchestrator = orchestrator
@@ -76,7 +82,7 @@ class SagaService:
             )
             raise SagaAccessDeniedError(execution_id, user.user_id)
 
-        return await self.saga_repo.get_sagas_by_execution(execution_id, state, limit=limit, skip=skip)
+        return await self.saga_repo.get_sagas_by_execution(execution_id, state, limit=limit, skip=skip)  # type: ignore[return-value]
 
     async def list_user_sagas(
         self, user: User, state: SagaState | None = None, limit: int = 100, skip: int = 0
@@ -99,11 +105,13 @@ class SagaService:
             f"Listed {len(result.sagas)} sagas for user {user.user_id}",
             extra={"total": result.total, "state_filter": str(state) if state else None},
         )
-        return result
+        return result  # type: ignore[return-value]
 
     async def cancel_saga(self, saga_id: str, user: User) -> bool:
         """Cancel a saga with permission check."""
-        self.logger.info(f"User {user.user_id} requesting cancellation of saga {saga_id}", extra={"user_role": user.role})
+        self.logger.info(
+            f"User {user.user_id} requesting cancellation of saga {saga_id}", extra={"user_role": user.role}
+        )
         # Get saga with access check
         saga = await self.get_saga_with_access_check(saga_id, user)
 

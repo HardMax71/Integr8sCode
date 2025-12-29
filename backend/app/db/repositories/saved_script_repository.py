@@ -7,10 +7,7 @@ from app.domain.saved_script import DomainSavedScriptCreate, DomainSavedScriptUp
 
 
 class SavedScriptRepository:
-
-    async def create_saved_script(
-        self, create_data: DomainSavedScriptCreate, user_id: str
-    ) -> SavedScriptDocument:
+    async def create_saved_script(self, create_data: DomainSavedScriptCreate, user_id: str) -> SavedScriptDocument:
         doc = SavedScriptDocument(
             name=create_data.name,
             script=create_data.script,

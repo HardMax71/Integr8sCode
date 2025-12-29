@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Any, Awaitable, Callable, Mapping, Sequence
+from typing import Any, Awaitable, Callable
 
 from confluent_kafka import Consumer, KafkaError, Message, Producer
 from opentelemetry.trace import SpanKind
@@ -113,10 +113,9 @@ class DLQManager(LifecycleEnabled):
 
     def _kafka_msg_to_message(self, msg: Message) -> DLQMessage:
         """Parse Kafka message into DLQMessage."""
-        raw = msg.value()
-        if isinstance(raw, (bytes, bytearray)):
-            raw = raw.decode("utf-8")
-        data = json.loads(raw) if isinstance(raw, str) else raw
+        raw_bytes = msg.value()
+        raw: str = raw_bytes.decode("utf-8") if isinstance(raw_bytes, (bytes, bytearray)) else str(raw_bytes or "")
+        data: dict[str, Any] = json.loads(raw) if raw else {}
 
         headers_list = msg.headers() or []
         headers: dict[str, str] = {}
@@ -131,7 +130,9 @@ class DLQManager(LifecycleEnabled):
             original_topic=data.get("original_topic", headers.get("original_topic", "")),
             error=data.get("error", headers.get("error", "Unknown error")),
             retry_count=data.get("retry_count", int(headers.get("retry_count", 0))),
-            failed_at=datetime.fromisoformat(data["failed_at"]) if data.get("failed_at") else datetime.now(timezone.utc),
+            failed_at=datetime.fromisoformat(data["failed_at"])
+            if data.get("failed_at")
+            else datetime.now(timezone.utc),
             status=DLQMessageStatus(data.get("status", DLQMessageStatus.PENDING)),
             producer_id=data.get("producer_id", headers.get("producer_id", "unknown")),
             dlq_offset=msg.offset(),
@@ -397,10 +398,16 @@ class DLQManager(LifecycleEnabled):
                 # Find messages ready for retry using Beanie
                 now = datetime.now(timezone.utc)
 
-                docs = await DLQMessageDocument.find({
-                    "status": DLQMessageStatus.SCHEDULED,
-                    "next_retry_at": {"$lte": now},
-                }).limit(100).to_list()
+                docs = (
+                    await DLQMessageDocument.find(
+                        {
+                            "status": DLQMessageStatus.SCHEDULED,
+                            "next_retry_at": {"$lte": now},
+                        }
+                    )
+                    .limit(100)
+                    .to_list()
+                )
 
                 for doc in docs:
                     message = self._doc_to_message(doc)
@@ -418,7 +425,7 @@ class DLQManager(LifecycleEnabled):
 
     async def _update_queue_metrics(self) -> None:
         # Get counts by topic using Beanie aggregation
-        pipeline: Sequence[Mapping[str, Any]] = [
+        pipeline: list[dict[str, Any]] = [
             {"$match": {"status": {"$in": [DLQMessageStatus.PENDING, DLQMessageStatus.SCHEDULED]}}},
             {"$group": {"_id": "$original_topic", "count": {"$sum": 1}}},
         ]

@@ -6,11 +6,16 @@ from typing import Any
 from beanie.odm.enums import SortDirection
 
 from app.db.docs import ExecutionDocument, ResourceUsage
-from app.domain.execution import DomainExecution, DomainExecutionCreate, DomainExecutionUpdate, ExecutionResultDomain, ResourceUsageDomain
+from app.domain.execution import (
+    DomainExecution,
+    DomainExecutionCreate,
+    DomainExecutionUpdate,
+    ExecutionResultDomain,
+    ResourceUsageDomain,
+)
 
 
 class ExecutionRepository:
-
     def __init__(self, logger: logging.Logger):
         self.logger = logger
 
@@ -19,10 +24,14 @@ class ExecutionRepository:
         self.logger.info(f"Inserting execution {doc.execution_id} into MongoDB")
         await doc.insert()
         self.logger.info(f"Inserted execution {doc.execution_id}")
-        return DomainExecution(**{
-            **doc.model_dump(exclude={'id'}),
-            'resource_usage': ResourceUsageDomain.from_dict(doc.resource_usage.model_dump()) if doc.resource_usage else None
-        })
+        return DomainExecution(
+            **{
+                **doc.model_dump(exclude={"id"}),
+                "resource_usage": ResourceUsageDomain.from_dict(doc.resource_usage.model_dump())
+                if doc.resource_usage
+                else None,
+            }
+        )
 
     async def get_execution(self, execution_id: str) -> DomainExecution | None:
         self.logger.info(f"Searching for execution {execution_id} in MongoDB")
@@ -32,10 +41,14 @@ class ExecutionRepository:
             return None
 
         self.logger.info(f"Found execution {execution_id} in MongoDB")
-        return DomainExecution(**{
-            **doc.model_dump(exclude={'id'}),
-            'resource_usage': ResourceUsageDomain.from_dict(doc.resource_usage.model_dump()) if doc.resource_usage else None
-        })
+        return DomainExecution(
+            **{
+                **doc.model_dump(exclude={"id"}),
+                "resource_usage": ResourceUsageDomain.from_dict(doc.resource_usage.model_dump())
+                if doc.resource_usage
+                else None,
+            }
+        )
 
     async def update_execution(self, execution_id: str, update_data: DomainExecutionUpdate) -> bool:
         doc = await ExecutionDocument.find_one({"execution_id": execution_id})
@@ -56,15 +69,17 @@ class ExecutionRepository:
             self.logger.warning(f"No execution found for {result.execution_id}")
             return False
 
-        await doc.set({
-            "status": result.status,
-            "exit_code": result.exit_code,
-            "stdout": result.stdout,
-            "stderr": result.stderr,
-            "resource_usage": ResourceUsage.model_validate(result.resource_usage),
-            "error_type": result.error_type,
-            "updated_at": datetime.now(timezone.utc),
-        })
+        await doc.set(
+            {
+                "status": result.status,
+                "exit_code": result.exit_code,
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+                "resource_usage": ResourceUsage.model_validate(result.resource_usage),
+                "error_type": result.error_type,
+                "updated_at": datetime.now(timezone.utc),
+            }
+        )
         return True
 
     async def get_executions(
@@ -79,10 +94,14 @@ class ExecutionRepository:
             find_query = find_query.sort(beanie_sort)
         docs = await find_query.skip(skip).limit(limit).to_list()
         return [
-            DomainExecution(**{
-                **doc.model_dump(exclude={'id'}),
-                'resource_usage': ResourceUsageDomain.from_dict(doc.resource_usage.model_dump()) if doc.resource_usage else None
-            })
+            DomainExecution(
+                **{
+                    **doc.model_dump(exclude={"id"}),
+                    "resource_usage": ResourceUsageDomain.from_dict(doc.resource_usage.model_dump())
+                    if doc.resource_usage
+                    else None,
+                }
+            )
             for doc in docs
         ]
 

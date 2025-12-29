@@ -73,7 +73,7 @@ async def get_dlq_message(event_id: str, repository: FromDishka[DLQRepository]) 
 
     return DLQMessageDetail(
         event_id=message.event_id or "unknown",
-        event=message.event.to_dict(),
+        event=message.event,  # Already a dict from Document
         event_type=message.event_type,
         original_topic=message.original_topic,
         error=message.error,

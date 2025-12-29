@@ -6,16 +6,13 @@ from app.domain.saga import DomainResourceAllocation, DomainResourceAllocationCr
 
 
 class ResourceAllocationRepository:
-
     async def count_active(self, language: str) -> int:
-        return await ResourceAllocationDocument.find(
-            {"status": "active", "language": language}
-        ).count()
+        return await ResourceAllocationDocument.find({"status": "active", "language": language}).count()
 
     async def create_allocation(self, create_data: DomainResourceAllocationCreate) -> DomainResourceAllocation:
         doc = ResourceAllocationDocument(**asdict(create_data))
         await doc.insert()
-        return DomainResourceAllocation(**doc.model_dump(exclude={'id'}))
+        return DomainResourceAllocation(**doc.model_dump(exclude={"id"}))
 
     async def release_allocation(self, allocation_id: str) -> bool:
         doc = await ResourceAllocationDocument.find_one({"allocation_id": allocation_id})

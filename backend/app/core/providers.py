@@ -176,7 +176,9 @@ class MessagingProvider(Provider):
             await producer.stop()
 
     @provide
-    async def get_dlq_manager(self, schema_registry: SchemaRegistryManager, logger: logging.Logger) -> AsyncIterator[DLQManager]:
+    async def get_dlq_manager(
+        self, schema_registry: SchemaRegistryManager, logger: logging.Logger
+    ) -> AsyncIterator[DLQManager]:
         manager = create_dlq_manager(schema_registry, logger)
         await manager.start()
         try:
@@ -189,7 +191,9 @@ class MessagingProvider(Provider):
         return RedisIdempotencyRepository(redis_client, key_prefix="idempotency")
 
     @provide
-    async def get_idempotency_manager(self, repo: RedisIdempotencyRepository, logger: logging.Logger) -> AsyncIterator[IdempotencyManager]:
+    async def get_idempotency_manager(
+        self, repo: RedisIdempotencyRepository, logger: logging.Logger
+    ) -> AsyncIterator[IdempotencyManager]:
         manager = create_idempotency_manager(repository=repo, config=IdempotencyConfig(), logger=logger)
         await manager.initialize()
         try:
@@ -212,7 +216,11 @@ class EventProvider(Provider):
 
     @provide
     async def get_event_store_consumer(
-        self, event_store: EventStore, schema_registry: SchemaRegistryManager, kafka_producer: UnifiedProducer, logger: logging.Logger
+        self,
+        event_store: EventStore,
+        schema_registry: SchemaRegistryManager,
+        kafka_producer: UnifiedProducer,
+        logger: logging.Logger,
     ) -> EventStoreConsumer:
         topics = get_all_topics()
         return create_event_store_consumer(
@@ -532,7 +540,10 @@ class BusinessServicesProvider(Provider):
         logger: logging.Logger,
     ) -> SagaService:
         return SagaService(
-            saga_repo=saga_repository, execution_repo=execution_repository, orchestrator=saga_orchestrator, logger=logger
+            saga_repo=saga_repository,
+            execution_repo=execution_repository,
+            orchestrator=saga_orchestrator,
+            logger=logger,
         )
 
     @provide
@@ -545,16 +556,26 @@ class BusinessServicesProvider(Provider):
         logger: logging.Logger,
     ) -> ExecutionService:
         return ExecutionService(
-            execution_repo=execution_repository, producer=kafka_producer, event_store=event_store, settings=settings, logger=logger
+            execution_repo=execution_repository,
+            producer=kafka_producer,
+            event_store=event_store,
+            settings=settings,
+            logger=logger,
         )
 
     @provide
-    def get_saved_script_service(self, saved_script_repository: SavedScriptRepository, logger: logging.Logger) -> SavedScriptService:
+    def get_saved_script_service(
+        self, saved_script_repository: SavedScriptRepository, logger: logging.Logger
+    ) -> SavedScriptService:
         return SavedScriptService(saved_script_repository, logger)
 
     @provide
     async def get_replay_service(
-        self, replay_repository: ReplayRepository, kafka_producer: UnifiedProducer, event_store: EventStore, logger: logging.Logger
+        self,
+        replay_repository: ReplayRepository,
+        kafka_producer: UnifiedProducer,
+        event_store: EventStore,
+        logger: logging.Logger,
     ) -> ReplayService:
         event_replay_service = EventReplayService(
             repository=replay_repository, producer=kafka_producer, event_store=event_store, logger=logger

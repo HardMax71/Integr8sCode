@@ -15,11 +15,11 @@ from kubernetes.client.rest import ApiException
 
 from app.core.k8s_clients import K8sClients, close_k8s_clients, create_k8s_clients
 from app.core.lifecycle import LifecycleEnabled
-from app.core.metrics.context import get_kubernetes_metrics
-from app.core.utils import StringEnum
 
 # Metrics will be passed as parameter to avoid globals
 from app.core.logging import setup_logger
+from app.core.metrics.context import get_kubernetes_metrics
+from app.core.utils import StringEnum
 from app.events.core import ProducerConfig, UnifiedProducer
 from app.events.schema.schema_registry import create_schema_registry_manager, initialize_event_schemas
 from app.infrastructure.kafka.events import BaseEvent
@@ -140,7 +140,11 @@ class PodMonitor(LifecycleEnabled):
     """
 
     def __init__(
-        self, config: PodMonitorConfig, producer: UnifiedProducer, logger: logging.Logger, k8s_clients: K8sClients | None = None
+        self,
+        config: PodMonitorConfig,
+        producer: UnifiedProducer,
+        logger: logging.Logger,
+        k8s_clients: K8sClients | None = None,
     ) -> None:
         """Initialize the pod monitor."""
         self.logger = logger

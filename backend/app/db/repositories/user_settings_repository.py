@@ -2,16 +2,14 @@ import logging
 from datetime import datetime
 from typing import List
 
-from beanie.operators import GT, GTE, In, LTE
+from beanie.odm.enums import SortDirection
+from beanie.operators import GT, LTE, In
 
-from pymongo import ASCENDING
-
-from app.db.docs import UserSettingsDocument, EventDocument
+from app.db.docs import EventDocument, UserSettingsDocument
 from app.domain.enums.events import EventType
 
 
 class UserSettingsRepository:
-
     def __init__(self, logger: logging.Logger) -> None:
         self.logger = logger
 
@@ -42,7 +40,7 @@ class UserSettingsRepository:
         ]
         conditions = [c for c in conditions if c is not None]
 
-        find_query = EventDocument.find(*conditions).sort([("timestamp", ASCENDING)])
+        find_query = EventDocument.find(*conditions).sort([("timestamp", SortDirection.ASCENDING)])
         if limit:
             find_query = find_query.limit(limit)
 

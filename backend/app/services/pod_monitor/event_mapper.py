@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from kubernetes import client as k8s_client
+
 from app.domain.enums.kafka import GroupId
 from app.domain.enums.storage import ExecutionErrorType
 from app.domain.execution import ResourceUsageDomain
@@ -129,7 +130,9 @@ class PodEventMapper:
             and pod.metadata
             and prior_phase == "Pending"
         ):
-            self.logger.debug(f"POD-EVENT: skipping running map due to empty statuses after Pending exec={execution_id}")
+            self.logger.debug(
+                f"POD-EVENT: skipping running map due to empty statuses after Pending exec={execution_id}"
+            )
             return events
 
         # Phase-based mappers
@@ -160,7 +163,9 @@ class PodEventMapper:
 
         # Try annotations
         if pod.metadata.annotations and (exec_id := pod.metadata.annotations.get("integr8s.io/execution-id")):
-            self.logger.debug(f"POD-EVENT: extracted exec-id from annotation name={pod.metadata.name} exec_id={exec_id}")
+            self.logger.debug(
+                f"POD-EVENT: extracted exec-id from annotation name={pod.metadata.name} exec_id={exec_id}"
+            )
             return str(exec_id)
 
         # Try pod name pattern
@@ -340,7 +345,9 @@ class PodEventMapper:
             resource_usage=logs.resource_usage or ResourceUsageDomain.from_dict({}),
             metadata=ctx.metadata,
         )
-        self.logger.info(f"POD-EVENT: mapped timeout exec={ctx.execution_id} adl={ctx.pod.spec.active_deadline_seconds}")
+        self.logger.info(
+            f"POD-EVENT: mapped timeout exec={ctx.execution_id} adl={ctx.pod.spec.active_deadline_seconds}"
+        )
         return evt
 
     def _get_main_container(self, pod: k8s_client.V1Pod) -> k8s_client.V1ContainerStatus | None:

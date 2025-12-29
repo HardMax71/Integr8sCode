@@ -99,7 +99,9 @@ def _config_from_json(json_str: str | bytes) -> RateLimitConfig:
     data = json.loads(json_str)
     return RateLimitConfig(
         default_rules=[_rule_from_dict(rule_data) for rule_data in data.get("default_rules", [])],
-        user_overrides={uid: _user_limit_from_dict(user_data) for uid, user_data in data.get("user_overrides", {}).items()},
+        user_overrides={
+            uid: _user_limit_from_dict(user_data) for uid, user_data in data.get("user_overrides", {}).items()
+        },
         global_enabled=data.get("global_enabled", True),
         redis_ttl=data.get("redis_ttl", 3600),
     )

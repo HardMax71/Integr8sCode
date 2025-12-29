@@ -6,12 +6,8 @@ from fastapi import Request
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 
-from app.domain.user import (
-    AuthenticationRequiredError,
-    CSRFValidationError,
-    InvalidCredentialsError,
-    User as DomainAdminUser,
-)
+from app.domain.user import AuthenticationRequiredError, CSRFValidationError, InvalidCredentialsError
+from app.domain.user import User as DomainAdminUser
 from app.settings import get_settings
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/login")

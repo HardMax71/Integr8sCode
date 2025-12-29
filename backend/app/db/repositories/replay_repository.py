@@ -1,17 +1,16 @@
 import logging
-from datetime import datetime, timezone
-from typing import Any, AsyncIterator, Dict, List
+from datetime import datetime
+from typing import Any, AsyncIterator
 
-from beanie.operators import In, LT
+from beanie.odm.enums import SortDirection
+from beanie.operators import LT, In
 
-from pymongo import ASCENDING, DESCENDING
-
-from app.db.docs import ReplaySessionDocument, EventDocument, ReplayFilter
+from app.db.docs import EventDocument, ReplaySessionDocument
 from app.domain.enums.replay import ReplayStatus
+from app.domain.replay.models import ReplayFilter
 
 
 class ReplayRepository:
-
     def __init__(self, logger: logging.Logger) -> None:
         self.logger = logger
 
@@ -27,12 +26,18 @@ class ReplayRepository:
     async def list_sessions(
         self, status: ReplayStatus | None = None, user_id: str | None = None, limit: int = 100, skip: int = 0
     ) -> list[ReplaySessionDocument]:
-        conditions = [
+        conditions: list[Any] = [
             ReplaySessionDocument.status == status if status else None,
             ReplaySessionDocument.config.filter.user_id == user_id if user_id else None,
         ]
         conditions = [c for c in conditions if c is not None]
-        return await ReplaySessionDocument.find(*conditions).sort([("created_at", DESCENDING)]).skip(skip).limit(limit).to_list()
+        return (
+            await ReplaySessionDocument.find(*conditions)
+            .sort([("created_at", SortDirection.DESCENDING)])
+            .skip(skip)
+            .limit(limit)
+            .to_list()
+        )
 
     async def update_session_status(self, session_id: str, status: ReplayStatus) -> bool:
         doc = await self.get_session(session_id)
@@ -52,12 +57,12 @@ class ReplayRepository:
             LT(ReplaySessionDocument.created_at, cutoff_time),
             In(ReplaySessionDocument.status, terminal_statuses),
         ).delete()
-        return result.deleted_count
+        return result.deleted_count if result else 0
 
     async def count_sessions(self, *conditions: Any) -> int:
         return await ReplaySessionDocument.find(*conditions).count()
 
-    async def update_replay_session(self, session_id: str, updates: dict) -> bool:
+    async def update_replay_session(self, session_id: str, updates: dict[str, Any]) -> bool:
         doc = await self.get_session(session_id)
         if not doc:
             return False
@@ -70,9 +75,9 @@ class ReplayRepository:
 
     async def fetch_events(
         self, replay_filter: ReplayFilter, batch_size: int = 100, skip: int = 0
-    ) -> AsyncIterator[List[Dict[str, Any]]]:
+    ) -> AsyncIterator[list[dict[str, Any]]]:
         query = replay_filter.to_mongo_query()
-        cursor = EventDocument.find(query).sort([("timestamp", ASCENDING)]).skip(skip)
+        cursor = EventDocument.find(query).sort([("timestamp", SortDirection.ASCENDING)]).skip(skip)
 
         batch = []
         async for doc in cursor:

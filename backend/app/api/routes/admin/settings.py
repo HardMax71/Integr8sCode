@@ -11,6 +11,8 @@ from app.domain.admin import (
     LogLevel,
     MonitoringSettings,
     SecuritySettings,
+)
+from app.domain.admin import (
     SystemSettings as DomainSystemSettings,
 )
 from app.schemas_pydantic.admin_settings import SystemSettings

@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from io import StringIO
 from typing import Any, Dict, List
 
+from beanie.odm.enums import SortDirection
+
 from app.db.repositories.admin import AdminEventsRepository
 from app.db.repositories.admin.admin_events_repository import ReplaySessionStatusDetail
 from app.domain.admin import ReplayQuery
@@ -64,7 +66,9 @@ class ExportResult:
 
 
 class AdminEventsService:
-    def __init__(self, repository: AdminEventsRepository, replay_service: ReplayService, logger: logging.Logger) -> None:
+    def __init__(
+        self, repository: AdminEventsRepository, replay_service: ReplayService, logger: logging.Logger
+    ) -> None:
         self._repo = repository
         self._replay_service = replay_service
         self.logger = logger
@@ -78,8 +82,9 @@ class AdminEventsService:
         sort_by: str,
         sort_order: int,
     ) -> EventBrowseResult:
+        direction = SortDirection.DESCENDING if sort_order == -1 else SortDirection.ASCENDING
         return await self._repo.browse_events(
-            event_filter=event_filter, skip=skip, limit=limit, sort_by=sort_by, sort_order=sort_order
+            event_filter=event_filter, skip=skip, limit=limit, sort_by=sort_by, sort_order=direction
         )
 
     async def get_event_detail(self, event_id: str) -> EventDetail | None:
@@ -232,7 +237,7 @@ class AdminEventsService:
 
     async def export_events_json_content(self, *, event_filter: EventFilter, limit: int) -> ExportResult:
         result = await self._repo.browse_events(
-            event_filter=event_filter, skip=0, limit=limit, sort_by="timestamp", sort_order=-1
+            event_filter=event_filter, skip=0, limit=limit, sort_by="timestamp", sort_order=SortDirection.DESCENDING
         )
         events_data: list[dict[str, Any]] = []
         for event in result.events:

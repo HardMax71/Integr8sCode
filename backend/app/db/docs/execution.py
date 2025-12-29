@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from typing import Any
 from uuid import uuid4
 
 from beanie import Document, Indexed
@@ -16,9 +15,7 @@ class ResourceUsage(BaseModel):
     Copied from execution.py ResourceUsage.
     """
 
-    execution_time_wall_seconds: float | None = Field(
-        default=None, description="Wall clock execution time in seconds"
-    )
+    execution_time_wall_seconds: float | None = Field(default=None, description="Wall clock execution time in seconds")
     cpu_time_jiffies: int | None = Field(
         default=None, description="CPU time in jiffies (multiply by 10 for milliseconds)"
     )
@@ -59,5 +56,3 @@ class ExecutionDocument(Document):
         indexes = [
             IndexModel([("status", 1)]),
         ]
-
-

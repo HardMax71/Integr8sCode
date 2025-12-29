@@ -74,6 +74,7 @@ class DomainNotificationListResult:
 @dataclass
 class DomainNotificationCreate:
     """Data for creating a notification."""
+
     user_id: str
     channel: NotificationChannel
     subject: str
@@ -90,6 +91,7 @@ class DomainNotificationCreate:
 @dataclass
 class DomainNotificationUpdate:
     """Data for updating a notification."""
+
     status: NotificationStatus | None = None
     sent_at: datetime | None = None
     delivered_at: datetime | None = None
@@ -103,6 +105,7 @@ class DomainNotificationUpdate:
 @dataclass
 class DomainSubscriptionUpdate:
     """Data for updating a subscription."""
+
     enabled: bool | None = None
     severities: list[NotificationSeverity] | None = None
     include_tags: list[str] | None = None

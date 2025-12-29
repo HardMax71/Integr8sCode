@@ -3,9 +3,9 @@ from typing import Any
 
 from beanie.odm.enums import SortDirection
 from beanie.odm.operators.find import BaseFindOperator
-from beanie.operators import GT, In, LT
+from beanie.operators import GT, LT, In
 
-from app.db.docs import SagaDocument, ExecutionDocument
+from app.db.docs import ExecutionDocument, SagaDocument
 from app.domain.enums.saga import SagaState
 from app.domain.saga import SagaFilter
 
@@ -19,7 +19,6 @@ class SagaListResult:
 
 
 class SagaRepository:
-
     def _filter_conditions(self, saga_filter: SagaFilter) -> list[BaseFindOperator]:
         """Build Beanie query conditions from SagaFilter."""
         conditions = [
@@ -103,10 +102,14 @@ class SagaRepository:
         limit: int = 100,
     ) -> list[SagaDocument]:
         states = states or [SagaState.RUNNING, SagaState.COMPENSATING]
-        return await SagaDocument.find(
-            In(SagaDocument.state, states),
-            LT(SagaDocument.created_at, cutoff_time),
-        ).limit(limit).to_list()
+        return (
+            await SagaDocument.find(
+                In(SagaDocument.state, states),
+                LT(SagaDocument.created_at, cutoff_time),
+            )
+            .limit(limit)
+            .to_list()
+        )
 
     async def get_saga_statistics(self, saga_filter: SagaFilter | None = None) -> dict[str, Any]:
         conditions = self._filter_conditions(saga_filter) if saga_filter else []
@@ -120,7 +123,11 @@ class SagaRepository:
             states[doc["_id"]] = doc["count"]
 
         # Average duration for completed sagas
-        completed_conditions = [*conditions, SagaDocument.state == SagaState.COMPLETED, SagaDocument.completed_at != None]  # noqa: E711
+        completed_conditions = [
+            *conditions,
+            SagaDocument.state == SagaState.COMPLETED,
+            SagaDocument.completed_at != None,  # noqa: E711
+        ]
         duration_pipeline = [
             {"$project": {"duration": {"$subtract": ["$completed_at", "$created_at"]}}},
             {"$group": {"_id": None, "avg_duration": {"$avg": "$duration"}}},

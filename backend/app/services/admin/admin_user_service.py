@@ -144,7 +144,9 @@ class AdminUserService:
         return created
 
     async def get_user(self, *, admin_username: str, user_id: str) -> User | None:
-        self.logger.info("Admin getting user details", extra={"admin_username": admin_username, "target_user_id": user_id})
+        self.logger.info(
+            "Admin getting user details", extra={"admin_username": admin_username, "target_user_id": user_id}
+        )
         return await self._users.get_user_by_id(user_id)
 
     async def update_user(self, *, admin_username: str, user_id: str, update: UserUpdate) -> User | None:

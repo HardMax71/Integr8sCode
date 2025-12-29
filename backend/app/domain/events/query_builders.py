@@ -117,9 +117,7 @@ class EventStatsAggregation:
                     "payload.duration_seconds": {"$exists": True},
                 }
             ),
-            AggregationStages.group(
-                {"_id": None, "avg_duration": AggregationStages.avg("$payload.duration_seconds")}
-            ),
+            AggregationStages.group({"_id": None, "avg_duration": AggregationStages.avg("$payload.duration_seconds")}),
         ]
 
 

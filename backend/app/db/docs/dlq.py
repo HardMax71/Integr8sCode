@@ -56,4 +56,5 @@ class DLQMessageDocument(Document):
     @property
     def age_seconds(self) -> float:
         """Get message age in seconds since failure."""
-        return (datetime.now(timezone.utc) - self.failed_at).total_seconds()
+        failed_at: datetime = self.failed_at
+        return (datetime.now(timezone.utc) - failed_at).total_seconds()

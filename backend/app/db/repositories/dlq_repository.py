@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Mapping
 
-from pymongo import DESCENDING
+from beanie.odm.enums import SortDirection
 
 from app.db.docs import DLQMessageDocument
 from app.dlq import (
@@ -21,15 +21,12 @@ from app.domain.enums.events import EventType
 
 
 class DLQRepository:
-
     def __init__(self, logger: logging.Logger):
         self.logger = logger
 
     async def get_dlq_stats(self) -> DLQStatistics:
         # Get counts by status
-        status_pipeline: list[Mapping[str, object]] = [
-            {"$group": {"_id": "$status", "count": {"$sum": 1}}}
-        ]
+        status_pipeline: list[Mapping[str, object]] = [{"$group": {"_id": "$status", "count": {"$sum": 1}}}]
         by_status: Dict[str, int] = {}
         async for doc in DLQMessageDocument.aggregate(status_pipeline):
             if doc["_id"]:
@@ -68,9 +65,7 @@ class DLQRepository:
         age_pipeline: list[Mapping[str, object]] = [
             {
                 "$project": {
-                    "age_seconds": {
-                        "$divide": [{"$subtract": [datetime.now(timezone.utc), "$failed_at"]}, 1000]
-                    }
+                    "age_seconds": {"$divide": [{"$subtract": [datetime.now(timezone.utc), "$failed_at"]}, 1000]}
                 }
             },
             {
@@ -102,7 +97,7 @@ class DLQRepository:
         limit: int = 50,
         offset: int = 0,
     ) -> DLQMessageListResult:
-        conditions = [
+        conditions: list[Any] = [
             DLQMessageDocument.status == status if status else None,
             DLQMessageDocument.original_topic == topic if topic else None,
             DLQMessageDocument.event_type == event_type if event_type else None,
@@ -111,9 +106,9 @@ class DLQRepository:
 
         query = DLQMessageDocument.find(*conditions)
         total_count = await query.count()
-        messages = await query.sort([("failed_at", DESCENDING)]).skip(offset).limit(limit).to_list()
+        messages = await query.sort([("failed_at", SortDirection.DESCENDING)]).skip(offset).limit(limit).to_list()
 
-        return DLQMessageListResult(messages=messages, total=total_count, offset=offset, limit=limit)
+        return DLQMessageListResult(messages=messages, total=total_count, offset=offset, limit=limit)  # type: ignore[arg-type]
 
     async def get_message_by_id(self, event_id: str) -> DLQMessageDocument | None:
         return await DLQMessageDocument.find_one({"event_id": event_id})

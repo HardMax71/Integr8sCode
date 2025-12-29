@@ -7,7 +7,6 @@ from typing import Any, Dict
 
 from opentelemetry import trace
 
-
 correlation_id_context: contextvars.ContextVar[str | None] = contextvars.ContextVar("correlation_id", default=None)
 
 request_metadata_context: contextvars.ContextVar[Dict[str, Any] | None] = contextvars.ContextVar(

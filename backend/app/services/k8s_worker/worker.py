@@ -7,12 +7,11 @@ from pathlib import Path
 from typing import Any
 
 import redis.asyncio as redis
+from beanie import init_beanie
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
 from kubernetes.client.rest import ApiException
 from pymongo.asynchronous.mongo_client import AsyncMongoClient
-
-from beanie import init_beanie
 
 from app.core.database_context import Database, DBClient
 from app.core.lifecycle import LifecycleEnabled
@@ -544,7 +543,7 @@ async def run_kubernetes_worker() -> None:
     await initialize_event_schemas(schema_registry_manager)
 
     logger.info("Creating event store...")
-    event_store = create_event_store(database, schema_registry_manager, logger)
+    event_store = create_event_store(schema_registry_manager, logger)
 
     logger.info("Creating producer for Kubernetes worker...")
     producer_config = ProducerConfig(bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS)

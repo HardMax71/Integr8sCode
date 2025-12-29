@@ -4,15 +4,15 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
-from pymongo import ASCENDING, DESCENDING
+from beanie.odm.enums import SortDirection
 from pymongo.errors import BulkWriteError, DuplicateKeyError
 
 from app.core.metrics.context import get_event_metrics
 from app.core.tracing import EventAttributes
 from app.core.tracing.utils import add_span_attributes
 from app.db.docs import EventStoreDocument
-from app.domain.events.event_metadata import EventMetadata
 from app.domain.enums.events import EventType
+from app.domain.events.event_metadata import EventMetadata
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.events.base import BaseEvent
 
@@ -60,14 +60,16 @@ class EventStore:
             aggregate_id=event.aggregate_id,
             metadata=metadata,
             stored_at=datetime.now(timezone.utc),
-            **{k: v for k, v in event_dict.items() if k not in {
-                "event_id", "event_type", "event_version", "timestamp", "aggregate_id"
-            }}
+            **{
+                k: v
+                for k, v in event_dict.items()
+                if k not in {"event_id", "event_type", "event_version", "timestamp", "aggregate_id"}
+            },
         )
 
     def _doc_to_dict(self, doc: EventStoreDocument) -> Dict[str, Any]:
         """Convert EventStoreDocument to dict for schema_registry deserialization."""
-        result = doc.model_dump(exclude={"id", "revision_id", "stored_at"})
+        result: Dict[str, Any] = doc.model_dump(exclude={"id", "revision_id", "stored_at"})
         # Ensure metadata is a dict for schema_registry
         if isinstance(result.get("metadata"), dict):
             pass  # Already a dict
@@ -165,7 +167,7 @@ class EventStore:
 
         docs = await (
             EventStoreDocument.find(query)
-            .sort([("timestamp", DESCENDING)])
+            .sort([("timestamp", SortDirection.DESCENDING)])
             .skip(offset)
             .limit(limit)
             .to_list()
@@ -186,11 +188,7 @@ class EventStore:
         if event_types:
             query["event_type"] = {"$in": event_types}
 
-        docs = await (
-            EventStoreDocument.find(query)
-            .sort([("timestamp", ASCENDING)])
-            .to_list()
-        )
+        docs = await EventStoreDocument.find(query).sort([("timestamp", SortDirection.ASCENDING)]).to_list()
         events = [self.schema_registry.deserialize_json(self._doc_to_dict(d)) for d in docs]
 
         duration = asyncio.get_event_loop().time() - start
@@ -212,11 +210,8 @@ class EventStore:
         if tr := self._time_range(start_time, end_time):
             query["timestamp"] = tr
 
-        docs = await (
-            EventStoreDocument.find(query)
-            .sort([("timestamp", DESCENDING)])
-            .limit(limit)
-            .to_list()
+        docs = (
+            await EventStoreDocument.find(query).sort([("timestamp", SortDirection.DESCENDING)]).limit(limit).to_list()
         )
         events = [self.schema_registry.deserialize_json(self._doc_to_dict(d)) for d in docs]
 
@@ -238,11 +233,8 @@ class EventStore:
         if tr := self._time_range(start_time, end_time):
             query["timestamp"] = tr
 
-        docs = await (
-            EventStoreDocument.find(query)
-            .sort([("timestamp", DESCENDING)])
-            .limit(limit)
-            .to_list()
+        docs = (
+            await EventStoreDocument.find(query).sort([("timestamp", SortDirection.DESCENDING)]).limit(limit).to_list()
         )
         events = [self.schema_registry.deserialize_json(self._doc_to_dict(d)) for d in docs]
 
@@ -254,7 +246,7 @@ class EventStore:
         start = asyncio.get_event_loop().time()
         docs = await (
             EventStoreDocument.find({"metadata.correlation_id": str(correlation_id)})
-            .sort([("timestamp", ASCENDING)])
+            .sort([("timestamp", SortDirection.ASCENDING)])
             .to_list()
         )
         events = [self.schema_registry.deserialize_json(self._doc_to_dict(d)) for d in docs]
@@ -280,7 +272,7 @@ class EventStore:
             if event_types:
                 query["event_type"] = {"$in": event_types}
 
-            async for doc in EventStoreDocument.find(query).sort([("timestamp", ASCENDING)]):
+            async for doc in EventStoreDocument.find(query).sort([("timestamp", SortDirection.ASCENDING)]):
                 event_dict = self._doc_to_dict(doc)
                 event = self.schema_registry.deserialize_json(event_dict)
                 if callback:

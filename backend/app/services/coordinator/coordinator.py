@@ -7,11 +7,10 @@ from typing import Any, TypeAlias
 from uuid import uuid4
 
 import redis.asyncio as redis
+from beanie import init_beanie
 from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 from app.core.database_context import DBClient
-from beanie import init_beanie
-
 from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics.context import get_coordinator_metrics
 from app.db.docs import ALL_DOCUMENTS
@@ -82,9 +81,13 @@ class ExecutionCoordinator(LifecycleEnabled):
         self.consumer_group = consumer_group
 
         # Components
-        self.queue_manager = QueueManager(logger=self.logger, max_queue_size=10000, max_executions_per_user=100, stale_timeout_seconds=3600)
+        self.queue_manager = QueueManager(
+            logger=self.logger, max_queue_size=10000, max_executions_per_user=100, stale_timeout_seconds=3600
+        )
 
-        self.resource_manager = ResourceManager(logger=self.logger, total_cpu_cores=32.0, total_memory_mb=65536, total_gpu_count=0)
+        self.resource_manager = ResourceManager(
+            logger=self.logger, total_cpu_cores=32.0, total_memory_mb=65536, total_gpu_count=0
+        )
 
         # Kafka components
         self.consumer: UnifiedConsumer | None = None
@@ -517,9 +520,9 @@ async def run_coordinator() -> None:
     await init_beanie(database=database, document_models=ALL_DOCUMENTS)
 
     logger.info("Creating event store for coordinator...")
-    event_store = create_event_store(db=database, schema_registry=schema_registry_manager, logger=logger, ttl_days=90)
+    event_store = create_event_store(schema_registry_manager, logger, ttl_days=90)
 
-    exec_repo = ExecutionRepository(database, logger)
+    exec_repo = ExecutionRepository(logger)
     r = redis.Redis(
         host=settings.REDIS_HOST,
         port=settings.REDIS_PORT,

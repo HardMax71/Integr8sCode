@@ -11,7 +11,6 @@ from app.domain.user import DomainUserCreate, DomainUserUpdate
 
 
 class UserRepository:
-
     async def get_user(self, username: str) -> UserDocument | None:
         return await UserDocument.find_one({"username": username})
 
@@ -37,10 +36,12 @@ class UserRepository:
 
         if search:
             escaped_search = re.escape(search)
-            conditions.append(Or(
-                RegEx(UserDocument.username, escaped_search, options="i"),
-                RegEx(UserDocument.email, escaped_search, options="i"),
-            ))
+            conditions.append(
+                Or(
+                    RegEx(UserDocument.username, escaped_search, options="i"),
+                    RegEx(UserDocument.email, escaped_search, options="i"),
+                )
+            )
 
         if role:
             conditions.append(Eq(UserDocument.role, role))

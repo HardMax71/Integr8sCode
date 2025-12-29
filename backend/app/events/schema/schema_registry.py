@@ -231,7 +231,9 @@ class SchemaRegistryManager:
         self.logger.info(f"Initialized {len(_get_all_event_classes())} event schemas")
 
 
-def create_schema_registry_manager(logger: logging.Logger, schema_registry_url: str | None = None) -> SchemaRegistryManager:
+def create_schema_registry_manager(
+    logger: logging.Logger, schema_registry_url: str | None = None
+) -> SchemaRegistryManager:
     return SchemaRegistryManager(logger, schema_registry_url)
 
 

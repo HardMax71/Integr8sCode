@@ -24,7 +24,9 @@ from app.services.kafka_event_service import KafkaEventService
 
 
 class UserSettingsService:
-    def __init__(self, repository: UserSettingsRepository, event_service: KafkaEventService, logger: logging.Logger) -> None:
+    def __init__(
+        self, repository: UserSettingsRepository, event_service: KafkaEventService, logger: logging.Logger
+    ) -> None:
         self.repository = repository
         self.event_service = event_service
         self.logger = logger
@@ -69,8 +71,9 @@ class UserSettingsService:
         """Bypass cache and rebuild settings from snapshot + events."""
         snapshot = await self.repository.get_snapshot(user_id)
 
+        settings: DomainUserSettings
         if snapshot:
-            settings = snapshot
+            settings = snapshot  # Document compatible with domain model
             events = await self._get_settings_events(user_id, since=snapshot.updated_at)
         else:
             settings = DomainUserSettings(user_id=user_id)
@@ -206,7 +209,7 @@ class UserSettingsService:
 
         self._add_to_cache(user_id, s)
         if (await self.repository.count_events_since_snapshot(user_id)) >= 10:
-            await self.repository.create_snapshot(s)
+            await self.repository.create_snapshot(s)  # type: ignore[arg-type]
         return s
 
     async def update_theme(self, user_id: str, theme: Theme) -> DomainUserSettings:
@@ -289,7 +292,7 @@ class UserSettingsService:
             settings = self._apply_event(settings, event)
 
         # Save as current settings
-        await self.repository.create_snapshot(settings)
+        await self.repository.create_snapshot(settings)  # type: ignore[arg-type]
         self._add_to_cache(user_id, settings)
 
         # Publish restoration event (generic settings update form)

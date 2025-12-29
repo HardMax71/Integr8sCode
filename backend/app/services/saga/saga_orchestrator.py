@@ -124,7 +124,7 @@ class SagaOrchestrator(LifecycleEnabled):
             enable_auto_commit=False,
         )
 
-        dispatcher = EventDispatcher()
+        dispatcher = EventDispatcher(logger=logger)
         for event_type in event_types_to_register:
             dispatcher.register_handler(event_type, self._handle_event)
             logger.info(f"Registered handler for event type: {event_type}")
@@ -132,11 +132,13 @@ class SagaOrchestrator(LifecycleEnabled):
         base_consumer = UnifiedConsumer(
             config=consumer_config,
             event_dispatcher=dispatcher,
+            logger=logger,
         )
         self._consumer = IdempotentConsumerWrapper(
             consumer=base_consumer,
             idempotency_manager=self._idempotency_manager,
             dispatcher=dispatcher,
+            logger=logger,
             default_key_strategy="event_based",
             default_ttl_seconds=7200,
             enable_for_all_handlers=False,
@@ -193,7 +195,8 @@ class SagaOrchestrator(LifecycleEnabled):
         existing = await self._repo.get_saga_by_execution_and_name(execution_id, saga_name)
         if existing:
             logger.info(f"Saga {saga_name} already exists for execution {execution_id}")
-            return existing.saga_id
+            saga_id: str = existing.saga_id
+            return saga_id
 
         instance = Saga(
             saga_id=str(uuid4()),
@@ -378,7 +381,7 @@ class SagaOrchestrator(LifecycleEnabled):
     async def _save_saga(self, instance: Saga) -> None:
         """Persist saga through repository"""
         instance.updated_at = datetime.now(UTC)
-        await self._repo.upsert_saga(instance)
+        await self._repo.upsert_saga(instance)  # type: ignore[arg-type]
 
     async def get_saga_status(self, saga_id: str) -> Saga | None:
         """Get saga instance status"""
@@ -391,7 +394,7 @@ class SagaOrchestrator(LifecycleEnabled):
     async def get_execution_sagas(self, execution_id: str) -> list[Saga]:
         """Get all sagas for an execution, sorted by created_at descending (newest first)"""
         result = await self._repo.get_sagas_by_execution(execution_id)
-        return result.sagas
+        return result.sagas  # type: ignore[return-value]
 
     async def cancel_saga(self, saga_id: str) -> bool:
         """Cancel a running saga and trigger compensation.

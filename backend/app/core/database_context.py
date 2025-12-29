@@ -235,7 +235,7 @@ class DatabaseConnectionPool:
         if key in self._connections:
             raise DatabaseAlreadyInitializedError(f"Connection '{key}' already exists")
 
-        connection = AsyncDatabaseConnection(config)
+        connection = AsyncDatabaseConnection(config, self.logger)
         await connection.connect()
         self._connections[key] = connection
         return connection

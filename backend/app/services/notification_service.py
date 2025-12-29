@@ -230,14 +230,14 @@ class NotificationService:
         self.logger.info(f"Notification service will subscribe to topics: {execution_results_topic}")
 
         # Create dispatcher and register handlers for specific event types
-        self._dispatcher = EventDispatcher()
+        self._dispatcher = EventDispatcher(logger=self.logger)
         # Use a single handler for execution result events (simpler and less brittle)
         self._dispatcher.register_handler(EventType.EXECUTION_COMPLETED, self._handle_execution_event)
         self._dispatcher.register_handler(EventType.EXECUTION_FAILED, self._handle_execution_event)
         self._dispatcher.register_handler(EventType.EXECUTION_TIMEOUT, self._handle_execution_event)
 
         # Create consumer with dispatcher
-        self._consumer = UnifiedConsumer(consumer_config, event_dispatcher=self._dispatcher)
+        self._consumer = UnifiedConsumer(consumer_config, event_dispatcher=self._dispatcher, logger=self.logger)
 
         # Start consumer
         await self._consumer.start([execution_results_topic])
@@ -417,7 +417,9 @@ class NotificationService:
             )
             return "created"
         except Exception as e:
-            self.logger.error("Failed to create system notification for user", extra={"user_id": user_id, "error": str(e)})
+            self.logger.error(
+                "Failed to create system notification for user", extra={"user_id": user_id, "error": str(e)}
+            )
             return "failed"
 
     async def _send_in_app(
@@ -915,8 +917,7 @@ class NotificationService:
             if new_retry_count < notification.max_retries:
                 retry_time = datetime.now(UTC) + timedelta(minutes=self.settings.NOTIF_RETRY_DELAY_MINUTES)
                 self.logger.info(
-                    f"Scheduled retry {new_retry_count}/{notification.max_retries} "
-                    f"for {notification.notification_id}",
+                    f"Scheduled retry {new_retry_count}/{notification.max_retries} for {notification.notification_id}",
                     extra={"retry_at": retry_time.isoformat()},
                 )
                 # Will be retried - keep as PENDING but with scheduled_for

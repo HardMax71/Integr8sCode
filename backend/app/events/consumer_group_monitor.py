@@ -433,5 +433,7 @@ class NativeConsumerGroupMonitor:
         self._group_status_cache.clear()
 
 
-def create_consumer_group_monitor(logger: logging.Logger, bootstrap_servers: str | None = None, **kwargs: Any) -> NativeConsumerGroupMonitor:
+def create_consumer_group_monitor(
+    logger: logging.Logger, bootstrap_servers: str | None = None, **kwargs: Any
+) -> NativeConsumerGroupMonitor:
     return NativeConsumerGroupMonitor(logger=logger, bootstrap_servers=bootstrap_servers, **kwargs)

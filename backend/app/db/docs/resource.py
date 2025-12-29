@@ -17,7 +17,7 @@ class ResourceAllocationDocument(Document):
     memory_request: str
     cpu_limit: str
     memory_limit: str
-    status: Indexed(str) = "active"  # "active" | "released"  # type: ignore[valid-type]
+    status: Indexed(str) = "active"  # type: ignore[valid-type]  # "active" | "released"
     allocated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     released_at: datetime | None = None
 

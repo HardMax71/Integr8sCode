@@ -20,7 +20,9 @@ from app.services.event_replay import (
 class ReplayService:
     """Service for managing replay sessions and providing business logic"""
 
-    def __init__(self, repository: ReplayRepository, event_replay_service: EventReplayService, logger: logging.Logger) -> None:
+    def __init__(
+        self, repository: ReplayRepository, event_replay_service: EventReplayService, logger: logging.Logger
+    ) -> None:
         self.repository = repository
         self.event_replay_service = event_replay_service
         self.logger = logger
@@ -31,7 +33,7 @@ class ReplayService:
             session_id = await self.event_replay_service.create_replay_session(config)
             session = self.event_replay_service.get_session(session_id)
             if session:
-                await self.repository.save_session(session)
+                await self.repository.save_session(session)  # type: ignore[arg-type]
             return ReplayOperationResult(
                 session_id=session_id,
                 status=ReplayStatus.CREATED,

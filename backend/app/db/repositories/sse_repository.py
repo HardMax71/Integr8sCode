@@ -12,7 +12,6 @@ class SSEExecutionStatus:
 
 
 class SSERepository:
-
     async def get_execution_status(self, execution_id: str) -> SSEExecutionStatus | None:
         doc = await ExecutionDocument.find_one({"execution_id": execution_id})
         if not doc:

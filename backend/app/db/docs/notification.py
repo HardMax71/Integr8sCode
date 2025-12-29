@@ -105,6 +105,8 @@ class NotificationSubscriptionDocument(Document):
         name = "notification_subscriptions"
         use_state_management = True
         indexes = [
-            IndexModel([("user_id", ASCENDING), ("channel", ASCENDING)], name="idx_sub_user_channel_unique", unique=True),
+            IndexModel(
+                [("user_id", ASCENDING), ("channel", ASCENDING)], name="idx_sub_user_channel_unique", unique=True
+            ),
             IndexModel([("enabled", ASCENDING)], name="idx_sub_enabled"),
         ]

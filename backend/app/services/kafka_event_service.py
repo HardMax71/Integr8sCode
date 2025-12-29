@@ -72,7 +72,7 @@ class KafkaEventService:
             timestamp = datetime.now(timezone.utc)
 
             # Convert to domain metadata for storage
-            domain_metadata = DomainEventMetadata.from_dict(avro_metadata.to_dict())
+            domain_metadata = DomainEventMetadata.from_dict(avro_metadata.to_dict())  # type: ignore[attr-defined]
 
             event = Event(
                 event_id=event_id,
@@ -83,7 +83,7 @@ class KafkaEventService:
                 metadata=domain_metadata,
                 payload=payload,
             )
-            _ = await self.event_repository.store_event(event)
+            _ = await self.event_repository.store_event(event)  # type: ignore[arg-type]
 
             # Get event class and create proper event instance
             event_class = get_event_class_for_type(event_type)

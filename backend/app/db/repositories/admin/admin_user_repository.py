@@ -7,20 +7,19 @@ from beanie.operators import Eq, Or, RegEx
 
 from app.core.security import SecurityService
 from app.db.docs import (
-    UserDocument,
-    ExecutionDocument,
-    SavedScriptDocument,
-    NotificationDocument,
-    UserSettingsDocument,
     EventDocument,
+    ExecutionDocument,
+    NotificationDocument,
     SagaDocument,
+    SavedScriptDocument,
+    UserDocument,
+    UserSettingsDocument,
 )
 from app.domain.enums import UserRole
 from app.domain.user import DomainUserCreate, PasswordReset, User, UserListResult, UserUpdate
 
 
 class AdminUserRepository:
-
     def __init__(self) -> None:
         self.security_service = SecurityService()
 
@@ -43,10 +42,12 @@ class AdminUserRepository:
 
         if search:
             escaped_search = re.escape(search)
-            conditions.append(Or(
-                RegEx(UserDocument.username, escaped_search, options="i"),
-                RegEx(UserDocument.email, escaped_search, options="i"),
-            ))
+            conditions.append(
+                Or(
+                    RegEx(UserDocument.username, escaped_search, options="i"),
+                    RegEx(UserDocument.email, escaped_search, options="i"),
+                )
+            )
 
         if role:
             conditions.append(Eq(UserDocument.role, role))
@@ -54,7 +55,7 @@ class AdminUserRepository:
         query = UserDocument.find(*conditions)
         total = await query.count()
         docs = await query.skip(offset).limit(limit).to_list()
-        users = [User(**doc.model_dump(exclude={'id'})) for doc in docs]
+        users = [User(**doc.model_dump(exclude={"id"})) for doc in docs]
         return UserListResult(users=users, total=total, offset=offset, limit=limit)
 
     async def get_user_by_id(self, user_id: str) -> UserDocument | None:

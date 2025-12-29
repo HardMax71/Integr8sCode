@@ -6,6 +6,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import Any, Dict, List, Tuple
+
 from app.core.metrics.context import get_coordinator_metrics
 from app.infrastructure.kafka.events import ExecutionRequestedEvent
 

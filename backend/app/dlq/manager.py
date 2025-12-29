@@ -254,7 +254,7 @@ class DLQManager(LifecycleEnabled):
         # Apply filters
         for filter_func in self._filters:
             if not filter_func(message):
-                self.logger.info(f"Message {message.event_id} filtered out")
+                self.logger.info("Message filtered out", extra={"event_id": message.event_id})
                 return
 
         # Store in MongoDB via Beanie
@@ -371,7 +371,7 @@ class DLQManager(LifecycleEnabled):
         # Trigger after_retry callbacks
         await self._trigger_callbacks("after_retry", message, success=True)
 
-        self.logger.info(f"Successfully retried message {message.event_id}")
+        self.logger.info("Successfully retried message", extra={"event_id": message.event_id})
 
     async def _discard_message(self, message: DLQMessage, reason: str) -> None:
         # Update metrics
@@ -390,7 +390,7 @@ class DLQManager(LifecycleEnabled):
         # Trigger callbacks
         await self._trigger_callbacks("on_discard", message, reason)
 
-        self.logger.warning(f"Discarded message {message.event_id} due to {reason}")
+        self.logger.warning("Discarded message", extra={"event_id": message.event_id, "reason": reason})
 
     async def _monitor_dlq(self) -> None:
         while self._running:
@@ -453,12 +453,12 @@ class DLQManager(LifecycleEnabled):
     async def retry_message_manually(self, event_id: str) -> bool:
         doc = await DLQMessageDocument.find_one({"event_id": event_id})
         if not doc:
-            self.logger.error(f"Message {event_id} not found in DLQ")
+            self.logger.error("Message not found in DLQ", extra={"event_id": event_id})
             return False
 
         # Guard against invalid states
         if doc.status in {DLQMessageStatus.DISCARDED, DLQMessageStatus.RETRIED}:
-            self.logger.info(f"Skipping manual retry for {event_id}: status={doc.status}")
+            self.logger.info("Skipping manual retry", extra={"event_id": event_id, "status": str(doc.status)})
             return False
 
         message = self._doc_to_message(doc)

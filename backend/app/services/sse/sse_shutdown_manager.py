@@ -65,9 +65,8 @@ class SSEShutdownManager:
         self._drain_complete_event = asyncio.Event()
 
         self.logger.info(
-            f"SSEShutdownManager initialized: "
-            f"drain_timeout={drain_timeout}s, "
-            f"notification_timeout={notification_timeout}s"
+            "SSEShutdownManager initialized",
+            extra={"drain_timeout": drain_timeout, "notification_timeout": notification_timeout},
         )
 
     def set_router(self, router: "SSEKafkaRedisBridge") -> None:
@@ -84,8 +83,8 @@ class SSEShutdownManager:
         async with self._lock:
             if self._shutdown_initiated:
                 self.logger.warning(
-                    f"Rejecting new SSE connection during shutdown: "
-                    f"execution_id={execution_id}, connection_id={connection_id}"
+                    "Rejecting new SSE connection during shutdown",
+                    extra={"execution_id": execution_id, "connection_id": connection_id},
                 )
                 return None
 
@@ -98,7 +97,7 @@ class SSEShutdownManager:
             shutdown_event = asyncio.Event()
             self._connection_callbacks[connection_id] = shutdown_event
 
-            self.logger.debug(f"Registered SSE connection: {connection_id}")
+            self.logger.debug("Registered SSE connection", extra={"connection_id": connection_id})
             self.metrics.increment_sse_connections("executions")
 
             return shutdown_event
@@ -114,7 +113,7 @@ class SSEShutdownManager:
             self._connection_callbacks.pop(connection_id, None)
             self._draining_connections.discard(connection_id)
 
-            self.logger.debug(f"Unregistered SSE connection: {connection_id}")
+            self.logger.debug("Unregistered SSE connection", extra={"connection_id": connection_id})
             self.metrics.decrement_sse_connections("executions")
 
             # Check if all connections are drained

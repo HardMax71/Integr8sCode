@@ -291,8 +291,10 @@ async def delete_event(
         raise HTTPException(status_code=404, detail="Event not found")
 
     logger.warning(
-        f"Event {event_id} deleted by admin {admin.email}",
+        "Event deleted by admin",
         extra={
+            "event_id": event_id,
+            "admin_email": admin.email,
             "event_type": result.event_type,
             "aggregate_id": result.aggregate_id,
             "correlation_id": result.correlation_id,

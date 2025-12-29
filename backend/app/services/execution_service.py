@@ -439,7 +439,7 @@ class ExecutionService:
         deleted = await self.execution_repo.delete_execution(execution_id)
 
         if not deleted:
-            self.logger.warning(f"Execution {execution_id} not found for deletion")
+            self.logger.warning("Execution not found for deletion", extra={"execution_id": execution_id})
             raise ExecutionNotFoundError(execution_id)
 
         self.logger.info("Deleted execution", extra={"execution_id": execution_id})

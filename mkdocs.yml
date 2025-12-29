@@ -128,6 +128,7 @@ nav:
     - Deployment: operations/deployment.md
     - CI/CD Pipeline: operations/cicd.md
     - Nginx Configuration: operations/nginx-configuration.md
+    - Logging: operations/logging.md
     - Tracing: operations/tracing.md
     - Metrics:
       - Context Variables: operations/metrics-contextvars.md

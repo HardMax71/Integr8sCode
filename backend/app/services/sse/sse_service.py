@@ -77,9 +77,9 @@ class SSEService:
             )
 
             # Complete Redis subscription after handshake
-            self.logger.info(f"Opening Redis subscription for execution {execution_id}")
+            self.logger.info("Opening Redis subscription for execution", extra={"execution_id": execution_id})
             subscription = await sub_task
-            self.logger.info(f"Redis subscription opened for execution {execution_id}")
+            self.logger.info("Redis subscription opened for execution", extra={"execution_id": execution_id})
 
             initial_status = await self.repository.get_execution_status(execution_id)
             if initial_status:
@@ -105,7 +105,7 @@ class SSEService:
             if subscription is not None:
                 await subscription.close()
             await self.shutdown_manager.unregister_connection(execution_id, connection_id)
-            self.logger.info(f"SSE connection closed: execution_id={execution_id}")
+            self.logger.info("SSE connection closed", extra={"execution_id": execution_id})
 
     async def _stream_events_redis(
         self,
@@ -144,19 +144,25 @@ class SSEService:
             if not msg:
                 continue
 
-            self.logger.info(f"Received Redis message for execution {execution_id}: {msg.event_type}")
+            self.logger.info(
+                "Received Redis message for execution",
+                extra={"execution_id": execution_id, "event_type": str(msg.event_type)},
+            )
             try:
                 sse_event = await self._build_sse_event_from_redis(execution_id, msg)
                 yield self._format_sse_event(sse_event)
 
                 # End on terminal event types
                 if msg.event_type in self.TERMINAL_EVENT_TYPES:
-                    self.logger.info(f"Terminal event for execution {execution_id}: {msg.event_type}")
+                    self.logger.info(
+                        "Terminal event for execution",
+                        extra={"execution_id": execution_id, "event_type": str(msg.event_type)},
+                    )
                     break
             except Exception as e:
                 self.logger.warning(
-                    f"Failed to process SSE message for execution {execution_id}: {e}",
-                    extra={"execution_id": execution_id, "event_type": str(msg.event_type)},
+                    "Failed to process SSE message",
+                    extra={"execution_id": execution_id, "event_type": str(msg.event_type), "error": str(e)},
                 )
                 continue
 

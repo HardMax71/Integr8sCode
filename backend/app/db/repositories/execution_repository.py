@@ -21,9 +21,9 @@ class ExecutionRepository:
 
     async def create_execution(self, create_data: DomainExecutionCreate) -> DomainExecution:
         doc = ExecutionDocument(**asdict(create_data))
-        self.logger.info(f"Inserting execution {doc.execution_id} into MongoDB")
+        self.logger.info("Inserting execution into MongoDB", extra={"execution_id": doc.execution_id})
         await doc.insert()
-        self.logger.info(f"Inserted execution {doc.execution_id}")
+        self.logger.info("Inserted execution", extra={"execution_id": doc.execution_id})
         return DomainExecution(
             **{
                 **doc.model_dump(exclude={"id"}),
@@ -34,13 +34,13 @@ class ExecutionRepository:
         )
 
     async def get_execution(self, execution_id: str) -> DomainExecution | None:
-        self.logger.info(f"Searching for execution {execution_id} in MongoDB")
+        self.logger.info("Searching for execution in MongoDB", extra={"execution_id": execution_id})
         doc = await ExecutionDocument.find_one({"execution_id": execution_id})
         if not doc:
-            self.logger.warning(f"Execution {execution_id} not found in MongoDB")
+            self.logger.warning("Execution not found in MongoDB", extra={"execution_id": execution_id})
             return None
 
-        self.logger.info(f"Found execution {execution_id} in MongoDB")
+        self.logger.info("Found execution in MongoDB", extra={"execution_id": execution_id})
         return DomainExecution(
             **{
                 **doc.model_dump(exclude={"id"}),
@@ -66,7 +66,7 @@ class ExecutionRepository:
     async def write_terminal_result(self, result: ExecutionResultDomain) -> bool:
         doc = await ExecutionDocument.find_one({"execution_id": result.execution_id})
         if not doc:
-            self.logger.warning(f"No execution found for {result.execution_id}")
+            self.logger.warning("No execution found", extra={"execution_id": result.execution_id})
             return False
 
         await doc.set(

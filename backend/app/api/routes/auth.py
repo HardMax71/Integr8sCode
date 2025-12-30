@@ -5,6 +5,7 @@ from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
+from pymongo.errors import DuplicateKeyError
 
 from app.core.security import security_service
 from app.core.utils import get_client_ip
@@ -181,6 +182,15 @@ async def register(
             updated_at=created_user.updated_at,
         )
 
+    except DuplicateKeyError as e:
+        logger.warning(
+            "Registration failed - duplicate email",
+            extra={
+                "username": user.username,
+                "client_ip": get_client_ip(request),
+            },
+        )
+        raise HTTPException(status_code=409, detail="Email already registered") from e
     except Exception as e:
         logger.error(
             f"Registration failed - database error: {str(e)}",

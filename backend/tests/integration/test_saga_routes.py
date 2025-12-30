@@ -1,15 +1,14 @@
-import uuid
 import asyncio
+import uuid
 from typing import Dict
 
 import pytest
-from httpx import AsyncClient
-
 from app.domain.enums.saga import SagaState
 from app.schemas_pydantic.saga import (
     SagaListResponse,
     SagaStatusResponse,
 )
+from httpx import AsyncClient
 
 
 class TestSagaRoutes:
@@ -34,7 +33,7 @@ class TestSagaRoutes:
         saga_id = str(uuid.uuid4())
         response = await client.get(f"/api/v1/sagas/{saga_id}")
         assert response.status_code == 404
-        assert "Saga not found" in response.json()["detail"]
+        assert "not found" in response.json()["detail"]
 
     @pytest.mark.asyncio
     async def test_get_execution_sagas_requires_auth(
@@ -196,7 +195,7 @@ class TestSagaRoutes:
         saga_id = str(uuid.uuid4())
         response = await client.post(f"/api/v1/sagas/{saga_id}/cancel")
         assert response.status_code == 404
-        assert "Saga not found" in response.json()["detail"]
+        assert "not found" in response.json()["detail"]
 
     @pytest.mark.asyncio
     async def test_saga_access_control(

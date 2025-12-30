@@ -3,7 +3,9 @@ from typing import AsyncIterator
 
 import redis.asyncio as redis
 from dishka import Provider, Scope, provide
+from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
+from app.core.database_context import Database
 from app.core.k8s_clients import K8sClients, close_k8s_clients, create_k8s_clients
 from app.core.logging import setup_logger
 from app.core.metrics import (
@@ -116,6 +118,22 @@ class RedisProvider(Provider):
         self, redis_client: redis.Redis, settings: Settings, rate_limit_metrics: RateLimitMetrics
     ) -> RateLimitService:
         return RateLimitService(redis_client, settings, rate_limit_metrics)
+
+
+class DatabaseProvider(Provider):
+    scope = Scope.APP
+
+    @provide
+    async def get_database(self, settings: Settings, logger: logging.Logger) -> AsyncIterator[Database]:
+        client: AsyncMongoClient[dict[str, object]] = AsyncMongoClient(
+            settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000
+        )
+        database = client[settings.DATABASE_NAME]
+        logger.info(f"MongoDB connected: {settings.DATABASE_NAME}")
+        try:
+            yield database
+        finally:
+            client.close()
 
 
 class CoreServicesProvider(Provider):

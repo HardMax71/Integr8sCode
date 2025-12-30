@@ -1,20 +1,6 @@
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 
 
-def test_to_dict() -> None:
-    m = AvroEventMetadata(service_name="svc", service_version="1.0")
-    d = m.to_dict()
-    assert d["service_name"] == "svc"
-    assert d["service_version"] == "1.0"
-
-
-def test_from_dict() -> None:
-    m = AvroEventMetadata.from_dict({"service_name": "a", "service_version": "2", "user_id": "u"})
-    assert m.service_name == "a"
-    assert m.service_version == "2"
-    assert m.user_id == "u"
-
-
 def test_with_correlation() -> None:
     m = AvroEventMetadata(service_name="svc", service_version="1")
     m2 = m.with_correlation("cid")

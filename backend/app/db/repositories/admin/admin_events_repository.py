@@ -83,7 +83,9 @@ class AdminEventsRepository:
             return None
 
         doc_fields = set(EventStoreDocument.model_fields.keys()) - {"id", "revision_id"}
-        event = Event(**{**doc.model_dump(include=doc_fields), "metadata": DomainEventMetadata(**doc.metadata.model_dump())})
+        event = Event(
+            **{**doc.model_dump(include=doc_fields), "metadata": DomainEventMetadata(**doc.metadata.model_dump())}
+        )
 
         related_query = {"metadata.correlation_id": doc.metadata.correlation_id, "event_id": {"$ne": event_id}}
         related_docs = await (

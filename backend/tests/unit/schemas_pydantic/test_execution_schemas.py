@@ -20,4 +20,3 @@ def test_execution_request_unsupported_version_raises():
     with pytest.raises(ValueError) as e:
         ExecutionRequest(script="print(1)", lang="python", lang_version="9.9")
     assert "Version '9.9' not supported for python" in str(e.value)
-

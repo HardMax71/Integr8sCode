@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List
+from uuid import uuid4
 
 from pydantic import BaseModel, Field, PrivateAttr
 
@@ -83,7 +84,7 @@ class ReplayConfig(BaseModel):
 
 @dataclass
 class ReplaySessionState:
-    """Domain replay session model used by services only."""
+    """Domain replay session model used by services and repository."""
 
     session_id: str
     config: ReplayConfig
@@ -100,6 +101,14 @@ class ReplaySessionState:
     last_event_at: datetime | None = None
 
     errors: list[dict[str, Any]] = field(default_factory=list)
+
+    # Tracking and admin fields
+    correlation_id: str = field(default_factory=lambda: str(uuid4()))
+    created_by: str | None = None
+    target_service: str | None = None
+    dry_run: bool = False
+    triggered_executions: list[str] = field(default_factory=list)
+    error: str | None = None
 
 
 @dataclass

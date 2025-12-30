@@ -22,14 +22,12 @@ from .models import (
 )
 
 __all__ = [
-    # Core models
     "DLQMessageStatus",
     "RetryStrategy",
     "DLQMessage",
     "DLQMessageUpdate",
     "DLQMessageFilter",
     "RetryPolicy",
-    # Stats models
     "TopicStatistic",
     "EventTypeStatistic",
     "AgeStatistics",

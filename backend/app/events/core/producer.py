@@ -237,7 +237,9 @@ class UnifiedProducer(LifecycleEnabled):
 
             # Create DLQ message directly
             dlq_message = DLQMessage(
+                event_id=original_event.event_id,
                 event=original_event,
+                event_type=original_event.event_type,
                 original_topic=original_topic,
                 error=str(error),
                 retry_count=retry_count,
@@ -248,7 +250,7 @@ class UnifiedProducer(LifecycleEnabled):
 
             # Create DLQ event wrapper
             dlq_event_data = {
-                "event_id": dlq_message.event_id or original_event.event_id,
+                "event_id": dlq_message.event_id,
                 "event_type": "dlq.message",
                 "event": dlq_message.event.to_dict(),
                 "original_topic": dlq_message.original_topic,

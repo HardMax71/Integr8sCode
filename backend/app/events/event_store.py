@@ -11,8 +11,8 @@ from app.core.metrics.context import get_event_metrics
 from app.core.tracing import EventAttributes
 from app.core.tracing.utils import add_span_attributes
 from app.db.docs import EventStoreDocument
+from app.db.docs.event import EventMetadata
 from app.domain.enums.events import EventType
-from app.domain.events.event_metadata import EventMetadata
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.events.base import BaseEvent
 
@@ -51,6 +51,8 @@ class EventStore:
         event_dict = event.model_dump()
         metadata_dict = event_dict.pop("metadata", {})
         metadata = EventMetadata(**metadata_dict)
+        base_fields = set(BaseEvent.model_fields.keys())
+        payload = {k: v for k, v in event_dict.items() if k not in base_fields}
 
         return EventStoreDocument(
             event_id=event.event_id,
@@ -59,12 +61,8 @@ class EventStore:
             timestamp=event.timestamp,
             aggregate_id=event.aggregate_id,
             metadata=metadata,
+            payload=payload,
             stored_at=datetime.now(timezone.utc),
-            **{
-                k: v
-                for k, v in event_dict.items()
-                if k not in {"event_id", "event_type", "event_version", "timestamp", "aggregate_id"}
-            },
         )
 
     def _doc_to_dict(self, doc: EventStoreDocument) -> Dict[str, Any]:

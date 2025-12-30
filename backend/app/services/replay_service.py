@@ -33,7 +33,7 @@ class ReplayService:
             session_id = await self.event_replay_service.create_replay_session(config)
             session = self.event_replay_service.get_session(session_id)
             if session:
-                await self.repository.save_session(session)  # type: ignore[arg-type]
+                await self.repository.save_session(session)
             return ReplayOperationResult(
                 session_id=session_id,
                 status=ReplayStatus.CREATED,

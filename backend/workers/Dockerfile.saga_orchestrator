@@ -5,4 +5,4 @@ FROM base
 COPY . .
 
 # Run saga orchestrator
-CMD ["uv", "run", "python", "workers/run_saga_orchestrator.py"]
+CMD ["python", "workers/run_saga_orchestrator.py"]

@@ -41,9 +41,9 @@ async def get_saga_status(
         HTTPException: 404 if saga not found, 403 if access denied
     """
     current_user = await auth_service.get_current_user(request)
-    user = User.from_response(current_user)
+    user = User.model_validate(current_user)
     saga = await saga_service.get_saga_with_access_check(saga_id, user)
-    return SagaStatusResponse.from_domain(saga)
+    return SagaStatusResponse.model_validate(saga)
 
 
 @router.get("/execution/{execution_id}", response_model=SagaListResponse)
@@ -74,9 +74,9 @@ async def get_execution_sagas(
         HTTPException: 403 if access denied
     """
     current_user = await auth_service.get_current_user(request)
-    user = User.from_response(current_user)
+    user = User.model_validate(current_user)
     result = await saga_service.get_execution_sagas(execution_id, user, state, limit=limit, skip=skip)
-    saga_responses = [SagaStatusResponse.from_domain(s) for s in result.sagas]
+    saga_responses = [SagaStatusResponse.model_validate(s) for s in result.sagas]
     return SagaListResponse(
         sagas=saga_responses,
         total=result.total,
@@ -109,9 +109,9 @@ async def list_sagas(
         Paginated list of sagas
     """
     current_user = await auth_service.get_current_user(request)
-    user = User.from_response(current_user)
+    user = User.model_validate(current_user)
     result = await saga_service.list_user_sagas(user, state, limit, skip)
-    saga_responses = [SagaStatusResponse.from_domain(s) for s in result.sagas]
+    saga_responses = [SagaStatusResponse.model_validate(s) for s in result.sagas]
     return SagaListResponse(
         sagas=saga_responses,
         total=result.total,
@@ -143,7 +143,7 @@ async def cancel_saga(
         HTTPException: 404 if not found, 403 if denied, 400 if invalid state
     """
     current_user = await auth_service.get_current_user(request)
-    user = User.from_response(current_user)
+    user = User.model_validate(current_user)
     success = await saga_service.cancel_saga(saga_id, user)
 
     return SagaCancellationResponse(

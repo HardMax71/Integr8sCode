@@ -1,8 +1,19 @@
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
 from app.domain.enums.replay import ReplayStatus
 from app.domain.events.event_models import EventSummary
+from app.domain.replay.models import ReplaySessionState
+
+
+@dataclass
+class ReplaySessionStatusDetail:
+    """Status detail with computed metadata for admin API."""
+
+    session: ReplaySessionState
+    estimated_completion: datetime | None = None
+    execution_results: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass

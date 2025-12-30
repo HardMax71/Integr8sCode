@@ -19,8 +19,8 @@ COPY --from=astral/uv:latest /uv /uvx /bin/
 COPY pyproject.toml uv.lock ./
 
 # Install Python dependencies (production only)
-# --no-install-project: don't install project itself, only dependencies
-RUN uv sync --frozen --no-dev --no-install-project
+RUN uv sync --locked --no-dev --no-install-project
 
-# Set Python path so imports work
+# Set paths: PYTHONPATH for imports, PATH for venv binaries (no uv run needed at runtime)
 ENV PYTHONPATH=/app
+ENV PATH="/app/.venv/bin:$PATH"

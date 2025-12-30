@@ -8,6 +8,7 @@ from app.db.docs import DLQMessageDocument
 from app.dlq import (
     AgeStatistics,
     DLQBatchRetryResult,
+    DLQMessage,
     DLQMessageListResult,
     DLQMessageStatus,
     DLQRetryResult,
@@ -18,11 +19,19 @@ from app.dlq import (
 )
 from app.dlq.manager import DLQManager
 from app.domain.enums.events import EventType
+from app.infrastructure.kafka.mappings import get_event_class_for_type
 
 
 class DLQRepository:
     def __init__(self, logger: logging.Logger):
         self.logger = logger
+
+    def _doc_to_message(self, doc: DLQMessageDocument) -> DLQMessage:
+        event_class = get_event_class_for_type(doc.event_type)
+        if not event_class:
+            raise ValueError(f"Unknown event type: {doc.event_type}")
+        data = doc.model_dump(exclude={"id", "revision_id"})
+        return DLQMessage(**{**data, "event": event_class(**data["event"])})
 
     async def get_dlq_stats(self) -> DLQStatistics:
         # Get counts by status
@@ -106,12 +115,18 @@ class DLQRepository:
 
         query = DLQMessageDocument.find(*conditions)
         total_count = await query.count()
-        messages = await query.sort([("failed_at", SortDirection.DESCENDING)]).skip(offset).limit(limit).to_list()
+        docs = await query.sort([("failed_at", SortDirection.DESCENDING)]).skip(offset).limit(limit).to_list()
 
-        return DLQMessageListResult(messages=messages, total=total_count, offset=offset, limit=limit)  # type: ignore[arg-type]
+        return DLQMessageListResult(
+            messages=[self._doc_to_message(d) for d in docs],
+            total=total_count,
+            offset=offset,
+            limit=limit,
+        )
 
-    async def get_message_by_id(self, event_id: str) -> DLQMessageDocument | None:
-        return await DLQMessageDocument.find_one({"event_id": event_id})
+    async def get_message_by_id(self, event_id: str) -> DLQMessage | None:
+        doc = await DLQMessageDocument.find_one({"event_id": event_id})
+        return self._doc_to_message(doc) if doc else None
 
     async def get_topics_summary(self) -> list[DLQTopicSummary]:
         pipeline: list[Mapping[str, object]] = [
@@ -150,7 +165,7 @@ class DLQRepository:
         return topics
 
     async def mark_message_retried(self, event_id: str) -> bool:
-        doc = await self.get_message_by_id(event_id)
+        doc = await DLQMessageDocument.find_one({"event_id": event_id})
         if not doc:
             return False
         now = datetime.now(timezone.utc)
@@ -161,7 +176,7 @@ class DLQRepository:
         return True
 
     async def mark_message_discarded(self, event_id: str, reason: str) -> bool:
-        doc = await self.get_message_by_id(event_id)
+        doc = await DLQMessageDocument.find_one({"event_id": event_id})
         if not doc:
             return False
         now = datetime.now(timezone.utc)
@@ -179,8 +194,8 @@ class DLQRepository:
 
         for event_id in event_ids:
             try:
-                message = await self.get_message_by_id(event_id)
-                if not message:
+                doc = await DLQMessageDocument.find_one({"event_id": event_id})
+                if not doc:
                     failed += 1
                     details.append(DLQRetryResult(event_id=event_id, status="failed", error="Message not found"))
                     continue

@@ -9,8 +9,7 @@ from typing import Any, Dict, List
 from beanie.odm.enums import SortDirection
 
 from app.db.repositories.admin import AdminEventsRepository
-from app.db.repositories.admin.admin_events_repository import ReplaySessionStatusDetail
-from app.domain.admin import ReplayQuery
+from app.domain.admin import ReplayQuery, ReplaySessionStatusDetail
 from app.domain.admin.replay_updates import ReplaySessionUpdate
 from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
 from app.domain.events.event_models import (

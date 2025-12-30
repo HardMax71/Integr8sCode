@@ -73,7 +73,7 @@ class UserSettingsService:
 
         settings: DomainUserSettings
         if snapshot:
-            settings = snapshot  # Document compatible with domain model
+            settings = snapshot
             events = await self._get_settings_events(user_id, since=snapshot.updated_at)
         else:
             settings = DomainUserSettings(user_id=user_id)
@@ -209,7 +209,7 @@ class UserSettingsService:
 
         self._add_to_cache(user_id, s)
         if (await self.repository.count_events_since_snapshot(user_id)) >= 10:
-            await self.repository.create_snapshot(s)  # type: ignore[arg-type]
+            await self.repository.create_snapshot(s)
         return s
 
     async def update_theme(self, user_id: str, theme: Theme) -> DomainUserSettings:
@@ -292,7 +292,7 @@ class UserSettingsService:
             settings = self._apply_event(settings, event)
 
         # Save as current settings
-        await self.repository.create_snapshot(settings)  # type: ignore[arg-type]
+        await self.repository.create_snapshot(settings)
         self._add_to_cache(user_id, settings)
 
         # Publish restoration event (generic settings update form)

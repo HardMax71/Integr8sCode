@@ -1,10 +1,20 @@
 from datetime import datetime
 from typing import Any, Dict, List
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from app.domain.enums.events import EventType
 from app.schemas_pydantic.events import HourlyEventCountSchema
+from app.schemas_pydantic.execution import ExecutionResult
+
+
+class ReplayErrorInfo(BaseModel):
+    """Error info for replay operations."""
+
+    timestamp: datetime
+    error: str
+    event_id: str | None = None
+    error_type: str | None = None
 
 
 class EventFilter(BaseModel):
@@ -85,10 +95,14 @@ class EventReplayStatusResponse(BaseModel):
     created_at: datetime
     started_at: datetime | None = None
     completed_at: datetime | None = None
-    error: str | None = None
-    progress_percentage: float
+    errors: List[ReplayErrorInfo] | None = None
     estimated_completion: datetime | None = None
-    execution_results: List[Dict[str, Any]] | None = None  # Results from replayed executions
+    execution_results: List[ExecutionResult] | None = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def progress_percentage(self) -> float:
+        return round(self.replayed_events / max(self.total_events, 1) * 100, 2)
 
 
 class EventDeleteResponse(BaseModel):

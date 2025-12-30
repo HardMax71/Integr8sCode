@@ -5,4 +5,4 @@ FROM base
 COPY . .
 
 # Run DLQ processor
-CMD ["uv", "run", "python", "workers/dlq_processor.py"]
+CMD ["python", "workers/dlq_processor.py"]

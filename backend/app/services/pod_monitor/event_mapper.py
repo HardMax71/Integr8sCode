@@ -40,12 +40,12 @@ class PodContext:
 
 @dataclass(frozen=True)
 class PodLogs:
-    """Parsed pod logs and execution results"""
+    """Parsed pod logs and execution results. Only created when parsing succeeds."""
 
-    stdout: str = ""
-    stderr: str = ""
-    exit_code: int | None = None
-    resource_usage: ResourceUsageDomain | None = None
+    stdout: str
+    stderr: str
+    exit_code: int
+    resource_usage: ResourceUsageDomain
 
 
 class EventMapper(Protocol):
@@ -255,18 +255,20 @@ class PodEventMapper:
             return None
 
         logs = self._extract_logs(ctx.pod)
-        exit_code = logs.exit_code if logs.exit_code is not None else container.state.terminated.exit_code
+        if not logs:
+            self.logger.error(f"POD-EVENT: failed to extract logs for completed pod exec={ctx.execution_id}")
+            return None
 
         evt = ExecutionCompletedEvent(
             execution_id=ctx.execution_id,
-            aggregate_id=ctx.execution_id,  # Set aggregate_id to execution_id
-            exit_code=exit_code,
+            aggregate_id=ctx.execution_id,
+            exit_code=logs.exit_code,
+            resource_usage=logs.resource_usage,
             stdout=logs.stdout,
             stderr=logs.stderr,
-            resource_usage=logs.resource_usage,
             metadata=ctx.metadata,
         )
-        self.logger.info(f"POD-EVENT: mapped completed exec={ctx.execution_id} exit_code={exit_code}")
+        self.logger.info(f"POD-EVENT: mapped completed exec={ctx.execution_id} exit_code={logs.exit_code}")
         return evt
 
     def _map_failed_or_completed(self, ctx: PodContext) -> BaseEvent | None:
@@ -284,29 +286,24 @@ class PodEventMapper:
         error_info = self._analyze_failure(ctx.pod)
         logs = self._extract_logs(ctx.pod)
 
-        # If no stderr from logs but we have an error message, use it as stderr
-        stderr = logs.stderr if logs.stderr else error_info.message
-        # Ensure exit_code is populated (fallback to logs or generic non-zero)
-        exit_code = (
-            error_info.exit_code
-            if error_info.exit_code is not None
-            else (logs.exit_code if logs.exit_code is not None else 1)
-        )
+        # Use logs data if available, fallback to error_info
+        stdout = logs.stdout if logs else ""
+        stderr = logs.stderr if logs and logs.stderr else error_info.message
+        exit_code = error_info.exit_code if error_info.exit_code is not None else (logs.exit_code if logs else 1)
 
         evt = ExecutionFailedEvent(
             execution_id=ctx.execution_id,
-            aggregate_id=ctx.execution_id,  # Set aggregate_id to execution_id
+            aggregate_id=ctx.execution_id,
             error_type=error_info.error_type,
             exit_code=exit_code,
-            stdout=logs.stdout,
+            stdout=stdout,
             stderr=stderr,
             error_message=stderr,
-            resource_usage=logs.resource_usage,
+            resource_usage=logs.resource_usage if logs else None,
             metadata=ctx.metadata,
         )
         self.logger.info(
-            f"POD-EVENT: mapped failed exec={ctx.execution_id} error_type={error_info.error_type} "
-            f"exit={error_info.exit_code}"
+            f"POD-EVENT: mapped failed exec={ctx.execution_id} error_type={error_info.error_type} exit={exit_code}"
         )
         return evt
 
@@ -336,13 +333,17 @@ class PodEventMapper:
             return None
 
         logs = self._extract_logs(ctx.pod)
+        if not logs:
+            self.logger.error(f"POD-EVENT: failed to extract logs for timed out pod exec={ctx.execution_id}")
+            return None
+
         evt = ExecutionTimeoutEvent(
             execution_id=ctx.execution_id,
             aggregate_id=ctx.execution_id,
             timeout_seconds=ctx.pod.spec.active_deadline_seconds or 0,
+            resource_usage=logs.resource_usage,
             stdout=logs.stdout,
             stderr=logs.stderr,
-            resource_usage=logs.resource_usage,
             metadata=ctx.metadata,
         )
         self.logger.info(
@@ -442,11 +443,11 @@ class PodEventMapper:
 
         return default
 
-    def _extract_logs(self, pod: k8s_client.V1Pod) -> PodLogs:
-        """Extract and parse pod logs"""
+    def _extract_logs(self, pod: k8s_client.V1Pod) -> PodLogs | None:
+        """Extract and parse pod logs. Returns None if extraction fails."""
         # Without k8s API or metadata, can't fetch logs
         if not self._k8s_api or not pod.metadata:
-            return PodLogs()
+            return None
 
         # Check if any container terminated
         has_terminated = any(
@@ -455,7 +456,7 @@ class PodEventMapper:
 
         if not has_terminated:
             self.logger.debug(f"Pod {pod.metadata.name} has no terminated containers")
-            return PodLogs()
+            return None
 
         try:
             logs = self._k8s_api.read_namespaced_pod_log(
@@ -463,17 +464,17 @@ class PodEventMapper:
             )
 
             if not logs:
-                return PodLogs()
+                return None
 
             # Try to parse executor JSON
             return self._parse_executor_output(logs)
 
         except Exception as e:
             self._log_extraction_error(pod.metadata.name, str(e))
-            return PodLogs()
+            return None
 
-    def _parse_executor_output(self, logs: str) -> PodLogs:
-        """Parse executor JSON output from logs"""
+    def _parse_executor_output(self, logs: str) -> PodLogs | None:
+        """Parse executor JSON output from logs. Returns None if parsing fails."""
         logs_stripped = logs.strip()
 
         # Try full output as JSON
@@ -485,9 +486,9 @@ class PodEventMapper:
             if result := self._try_parse_json(line.strip()):
                 return result
 
-        # Fallback to raw logs
-        self.logger.warning("Logs do not contain valid executor JSON, treating as raw output")
-        return PodLogs(stdout=logs)
+        # No valid executor JSON found
+        self.logger.warning("Logs do not contain valid executor JSON")
+        return None
 
     def _try_parse_json(self, text: str) -> PodLogs | None:
         """Try to parse text as executor JSON output"""

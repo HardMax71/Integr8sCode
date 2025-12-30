@@ -361,6 +361,6 @@ class EventReplayService:
             )
             # Note: last_event_at is not in ReplaySessionUpdate
             # If needed, add it to the domain model
-            await self._repository.update_replay_session(session_id=session.session_id, updates=session_update)  # type: ignore[arg-type]
+            await self._repository.update_replay_session(session_id=session.session_id, updates=session_update)
         except Exception as e:
             self.logger.error(f"Failed to update session in database: {e}")

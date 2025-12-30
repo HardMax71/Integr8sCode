@@ -84,20 +84,6 @@ class User(BaseModel):
         arbitrary_types_allowed=True,
     )
 
-    @classmethod
-    def from_response(cls, user_response: UserResponse) -> "User":
-        """Create User from UserResponse"""
-        return cls(
-            user_id=user_response.user_id,
-            username=user_response.username,
-            email=user_response.email,
-            role=user_response.role,
-            is_active=user_response.is_active,
-            is_superuser=user_response.is_superuser,
-            created_at=user_response.created_at,
-            updated_at=user_response.updated_at,
-        )
-
 
 class UserListResponse(BaseModel):
     """Response model for listing users"""

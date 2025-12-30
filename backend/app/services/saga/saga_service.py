@@ -91,7 +91,7 @@ class SagaService:
             )
             raise SagaAccessDeniedError(execution_id, user.user_id)
 
-        return await self.saga_repo.get_sagas_by_execution(execution_id, state, limit=limit, skip=skip)  # type: ignore[return-value]
+        return await self.saga_repo.get_sagas_by_execution(execution_id, state, limit=limit, skip=skip)
 
     async def list_user_sagas(
         self, user: User, state: SagaState | None = None, limit: int = 100, skip: int = 0
@@ -122,7 +122,7 @@ class SagaService:
                 "state_filter": str(state) if state else None,
             },
         )
-        return result  # type: ignore[return-value]
+        return result
 
     async def cancel_saga(self, saga_id: str, user: User) -> bool:
         """Cancel a saga with permission check."""

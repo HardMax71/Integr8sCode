@@ -1,26 +1,30 @@
 from datetime import datetime, timezone
 
 from app.db.docs import ExecutionDocument
-from app.domain.enums.execution import ExecutionStatus
-
-
-class SSEExecutionStatus:
-    def __init__(self, execution_id: str, status: ExecutionStatus, timestamp: str):
-        self.execution_id = execution_id
-        self.status = status
-        self.timestamp = timestamp
+from app.domain.execution import DomainExecution, ResourceUsageDomain
+from app.domain.sse import SSEExecutionStatusDomain
 
 
 class SSERepository:
-    async def get_execution_status(self, execution_id: str) -> SSEExecutionStatus | None:
+    async def get_execution_status(self, execution_id: str) -> SSEExecutionStatusDomain | None:
         doc = await ExecutionDocument.find_one({"execution_id": execution_id})
         if not doc:
             return None
-        return SSEExecutionStatus(
+        return SSEExecutionStatusDomain(
             execution_id=execution_id,
             status=doc.status,
             timestamp=datetime.now(timezone.utc).isoformat(),
         )
 
-    async def get_execution(self, execution_id: str) -> ExecutionDocument | None:
-        return await ExecutionDocument.find_one({"execution_id": execution_id})
+    async def get_execution(self, execution_id: str) -> DomainExecution | None:
+        doc = await ExecutionDocument.find_one({"execution_id": execution_id})
+        if not doc:
+            return None
+        return DomainExecution(
+            **{
+                **doc.model_dump(exclude={"id", "revision_id"}),
+                "resource_usage": ResourceUsageDomain(**doc.resource_usage.model_dump())
+                if doc.resource_usage
+                else None,
+            }
+        )

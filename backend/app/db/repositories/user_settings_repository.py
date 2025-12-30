@@ -1,26 +1,32 @@
 import logging
+from dataclasses import asdict
 from datetime import datetime
 from typing import List
 
 from beanie.odm.enums import SortDirection
 from beanie.operators import GT, LTE, In
 
-from app.db.docs import EventDocument, UserSettingsDocument
+from app.db.docs import EventDocument, UserSettingsDocument, UserSettingsSnapshotDocument
 from app.domain.enums.events import EventType
+from app.domain.user.settings_models import DomainUserSettings
 
 
 class UserSettingsRepository:
     def __init__(self, logger: logging.Logger) -> None:
         self.logger = logger
 
-    async def get_snapshot(self, user_id: str) -> UserSettingsDocument | None:
-        return await UserSettingsDocument.find_one({"user_id": user_id})
+    async def get_snapshot(self, user_id: str) -> DomainUserSettings | None:
+        doc = await UserSettingsDocument.find_one({"user_id": user_id})
+        if not doc:
+            return None
+        return DomainUserSettings(**doc.model_dump(exclude={"id", "revision_id"}))
 
-    async def create_snapshot(self, settings: UserSettingsDocument) -> None:
-        existing = await self.get_snapshot(settings.user_id)
+    async def create_snapshot(self, settings: DomainUserSettings) -> None:
+        existing = await UserSettingsDocument.find_one({"user_id": settings.user_id})
+        doc = UserSettingsDocument(**asdict(settings))
         if existing:
-            settings.id = existing.id
-        await settings.save()
+            doc.id = existing.id
+        await doc.save()
         self.logger.info(f"Created settings snapshot for user {settings.user_id}")
 
     async def get_settings_events(
@@ -61,7 +67,7 @@ class UserSettingsRepository:
         return await EventDocument.find(EventDocument.aggregate_id == f"user_settings_{user_id}").count()
 
     async def delete_user_settings(self, user_id: str) -> None:
-        doc = await self.get_snapshot(user_id)
+        doc = await UserSettingsSnapshotDocument.find_one({"user_id": user_id})
         if doc:
             await doc.delete()
         await EventDocument.find(EventDocument.aggregate_id == f"user_settings_{user_id}").delete()

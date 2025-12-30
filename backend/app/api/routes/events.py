@@ -115,7 +115,6 @@ async def query_events(
         user_role=current_user.role,
         filters=event_filter,
         sort_by=filter_request.sort_by,
-        sort_order=filter_request.sort_order,
         limit=filter_request.limit,
         skip=filter_request.skip,
     )

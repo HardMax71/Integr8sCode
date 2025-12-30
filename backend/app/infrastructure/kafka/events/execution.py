@@ -87,10 +87,10 @@ class ExecutionCompletedEvent(BaseEvent):
     event_type: Literal[EventType.EXECUTION_COMPLETED] = EventType.EXECUTION_COMPLETED
     topic: ClassVar[KafkaTopic] = KafkaTopic.EXECUTION_COMPLETED
     execution_id: str
+    exit_code: int
+    resource_usage: ResourceUsageDomain
     stdout: str = ""
     stderr: str = ""
-    exit_code: int
-    resource_usage: ResourceUsageDomain | None = None
 
 
 class ExecutionFailedEvent(BaseEvent):
@@ -109,10 +109,10 @@ class ExecutionTimeoutEvent(BaseEvent):
     event_type: Literal[EventType.EXECUTION_TIMEOUT] = EventType.EXECUTION_TIMEOUT
     topic: ClassVar[KafkaTopic] = KafkaTopic.EXECUTION_TIMEOUT
     execution_id: str
+    timeout_seconds: int
+    resource_usage: ResourceUsageDomain
     stdout: str = ""
     stderr: str = ""
-    timeout_seconds: int
-    resource_usage: ResourceUsageDomain | None = None
 
 
 class ExecutionCancelledEvent(BaseEvent):

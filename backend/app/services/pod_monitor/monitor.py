@@ -6,24 +6,26 @@ from collections.abc import AsyncIterator
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
 from enum import auto
-from typing import Any, Protocol
+from typing import Any
 
+from beanie import init_beanie
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
 from kubernetes import watch
 from kubernetes.client.rest import ApiException
+from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 from app.core.k8s_clients import K8sClients, close_k8s_clients, create_k8s_clients
 from app.core.lifecycle import LifecycleEnabled
-
-# Metrics will be passed as parameter to avoid globals
 from app.core.logging import setup_logger
 from app.core.metrics.context import get_kubernetes_metrics
 from app.core.utils import StringEnum
+from app.db.docs import ALL_DOCUMENTS
+from app.db.repositories.event_repository import EventRepository
 from app.events.core import ProducerConfig, UnifiedProducer
 from app.events.schema.schema_registry import create_schema_registry_manager, initialize_event_schemas
 from app.infrastructure.kafka.events import BaseEvent
-from app.infrastructure.kafka.mappings import get_topic_for_event
+from app.services.kafka_event_service import KafkaEventService
 from app.services.pod_monitor.config import PodMonitorConfig
 from app.services.pod_monitor.event_mapper import PodEventMapper
 from app.settings import get_settings
@@ -97,71 +99,34 @@ class ReconciliationResult:
     error: str | None = None
 
 
-class EventPublisher(Protocol):
-    """Protocol for event publishing."""
-
-    async def send_event(self, event: BaseEvent, topic: str, key: str | None = None) -> bool:
-        """Send an event to a topic."""
-        ...
-
-    async def is_healthy(self) -> bool:
-        """Check if publisher is healthy."""
-        ...
-
-
-class UnifiedProducerAdapter:
-    """Adapter to make UnifiedProducer compatible with EventPublisher protocol."""
-
-    def __init__(self, producer: UnifiedProducer, logger: logging.Logger) -> None:
-        self._producer = producer
-        self._logger = logger
-
-    async def send_event(self, event: BaseEvent, topic: str, key: str | None = None) -> bool:
-        """Send event and return success status."""
-        try:
-            await self._producer.produce(event_to_produce=event, key=key)
-            return True
-        except Exception as e:
-            self._logger.error(f"Failed to send event: {e}")
-            return False
-
-    async def is_healthy(self) -> bool:
-        """Check if producer is healthy."""
-        # UnifiedProducer doesn't have is_healthy, assume healthy if initialized
-        return self._producer._producer is not None
-
-
 class PodMonitor(LifecycleEnabled):
     """
     Monitors Kubernetes pods and publishes lifecycle events.
 
     This service watches pods with specific labels using the K8s watch API,
     maps Kubernetes events to application events, and publishes them to Kafka.
+    Events are stored in the events collection AND published to Kafka via KafkaEventService.
     """
 
     def __init__(
         self,
         config: PodMonitorConfig,
-        producer: UnifiedProducer,
+        kafka_event_service: KafkaEventService,
         logger: logging.Logger,
         k8s_clients: K8sClients | None = None,
     ) -> None:
         """Initialize the pod monitor."""
         self.logger = logger
         self.config = config or PodMonitorConfig()
-        settings = get_settings()
-
-        # Kafka configuration
-        self.kafka_servers = self.config.kafka_bootstrap_servers or settings.KAFKA_BOOTSTRAP_SERVERS
 
         # Kubernetes clients (initialized on start)
         self._v1: k8s_client.CoreV1Api | None = None
         self._watch: watch.Watch | None = None
         self._clients: K8sClients | None = k8s_clients
 
-        # Components - producer is required
+        # Components
         self._event_mapper = PodEventMapper(logger=self.logger)
-        self._producer = UnifiedProducerAdapter(producer, self.logger)
+        self._kafka_event_service = kafka_event_service
 
         # State
         self._state = MonitorState.IDLE
@@ -401,38 +366,19 @@ class PodMonitor(LifecycleEnabled):
             self._metrics.record_pod_monitor_watch_error(str(ErrorType.PROCESSING_ERROR.value))
 
     async def _publish_event(self, event: BaseEvent, pod: k8s_client.V1Pod) -> None:
-        """Publish event to Kafka."""
+        """Publish event to Kafka and store in events collection."""
         try:
-            # Get proper topic from event type mapping
-
-            topic = str(get_topic_for_event(event.event_type))
-
             # Add correlation ID from pod labels
             if pod.metadata and pod.metadata.labels:
                 event.metadata.correlation_id = pod.metadata.labels.get("execution-id")
 
-            # Get execution ID from event if it has one
             execution_id = getattr(event, "execution_id", None) or event.aggregate_id
+            key = str(execution_id or (pod.metadata.name if pod.metadata else "unknown"))
 
-            self.logger.info(f"Publishing event {event.event_type} to topic {topic} for execution_id: {execution_id}")
+            await self._kafka_event_service.publish_base_event(event=event, key=key)
 
-            # Check producer health
-            if not await self._producer.is_healthy():
-                self.logger.error(f"Producer is not healthy, cannot send event {event.event_type}")
-                return
-
-            # Publish event
-            key = str(execution_id or pod.metadata.name)
-            success = await self._producer.send_event(event=event, topic=topic, key=key)
-
-            if not success:
-                self.logger.error(f"Failed to send event {event.event_type} to topic {topic}")
-                return
-
-            # Event published successfully
             phase = pod.status.phase if pod.status else "Unknown"
             self._metrics.record_pod_monitor_event_published(str(event.event_type), phase)
-            self.logger.info(f"Successfully published {event.event_type} event to {topic}")
 
         except Exception as e:
             self.logger.error(f"Error publishing event: {e}", exc_info=True)
@@ -568,12 +514,17 @@ class PodMonitor(LifecycleEnabled):
 @asynccontextmanager
 async def create_pod_monitor(
     config: PodMonitorConfig,
-    producer: UnifiedProducer,
+    kafka_event_service: KafkaEventService,
     logger: logging.Logger,
     k8s_clients: K8sClients | None = None,
 ) -> AsyncIterator[PodMonitor]:
     """Create and manage a pod monitor instance."""
-    monitor = PodMonitor(config=config, producer=producer, logger=logger, k8s_clients=k8s_clients)
+    monitor = PodMonitor(
+        config=config,
+        kafka_event_service=kafka_event_service,
+        logger=logger,
+        k8s_clients=k8s_clients,
+    )
 
     try:
         await monitor.start()
@@ -587,18 +538,42 @@ async def run_pod_monitor() -> None:
     import os
 
     logger = setup_logger(os.environ.get("LOG_LEVEL", "INFO"))
+    settings = get_settings()
+
+    # Initialize MongoDB
+    db_client: AsyncMongoClient[Any] = AsyncMongoClient(
+        settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000
+    )
+    database = db_client[settings.DATABASE_NAME]
+    await db_client.admin.command("ping")
+    logger.info(f"Connected to database: {settings.DATABASE_NAME}")
+    await init_beanie(database=database, document_models=ALL_DOCUMENTS)
 
     # Initialize schema registry
     schema_registry_manager = create_schema_registry_manager(logger)
     await initialize_event_schemas(schema_registry_manager)
 
-    # Create producer and monitor
-    settings = get_settings()
+    # Create producer
     producer_config = ProducerConfig(bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS)
     producer = UnifiedProducer(producer_config, schema_registry_manager, logger)
+
+    # Create KafkaEventService (stores events + publishes to Kafka)
+    event_repository = EventRepository(logger)
+    kafka_event_service = KafkaEventService(
+        event_repository=event_repository,
+        kafka_producer=producer,
+        logger=logger,
+    )
+
+    # Create monitor
     monitor_config = PodMonitorConfig()
     clients = create_k8s_clients(logger)
-    monitor = PodMonitor(config=monitor_config, producer=producer, logger=logger, k8s_clients=clients)
+    monitor = PodMonitor(
+        config=monitor_config,
+        kafka_event_service=kafka_event_service,
+        logger=logger,
+        k8s_clients=clients,
+    )
 
     # Setup signal handlers
     loop = asyncio.get_running_loop()
@@ -608,13 +583,12 @@ async def run_pod_monitor() -> None:
         logger.info("Initiating graceful shutdown...")
         await monitor.stop()
         await producer.stop()
+        await db_client.close()
 
-    # Register signal handlers
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, lambda: asyncio.create_task(shutdown()))
 
     async with AsyncExitStack() as stack:
-        # Ensure Kubernetes clients are always closed, even on exceptions
         stack.callback(close_k8s_clients, clients)
         await stack.enter_async_context(producer)
         await stack.enter_async_context(monitor)

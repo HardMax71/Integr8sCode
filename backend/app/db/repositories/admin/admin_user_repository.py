@@ -23,17 +23,10 @@ class AdminUserRepository:
     def __init__(self) -> None:
         self.security_service = SecurityService()
 
-    async def create_user(self, create_data: DomainUserCreate) -> UserDocument:
-        doc = UserDocument(
-            username=create_data.username,
-            email=create_data.email,
-            hashed_password=create_data.hashed_password,
-            role=create_data.role,
-            is_active=create_data.is_active,
-            is_superuser=create_data.is_superuser,
-        )
+    async def create_user(self, create_data: DomainUserCreate) -> User:
+        doc = UserDocument(**asdict(create_data))
         await doc.insert()
-        return doc
+        return User(**doc.model_dump(exclude={"id", "revision_id"}))
 
     async def list_users(
         self, limit: int = 100, offset: int = 0, search: str | None = None, role: UserRole | None = None
@@ -55,14 +48,15 @@ class AdminUserRepository:
         query = UserDocument.find(*conditions)
         total = await query.count()
         docs = await query.skip(offset).limit(limit).to_list()
-        users = [User(**doc.model_dump(exclude={"id"})) for doc in docs]
+        users = [User(**doc.model_dump(exclude={"id", "revision_id"})) for doc in docs]
         return UserListResult(users=users, total=total, offset=offset, limit=limit)
 
-    async def get_user_by_id(self, user_id: str) -> UserDocument | None:
-        return await UserDocument.find_one({"user_id": user_id})
+    async def get_user_by_id(self, user_id: str) -> User | None:
+        doc = await UserDocument.find_one({"user_id": user_id})
+        return User(**doc.model_dump(exclude={"id", "revision_id"})) if doc else None
 
-    async def update_user(self, user_id: str, update_data: UserUpdate) -> UserDocument | None:
-        doc = await self.get_user_by_id(user_id)
+    async def update_user(self, user_id: str, update_data: UserUpdate) -> User | None:
+        doc = await UserDocument.find_one({"user_id": user_id})
         if not doc:
             return None
 
@@ -74,12 +68,12 @@ class AdminUserRepository:
         if update_dict:
             update_dict["updated_at"] = datetime.now(timezone.utc)
             await doc.set(update_dict)
-        return doc
+        return User(**doc.model_dump(exclude={"id", "revision_id"}))
 
     async def delete_user(self, user_id: str, cascade: bool = True) -> dict[str, int]:
         deleted_counts = {}
 
-        doc = await self.get_user_by_id(user_id)
+        doc = await UserDocument.find_one({"user_id": user_id})
         if doc:
             await doc.delete()
             deleted_counts["user"] = 1
@@ -111,7 +105,7 @@ class AdminUserRepository:
         return deleted_counts
 
     async def reset_user_password(self, reset_data: PasswordReset) -> bool:
-        doc = await self.get_user_by_id(reset_data.user_id)
+        doc = await UserDocument.find_one({"user_id": reset_data.user_id})
         if not doc:
             return False
 

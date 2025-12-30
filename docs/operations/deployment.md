@@ -57,6 +57,46 @@ DEFAULT_USER_PASSWORD=mypass ADMIN_USER_PASSWORD=myadmin ./deploy.sh dev
 Hot reloading works for the backend since the source directory is mounted into the container. Changes to Python files
 trigger Uvicorn to restart automatically. The frontend runs its own dev server with similar behavior.
 
+### Docker build strategy
+
+The backend uses a multi-stage build with a shared base image to keep startup fast. All Python dependencies are
+installed at build time, so containers start in seconds rather than waiting for package downloads.
+
+```
+Dockerfile.base          Dockerfile (backend)         Dockerfile.* (workers)
+┌──────────────────┐     ┌──────────────────────┐     ┌──────────────────────┐
+│ python:3.12-slim │     │ FROM base            │     │ FROM base            │
+│ system deps      │────▶│ COPY app, workers    │     │ COPY app, workers    │
+│ uv sync --locked │     │ entrypoint.sh        │     │ CMD ["python", ...]  │
+│ ENV PATH=.venv   │     └──────────────────────┘     └──────────────────────┘
+└──────────────────┘
+```
+
+The base image (`Dockerfile.base`) installs all production dependencies using `uv sync --locked --no-dev`. The
+`--locked` flag ensures the lockfile is respected exactly, and `--no-dev` skips development tools like ruff and mypy
+that aren't needed at runtime. The key optimization is setting `PATH="/app/.venv/bin:$PATH"` so Python and all
+installed packages are available directly without needing `uv run` at startup.
+
+Each service image extends the base and copies only application code. Since dependencies rarely change compared to
+code, Docker's layer caching means most builds only rebuild the thin application layer. First builds take longer
+because they install all packages, but subsequent builds are fast.
+
+For local development, the compose file mounts source directories into the container:
+
+```yaml
+volumes:
+  - ./backend/app:/app/app
+  - ./backend/workers:/app/workers
+  - ./backend/scripts:/app/scripts
+```
+
+This selective mounting preserves the container's `.venv` directory (with all installed packages) while allowing live
+code changes. The mounted directories overlay the baked-in copies, so edits take effect immediately. Gunicorn watches
+for file changes and reloads workers automatically.
+
+The design means `git clone` followed by `docker compose up` just works. No local Python environment needed, no named
+volumes for caching, no waiting for package downloads. Dependencies live in the image, code comes from the mount.
+
 To stop everything and clean up volumes:
 
 ```bash

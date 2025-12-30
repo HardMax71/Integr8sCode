@@ -105,9 +105,14 @@ graph TD
 ### Base image
 
 The base image (`Dockerfile.base`) contains Python, system dependencies, and all pip packages. It
-uses [uv](https://docs.astral.sh/uv/) to install dependencies from the lockfile, ensuring reproducible builds. The base
-includes gcc, curl, and compression libraries needed by some Python packages. Separating base from application means
-dependency changes rebuild the base layer while code changes only rebuild the thin application layer.
+uses [uv](https://docs.astral.sh/uv/) to install dependencies from the lockfile with `uv sync --locked --no-dev`,
+ensuring reproducible builds without development tools. The base includes gcc, curl, and compression libraries needed
+by some Python packages.
+
+The image sets `PATH="/app/.venv/bin:$PATH"` so services can run Python directly without `uv run` at startup. This
+avoids dependency resolution at container start, making services launch in seconds rather than minutes. Separating base
+from application means dependency changes rebuild the base layer while code changes only rebuild the thin application
+layer. See [Docker build strategy](deployment.md#docker-build-strategy) for details on the local development setup.
 
 ### Build contexts
 

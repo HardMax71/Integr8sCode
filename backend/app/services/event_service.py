@@ -1,10 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from pymongo import ASCENDING, DESCENDING
-
 from app.db.repositories.event_repository import EventRepository
-from app.domain.enums.common import SortOrder
 from app.domain.enums.events import EventType
 from app.domain.enums.user import UserRole
 from app.domain.events import (
@@ -86,7 +83,7 @@ class EventService:
         if owner and owner != user_id and user_role != UserRole.ADMIN:
             return None
 
-        return result  # type: ignore[return-value]
+        return result
 
     async def get_user_events_paginated(
         self,
@@ -98,7 +95,7 @@ class EventService:
         skip: int = 0,
         sort_order: str = "desc",
     ) -> EventListResult:
-        return await self.repository.get_user_events_paginated(  # type: ignore[return-value]
+        return await self.repository.get_user_events_paginated(
             user_id=user_id,
             event_types=event_types,
             start_time=start_time,
@@ -114,7 +111,6 @@ class EventService:
         user_role: UserRole,
         filters: EventFilter,
         sort_by: str = "timestamp",
-        sort_order: SortOrder = SortOrder.DESC,
         limit: int = 100,
         skip: int = 0,
     ) -> EventListResult | None:
@@ -135,13 +131,10 @@ class EventService:
             "stored_at": "stored_at",
         }
         sort_field = field_map.get(sort_by, "timestamp")
-        direction = DESCENDING if sort_order == SortOrder.DESC else ASCENDING
 
-        # Pagination and sorting from request
-        return await self.repository.query_events_generic(  # type: ignore[attr-defined, no-any-return]
+        return await self.repository.query_events(
             query=query,
             sort_field=sort_field,
-            sort_direction=direction,
             skip=skip,
             limit=limit,
         )
@@ -159,13 +152,13 @@ class EventService:
         if not include_all_users or user_role != UserRole.ADMIN:
             filtered = [e for e in result.events if (e.metadata and e.metadata.user_id == user_id)]
             return EventListResult(
-                events=filtered,  # type: ignore[arg-type]
+                events=filtered,
                 total=result.total,
                 skip=skip,
                 limit=limit,
                 has_more=result.has_more,
             )
-        return result  # type: ignore[return-value]
+        return result
 
     async def get_event_statistics(
         self,
@@ -176,10 +169,10 @@ class EventService:
         include_all_users: bool = False,
     ) -> EventStatistics:
         match = {} if include_all_users else self._build_user_filter(user_id, user_role)
-        return await self.repository.get_event_statistics_filtered(  # type: ignore[attr-defined, no-any-return]
-            match=match,
+        return await self.repository.get_event_statistics(
             start_time=start_time,
             end_time=end_time,
+            match=match or None,
         )
 
     async def get_event(
@@ -210,7 +203,7 @@ class EventService:
                 new_pipeline[0]["$match"] = {"$and": [new_pipeline[0]["$match"], user_filter]}
             else:
                 new_pipeline.insert(0, {"$match": user_filter})
-        return await self.repository.aggregate_events(new_pipeline, limit=limit)  # type: ignore[attr-defined, no-any-return]
+        return await self.repository.aggregate_events(new_pipeline, limit=limit)
 
     async def list_event_types(
         self,
@@ -218,7 +211,7 @@ class EventService:
         user_role: UserRole,
     ) -> list[str]:
         match = self._build_user_filter(user_id, user_role)
-        return await self.repository.list_event_types(match=match)  # type: ignore[attr-defined, no-any-return]
+        return await self.repository.list_event_types(match=match)
 
     async def delete_event_with_archival(
         self,
@@ -233,7 +226,7 @@ class EventService:
         )
 
     async def get_aggregate_replay_info(self, aggregate_id: str) -> EventReplayInfo | None:
-        return await self.repository.get_aggregate_replay_info(aggregate_id)  # type: ignore[return-value]
+        return await self.repository.get_aggregate_replay_info(aggregate_id)
 
     async def get_events_by_aggregate(
         self,
@@ -241,7 +234,7 @@ class EventService:
         event_types: list[EventType] | None = None,
         limit: int = 100,
     ) -> list[Event]:
-        return await self.repository.get_events_by_aggregate(  # type: ignore[return-value]
+        return await self.repository.get_events_by_aggregate(
             aggregate_id=aggregate_id,
             event_types=event_types,
             limit=limit,

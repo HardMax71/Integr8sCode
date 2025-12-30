@@ -7,31 +7,26 @@ from beanie.operators import Eq, Or, RegEx
 
 from app.db.docs import UserDocument
 from app.domain.enums.user import UserRole
-from app.domain.user import DomainUserCreate, DomainUserUpdate
+from app.domain.user import DomainUserCreate, DomainUserUpdate, User, UserListResult
 
 
 class UserRepository:
-    async def get_user(self, username: str) -> UserDocument | None:
-        return await UserDocument.find_one({"username": username})
+    async def get_user(self, username: str) -> User | None:
+        doc = await UserDocument.find_one({"username": username})
+        return User(**doc.model_dump(exclude={"id", "revision_id"})) if doc else None
 
-    async def create_user(self, create_data: DomainUserCreate) -> UserDocument:
-        doc = UserDocument(
-            username=create_data.username,
-            email=create_data.email,
-            hashed_password=create_data.hashed_password,
-            role=create_data.role,
-            is_active=create_data.is_active,
-            is_superuser=create_data.is_superuser,
-        )
+    async def create_user(self, create_data: DomainUserCreate) -> User:
+        doc = UserDocument(**asdict(create_data))
         await doc.insert()
-        return doc
+        return User(**doc.model_dump(exclude={"id", "revision_id"}))
 
-    async def get_user_by_id(self, user_id: str) -> UserDocument | None:
-        return await UserDocument.find_one({"user_id": user_id})
+    async def get_user_by_id(self, user_id: str) -> User | None:
+        doc = await UserDocument.find_one({"user_id": user_id})
+        return User(**doc.model_dump(exclude={"id", "revision_id"})) if doc else None
 
     async def list_users(
         self, limit: int = 100, offset: int = 0, search: str | None = None, role: UserRole | None = None
-    ) -> list[UserDocument]:
+    ) -> UserListResult:
         conditions: list[BaseFindOperator] = []
 
         if search:
@@ -46,10 +41,18 @@ class UserRepository:
         if role:
             conditions.append(Eq(UserDocument.role, role))
 
-        return await UserDocument.find(*conditions).skip(offset).limit(limit).to_list()
+        query = UserDocument.find(*conditions)
+        total = await query.count()
+        docs = await query.skip(offset).limit(limit).to_list()
+        return UserListResult(
+            users=[User(**d.model_dump(exclude={"id", "revision_id"})) for d in docs],
+            total=total,
+            offset=offset,
+            limit=limit,
+        )
 
-    async def update_user(self, user_id: str, update_data: DomainUserUpdate) -> UserDocument | None:
-        doc = await self.get_user_by_id(user_id)
+    async def update_user(self, user_id: str, update_data: DomainUserUpdate) -> User | None:
+        doc = await UserDocument.find_one({"user_id": user_id})
         if not doc:
             return None
 
@@ -57,10 +60,10 @@ class UserRepository:
         if update_dict:
             update_dict["updated_at"] = datetime.now(timezone.utc)
             await doc.set(update_dict)
-        return doc
+        return User(**doc.model_dump(exclude={"id", "revision_id"}))
 
     async def delete_user(self, user_id: str) -> bool:
-        doc = await self.get_user_by_id(user_id)
+        doc = await UserDocument.find_one({"user_id": user_id})
         if not doc:
             return False
         await doc.delete()

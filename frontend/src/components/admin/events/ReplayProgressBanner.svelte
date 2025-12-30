@@ -32,40 +32,23 @@
                 <span>Progress: {session.replayed_events} / {session.total_events} events</span>
                 <span>{session.progress_percentage}%</span>
             </div>
-            <div class="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
-                <div
-                    class="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-300"
-                    style="width: {session.progress_percentage}%"
-                ></div>
+            <div class="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2 overflow-hidden">
+                <div class="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-300" style="width: {Math.min(session.progress_percentage, 100)}%"></div>
             </div>
         </div>
 
-        {#if session.failed_events > 0}
-            <div class="mt-2">
-                <div class="text-sm text-red-600 dark:text-red-400">
-                    Failed: {session.failed_events} events
-                </div>
-                {#if session.error_message}
-                    <div class="mt-1 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded">
-                        <p class="text-xs text-red-700 dark:text-red-300 font-mono">
-                            Error: {session.error_message}
-                        </p>
+        {#if session.errors?.length}
+            <div class="mt-2 space-y-1">
+                {#each session.errors as err}
+                    <div class="p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-xs">
+                        {#if err.event_id}<div class="font-mono text-neutral-600 dark:text-neutral-400">{err.event_id}</div>{/if}
+                        <div class="text-red-700 dark:text-red-300">{err.error}</div>
                     </div>
-                {/if}
-                {#if session.failed_event_errors && session.failed_event_errors.length > 0}
-                    <div class="mt-2 space-y-1">
-                        {#each session.failed_event_errors as error}
-                            <div class="p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-xs">
-                                <div class="font-mono text-neutral-600 dark:text-neutral-400">{error.event_id}</div>
-                                <div class="text-red-700 dark:text-red-300 mt-1">{error.error}</div>
-                            </div>
-                        {/each}
-                    </div>
-                {/if}
+                {/each}
             </div>
         {/if}
 
-        {#if session.execution_results && session.execution_results.length > 0}
+        {#if session.execution_results?.length}
             <div class="mt-4 border-t border-blue-200 dark:border-blue-800 pt-3">
                 <h4 class="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">Execution Results:</h4>
                 <div class="space-y-2">
@@ -82,25 +65,15 @@
                                         }">
                                             {result.status}
                                         </span>
-                                        {#if result.execution_time}
-                                            <span class="text-neutral-500 dark:text-neutral-400">
-                                                {result.execution_time.toFixed(2)}s
-                                            </span>
+                                        {#if result.resource_usage?.execution_time_wall_seconds}
+                                            <span class="text-neutral-500 dark:text-neutral-400">{result.resource_usage.execution_time_wall_seconds.toFixed(2)}s</span>
                                         {/if}
                                     </div>
                                 </div>
-                                {#if result.output || result.errors}
+                                {#if result.stdout || result.stderr}
                                     <div class="text-right">
-                                        {#if result.output}
-                                            <div class="font-mono text-green-600 dark:text-green-400">
-                                                Output: {result.output}
-                                            </div>
-                                        {/if}
-                                        {#if result.errors}
-                                            <div class="font-mono text-red-600 dark:text-red-400">
-                                                Error: {result.errors}
-                                            </div>
-                                        {/if}
+                                        {#if result.stdout}<div class="font-mono text-green-600 dark:text-green-400">{result.stdout}</div>{/if}
+                                        {#if result.stderr}<div class="font-mono text-red-600 dark:text-red-400">{result.stderr}</div>{/if}
                                     </div>
                                 {/if}
                             </div>

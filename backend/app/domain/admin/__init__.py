@@ -6,6 +6,7 @@ from .overview_models import (
 from .replay_models import (
     ReplayQuery,
     ReplaySessionData,
+    ReplaySessionStatusDetail,
     ReplaySessionStatusInfo,
 )
 from .settings_models import (
@@ -34,5 +35,6 @@ __all__ = [
     # Replay
     "ReplayQuery",
     "ReplaySessionData",
+    "ReplaySessionStatusDetail",
     "ReplaySessionStatusInfo",
 ]

@@ -1,5 +1,6 @@
 from dataclasses import asdict
 from datetime import datetime, timezone
+from uuid import uuid4
 
 from app.db.docs import ResourceAllocationDocument
 from app.domain.saga import DomainResourceAllocation, DomainResourceAllocationCreate
@@ -10,7 +11,10 @@ class ResourceAllocationRepository:
         return await ResourceAllocationDocument.find({"status": "active", "language": language}).count()
 
     async def create_allocation(self, create_data: DomainResourceAllocationCreate) -> DomainResourceAllocation:
-        doc = ResourceAllocationDocument(**asdict(create_data))
+        doc = ResourceAllocationDocument(
+            allocation_id=str(uuid4()),
+            **asdict(create_data),
+        )
         await doc.insert()
         return DomainResourceAllocation(**doc.model_dump(exclude={"id"}))
 

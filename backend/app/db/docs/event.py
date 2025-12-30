@@ -4,11 +4,27 @@ from uuid import uuid4
 
 import pymongo
 from beanie import Document, Indexed
-from pydantic import ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field
 from pymongo import ASCENDING, DESCENDING, IndexModel
 
+from app.domain.enums.common import Environment
 from app.domain.enums.events import EventType
-from app.domain.events.event_metadata import EventMetadata
+
+
+# Pydantic model required here because Beanie embedded documents must be Pydantic BaseModel subclasses.
+# This is NOT an API schema - it defines the MongoDB subdocument structure.
+class EventMetadata(BaseModel):
+    """Event metadata embedded document for Beanie storage."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    service_name: str
+    service_version: str
+    correlation_id: str = Field(default_factory=lambda: str(uuid4()))
+    user_id: str | None = None
+    ip_address: str | None = None
+    user_agent: str | None = None
+    environment: Environment = Environment.PRODUCTION
 
 
 class EventDocument(Document):

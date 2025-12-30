@@ -1,3 +1,4 @@
+from dataclasses import asdict
 from datetime import datetime
 from typing import Annotated
 
@@ -33,7 +34,7 @@ router = APIRouter(
 @router.post("/browse")
 async def browse_events(request: EventBrowseRequest, service: FromDishka[AdminEventsService]) -> EventBrowseResponse:
     try:
-        event_filter = EventFilter(**request.filters.model_dump(mode="json"))
+        event_filter = EventFilter(**request.filters.model_dump())
 
         result = await service.browse_events(
             event_filter=event_filter,
@@ -200,7 +201,17 @@ async def get_replay_status(session_id: str, service: FromDishka[AdminEventsServ
         if not status:
             raise HTTPException(status_code=404, detail="Replay session not found")
 
-        return EventReplayStatusResponse.model_validate(status)
+        session = status.session
+        estimated_completion = status.estimated_completion
+        execution_results = status.execution_results
+        return EventReplayStatusResponse(
+            **{
+                **asdict(session),
+                "status": session.status.value,
+                "estimated_completion": estimated_completion,
+                "execution_results": execution_results,
+            }
+        )
 
     except HTTPException:
         raise

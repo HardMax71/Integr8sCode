@@ -381,7 +381,7 @@ class SagaOrchestrator(LifecycleEnabled):
     async def _save_saga(self, instance: Saga) -> None:
         """Persist saga through repository"""
         instance.updated_at = datetime.now(UTC)
-        await self._repo.upsert_saga(instance)  # type: ignore[arg-type]
+        await self._repo.upsert_saga(instance)
 
     async def get_saga_status(self, saga_id: str) -> Saga | None:
         """Get saga instance status"""
@@ -394,7 +394,7 @@ class SagaOrchestrator(LifecycleEnabled):
     async def get_execution_sagas(self, execution_id: str) -> list[Saga]:
         """Get all sagas for an execution, sorted by created_at descending (newest first)"""
         result = await self._repo.get_sagas_by_execution(execution_id)
-        return result.sagas  # type: ignore[return-value]
+        return result.sagas
 
     async def cancel_saga(self, saga_id: str) -> bool:
         """Cancel a running saga and trigger compensation.

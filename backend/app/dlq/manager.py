@@ -67,8 +67,9 @@ class DLQManager(LifecycleEnabled):
         """Convert DLQMessageDocument to DLQMessage domain model."""
         event = self.schema_registry.deserialize_json(doc.event)
         return DLQMessage(
-            event=event,
             event_id=doc.event_id,
+            event=event,
+            event_type=doc.event_type,
             original_topic=doc.original_topic,
             error=doc.error,
             retry_count=doc.retry_count,
@@ -125,8 +126,9 @@ class DLQManager(LifecycleEnabled):
         event = self.schema_registry.deserialize_json(data.get("event", data))
 
         return DLQMessage(
-            event=event,
             event_id=data.get("event_id", event.event_id),
+            event=event,
+            event_type=event.event_type,
             original_topic=data.get("original_topic", headers.get("original_topic", "")),
             error=data.get("error", headers.get("error", "Unknown error")),
             retry_count=data.get("retry_count", int(headers.get("retry_count", 0))),

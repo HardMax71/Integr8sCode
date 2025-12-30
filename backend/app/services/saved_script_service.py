@@ -115,4 +115,4 @@ class SavedScriptService:
             "Successfully retrieved saved scripts",
             extra={"user_id": user_id, "script_count": len(scripts)},
         )
-        return scripts  # type: ignore[return-value]
+        return scripts

@@ -133,7 +133,7 @@ class DatabaseProvider(Provider):
         try:
             yield database
         finally:
-            client.close()
+            await client.close()
 
 
 class CoreServicesProvider(Provider):

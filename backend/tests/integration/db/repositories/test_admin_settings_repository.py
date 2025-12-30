@@ -1,17 +1,13 @@
-import logging
 import pytest
-
 from app.db.repositories.admin.admin_settings_repository import AdminSettingsRepository
 from app.domain.admin import SystemSettings
 
 pytestmark = pytest.mark.integration
 
-_test_logger = logging.getLogger("test.db.repositories.admin_settings_repository")
-
 
 @pytest.fixture()
-def repo(db) -> AdminSettingsRepository:  # type: ignore[valid-type]
-    return AdminSettingsRepository(db, logger=_test_logger)
+async def repo(scope) -> AdminSettingsRepository:  # type: ignore[valid-type]
+    return await scope.get(AdminSettingsRepository)
 
 
 @pytest.mark.asyncio

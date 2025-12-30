@@ -332,7 +332,7 @@ class UserSettingsService:
                     event_type=et,
                     timestamp=e.timestamp,
                     payload=e.payload,
-                    correlation_id=e.correlation_id,
+                    correlation_id=e.metadata.correlation_id if e.metadata else None,
                 )
             )
         return out

@@ -1,21 +1,20 @@
-from datetime import datetime, timezone, timedelta
-import logging
+from datetime import datetime, timedelta, timezone
 
 import pytest
-
 from app.db.repositories.user_settings_repository import UserSettingsRepository
 from app.domain.enums.events import EventType
 from app.domain.user.settings_models import DomainUserSettings
 
 pytestmark = pytest.mark.integration
 
-_test_logger = logging.getLogger("test.db.repositories.user_settings_repository")
+
+@pytest.fixture()
+async def repo(scope) -> UserSettingsRepository:  # type: ignore[valid-type]
+    return await scope.get(UserSettingsRepository)
 
 
 @pytest.mark.asyncio
-async def test_user_settings_snapshot_and_events(db) -> None:  # type: ignore[valid-type]
-    repo = UserSettingsRepository(db, logger=_test_logger)
-
+async def test_user_settings_snapshot_and_events(repo: UserSettingsRepository, db) -> None:  # type: ignore[valid-type]
     # Create indexes (should not raise)
     await repo.create_indexes()
 
@@ -27,20 +26,22 @@ async def test_user_settings_snapshot_and_events(db) -> None:  # type: ignore[va
 
     # Insert events and query
     now = datetime.now(timezone.utc)
-    await db.get_collection("events").insert_many([
-        {
-            "aggregate_id": "user_settings_u1",
-            "event_type": str(EventType.USER_SETTINGS_UPDATED),
-            "timestamp": now,
-            "payload": {}
-        },
-        {
-            "aggregate_id": "user_settings_u1",
-            "event_type": str(EventType.USER_THEME_CHANGED),
-            "timestamp": now,
-            "payload": {}
-        },
-    ])
+    await db.get_collection("events").insert_many(
+        [
+            {
+                "aggregate_id": "user_settings_u1",
+                "event_type": str(EventType.USER_SETTINGS_UPDATED),
+                "timestamp": now,
+                "payload": {},
+            },
+            {
+                "aggregate_id": "user_settings_u1",
+                "event_type": str(EventType.USER_THEME_CHANGED),
+                "timestamp": now,
+                "payload": {},
+            },
+        ]
+    )
     evs = await repo.get_settings_events("u1", [EventType.USER_SETTINGS_UPDATED], since=now - timedelta(days=1))
     assert any(e.event_type == EventType.USER_SETTINGS_UPDATED for e in evs)
 

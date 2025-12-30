@@ -72,8 +72,10 @@ class KafkaEventService:
             event_id = str(uuid4())
             timestamp = datetime.now(timezone.utc)
 
-            # Convert to domain metadata for storage
-            domain_metadata = DomainEventMetadata(**avro_metadata.model_dump())
+            # Convert to domain metadata for storage (only include defined fields)
+            domain_metadata = DomainEventMetadata(
+                **avro_metadata.model_dump(include=set(DomainEventMetadata.__dataclass_fields__))
+            )
 
             event = Event(
                 event_id=event_id,

@@ -1,7 +1,7 @@
 import logging
-import pytest
 from uuid import uuid4
 
+import pytest
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.execution import DomainExecutionCreate, DomainExecutionUpdate

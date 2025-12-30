@@ -1,10 +1,9 @@
-from datetime import datetime, UTC, timedelta
 import logging
+from datetime import UTC, datetime, timedelta
 
 import pytest
-
 from app.db.repositories.notification_repository import NotificationRepository
-from app.domain.enums.notification import NotificationChannel, NotificationStatus, NotificationSeverity
+from app.domain.enums.notification import NotificationChannel, NotificationSeverity, NotificationStatus
 from app.domain.enums.notification import NotificationChannel as NC
 from app.domain.enums.user import UserRole
 from app.domain.notification import (
@@ -52,10 +51,32 @@ async def test_list_count_unread_and_pending(db) -> None:  # type: ignore[no-unt
     now = datetime.now(UTC)
 
     # Seed notifications
-    await db.get_collection("notifications").insert_many([
-        {"notification_id": "n1", "user_id": "u1", "severity": NotificationSeverity.MEDIUM.value, "tags": ["execution"], "channel": NotificationChannel.IN_APP.value, "subject": "s", "body": "b", "status": NotificationStatus.PENDING.value, "created_at": now},
-        {"notification_id": "n2", "user_id": "u1", "severity": NotificationSeverity.LOW.value, "tags": ["completed"], "channel": NotificationChannel.IN_APP.value, "subject": "s", "body": "b", "status": NotificationStatus.DELIVERED.value, "created_at": now},
-    ])
+    await db.get_collection("notifications").insert_many(
+        [
+            {
+                "notification_id": "n1",
+                "user_id": "u1",
+                "severity": NotificationSeverity.MEDIUM.value,
+                "tags": ["execution"],
+                "channel": NotificationChannel.IN_APP.value,
+                "subject": "s",
+                "body": "b",
+                "status": NotificationStatus.PENDING.value,
+                "created_at": now,
+            },
+            {
+                "notification_id": "n2",
+                "user_id": "u1",
+                "severity": NotificationSeverity.LOW.value,
+                "tags": ["completed"],
+                "channel": NotificationChannel.IN_APP.value,
+                "subject": "s",
+                "body": "b",
+                "status": NotificationStatus.DELIVERED.value,
+                "created_at": now,
+            },
+        ]
+    )
     lst = await repo.list_notifications("u1")
     assert len(lst) >= 2
     assert await repo.count_notifications("u1") >= 2
@@ -64,11 +85,20 @@ async def test_list_count_unread_and_pending(db) -> None:  # type: ignore[no-unt
     # Pending and scheduled
     pending = await repo.find_pending_notifications()
     assert any(n.status == NotificationStatus.PENDING for n in pending)
-    await db.get_collection("notifications").insert_one({
-        "notification_id": "n3", "user_id": "u1", "severity": NotificationSeverity.MEDIUM.value, "tags": ["execution"],
-        "channel": NotificationChannel.IN_APP.value, "subject": "s", "body": "b", "status": NotificationStatus.PENDING.value,
-        "created_at": now, "scheduled_for": now + timedelta(seconds=1)
-    })
+    await db.get_collection("notifications").insert_one(
+        {
+            "notification_id": "n3",
+            "user_id": "u1",
+            "severity": NotificationSeverity.MEDIUM.value,
+            "tags": ["execution"],
+            "channel": NotificationChannel.IN_APP.value,
+            "subject": "s",
+            "body": "b",
+            "status": NotificationStatus.PENDING.value,
+            "created_at": now,
+            "scheduled_for": now + timedelta(seconds=1),
+        }
+    )
     scheduled = await repo.find_scheduled_notifications()
     assert isinstance(scheduled, list)
     assert await repo.cleanup_old_notifications(days=0) >= 0
@@ -89,12 +119,32 @@ async def test_subscriptions_and_user_queries(db) -> None:  # type: ignore[no-un
     assert len(subs) == len(list(NC))
 
     # Users by role and active users
-    await db.get_collection("users").insert_many([
-        {UserFields.USER_ID: "u1", UserFields.USERNAME: "A", UserFields.EMAIL: "a@e.com", UserFields.ROLE: "user", UserFields.IS_ACTIVE: True},
-        {UserFields.USER_ID: "u2", UserFields.USERNAME: "B", UserFields.EMAIL: "b@e.com", UserFields.ROLE: "admin", UserFields.IS_ACTIVE: True},
-    ])
+    await db.get_collection("users").insert_many(
+        [
+            {
+                UserFields.USER_ID: "u1",
+                UserFields.USERNAME: "A",
+                UserFields.EMAIL: "a@e.com",
+                UserFields.ROLE: "user",
+                UserFields.IS_ACTIVE: True,
+                UserFields.HASHED_PASSWORD: "h",
+                UserFields.IS_SUPERUSER: False,
+            },
+            {
+                UserFields.USER_ID: "u2",
+                UserFields.USERNAME: "B",
+                UserFields.EMAIL: "b@e.com",
+                UserFields.ROLE: "admin",
+                UserFields.IS_ACTIVE: True,
+                UserFields.HASHED_PASSWORD: "h",
+                UserFields.IS_SUPERUSER: False,
+            },
+        ]
+    )
     ids = await repo.get_users_by_roles([UserRole.USER])
     assert "u1" in ids or isinstance(ids, list)
-    await db.get_collection("executions").insert_one({"execution_id": "e1", "user_id": "u2", "created_at": datetime.now(UTC)})
+    await db.get_collection("executions").insert_one(
+        {"execution_id": "e1", "user_id": "u2", "created_at": datetime.now(UTC)}
+    )
     active = await repo.get_active_users(days=1)
     assert set(active) >= {"u2"} or isinstance(active, list)

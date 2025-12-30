@@ -1,15 +1,12 @@
-import asyncio
 import logging
 from uuid import uuid4
 
 import pytest
-
 from app.events.consumer_group_monitor import (
     ConsumerGroupHealth,
     ConsumerGroupStatus,
     NativeConsumerGroupMonitor,
 )
-
 
 pytestmark = [pytest.mark.integration, pytest.mark.kafka]
 
@@ -34,8 +31,16 @@ def test_assess_group_health_branches():
     m = NativeConsumerGroupMonitor(logger=_test_logger)
     # Error state
     s = ConsumerGroupStatus(
-        group_id="g", state="ERROR", protocol="p", protocol_type="ptype", coordinator="c",
-        members=[], member_count=0, assigned_partitions=0, partition_distribution={}, total_lag=0
+        group_id="g",
+        state="ERROR",
+        protocol="p",
+        protocol_type="ptype",
+        coordinator="c",
+        members=[],
+        member_count=0,
+        assigned_partitions=0,
+        partition_distribution={},
+        total_lag=0,
     )
     h, msg = m._assess_group_health(s)  # noqa: SLF001
     assert h is ConsumerGroupHealth.UNHEALTHY and "error" in msg.lower()

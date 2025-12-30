@@ -1,27 +1,17 @@
-from datetime import datetime, timezone, timedelta
-import logging
+from datetime import datetime, timedelta, timezone
 
 import pytest
-
 from app.events.event_store import EventStore
-from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.infrastructure.kafka.events.pod import PodCreatedEvent
 from app.infrastructure.kafka.events.user import UserLoggedInEvent
-from app.core.database_context import Database
 
 pytestmark = [pytest.mark.integration, pytest.mark.mongodb]
-
-_test_logger = logging.getLogger("test.events.event_store")
 
 
 @pytest.fixture()
 async def event_store(scope) -> EventStore:  # type: ignore[valid-type]
-    db: Database = await scope.get(Database)
-    schema_registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
-    store = EventStore(db=db, schema_registry=schema_registry, logger=_test_logger)
-    await store.initialize()
-    return store
+    return await scope.get(EventStore)
 
 
 @pytest.mark.asyncio
@@ -57,8 +47,9 @@ async def test_store_and_query_events(event_store: EventStore) -> None:
 
 @pytest.mark.asyncio
 async def test_replay_events(event_store: EventStore) -> None:
-    ev = UserLoggedInEvent(user_id="u1", login_method="password",
-                           metadata=AvroEventMetadata(service_name="svc", service_version="1"))
+    ev = UserLoggedInEvent(
+        user_id="u1", login_method="password", metadata=AvroEventMetadata(service_name="svc", service_version="1")
+    )
     await event_store.store_event(ev)
 
     called = {"n": 0}

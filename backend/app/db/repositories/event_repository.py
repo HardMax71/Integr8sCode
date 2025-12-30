@@ -39,7 +39,8 @@ class EventRepository:
 
     async def store_event(self, event: Event) -> str:
         data = asdict(event)
-        data["metadata"] = {k: (v.value if hasattr(v, "value") else v) for k, v in asdict(event.metadata).items()}
+        meta = event.metadata.model_dump() if hasattr(event.metadata, "model_dump") else asdict(event.metadata)
+        data["metadata"] = {k: (v.value if hasattr(v, "value") else v) for k, v in meta.items()}
         if not data.get("stored_at"):
             data["stored_at"] = datetime.now(timezone.utc)
         # Remove None values so EventDocument defaults can apply (e.g., ttl_expires_at)
@@ -64,7 +65,8 @@ class EventRepository:
         docs = []
         for event in events:
             data = asdict(event)
-            data["metadata"] = {k: (v.value if hasattr(v, "value") else v) for k, v in asdict(event.metadata).items()}
+            meta = event.metadata.model_dump() if hasattr(event.metadata, "model_dump") else asdict(event.metadata)
+            data["metadata"] = {k: (v.value if hasattr(v, "value") else v) for k, v in meta.items()}
             if not data.get("stored_at"):
                 data["stored_at"] = now
             # Remove None values so EventDocument defaults can apply

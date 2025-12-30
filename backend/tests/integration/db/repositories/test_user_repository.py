@@ -1,17 +1,21 @@
-import pytest
 from datetime import datetime, timezone
 
+import pytest
 from app.db.repositories.user_repository import UserRepository
-from app.domain.user.user_models import User as DomainUser, UserUpdate
 from app.domain.enums.user import UserRole
+from app.domain.user.user_models import User as DomainUser
+from app.domain.user.user_models import UserUpdate
 
 pytestmark = pytest.mark.integration
 
 
-@pytest.mark.asyncio
-async def test_create_get_update_delete_user(db) -> None:  # type: ignore[valid-type]
-    repo = UserRepository(db)
+@pytest.fixture()
+async def repo(scope) -> UserRepository:  # type: ignore[valid-type]
+    return await scope.get(UserRepository)
 
+
+@pytest.mark.asyncio
+async def test_create_get_update_delete_user(repo: UserRepository) -> None:
     # Create user
     user = DomainUser(
         user_id="",  # let repo assign

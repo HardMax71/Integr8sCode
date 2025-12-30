@@ -1,19 +1,15 @@
-import asyncio
 import logging
 import uuid
 
 import pytest
-
 from app.core.database_context import Database
-
 from app.domain.enums.kafka import KafkaTopic
 from app.events.core import UnifiedProducer
-from app.events.event_store_consumer import EventStoreConsumer, create_event_store_consumer
 from app.events.event_store import EventStore
+from app.events.event_store_consumer import EventStoreConsumer, create_event_store_consumer
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
-from app.infrastructure.kafka.events.user import UserLoggedInEvent
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata
-
+from app.infrastructure.kafka.events.user import UserLoggedInEvent
 
 pytestmark = [pytest.mark.integration, pytest.mark.kafka, pytest.mark.mongodb]
 

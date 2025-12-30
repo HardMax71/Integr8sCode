@@ -1,12 +1,9 @@
-import asyncio
 import logging
-import struct
 
 import pytest
+from app.events.schema.schema_registry import MAGIC_BYTE, SchemaRegistryManager
 
-from app.events.schema.schema_registry import SchemaRegistryManager, MAGIC_BYTE
 from tests.helpers import make_execution_requested_event
-
 
 pytestmark = [pytest.mark.integration]
 

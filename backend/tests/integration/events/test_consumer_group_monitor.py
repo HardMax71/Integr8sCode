@@ -1,7 +1,7 @@
 import logging
-import pytest
 
-from app.events.consumer_group_monitor import NativeConsumerGroupMonitor, ConsumerGroupHealth
+import pytest
+from app.events.consumer_group_monitor import ConsumerGroupHealth, NativeConsumerGroupMonitor
 
 _test_logger = logging.getLogger("test.events.consumer_group_monitor")
 

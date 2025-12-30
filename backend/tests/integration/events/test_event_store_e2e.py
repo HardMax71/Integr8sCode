@@ -1,27 +1,19 @@
-from datetime import datetime, timezone, timedelta
-import logging
-
 import pytest
-from app.core.database_context import Database
-
 from app.domain.enums.events import EventType
 from app.events.event_store import EventStore
-from app.events.schema.schema_registry import SchemaRegistryManager
-from tests.helpers import make_execution_requested_event
 
+from tests.helpers import make_execution_requested_event
 
 pytestmark = [pytest.mark.integration, pytest.mark.mongodb]
 
-_test_logger = logging.getLogger("test.events.event_store_e2e")
+
+@pytest.fixture()
+async def store(scope) -> EventStore:  # type: ignore[valid-type]
+    return await scope.get(EventStore)
 
 
 @pytest.mark.asyncio
-async def test_event_store_initialize_and_crud(scope):  # type: ignore[valid-type]
-    schema: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
-    db: Database = await scope.get(Database)
-    store = EventStore(db=db, schema_registry=schema, ttl_days=1, logger=_test_logger)
-    await store.initialize()
-
+async def test_event_store_initialize_and_crud(store: EventStore) -> None:
     # Store single event
     ev = make_execution_requested_event(execution_id="e-1")
     assert await store.store_event(ev) is True

@@ -1,14 +1,17 @@
 import pytest
-
 from app.db.repositories.saved_script_repository import SavedScriptRepository
 from app.domain.saved_script import DomainSavedScriptCreate, DomainSavedScriptUpdate
 
 pytestmark = pytest.mark.integration
 
 
+@pytest.fixture()
+async def repo(scope) -> SavedScriptRepository:  # type: ignore[valid-type]
+    return await scope.get(SavedScriptRepository)
+
+
 @pytest.mark.asyncio
-async def test_create_get_update_delete_saved_script(db) -> None:  # type: ignore[valid-type]
-    repo = SavedScriptRepository(db)
+async def test_create_get_update_delete_saved_script(repo: SavedScriptRepository) -> None:
     create = DomainSavedScriptCreate(name="n", lang="python", lang_version="3.11", description=None, script="print(1)")
     created = await repo.create_saved_script(create, user_id="u1")
     assert created.user_id == "u1" and created.script == "print(1)"

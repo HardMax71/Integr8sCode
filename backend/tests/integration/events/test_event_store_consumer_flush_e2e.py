@@ -1,37 +1,36 @@
-import asyncio
-import logging
 from uuid import uuid4
 
 import pytest
 from app.core.database_context import Database
-
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
+from app.events.core import UnifiedProducer
 from app.events.event_store import EventStore
 from app.events.event_store_consumer import create_event_store_consumer
-from app.events.core import UnifiedProducer
 from app.events.schema.schema_registry import SchemaRegistryManager
+
 from tests.helpers import make_execution_requested_event
 from tests.helpers.eventually import eventually
 
 pytestmark = [pytest.mark.integration, pytest.mark.kafka, pytest.mark.mongodb]
 
-_test_logger = logging.getLogger("test.events.event_store_consumer_flush_e2e")
+
+@pytest.fixture()
+async def store(scope) -> EventStore:  # type: ignore[valid-type]
+    return await scope.get(EventStore)
 
 
 @pytest.mark.asyncio
-async def test_event_store_consumer_flush_on_timeout(scope):  # type: ignore[valid-type]
+async def test_event_store_consumer_flush_on_timeout(scope, store: EventStore) -> None:  # type: ignore[valid-type]
     producer: UnifiedProducer = await scope.get(UnifiedProducer)
     schema: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
     db: Database = await scope.get(Database)
-    store = EventStore(db=db, schema_registry=schema, logger=_test_logger)
-    await store.initialize()
 
     consumer = create_event_store_consumer(
         event_store=store,
         topics=[KafkaTopic.EXECUTION_EVENTS],
         schema_registry_manager=schema,
-        logger=_test_logger,
+        logger=store.logger,
         producer=producer,
         batch_size=100,
         batch_timeout_seconds=0.2,

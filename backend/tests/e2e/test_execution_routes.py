@@ -13,8 +13,9 @@ from app.schemas_pydantic.execution import (
     ResourceUsage
 )
 
+pytestmark = [pytest.mark.e2e, pytest.mark.k8s]
 
-@pytest.mark.k8s
+
 class TestExecution:
     """Test execution endpoints against real backend."""
 
@@ -104,13 +105,13 @@ class TestExecution:
         # Immediately fetch result - no waiting
         result_response = await client.get(f"/api/v1/result/{execution_id}")
         assert result_response.status_code == 200
-        
+
         result_data = result_response.json()
         execution_result = ExecutionResult(**result_data)
         assert execution_result.execution_id == execution_id
         assert execution_result.status in [e.value for e in ExecutionStatusEnum]
         assert execution_result.lang == "python"
-        
+
         # Execution might be in any state - that's fine
         # If completed, validate output; if not, that's valid too
         if execution_result.status == ExecutionStatusEnum.COMPLETED:
@@ -140,7 +141,7 @@ class TestExecution:
         assert exec_response.status_code == 200
 
         execution_id = exec_response.json()["execution_id"]
-        
+
         # No waiting - execution was accepted, error will be processed asynchronously
 
     @pytest.mark.asyncio
@@ -172,7 +173,7 @@ print('Done')
         assert exec_response.status_code == 200
 
         execution_id = exec_response.json()["execution_id"]
-        
+
         # No waiting - execution was accepted, error will be processed asynchronously
 
         # Fetch result and validate resource usage if present
@@ -245,7 +246,7 @@ print('End of output')
         assert exec_response.status_code == 200
 
         execution_id = exec_response.json()["execution_id"]
-        
+
         # No waiting - execution was accepted, error will be processed asynchronously
         # Validate output from result endpoint (best-effort)
         result_response = await client.get(f"/api/v1/result/{execution_id}")
@@ -299,7 +300,7 @@ print('Should not reach here if cancelled')
             pytest.skip("Cancellation not wired; backend returned 5xx")
         # Should succeed or fail if already completed
         assert cancel_response.status_code in [200, 400, 404]
-        
+
         # Cancel response of 200 means cancellation was accepted
 
     @pytest.mark.asyncio
@@ -335,7 +336,7 @@ while True:
         assert exec_response.status_code == 200
 
         execution_id = exec_response.json()["execution_id"]
-        
+
         # Just verify the execution was created - it will run forever until timeout
         # No need to wait or observe states
 

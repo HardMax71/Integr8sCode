@@ -8,9 +8,9 @@ from kubernetes import client as k8s_client, config as k8s_config
 from app.services.result_processor.resource_cleaner import ResourceCleaner
 from tests.helpers.eventually import eventually
 
-pytestmark = [pytest.mark.integration, pytest.mark.k8s]
+pytestmark = [pytest.mark.e2e, pytest.mark.k8s]
 
-_test_logger = logging.getLogger("test.k8s.resource_cleaner_integration")
+_test_logger = logging.getLogger("test.k8s.resource_cleaner_orphan")
 
 
 def _ensure_kubeconfig():

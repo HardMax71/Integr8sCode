@@ -10,7 +10,7 @@ from app.events.consumer_group_monitor import (
 
 pytestmark = [pytest.mark.integration, pytest.mark.kafka]
 
-_test_logger = logging.getLogger("test.events.consumer_group_monitor_e2e")
+_test_logger = logging.getLogger("test.events.consumer_group_monitor_real")
 
 
 @pytest.mark.asyncio

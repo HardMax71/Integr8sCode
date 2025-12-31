@@ -7,7 +7,7 @@ from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer
 
 pytestmark = [pytest.mark.integration, pytest.mark.kafka]
 
-_test_logger = logging.getLogger("test.events.consumer_min_e2e")
+_test_logger = logging.getLogger("test.events.consumer_lifecycle")
 
 
 @pytest.mark.asyncio

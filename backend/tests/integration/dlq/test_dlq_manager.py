@@ -14,7 +14,10 @@ from app.events.schema.schema_registry import create_schema_registry_manager
 from tests.helpers import make_execution_requested_event
 from tests.helpers.eventually import eventually
 
-pytestmark = [pytest.mark.integration, pytest.mark.kafka, pytest.mark.mongodb]
+# xdist_group: DLQ tests share a Kafka consumer group. When running in parallel,
+# different workers' managers consume each other's messages and apply wrong policies.
+# Serial execution ensures each test's manager processes only its own messages.
+pytestmark = [pytest.mark.integration, pytest.mark.kafka, pytest.mark.mongodb, pytest.mark.xdist_group("dlq")]
 
 _test_logger = logging.getLogger("test.dlq.manager")
 

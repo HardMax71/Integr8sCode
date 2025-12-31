@@ -106,7 +106,6 @@ jobs:
         run: |
           cd backend
           uv run pytest tests/integration -v -rs \
-            --ignore=tests/integration/k8s \
             --cov=app \
             --cov-report=xml --cov-report=term
 
@@ -190,7 +189,7 @@ jobs:
           K8S_NAMESPACE: integr8scode
         run: |
           cd backend
-          uv run pytest tests/integration/k8s -v -rs \
+          uv run pytest tests/e2e -v -rs \
             --cov=app \
             --cov-report=xml --cov-report=term
 

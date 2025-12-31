@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import uuid
 from datetime import datetime, timezone
 
 import pytest
@@ -15,7 +16,10 @@ from app.events.schema.schema_registry import create_schema_registry_manager
 from tests.helpers import make_execution_requested_event
 from tests.helpers.eventually import eventually
 
-pytestmark = [pytest.mark.integration, pytest.mark.kafka, pytest.mark.mongodb]
+# xdist_group: DLQ tests share a Kafka consumer group. When running in parallel,
+# different workers' managers consume each other's messages and apply wrong policies.
+# Serial execution ensures each test's manager processes only its own messages.
+pytestmark = [pytest.mark.integration, pytest.mark.kafka, pytest.mark.mongodb, pytest.mark.xdist_group("dlq")]
 
 _test_logger = logging.getLogger("test.dlq.discard_policy")
 
@@ -28,7 +32,8 @@ async def test_dlq_manager_discards_with_manual_policy(db) -> None:  # type: ign
     topic = f"{prefix}{str(KafkaTopic.EXECUTION_EVENTS)}"
     manager.set_retry_policy(topic, RetryPolicy(topic=topic, strategy=RetryStrategy.MANUAL))
 
-    ev = make_execution_requested_event(execution_id="exec-dlq-discard")
+    # Use unique execution_id to avoid conflicts with parallel test workers
+    ev = make_execution_requested_event(execution_id=f"exec-dlq-discard-{uuid.uuid4().hex[:8]}")
 
     payload = {
         "event": ev.to_dict(),

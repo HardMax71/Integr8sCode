@@ -5,4 +5,4 @@ FROM base
 COPY . .
 
 # Run Kubernetes worker
-CMD ["uv", "run", "python", "workers/run_k8s_worker.py"]
+CMD ["python", "workers/run_k8s_worker.py"]

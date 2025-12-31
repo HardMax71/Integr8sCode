@@ -1,13 +1,13 @@
+import logging
 from typing import Awaitable, Callable
 
-from app.core.logging import logger
 from app.infrastructure.kafka.events.base import BaseEvent
 
 from .producer import UnifiedProducer
 
 
 def create_dlq_error_handler(
-    producer: UnifiedProducer, original_topic: str, max_retries: int = 3
+    producer: UnifiedProducer, original_topic: str, logger: logging.Logger, max_retries: int = 3
 ) -> Callable[[Exception, BaseEvent], Awaitable[None]]:
     """
     Create an error handler that sends failed events to DLQ.
@@ -15,6 +15,7 @@ def create_dlq_error_handler(
     Args:
         producer: The Kafka producer to use for sending to DLQ
         original_topic: The topic where the event originally failed
+        logger: Logger instance for logging
         max_retries: Maximum number of retries before sending to DLQ
 
     Returns:
@@ -61,7 +62,7 @@ def create_dlq_error_handler(
 
 
 def create_immediate_dlq_handler(
-    producer: UnifiedProducer, original_topic: str
+    producer: UnifiedProducer, original_topic: str, logger: logging.Logger
 ) -> Callable[[Exception, BaseEvent], Awaitable[None]]:
     """
     Create an error handler that immediately sends failed events to DLQ.
@@ -71,6 +72,7 @@ def create_immediate_dlq_handler(
     Args:
         producer: The Kafka producer to use for sending to DLQ
         original_topic: The topic where the event originally failed
+        logger: Logger instance for logging
 
     Returns:
         An async error handler function suitable for UnifiedConsumer.register_error_callback

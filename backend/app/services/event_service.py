@@ -1,10 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from pymongo import ASCENDING, DESCENDING
-
 from app.db.repositories.event_repository import EventRepository
-from app.domain.enums.common import SortOrder
 from app.domain.enums.events import EventType
 from app.domain.enums.user import UserRole
 from app.domain.events import (
@@ -15,7 +12,37 @@ from app.domain.events import (
     EventReplayInfo,
     EventStatistics,
 )
-from app.infrastructure.mappers import EventFilterMapper
+
+
+def _filter_to_mongo_query(flt: EventFilter) -> dict[str, Any]:
+    """Convert EventFilter to MongoDB query dict."""
+    query: dict[str, Any] = {}
+
+    if flt.event_types:
+        query["event_type"] = {"$in": flt.event_types}
+    if flt.aggregate_id:
+        query["aggregate_id"] = flt.aggregate_id
+    if flt.correlation_id:
+        query["metadata.correlation_id"] = flt.correlation_id
+    if flt.user_id:
+        query["metadata.user_id"] = flt.user_id
+    if flt.service_name:
+        query["metadata.service_name"] = flt.service_name
+    if getattr(flt, "status", None):
+        query["status"] = flt.status
+
+    if flt.start_time or flt.end_time:
+        time_query: dict[str, Any] = {}
+        if flt.start_time:
+            time_query["$gte"] = flt.start_time
+        if flt.end_time:
+            time_query["$lte"] = flt.end_time
+        query["timestamp"] = time_query
+
+    if flt.search_text:
+        query["$text"] = {"$search": flt.search_text}
+
+    return query
 
 
 class EventService:
@@ -84,7 +111,6 @@ class EventService:
         user_role: UserRole,
         filters: EventFilter,
         sort_by: str = "timestamp",
-        sort_order: SortOrder = SortOrder.DESC,
         limit: int = 100,
         skip: int = 0,
     ) -> EventListResult | None:
@@ -92,7 +118,7 @@ class EventService:
         if filters.user_id and filters.user_id != user_id and user_role != UserRole.ADMIN:
             return None
 
-        query = EventFilterMapper.to_mongo_query(filters)
+        query = _filter_to_mongo_query(filters)
         if not filters.user_id and user_role != UserRole.ADMIN:
             query["metadata.user_id"] = user_id
 
@@ -105,13 +131,10 @@ class EventService:
             "stored_at": "stored_at",
         }
         sort_field = field_map.get(sort_by, "timestamp")
-        direction = DESCENDING if sort_order == SortOrder.DESC else ASCENDING
 
-        # Pagination and sorting from request
-        return await self.repository.query_events_generic(
+        return await self.repository.query_events(
             query=query,
             sort_field=sort_field,
-            sort_direction=direction,
             skip=skip,
             limit=limit,
         )
@@ -146,10 +169,10 @@ class EventService:
         include_all_users: bool = False,
     ) -> EventStatistics:
         match = {} if include_all_users else self._build_user_filter(user_id, user_role)
-        return await self.repository.get_event_statistics_filtered(
-            match=match,
+        return await self.repository.get_event_statistics(
             start_time=start_time,
             end_time=end_time,
+            match=match or None,
         )
 
     async def get_event(

@@ -60,13 +60,10 @@ from app.infrastructure.kafka.events.system import (
 )
 from app.infrastructure.kafka.events.user import (
     UserDeletedEvent,
-    UserEditorSettingsUpdatedEvent,
     UserLoggedInEvent,
     UserLoggedOutEvent,
-    UserNotificationSettingsUpdatedEvent,
     UserRegisteredEvent,
     UserSettingsUpdatedEvent,
-    UserThemeChangedEvent,
     UserUpdatedEvent,
 )
 
@@ -99,9 +96,6 @@ def get_event_class_for_type(event_type: EventType) -> Type[BaseEvent] | None:
         EventType.USER_UPDATED: UserUpdatedEvent,
         EventType.USER_DELETED: UserDeletedEvent,
         EventType.USER_SETTINGS_UPDATED: UserSettingsUpdatedEvent,
-        EventType.USER_THEME_CHANGED: UserThemeChangedEvent,
-        EventType.USER_NOTIFICATION_SETTINGS_UPDATED: UserNotificationSettingsUpdatedEvent,
-        EventType.USER_EDITOR_SETTINGS_UPDATED: UserEditorSettingsUpdatedEvent,
         # Notification events
         EventType.NOTIFICATION_CREATED: NotificationCreatedEvent,
         EventType.NOTIFICATION_SENT: NotificationSentEvent,

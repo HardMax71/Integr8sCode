@@ -699,9 +699,11 @@ export const getSagaStatusApiV1SagasSagaIdGet = <ThrowOnError extends boolean = 
  * saga_service: Saga service from DI
  * auth_service: Auth service from DI
  * state: Optional state filter
+ * limit: Maximum number of results
+ * skip: Number of results to skip
  *
  * Returns:
- * List of sagas for the execution
+ * Paginated list of sagas for the execution
  *
  * Raises:
  * HTTPException: 403 if access denied
@@ -719,7 +721,7 @@ export const getExecutionSagasApiV1SagasExecutionExecutionIdGet = <ThrowOnError 
  * auth_service: Auth service from DI
  * state: Optional state filter
  * limit: Maximum number of results
- * offset: Number of results to skip
+ * skip: Number of results to skip
  *
  * Returns:
  * Paginated list of sagas

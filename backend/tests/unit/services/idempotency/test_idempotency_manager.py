@@ -1,3 +1,4 @@
+import logging
 from unittest.mock import MagicMock
 import pytest
 
@@ -10,6 +11,9 @@ from app.services.idempotency.idempotency_manager import (
 
 
 pytestmark = pytest.mark.unit
+
+# Test logger
+_test_logger = logging.getLogger("test.idempotency_manager")
 
 
 class TestIdempotencyKeyStrategy:
@@ -84,7 +88,7 @@ class TestIdempotencyConfig:
 
 def test_manager_generate_key_variants() -> None:
     repo = MagicMock()
-    mgr = IdempotencyManager(IdempotencyConfig(), repo)
+    mgr = IdempotencyManager(IdempotencyConfig(), repo, _test_logger)
     ev = MagicMock(spec=BaseEvent)
     ev.event_type = "t"
     ev.event_id = "e"

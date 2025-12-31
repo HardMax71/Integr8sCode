@@ -1,21 +1,23 @@
-from app.core.exceptions import ServiceError
-from app.core.logging import logger
+import logging
+
 from app.db.repositories import SavedScriptRepository
 from app.domain.saved_script import (
     DomainSavedScript,
     DomainSavedScriptCreate,
     DomainSavedScriptUpdate,
+    SavedScriptNotFoundError,
 )
 
 
 class SavedScriptService:
-    def __init__(self, saved_script_repo: SavedScriptRepository):
+    def __init__(self, saved_script_repo: SavedScriptRepository, logger: logging.Logger):
         self.saved_script_repo = saved_script_repo
+        self.logger = logger
 
     async def create_saved_script(
         self, saved_script_create: DomainSavedScriptCreate, user_id: str
     ) -> DomainSavedScript:
-        logger.info(
+        self.logger.info(
             "Creating new saved script",
             extra={
                 "user_id": user_id,
@@ -26,7 +28,7 @@ class SavedScriptService:
 
         created_script = await self.saved_script_repo.create_saved_script(saved_script_create, user_id)
 
-        logger.info(
+        self.logger.info(
             "Successfully created saved script",
             extra={
                 "script_id": str(created_script.script_id),
@@ -37,7 +39,7 @@ class SavedScriptService:
         return created_script
 
     async def get_saved_script(self, script_id: str, user_id: str) -> DomainSavedScript:
-        logger.info(
+        self.logger.info(
             "Retrieving saved script",
             extra={
                 "user_id": user_id,
@@ -47,14 +49,13 @@ class SavedScriptService:
 
         script = await self.saved_script_repo.get_saved_script(script_id, user_id)
         if not script:
-            logger.warning(
+            self.logger.warning(
                 "Script not found for user",
                 extra={"user_id": user_id, "script_id": script_id},
             )
+            raise SavedScriptNotFoundError(script_id)
 
-            raise ServiceError("Script not found", status_code=404)
-
-        logger.info(
+        self.logger.info(
             "Successfully retrieved script",
             extra={"script_id": script.script_id, "script_name": script.name},
         )
@@ -63,7 +64,7 @@ class SavedScriptService:
     async def update_saved_script(
         self, script_id: str, user_id: str, update_data: DomainSavedScriptUpdate
     ) -> DomainSavedScript:
-        logger.info(
+        self.logger.info(
             "Updating saved script",
             extra={
                 "user_id": user_id,
@@ -76,16 +77,16 @@ class SavedScriptService:
         await self.saved_script_repo.update_saved_script(script_id, user_id, update_data)
         updated_script = await self.saved_script_repo.get_saved_script(script_id, user_id)
         if not updated_script:
-            raise ServiceError("Script not found", status_code=404)
+            raise SavedScriptNotFoundError(script_id)
 
-        logger.info(
+        self.logger.info(
             "Successfully updated script",
             extra={"script_id": script_id, "script_name": updated_script.name},
         )
         return updated_script
 
     async def delete_saved_script(self, script_id: str, user_id: str) -> None:
-        logger.info(
+        self.logger.info(
             "Deleting saved script",
             extra={
                 "user_id": user_id,
@@ -95,13 +96,13 @@ class SavedScriptService:
 
         await self.saved_script_repo.delete_saved_script(script_id, user_id)
 
-        logger.info(
+        self.logger.info(
             "Successfully deleted script",
             extra={"script_id": script_id, "user_id": user_id},
         )
 
     async def list_saved_scripts(self, user_id: str) -> list[DomainSavedScript]:
-        logger.info(
+        self.logger.info(
             "Listing saved scripts",
             extra={
                 "user_id": user_id,
@@ -110,7 +111,7 @@ class SavedScriptService:
 
         scripts = await self.saved_script_repo.list_saved_scripts(user_id)
 
-        logger.info(
+        self.logger.info(
             "Successfully retrieved saved scripts",
             extra={"user_id": user_id, "script_count": len(scripts)},
         )

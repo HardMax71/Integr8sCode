@@ -1,9 +1,9 @@
 import asyncio
+import logging
 
 from opentelemetry.trace import SpanKind
 
 from app.core.lifecycle import LifecycleEnabled
-from app.core.logging import logger
 from app.core.tracing.utils import trace_span
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import GroupId, KafkaTopic
@@ -22,6 +22,7 @@ class EventStoreConsumer(LifecycleEnabled):
         event_store: EventStore,
         topics: list[KafkaTopic],
         schema_registry_manager: SchemaRegistryManager,
+        logger: logging.Logger,
         producer: UnifiedProducer | None = None,
         group_id: GroupId = GroupId.EVENT_STORE_CONSUMER,
         batch_size: int = 100,
@@ -32,9 +33,10 @@ class EventStoreConsumer(LifecycleEnabled):
         self.group_id = group_id
         self.batch_size = batch_size
         self.batch_timeout = batch_timeout_seconds
+        self.logger = logger
         self.consumer: UnifiedConsumer | None = None
         self.schema_registry_manager = schema_registry_manager
-        self.dispatcher = EventDispatcher()
+        self.dispatcher = EventDispatcher(logger)
         self.producer = producer  # For DLQ handling
         self._batch_buffer: list[BaseEvent] = []
         self._batch_lock = asyncio.Lock()
@@ -55,7 +57,7 @@ class EventStoreConsumer(LifecycleEnabled):
             max_poll_records=self.batch_size,
         )
 
-        self.consumer = UnifiedConsumer(config, event_dispatcher=self.dispatcher)
+        self.consumer = UnifiedConsumer(config, event_dispatcher=self.dispatcher, logger=self.logger)
 
         # Register handler for all event types - store everything
         for event_type in EventType:
@@ -67,6 +69,7 @@ class EventStoreConsumer(LifecycleEnabled):
             dlq_handler = create_dlq_error_handler(
                 producer=self.producer,
                 original_topic="event-store",  # Generic topic name for event store
+                logger=self.logger,
                 max_retries=3,
             )
             self.consumer.register_error_callback(dlq_handler)
@@ -79,7 +82,7 @@ class EventStoreConsumer(LifecycleEnabled):
 
         self._batch_task = asyncio.create_task(self._batch_processor())
 
-        logger.info(f"Event store consumer started for topics: {self.topics}")
+        self.logger.info(f"Event store consumer started for topics: {self.topics}")
 
     async def stop(self) -> None:
         """Stop consumer."""
@@ -100,11 +103,11 @@ class EventStoreConsumer(LifecycleEnabled):
         if self.consumer:
             await self.consumer.stop()
 
-        logger.info("Event store consumer stopped")
+        self.logger.info("Event store consumer stopped")
 
     async def _handle_event(self, event: BaseEvent) -> None:
         """Handle incoming event from dispatcher."""
-        logger.info(f"Event store received event: {event.event_type} - {event.event_id}")
+        self.logger.info(f"Event store received event: {event.event_type} - {event.event_id}")
 
         async with self._batch_lock:
             self._batch_buffer.append(event)
@@ -114,7 +117,7 @@ class EventStoreConsumer(LifecycleEnabled):
 
     async def _handle_error_with_event(self, error: Exception, event: BaseEvent) -> None:
         """Handle processing errors with event context."""
-        logger.error(f"Error processing event {event.event_id} ({event.event_type}): {error}", exc_info=True)
+        self.logger.error(f"Error processing event {event.event_id} ({event.event_type}): {error}", exc_info=True)
 
     async def _batch_processor(self) -> None:
         """Periodically flush batches based on timeout."""
@@ -129,7 +132,7 @@ class EventStoreConsumer(LifecycleEnabled):
                         await self._flush_batch()
 
             except Exception as e:
-                logger.error(f"Error in batch processor: {e}")
+                self.logger.error(f"Error in batch processor: {e}")
 
     async def _flush_batch(self) -> None:
         if not self._batch_buffer:
@@ -139,7 +142,7 @@ class EventStoreConsumer(LifecycleEnabled):
         self._batch_buffer.clear()
         self._last_batch_time = asyncio.get_event_loop().time()
 
-        logger.info(f"Event store flushing batch of {len(batch)} events")
+        self.logger.info(f"Event store flushing batch of {len(batch)} events")
         with trace_span(
             name="event_store.flush_batch",
             kind=SpanKind.CONSUMER,
@@ -147,7 +150,7 @@ class EventStoreConsumer(LifecycleEnabled):
         ):
             results = await self.event_store.store_batch(batch)
 
-        logger.info(
+        self.logger.info(
             f"Stored event batch: total={results['total']}, "
             f"stored={results['stored']}, duplicates={results['duplicates']}, "
             f"failed={results['failed']}"
@@ -158,6 +161,7 @@ def create_event_store_consumer(
     event_store: EventStore,
     topics: list[KafkaTopic],
     schema_registry_manager: SchemaRegistryManager,
+    logger: logging.Logger,
     producer: UnifiedProducer | None = None,
     group_id: GroupId = GroupId.EVENT_STORE_CONSUMER,
     batch_size: int = 100,
@@ -170,5 +174,6 @@ def create_event_store_consumer(
         batch_size=batch_size,
         batch_timeout_seconds=batch_timeout_seconds,
         schema_registry_manager=schema_registry_manager,
+        logger=logger,
         producer=producer,
     )

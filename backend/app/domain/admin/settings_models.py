@@ -1,30 +1,10 @@
-from dataclasses import dataclass, field
+from dataclasses import field
 from datetime import datetime, timezone
 from typing import Any
 
+from pydantic.dataclasses import dataclass
+
 from app.core.utils import StringEnum
-
-
-class SettingsFields(StringEnum):
-    """Database field names for settings collection."""
-
-    ID = "_id"
-    CREATED_AT = "created_at"
-    UPDATED_AT = "updated_at"
-    UPDATED_BY = "updated_by"
-    EXECUTION_LIMITS = "execution_limits"
-    SECURITY_SETTINGS = "security_settings"
-    MONITORING_SETTINGS = "monitoring_settings"
-
-
-class AuditLogFields(StringEnum):
-    """Database field names for audit log collection."""
-
-    ACTION = "action"
-    USER_ID = "user_id"
-    USERNAME = "username"
-    TIMESTAMP = "timestamp"
-    CHANGES = "changes"
 
 
 class AuditAction(StringEnum):

@@ -1,7 +1,11 @@
+import logging
+
 import pytest
 
 from app.services.coordinator.queue_manager import QueueManager, QueuePriority
 from tests.helpers import make_execution_requested_event
+
+_test_logger = logging.getLogger("test.services.coordinator.queue_manager")
 
 
 def ev(execution_id: str, priority: int = QueuePriority.NORMAL.value):
@@ -10,7 +14,7 @@ def ev(execution_id: str, priority: int = QueuePriority.NORMAL.value):
 
 @pytest.mark.asyncio
 async def test_requeue_execution_increments_priority():
-    qm = QueueManager(max_queue_size=10)
+    qm = QueueManager(max_queue_size=10, logger=_test_logger)
     await qm.start()
     # Use NORMAL priority which can be incremented to LOW
     e = ev("x", priority=QueuePriority.NORMAL.value)
@@ -23,7 +27,7 @@ async def test_requeue_execution_increments_priority():
 
 @pytest.mark.asyncio
 async def test_queue_stats_empty_and_after_add():
-    qm = QueueManager(max_queue_size=5)
+    qm = QueueManager(max_queue_size=5, logger=_test_logger)
     await qm.start()
     stats0 = await qm.get_queue_stats()
     assert stats0["total_size"] == 0

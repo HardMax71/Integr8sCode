@@ -26,73 +26,33 @@ class RetryStrategy(StringEnum):
     MANUAL = "manual"
 
 
-class DLQFields(StringEnum):
-    """Database field names for DLQ messages collection."""
-
-    EVENT_ID = "event_id"
-    EVENT = "event"
-    EVENT_TYPE = "event.event_type"
-    ORIGINAL_TOPIC = "original_topic"
-    ERROR = "error"
-    RETRY_COUNT = "retry_count"
-    FAILED_AT = "failed_at"
-    STATUS = "status"
-    CREATED_AT = "created_at"
-    LAST_UPDATED = "last_updated"
-    NEXT_RETRY_AT = "next_retry_at"
-    RETRIED_AT = "retried_at"
-    DISCARDED_AT = "discarded_at"
-    DISCARD_REASON = "discard_reason"
-    PRODUCER_ID = "producer_id"
-    DLQ_OFFSET = "dlq_offset"
-    DLQ_PARTITION = "dlq_partition"
-    LAST_ERROR = "last_error"
-
-
 @dataclass
 class DLQMessage:
     """Unified DLQ message model for the entire system."""
 
-    # Core fields - always required
-    event: BaseEvent  # The original event that failed
-    original_topic: str  # Topic where the event originally failed
-    error: str  # Error message from the failure
-    retry_count: int  # Number of retry attempts
-    failed_at: datetime  # When the failure occurred (UTC)
-    status: DLQMessageStatus  # Current status
-    producer_id: str  # ID of the producer that sent to DLQ
-
-    # Optional fields
-    event_id: str = ""
-    created_at: datetime | None = None  # When added to DLQ (UTC)
-    last_updated: datetime | None = None  # Last status change (UTC)
-    next_retry_at: datetime | None = None  # Next scheduled retry (UTC)
-    retried_at: datetime | None = None  # When last retried (UTC)
-    discarded_at: datetime | None = None  # When discarded (UTC)
-    discard_reason: str | None = None  # Why it was discarded
-    dlq_offset: int | None = None  # Kafka offset in DLQ topic
-    dlq_partition: int | None = None  # Kafka partition in DLQ topic
-    last_error: str | None = None  # Most recent error message
-
-    # Kafka message headers (optional)
+    event_id: str
+    event: BaseEvent
+    event_type: EventType
+    original_topic: str
+    error: str
+    retry_count: int
+    failed_at: datetime
+    status: DLQMessageStatus
+    producer_id: str
+    created_at: datetime | None = None
+    last_updated: datetime | None = None
+    next_retry_at: datetime | None = None
+    retried_at: datetime | None = None
+    discarded_at: datetime | None = None
+    discard_reason: str | None = None
+    dlq_offset: int | None = None
+    dlq_partition: int | None = None
+    last_error: str | None = None
     headers: dict[str, str] = field(default_factory=dict)
-
-    def __post_init__(self) -> None:
-        """Initialize computed fields."""
-        if not self.event_id:
-            self.event_id = self.event.event_id
-        if not self.created_at:
-            self.created_at = datetime.now(timezone.utc)
 
     @property
     def age_seconds(self) -> float:
-        """Get message age in seconds since failure."""
         return (datetime.now(timezone.utc) - self.failed_at).total_seconds()
-
-    @property
-    def event_type(self) -> EventType:
-        """Get event type from the event."""
-        return self.event.event_type
 
 
 @dataclass

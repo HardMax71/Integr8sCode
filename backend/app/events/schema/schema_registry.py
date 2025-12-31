@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import struct
 from functools import lru_cache
@@ -9,7 +10,6 @@ from confluent_kafka.schema_registry import Schema, SchemaRegistryClient, record
 from confluent_kafka.schema_registry.avro import AvroDeserializer, AvroSerializer
 from confluent_kafka.serialization import MessageField, SerializationContext
 
-from app.core.logging import logger
 from app.domain.enums.events import EventType
 from app.infrastructure.kafka.events.base import BaseEvent
 from app.settings import get_settings
@@ -54,7 +54,8 @@ def _get_event_type_to_class_mapping() -> Dict[EventType, Type[BaseEvent]]:
 class SchemaRegistryManager:
     """Schema registry manager for Avro serialization with Confluent wire format."""
 
-    def __init__(self, schema_registry_url: str | None = None):
+    def __init__(self, logger: logging.Logger, schema_registry_url: str | None = None):
+        self.logger = logger
         settings = get_settings()
         self.url = schema_registry_url or settings.SCHEMA_REGISTRY_URL
         self.namespace = "com.integr8scode.events"
@@ -81,7 +82,7 @@ class SchemaRegistryManager:
         schema_id: int = self.client.register_schema(subject, Schema(schema_str, "AVRO"))
         self._schema_id_cache[event_class] = schema_id
         self._id_to_class_cache[schema_id] = event_class
-        logger.info(f"Registered schema for {event_class.__name__}: ID {schema_id}")
+        self.logger.info(f"Registered schema for {event_class.__name__}: ID {schema_id}")
         return schema_id
 
     def _get_schema_id(self, event_class: Type[BaseEvent]) -> int:
@@ -213,7 +214,7 @@ class SchemaRegistryManager:
         url = f"{self.url}/config/{subject}"
         response = httpx.put(url, json={"compatibility": mode})
         response.raise_for_status()
-        logger.info(f"Set {subject} compatibility to {mode}")
+        self.logger.info(f"Set {subject} compatibility to {mode}")
 
     async def initialize_schemas(self) -> None:
         """Initialize all event schemas in the registry (set compat + register)."""
@@ -227,11 +228,13 @@ class SchemaRegistryManager:
             self.register_schema(subject, event_class)
 
         self._initialized = True
-        logger.info(f"Initialized {len(_get_all_event_classes())} event schemas")
+        self.logger.info(f"Initialized {len(_get_all_event_classes())} event schemas")
 
 
-def create_schema_registry_manager(schema_registry_url: str | None = None) -> SchemaRegistryManager:
-    return SchemaRegistryManager(schema_registry_url)
+def create_schema_registry_manager(
+    logger: logging.Logger, schema_registry_url: str | None = None
+) -> SchemaRegistryManager:
+    return SchemaRegistryManager(logger, schema_registry_url)
 
 
 async def initialize_event_schemas(registry: SchemaRegistryManager) -> None:

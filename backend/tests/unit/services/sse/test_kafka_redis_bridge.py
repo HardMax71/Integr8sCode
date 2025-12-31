@@ -1,10 +1,13 @@
 import asyncio
+import logging
 import pytest
 
 pytestmark = pytest.mark.unit
 
 from app.domain.enums.events import EventType
 from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
+
+_test_logger = logging.getLogger("test.services.sse.kafka_redis_bridge")
 
 
 class _FakeSchema: ...
@@ -51,6 +54,7 @@ async def test_register_and_route_events_without_kafka() -> None:
         settings=_FakeSettings(),
         event_metrics=_FakeEventMetrics(),
         sse_bus=_FakeBus(),
+        logger=_test_logger,
     )
 
     disp = _StubDispatcher()

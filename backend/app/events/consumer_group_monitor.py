@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, List, cast
@@ -6,7 +7,6 @@ from typing import Any, Dict, List, cast
 from confluent_kafka import Consumer, ConsumerGroupState, KafkaError, TopicPartition
 from confluent_kafka.admin import ConsumerGroupDescription
 
-from app.core.logging import logger
 from app.core.utils import StringEnum
 from app.events.admin_utils import AdminUtils
 from app.settings import get_settings
@@ -75,6 +75,7 @@ class NativeConsumerGroupMonitor:
 
     def __init__(
         self,
+        logger: logging.Logger,
         bootstrap_servers: str | None = None,
         client_id: str = "integr8scode-consumer-group-monitor",
         request_timeout_ms: int = 30000,
@@ -84,10 +85,11 @@ class NativeConsumerGroupMonitor:
         warning_lag_threshold: int = 1000,
         min_members_threshold: int = 1,
     ):
+        self.logger = logger
         settings = get_settings()
         self.bootstrap_servers = bootstrap_servers or settings.KAFKA_BOOTSTRAP_SERVERS
 
-        self.admin_client = AdminUtils(bootstrap_servers=self.bootstrap_servers)
+        self.admin_client = AdminUtils(logger=logger, bootstrap_servers=self.bootstrap_servers)
 
         # Health thresholds
         self.max_rebalance_time = max_rebalance_time_seconds
@@ -151,7 +153,7 @@ class NativeConsumerGroupMonitor:
                     total_lag = lag_info.get("total_lag", 0)
                     partition_lags = lag_info.get("partition_lags", {})
                 except Exception as e:
-                    logger.warning(f"Failed to get lag info for group {group_id}: {e}")
+                    self.logger.warning(f"Failed to get lag info for group {group_id}: {e}")
 
             # Create status object
             status = ConsumerGroupStatus(
@@ -177,7 +179,7 @@ class NativeConsumerGroupMonitor:
             return status
 
         except Exception as e:
-            logger.error(f"Failed to get consumer group status for {group_id}: {e}")
+            self.logger.error(f"Failed to get consumer group status for {group_id}: {e}")
 
             # Return minimal status with error
             return ConsumerGroupStatus(
@@ -208,7 +210,7 @@ class NativeConsumerGroupMonitor:
 
             for group_id, status in zip(group_ids, statuses, strict=False):
                 if isinstance(status, Exception):
-                    logger.error(f"Failed to get status for group {group_id}: {status}")
+                    self.logger.error(f"Failed to get status for group {group_id}: {status}")
                     results[group_id] = ConsumerGroupStatus(
                         group_id=group_id,
                         state="ERROR",
@@ -226,7 +228,7 @@ class NativeConsumerGroupMonitor:
                     results[group_id] = status
 
         except Exception as e:
-            logger.error(f"Failed to get multiple group status: {e}")
+            self.logger.error(f"Failed to get multiple group status: {e}")
             # Return error status for all groups
             for group_id in group_ids:
                 results[group_id] = ConsumerGroupStatus(
@@ -264,12 +266,12 @@ class NativeConsumerGroupMonitor:
             # Log any errors that occurred
             if hasattr(result, "errors") and result.errors:
                 for error in result.errors:
-                    logger.warning(f"Error listing some consumer groups: {error}")
+                    self.logger.warning(f"Error listing some consumer groups: {error}")
 
             return group_ids
 
         except Exception as e:
-            logger.error(f"Failed to list consumer groups: {e}")
+            self.logger.error(f"Failed to list consumer groups: {e}")
             return []
 
     async def _describe_consumer_group(self, group_id: str, timeout: float) -> ConsumerGroupDescription:
@@ -293,7 +295,7 @@ class NativeConsumerGroupMonitor:
         except Exception as e:
             if hasattr(e, "args") and e.args and isinstance(e.args[0], KafkaError):
                 kafka_err = e.args[0]
-                logger.error(
+                self.logger.error(
                     f"Kafka error describing group {group_id}: "
                     f"code={kafka_err.code()}, "
                     f"name={kafka_err.name()}, "
@@ -361,7 +363,7 @@ class NativeConsumerGroupMonitor:
                                     total_lag += lag
 
                         except Exception as e:
-                            logger.debug(f"Failed to get lag for {topic}:{partition_id}: {e}")
+                            self.logger.debug(f"Failed to get lag for {topic}:{partition_id}: {e}")
                             continue
 
                 return {"total_lag": total_lag, "partition_lags": partition_lags}
@@ -370,7 +372,7 @@ class NativeConsumerGroupMonitor:
                 consumer.close()
 
         except Exception as e:
-            logger.warning(f"Failed to get consumer group lag for {group_id}: {e}")
+            self.logger.warning(f"Failed to get consumer group lag for {group_id}: {e}")
             return {"total_lag": 0, "partition_lags": {}}
 
     def _assess_group_health(self, status: ConsumerGroupStatus) -> tuple[ConsumerGroupHealth, str]:
@@ -431,5 +433,7 @@ class NativeConsumerGroupMonitor:
         self._group_status_cache.clear()
 
 
-def create_consumer_group_monitor(bootstrap_servers: str | None = None, **kwargs: Any) -> NativeConsumerGroupMonitor:
-    return NativeConsumerGroupMonitor(bootstrap_servers=bootstrap_servers, **kwargs)
+def create_consumer_group_monitor(
+    logger: logging.Logger, bootstrap_servers: str | None = None, **kwargs: Any
+) -> NativeConsumerGroupMonitor:
+    return NativeConsumerGroupMonitor(logger=logger, bootstrap_servers=bootstrap_servers, **kwargs)

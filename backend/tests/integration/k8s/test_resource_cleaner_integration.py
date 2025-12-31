@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -8,6 +9,8 @@ from app.services.result_processor.resource_cleaner import ResourceCleaner
 from tests.helpers.eventually import eventually
 
 pytestmark = [pytest.mark.integration, pytest.mark.k8s]
+
+_test_logger = logging.getLogger("test.k8s.resource_cleaner_integration")
 
 
 def _ensure_kubeconfig():
@@ -33,7 +36,7 @@ async def test_cleanup_orphaned_configmaps_dry_run():
     v1.create_namespaced_config_map(namespace=ns, body=body)
 
     try:
-        cleaner = ResourceCleaner()
+        cleaner = ResourceCleaner(logger=_test_logger)
         # Force as orphaned by using a large cutoff
         cleaned = await cleaner.cleanup_orphaned_resources(namespace=ns, max_age_hours=0, dry_run=True)
 

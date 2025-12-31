@@ -9,28 +9,29 @@ from contextlib import asynccontextmanager
 
 import pytest
 import pytest_asyncio
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 import redis.asyncio as redis
 from aiokafka import AIOKafkaProducer, AIOKafkaConsumer
 from aiokafka.errors import KafkaConnectionError
+from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
+from app.core.database_context import Database, DBClient
 from app.settings import Settings
 
 
 class TestServiceConnections:
     """Manages connections to real services for testing."""
-    
+
     def __init__(self, test_id: str):
         self.test_id = test_id
-        self.mongo_client: Optional[AsyncIOMotorClient] = None
+        self.mongo_client: Optional[DBClient] = None
         self.redis_client: Optional[redis.Redis] = None
         self.kafka_producer: Optional[AIOKafkaProducer] = None
         self.kafka_consumer: Optional[AIOKafkaConsumer] = None
         self.db_name = f"test_{test_id}"
-        
-    async def connect_mongodb(self, url: str) -> AsyncIOMotorDatabase:
+
+    async def connect_mongodb(self, url: str) -> Database:
         """Connect to MongoDB and return test-specific database."""
-        self.mongo_client = AsyncIOMotorClient(
+        self.mongo_client = AsyncMongoClient(
             url,
             serverSelectionTimeoutMS=5000,
             connectTimeoutMS=5000,
@@ -97,7 +98,7 @@ class TestServiceConnections:
         # Drop test MongoDB database
         if self.mongo_client:
             await self.mongo_client.drop_database(self.db_name)
-            self.mongo_client.close()
+            await self.mongo_client.close()
         
         # Clear Redis test database
         if self.redis_client:
@@ -130,7 +131,7 @@ async def real_services(request) -> AsyncGenerator[TestServiceConnections, None]
 
 
 @pytest_asyncio.fixture
-async def real_mongodb(real_services: TestServiceConnections) -> AsyncIOMotorDatabase:
+async def real_mongodb(real_services: TestServiceConnections) -> Database:
     """Get real MongoDB database for testing."""
     # Use MongoDB from docker-compose with auth
     return await real_services.connect_mongodb(
@@ -158,7 +159,7 @@ async def real_kafka_consumer(real_services: TestServiceConnections) -> Optional
 
 
 @asynccontextmanager
-async def mongodb_transaction(db: AsyncIOMotorDatabase):
+async def mongodb_transaction(db: Database):
     """
     Context manager for MongoDB transactions.
     Automatically rolls back on error.
@@ -189,9 +190,9 @@ async def redis_pipeline(client: redis.Redis):
 
 class TestDataFactory:
     """Factory for creating test data in real services."""
-    
+
     @staticmethod
-    async def create_test_user(db: AsyncIOMotorDatabase, **kwargs) -> Dict[str, Any]:
+    async def create_test_user(db: Database, **kwargs) -> Dict[str, Any]:
         """Create a test user in MongoDB."""
         user_data = {
             "user_id": str(uuid.uuid4()),
@@ -211,7 +212,7 @@ class TestDataFactory:
         return user_data
     
     @staticmethod
-    async def create_test_execution(db: AsyncIOMotorDatabase, **kwargs) -> Dict[str, Any]:
+    async def create_test_execution(db: Database, **kwargs) -> Dict[str, Any]:
         """Create a test execution in MongoDB."""
         execution_data = {
             "execution_id": str(uuid.uuid4()),
@@ -230,7 +231,7 @@ class TestDataFactory:
         return execution_data
     
     @staticmethod
-    async def create_test_event(db: AsyncIOMotorDatabase, **kwargs) -> Dict[str, Any]:
+    async def create_test_event(db: Database, **kwargs) -> Dict[str, Any]:
         """Create a test event in MongoDB."""
         event_data = {
             "event_id": str(uuid.uuid4()),
@@ -308,35 +309,39 @@ async def wait_for_service(check_func, timeout: int = 30, service_name: str = "s
 async def ensure_services_running():
     """Ensure required Docker services are running."""
     import subprocess
-    
+
     # Check MongoDB
-    try:
-        client = AsyncIOMotorClient(
+    async def check_mongo() -> None:
+        client = AsyncMongoClient(
             "mongodb://root:rootpassword@localhost:27017",
             serverSelectionTimeoutMS=5000
         )
-        await client.admin.command("ping")
-        client.close()
+        try:
+            await client.admin.command("ping")
+        finally:
+            await client.close()
+
+    try:
+        await check_mongo()
     except Exception:
         print("Starting MongoDB...")
         subprocess.run(["docker-compose", "up", "-d", "mongo"], check=False)
-        await wait_for_service(
-            lambda: AsyncIOMotorClient("mongodb://root:rootpassword@localhost:27017").admin.command("ping"),
-            service_name="MongoDB"
-        )
-    
+        await wait_for_service(check_mongo, service_name="MongoDB")
+
     # Check Redis
-    try:
+    async def check_redis() -> None:
         r = redis.Redis(host="localhost", port=6379, socket_connect_timeout=5)
-        await r.execute_command("PING")
-        await r.aclose()
+        try:
+            await r.execute_command("PING")
+        finally:
+            await r.aclose()
+
+    try:
+        await check_redis()
     except Exception:
         print("Starting Redis...")
         subprocess.run(["docker-compose", "up", "-d", "redis"], check=False)
-        await wait_for_service(
-            lambda: redis.Redis(host="localhost", port=6379).execute_command("PING"),
-            service_name="Redis"
-        )
+        await wait_for_service(check_redis, service_name="Redis")
     
     # Kafka is optional - don't fail if not available
     try:

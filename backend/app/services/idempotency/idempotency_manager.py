@@ -1,13 +1,13 @@
 import asyncio
 import hashlib
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Protocol
 
 from pydantic import BaseModel
 from pymongo.errors import DuplicateKeyError
 
-from app.core.logging import logger
 from app.core.metrics.context import get_database_metrics
 from app.domain.idempotency import IdempotencyRecord, IdempotencyStats, IdempotencyStatus
 from app.infrastructure.kafka.events import BaseEvent
@@ -67,16 +67,17 @@ class IdempotencyRepoProtocol(Protocol):
 
 
 class IdempotencyManager:
-    def __init__(self, config: IdempotencyConfig, repository: IdempotencyRepoProtocol) -> None:
+    def __init__(self, config: IdempotencyConfig, repository: IdempotencyRepoProtocol, logger: logging.Logger) -> None:
         self.config = config
         self.metrics = get_database_metrics()
         self._repo: IdempotencyRepoProtocol = repository
         self._stats_update_task: asyncio.Task[None] | None = None
+        self.logger = logger
 
     async def initialize(self) -> None:
         if self.config.enable_metrics and self._stats_update_task is None:
             self._stats_update_task = asyncio.create_task(self._update_stats_loop())
-        logger.info("Idempotency manager ready")
+        self.logger.info("Idempotency manager ready")
 
     async def close(self) -> None:
         if self._stats_update_task:
@@ -85,7 +86,7 @@ class IdempotencyManager:
                 await self._stats_update_task
             except asyncio.CancelledError:
                 pass
-        logger.info("Closed idempotency manager")
+        self.logger.info("Closed idempotency manager")
 
     def _generate_key(
         self, event: BaseEvent, key_strategy: str, custom_key: str | None = None, fields: set[str] | None = None
@@ -152,7 +153,7 @@ class IdempotencyManager:
         now = datetime.now(timezone.utc)
 
         if now - created_at > timedelta(seconds=self.config.processing_timeout_seconds):
-            logger.warning(f"Idempotency key {full_key} processing timeout, allowing retry")
+            self.logger.warning(f"Idempotency key {full_key} processing timeout, allowing retry")
             existing.created_at = now
             existing.status = IdempotencyStatus.PROCESSING
             await self._repo.update_record(existing)
@@ -214,7 +215,7 @@ class IdempotencyManager:
             if len(cached_json.encode()) <= self.config.max_result_size_bytes:
                 existing.result_json = cached_json
             else:
-                logger.warning(f"Result too large to cache for key {full_key}")
+                self.logger.warning(f"Result too large to cache for key {full_key}")
         return (await self._repo.update_record(existing)) > 0
 
     async def mark_completed(
@@ -228,10 +229,10 @@ class IdempotencyManager:
         try:
             existing = await self._repo.find_by_key(full_key)
         except Exception as e:  # Narrow DB op
-            logger.error(f"Failed to load idempotency key for completion: {e}")
+            self.logger.error(f"Failed to load idempotency key for completion: {e}")
             return False
         if not existing:
-            logger.warning(f"Idempotency key {full_key} not found when marking completed")
+            self.logger.warning(f"Idempotency key {full_key} not found when marking completed")
             return False
         # mark_completed does not accept arbitrary result today; use mark_completed_with_cache for cached payloads
         return await self._update_key_status(full_key, existing, IdempotencyStatus.COMPLETED, cached_json=None)
@@ -247,7 +248,7 @@ class IdempotencyManager:
         full_key = self._generate_key(event, key_strategy, custom_key, fields)
         existing = await self._repo.find_by_key(full_key)
         if not existing:
-            logger.warning(f"Idempotency key {full_key} not found when marking failed")
+            self.logger.warning(f"Idempotency key {full_key} not found when marking failed")
             return False
         return await self._update_key_status(
             full_key, existing, IdempotencyStatus.FAILED, cached_json=None, error=error
@@ -264,7 +265,7 @@ class IdempotencyManager:
         full_key = self._generate_key(event, key_strategy, custom_key, fields)
         existing = await self._repo.find_by_key(full_key)
         if not existing:
-            logger.warning(f"Idempotency key {full_key} not found when marking completed with cache")
+            self.logger.warning(f"Idempotency key {full_key} not found when marking completed with cache")
             return False
         return await self._update_key_status(full_key, existing, IdempotencyStatus.COMPLETED, cached_json=cached_json)
 
@@ -288,7 +289,7 @@ class IdempotencyManager:
             deleted = await self._repo.delete_key(full_key)
             return deleted > 0
         except Exception as e:
-            logger.error(f"Failed to remove idempotency key: {e}")
+            self.logger.error(f"Failed to remove idempotency key: {e}")
             return False
 
     async def get_stats(self) -> IdempotencyStats:
@@ -310,7 +311,7 @@ class IdempotencyManager:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"Failed to update idempotency stats: {e}")
+                self.logger.error(f"Failed to update idempotency stats: {e}")
                 await asyncio.sleep(300)
 
 
@@ -318,5 +319,6 @@ def create_idempotency_manager(
     *,
     repository: IdempotencyRepoProtocol,
     config: IdempotencyConfig | None = None,
+    logger: logging.Logger,
 ) -> IdempotencyManager:
-    return IdempotencyManager(config or IdempotencyConfig(), repository)
+    return IdempotencyManager(config or IdempotencyConfig(), repository, logger)

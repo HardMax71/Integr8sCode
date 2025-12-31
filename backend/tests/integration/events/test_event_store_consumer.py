@@ -1,20 +1,19 @@
-import asyncio
+import logging
 import uuid
 
 import pytest
-
-from motor.motor_asyncio import AsyncIOMotorDatabase
-
+from app.core.database_context import Database
 from app.domain.enums.kafka import KafkaTopic
 from app.events.core import UnifiedProducer
-from app.events.event_store_consumer import EventStoreConsumer, create_event_store_consumer
 from app.events.event_store import EventStore
+from app.events.event_store_consumer import EventStoreConsumer, create_event_store_consumer
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
-from app.infrastructure.kafka.events.user import UserLoggedInEvent
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata
-
+from app.infrastructure.kafka.events.user import UserLoggedInEvent
 
 pytestmark = [pytest.mark.integration, pytest.mark.kafka, pytest.mark.mongodb]
+
+_test_logger = logging.getLogger("test.events.event_store_consumer")
 
 
 @pytest.mark.asyncio
@@ -25,7 +24,7 @@ async def test_event_store_consumer_stores_events(scope) -> None:  # type: ignor
 
     # Resolve DI
     producer: UnifiedProducer = await scope.get(UnifiedProducer)
-    db: AsyncIOMotorDatabase = await scope.get(AsyncIOMotorDatabase)
+    db: Database = await scope.get(Database)
     store: EventStore = await scope.get(EventStore)
 
     # Build an event
@@ -40,6 +39,7 @@ async def test_event_store_consumer_stores_events(scope) -> None:  # type: ignor
         event_store=store,
         topics=[KafkaTopic.USER_EVENTS],
         schema_registry_manager=registry,
+        logger=_test_logger,
         producer=producer,
         batch_size=10,
         batch_timeout_seconds=0.5,

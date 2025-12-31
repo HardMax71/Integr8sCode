@@ -3,7 +3,6 @@ from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Query, Request
 
 from app.domain.enums.saga import SagaState
-from app.infrastructure.mappers import UserMapper as AdminUserMapper
 from app.schemas_pydantic.saga import (
     SagaCancellationResponse,
     SagaListResponse,
@@ -42,11 +41,9 @@ async def get_saga_status(
         HTTPException: 404 if saga not found, 403 if access denied
     """
     current_user = await auth_service.get_current_user(request)
-
-    service_user = User.from_response(current_user)
-    domain_user = AdminUserMapper.from_pydantic_service_user(service_user)
-    saga = await saga_service.get_saga_with_access_check(saga_id, domain_user)
-    return SagaStatusResponse.from_domain(saga)
+    user = User.model_validate(current_user)
+    saga = await saga_service.get_saga_with_access_check(saga_id, user)
+    return SagaStatusResponse.model_validate(saga)
 
 
 @router.get("/execution/{execution_id}", response_model=SagaListResponse)
@@ -77,11 +74,9 @@ async def get_execution_sagas(
         HTTPException: 403 if access denied
     """
     current_user = await auth_service.get_current_user(request)
-
-    service_user = User.from_response(current_user)
-    domain_user = AdminUserMapper.from_pydantic_service_user(service_user)
-    result = await saga_service.get_execution_sagas(execution_id, domain_user, state, limit=limit, skip=skip)
-    saga_responses = [SagaStatusResponse.from_domain(s) for s in result.sagas]
+    user = User.model_validate(current_user)
+    result = await saga_service.get_execution_sagas(execution_id, user, state, limit=limit, skip=skip)
+    saga_responses = [SagaStatusResponse.model_validate(s) for s in result.sagas]
     return SagaListResponse(
         sagas=saga_responses,
         total=result.total,
@@ -114,11 +109,9 @@ async def list_sagas(
         Paginated list of sagas
     """
     current_user = await auth_service.get_current_user(request)
-
-    service_user = User.from_response(current_user)
-    domain_user = AdminUserMapper.from_pydantic_service_user(service_user)
-    result = await saga_service.list_user_sagas(domain_user, state, limit, skip)
-    saga_responses = [SagaStatusResponse.from_domain(s) for s in result.sagas]
+    user = User.model_validate(current_user)
+    result = await saga_service.list_user_sagas(user, state, limit, skip)
+    saga_responses = [SagaStatusResponse.model_validate(s) for s in result.sagas]
     return SagaListResponse(
         sagas=saga_responses,
         total=result.total,
@@ -150,10 +143,8 @@ async def cancel_saga(
         HTTPException: 404 if not found, 403 if denied, 400 if invalid state
     """
     current_user = await auth_service.get_current_user(request)
-
-    service_user = User.from_response(current_user)
-    domain_user = AdminUserMapper.from_pydantic_service_user(service_user)
-    success = await saga_service.cancel_saga(saga_id, domain_user)
+    user = User.model_validate(current_user)
+    success = await saga_service.cancel_saga(saga_id, user)
 
     return SagaCancellationResponse(
         success=success,

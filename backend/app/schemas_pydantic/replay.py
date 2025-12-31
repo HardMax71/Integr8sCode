@@ -1,10 +1,11 @@
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Dict
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from app.domain.enums.events import EventType
 from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
+from app.domain.replay import ReplayFilter
 
 
 class ReplayRequest(BaseModel):
@@ -12,25 +13,15 @@ class ReplayRequest(BaseModel):
 
     replay_type: ReplayType
     target: ReplayTarget = ReplayTarget.KAFKA
+    filter: ReplayFilter = Field(default_factory=ReplayFilter)
 
-    # Filter options
-    execution_id: str | None = None
-    event_types: List[EventType] | None = None
-    start_time: datetime | None = None
-    end_time: datetime | None = None
-    user_id: str | None = None
-    service_name: str | None = None
-    custom_query: Dict[str, Any] | None = None
-    exclude_event_types: List[EventType] | None = None
-
-    # Replay configuration
     speed_multiplier: float = Field(default=1.0, ge=0.1, le=100.0)
     preserve_timestamps: bool = False
     batch_size: int = Field(default=100, ge=1, le=1000)
     max_events: int | None = Field(default=None, ge=1)
     skip_errors: bool = True
     target_file_path: str | None = None
-    target_topics: Dict[str, str] | None = None
+    target_topics: Dict[EventType, str] | None = None
     retry_failed: bool = False
     retry_attempts: int = Field(default=3, ge=1, le=10)
     enable_progress_tracking: bool = True
@@ -47,6 +38,8 @@ class ReplayResponse(BaseModel):
 class SessionSummary(BaseModel):
     """Summary information for replay sessions"""
 
+    model_config = ConfigDict(from_attributes=True)
+
     session_id: str
     replay_type: ReplayType
     target: ReplayTarget
@@ -58,8 +51,20 @@ class SessionSummary(BaseModel):
     created_at: datetime
     started_at: datetime | None
     completed_at: datetime | None
-    duration_seconds: float | None = None
-    throughput_events_per_second: float | None = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def duration_seconds(self) -> float | None:
+        if self.started_at and self.completed_at:
+            return (self.completed_at - self.started_at).total_seconds()
+        return None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def throughput_events_per_second(self) -> float | None:
+        if self.duration_seconds and self.duration_seconds > 0 and self.replayed_events > 0:
+            return self.replayed_events / self.duration_seconds
+        return None
 
 
 class CleanupResponse(BaseModel):

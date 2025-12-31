@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 
 import pytest
@@ -8,10 +9,12 @@ from app.services.result_processor.resource_cleaner import ResourceCleaner
 
 pytestmark = [pytest.mark.integration, pytest.mark.k8s]
 
+_test_logger = logging.getLogger("test.k8s.resource_cleaner_k8s")
+
 
 @pytest.mark.asyncio
 async def test_initialize_and_get_usage() -> None:
-    rc = ResourceCleaner()
+    rc = ResourceCleaner(logger=_test_logger)
     await rc.initialize()
     usage = await rc.get_resource_usage(namespace=os.environ.get("K8S_NAMESPACE", "default"))
     assert set(usage.keys()) >= {"pods", "configmaps", "network_policies"}
@@ -19,7 +22,7 @@ async def test_initialize_and_get_usage() -> None:
 
 @pytest.mark.asyncio
 async def test_cleanup_orphaned_resources_dry_run() -> None:
-    rc = ResourceCleaner()
+    rc = ResourceCleaner(logger=_test_logger)
     await rc.initialize()
     cleaned = await rc.cleanup_orphaned_resources(
         namespace=os.environ.get("K8S_NAMESPACE", "default"),
@@ -31,7 +34,7 @@ async def test_cleanup_orphaned_resources_dry_run() -> None:
 
 @pytest.mark.asyncio
 async def test_cleanup_nonexistent_pod() -> None:
-    rc = ResourceCleaner()
+    rc = ResourceCleaner(logger=_test_logger)
     await rc.initialize()
     
     # Attempt to delete a pod that doesn't exist - should complete without errors

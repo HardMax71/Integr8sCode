@@ -1,16 +1,16 @@
-from datetime import datetime, timedelta, timezone
-from uuid import uuid4
+import logging
+from datetime import timedelta
 
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
+from pymongo.errors import DuplicateKeyError
 
-from app.core.logging import logger
 from app.core.security import security_service
 from app.core.utils import get_client_ip
 from app.db.repositories import UserRepository
-from app.domain.user import User as DomainAdminUser
+from app.domain.user import DomainUserCreate
 from app.schemas_pydantic.user import (
     LoginResponse,
     MessageResponse,
@@ -29,6 +29,7 @@ async def login(
     request: Request,
     response: Response,
     user_repo: FromDishka[UserRepository],
+    logger: FromDishka[logging.Logger],
     form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> LoginResponse:
     logger.info(
@@ -126,6 +127,7 @@ async def register(
     request: Request,
     user: UserCreate,
     user_repo: FromDishka[UserRepository],
+    logger: FromDishka[logging.Logger],
 ) -> UserResponse:
     logger.info(
         "Registration attempt",
@@ -151,19 +153,15 @@ async def register(
 
     try:
         hashed_password = security_service.get_password_hash(user.password)
-        now = datetime.now(timezone.utc)
-        domain_user = DomainAdminUser(
-            user_id=str(uuid4()),
+        create_data = DomainUserCreate(
             username=user.username,
             email=str(user.email),
+            hashed_password=hashed_password,
             role=user.role,
             is_active=True,
             is_superuser=False,
-            hashed_password=hashed_password,
-            created_at=now,
-            updated_at=now,
         )
-        created_user = await user_repo.create_user(domain_user)
+        created_user = await user_repo.create_user(create_data)
 
         logger.info(
             "Registration successful",
@@ -184,6 +182,15 @@ async def register(
             updated_at=created_user.updated_at,
         )
 
+    except DuplicateKeyError as e:
+        logger.warning(
+            "Registration failed - duplicate email",
+            extra={
+                "username": user.username,
+                "client_ip": get_client_ip(request),
+            },
+        )
+        raise HTTPException(status_code=409, detail="Email already registered") from e
     except Exception as e:
         logger.error(
             f"Registration failed - database error: {str(e)}",
@@ -204,6 +211,7 @@ async def get_current_user_profile(
     request: Request,
     response: Response,
     auth_service: FromDishka[AuthService],
+    logger: FromDishka[logging.Logger],
 ) -> UserResponse:
     current_user = await auth_service.get_current_user(request)
 
@@ -227,6 +235,7 @@ async def get_current_user_profile(
 async def verify_token(
     request: Request,
     auth_service: FromDishka[AuthService],
+    logger: FromDishka[logging.Logger],
 ) -> TokenValidationResponse:
     current_user = await auth_service.get_current_user(request)
     logger.info(
@@ -278,6 +287,7 @@ async def verify_token(
 async def logout(
     request: Request,
     response: Response,
+    logger: FromDishka[logging.Logger],
 ) -> MessageResponse:
     logger.info(
         "Logout attempt",

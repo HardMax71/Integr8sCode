@@ -1,3 +1,4 @@
+import logging
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict
@@ -6,7 +7,6 @@ from uuid import uuid4
 from opentelemetry import trace
 
 from app.core.correlation import CorrelationContext
-from app.core.logging import logger
 from app.core.metrics.context import get_event_metrics
 from app.core.tracing.utils import inject_trace_context
 from app.db.repositories.event_repository import EventRepository
@@ -14,6 +14,7 @@ from app.domain.enums.events import EventType
 from app.domain.events import Event
 from app.domain.events import EventMetadata as DomainEventMetadata
 from app.events.core import UnifiedProducer
+from app.infrastructure.kafka.events.base import BaseEvent
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.infrastructure.kafka.mappings import get_event_class_for_type
 from app.settings import get_settings
@@ -22,9 +23,10 @@ tracer = trace.get_tracer(__name__)
 
 
 class KafkaEventService:
-    def __init__(self, event_repository: EventRepository, kafka_producer: UnifiedProducer):
+    def __init__(self, event_repository: EventRepository, kafka_producer: UnifiedProducer, logger: logging.Logger):
         self.event_repository = event_repository
         self.kafka_producer = kafka_producer
+        self.logger = logger
         self.metrics = get_event_metrics()
         self.settings = get_settings()
 
@@ -70,8 +72,10 @@ class KafkaEventService:
             event_id = str(uuid4())
             timestamp = datetime.now(timezone.utc)
 
-            # Convert to domain metadata for storage
-            domain_metadata = DomainEventMetadata.from_dict(avro_metadata.to_dict())
+            # Convert to domain metadata for storage (only include defined fields)
+            domain_metadata = DomainEventMetadata(
+                **avro_metadata.model_dump(include=set(DomainEventMetadata.__dataclass_fields__))
+            )
 
             event = Event(
                 event_id=event_id,
@@ -128,7 +132,7 @@ class KafkaEventService:
             duration = time.time() - start_time
             self.metrics.record_event_processing_duration(duration, event_type)
 
-            logger.info(
+            self.logger.info(
                 "Event published",
                 extra={
                     "event_type": event_type,
@@ -148,7 +152,7 @@ class KafkaEventService:
         error_message: str | None = None,
     ) -> str:
         """Publish execution-related event using provided metadata (no framework coupling)."""
-        logger.info(
+        self.logger.info(
             "Publishing execution event",
             extra={
                 "event_type": event_type,
@@ -169,7 +173,7 @@ class KafkaEventService:
             metadata=metadata,
         )
 
-        logger.info(
+        self.logger.info(
             "Execution event published successfully",
             extra={
                 "event_type": event_type,
@@ -201,6 +205,84 @@ class KafkaEventService:
             aggregate_id=execution_id,
             metadata=metadata,
         )
+
+    async def publish_base_event(self, event: BaseEvent, key: str | None = None) -> str:
+        """
+        Publish a pre-built BaseEvent to Kafka and store an audit copy.
+
+        Used by PodMonitor and other components that create fully-formed events.
+        This ensures events are stored in the events collection AND published to Kafka.
+
+        Args:
+            event: Pre-built BaseEvent with all fields populated
+            key: Optional Kafka message key (defaults to aggregate_id)
+
+        Returns:
+            Event ID of published event
+        """
+        with tracer.start_as_current_span("publish_base_event") as span:
+            span.set_attribute("event.type", str(event.event_type))
+            if event.aggregate_id:
+                span.set_attribute("aggregate.id", event.aggregate_id)
+
+            start_time = time.time()
+
+            # Convert to domain metadata for storage
+            domain_metadata = DomainEventMetadata(**event.metadata.model_dump())
+
+            # Build payload from event attributes (exclude base fields)
+            base_fields = {"event_id", "event_type", "event_version", "timestamp", "aggregate_id", "metadata", "topic"}
+            payload = {k: v for k, v in vars(event).items() if k not in base_fields and not k.startswith("_")}
+
+            # Create domain event for storage
+            domain_event = Event(
+                event_id=event.event_id,
+                event_type=event.event_type,
+                event_version=event.event_version,
+                timestamp=event.timestamp,
+                aggregate_id=event.aggregate_id,
+                metadata=domain_metadata,
+                payload=payload,
+            )
+            await self.event_repository.store_event(domain_event)
+
+            # Prepare headers
+            headers: Dict[str, str] = {
+                "event_type": str(event.event_type),
+                "correlation_id": event.metadata.correlation_id or "",
+                "service": event.metadata.service_name,
+            }
+
+            # Add trace context
+            span_context = span.get_span_context()
+            if span_context.is_valid:
+                headers["trace_id"] = f"{span_context.trace_id:032x}"
+                headers["span_id"] = f"{span_context.span_id:016x}"
+
+            headers = inject_trace_context(headers)
+
+            # Publish to Kafka
+            await self.kafka_producer.produce(
+                event_to_produce=event,
+                key=key or event.aggregate_id,
+                headers=headers,
+            )
+
+            self.metrics.record_event_published(event.event_type)
+
+            duration = time.time() - start_time
+            self.metrics.record_event_processing_duration(duration, event.event_type)
+
+            self.logger.info(
+                "Base event published",
+                extra={
+                    "event_type": str(event.event_type),
+                    "event_id": event.event_id,
+                    "aggregate_id": event.aggregate_id,
+                },
+            )
+
+            return event.event_id
 
     async def close(self) -> None:
         """Close event service resources"""

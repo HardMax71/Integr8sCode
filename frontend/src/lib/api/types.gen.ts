@@ -263,11 +263,25 @@ export type DlqMessageResponse = {
      */
     age_seconds: number;
     /**
-     * Details
+     * Producer Id
      */
-    details: {
-        [key: string]: unknown;
-    };
+    producer_id: string;
+    /**
+     * Dlq Offset
+     */
+    dlq_offset?: number | null;
+    /**
+     * Dlq Partition
+     */
+    dlq_partition?: number | null;
+    /**
+     * Last Error
+     */
+    last_error?: string | null;
+    /**
+     * Next Retry At
+     */
+    next_retry_at?: string | null;
 };
 
 /**
@@ -706,11 +720,11 @@ export type EventFilterRequest = {
      */
     end_time?: string | null;
     /**
-     * Text Search
+     * Search Text
      *
      * Full-text search in event data
      */
-    text_search?: string | null;
+    search_text?: string | null;
     /**
      * Sort By
      *
@@ -759,6 +773,42 @@ export type EventListResponse = {
      * Has More
      */
     has_more: boolean;
+};
+
+/**
+ * EventMetadataResponse
+ *
+ * Pydantic schema for event metadata in API responses.
+ */
+export type EventMetadataResponse = {
+    /**
+     * Service Name
+     */
+    service_name: string;
+    /**
+     * Service Version
+     */
+    service_version: string;
+    /**
+     * Correlation Id
+     */
+    correlation_id: string;
+    /**
+     * User Id
+     */
+    user_id?: string | null;
+    /**
+     * Ip Address
+     */
+    ip_address?: string | null;
+    /**
+     * User Agent
+     */
+    user_agent?: string | null;
+    /**
+     * Environment
+     */
+    environment?: string;
 };
 
 /**
@@ -878,13 +928,9 @@ export type EventReplayStatusResponse = {
      */
     completed_at?: string | null;
     /**
-     * Error
+     * Errors
      */
-    error?: string | null;
-    /**
-     * Progress Percentage
-     */
-    progress_percentage: number;
+    errors?: Array<ReplayErrorInfo> | null;
     /**
      * Estimated Completion
      */
@@ -892,9 +938,11 @@ export type EventReplayStatusResponse = {
     /**
      * Execution Results
      */
-    execution_results?: Array<{
-        [key: string]: unknown;
-    }> | null;
+    execution_results?: Array<ExecutionResult> | null;
+    /**
+     * Progress Percentage
+     */
+    readonly progress_percentage: number;
 };
 
 /**
@@ -926,12 +974,7 @@ export type EventResponse = {
      * Causation Id
      */
     causation_id?: string | null;
-    /**
-     * Metadata
-     */
-    metadata: {
-        [key: string]: unknown;
-    };
+    metadata: EventMetadataResponse;
     /**
      * Payload
      */
@@ -969,9 +1012,7 @@ export type EventStatistics = {
     /**
      * Events By Hour
      */
-    events_by_hour: Array<{
-        [key: string]: unknown;
-    }>;
+    events_by_hour: Array<HourlyEventCountSchema>;
     /**
      * Start Time
      */
@@ -1001,15 +1042,11 @@ export type EventStatsResponse = {
     /**
      * Events By Hour
      */
-    events_by_hour: Array<{
-        [key: string]: unknown;
-    }>;
+    events_by_hour: Array<HourlyEventCountSchema>;
     /**
      * Top Users
      */
-    top_users: Array<{
-        [key: string]: unknown;
-    }>;
+    top_users: Array<UserEventCountSchema>;
     /**
      * Error Rate
      */
@@ -1282,6 +1319,22 @@ export type HttpValidationError = {
      * Detail
      */
     detail?: Array<ValidationError>;
+};
+
+/**
+ * HourlyEventCountSchema
+ *
+ * Hourly event count for statistics.
+ */
+export type HourlyEventCountSchema = {
+    /**
+     * Hour
+     */
+    hour: string;
+    /**
+     * Count
+     */
+    count: number;
 };
 
 /**
@@ -1841,7 +1894,7 @@ export type ReplayAggregateResponse = {
 export type ReplayConfigSchema = {
     replay_type: ReplayType;
     target?: ReplayTarget;
-    filter: ReplayFilterSchema;
+    filter?: ReplayFilterSchema;
     /**
      * Speed Multiplier
      */
@@ -1887,53 +1940,33 @@ export type ReplayConfigSchema = {
 };
 
 /**
- * ReplayFilterSchema
+ * ReplayErrorInfo
+ *
+ * Error info for replay operations.
  */
-export type ReplayFilterSchema = {
+export type ReplayErrorInfo = {
     /**
-     * Execution Id
+     * Timestamp
      */
-    execution_id?: string | null;
+    timestamp: string;
     /**
-     * Event Types
+     * Error
      */
-    event_types?: Array<string> | null;
+    error: string;
     /**
-     * Start Time
+     * Event Id
      */
-    start_time?: string | null;
+    event_id?: string | null;
     /**
-     * End Time
+     * Error Type
      */
-    end_time?: string | null;
-    /**
-     * User Id
-     */
-    user_id?: string | null;
-    /**
-     * Service Name
-     */
-    service_name?: string | null;
-    /**
-     * Custom Query
-     */
-    custom_query?: {
-        [key: string]: unknown;
-    } | null;
-    /**
-     * Exclude Event Types
-     */
-    exclude_event_types?: Array<string> | null;
+    error_type?: string | null;
 };
 
 /**
- * ReplayRequest
- *
- * Request schema for creating replay sessions
+ * ReplayFilter
  */
-export type ReplayRequest = {
-    replay_type: ReplayType;
-    target?: ReplayTarget;
+export type ReplayFilter = {
     /**
      * Execution Id
      */
@@ -1959,6 +1992,67 @@ export type ReplayRequest = {
      */
     service_name?: string | null;
     /**
+     * Custom Query
+     */
+    custom_query?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Exclude Event Types
+     */
+    exclude_event_types?: Array<EventType> | null;
+};
+
+/**
+ * ReplayFilterSchema
+ */
+export type ReplayFilterSchema = {
+    /**
+     * Execution Id
+     */
+    execution_id?: string | null;
+    /**
+     * Event Types
+     */
+    event_types?: Array<EventType> | null;
+    /**
+     * Start Time
+     */
+    start_time?: string | null;
+    /**
+     * End Time
+     */
+    end_time?: string | null;
+    /**
+     * User Id
+     */
+    user_id?: string | null;
+    /**
+     * Service Name
+     */
+    service_name?: string | null;
+    /**
+     * Custom Query
+     */
+    custom_query?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Exclude Event Types
+     */
+    exclude_event_types?: Array<EventType> | null;
+};
+
+/**
+ * ReplayRequest
+ *
+ * Request schema for creating replay sessions
+ */
+export type ReplayRequest = {
+    replay_type: ReplayType;
+    target?: ReplayTarget;
+    filter?: ReplayFilter;
+    /**
      * Speed Multiplier
      */
     speed_multiplier?: number;
@@ -1982,6 +2076,24 @@ export type ReplayRequest = {
      * Target File Path
      */
     target_file_path?: string | null;
+    /**
+     * Target Topics
+     */
+    target_topics?: {
+        [key: string]: string;
+    } | null;
+    /**
+     * Retry Failed
+     */
+    retry_failed?: boolean;
+    /**
+     * Retry Attempts
+     */
+    retry_attempts?: number;
+    /**
+     * Enable Progress Tracking
+     */
+    enable_progress_tracking?: boolean;
 };
 
 /**
@@ -2108,28 +2220,20 @@ export type ResourceLimits = {
 export type ResourceUsage = {
     /**
      * Execution Time Wall Seconds
-     *
-     * Wall clock execution time in seconds
      */
-    execution_time_wall_seconds?: number | null;
+    execution_time_wall_seconds?: number;
     /**
      * Cpu Time Jiffies
-     *
-     * CPU time in jiffies (multiply by 10 for milliseconds)
      */
-    cpu_time_jiffies?: number | null;
+    cpu_time_jiffies?: number;
     /**
      * Clk Tck Hertz
-     *
-     * Clock ticks per second (usually 100)
      */
-    clk_tck_hertz?: number | null;
+    clk_tck_hertz?: number;
     /**
      * Peak Memory Kb
-     *
-     * Peak memory usage in KB
      */
-    peak_memory_kb?: number | null;
+    peak_memory_kb?: number;
 };
 
 /**
@@ -2292,6 +2396,18 @@ export type SagaListResponse = {
      * Total
      */
     total: number;
+    /**
+     * Skip
+     */
+    skip: number;
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Has More
+     */
+    has_more: boolean;
 };
 
 /**
@@ -2419,6 +2535,36 @@ export type SavedScriptResponse = {
 };
 
 /**
+ * SavedScriptUpdate
+ */
+export type SavedScriptUpdate = {
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Script
+     */
+    script?: string | null;
+    /**
+     * Lang
+     */
+    lang?: string | null;
+    /**
+     * Lang Version
+     */
+    lang_version?: string | null;
+    /**
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Updated At
+     */
+    updated_at?: string;
+};
+
+/**
  * SecuritySettingsSchema
  *
  * Security configuration schema.
@@ -2494,11 +2640,11 @@ export type SessionSummary = {
     /**
      * Duration Seconds
      */
-    duration_seconds?: number | null;
+    readonly duration_seconds: number | null;
     /**
      * Throughput Events Per Second
      */
-    throughput_events_per_second?: number | null;
+    readonly throughput_events_per_second: number | null;
 };
 
 /**
@@ -2537,7 +2683,7 @@ export type SettingsHistoryEntry = {
 /**
  * SettingsHistoryResponse
  *
- * Response model for settings history
+ * Response model for settings history (limited snapshot of recent changes)
  */
 export type SettingsHistoryResponse = {
     /**
@@ -2545,9 +2691,9 @@ export type SettingsHistoryResponse = {
      */
     history: Array<SettingsHistoryEntry>;
     /**
-     * Total
+     * Limit
      */
-    total: number;
+    limit: number;
 };
 
 /**
@@ -2751,6 +2897,22 @@ export type UserCreate = {
      * Password
      */
     password: string;
+};
+
+/**
+ * UserEventCountSchema
+ *
+ * User event count schema
+ */
+export type UserEventCountSchema = {
+    /**
+     * User Id
+     */
+    user_id: string;
+    /**
+     * Event Count
+     */
+    event_count: number;
 };
 
 /**
@@ -3039,6 +3201,109 @@ export type ValidationError = {
      * Error Type
      */
     type: string;
+};
+
+/**
+ * EventReplayStatusResponse
+ *
+ * Response model for replay status
+ */
+export type EventReplayStatusResponseWritable = {
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Total Events
+     */
+    total_events: number;
+    /**
+     * Replayed Events
+     */
+    replayed_events: number;
+    /**
+     * Failed Events
+     */
+    failed_events: number;
+    /**
+     * Skipped Events
+     */
+    skipped_events: number;
+    /**
+     * Correlation Id
+     */
+    correlation_id: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Started At
+     */
+    started_at?: string | null;
+    /**
+     * Completed At
+     */
+    completed_at?: string | null;
+    /**
+     * Errors
+     */
+    errors?: Array<ReplayErrorInfo> | null;
+    /**
+     * Estimated Completion
+     */
+    estimated_completion?: string | null;
+    /**
+     * Execution Results
+     */
+    execution_results?: Array<ExecutionResult> | null;
+};
+
+/**
+ * SessionSummary
+ *
+ * Summary information for replay sessions
+ */
+export type SessionSummaryWritable = {
+    /**
+     * Session Id
+     */
+    session_id: string;
+    replay_type: ReplayType;
+    target: ReplayTarget;
+    status: ReplayStatus;
+    /**
+     * Total Events
+     */
+    total_events: number;
+    /**
+     * Replayed Events
+     */
+    replayed_events: number;
+    /**
+     * Failed Events
+     */
+    failed_events: number;
+    /**
+     * Skipped Events
+     */
+    skipped_events: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Started At
+     */
+    started_at: string | null;
+    /**
+     * Completed At
+     */
+    completed_at: string | null;
 };
 
 export type LoginApiV1AuthLoginPostData = {
@@ -3519,7 +3784,7 @@ export type GetSavedScriptApiV1ScriptsScriptIdGetResponses = {
 export type GetSavedScriptApiV1ScriptsScriptIdGetResponse = GetSavedScriptApiV1ScriptsScriptIdGetResponses[keyof GetSavedScriptApiV1ScriptsScriptIdGetResponses];
 
 export type UpdateSavedScriptApiV1ScriptsScriptIdPutData = {
-    body: SavedScriptCreateRequest;
+    body: SavedScriptUpdate;
     path: {
         /**
          * Script Id
@@ -3852,7 +4117,7 @@ export type GetDlqMessagesApiV1DlqMessagesGetData = {
         /**
          * Event Type
          */
-        event_type?: string | null;
+        event_type?: EventType | null;
         /**
          * Limit
          */
@@ -4091,6 +4356,14 @@ export type GetExecutionEventsApiV1EventsExecutionsExecutionIdEventsGetData = {
          * Include system-generated events
          */
         include_system_events?: boolean;
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Skip
+         */
+        skip?: number;
     };
     url: '/api/v1/events/executions/{execution_id}/events';
 };
@@ -4204,6 +4477,10 @@ export type GetEventsByCorrelationApiV1EventsCorrelationCorrelationIdGetData = {
          * Limit
          */
         limit?: number;
+        /**
+         * Skip
+         */
+        skip?: number;
     };
     url: '/api/v1/events/correlation/{correlation_id}';
 };
@@ -4234,6 +4511,10 @@ export type GetCurrentRequestEventsApiV1EventsCurrentRequestGetData = {
          * Limit
          */
         limit?: number;
+        /**
+         * Skip
+         */
+        skip?: number;
     };
     url: '/api/v1/events/current-request';
 };
@@ -5574,6 +5855,14 @@ export type GetExecutionSagasApiV1SagasExecutionExecutionIdGetData = {
          * Filter by saga state
          */
         state?: SagaState | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Skip
+         */
+        skip?: number;
     };
     url: '/api/v1/sagas/execution/{execution_id}';
 };
@@ -5611,9 +5900,9 @@ export type ListSagasApiV1SagasGetData = {
          */
         limit?: number;
         /**
-         * Offset
+         * Skip
          */
-        offset?: number;
+        skip?: number;
     };
     url: '/api/v1/sagas/';
 };

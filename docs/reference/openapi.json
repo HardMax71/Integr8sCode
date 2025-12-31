@@ -732,7 +732,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SavedScriptCreateRequest"
+                "$ref": "#/components/schemas/SavedScriptUpdate"
               }
             }
           }
@@ -1261,7 +1261,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "$ref": "#/components/schemas/EventType"
                 },
                 {
                   "type": "null"
@@ -1629,6 +1629,29 @@
               "title": "Include System Events"
             },
             "description": "Include system-generated events"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Skip"
+            }
           }
         ],
         "responses": {
@@ -1855,6 +1878,17 @@
               "default": 100,
               "title": "Limit"
             }
+          },
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Skip"
+            }
           }
         ],
         "responses": {
@@ -1899,6 +1933,17 @@
               "minimum": 1,
               "default": 100,
               "title": "Limit"
+            }
+          },
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Skip"
             }
           }
         ],
@@ -4078,7 +4123,7 @@
           "sagas"
         ],
         "summary": "Get Execution Sagas",
-        "description": "Get all sagas for an execution.\n\nArgs:\n    execution_id: The execution identifier\n    request: FastAPI request object\n    saga_service: Saga service from DI\n    auth_service: Auth service from DI\n    state: Optional state filter\n\nReturns:\n    List of sagas for the execution\n\nRaises:\n    HTTPException: 403 if access denied",
+        "description": "Get all sagas for an execution.\n\nArgs:\n    execution_id: The execution identifier\n    request: FastAPI request object\n    saga_service: Saga service from DI\n    auth_service: Auth service from DI\n    state: Optional state filter\n    limit: Maximum number of results\n    skip: Number of results to skip\n\nReturns:\n    Paginated list of sagas for the execution\n\nRaises:\n    HTTPException: 403 if access denied",
         "operationId": "get_execution_sagas_api_v1_sagas_execution__execution_id__get",
         "parameters": [
           {
@@ -4107,6 +4152,29 @@
               "title": "State"
             },
             "description": "Filter by saga state"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Skip"
+            }
           }
         ],
         "responses": {
@@ -4139,7 +4207,7 @@
           "sagas"
         ],
         "summary": "List Sagas",
-        "description": "List sagas accessible by the current user.\n\nArgs:\n    request: FastAPI request object\n    saga_service: Saga service from DI\n    auth_service: Auth service from DI\n    state: Optional state filter\n    limit: Maximum number of results\n    offset: Number of results to skip\n\nReturns:\n    Paginated list of sagas",
+        "description": "List sagas accessible by the current user.\n\nArgs:\n    request: FastAPI request object\n    saga_service: Saga service from DI\n    auth_service: Auth service from DI\n    state: Optional state filter\n    limit: Maximum number of results\n    skip: Number of results to skip\n\nReturns:\n    Paginated list of sagas",
         "operationId": "list_sagas_api_v1_sagas__get",
         "parameters": [
           {
@@ -4173,14 +4241,14 @@
             }
           },
           {
-            "name": "offset",
+            "name": "skip",
             "in": "query",
             "required": false,
             "schema": {
               "type": "integer",
               "minimum": 0,
               "default": 0,
-              "title": "Offset"
+              "title": "Skip"
             }
           }
         ],
@@ -4737,9 +4805,54 @@
             "type": "number",
             "title": "Age Seconds"
           },
-          "details": {
-            "type": "object",
-            "title": "Details"
+          "producer_id": {
+            "type": "string",
+            "title": "Producer Id"
+          },
+          "dlq_offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dlq Offset"
+          },
+          "dlq_partition": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dlq Partition"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "next_retry_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Retry At"
           }
         },
         "type": "object",
@@ -4752,7 +4865,7 @@
           "failed_at",
           "status",
           "age_seconds",
-          "details"
+          "producer_id"
         ],
         "title": "DLQMessageResponse",
         "description": "Response model for a DLQ message."
@@ -5385,7 +5498,7 @@
             "title": "End Time",
             "description": "Filter events before this time"
           },
-          "text_search": {
+          "search_text": {
             "anyOf": [
               {
                 "type": "string"
@@ -5394,7 +5507,7 @@
                 "type": "null"
               }
             ],
-            "title": "Text Search",
+            "title": "Search Text",
             "description": "Full-text search in event data"
           },
           "sort_by": {
@@ -5463,6 +5576,68 @@
           "has_more"
         ],
         "title": "EventListResponse"
+      },
+      "EventMetadataResponse": {
+        "properties": {
+          "service_name": {
+            "type": "string",
+            "title": "Service Name"
+          },
+          "service_version": {
+            "type": "string",
+            "title": "Service Version"
+          },
+          "correlation_id": {
+            "type": "string",
+            "title": "Correlation Id"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          },
+          "ip_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ip Address"
+          },
+          "user_agent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Agent"
+          },
+          "environment": {
+            "type": "string",
+            "title": "Environment",
+            "default": "production"
+          }
+        },
+        "type": "object",
+        "required": [
+          "service_name",
+          "service_version",
+          "correlation_id"
+        ],
+        "title": "EventMetadataResponse",
+        "description": "Pydantic schema for event metadata in API responses."
       },
       "EventReplayRequest": {
         "properties": {
@@ -5660,20 +5835,19 @@
             ],
             "title": "Completed At"
           },
-          "error": {
+          "errors": {
             "anyOf": [
               {
-                "type": "string"
+                "items": {
+                  "$ref": "#/components/schemas/ReplayErrorInfo"
+                },
+                "type": "array"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Error"
-          },
-          "progress_percentage": {
-            "type": "number",
-            "title": "Progress Percentage"
+            "title": "Errors"
           },
           "estimated_completion": {
             "anyOf": [
@@ -5691,7 +5865,7 @@
             "anyOf": [
               {
                 "items": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/ExecutionResult"
                 },
                 "type": "array"
               },
@@ -5700,6 +5874,11 @@
               }
             ],
             "title": "Execution Results"
+          },
+          "progress_percentage": {
+            "type": "number",
+            "title": "Progress Percentage",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -5769,8 +5948,7 @@
             "title": "Causation Id"
           },
           "metadata": {
-            "type": "object",
-            "title": "Metadata"
+            "$ref": "#/components/schemas/EventMetadataResponse"
           },
           "payload": {
             "type": "object",
@@ -5822,7 +6000,7 @@
           },
           "events_by_hour": {
             "items": {
-              "type": "object"
+              "$ref": "#/components/schemas/HourlyEventCountSchema"
             },
             "type": "array",
             "title": "Events By Hour"
@@ -5899,14 +6077,14 @@
           },
           "events_by_hour": {
             "items": {
-              "type": "object"
+              "$ref": "#/components/schemas/HourlyEventCountSchema"
             },
             "type": "array",
             "title": "Events By Hour"
           },
           "top_users": {
             "items": {
-              "type": "object"
+              "$ref": "#/components/schemas/UserEventCountSchema"
             },
             "type": "array",
             "title": "Top Users"
@@ -6381,6 +6559,25 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HourlyEventCountSchema": {
+        "properties": {
+          "hour": {
+            "type": "string",
+            "title": "Hour"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hour",
+          "count"
+        ],
+        "title": "HourlyEventCountSchema",
+        "description": "Hourly event count for statistics."
       },
       "LanguageInfo": {
         "properties": {
@@ -7305,14 +7502,22 @@
         },
         "type": "object",
         "required": [
-          "replay_type",
-          "filter"
+          "replay_type"
         ],
         "title": "ReplayConfigSchema"
       },
-      "ReplayFilterSchema": {
+      "ReplayErrorInfo": {
         "properties": {
-          "execution_id": {
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "error": {
+            "type": "string",
+            "title": "Error"
+          },
+          "event_id": {
             "anyOf": [
               {
                 "type": "string"
@@ -7321,47 +7526,9 @@
                 "type": "null"
               }
             ],
-            "title": "Execution Id"
+            "title": "Event Id"
           },
-          "event_types": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Event Types"
-          },
-          "start_time": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Start Time"
-          },
-          "end_time": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "End Time"
-          },
-          "user_id": {
+          "error_type": {
             "anyOf": [
               {
                 "type": "string"
@@ -7370,57 +7537,19 @@
                 "type": "null"
               }
             ],
-            "title": "User Id"
-          },
-          "service_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Service Name"
-          },
-          "custom_query": {
-            "anyOf": [
-              {
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Custom Query"
-          },
-          "exclude_event_types": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Exclude Event Types"
+            "title": "Error Type"
           }
         },
         "type": "object",
-        "title": "ReplayFilterSchema"
+        "required": [
+          "timestamp",
+          "error"
+        ],
+        "title": "ReplayErrorInfo",
+        "description": "Error info for replay operations."
       },
-      "ReplayRequest": {
+      "ReplayFilter": {
         "properties": {
-          "replay_type": {
-            "$ref": "#/components/schemas/ReplayType"
-          },
-          "target": {
-            "$ref": "#/components/schemas/ReplayTarget",
-            "default": "kafka"
-          },
           "execution_id": {
             "anyOf": [
               {
@@ -7492,6 +7621,149 @@
             ],
             "title": "Service Name"
           },
+          "custom_query": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Query"
+          },
+          "exclude_event_types": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/EventType"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exclude Event Types"
+          }
+        },
+        "type": "object",
+        "title": "ReplayFilter"
+      },
+      "ReplayFilterSchema": {
+        "properties": {
+          "execution_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Id"
+          },
+          "event_types": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/EventType"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Types"
+          },
+          "start_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Time"
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Time"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          },
+          "service_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Name"
+          },
+          "custom_query": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Query"
+          },
+          "exclude_event_types": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/EventType"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exclude Event Types"
+          }
+        },
+        "type": "object",
+        "title": "ReplayFilterSchema"
+      },
+      "ReplayRequest": {
+        "properties": {
+          "replay_type": {
+            "$ref": "#/components/schemas/ReplayType"
+          },
+          "target": {
+            "$ref": "#/components/schemas/ReplayTarget",
+            "default": "kafka"
+          },
+          "filter": {
+            "$ref": "#/components/schemas/ReplayFilter"
+          },
           "speed_multiplier": {
             "type": "number",
             "maximum": 100.0,
@@ -7538,6 +7810,37 @@
               }
             ],
             "title": "Target File Path"
+          },
+          "target_topics": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Topics"
+          },
+          "retry_failed": {
+            "type": "boolean",
+            "title": "Retry Failed",
+            "default": false
+          },
+          "retry_attempts": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Retry Attempts",
+            "default": 3
+          },
+          "enable_progress_tracking": {
+            "type": "boolean",
+            "title": "Enable Progress Tracking",
+            "default": true
           }
         },
         "type": "object",
@@ -7737,52 +8040,24 @@
       "ResourceUsage": {
         "properties": {
           "execution_time_wall_seconds": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "number",
             "title": "Execution Time Wall Seconds",
-            "description": "Wall clock execution time in seconds"
+            "default": 0.0
           },
           "cpu_time_jiffies": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "integer",
             "title": "Cpu Time Jiffies",
-            "description": "CPU time in jiffies (multiply by 10 for milliseconds)"
+            "default": 0
           },
           "clk_tck_hertz": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "integer",
             "title": "Clk Tck Hertz",
-            "description": "Clock ticks per second (usually 100)"
+            "default": 0
           },
           "peak_memory_kb": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "integer",
             "title": "Peak Memory Kb",
-            "description": "Peak memory usage in KB"
+            "default": 0
           }
         },
         "type": "object",
@@ -7983,12 +8258,27 @@
           "total": {
             "type": "integer",
             "title": "Total"
+          },
+          "skip": {
+            "type": "integer",
+            "title": "Skip"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "has_more": {
+            "type": "boolean",
+            "title": "Has More"
           }
         },
         "type": "object",
         "required": [
           "sagas",
-          "total"
+          "total",
+          "skip",
+          "limit",
+          "has_more"
         ],
         "title": "SagaListResponse",
         "description": "Response schema for saga list"
@@ -8062,16 +8352,19 @@
           },
           "created_at": {
             "type": "string",
+            "format": "date-time",
             "title": "Created At"
           },
           "updated_at": {
             "type": "string",
+            "format": "date-time",
             "title": "Updated At"
           },
           "completed_at": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "format": "date-time"
               },
               {
                 "type": "null"
@@ -8197,6 +8490,72 @@
         ],
         "title": "SavedScriptResponse"
       },
+      "SavedScriptUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "script": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Script"
+          },
+          "lang": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lang"
+          },
+          "lang_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lang Version"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "title": "SavedScriptUpdate"
+      },
       "SecuritySettingsSchema": {
         "properties": {
           "password_min_length": {
@@ -8305,7 +8664,8 @@
                 "type": "null"
               }
             ],
-            "title": "Duration Seconds"
+            "title": "Duration Seconds",
+            "readOnly": true
           },
           "throughput_events_per_second": {
             "anyOf": [
@@ -8316,7 +8676,8 @@
                 "type": "null"
               }
             ],
-            "title": "Throughput Events Per Second"
+            "title": "Throughput Events Per Second",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -8331,7 +8692,9 @@
           "skipped_events",
           "created_at",
           "started_at",
-          "completed_at"
+          "completed_at",
+          "duration_seconds",
+          "throughput_events_per_second"
         ],
         "title": "SessionSummary",
         "description": "Summary information for replay sessions"
@@ -8399,18 +8762,18 @@
             "type": "array",
             "title": "History"
           },
-          "total": {
+          "limit": {
             "type": "integer",
-            "title": "Total"
+            "title": "Limit"
           }
         },
         "type": "object",
         "required": [
           "history",
-          "total"
+          "limit"
         ],
         "title": "SettingsHistoryResponse",
-        "description": "Response model for settings history"
+        "description": "Response model for settings history (limited snapshot of recent changes)"
       },
       "ShutdownStatusResponse": {
         "properties": {
@@ -8699,6 +9062,25 @@
         ],
         "title": "UserCreate",
         "description": "Model for creating a new user"
+      },
+      "UserEventCountSchema": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "event_count": {
+            "type": "integer",
+            "title": "Event Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "event_count"
+        ],
+        "title": "UserEventCountSchema",
+        "description": "User event count schema"
       },
       "UserListResponse": {
         "properties": {

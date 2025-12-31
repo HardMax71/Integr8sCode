@@ -1,51 +1,26 @@
+from dataclasses import asdict
 from datetime import datetime, timezone
+from uuid import uuid4
 
-from app.core.database_context import Collection, Database
-from app.domain.events.event_models import CollectionNames
+from app.db.docs import ResourceAllocationDocument
+from app.domain.saga import DomainResourceAllocation, DomainResourceAllocationCreate
 
 
 class ResourceAllocationRepository:
-    """Repository for resource allocation bookkeeping used by saga steps."""
-
-    def __init__(self, database: Database):
-        self._db = database
-        self._collection: Collection = self._db.get_collection(CollectionNames.RESOURCE_ALLOCATIONS)
-
     async def count_active(self, language: str) -> int:
-        return await self._collection.count_documents(
-            {
-                "status": "active",
-                "language": language,
-            }
-        )
+        return await ResourceAllocationDocument.find({"status": "active", "language": language}).count()
 
-    async def create_allocation(
-        self,
-        allocation_id: str,
-        *,
-        execution_id: str,
-        language: str,
-        cpu_request: str,
-        memory_request: str,
-        cpu_limit: str,
-        memory_limit: str,
-    ) -> bool:
-        doc = {
-            "_id": allocation_id,
-            "execution_id": execution_id,
-            "language": language,
-            "cpu_request": cpu_request,
-            "memory_request": memory_request,
-            "cpu_limit": cpu_limit,
-            "memory_limit": memory_limit,
-            "status": "active",
-            "allocated_at": datetime.now(timezone.utc),
-        }
-        result = await self._collection.insert_one(doc)
-        return result.inserted_id is not None
+    async def create_allocation(self, create_data: DomainResourceAllocationCreate) -> DomainResourceAllocation:
+        doc = ResourceAllocationDocument(
+            allocation_id=str(uuid4()),
+            **asdict(create_data),
+        )
+        await doc.insert()
+        return DomainResourceAllocation(**doc.model_dump(exclude={"id"}))
 
     async def release_allocation(self, allocation_id: str) -> bool:
-        result = await self._collection.update_one(
-            {"_id": allocation_id}, {"$set": {"status": "released", "released_at": datetime.now(timezone.utc)}}
-        )
-        return result.modified_count > 0
+        doc = await ResourceAllocationDocument.find_one({"allocation_id": allocation_id})
+        if not doc:
+            return False
+        await doc.set({"status": "released", "released_at": datetime.now(timezone.utc)})
+        return True

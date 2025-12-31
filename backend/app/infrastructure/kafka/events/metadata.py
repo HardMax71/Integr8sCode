@@ -1,4 +1,3 @@
-from typing import Any, Dict
 from uuid import uuid4
 
 from pydantic import ConfigDict, Field
@@ -19,21 +18,6 @@ class AvroEventMetadata(AvroBase):
     environment: Environment = Environment.PRODUCTION
 
     model_config = ConfigDict(extra="allow", str_strip_whitespace=True, use_enum_values=True)
-
-    def to_dict(self, exclude_none: bool = True) -> Dict[str, Any]:
-        return self.model_dump(exclude_none=exclude_none)
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AvroEventMetadata":
-        return cls(
-            service_name=data.get("service_name", "unknown"),
-            service_version=data.get("service_version", "1.0"),
-            correlation_id=data.get("correlation_id", str(uuid4())),
-            user_id=data.get("user_id"),
-            ip_address=data.get("ip_address"),
-            user_agent=data.get("user_agent"),
-            environment=data.get("environment", Environment.PRODUCTION),
-        )
 
     def with_correlation(self, correlation_id: str) -> "AvroEventMetadata":
         return self.model_copy(update={"correlation_id": correlation_id})

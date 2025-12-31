@@ -11,7 +11,7 @@ import pytest_asyncio
 from dishka import AsyncContainer
 from dotenv import load_dotenv
 from httpx import ASGITransport
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from app.core.database_context import Database
 import redis.asyncio as redis
 
 # Load test environment variables BEFORE any app imports
@@ -126,9 +126,20 @@ def create_test_app():
 
 
 # ===== App without lifespan for tests =====
-@pytest_asyncio.fixture(scope="function")
-async def app():
-    """Create FastAPI app for the function without starting lifespan."""
+@pytest_asyncio.fixture(scope="session")
+async def app(_test_env):  # type: ignore[valid-type]
+    """Create FastAPI app once per session/worker.
+
+    Session-scoped to avoid Pydantic schema validator memory issues when
+    FastAPI recreates OpenAPI schemas hundreds of times with pytest-xdist.
+    See: https://github.com/pydantic/pydantic/issues/1864
+
+    Depends on _test_env to ensure env vars (REDIS_DB, DATABASE_NAME, etc.)
+    are set before the app/Settings are created.
+
+    Note: Tests must not modify app.state or registered routes.
+    Use function-scoped `client` fixture for test isolation.
+    """
     application = create_test_app()
 
     yield application
@@ -138,7 +149,7 @@ async def app():
         await container.close()
 
 
-@pytest_asyncio.fixture(scope="function")
+@pytest_asyncio.fixture(scope="session")
 async def app_container(app):  # type: ignore[valid-type]
     """Expose the Dishka container attached to the app."""
     container: AsyncContainer = app.state.dishka_container  # type: ignore[attr-defined]
@@ -146,7 +157,7 @@ async def app_container(app):  # type: ignore[valid-type]
 
 
 # ===== Client (function-scoped for clean cookies per test) =====
-@pytest_asyncio.fixture(scope="function")
+@pytest_asyncio.fixture
 async def client(app) -> AsyncGenerator[httpx.AsyncClient, None]:  # type: ignore[valid-type]
     # Use httpx with ASGI app directly
     # The app fixture already handles lifespan via LifespanManager
@@ -168,42 +179,27 @@ async def _container_scope(container: AsyncContainer):
         yield scope
 
 
-@pytest_asyncio.fixture(scope="function")
+@pytest_asyncio.fixture
 async def scope(app_container: AsyncContainer):  # type: ignore[valid-type]
     async with _container_scope(app_container) as s:
         yield s
 
 
-@pytest_asyncio.fixture(scope="function")
-async def db(scope) -> AsyncGenerator[AsyncIOMotorDatabase, None]:  # type: ignore[valid-type]
-    database: AsyncIOMotorDatabase = await scope.get(AsyncIOMotorDatabase)
+@pytest_asyncio.fixture
+async def db(scope) -> AsyncGenerator[Database, None]:  # type: ignore[valid-type]
+    database: Database = await scope.get(Database)
     yield database
 
 
-@pytest_asyncio.fixture(scope="function")
+@pytest_asyncio.fixture
 async def redis_client(scope) -> AsyncGenerator[redis.Redis, None]:  # type: ignore[valid-type]
     client: redis.Redis = await scope.get(redis.Redis)
     yield client
 
 
-# ===== Per-test cleanup =====
-@pytest_asyncio.fixture(scope="function", autouse=True)
-async def _cleanup(db: AsyncIOMotorDatabase, redis_client: redis.Redis):
-    # Pre-test: ensure clean state
-    collections = await db.list_collection_names()
-    for name in collections:
-        if not name.startswith("system."):
-            await db.drop_collection(name)
-    await redis_client.flushdb()
-
-    yield
-
-    # Post-test: cleanup for next test
-    collections = await db.list_collection_names()
-    for name in collections:
-        if not name.startswith("system."):
-            await db.drop_collection(name)
-    await redis_client.flushdb()
+# ===== Per-test cleanup (only for integration tests, see integration/conftest.py) =====
+# Note: autouse cleanup moved to tests/integration/conftest.py to avoid
+# requiring DB/Redis for unit tests. Unit tests use tests/unit/conftest.py instead.
 
 
 # ===== HTTP helpers (auth) =====
@@ -216,7 +212,7 @@ async def _http_login(client: httpx.AsyncClient, username: str, password: str) -
 
 # Session-scoped shared users for convenience
 @pytest.fixture(scope="session")
-def shared_user_credentials():
+def test_user_credentials():
     uid = os.environ.get("PYTEST_SESSION_ID", uuid.uuid4().hex[:8])
     return {
         "username": f"test_user_{uid}",
@@ -227,7 +223,7 @@ def shared_user_credentials():
 
 
 @pytest.fixture(scope="session")
-def shared_admin_credentials():
+def test_admin_credentials():
     uid = os.environ.get("PYTEST_SESSION_ID", uuid.uuid4().hex[:8])
     return {
         "username": f"admin_user_{uid}",
@@ -237,28 +233,29 @@ def shared_admin_credentials():
     }
 
 
-@pytest_asyncio.fixture(scope="function")
-async def shared_user(client: httpx.AsyncClient, shared_user_credentials):
-    creds = shared_user_credentials
-    # Always attempt to register; DB is wiped after each test
+@pytest_asyncio.fixture
+async def test_user(client: httpx.AsyncClient, test_user_credentials):
+    """Function-scoped authenticated user. Recreated each test (DB wiped between tests)."""
+    creds = test_user_credentials
     r = await client.post("/api/v1/auth/register", json=creds)
     if r.status_code not in (200, 201, 400):
-        pytest.skip(f"Cannot create shared user (status {r.status_code}).")
+        pytest.skip(f"Cannot create test user (status {r.status_code}).")
     csrf = await _http_login(client, creds["username"], creds["password"])
     return {**creds, "csrf_token": csrf, "headers": {"X-CSRF-Token": csrf}}
 
 
-@pytest_asyncio.fixture(scope="function")
-async def shared_admin(client: httpx.AsyncClient, shared_admin_credentials):
-    creds = shared_admin_credentials
+@pytest_asyncio.fixture
+async def test_admin(client: httpx.AsyncClient, test_admin_credentials):
+    """Function-scoped authenticated admin. Recreated each test (DB wiped between tests)."""
+    creds = test_admin_credentials
     r = await client.post("/api/v1/auth/register", json=creds)
     if r.status_code not in (200, 201, 400):
-        pytest.skip(f"Cannot create shared admin (status {r.status_code}).")
+        pytest.skip(f"Cannot create test admin (status {r.status_code}).")
     csrf = await _http_login(client, creds["username"], creds["password"])
     return {**creds, "csrf_token": csrf, "headers": {"X-CSRF-Token": csrf}}
 
 
-@pytest_asyncio.fixture(scope="function")
+@pytest_asyncio.fixture
 async def another_user(client: httpx.AsyncClient):
     username = f"test_user_{uuid.uuid4().hex[:8]}"
     email = f"{username}@example.com"

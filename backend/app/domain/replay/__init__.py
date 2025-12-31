@@ -1,3 +1,4 @@
+from .exceptions import ReplayOperationError, ReplaySessionNotFoundError
 from .models import (
     CleanupResult,
     ReplayConfig,
@@ -7,9 +8,11 @@ from .models import (
 )
 
 __all__ = [
-    "ReplayFilter",
-    "ReplayConfig",
-    "ReplaySessionState",
-    "ReplayOperationResult",
     "CleanupResult",
+    "ReplayConfig",
+    "ReplayFilter",
+    "ReplayOperationError",
+    "ReplayOperationResult",
+    "ReplaySessionNotFoundError",
+    "ReplaySessionState",
 ]

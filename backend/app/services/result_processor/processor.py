@@ -1,21 +1,24 @@
 import asyncio
+import logging
+from contextlib import AsyncExitStack
 from enum import auto
 from typing import Any
 
+from beanie import init_beanie
 from pydantic import BaseModel, ConfigDict, Field
+from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 from app.core.container import create_result_processor_container
-from app.core.exceptions import ServiceError
 from app.core.lifecycle import LifecycleEnabled
-from app.core.logging import logger
 from app.core.metrics.context import get_execution_metrics
 from app.core.utils import StringEnum
+from app.db.docs import ALL_DOCUMENTS
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.kafka import GroupId, KafkaTopic
 from app.domain.enums.storage import ExecutionErrorType, StorageType
-from app.domain.execution import ExecutionResultDomain
+from app.domain.execution import ExecutionNotFoundError, ExecutionResultDomain
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
 from app.infrastructure.kafka import BaseEvent
 from app.infrastructure.kafka.events.execution import (
@@ -63,7 +66,11 @@ class ResultProcessor(LifecycleEnabled):
     """Service for processing execution completion events and storing results."""
 
     def __init__(
-        self, execution_repo: ExecutionRepository, producer: UnifiedProducer, idempotency_manager: IdempotencyManager
+        self,
+        execution_repo: ExecutionRepository,
+        producer: UnifiedProducer,
+        idempotency_manager: IdempotencyManager,
+        logger: logging.Logger,
     ) -> None:
         """Initialize the result processor."""
         self.config = ResultProcessorConfig()
@@ -74,30 +81,31 @@ class ResultProcessor(LifecycleEnabled):
         self._state = ProcessingState.IDLE
         self._consumer: IdempotentConsumerWrapper | None = None
         self._dispatcher: EventDispatcher | None = None
+        self.logger = logger
 
     async def start(self) -> None:
         """Start the result processor."""
         if self._state != ProcessingState.IDLE:
-            logger.warning(f"Cannot start processor in state: {self._state}")
+            self.logger.warning(f"Cannot start processor in state: {self._state}")
             return
 
-        logger.info("Starting ResultProcessor...")
+        self.logger.info("Starting ResultProcessor...")
 
         # Initialize idempotency manager (safe to call multiple times)
         await self._idempotency_manager.initialize()
-        logger.info("Idempotency manager initialized for ResultProcessor")
+        self.logger.info("Idempotency manager initialized for ResultProcessor")
 
         self._dispatcher = self._create_dispatcher()
         self._consumer = await self._create_consumer()
         self._state = ProcessingState.PROCESSING
-        logger.info("ResultProcessor started successfully with idempotency protection")
+        self.logger.info("ResultProcessor started successfully with idempotency protection")
 
     async def stop(self) -> None:
         """Stop the result processor."""
         if self._state == ProcessingState.STOPPED:
             return
 
-        logger.info("Stopping ResultProcessor...")
+        self.logger.info("Stopping ResultProcessor...")
         self._state = ProcessingState.STOPPED
 
         if self._consumer:
@@ -105,11 +113,11 @@ class ResultProcessor(LifecycleEnabled):
 
         await self._idempotency_manager.close()
         await self._producer.stop()
-        logger.info("ResultProcessor stopped")
+        self.logger.info("ResultProcessor stopped")
 
     def _create_dispatcher(self) -> EventDispatcher:
         """Create and configure event dispatcher with handlers."""
-        dispatcher = EventDispatcher()
+        dispatcher = EventDispatcher(logger=self.logger)
 
         # Register handlers for specific event types
         dispatcher.register_handler(EventType.EXECUTION_COMPLETED, self._handle_completed_wrapper)
@@ -133,11 +141,12 @@ class ResultProcessor(LifecycleEnabled):
         if not self._dispatcher:
             raise RuntimeError("Event dispatcher not initialized")
 
-        base_consumer = UnifiedConsumer(consumer_config, event_dispatcher=self._dispatcher)
+        base_consumer = UnifiedConsumer(consumer_config, event_dispatcher=self._dispatcher, logger=self.logger)
         wrapper = IdempotentConsumerWrapper(
             consumer=base_consumer,
             idempotency_manager=self._idempotency_manager,
             dispatcher=self._dispatcher,
+            logger=self.logger,
             default_key_strategy="content_hash",
             default_ttl_seconds=7200,
             enable_for_all_handlers=True,
@@ -164,7 +173,7 @@ class ResultProcessor(LifecycleEnabled):
 
         exec_obj = await self._execution_repo.get_execution(event.execution_id)
         if exec_obj is None:
-            raise ServiceError(message=f"Execution {event.execution_id} not found", status_code=404)
+            raise ExecutionNotFoundError(event.execution_id)
 
         lang_and_version = f"{exec_obj.lang}-{exec_obj.lang_version}"
 
@@ -199,7 +208,7 @@ class ResultProcessor(LifecycleEnabled):
             await self._execution_repo.write_terminal_result(result)
             await self._publish_result_stored(result)
         except Exception as e:
-            logger.error(f"Failed to handle ExecutionCompletedEvent: {e}", exc_info=True)
+            self.logger.error(f"Failed to handle ExecutionCompletedEvent: {e}", exc_info=True)
             await self._publish_result_failed(event.execution_id, str(e))
 
     async def _handle_failed(self, event: ExecutionFailedEvent) -> None:
@@ -208,7 +217,7 @@ class ResultProcessor(LifecycleEnabled):
         # Fetch execution to get language and version for metrics
         exec_obj = await self._execution_repo.get_execution(event.execution_id)
         if exec_obj is None:
-            raise ServiceError(message=f"Execution {event.execution_id} not found", status_code=404)
+            raise ExecutionNotFoundError(event.execution_id)
 
         self._metrics.record_error(event.error_type)
         lang_and_version = f"{exec_obj.lang}-{exec_obj.lang_version}"
@@ -228,7 +237,7 @@ class ResultProcessor(LifecycleEnabled):
             await self._execution_repo.write_terminal_result(result)
             await self._publish_result_stored(result)
         except Exception as e:
-            logger.error(f"Failed to handle ExecutionFailedEvent: {e}", exc_info=True)
+            self.logger.error(f"Failed to handle ExecutionFailedEvent: {e}", exc_info=True)
             await self._publish_result_failed(event.execution_id, str(e))
 
     async def _handle_timeout(self, event: ExecutionTimeoutEvent) -> None:
@@ -236,7 +245,7 @@ class ResultProcessor(LifecycleEnabled):
 
         exec_obj = await self._execution_repo.get_execution(event.execution_id)
         if exec_obj is None:
-            raise ServiceError(message=f"Execution {event.execution_id} not found", status_code=404)
+            raise ExecutionNotFoundError(event.execution_id)
 
         self._metrics.record_error(ExecutionErrorType.TIMEOUT)
         lang_and_version = f"{exec_obj.lang}-{exec_obj.lang_version}"
@@ -259,7 +268,7 @@ class ResultProcessor(LifecycleEnabled):
             await self._execution_repo.write_terminal_result(result)
             await self._publish_result_stored(result)
         except Exception as e:
-            logger.error(f"Failed to handle ExecutionTimeoutEvent: {e}", exc_info=True)
+            self.logger.error(f"Failed to handle ExecutionTimeoutEvent: {e}", exc_info=True)
             await self._publish_result_failed(event.execution_id, str(e))
 
     async def _publish_result_stored(self, result: ExecutionResultDomain) -> None:
@@ -302,22 +311,32 @@ class ResultProcessor(LifecycleEnabled):
 
 
 async def run_result_processor() -> None:
-    from contextlib import AsyncExitStack
+    settings = get_settings()
+
+    # Initialize MongoDB and Beanie ODM (required per-process)
+    db_client: AsyncMongoClient[dict[str, object]] = AsyncMongoClient(
+        settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000
+    )
+    await init_beanie(database=db_client[settings.DATABASE_NAME], document_models=ALL_DOCUMENTS)
 
     container = create_result_processor_container()
     producer = await container.get(UnifiedProducer)
     idempotency_manager = await container.get(IdempotencyManager)
     execution_repo = await container.get(ExecutionRepository)
+    logger = await container.get(logging.Logger)
+    logger.info(f"Beanie ODM initialized with {len(ALL_DOCUMENTS)} document models")
 
     processor = ResultProcessor(
         execution_repo=execution_repo,
         producer=producer,
         idempotency_manager=idempotency_manager,
+        logger=logger,
     )
 
     async with AsyncExitStack() as stack:
         await stack.enter_async_context(processor)
         stack.push_async_callback(container.close)
+        stack.callback(db_client.close)
 
         while True:
             await asyncio.sleep(60)

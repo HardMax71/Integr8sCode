@@ -150,11 +150,11 @@
   }
 
   .modal-container {
-    @apply bg-surface-overlay dark:bg-dark-surface-overlay rounded-lg shadow-xl max-w-4xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden;
+    @apply bg-surface-overlay dark:bg-dark-surface-overlay rounded-lg shadow-xl max-w-4xl w-full max-h-[95vh] sm:max-h-[90vh] flex flex-col;
   }
 
   .modal-header {
-    @apply p-4 sm:p-6 border-b border-border-default dark:border-dark-border-default flex justify-between items-center;
+    @apply p-4 sm:p-6 border-b border-border-default dark:border-dark-border-default flex justify-between items-center shrink-0;
   }
 
   .modal-title {
@@ -166,11 +166,11 @@
   }
 
   .modal-body {
-    @apply p-4 sm:p-6 overflow-y-auto max-h-[calc(95vh-100px)] sm:max-h-[calc(90vh-120px)];
+    @apply p-4 sm:p-6 overflow-y-auto flex-1 min-h-0;
   }
 
   .modal-footer {
-    @apply p-4 sm:p-6 border-t border-border-default dark:border-dark-border-default flex gap-3 justify-end;
+    @apply p-4 sm:p-6 border-t border-border-default dark:border-dark-border-default flex gap-3 justify-end shrink-0;
   }
 
   /* Badge/Pill Styles */

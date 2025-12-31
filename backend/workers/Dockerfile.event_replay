@@ -5,4 +5,4 @@ FROM base
 COPY . .
 
 # Run event replay service
-CMD ["uv", "run", "python", "workers/run_event_replay.py"]
+CMD ["python", "workers/run_event_replay.py"]

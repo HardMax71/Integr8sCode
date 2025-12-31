@@ -1,3 +1,4 @@
+from dataclasses import asdict
 from datetime import datetime
 from typing import Annotated
 
@@ -10,10 +11,8 @@ from fastapi.responses import StreamingResponse
 from app.api.dependencies import admin_user
 from app.core.correlation import CorrelationContext
 from app.domain.enums.events import EventType
-from app.infrastructure.mappers import (
-    AdminReplayApiMapper,
-    EventFilterMapper,
-)
+from app.domain.events.event_models import EventFilter
+from app.domain.replay import ReplayFilter
 from app.schemas_pydantic.admin_events import (
     EventBrowseRequest,
     EventBrowseResponse,
@@ -24,7 +23,6 @@ from app.schemas_pydantic.admin_events import (
     EventReplayStatusResponse,
     EventStatsResponse,
 )
-from app.schemas_pydantic.admin_events import EventFilter as AdminEventFilter
 from app.schemas_pydantic.user import UserResponse
 from app.services.admin import AdminEventsService
 
@@ -36,7 +34,7 @@ router = APIRouter(
 @router.post("/browse")
 async def browse_events(request: EventBrowseRequest, service: FromDishka[AdminEventsService]) -> EventBrowseResponse:
     try:
-        event_filter = EventFilterMapper.from_admin_pydantic(request.filters)
+        event_filter = EventFilter(**request.filters.model_dump())
 
         result = await service.browse_events(
             event_filter=event_filter,
@@ -79,12 +77,10 @@ async def export_events_csv(
     limit: int = Query(default=10000, le=50000),
 ) -> StreamingResponse:
     try:
-        export_filter = EventFilterMapper.from_admin_pydantic(
-            AdminEventFilter(
-                event_types=event_types,
-                start_time=start_time,
-                end_time=end_time,
-            )
+        export_filter = EventFilter(
+            event_types=[str(et) for et in event_types] if event_types else None,
+            start_time=start_time,
+            end_time=end_time,
         )
         result = await service.export_events_csv_content(event_filter=export_filter, limit=limit)
         return StreamingResponse(
@@ -111,16 +107,14 @@ async def export_events_json(
 ) -> StreamingResponse:
     """Export events as JSON with comprehensive filtering."""
     try:
-        export_filter = EventFilterMapper.from_admin_pydantic(
-            AdminEventFilter(
-                event_types=event_types,
-                aggregate_id=aggregate_id,
-                correlation_id=correlation_id,
-                user_id=user_id,
-                service_name=service_name,
-                start_time=start_time,
-                end_time=end_time,
-            )
+        export_filter = EventFilter(
+            event_types=[str(et) for et in event_types] if event_types else None,
+            aggregate_id=aggregate_id,
+            correlation_id=correlation_id,
+            user_id=user_id,
+            service_name=service_name,
+            start_time=start_time,
+            end_time=end_time,
         )
         result = await service.export_events_json_content(event_filter=export_filter, limit=limit)
         return StreamingResponse(
@@ -159,10 +153,16 @@ async def replay_events(
 ) -> EventReplayResponse:
     try:
         replay_correlation_id = f"replay_{CorrelationContext.get_correlation_id()}"
-        rq = AdminReplayApiMapper.request_to_query(request)
+        replay_filter = ReplayFilter(
+            event_ids=request.event_ids,
+            correlation_id=request.correlation_id,
+            aggregate_id=request.aggregate_id,
+            start_time=request.start_time,
+            end_time=request.end_time,
+        )
         try:
             result = await service.prepare_or_schedule_replay(
-                replay_query=rq,
+                replay_filter=replay_filter,
                 dry_run=request.dry_run,
                 replay_correlation_id=replay_correlation_id,
                 target_service=request.target_service,
@@ -201,7 +201,17 @@ async def get_replay_status(session_id: str, service: FromDishka[AdminEventsServ
         if not status:
             raise HTTPException(status_code=404, detail="Replay session not found")
 
-        return EventReplayStatusResponse.model_validate(status)
+        session = status.session
+        estimated_completion = status.estimated_completion
+        execution_results = status.execution_results
+        return EventReplayStatusResponse(
+            **{
+                **asdict(session),
+                "status": session.status.value,
+                "estimated_completion": estimated_completion,
+                "execution_results": execution_results,
+            }
+        )
 
     except HTTPException:
         raise

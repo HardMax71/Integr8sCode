@@ -57,12 +57,10 @@ class ExecutionUpdate(BaseModel):
 class ResourceUsage(BaseModel):
     """Model for execution resource usage."""
 
-    execution_time_wall_seconds: float | None = Field(default=None, description="Wall clock execution time in seconds")
-    cpu_time_jiffies: int | None = Field(
-        default=None, description="CPU time in jiffies (multiply by 10 for milliseconds)"
-    )
-    clk_tck_hertz: int | None = Field(default=None, description="Clock ticks per second (usually 100)")
-    peak_memory_kb: int | None = Field(default=None, description="Peak memory usage in KB")
+    execution_time_wall_seconds: float = 0.0
+    cpu_time_jiffies: int = 0
+    clk_tck_hertz: int = 0
+    peak_memory_kb: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 

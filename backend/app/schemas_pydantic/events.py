@@ -72,7 +72,7 @@ class EventFilterRequest(BaseModel):
     service_name: str | None = Field(None, description="Filter by service name")
     start_time: datetime | None = Field(None, description="Filter events after this time")
     end_time: datetime | None = Field(None, description="Filter events before this time")
-    text_search: str | None = Field(None, description="Full-text search in event data")
+    search_text: str | None = Field(None, description="Full-text search in event data")
     sort_by: str = Field("timestamp", description="Field to sort by")
     sort_order: SortOrder = Field(SortOrder.DESC, description="Sort order")
     limit: int = Field(100, ge=1, le=1000, description="Maximum events to return")
@@ -190,7 +190,7 @@ class EventQuery(BaseModel):
     service_name: str | None = None
     start_time: datetime | None = None
     end_time: datetime | None = None
-    text_search: str | None = None
+    search_text: str | None = None
     limit: int = Field(default=100, ge=1, le=1000)
     skip: int = Field(default=0, ge=0)
 

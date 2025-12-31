@@ -1,8 +1,6 @@
 from datetime import datetime
 from typing import Any
 
-from app.domain.events.event_models import EventFields
-
 
 class AggregationStages:
     @staticmethod
@@ -60,14 +58,14 @@ class EventStatsAggregation:
     @staticmethod
     def build_overview_pipeline(start_time: datetime) -> list[dict[str, Any]]:
         return [
-            AggregationStages.match({EventFields.TIMESTAMP: {"$gte": start_time}}),
+            AggregationStages.match({"timestamp": {"$gte": start_time}}),
             AggregationStages.group(
                 {
                     "_id": None,
                     "total_events": AggregationStages.sum(),
-                    "event_types": AggregationStages.add_to_set(f"${EventFields.EVENT_TYPE}"),
-                    "unique_users": AggregationStages.add_to_set(f"${EventFields.METADATA_USER_ID}"),
-                    "services": AggregationStages.add_to_set(f"${EventFields.METADATA_SERVICE_NAME}"),
+                    "event_types": AggregationStages.add_to_set("$event_type"),
+                    "unique_users": AggregationStages.add_to_set("$metadata.user_id"),
+                    "services": AggregationStages.add_to_set("$metadata.service_name"),
                 }
             ),
             AggregationStages.project(
@@ -84,8 +82,8 @@ class EventStatsAggregation:
     @staticmethod
     def build_event_types_pipeline(start_time: datetime, limit: int = 10) -> list[dict[str, Any]]:
         return [
-            AggregationStages.match({EventFields.TIMESTAMP: {"$gte": start_time}}),
-            AggregationStages.group({"_id": f"${EventFields.EVENT_TYPE}", "count": AggregationStages.sum()}),
+            AggregationStages.match({"timestamp": {"$gte": start_time}}),
+            AggregationStages.group({"_id": "$event_type", "count": AggregationStages.sum()}),
             AggregationStages.sort({"count": -1}),
             AggregationStages.limit(limit),
         ]
@@ -93,9 +91,9 @@ class EventStatsAggregation:
     @staticmethod
     def build_hourly_events_pipeline(start_time: datetime) -> list[dict[str, Any]]:
         return [
-            AggregationStages.match({EventFields.TIMESTAMP: {"$gte": start_time}}),
+            AggregationStages.match({"timestamp": {"$gte": start_time}}),
             AggregationStages.group(
-                {"_id": AggregationStages.date_to_string(f"${EventFields.TIMESTAMP}"), "count": AggregationStages.sum()}
+                {"_id": AggregationStages.date_to_string("$timestamp"), "count": AggregationStages.sum()}
             ),
             AggregationStages.sort({"_id": 1}),
         ]
@@ -103,8 +101,8 @@ class EventStatsAggregation:
     @staticmethod
     def build_top_users_pipeline(start_time: datetime, limit: int = 10) -> list[dict[str, Any]]:
         return [
-            AggregationStages.match({EventFields.TIMESTAMP: {"$gte": start_time}}),
-            AggregationStages.group({"_id": f"${EventFields.METADATA_USER_ID}", "count": AggregationStages.sum()}),
+            AggregationStages.match({"timestamp": {"$gte": start_time}}),
+            AggregationStages.group({"_id": "$metadata.user_id", "count": AggregationStages.sum()}),
             AggregationStages.sort({"count": -1}),
             AggregationStages.limit(limit),
         ]
@@ -114,14 +112,12 @@ class EventStatsAggregation:
         return [
             AggregationStages.match(
                 {
-                    EventFields.TIMESTAMP: {"$gte": start_time},
-                    EventFields.EVENT_TYPE: event_type,
-                    EventFields.PAYLOAD_DURATION_SECONDS: {"$exists": True},
+                    "timestamp": {"$gte": start_time},
+                    "event_type": event_type,
+                    "payload.duration_seconds": {"$exists": True},
                 }
             ),
-            AggregationStages.group(
-                {"_id": None, "avg_duration": AggregationStages.avg(f"${EventFields.PAYLOAD_DURATION_SECONDS}")}
-            ),
+            AggregationStages.group({"_id": None, "avg_duration": AggregationStages.avg("$payload.duration_seconds")}),
         ]
 
 

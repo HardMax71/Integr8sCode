@@ -2,10 +2,11 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import jwt
-from fastapi import HTTPException, Request, status
+from fastapi import Request
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 
+from app.domain.user import AuthenticationRequiredError, CSRFValidationError, InvalidCredentialsError
 from app.domain.user import User as DomainAdminUser
 from app.settings import get_settings
 
@@ -15,11 +16,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/login")
 def get_token_from_cookie(request: Request) -> str:
     token = request.cookies.get("access_token")
     if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication token not found",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise AuthenticationRequiredError("Authentication token not found")
     return token
 
 
@@ -46,21 +43,16 @@ class SecurityService:
         token: str,
         user_repo: Any,  # Avoid circular import by using Any
     ) -> DomainAdminUser:
-        credentials_exception = HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
         try:
             payload = jwt.decode(token, self.settings.SECRET_KEY, algorithms=[self.settings.ALGORITHM])
             username: str = payload.get("sub")
             if username is None:
-                raise credentials_exception
+                raise InvalidCredentialsError()
         except jwt.PyJWTError as e:
-            raise credentials_exception from e
+            raise InvalidCredentialsError() from e
         user = await user_repo.get_user(username)
         if user is None:
-            raise credentials_exception
+            raise InvalidCredentialsError()
         return user  # type: ignore[no-any-return]
 
     def generate_csrf_token(self) -> str:
@@ -107,9 +99,9 @@ def validate_csrf_token(request: Request) -> str:
     cookie_token = request.cookies.get("csrf_token", "")
 
     if not header_token:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="CSRF token missing")
+        raise CSRFValidationError("CSRF token missing")
 
     if not security_service.validate_csrf_token(header_token, cookie_token):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="CSRF token invalid")
+        raise CSRFValidationError("CSRF token invalid")
 
     return header_token

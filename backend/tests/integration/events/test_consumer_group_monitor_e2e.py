@@ -1,21 +1,21 @@
-import asyncio
+import logging
 from uuid import uuid4
 
 import pytest
-
 from app.events.consumer_group_monitor import (
     ConsumerGroupHealth,
     ConsumerGroupStatus,
     NativeConsumerGroupMonitor,
 )
 
-
 pytestmark = [pytest.mark.integration, pytest.mark.kafka]
+
+_test_logger = logging.getLogger("test.events.consumer_group_monitor_e2e")
 
 
 @pytest.mark.asyncio
 async def test_consumer_group_status_error_path_and_summary():
-    monitor = NativeConsumerGroupMonitor(bootstrap_servers="localhost:9092")
+    monitor = NativeConsumerGroupMonitor(bootstrap_servers="localhost:9092", logger=_test_logger)
     # Non-existent group triggers error-handling path and returns minimal status
     gid = f"does-not-exist-{uuid4().hex[:8]}"
     status = await monitor.get_consumer_group_status(gid, timeout=5.0, include_lag=False)
@@ -28,11 +28,19 @@ async def test_consumer_group_status_error_path_and_summary():
 
 
 def test_assess_group_health_branches():
-    m = NativeConsumerGroupMonitor()
+    m = NativeConsumerGroupMonitor(logger=_test_logger)
     # Error state
     s = ConsumerGroupStatus(
-        group_id="g", state="ERROR", protocol="p", protocol_type="ptype", coordinator="c",
-        members=[], member_count=0, assigned_partitions=0, partition_distribution={}, total_lag=0
+        group_id="g",
+        state="ERROR",
+        protocol="p",
+        protocol_type="ptype",
+        coordinator="c",
+        members=[],
+        member_count=0,
+        assigned_partitions=0,
+        partition_distribution={},
+        total_lag=0,
     )
     h, msg = m._assess_group_health(s)  # noqa: SLF001
     assert h is ConsumerGroupHealth.UNHEALTHY and "error" in msg.lower()
@@ -74,7 +82,7 @@ def test_assess_group_health_branches():
 
 @pytest.mark.asyncio
 async def test_multiple_group_status_mixed_errors():
-    m = NativeConsumerGroupMonitor(bootstrap_servers="localhost:9092")
+    m = NativeConsumerGroupMonitor(bootstrap_servers="localhost:9092", logger=_test_logger)
     gids = [f"none-{uuid4().hex[:6]}", f"none-{uuid4().hex[:6]}"]
     res = await m.get_multiple_group_status(gids, timeout=5.0, include_lag=False)
     assert set(res.keys()) == set(gids)

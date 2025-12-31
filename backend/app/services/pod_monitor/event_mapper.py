@@ -1,11 +1,11 @@
 import ast
 import json
+import logging
 from dataclasses import dataclass
 from typing import Protocol
 
 from kubernetes import client as k8s_client
 
-from app.core.logging import logger
 from app.domain.enums.kafka import GroupId
 from app.domain.enums.storage import ExecutionErrorType
 from app.domain.execution import ResourceUsageDomain
@@ -40,12 +40,12 @@ class PodContext:
 
 @dataclass(frozen=True)
 class PodLogs:
-    """Parsed pod logs and execution results"""
+    """Parsed pod logs and execution results. Only created when parsing succeeds."""
 
-    stdout: str = ""
-    stderr: str = ""
-    exit_code: int | None = None
-    resource_usage: ResourceUsageDomain | None = None
+    stdout: str
+    stderr: str
+    exit_code: int
+    resource_usage: ResourceUsageDomain
 
 
 class EventMapper(Protocol):
@@ -57,7 +57,8 @@ class EventMapper(Protocol):
 class PodEventMapper:
     """Maps Kubernetes pod objects to application events"""
 
-    def __init__(self, k8s_api: k8s_client.CoreV1Api | None = None) -> None:
+    def __init__(self, logger: logging.Logger, k8s_api: k8s_client.CoreV1Api | None = None) -> None:
+        self.logger = logger
         self._event_cache: dict[str, PodPhase] = {}
         self._k8s_api = k8s_api
 
@@ -76,14 +77,14 @@ class PodEventMapper:
 
     def map_pod_event(self, pod: k8s_client.V1Pod, event_type: str) -> EventList:
         """Map a Kubernetes pod to application events"""
-        logger.info(
+        self.logger.info(
             f"POD-EVENT: type={event_type} name={getattr(pod.metadata, 'name', None)} "
             f"ns={getattr(pod.metadata, 'namespace', None)} phase={getattr(pod.status, 'phase', None)}"
         )
         # Extract execution ID
         execution_id = self._extract_execution_id(pod)
         if not execution_id:
-            logger.warning(
+            self.logger.warning(
                 f"POD-EVENT: missing execution_id name={getattr(pod.metadata, 'name', None)} "
                 f"labels={getattr(pod.metadata, 'labels', None)} "
                 f"annotations={getattr(pod.metadata, 'annotations', None)}"
@@ -98,13 +99,13 @@ class PodEventMapper:
 
         # Skip duplicate events
         if pod.metadata and self._is_duplicate(pod.metadata.name, phase):
-            logger.debug(f"POD-EVENT: duplicate ignored name={pod.metadata.name} phase={phase}")
+            self.logger.debug(f"POD-EVENT: duplicate ignored name={pod.metadata.name} phase={phase}")
             return []
 
         ctx = PodContext(
             pod=pod, execution_id=execution_id, metadata=self._create_metadata(pod), phase=phase, event_type=event_type
         )
-        logger.info(
+        self.logger.info(
             f"POD-EVENT: ctx execution_id={ctx.execution_id} phase={ctx.phase} "
             f"reason={getattr(getattr(pod, 'status', None), 'reason', None)}"
         )
@@ -114,7 +115,7 @@ class PodEventMapper:
 
         # Check for timeout first - if pod timed out, only return timeout event
         if timeout_event := self._check_timeout(ctx):
-            logger.info(
+            self.logger.info(
                 f"POD-EVENT: mapped TIMEOUT exec={ctx.execution_id} phase={ctx.phase} "
                 f"adl={getattr(getattr(pod, 'spec', None), 'active_deadline_seconds', None)}"
             )
@@ -129,21 +130,23 @@ class PodEventMapper:
             and pod.metadata
             and prior_phase == "Pending"
         ):
-            logger.debug(f"POD-EVENT: skipping running map due to empty statuses after Pending exec={execution_id}")
+            self.logger.debug(
+                f"POD-EVENT: skipping running map due to empty statuses after Pending exec={execution_id}"
+            )
             return events
 
         # Phase-based mappers
         for mapper in self._phase_mappers.get(phase, []):
             if event := mapper(ctx):
                 mapper_name = getattr(mapper, "__name__", repr(mapper))
-                logger.info(f"POD-EVENT: phase-map {mapper_name} -> {event.event_type} exec={ctx.execution_id}")
+                self.logger.info(f"POD-EVENT: phase-map {mapper_name} -> {event.event_type} exec={ctx.execution_id}")
                 events.append(event)
 
         # Event type mappers
         for mapper in self._event_type_mappers.get(event_type, []):
             if event := mapper(ctx):
                 mapper_name = getattr(mapper, "__name__", repr(mapper))
-                logger.info(f"POD-EVENT: type-map {mapper_name} -> {event.event_type} exec={ctx.execution_id}")
+                self.logger.info(f"POD-EVENT: type-map {mapper_name} -> {event.event_type} exec={ctx.execution_id}")
                 events.append(event)
 
         return events
@@ -155,17 +158,19 @@ class PodEventMapper:
 
         # Try labels first
         if pod.metadata.labels and (exec_id := pod.metadata.labels.get("execution-id")):
-            logger.debug(f"POD-EVENT: extracted exec-id from label name={pod.metadata.name} exec_id={exec_id}")
+            self.logger.debug(f"POD-EVENT: extracted exec-id from label name={pod.metadata.name} exec_id={exec_id}")
             return str(exec_id)
 
         # Try annotations
         if pod.metadata.annotations and (exec_id := pod.metadata.annotations.get("integr8s.io/execution-id")):
-            logger.debug(f"POD-EVENT: extracted exec-id from annotation name={pod.metadata.name} exec_id={exec_id}")
+            self.logger.debug(
+                f"POD-EVENT: extracted exec-id from annotation name={pod.metadata.name} exec_id={exec_id}"
+            )
             return str(exec_id)
 
         # Try pod name pattern
         if pod.metadata.name and pod.metadata.name.startswith("exec-"):
-            logger.debug(f"POD-EVENT: extracted exec-id from name pattern name={pod.metadata.name}")
+            self.logger.debug(f"POD-EVENT: extracted exec-id from name pattern name={pod.metadata.name}")
             return str(pod.metadata.name[5:])
 
         return None
@@ -185,7 +190,7 @@ class PodEventMapper:
             service_version="1.0.0",
             correlation_id=correlation_id,
         )
-        logger.info(f"POD-EVENT: metadata user_id={md.user_id} corr={md.correlation_id} name={pod.metadata.name}")
+        self.logger.info(f"POD-EVENT: metadata user_id={md.user_id} corr={md.correlation_id} name={pod.metadata.name}")
         return md
 
     def _is_duplicate(self, pod_name: str, phase: PodPhase) -> bool:
@@ -215,7 +220,7 @@ class PodEventMapper:
             node_name=ctx.pod.spec.node_name or "pending",
             metadata=ctx.metadata,
         )
-        logger.debug(f"POD-EVENT: mapped scheduled -> {evt.event_type} exec={ctx.execution_id}")
+        self.logger.debug(f"POD-EVENT: mapped scheduled -> {evt.event_type} exec={ctx.execution_id}")
         return evt
 
     def _map_running(self, ctx: PodContext) -> PodRunningEvent | None:
@@ -240,7 +245,7 @@ class PodEventMapper:
             container_statuses=json.dumps(container_statuses),  # Serialize as JSON string
             metadata=ctx.metadata,
         )
-        logger.debug(f"POD-EVENT: mapped running -> {evt.event_type} exec={ctx.execution_id}")
+        self.logger.debug(f"POD-EVENT: mapped running -> {evt.event_type} exec={ctx.execution_id}")
         return evt
 
     def _map_completed(self, ctx: PodContext) -> ExecutionCompletedEvent | None:
@@ -250,18 +255,20 @@ class PodEventMapper:
             return None
 
         logs = self._extract_logs(ctx.pod)
-        exit_code = logs.exit_code if logs.exit_code is not None else container.state.terminated.exit_code
+        if not logs:
+            self.logger.error(f"POD-EVENT: failed to extract logs for completed pod exec={ctx.execution_id}")
+            return None
 
         evt = ExecutionCompletedEvent(
             execution_id=ctx.execution_id,
-            aggregate_id=ctx.execution_id,  # Set aggregate_id to execution_id
-            exit_code=exit_code,
+            aggregate_id=ctx.execution_id,
+            exit_code=logs.exit_code,
+            resource_usage=logs.resource_usage,
             stdout=logs.stdout,
             stderr=logs.stderr,
-            resource_usage=logs.resource_usage or ResourceUsageDomain.from_dict({}),
             metadata=ctx.metadata,
         )
-        logger.info(f"POD-EVENT: mapped completed exec={ctx.execution_id} exit_code={exit_code}")
+        self.logger.info(f"POD-EVENT: mapped completed exec={ctx.execution_id} exit_code={logs.exit_code}")
         return evt
 
     def _map_failed_or_completed(self, ctx: PodContext) -> BaseEvent | None:
@@ -279,29 +286,24 @@ class PodEventMapper:
         error_info = self._analyze_failure(ctx.pod)
         logs = self._extract_logs(ctx.pod)
 
-        # If no stderr from logs but we have an error message, use it as stderr
-        stderr = logs.stderr if logs.stderr else error_info.message
-        # Ensure exit_code is populated (fallback to logs or generic non-zero)
-        exit_code = (
-            error_info.exit_code
-            if error_info.exit_code is not None
-            else (logs.exit_code if logs.exit_code is not None else 1)
-        )
+        # Use logs data if available, fallback to error_info
+        stdout = logs.stdout if logs else ""
+        stderr = logs.stderr if logs and logs.stderr else error_info.message
+        exit_code = error_info.exit_code if error_info.exit_code is not None else (logs.exit_code if logs else 1)
 
         evt = ExecutionFailedEvent(
             execution_id=ctx.execution_id,
-            aggregate_id=ctx.execution_id,  # Set aggregate_id to execution_id
+            aggregate_id=ctx.execution_id,
             error_type=error_info.error_type,
             exit_code=exit_code,
-            stdout=logs.stdout,
+            stdout=stdout,
             stderr=stderr,
             error_message=stderr,
-            resource_usage=logs.resource_usage or ResourceUsageDomain.from_dict({}),
+            resource_usage=logs.resource_usage if logs else None,
             metadata=ctx.metadata,
         )
-        logger.info(
-            f"POD-EVENT: mapped failed exec={ctx.execution_id} error_type={error_info.error_type} "
-            f"exit={error_info.exit_code}"
+        self.logger.info(
+            f"POD-EVENT: mapped failed exec={ctx.execution_id} error_type={error_info.error_type} exit={exit_code}"
         )
         return evt
 
@@ -320,7 +322,7 @@ class PodEventMapper:
             message=getattr(terminated, "message", None),
             metadata=ctx.metadata,
         )
-        logger.info(
+        self.logger.info(
             f"POD-EVENT: mapped terminated exec={ctx.execution_id} reason={terminated.reason} "
             f"exit={terminated.exit_code}"
         )
@@ -331,16 +333,22 @@ class PodEventMapper:
             return None
 
         logs = self._extract_logs(ctx.pod)
+        if not logs:
+            self.logger.error(f"POD-EVENT: failed to extract logs for timed out pod exec={ctx.execution_id}")
+            return None
+
         evt = ExecutionTimeoutEvent(
             execution_id=ctx.execution_id,
             aggregate_id=ctx.execution_id,
             timeout_seconds=ctx.pod.spec.active_deadline_seconds or 0,
+            resource_usage=logs.resource_usage,
             stdout=logs.stdout,
             stderr=logs.stderr,
-            resource_usage=logs.resource_usage or ResourceUsageDomain.from_dict({}),
             metadata=ctx.metadata,
         )
-        logger.info(f"POD-EVENT: mapped timeout exec={ctx.execution_id} adl={ctx.pod.spec.active_deadline_seconds}")
+        self.logger.info(
+            f"POD-EVENT: mapped timeout exec={ctx.execution_id} adl={ctx.pod.spec.active_deadline_seconds}"
+        )
         return evt
 
     def _get_main_container(self, pod: k8s_client.V1Pod) -> k8s_client.V1ContainerStatus | None:
@@ -435,11 +443,11 @@ class PodEventMapper:
 
         return default
 
-    def _extract_logs(self, pod: k8s_client.V1Pod) -> PodLogs:
-        """Extract and parse pod logs"""
+    def _extract_logs(self, pod: k8s_client.V1Pod) -> PodLogs | None:
+        """Extract and parse pod logs. Returns None if extraction fails."""
         # Without k8s API or metadata, can't fetch logs
         if not self._k8s_api or not pod.metadata:
-            return PodLogs()
+            return None
 
         # Check if any container terminated
         has_terminated = any(
@@ -447,8 +455,8 @@ class PodEventMapper:
         )
 
         if not has_terminated:
-            logger.debug(f"Pod {pod.metadata.name} has no terminated containers")
-            return PodLogs()
+            self.logger.debug(f"Pod {pod.metadata.name} has no terminated containers")
+            return None
 
         try:
             logs = self._k8s_api.read_namespaced_pod_log(
@@ -456,17 +464,17 @@ class PodEventMapper:
             )
 
             if not logs:
-                return PodLogs()
+                return None
 
             # Try to parse executor JSON
             return self._parse_executor_output(logs)
 
         except Exception as e:
             self._log_extraction_error(pod.metadata.name, str(e))
-            return PodLogs()
+            return None
 
-    def _parse_executor_output(self, logs: str) -> PodLogs:
-        """Parse executor JSON output from logs"""
+    def _parse_executor_output(self, logs: str) -> PodLogs | None:
+        """Parse executor JSON output from logs. Returns None if parsing fails."""
         logs_stripped = logs.strip()
 
         # Try full output as JSON
@@ -478,9 +486,9 @@ class PodEventMapper:
             if result := self._try_parse_json(line.strip()):
                 return result
 
-        # Fallback to raw logs
-        logger.warning("Logs do not contain valid executor JSON, treating as raw output")
-        return PodLogs(stdout=logs)
+        # No valid executor JSON found
+        self.logger.warning("Logs do not contain valid executor JSON")
+        return None
 
     def _try_parse_json(self, text: str) -> PodLogs | None:
         """Try to parse text as executor JSON output"""
@@ -492,7 +500,7 @@ class PodEventMapper:
             stdout=data.get("stdout", ""),
             stderr=data.get("stderr", ""),
             exit_code=data.get("exit_code", 0),
-            resource_usage=ResourceUsageDomain.from_dict(data.get("resource_usage", {})),
+            resource_usage=ResourceUsageDomain(**data.get("resource_usage", {})),
         )
 
     def _log_extraction_error(self, pod_name: str, error: str) -> None:
@@ -500,11 +508,11 @@ class PodEventMapper:
         error_lower = error.lower()
 
         if "404" in error or "not found" in error_lower:
-            logger.debug(f"Pod {pod_name} logs not found - pod may have been deleted")
+            self.logger.debug(f"Pod {pod_name} logs not found - pod may have been deleted")
         elif "400" in error:
-            logger.debug(f"Pod {pod_name} logs not available - container may still be creating")
+            self.logger.debug(f"Pod {pod_name} logs not available - container may still be creating")
         else:
-            logger.warning(f"Failed to extract logs from pod {pod_name}: {error}")
+            self.logger.warning(f"Failed to extract logs from pod {pod_name}: {error}")
 
     def clear_cache(self) -> None:
         """Clear event cache"""

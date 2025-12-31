@@ -33,9 +33,9 @@ class TestSavedScripts:
                    for word in ["not authenticated", "unauthorized", "login"])
 
     @pytest.mark.asyncio
-    async def test_create_and_retrieve_saved_script(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_create_and_retrieve_saved_script(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test creating and retrieving a saved script."""
-        # Already authenticated via shared_user fixture
+        # Already authenticated via test_user fixture
 
         # Create a unique script
         unique_id = str(uuid4())[:8]
@@ -89,9 +89,9 @@ class TestSavedScripts:
         assert retrieved_script.script == script_data["script"]
 
     @pytest.mark.asyncio
-    async def test_list_user_scripts(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_list_user_scripts(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test listing user's saved scripts."""
-        # Already authenticated via shared_user fixture
+        # Already authenticated via test_user fixture
 
         # Create a few scripts
         unique_id = str(uuid4())[:8]
@@ -149,9 +149,9 @@ class TestSavedScripts:
             assert created_id in returned_ids
 
     @pytest.mark.asyncio
-    async def test_update_saved_script(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_update_saved_script(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test updating a saved script."""
-        # Already authenticated via shared_user fixture
+        # Already authenticated via test_user fixture
 
         # Create a script
         unique_id = str(uuid4())[:8]
@@ -202,9 +202,9 @@ class TestSavedScripts:
         assert updated_script.updated_at > updated_script.created_at
 
     @pytest.mark.asyncio
-    async def test_delete_saved_script(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_delete_saved_script(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test deleting a saved script."""
-        # Already authenticated via shared_user fixture
+        # Already authenticated via test_user fixture
 
         # Create a script to delete
         unique_id = str(uuid4())[:8]
@@ -234,13 +234,13 @@ class TestSavedScripts:
             assert "detail" in error_data
 
     @pytest.mark.asyncio
-    async def test_cannot_access_other_users_scripts(self, client: AsyncClient, shared_user: Dict[str, str],
-                                                     shared_admin: Dict[str, str]) -> None:
+    async def test_cannot_access_other_users_scripts(self, client: AsyncClient, test_user: Dict[str, str],
+                                                     test_admin: Dict[str, str]) -> None:
         """Test that users cannot access scripts created by other users."""
         # Create a script as regular user
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -261,8 +261,8 @@ class TestSavedScripts:
 
         # Now login as admin
         admin_login_data = {
-            "username": shared_admin["username"],
-            "password": shared_admin["password"]
+            "username": test_admin["username"],
+            "password": test_admin["password"]
         }
         admin_login_response = await client.post("/api/v1/auth/login", data=admin_login_data)
         assert admin_login_response.status_code == 200
@@ -283,12 +283,12 @@ class TestSavedScripts:
         assert user_script_id not in admin_script_ids
 
     @pytest.mark.asyncio
-    async def test_script_with_invalid_language(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_script_with_invalid_language(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test that invalid language/version combinations are handled."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -320,12 +320,12 @@ class TestSavedScripts:
         assert response.status_code in [200, 201, 400, 422]
 
     @pytest.mark.asyncio
-    async def test_script_name_constraints(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_script_name_constraints(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test script name validation and constraints."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -356,12 +356,12 @@ class TestSavedScripts:
             assert "detail" in error_data
 
     @pytest.mark.asyncio
-    async def test_script_content_size_limits(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_script_content_size_limits(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test script content size limits."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -396,12 +396,12 @@ class TestSavedScripts:
         assert response.status_code in [200, 201, 400, 413, 422]
 
     @pytest.mark.asyncio
-    async def test_update_nonexistent_script(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_update_nonexistent_script(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test updating a non-existent script."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -423,12 +423,12 @@ class TestSavedScripts:
         assert "detail" in error_data
 
     @pytest.mark.asyncio
-    async def test_delete_nonexistent_script(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_delete_nonexistent_script(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test deleting a non-existent script."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -440,12 +440,12 @@ class TestSavedScripts:
         assert response.status_code in [404, 403, 204]
 
     @pytest.mark.asyncio
-    async def test_scripts_persist_across_sessions(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_scripts_persist_across_sessions(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test that scripts persist across login sessions."""
         # First session - create script
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200

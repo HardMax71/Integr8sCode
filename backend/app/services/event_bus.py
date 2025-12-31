@@ -1,6 +1,7 @@
 import asyncio
 import fnmatch
 import json
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable, Optional
@@ -10,7 +11,6 @@ from confluent_kafka import Consumer, KafkaError, Producer
 from fastapi import Request
 
 from app.core.lifecycle import LifecycleEnabled
-from app.core.logging import logger
 from app.core.metrics.context import get_connection_metrics
 from app.domain.enums.kafka import KafkaTopic
 from app.settings import get_settings
@@ -45,7 +45,8 @@ class EventBus(LifecycleEnabled):
     - *.completed - matches all completed events
     """
 
-    def __init__(self) -> None:
+    def __init__(self, logger: logging.Logger) -> None:
+        self.logger = logger
         self.settings = get_settings()
         self.metrics = get_connection_metrics()
         self.producer: Optional[Producer] = None
@@ -68,7 +69,7 @@ class EventBus(LifecycleEnabled):
         await self._initialize_kafka()
         self._consumer_task = asyncio.create_task(self._kafka_listener())
         self._running = True
-        logger.info("Event bus started with Kafka backing")
+        self.logger.info("Event bus started with Kafka backing")
 
     async def _initialize_kafka(self) -> None:
         """Initialize Kafka producer and consumer."""
@@ -101,7 +102,7 @@ class EventBus(LifecycleEnabled):
     async def stop(self) -> None:
         """Stop the event bus and clean up resources."""
         await self._cleanup()
-        logger.info("Event bus stopped")
+        self.logger.info("Event bus stopped")
 
     async def _cleanup(self) -> None:
         """Clean up all resources."""
@@ -157,7 +158,7 @@ class EventBus(LifecycleEnabled):
                     self.producer.produce(self._topic, value=value, key=key)
                     self.producer.poll(0)
             except Exception as e:
-                logger.error(f"Failed to publish to Kafka: {e}")
+                self.logger.error(f"Failed to publish to Kafka: {e}")
 
         # Publish to local subscribers for immediate handling
         await self._distribute_event(event_type, event)
@@ -196,7 +197,7 @@ class EventBus(LifecycleEnabled):
             # Update metrics
             self._update_metrics(pattern)
 
-        logger.debug(f"Created subscription {subscription.id} for pattern: {pattern}")
+        self.logger.debug(f"Created subscription {subscription.id} for pattern: {pattern}")
         return subscription.id
 
     async def unsubscribe(self, pattern: str, handler: Callable[[EventBusEvent], Any]) -> None:
@@ -208,12 +209,12 @@ class EventBus(LifecycleEnabled):
                     await self._remove_subscription(sub_id)
                     return
 
-            logger.warning(f"No subscription found for pattern {pattern} with given handler")
+            self.logger.warning(f"No subscription found for pattern {pattern} with given handler")
 
     async def _remove_subscription(self, subscription_id: str) -> None:
         """Remove a subscription by ID (must be called within lock)."""
         if subscription_id not in self._subscriptions:
-            logger.warning(f"Subscription {subscription_id} not found")
+            self.logger.warning(f"Subscription {subscription_id} not found")
             return
 
         subscription = self._subscriptions[subscription_id]
@@ -231,7 +232,7 @@ class EventBus(LifecycleEnabled):
         # Update metrics
         self._update_metrics(pattern)
 
-        logger.debug(f"Removed subscription {subscription_id} for pattern: {pattern}")
+        self.logger.debug(f"Removed subscription {subscription_id} for pattern: {pattern}")
 
     async def _distribute_event(self, event_type: str, event: EventBusEvent) -> None:
         """Distribute event to all matching local subscribers."""
@@ -249,7 +250,7 @@ class EventBus(LifecycleEnabled):
         # Log any errors
         for _i, result in enumerate(results):
             if isinstance(result, Exception):
-                logger.error(f"Handler failed for event {event_type}: {result}")
+                self.logger.error(f"Handler failed for event {event_type}: {result}")
 
     async def _find_matching_handlers(self, event_type: str) -> list[Callable[[EventBusEvent], Any]]:
         """Find all handlers matching the event type."""
@@ -274,7 +275,7 @@ class EventBus(LifecycleEnabled):
         if not self.consumer:
             return
 
-        logger.info("Kafka listener started")
+        self.logger.info("Kafka listener started")
 
         try:
             while self._running:
@@ -291,7 +292,7 @@ class EventBus(LifecycleEnabled):
 
                 if msg.error():
                     if msg.error().code() != KafkaError._PARTITION_EOF:
-                        logger.error(f"Consumer error: {msg.error()}")
+                        self.logger.error(f"Consumer error: {msg.error()}")
                     continue
 
                 try:
@@ -305,12 +306,12 @@ class EventBus(LifecycleEnabled):
                     )
                     await self._distribute_event(event.event_type, event)
                 except Exception as e:
-                    logger.error(f"Error processing Kafka message: {e}")
+                    self.logger.error(f"Error processing Kafka message: {e}")
 
         except asyncio.CancelledError:
-            logger.info("Kafka listener cancelled")
+            self.logger.info("Kafka listener cancelled")
         except Exception as e:
-            logger.error(f"Fatal error in Kafka listener: {e}")
+            self.logger.error(f"Fatal error in Kafka listener: {e}")
             self._running = False
 
     def _update_metrics(self, pattern: str) -> None:
@@ -334,7 +335,8 @@ class EventBus(LifecycleEnabled):
 class EventBusManager:
     """Manages EventBus lifecycle as a singleton."""
 
-    def __init__(self) -> None:
+    def __init__(self, logger: logging.Logger) -> None:
+        self.logger = logger
         self._event_bus: Optional[EventBus] = None
         self._lock = asyncio.Lock()
 
@@ -342,7 +344,7 @@ class EventBusManager:
         """Get or create the event bus instance."""
         async with self._lock:
             if self._event_bus is None:
-                self._event_bus = EventBus()
+                self._event_bus = EventBus(self.logger)
                 await self._event_bus.start()
             return self._event_bus
 

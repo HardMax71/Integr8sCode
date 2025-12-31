@@ -1,6 +1,8 @@
-from dataclasses import dataclass, field
+from dataclasses import field
 from datetime import datetime
 from typing import Any
+
+from pydantic.dataclasses import dataclass
 
 from app.core.utils import StringEnum
 from app.domain.enums.events import EventType
@@ -8,41 +10,6 @@ from app.domain.events.event_metadata import EventMetadata
 
 MongoQueryValue = str | dict[str, str | list[str] | float | datetime]
 MongoQuery = dict[str, MongoQueryValue]
-
-
-class EventFields(StringEnum):
-    """Database field names for events collection."""
-
-    ID = "_id"
-    EVENT_ID = "event_id"
-    EVENT_TYPE = "event_type"
-    EVENT_VERSION = "event_version"
-    TIMESTAMP = "timestamp"
-    AGGREGATE_ID = "aggregate_id"
-    METADATA = "metadata"
-    PAYLOAD = "payload"
-    STORED_AT = "stored_at"
-    TTL_EXPIRES_AT = "ttl_expires_at"
-    STATUS = "status"
-    ERROR = "error"
-
-    # Metadata sub-fields
-    METADATA_CORRELATION_ID = "metadata.correlation_id"
-    METADATA_USER_ID = "metadata.user_id"
-    METADATA_SERVICE_NAME = "metadata.service_name"
-    METADATA_SERVICE_VERSION = "metadata.service_version"
-    METADATA_IP_ADDRESS = "metadata.ip_address"
-    METADATA_USER_AGENT = "metadata.user_agent"
-
-    # Payload sub-fields for common queries
-    PAYLOAD_EXECUTION_ID = "payload.execution_id"
-    PAYLOAD_POD_NAME = "payload.pod_name"
-    PAYLOAD_DURATION_SECONDS = "payload.duration_seconds"
-
-    # Archive fields
-    DELETED_AT = "_deleted_at"
-    DELETED_BY = "_deleted_by"
-    DELETION_REASON = "_deletion_reason"
 
 
 class EventSortOrder(StringEnum):
@@ -116,7 +83,6 @@ class EventFilter:
     start_time: datetime | None = None
     end_time: datetime | None = None
     search_text: str | None = None
-    text_search: str | None = None
     status: str | None = None
 
 
@@ -125,7 +91,7 @@ class EventQuery:
     """Query parameters for event search."""
 
     filter: EventFilter
-    sort_by: str = EventFields.TIMESTAMP
+    sort_by: str = "timestamp"
     sort_order: EventSortOrder = EventSortOrder.DESC
     limit: int = 100
     skip: int = 0

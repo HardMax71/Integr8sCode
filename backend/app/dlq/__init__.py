@@ -7,7 +7,6 @@ Import the manager explicitly from `app.dlq.manager` to avoid cycles.
 from .models import (
     AgeStatistics,
     DLQBatchRetryResult,
-    DLQFields,
     DLQMessage,
     DLQMessageFilter,
     DLQMessageListResult,
@@ -23,15 +22,12 @@ from .models import (
 )
 
 __all__ = [
-    # Core models
     "DLQMessageStatus",
     "RetryStrategy",
-    "DLQFields",
     "DLQMessage",
     "DLQMessageUpdate",
     "DLQMessageFilter",
     "RetryPolicy",
-    # Stats models
     "TopicStatistic",
     "EventTypeStatistic",
     "AgeStatistics",

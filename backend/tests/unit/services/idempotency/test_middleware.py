@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
@@ -12,6 +13,8 @@ from app.services.idempotency.middleware import (
 from app.domain.idempotency import IdempotencyStatus
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
+
+_test_logger = logging.getLogger("test.services.idempotency.middleware")
 
 
 pytestmark = pytest.mark.unit
@@ -42,7 +45,8 @@ class TestIdempotentEventHandler:
             idempotency_manager=mock_idempotency_manager,
             key_strategy="event_based",
             ttl_seconds=3600,
-            cache_result=True
+            cache_result=True,
+            logger=_test_logger
         )
 
     @pytest.mark.asyncio
@@ -54,7 +58,8 @@ class TestIdempotentEventHandler:
             handler=mock_handler,
             idempotency_manager=mock_idempotency_manager,
             key_strategy="content_hash",
-            fields=fields
+            fields=fields,
+            logger=_test_logger
         )
 
         idempotency_result = IdempotencyResult(

@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 
 from app.events.schema.schema_registry import SchemaRegistryManager
@@ -7,6 +9,8 @@ from app.services.idempotency.middleware import IdempotentEventHandler
 
 
 pytestmark = [pytest.mark.integration]
+
+_test_logger = logging.getLogger("test.idempotency.idempotent_handler")
 
 
 @pytest.mark.asyncio
@@ -22,6 +26,7 @@ async def test_idempotent_handler_blocks_duplicates(scope) -> None:  # type: ign
         handler=_handler,
         idempotency_manager=manager,
         key_strategy="event_based",
+        logger=_test_logger,
     )
 
     ev = make_execution_requested_event(execution_id="exec-dup-1")
@@ -45,6 +50,7 @@ async def test_idempotent_handler_content_hash_blocks_same_content(scope) -> Non
         handler=_handler,
         idempotency_manager=manager,
         key_strategy="content_hash",
+        logger=_test_logger,
     )
 
     e1 = make_execution_requested_event(execution_id="exec-dup-2")

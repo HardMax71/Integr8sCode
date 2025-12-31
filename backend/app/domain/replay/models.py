@@ -1,28 +1,65 @@
-from dataclasses import dataclass, field
+from dataclasses import field
 from datetime import datetime, timezone
 from typing import Any, Dict, List
+from uuid import uuid4
 
 from pydantic import BaseModel, Field, PrivateAttr
+from pydantic.dataclasses import dataclass
 
 from app.domain.enums.events import EventType
 from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
 
 
 class ReplayFilter(BaseModel):
+    # Event selection filters
+    event_ids: List[str] | None = None
     execution_id: str | None = None
+    correlation_id: str | None = None
+    aggregate_id: str | None = None
     event_types: List[EventType] | None = None
+    exclude_event_types: List[EventType] | None = None
+
+    # Time range
     start_time: datetime | None = None
     end_time: datetime | None = None
+
+    # Metadata filters
     user_id: str | None = None
     service_name: str | None = None
+
+    # Escape hatch for complex queries
     custom_query: Dict[str, Any] | None = None
-    exclude_event_types: List[EventType] | None = None
+
+    def is_empty(self) -> bool:
+        return not any(
+            [
+                self.event_ids,
+                self.execution_id,
+                self.correlation_id,
+                self.aggregate_id,
+                self.event_types,
+                self.start_time,
+                self.end_time,
+                self.user_id,
+                self.service_name,
+                self.custom_query,
+            ]
+        )
 
     def to_mongo_query(self) -> Dict[str, Any]:
         query: Dict[str, Any] = {}
 
+        if self.event_ids:
+            query["event_id"] = {"$in": self.event_ids}
+
         if self.execution_id:
-            query["execution_id"] = str(self.execution_id)
+            query["payload.execution_id"] = str(self.execution_id)
+
+        if self.correlation_id:
+            query["metadata.correlation_id"] = self.correlation_id
+
+        if self.aggregate_id:
+            query["aggregate_id"] = self.aggregate_id
 
         if self.event_types:
             query["event_type"] = {"$in": [str(et) for et in self.event_types]}
@@ -56,7 +93,7 @@ class ReplayFilter(BaseModel):
 class ReplayConfig(BaseModel):
     replay_type: ReplayType
     target: ReplayTarget = ReplayTarget.KAFKA
-    filter: ReplayFilter
+    filter: ReplayFilter = Field(default_factory=ReplayFilter)
 
     speed_multiplier: float = Field(default=1.0, ge=0.1, le=100.0)
     preserve_timestamps: bool = False
@@ -83,7 +120,7 @@ class ReplayConfig(BaseModel):
 
 @dataclass
 class ReplaySessionState:
-    """Domain replay session model used by services only."""
+    """Domain replay session model used by services and repository."""
 
     session_id: str
     config: ReplayConfig
@@ -100,6 +137,14 @@ class ReplaySessionState:
     last_event_at: datetime | None = None
 
     errors: list[dict[str, Any]] = field(default_factory=list)
+
+    # Tracking and admin fields
+    correlation_id: str = field(default_factory=lambda: str(uuid4()))
+    created_by: str | None = None
+    target_service: str | None = None
+    dry_run: bool = False
+    triggered_executions: list[str] = field(default_factory=list)
+    error: str | None = None
 
 
 @dataclass

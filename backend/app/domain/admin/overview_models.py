@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import field
 from typing import List
+
+from pydantic.dataclasses import dataclass
 
 from app.domain.events import Event, EventStatistics
 from app.domain.user import User as DomainAdminUser

@@ -5,7 +5,7 @@ from typing import Any, Dict
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from app.core.logging import correlation_id_context, logger, request_metadata_context
+from app.core.logging import correlation_id_context, request_metadata_context
 
 
 class CorrelationContext:
@@ -16,7 +16,6 @@ class CorrelationContext:
     @staticmethod
     def set_correlation_id(correlation_id: str) -> str:
         correlation_id_context.set(correlation_id)
-        logger.debug(f"Set correlation ID: {correlation_id}")
         return correlation_id
 
     @staticmethod
@@ -26,7 +25,6 @@ class CorrelationContext:
     @staticmethod
     def set_request_metadata(metadata: Dict[str, Any]) -> None:
         request_metadata_context.set(metadata)
-        logger.debug(f"Set request metadata: {metadata}")
 
     @staticmethod
     def get_request_metadata() -> Dict[str, Any]:
@@ -36,7 +34,6 @@ class CorrelationContext:
     def clear() -> None:
         correlation_id_context.set(None)
         request_metadata_context.set(None)
-        logger.debug("Cleared correlation context")
 
 
 class CorrelationMiddleware:

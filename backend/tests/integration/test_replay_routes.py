@@ -23,9 +23,9 @@ class TestReplayRoutes:
     """Test replay endpoints against real backend."""
 
     @pytest.mark.asyncio
-    async def test_replay_requires_admin_authentication(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_replay_requires_admin_authentication(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test that replay endpoints require admin authentication."""
-        # Already authenticated via shared_user fixture
+        # Already authenticated via test_user fixture
 
         # Try to access replay endpoints as non-admin
         response = await client.get("/api/v1/replay/sessions")
@@ -37,9 +37,9 @@ class TestReplayRoutes:
                    for word in ["admin", "forbidden", "denied"])
 
     @pytest.mark.asyncio
-    async def test_create_replay_session(self, client: AsyncClient, shared_admin: Dict[str, str]) -> None:
+    async def test_create_replay_session(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
         """Test creating a replay session."""
-        # Already authenticated via shared_admin fixture
+        # Already authenticated via test_admin fixture
 
         # Create replay session
         replay_request = ReplayRequest(
@@ -67,9 +67,9 @@ class TestReplayRoutes:
         assert replay_response.message is not None
 
     @pytest.mark.asyncio
-    async def test_list_replay_sessions(self, client: AsyncClient, shared_admin: Dict[str, str]) -> None:
+    async def test_list_replay_sessions(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
         """Test listing replay sessions."""
-        # Already authenticated via shared_admin fixture
+        # Already authenticated via test_admin fixture
 
         # List replay sessions
         response = await client.get("/api/v1/replay/sessions?limit=10")
@@ -88,9 +88,9 @@ class TestReplayRoutes:
             assert session_summary.created_at is not None
 
     @pytest.mark.asyncio
-    async def test_get_replay_session_details(self, client: AsyncClient, shared_admin: Dict[str, str]) -> None:
+    async def test_get_replay_session_details(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
         """Test getting detailed information about a replay session."""
-        # Already authenticated via shared_admin fixture
+        # Already authenticated via test_admin fixture
 
         # Create a session first
         replay_request = ReplayRequest(
@@ -121,12 +121,12 @@ class TestReplayRoutes:
         assert session.created_at is not None
 
     @pytest.mark.asyncio
-    async def test_start_replay_session(self, client: AsyncClient, shared_admin: Dict[str, str]) -> None:
+    async def test_start_replay_session(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
         """Test starting a replay session."""
         # Login as admin
         login_data = {
-            "username": shared_admin["username"],
-            "password": shared_admin["password"]
+            "username": test_admin["username"],
+            "password": test_admin["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -160,12 +160,12 @@ class TestReplayRoutes:
         assert start_result.message is not None
 
     @pytest.mark.asyncio
-    async def test_pause_and_resume_replay_session(self, client: AsyncClient, shared_admin: Dict[str, str]) -> None:
+    async def test_pause_and_resume_replay_session(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
         """Test pausing and resuming a replay session."""
         # Login as admin
         login_data = {
-            "username": shared_admin["username"],
-            "password": shared_admin["password"]
+            "username": test_admin["username"],
+            "password": test_admin["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -215,12 +215,12 @@ class TestReplayRoutes:
                 assert resume_result.status in [ReplayStatus.RUNNING, ReplayStatus.COMPLETED]
 
     @pytest.mark.asyncio
-    async def test_cancel_replay_session(self, client: AsyncClient, shared_admin: Dict[str, str]) -> None:
+    async def test_cancel_replay_session(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
         """Test cancelling a replay session."""
         # Login as admin
         login_data = {
-            "username": shared_admin["username"],
-            "password": shared_admin["password"]
+            "username": test_admin["username"],
+            "password": test_admin["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -254,12 +254,12 @@ class TestReplayRoutes:
         assert cancel_result.message is not None
 
     @pytest.mark.asyncio
-    async def test_filter_sessions_by_status(self, client: AsyncClient, shared_admin: Dict[str, str]) -> None:
+    async def test_filter_sessions_by_status(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
         """Test filtering replay sessions by status."""
         # Login as admin
         login_data = {
-            "username": shared_admin["username"],
-            "password": shared_admin["password"]
+            "username": test_admin["username"],
+            "password": test_admin["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -286,12 +286,12 @@ class TestReplayRoutes:
                 assert session.status == status
 
     @pytest.mark.asyncio
-    async def test_cleanup_old_sessions(self, client: AsyncClient, shared_admin: Dict[str, str]) -> None:
+    async def test_cleanup_old_sessions(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
         """Test cleanup of old replay sessions."""
         # Login as admin
         login_data = {
-            "username": shared_admin["username"],
-            "password": shared_admin["password"]
+            "username": test_admin["username"],
+            "password": test_admin["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -308,12 +308,12 @@ class TestReplayRoutes:
         assert cleanup_result.message is not None
 
     @pytest.mark.asyncio
-    async def test_get_nonexistent_session(self, client: AsyncClient, shared_admin: Dict[str, str]) -> None:
+    async def test_get_nonexistent_session(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
         """Test getting a non-existent replay session."""
         # Login as admin
         login_data = {
-            "username": shared_admin["username"],
-            "password": shared_admin["password"]
+            "username": test_admin["username"],
+            "password": test_admin["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -329,12 +329,12 @@ class TestReplayRoutes:
             assert "detail" in error_data
 
     @pytest.mark.asyncio
-    async def test_start_nonexistent_session(self, client: AsyncClient, shared_admin: Dict[str, str]) -> None:
+    async def test_start_nonexistent_session(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
         """Test starting a non-existent replay session."""
         # Login as admin
         login_data = {
-            "username": shared_admin["username"],
-            "password": shared_admin["password"]
+            "username": test_admin["username"],
+            "password": test_admin["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -346,12 +346,12 @@ class TestReplayRoutes:
         assert response.status_code in [400, 404]
 
     @pytest.mark.asyncio
-    async def test_replay_session_state_transitions(self, client: AsyncClient, shared_admin: Dict[str, str]) -> None:
+    async def test_replay_session_state_transitions(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
         """Test valid state transitions for replay sessions."""
         # Login as admin
         login_data = {
-            "username": shared_admin["username"],
-            "password": shared_admin["password"]
+            "username": test_admin["username"],
+            "password": test_admin["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -391,12 +391,12 @@ class TestReplayRoutes:
         assert start_again_response.status_code in [200, 400, 409]  # Might be idempotent or error
 
     @pytest.mark.asyncio
-    async def test_replay_with_complex_filters(self, client: AsyncClient, shared_admin: Dict[str, str]) -> None:
+    async def test_replay_with_complex_filters(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
         """Test creating replay session with complex filters."""
         # Login as admin
         login_data = {
-            "username": shared_admin["username"],
-            "password": shared_admin["password"]
+            "username": test_admin["username"],
+            "password": test_admin["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -416,7 +416,7 @@ class TestReplayRoutes:
                 "end_time": datetime.now(timezone.utc).isoformat(),
                 "aggregate_id": str(uuid4()),
                 "correlation_id": str(uuid4()),
-                "user_id": shared_admin.get("user_id"),
+                "user_id": test_admin.get("user_id"),
                 "service_name": "execution-service"
             },
             "target_topic": "complex-filter-topic",
@@ -437,12 +437,12 @@ class TestReplayRoutes:
         assert replay_response.status in ["created", "pending"]
 
     @pytest.mark.asyncio
-    async def test_replay_session_progress_tracking(self, client: AsyncClient, shared_admin: Dict[str, str]) -> None:
+    async def test_replay_session_progress_tracking(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
         """Test tracking progress of replay sessions."""
         # Login as admin
         login_data = {
-            "username": shared_admin["username"],
-            "password": shared_admin["password"]
+            "username": test_admin["username"],
+            "password": test_admin["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200

@@ -1,0 +1,117 @@
+from datetime import datetime, timedelta, timezone
+from typing import Any
+from uuid import uuid4
+
+import pymongo
+from beanie import Document, Indexed
+from pydantic import BaseModel, ConfigDict, Field
+from pymongo import ASCENDING, DESCENDING, IndexModel
+
+from app.domain.enums.common import Environment
+from app.domain.enums.events import EventType
+
+
+# Pydantic model required here because Beanie embedded documents must be Pydantic BaseModel subclasses.
+# This is NOT an API schema - it defines the MongoDB subdocument structure.
+class EventMetadata(BaseModel):
+    """Event metadata embedded document for Beanie storage."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    service_name: str
+    service_version: str
+    correlation_id: str = Field(default_factory=lambda: str(uuid4()))
+    user_id: str | None = None
+    ip_address: str | None = None
+    user_agent: str | None = None
+    environment: Environment = Environment.PRODUCTION
+
+
+class EventDocument(Document):
+    """Event document for event browsing/admin system.
+
+    Uses payload dict for flexible event data storage.
+    This is separate from EventStoreDocument which uses flat structure for Kafka events.
+    """
+
+    event_id: Indexed(str, unique=True) = Field(default_factory=lambda: str(uuid4()))  # type: ignore[valid-type]
+    event_type: EventType  # Indexed via Settings.indexes
+    event_version: str = "1.0"
+    timestamp: Indexed(datetime) = Field(default_factory=lambda: datetime.now(timezone.utc))  # type: ignore[valid-type]
+    aggregate_id: Indexed(str) | None = None  # type: ignore[valid-type]
+    metadata: EventMetadata
+    payload: dict[str, Any] = Field(default_factory=dict)
+    stored_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    ttl_expires_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc) + timedelta(days=30))
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    class Settings:
+        name = "events"
+        use_state_management = True
+        indexes = [
+            # Compound indexes for common query patterns
+            IndexModel([("event_type", ASCENDING), ("timestamp", DESCENDING)], name="idx_event_type_ts"),
+            IndexModel([("aggregate_id", ASCENDING), ("timestamp", DESCENDING)], name="idx_aggregate_ts"),
+            IndexModel([("metadata.correlation_id", ASCENDING)], name="idx_meta_correlation"),
+            IndexModel([("metadata.user_id", ASCENDING), ("timestamp", DESCENDING)], name="idx_meta_user_ts"),
+            IndexModel([("metadata.service_name", ASCENDING), ("timestamp", DESCENDING)], name="idx_meta_service_ts"),
+            # Payload sparse indexes
+            IndexModel([("payload.execution_id", ASCENDING)], name="idx_payload_execution", sparse=True),
+            IndexModel([("payload.pod_name", ASCENDING)], name="idx_payload_pod", sparse=True),
+            # TTL index (expireAfterSeconds=0 means use ttl_expires_at value directly)
+            IndexModel([("ttl_expires_at", ASCENDING)], name="idx_ttl", expireAfterSeconds=0),
+            # Additional compound indexes for query optimization
+            IndexModel([("event_type", ASCENDING), ("aggregate_id", ASCENDING)], name="idx_events_type_agg"),
+            IndexModel([("aggregate_id", ASCENDING), ("timestamp", ASCENDING)], name="idx_events_agg_ts"),
+            IndexModel([("event_type", ASCENDING), ("timestamp", ASCENDING)], name="idx_events_type_ts_asc"),
+            IndexModel([("metadata.user_id", ASCENDING), ("timestamp", ASCENDING)], name="idx_events_user_ts"),
+            IndexModel([("metadata.user_id", ASCENDING), ("event_type", ASCENDING)], name="idx_events_user_type"),
+            IndexModel(
+                [("event_type", ASCENDING), ("metadata.user_id", ASCENDING), ("timestamp", DESCENDING)],
+                name="idx_events_type_user_ts",
+            ),
+            # Text search index
+            IndexModel(
+                [
+                    ("event_type", pymongo.TEXT),
+                    ("metadata.service_name", pymongo.TEXT),
+                    ("metadata.user_id", pymongo.TEXT),
+                    ("payload", pymongo.TEXT),
+                ],
+                name="idx_text_search",
+                language_override="none",
+                default_language="english",
+            ),
+        ]
+
+
+class EventArchiveDocument(Document):
+    """Archived event with deletion metadata.
+
+    Mirrors EventDocument structure with additional archive metadata.
+    """
+
+    event_id: Indexed(str, unique=True)  # type: ignore[valid-type]
+    event_type: EventType  # Indexed via Settings.indexes
+    event_version: str = "1.0"
+    timestamp: Indexed(datetime)  # type: ignore[valid-type]
+    aggregate_id: str | None = None
+    metadata: EventMetadata
+    payload: dict[str, Any] = Field(default_factory=dict)
+    stored_at: datetime | None = None
+    ttl_expires_at: datetime | None = None
+
+    # Archive metadata
+    deleted_at: Indexed(datetime) = Field(default_factory=lambda: datetime.now(timezone.utc))  # type: ignore[valid-type]
+    deleted_by: str | None = None
+    deletion_reason: str | None = None
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    class Settings:
+        name = "events_archive"
+        use_state_management = True
+        indexes = [
+            IndexModel([("event_type", 1)]),
+        ]

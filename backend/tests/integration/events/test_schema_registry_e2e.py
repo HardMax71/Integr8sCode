@@ -1,13 +1,13 @@
-import asyncio
-import struct
+import logging
 
 import pytest
+from app.events.schema.schema_registry import MAGIC_BYTE, SchemaRegistryManager
 
-from app.events.schema.schema_registry import SchemaRegistryManager, MAGIC_BYTE
 from tests.helpers import make_execution_requested_event
 
-
 pytestmark = [pytest.mark.integration]
+
+_test_logger = logging.getLogger("test.events.schema_registry_e2e")
 
 
 @pytest.mark.asyncio
@@ -25,6 +25,6 @@ async def test_schema_registry_serialize_deserialize_roundtrip(scope):  # type: 
 
 
 def test_schema_registry_deserialize_invalid_header():
-    reg = SchemaRegistryManager()
+    reg = SchemaRegistryManager(logger=_test_logger)
     with pytest.raises(ValueError):
         reg.deserialize_event(b"\x01\x00\x00\x00\x01", topic="t")  # wrong magic byte

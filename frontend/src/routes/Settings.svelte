@@ -15,7 +15,6 @@
     import Spinner from '$components/Spinner.svelte';
     import { ChevronDown } from '@lucide/svelte';
 
-    let settings = $state<any>(null);
     let loading = $state(true);
     let saving = $state(false);
     let activeTab = $state('general');
@@ -27,10 +26,7 @@
     let showThemeDropdown = $state(false);
     let showEditorThemeDropdown = $state(false);
 
-    // Debounce timer for auto-save
-    let saveDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-
-    // Local state for form
+    // Form state (single source of truth for UI)
     let formData = $state({
         theme: 'auto',
         notifications: {
@@ -49,6 +45,9 @@
             show_line_numbers: true,
         }
     });
+
+    // Snapshot for change detection (JSON string - no reference issues)
+    let savedSnapshot = $state('');
     
     const tabs = [
         { id: 'general', label: 'General' },
@@ -99,70 +98,81 @@
             const { data, error } = await getUserSettingsApiV1UserSettingsGet({});
             if (error) throw error;
 
-            settings = data;
-            setUserSettings(settings);
+            setUserSettings(data);
 
             formData = {
-                theme: settings.theme || 'auto',
+                theme: data.theme || 'auto',
                 notifications: {
-                    execution_completed: settings.notifications?.execution_completed ?? true,
-                    execution_failed: settings.notifications?.execution_failed ?? true,
-                    system_updates: settings.notifications?.system_updates ?? true,
-                    security_alerts: settings.notifications?.security_alerts ?? true,
-                    channels: settings.notifications?.channels || ['in_app']
+                    execution_completed: data.notifications?.execution_completed ?? true,
+                    execution_failed: data.notifications?.execution_failed ?? true,
+                    system_updates: data.notifications?.system_updates ?? true,
+                    security_alerts: data.notifications?.security_alerts ?? true,
+                    channels: [...(data.notifications?.channels || ['in_app'])]
                 },
                 editor: {
-                    theme: settings.editor?.theme || 'auto',
-                    font_size: settings.editor?.font_size || 14,
-                    tab_size: settings.editor?.tab_size || 4,
-                    use_tabs: settings.editor?.use_tabs ?? false,
-                    word_wrap: settings.editor?.word_wrap ?? true,
-                    show_line_numbers: settings.editor?.show_line_numbers ?? true,
+                    theme: data.editor?.theme || 'auto',
+                    font_size: data.editor?.font_size || 14,
+                    tab_size: data.editor?.tab_size || 4,
+                    use_tabs: data.editor?.use_tabs ?? false,
+                    word_wrap: data.editor?.word_wrap ?? true,
+                    show_line_numbers: data.editor?.show_line_numbers ?? true,
                 }
             };
+            savedSnapshot = JSON.stringify(formData);
         } catch (err) {
             console.error('Failed to load settings:', err);
             addToast('Failed to load settings. Using defaults.', 'error');
-            settings = {};
         } finally {
             loading = false;
         }
     }
     
-    // Simple JSON-based deep equality check - sufficient for plain settings objects
-    const deepEqual = (a: object | null | undefined, b: object | null | undefined): boolean =>
-        JSON.stringify(a) === JSON.stringify(b);
-    
     async function saveSettings() {
+        const currentState = JSON.stringify(formData);
+        if (currentState === savedSnapshot) {
+            addToast('No changes to save', 'info');
+            return;
+        }
+
         saving = true;
         try {
-            const updates = {};
+            const original = JSON.parse(savedSnapshot);
+            const updates: Record<string, any> = {};
 
-            if (formData.theme !== settings.theme) updates.theme = formData.theme;
-
-            if (!deepEqual(formData.notifications, settings.notifications)) {
+            if (formData.theme !== original.theme) {
+                updates.theme = formData.theme;
+            }
+            if (JSON.stringify(formData.notifications) !== JSON.stringify(original.notifications)) {
                 updates.notifications = formData.notifications;
             }
-            if (!deepEqual(formData.editor, settings.editor)) {
+            if (JSON.stringify(formData.editor) !== JSON.stringify(original.editor)) {
                 updates.editor = formData.editor;
-            }
-
-            if (Object.keys(updates).length === 0) {
-                addToast('No changes to save', 'info');
-                return;
             }
 
             const { data, error } = await updateUserSettingsApiV1UserSettingsPut({ body: updates });
             if (error) throw error;
 
-            settings = data;
-            setUserSettings(settings);
+            setUserSettings(data);
 
             formData = {
-                theme: settings.theme || 'auto',
-                notifications: settings.notifications || formData.notifications,
-                editor: settings.editor || formData.editor
+                theme: data.theme || 'auto',
+                notifications: {
+                    execution_completed: data.notifications?.execution_completed ?? true,
+                    execution_failed: data.notifications?.execution_failed ?? true,
+                    system_updates: data.notifications?.system_updates ?? true,
+                    security_alerts: data.notifications?.security_alerts ?? true,
+                    channels: [...(data.notifications?.channels || ['in_app'])]
+                },
+                editor: {
+                    theme: data.editor?.theme || 'auto',
+                    font_size: data.editor?.font_size || 14,
+                    tab_size: data.editor?.tab_size || 4,
+                    use_tabs: data.editor?.use_tabs ?? false,
+                    word_wrap: data.editor?.word_wrap ?? true,
+                    show_line_numbers: data.editor?.show_line_numbers ?? true,
+                }
             };
+            savedSnapshot = JSON.stringify(formData);
 
             addToast('Settings saved successfully', 'success');
         } catch (err) {
@@ -224,14 +234,13 @@
             });
             if (error) throw error;
 
-            settings = data;
             historyCache = null;
             historyCacheTime = 0;
 
             await loadSettings();
 
-            if (settings.theme) {
-                setTheme(settings.theme);
+            if (data.theme) {
+                setTheme(data.theme);
             }
 
             showHistory = false;

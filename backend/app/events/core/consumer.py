@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from typing import Any
@@ -8,7 +9,6 @@ from confluent_kafka import OFFSET_BEGINNING, OFFSET_END, Consumer, Message, Top
 from confluent_kafka.error import KafkaError
 from opentelemetry.trace import SpanKind
 
-from app.core.logging import logger
 from app.core.metrics.context import get_event_metrics
 from app.core.tracing import EventAttributes
 from app.core.tracing.utils import extract_trace_context, get_tracer
@@ -26,10 +26,12 @@ class UnifiedConsumer:
         self,
         config: ConsumerConfig,
         event_dispatcher: EventDispatcher,
+        logger: logging.Logger,
         stats_callback: Callable[[dict[str, Any]], None] | None = None,
     ):
         self._config = config
-        self._schema_registry = SchemaRegistryManager()
+        self.logger = logger
+        self._schema_registry = SchemaRegistryManager(logger=logger)
         self._dispatcher = event_dispatcher
         self._stats_callback = stats_callback
         self._consumer: Consumer | None = None
@@ -56,7 +58,7 @@ class UnifiedConsumer:
 
         self._state = ConsumerState.RUNNING
 
-        logger.info(f"Consumer started for topics: {topic_strings}")
+        self.logger.info(f"Consumer started for topics: {topic_strings}")
 
     async def stop(self) -> None:
         self._state = (
@@ -81,14 +83,14 @@ class UnifiedConsumer:
             self._consumer = None
 
     async def _consume_loop(self) -> None:
-        logger.info(f"Consumer loop started for group {self._config.group_id}")
+        self.logger.info(f"Consumer loop started for group {self._config.group_id}")
         poll_count = 0
         message_count = 0
 
         while self._running and self._consumer:
             poll_count += 1
             if poll_count % 100 == 0:  # Log every 100 polls
-                logger.debug(f"Consumer loop active: polls={poll_count}, messages={message_count}")
+                self.logger.debug(f"Consumer loop active: polls={poll_count}, messages={message_count}")
 
             msg = await asyncio.to_thread(self._consumer.poll, timeout=0.1)
 
@@ -96,11 +98,11 @@ class UnifiedConsumer:
                 error = msg.error()
                 if error:
                     if error.code() != KafkaError._PARTITION_EOF:
-                        logger.error(f"Consumer error: {error}")
+                        self.logger.error(f"Consumer error: {error}")
                         self._metrics.processing_errors += 1
                 else:
                     message_count += 1
-                    logger.debug(
+                    self.logger.debug(
                         f"Message received from topic {msg.topic()}, partition {msg.partition()}, offset {msg.offset()}"
                     )
                     await self._process_message(msg)
@@ -109,7 +111,7 @@ class UnifiedConsumer:
             else:
                 await asyncio.sleep(0.01)
 
-        logger.warning(
+        self.logger.warning(
             f"Consumer loop ended for group {self._config.group_id}: "
             f"running={self._running}, consumer={self._consumer is not None}"
         )
@@ -117,17 +119,17 @@ class UnifiedConsumer:
     async def _process_message(self, message: Message) -> None:
         topic = message.topic()
         if not topic:
-            logger.warning("Message with no topic received")
+            self.logger.warning("Message with no topic received")
             return
 
         raw_value = message.value()
         if not raw_value:
-            logger.warning(f"Empty message from topic {topic}")
+            self.logger.warning(f"Empty message from topic {topic}")
             return
 
-        logger.debug(f"Deserializing message from topic {topic}, size={len(raw_value)} bytes")
+        self.logger.debug(f"Deserializing message from topic {topic}, size={len(raw_value)} bytes")
         event = self._schema_registry.deserialize_event(raw_value, topic)
-        logger.info(f"Deserialized event: type={event.event_type}, id={event.event_id}")
+        self.logger.info(f"Deserialized event: type={event.event_type}, id={event.event_id}")
 
         # Extract trace context from Kafka headers and start a consumer span
         header_list = message.headers() or []
@@ -139,7 +141,7 @@ class UnifiedConsumer:
 
         # Dispatch event through EventDispatcher
         try:
-            logger.debug(f"Dispatching {event.event_type} to handlers")
+            self.logger.debug(f"Dispatching {event.event_type} to handlers")
             partition_val = message.partition()
             offset_val = message.offset()
             part_attr = partition_val if partition_val is not None else -1
@@ -157,7 +159,7 @@ class UnifiedConsumer:
                 },
             ):
                 await self._dispatcher.dispatch(event)
-            logger.debug(f"Successfully dispatched {event.event_type}")
+            self.logger.debug(f"Successfully dispatched {event.event_type}")
             # Update metrics on successful dispatch
             self._metrics.messages_consumed += 1
             self._metrics.bytes_consumed += len(raw_value)
@@ -165,7 +167,7 @@ class UnifiedConsumer:
             # Record Kafka consumption metrics
             self._event_metrics.record_kafka_message_consumed(topic=topic, consumer_group=self._config.group_id)
         except Exception as e:
-            logger.error(f"Dispatcher error for event {event.event_type}: {e}")
+            self.logger.error(f"Dispatcher error for event {event.event_type}: {e}")
             self._metrics.processing_errors += 1
             # Record Kafka consumption error
             self._event_metrics.record_kafka_consumption_error(
@@ -237,7 +239,7 @@ class UnifiedConsumer:
 
     def _seek_all_partitions(self, offset_type: int) -> None:
         if not self._consumer:
-            logger.warning("Cannot seek: consumer not initialized")
+            self.logger.warning("Cannot seek: consumer not initialized")
             return
 
         assignment = self._consumer.assignment()
@@ -247,7 +249,7 @@ class UnifiedConsumer:
 
     async def seek_to_offset(self, topic: str, partition: int, offset: int) -> None:
         if not self._consumer:
-            logger.warning("Cannot seek to offset: consumer not initialized")
+            self.logger.warning("Cannot seek to offset: consumer not initialized")
             return
 
         self._consumer.seek(TopicPartition(topic, partition, offset))

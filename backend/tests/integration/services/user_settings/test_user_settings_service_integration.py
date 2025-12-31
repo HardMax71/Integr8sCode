@@ -21,7 +21,7 @@ async def test_get_update_and_history(scope) -> None:  # type: ignore[valid-type
     s1 = await svc.get_user_settings(user_id)
     s2 = await svc.get_user_settings(user_id)
     assert s1.user_id == s2.user_id
-    svc.invalidate_cache(user_id)
+    await svc.invalidate_cache(user_id)
     s3 = await svc.get_user_settings(user_id)
     assert s3.user_id == user_id
 

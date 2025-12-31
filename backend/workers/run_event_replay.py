@@ -5,14 +5,15 @@ from contextlib import AsyncExitStack
 from app.core.database_context import DBClient
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
+from app.db.docs import ALL_DOCUMENTS
 from app.db.repositories.replay_repository import ReplayRepository
-from app.db.schema.schema_manager import SchemaManager
 from app.events.core import ProducerConfig, UnifiedProducer
 from app.events.event_store import create_event_store
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.event_replay.replay_service import EventReplayService
 from app.settings import get_settings
-from motor.motor_asyncio import AsyncIOMotorClient
+from beanie import init_beanie
+from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 
 async def cleanup_task(replay_service: EventReplayService, interval_hours: int = 6) -> None:
@@ -28,15 +29,13 @@ async def cleanup_task(replay_service: EventReplayService, interval_hours: int =
             logger.error(f"Error during cleanup: {e}")
 
 
-async def run_replay_service() -> None:
+async def run_replay_service(logger: logging.Logger) -> None:
     """Run the event replay service with cleanup task"""
-    logger = logging.getLogger(__name__)
-
     # Get settings
     settings = get_settings()
 
     # Create database connection
-    db_client: DBClient = AsyncIOMotorClient(settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000)
+    db_client: DBClient = AsyncMongoClient(settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000)
     db_name = settings.DATABASE_NAME
     database = db_client[db_name]
 
@@ -44,26 +43,24 @@ async def run_replay_service() -> None:
     await db_client.admin.command("ping")
     logger.info(f"Connected to database: {db_name}")
 
-    # Ensure DB schema
-    await SchemaManager(database).apply_all()
+    # Initialize Beanie ODM (indexes are idempotently created via Document.Settings.indexes)
+    await init_beanie(database=database, document_models=ALL_DOCUMENTS)
 
     # Initialize services
-    schema_registry = SchemaRegistryManager()
+    schema_registry = SchemaRegistryManager(logger)
     producer_config = ProducerConfig(bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS)
-    producer = UnifiedProducer(producer_config, schema_registry)
+    producer = UnifiedProducer(producer_config, schema_registry, logger)
 
     # Create event store
-    event_store = create_event_store(db=database, schema_registry=schema_registry)
-
-    # Ensure schema (indexes) for this worker process
-    schema_manager = SchemaManager(database)
-    await schema_manager.apply_all()
+    event_store = create_event_store(schema_registry=schema_registry, logger=logger)
 
     # Create repository
-    replay_repository = ReplayRepository(database)
+    replay_repository = ReplayRepository(logger)
 
     # Create replay service
-    replay_service = EventReplayService(repository=replay_repository, producer=producer, event_store=event_store)
+    replay_service = EventReplayService(
+        repository=replay_repository, producer=producer, event_store=event_store, logger=logger
+    )
     logger.info("Event replay service initialized")
 
     async with AsyncExitStack() as stack:
@@ -86,27 +83,28 @@ async def run_replay_service() -> None:
 
 def main() -> None:
     """Main entry point for event replay service"""
+    settings = get_settings()
+
     # Setup logging
-    setup_logger()
+    logger = setup_logger(settings.LOG_LEVEL)
 
     # Configure root logger for worker
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
-    logger = logging.getLogger(__name__)
     logger.info("Starting Event Replay Service...")
 
     # Initialize tracing
-    settings = get_settings()
     if settings.ENABLE_TRACING:
         init_tracing(
             service_name="event-replay",
+            logger=logger,
             service_version=settings.TRACING_SERVICE_VERSION,
             enable_console_exporter=False,
             sampling_rate=settings.TRACING_SAMPLING_RATE,
         )
         logger.info("Tracing initialized for Event Replay Service")
 
-    asyncio.run(run_replay_service())
+    asyncio.run(run_replay_service(logger))
 
 
 if __name__ == "__main__":

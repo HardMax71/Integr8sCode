@@ -1,14 +1,18 @@
 import asyncio
+import os
 import signal
 from typing import Optional
 
-from app.core.database_context import Database, DBClient
-from app.core.logging import logger
+from app.core.database_context import DBClient
+from app.core.logging import setup_logger
 from app.dlq import DLQMessage, RetryPolicy, RetryStrategy
 from app.dlq.manager import DLQManager, create_dlq_manager
 from app.domain.enums.kafka import KafkaTopic
+from app.events.schema.schema_registry import create_schema_registry_manager
 from app.settings import get_settings
-from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo.asynchronous.mongo_client import AsyncMongoClient
+
+logger = setup_logger(os.environ.get("LOG_LEVEL", "INFO"))
 
 
 def _configure_retry_policies(manager: DLQManager) -> None:
@@ -100,18 +104,20 @@ def _configure_callbacks(manager: DLQManager, testing: bool) -> None:
 
 async def main() -> None:
     settings = get_settings()
-    db_client: DBClient = AsyncIOMotorClient(
+    db_client: DBClient = AsyncMongoClient(
         settings.MONGODB_URL,
         tz_aware=True,
         serverSelectionTimeoutMS=5000,
     )
     db_name = settings.DATABASE_NAME
-    database: Database = db_client[db_name]
+    _ = db_client[db_name]  # Access database to verify connection
     await db_client.admin.command("ping")
     logger.info(f"Connected to database: {db_name}")
 
+    schema_registry = create_schema_registry_manager(logger)
     manager = create_dlq_manager(
-        database=database,
+        schema_registry=schema_registry,
+        logger=logger,
         dlq_topic=KafkaTopic.DEAD_LETTER_QUEUE,
         retry_topic_suffix="-retry",
     )

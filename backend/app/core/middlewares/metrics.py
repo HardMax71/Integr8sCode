@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import time
@@ -12,7 +13,6 @@ from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import SERVICE_NAME, SERVICE_VERSION, Resource
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from app.core.logging import logger
 from app.settings import get_settings
 
 
@@ -118,7 +118,7 @@ class MetricsMiddleware:
         return path
 
 
-def setup_metrics(app: FastAPI) -> None:
+def setup_metrics(app: FastAPI, logger: logging.Logger) -> None:
     """Set up OpenTelemetry metrics with OTLP exporter."""
     settings = get_settings()
     # Fast opt-out for tests or when explicitly disabled

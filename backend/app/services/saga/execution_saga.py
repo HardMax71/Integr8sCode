@@ -3,6 +3,7 @@ from typing import Any, Optional
 
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.domain.enums.events import EventType
+from app.domain.saga import DomainResourceAllocationCreate
 from app.events.core import UnifiedProducer
 from app.infrastructure.kafka.events.execution import ExecutionRequestedEvent
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata as EventMetadata
@@ -79,19 +80,18 @@ class AllocateResourcesStep(SagaStep[ExecutionRequestedEvent]):
                 raise ValueError("Resource limit exceeded")
 
             # Create allocation record via repository
-            ok = await self.alloc_repo.create_allocation(
-                execution_id,
-                execution_id=execution_id,
-                language=event.language,
-                cpu_request=event.cpu_request,
-                memory_request=event.memory_request,
-                cpu_limit=event.cpu_limit,
-                memory_limit=event.memory_limit,
+            allocation = await self.alloc_repo.create_allocation(
+                DomainResourceAllocationCreate(
+                    execution_id=execution_id,
+                    language=event.language,
+                    cpu_request=event.cpu_request,
+                    memory_request=event.memory_request,
+                    cpu_limit=event.cpu_limit,
+                    memory_limit=event.memory_limit,
+                )
             )
-            if not ok:
-                raise RuntimeError("Failed to persist resource allocation")
 
-            context.set("allocation_id", execution_id)
+            context.set("allocation_id", allocation.allocation_id)
             context.set("resources_allocated", True)
 
             return True

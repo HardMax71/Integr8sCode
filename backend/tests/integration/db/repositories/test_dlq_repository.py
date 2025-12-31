@@ -1,0 +1,105 @@
+import logging
+from datetime import datetime, timezone
+
+import pytest
+from app.db.docs import DLQMessageDocument
+from app.db.repositories.dlq_repository import DLQRepository
+from app.dlq import DLQMessageStatus
+from app.domain.enums.events import EventType
+
+pytestmark = pytest.mark.integration
+
+_test_logger = logging.getLogger("test.db.repositories.dlq_repository")
+
+
+@pytest.fixture()
+def repo() -> DLQRepository:
+    return DLQRepository(_test_logger)
+
+
+async def insert_test_dlq_docs():
+    """Insert test DLQ documents using Beanie."""
+    now = datetime.now(timezone.utc)
+
+    docs = [
+        DLQMessageDocument(
+            event_id="id1",
+            event_type=str(EventType.USER_LOGGED_IN),
+            event={
+                "event_type": str(EventType.USER_LOGGED_IN),
+                "metadata": {"service_name": "svc", "service_version": "1"},
+                "user_id": "u1",
+                "login_method": "password",
+            },
+            original_topic="t1",
+            error="err",
+            retry_count=0,
+            failed_at=now,
+            status=DLQMessageStatus.PENDING,
+            producer_id="p1",
+        ),
+        DLQMessageDocument(
+            event_id="id2",
+            event_type=str(EventType.USER_LOGGED_IN),
+            event={
+                "event_type": str(EventType.USER_LOGGED_IN),
+                "metadata": {"service_name": "svc", "service_version": "1"},
+                "user_id": "u1",
+                "login_method": "password",
+            },
+            original_topic="t1",
+            error="err",
+            retry_count=0,
+            failed_at=now,
+            status=DLQMessageStatus.RETRIED,
+            producer_id="p1",
+        ),
+        DLQMessageDocument(
+            event_id="id3",
+            event_type=str(EventType.EXECUTION_STARTED),
+            event={
+                "event_type": str(EventType.EXECUTION_STARTED),
+                "metadata": {"service_name": "svc", "service_version": "1"},
+                "execution_id": "x1",
+                "pod_name": "p1",
+            },
+            original_topic="t2",
+            error="err",
+            retry_count=0,
+            failed_at=now,
+            status=DLQMessageStatus.PENDING,
+            producer_id="p1",
+        ),
+    ]
+
+    for doc in docs:
+        await doc.insert()
+
+
+@pytest.mark.asyncio
+async def test_stats_list_get_and_updates(repo: DLQRepository) -> None:
+    await insert_test_dlq_docs()
+
+    stats = await repo.get_dlq_stats()
+    assert isinstance(stats.by_status, dict) and len(stats.by_topic) >= 1
+
+    res = await repo.get_messages(limit=2)
+    assert res.total >= 3 and len(res.messages) <= 2
+    msg = await repo.get_message_by_id("id1")
+    assert msg and msg.event_id == "id1"
+    assert await repo.mark_message_retried("id1") in (True, False)
+    assert await repo.mark_message_discarded("id1", "r") in (True, False)
+
+    topics = await repo.get_topics_summary()
+    assert any(t.topic == "t1" for t in topics)
+
+
+@pytest.mark.asyncio
+async def test_retry_batch(repo: DLQRepository) -> None:
+    class Manager:
+        async def retry_message_manually(self, eid: str) -> bool:  # noqa: ARG002
+            return True
+
+    result = await repo.retry_messages_batch(["missing"], Manager())
+    # Missing messages cause failures
+    assert result.total == 1 and result.failed >= 1

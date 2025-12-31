@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import datetime, timedelta, timezone
 from functools import partial
 from typing import Any
@@ -7,8 +8,7 @@ from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
 from kubernetes.client.rest import ApiException
 
-from app.core.exceptions import ServiceError
-from app.core.logging import logger
+from app.domain.exceptions import InfrastructureError, InvalidStateError
 
 # Python 3.12 type aliases
 type ResourceDict = dict[str, list[str]]
@@ -18,10 +18,11 @@ type CountDict = dict[str, int]
 class ResourceCleaner:
     """Service for cleaning up Kubernetes resources"""
 
-    def __init__(self) -> None:
+    def __init__(self, logger: logging.Logger) -> None:
         self.v1: k8s_client.CoreV1Api | None = None
         self.networking_v1: k8s_client.NetworkingV1Api | None = None
         self._initialized = False
+        self.logger = logger
 
     async def initialize(self) -> None:
         """Initialize Kubernetes clients"""
@@ -31,18 +32,18 @@ class ResourceCleaner:
         try:
             try:
                 k8s_config.load_incluster_config()
-                logger.info("Using in-cluster Kubernetes config")
+                self.logger.info("Using in-cluster Kubernetes config")
             except k8s_config.ConfigException:
                 k8s_config.load_kube_config()
-                logger.info("Using kubeconfig")
+                self.logger.info("Using kubeconfig")
 
             self.v1 = k8s_client.CoreV1Api()
             self.networking_v1 = k8s_client.NetworkingV1Api()
             self._initialized = True
 
         except Exception as e:
-            logger.error(f"Failed to initialize Kubernetes client: {e}")
-            raise ServiceError(f"Kubernetes initialization failed: {e}") from e
+            self.logger.error(f"Failed to initialize Kubernetes client: {e}")
+            raise InfrastructureError(f"Kubernetes initialization failed: {e}") from e
 
     async def cleanup_pod_resources(
         self,
@@ -54,7 +55,7 @@ class ResourceCleaner:
     ) -> None:
         """Clean up all resources associated with a pod"""
         await self.initialize()
-        logger.info(f"Cleaning up resources for pod: {pod_name}")
+        self.logger.info(f"Cleaning up resources for pod: {pod_name}")
 
         try:
             tasks = [
@@ -71,19 +72,19 @@ class ResourceCleaner:
 
             await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=timeout)
 
-            logger.info(f"Successfully cleaned up resources for pod: {pod_name}")
+            self.logger.info(f"Successfully cleaned up resources for pod: {pod_name}")
 
         except asyncio.TimeoutError as e:
-            logger.error(f"Timeout cleaning up resources for pod: {pod_name}")
-            raise ServiceError("Resource cleanup timed out") from e
+            self.logger.error(f"Timeout cleaning up resources for pod: {pod_name}")
+            raise InfrastructureError("Resource cleanup timed out") from e
         except Exception as e:
-            logger.error(f"Failed to cleanup resources: {e}")
-            raise ServiceError(f"Resource cleanup failed: {e}") from e
+            self.logger.error(f"Failed to cleanup resources: {e}")
+            raise InfrastructureError(f"Resource cleanup failed: {e}") from e
 
     async def _delete_pod(self, pod_name: str, namespace: str) -> None:
         """Delete a pod"""
         if not self.v1:
-            raise ServiceError("Kubernetes client not initialized")
+            raise InvalidStateError("Kubernetes client not initialized")
 
         try:
             loop = asyncio.get_event_loop()
@@ -93,19 +94,19 @@ class ResourceCleaner:
                 None, partial(self.v1.delete_namespaced_pod, pod_name, namespace, grace_period_seconds=30)
             )
 
-            logger.info(f"Deleted pod: {pod_name}")
+            self.logger.info(f"Deleted pod: {pod_name}")
 
         except ApiException as e:
             if e.status == 404:
-                logger.info(f"Pod {pod_name} already deleted")
+                self.logger.info(f"Pod {pod_name} already deleted")
             else:
-                logger.error(f"Failed to delete pod: {e}")
+                self.logger.error(f"Failed to delete pod: {e}")
                 raise
 
     async def _delete_configmaps(self, execution_id: str, namespace: str) -> None:
         """Delete ConfigMaps for an execution"""
         if not self.v1:
-            raise ServiceError("Kubernetes client not initialized")
+            raise InvalidStateError("Kubernetes client not initialized")
 
         await self._delete_labeled_resources(
             execution_id,
@@ -118,7 +119,7 @@ class ResourceCleaner:
     async def _delete_pvcs(self, execution_id: str, namespace: str) -> None:
         """Delete PersistentVolumeClaims for an execution"""
         if not self.v1:
-            raise ServiceError("Kubernetes client not initialized")
+            raise InvalidStateError("Kubernetes client not initialized")
 
         await self._delete_labeled_resources(
             execution_id,
@@ -140,10 +141,10 @@ class ResourceCleaner:
 
             for resource in resources.items:
                 await loop.run_in_executor(None, delete_func, resource.metadata.name, namespace)
-                logger.info(f"Deleted {resource_type}: {resource.metadata.name}")
+                self.logger.info(f"Deleted {resource_type}: {resource.metadata.name}")
 
         except ApiException as e:
-            logger.error(f"Failed to delete {resource_type}s: {e}")
+            self.logger.error(f"Failed to delete {resource_type}s: {e}")
 
     async def cleanup_orphaned_resources(
         self,
@@ -168,15 +169,15 @@ class ResourceCleaner:
             return cleaned
 
         except Exception as e:
-            logger.error(f"Failed to cleanup orphaned resources: {e}")
-            raise ServiceError(f"Orphaned resource cleanup failed: {e}") from e
+            self.logger.error(f"Failed to cleanup orphaned resources: {e}")
+            raise InfrastructureError(f"Orphaned resource cleanup failed: {e}") from e
 
     async def _cleanup_orphaned_pods(
         self, namespace: str, cutoff_time: datetime, cleaned: ResourceDict, dry_run: bool
     ) -> None:
         """Clean up orphaned pods"""
         if not self.v1:
-            raise ServiceError("Kubernetes client not initialized")
+            raise InvalidStateError("Kubernetes client not initialized")
 
         loop = asyncio.get_event_loop()
         pods = await loop.run_in_executor(
@@ -196,14 +197,14 @@ class ResourceCleaner:
                     try:
                         await self._delete_pod(pod.metadata.name, namespace)
                     except Exception as e:
-                        logger.error(f"Failed to delete orphaned pod {pod.metadata.name}: {e}")
+                        self.logger.error(f"Failed to delete orphaned pod {pod.metadata.name}: {e}")
 
     async def _cleanup_orphaned_configmaps(
         self, namespace: str, cutoff_time: datetime, cleaned: ResourceDict, dry_run: bool
     ) -> None:
         """Clean up orphaned ConfigMaps"""
         if not self.v1:
-            raise ServiceError("Kubernetes client not initialized")
+            raise InvalidStateError("Kubernetes client not initialized")
 
         loop = asyncio.get_event_loop()
         configmaps = await loop.run_in_executor(
@@ -220,7 +221,7 @@ class ResourceCleaner:
                             None, self.v1.delete_namespaced_config_map, cm.metadata.name, namespace
                         )
                     except Exception as e:
-                        logger.error(f"Failed to delete orphaned ConfigMap {cm.metadata.name}: {e}")
+                        self.logger.error(f"Failed to delete orphaned ConfigMap {cm.metadata.name}: {e}")
 
     async def get_resource_usage(self, namespace: str = "default") -> CountDict:
         """Get current resource usage counts"""
@@ -235,33 +236,33 @@ class ResourceCleaner:
             # Get pods count
             try:
                 if not self.v1:
-                    raise ServiceError("Kubernetes client not initialized")
+                    raise InvalidStateError("Kubernetes client not initialized")
 
                 pods = await loop.run_in_executor(
                     None, partial(self.v1.list_namespaced_pod, namespace, label_selector=label_selector)
                 )
                 pod_count = len(pods.items)
             except Exception as e:
-                logger.warning(f"Failed to get pods: {e}")
+                self.logger.warning(f"Failed to get pods: {e}")
                 pod_count = 0
 
             # Get configmaps count
             try:
                 if not self.v1:
-                    raise ServiceError("Kubernetes client not initialized")
+                    raise InvalidStateError("Kubernetes client not initialized")
 
                 configmaps = await loop.run_in_executor(
                     None, partial(self.v1.list_namespaced_config_map, namespace, label_selector=label_selector)
                 )
                 configmap_count = len(configmaps.items)
             except Exception as e:
-                logger.warning(f"Failed to get configmaps: {e}")
+                self.logger.warning(f"Failed to get configmaps: {e}")
                 configmap_count = 0
 
             # Get network policies count
             try:
                 if not self.networking_v1:
-                    raise ServiceError("Kubernetes networking client not initialized")
+                    raise InvalidStateError("Kubernetes networking client not initialized")
 
                 policies = await loop.run_in_executor(
                     None,
@@ -271,7 +272,7 @@ class ResourceCleaner:
                 )
                 policy_count = len(policies.items)
             except Exception as e:
-                logger.warning(f"Failed to get network policies: {e}")
+                self.logger.warning(f"Failed to get network policies: {e}")
                 policy_count = 0
 
             return {
@@ -281,5 +282,5 @@ class ResourceCleaner:
             }
 
         except Exception as e:
-            logger.error(f"Failed to get resource usage: {e}")
+            self.logger.error(f"Failed to get resource usage: {e}")
             return default_counts

@@ -36,7 +36,7 @@ The replay_service.py and event_replay/ provide tools and workers for replaying 
 
 The notification_service.py sends and stores notifications, exposes subscription management, and integrates with metrics and optional channels like webhook and Slack with delivery measurements and retries. See [Notification Types](../operations/notification-types.md) for the notification model.
 
-The user_settings_service.py provides CRUD plus event-sourced history for user settings with a small in-proc cache and helpers to compute what changed.
+The user_settings_service.py provides CRUD plus event-sourced history for user settings with a small in-proc cache and TypeAdapter-based merging. See [User Settings Events](user-settings-events.md) for the event sourcing pattern.
 
 The saved_script_service.py handles CRUD for saved scripts with ownership checks and validations, integrating with the API for run-saved-script flows.
 

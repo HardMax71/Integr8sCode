@@ -82,6 +82,8 @@ services:
         condition: service_completed_successfully
       cert-generator:
         condition: service_completed_successfully
+      user-seed:
+        condition: service_completed_successfully
       mongo:
         condition: service_healthy
       redis:
@@ -91,7 +93,9 @@ services:
       schema-registry:
         condition: service_healthy
     volumes:
-      - ./backend:/app
+      - ./backend/app:/app/app
+      - ./backend/workers:/app/workers
+      - ./backend/scripts:/app/scripts
       - ./backend/certs:/app/certs:ro
       - shared_ca:/shared_ca:ro
       - ./backend/kubeconfig.yaml:/app/kubeconfig.yaml:ro
@@ -113,10 +117,10 @@ services:
     healthcheck:
       # Simpler, reliable healthcheck: curl fails non-zero for HTTP >=400 with -f
       test: ["CMD-SHELL", "curl -k -f -s https://localhost:443/api/v1/health/live >/dev/null || exit 1"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 15s
+      interval: 3s
+      timeout: 3s
+      retries: 50
+      start_period: 10s
 
   frontend:
     container_name: frontend
@@ -363,7 +367,7 @@ services:
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-    command: ["uv", "run", "python", "-m", "scripts.create_topics"]
+    command: ["python", "-m", "scripts.create_topics"]
     networks:
       - app-network
     restart: "no"  # Run once and exit
@@ -385,7 +389,7 @@ services:
       - MONGODB_URL=mongodb://${MONGO_ROOT_USER:-root}:${MONGO_ROOT_PASSWORD:-rootpassword}@mongo:27017/integr8scode?authSource=admin
       - DEFAULT_USER_PASSWORD=${DEFAULT_USER_PASSWORD:-user123}
       - ADMIN_USER_PASSWORD=${ADMIN_USER_PASSWORD:-admin123}
-    command: ["uv", "run", "python", "-m", "scripts.seed_users"]
+    command: ["python", "-m", "scripts.seed_users"]
     networks:
       - app-network
     restart: "no"  # Run once and exit
@@ -452,7 +456,8 @@ services:
       - KUBECONFIG=/app/kubeconfig.yaml
       - KAFKA_CONSUMER_GROUP_ID=k8s-worker
     volumes:
-      - ./backend:/app:ro
+      - ./backend/app:/app/app:ro
+      - ./backend/workers:/app/workers:ro
     networks:
       - app-network
     extra_hosts:
@@ -486,7 +491,8 @@ services:
       - KUBECONFIG=/app/kubeconfig.yaml
       - KAFKA_CONSUMER_GROUP_ID=pod-monitor
     volumes:
-      - ./backend:/app:ro
+      - ./backend/app:/app/app:ro
+      - ./backend/workers:/app/workers:ro
     networks:
       - app-network
     extra_hosts:
@@ -522,7 +528,8 @@ services:
       - KAFKA_CONSUMER_GROUP_ID=result-processor-group
       - KUBECONFIG=/app/kubeconfig.yaml
     volumes:
-      - ./backend:/app:ro
+      - ./backend/app:/app/app:ro
+      - ./backend/workers:/app/workers:ro
     networks:
       - app-network
     extra_hosts:
@@ -593,7 +600,7 @@ services:
         condition: service_completed_successfully
       mongo:
         condition: service_started
-    command: ["uv", "run", "python", "workers/run_event_replay.py"]
+    command: ["python", "workers/run_event_replay.py"]
     env_file:
       - ./backend/.env
     environment:
@@ -624,7 +631,7 @@ services:
         condition: service_completed_successfully
       mongo:
         condition: service_started
-    command: ["uv", "run", "python", "workers/dlq_processor.py"]
+    command: ["python", "workers/dlq_processor.py"]
     env_file:
       - ./backend/.env
     environment:

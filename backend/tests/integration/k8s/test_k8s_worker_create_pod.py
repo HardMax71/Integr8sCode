@@ -1,21 +1,21 @@
+import logging
 import os
 import uuid
 
 import pytest
-from kubernetes.client.rest import ApiException
-
-from app.infrastructure.kafka.events.metadata import AvroEventMetadata
-from app.infrastructure.kafka.events.saga import CreatePodCommandEvent
-from app.services.k8s_worker.config import K8sWorkerConfig
-from app.services.k8s_worker.worker import KubernetesWorker
-
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from app.events.core import UnifiedProducer
 from app.events.event_store import EventStore
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.events.core import UnifiedProducer
+from app.infrastructure.kafka.events.metadata import AvroEventMetadata
+from app.infrastructure.kafka.events.saga import CreatePodCommandEvent
 from app.services.idempotency import IdempotencyManager
+from app.services.k8s_worker.config import K8sWorkerConfig
+from app.services.k8s_worker.worker import KubernetesWorker
+from kubernetes.client.rest import ApiException
 
 pytestmark = [pytest.mark.integration, pytest.mark.k8s]
+
+_test_logger = logging.getLogger("test.k8s.worker_create_pod")
 
 
 @pytest.mark.asyncio
@@ -26,7 +26,6 @@ async def test_worker_creates_configmap_and_pod(scope, monkeypatch):  # type: ig
         ns = "integr8scode"
         monkeypatch.setenv("K8S_NAMESPACE", ns)
 
-    database: AsyncIOMotorDatabase = await scope.get(AsyncIOMotorDatabase)
     schema: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
     store: EventStore = await scope.get(EventStore)
     producer: UnifiedProducer = await scope.get(UnifiedProducer)
@@ -35,11 +34,11 @@ async def test_worker_creates_configmap_and_pod(scope, monkeypatch):  # type: ig
     cfg = K8sWorkerConfig(namespace=ns, max_concurrent_pods=1)
     worker = KubernetesWorker(
         config=cfg,
-        database=database,
         producer=producer,
         schema_registry_manager=schema,
         event_store=store,
         idempotency_manager=idem,
+        logger=_test_logger,
     )
 
     # Initialize k8s clients using worker's own method

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Any, Dict, List
 
@@ -8,7 +9,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from app.api.dependencies import admin_user, current_user
 from app.core.correlation import CorrelationContext
-from app.core.logging import logger
 from app.core.utils import get_client_ip
 from app.domain.enums.common import SortOrder
 from app.domain.events.event_models import EventFilter
@@ -107,7 +107,7 @@ async def query_events(
         service_name=filter_request.service_name,
         start_time=filter_request.start_time,
         end_time=filter_request.end_time,
-        text_search=filter_request.text_search,
+        search_text=filter_request.search_text,
     )
 
     result = await event_service.query_events_advanced(
@@ -115,7 +115,6 @@ async def query_events(
         user_role=current_user.role,
         filters=event_filter,
         sort_by=filter_request.sort_by,
-        sort_order=filter_request.sort_order,
         limit=filter_request.limit,
         skip=filter_request.skip,
     )
@@ -283,6 +282,7 @@ async def delete_event(
     event_id: str,
     admin: Annotated[UserResponse, Depends(admin_user)],
     event_service: FromDishka[EventService],
+    logger: FromDishka[logging.Logger],
 ) -> DeleteEventResponse:
     result = await event_service.delete_event_with_archival(event_id=event_id, deleted_by=str(admin.email))
 
@@ -290,8 +290,10 @@ async def delete_event(
         raise HTTPException(status_code=404, detail="Event not found")
 
     logger.warning(
-        f"Event {event_id} deleted by admin {admin.email}",
+        "Event deleted by admin",
         extra={
+            "event_id": event_id,
+            "admin_email": admin.email,
             "event_type": result.event_type,
             "aggregate_id": result.aggregate_id,
             "correlation_id": result.correlation_id,
@@ -309,6 +311,7 @@ async def replay_aggregate_events(
     admin: Annotated[UserResponse, Depends(admin_user)],
     event_service: FromDishka[EventService],
     kafka_event_service: FromDishka[KafkaEventService],
+    logger: FromDishka[logging.Logger],
     target_service: str | None = Query(None, description="Service to replay events to"),
     dry_run: bool = Query(True, description="If true, only show what would be replayed"),
 ) -> ReplayAggregateResponse:

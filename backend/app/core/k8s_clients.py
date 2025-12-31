@@ -1,9 +1,8 @@
+import logging
 from dataclasses import dataclass
 
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
-
-from app.core.logging import logger
 
 
 @dataclass(frozen=True)
@@ -14,7 +13,9 @@ class K8sClients:
     networking_v1: k8s_client.NetworkingV1Api
 
 
-def create_k8s_clients(kubeconfig_path: str | None = None, in_cluster: bool | None = None) -> K8sClients:
+def create_k8s_clients(
+    logger: logging.Logger, kubeconfig_path: str | None = None, in_cluster: bool | None = None
+) -> K8sClients:
     if in_cluster:
         k8s_config.load_incluster_config()
     elif kubeconfig_path:

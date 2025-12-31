@@ -31,12 +31,12 @@ class TestNotificationRoutes:
                    for word in ["not authenticated", "unauthorized", "login"])
 
     @pytest.mark.asyncio
-    async def test_list_user_notifications(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_list_user_notifications(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test listing user's notifications."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -66,12 +66,12 @@ class TestNotificationRoutes:
             assert n.created_at is not None
 
     @pytest.mark.asyncio
-    async def test_filter_notifications_by_status(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_filter_notifications_by_status(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test filtering notifications by status."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -89,12 +89,12 @@ class TestNotificationRoutes:
                 assert notification.status == status
 
     @pytest.mark.asyncio
-    async def test_get_unread_count(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_get_unread_count(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test getting count of unread notifications."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -113,12 +113,12 @@ class TestNotificationRoutes:
         # Note: listing cannot filter 'unread' directly; count is authoritative
 
     @pytest.mark.asyncio
-    async def test_mark_notification_as_read(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_mark_notification_as_read(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test marking a notification as read."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -149,12 +149,12 @@ class TestNotificationRoutes:
 
     @pytest.mark.asyncio
     async def test_mark_nonexistent_notification_as_read(self, client: AsyncClient,
-                                                         shared_user: Dict[str, str]) -> None:
+                                                         test_user: Dict[str, str]) -> None:
         """Test marking a non-existent notification as read."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -172,12 +172,12 @@ class TestNotificationRoutes:
         assert "not found" in error_data["detail"].lower()
 
     @pytest.mark.asyncio
-    async def test_mark_all_notifications_as_read(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_mark_all_notifications_as_read(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test marking all notifications as read."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -198,12 +198,12 @@ class TestNotificationRoutes:
         assert count_data["unread_count"] == 0
 
     @pytest.mark.asyncio
-    async def test_get_notification_subscriptions(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_get_notification_subscriptions(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test getting user's notification subscriptions."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -239,12 +239,12 @@ class TestNotificationRoutes:
                 assert subscription.slack_webhook.startswith("http")
 
     @pytest.mark.asyncio
-    async def test_update_notification_subscription(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_update_notification_subscription(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test updating a notification subscription."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -284,12 +284,12 @@ class TestNotificationRoutes:
                 break
 
     @pytest.mark.asyncio
-    async def test_update_webhook_subscription(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_update_webhook_subscription(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test updating webhook subscription with URL."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -316,12 +316,12 @@ class TestNotificationRoutes:
         assert updated_subscription.severities == update_data["severities"]
 
     @pytest.mark.asyncio
-    async def test_update_slack_subscription(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_update_slack_subscription(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test updating Slack subscription with webhook."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -351,12 +351,12 @@ class TestNotificationRoutes:
         assert updated_subscription.severities == update_data["severities"]
 
     @pytest.mark.asyncio
-    async def test_delete_notification(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_delete_notification(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test deleting a notification."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -388,12 +388,12 @@ class TestNotificationRoutes:
             assert notification_id not in notification_ids
 
     @pytest.mark.asyncio
-    async def test_delete_nonexistent_notification(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_delete_nonexistent_notification(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test deleting a non-existent notification."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -408,12 +408,12 @@ class TestNotificationRoutes:
         assert "not found" in error_data["detail"].lower()
 
     @pytest.mark.asyncio
-    async def test_notification_pagination(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_notification_pagination(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test notification pagination."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
@@ -445,13 +445,13 @@ class TestNotificationRoutes:
 
     @pytest.mark.asyncio
     async def test_notifications_isolation_between_users(self, client: AsyncClient,
-                                                         shared_user: Dict[str, str],
-                                                         shared_admin: Dict[str, str]) -> None:
+                                                         test_user: Dict[str, str],
+                                                         test_admin: Dict[str, str]) -> None:
         """Test that notifications are isolated between users."""
         # Login as regular user
         user_login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         user_login_response = await client.post("/api/v1/auth/login", data=user_login_data)
         assert user_login_response.status_code == 200
@@ -465,8 +465,8 @@ class TestNotificationRoutes:
 
         # Login as admin
         admin_login_data = {
-            "username": shared_admin["username"],
-            "password": shared_admin["password"]
+            "username": test_admin["username"],
+            "password": test_admin["password"]
         }
         admin_login_response = await client.post("/api/v1/auth/login", data=admin_login_data)
         assert admin_login_response.status_code == 200
@@ -483,12 +483,12 @@ class TestNotificationRoutes:
             assert len(set(user_notification_ids).intersection(set(admin_notification_ids))) == 0
 
     @pytest.mark.asyncio
-    async def test_invalid_notification_channel(self, client: AsyncClient, shared_user: Dict[str, str]) -> None:
+    async def test_invalid_notification_channel(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test updating subscription with invalid channel."""
         # Login first
         login_data = {
-            "username": shared_user["username"],
-            "password": shared_user["password"]
+            "username": test_user["username"],
+            "password": test_user["password"]
         }
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200

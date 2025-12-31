@@ -1,3 +1,4 @@
+import logging
 import os
 
 from opentelemetry import trace
@@ -14,7 +15,6 @@ from opentelemetry.sdk.trace.sampling import ALWAYS_OFF, ALWAYS_ON, Sampler, Tra
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
 from app.core.adaptive_sampling import create_adaptive_sampler
-from app.core.logging import logger
 from app.core.tracing.models import (
     InstrumentationReport,
     InstrumentationResult,
@@ -87,9 +87,10 @@ class TracingConfiguration:
 class TracingInitializer:
     """Initializes OpenTelemetry tracing with instrumentation."""
 
-    def __init__(self, config: TracingConfiguration) -> None:
+    def __init__(self, config: TracingConfiguration, logger: logging.Logger) -> None:
         self.config = config
         self.instrumentation_report = InstrumentationReport()
+        self.logger = logger
 
     def initialize(self) -> InstrumentationReport:
         """Initialize tracing and instrument libraries."""
@@ -100,7 +101,7 @@ class TracingInitializer:
 
         self._instrument_libraries()
 
-        logger.info(
+        self.logger.info(
             f"OpenTelemetry tracing initialized for {self.config.service_name}",
             extra={"instrumentation_summary": self.instrumentation_report.get_summary()},
         )
@@ -167,7 +168,7 @@ class TracingInitializer:
             lib.instrumentor.instrument(**lib.config)
             return InstrumentationResult(library=lib.name, status=InstrumentationStatus.SUCCESS)
         except Exception as e:
-            logger.warning(
+            self.logger.warning(
                 f"Failed to instrument {lib.name}", exc_info=True, extra={"library": lib.name, "error": str(e)}
             )
             return InstrumentationResult(library=lib.name, status=InstrumentationStatus.FAILED, error=e)
@@ -175,6 +176,7 @@ class TracingInitializer:
 
 def init_tracing(
     service_name: str,
+    logger: logging.Logger,
     service_version: str = "1.0.0",
     otlp_endpoint: str | None = None,
     enable_console_exporter: bool = False,
@@ -191,5 +193,5 @@ def init_tracing(
         adaptive_sampling=adaptive_sampling,
     )
 
-    initializer = TracingInitializer(config)
+    initializer = TracingInitializer(config, logger)
     return initializer.initialize()

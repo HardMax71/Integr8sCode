@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import socket
 import threading
 from datetime import datetime, timezone
@@ -9,12 +10,11 @@ from confluent_kafka import Message, Producer
 from confluent_kafka.error import KafkaError
 
 from app.core.lifecycle import LifecycleEnabled
-from app.core.logging import logger
 from app.core.metrics.context import get_event_metrics
+from app.dlq.models import DLQMessage, DLQMessageStatus
 from app.domain.enums.kafka import KafkaTopic
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.events import BaseEvent
-from app.infrastructure.mappers.dlq_mapper import DLQMapper
 from app.settings import get_settings
 
 from .types import ProducerConfig, ProducerMetrics, ProducerState
@@ -32,10 +32,12 @@ class UnifiedProducer(LifecycleEnabled):
         self,
         config: ProducerConfig,
         schema_registry_manager: SchemaRegistryManager,
+        logger: logging.Logger,
         stats_callback: StatsCallback | None = None,
     ):
         self._config = config
         self._schema_registry = schema_registry_manager
+        self.logger = logger
         self._producer: Producer | None = None
         self._stats_callback = stats_callback
         self._state = ProducerState.STOPPED
@@ -72,13 +74,13 @@ class UnifiedProducer(LifecycleEnabled):
             self._event_metrics.record_kafka_production_error(
                 topic=topic if topic is not None else "unknown", error_type=str(error.code())
             )
-            logger.error(f"Message delivery failed: {error}")
+            self.logger.error(f"Message delivery failed: {error}")
         else:
             self._metrics.messages_sent += 1
             message_value = message.value()
             if message_value:
                 self._metrics.bytes_sent += len(message_value)
-            logger.debug(f"Message delivered to {message.topic()}[{message.partition()}]@{message.offset()}")
+            self.logger.debug(f"Message delivered to {message.topic()}[{message.partition()}]@{message.offset()}")
 
     def _handle_stats(self, stats_json: str) -> None:
         try:
@@ -104,15 +106,15 @@ class UnifiedProducer(LifecycleEnabled):
             if self._stats_callback:
                 self._stats_callback(stats)
         except Exception as e:
-            logger.error(f"Error parsing producer stats: {e}")
+            self.logger.error(f"Error parsing producer stats: {e}")
 
     async def start(self) -> None:
         if self._state not in (ProducerState.STOPPED, ProducerState.ERROR):
-            logger.warning(f"Producer already in state {self._state}, skipping start")
+            self.logger.warning(f"Producer already in state {self._state}, skipping start")
             return
 
         self._state = ProducerState.STARTING
-        logger.info("Starting producer...")
+        self.logger.info("Starting producer...")
 
         producer_config = self._config.to_producer_config()
         producer_config["stats_cb"] = self._handle_stats
@@ -125,7 +127,7 @@ class UnifiedProducer(LifecycleEnabled):
         self._poll_task = asyncio.create_task(self._poll_loop())
         self._state = ProducerState.RUNNING
 
-        logger.info(f"Producer started: {self._config.bootstrap_servers}")
+        self.logger.info(f"Producer started: {self._config.bootstrap_servers}")
 
     def get_status(self) -> dict[str, Any]:
         return {
@@ -150,11 +152,11 @@ class UnifiedProducer(LifecycleEnabled):
 
     async def stop(self) -> None:
         if self._state in (ProducerState.STOPPED, ProducerState.STOPPING):
-            logger.info(f"Producer already in state {self._state}, skipping stop")
+            self.logger.info(f"Producer already in state {self._state}, skipping stop")
             return
 
         self._state = ProducerState.STOPPING
-        logger.info("Stopping producer...")
+        self.logger.info("Stopping producer...")
         self._running = False
 
         if self._poll_task:
@@ -167,16 +169,16 @@ class UnifiedProducer(LifecycleEnabled):
             self._producer = None
 
         self._state = ProducerState.STOPPED
-        logger.info("Producer stopped")
+        self.logger.info("Producer stopped")
 
     async def _poll_loop(self) -> None:
-        logger.info("Started producer poll loop")
+        self.logger.info("Started producer poll loop")
 
         while self._running and self._producer:
             self._producer.poll(timeout=0.1)
             await asyncio.sleep(0.01)
 
-        logger.info("Producer poll loop ended")
+        self.logger.info("Producer poll loop ended")
 
     async def produce(
         self, event_to_produce: BaseEvent, key: str | None = None, headers: dict[str, str] | None = None
@@ -191,7 +193,7 @@ class UnifiedProducer(LifecycleEnabled):
             headers: Message headers
         """
         if not self._producer:
-            logger.error("Producer not running")
+            self.logger.error("Producer not running")
             return
 
         # Serialize value
@@ -209,7 +211,7 @@ class UnifiedProducer(LifecycleEnabled):
         # Record Kafka metrics
         self._event_metrics.record_kafka_message_produced(topic)
 
-        logger.debug(f"Message [{event_to_produce}] queued for topic: {topic}")
+        self.logger.debug(f"Message [{event_to_produce}] queued for topic: {topic}")
 
     async def send_to_dlq(
         self, original_event: BaseEvent, original_topic: str, error: Exception, retry_count: int = 0
@@ -224,7 +226,7 @@ class UnifiedProducer(LifecycleEnabled):
             retry_count: Number of retry attempts already made
         """
         if not self._producer:
-            logger.error("Producer not running, cannot send to DLQ")
+            self.logger.error("Producer not running, cannot send to DLQ")
             return
 
         try:
@@ -233,18 +235,22 @@ class UnifiedProducer(LifecycleEnabled):
             task_name = current_task.get_name() if current_task else "main"
             producer_id = f"{socket.gethostname()}-{task_name}"
 
-            # Create DLQ message
-            dlq_message = DLQMapper.from_failed_event(
+            # Create DLQ message directly
+            dlq_message = DLQMessage(
+                event_id=original_event.event_id,
                 event=original_event,
+                event_type=original_event.event_type,
                 original_topic=original_topic,
                 error=str(error),
-                producer_id=producer_id,
                 retry_count=retry_count,
+                failed_at=datetime.now(timezone.utc),
+                status=DLQMessageStatus.PENDING,
+                producer_id=producer_id,
             )
 
             # Create DLQ event wrapper
             dlq_event_data = {
-                "event_id": dlq_message.event_id or original_event.event_id,
+                "event_id": dlq_message.event_id,
                 "event_type": "dlq.message",
                 "event": dlq_message.event.to_dict(),
                 "original_topic": dlq_message.original_topic,
@@ -277,7 +283,7 @@ class UnifiedProducer(LifecycleEnabled):
             )
             self._metrics.messages_sent += 1
 
-            logger.warning(
+            self.logger.warning(
                 f"Event {original_event.event_id} sent to DLQ. "
                 f"Original topic: {original_topic}, Error: {error}, "
                 f"Retry count: {retry_count}"
@@ -285,7 +291,7 @@ class UnifiedProducer(LifecycleEnabled):
 
         except Exception as e:
             # If we can't send to DLQ, log critically but don't crash
-            logger.critical(
+            self.logger.critical(
                 f"Failed to send event {original_event.event_id} to DLQ: {e}. Original error: {error}", exc_info=True
             )
             self._metrics.messages_failed += 1

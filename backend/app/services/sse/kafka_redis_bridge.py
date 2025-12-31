@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 
 from app.core.lifecycle import LifecycleEnabled
-from app.core.logging import logger
 from app.core.metrics.events import EventMetrics
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
@@ -30,11 +30,13 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
         settings: Settings,
         event_metrics: EventMetrics,
         sse_bus: SSERedisBus,
+        logger: logging.Logger,
     ) -> None:
         self.schema_registry = schema_registry
         self.settings = settings
         self.event_metrics = event_metrics
         self.sse_bus = sse_bus
+        self.logger = logger
 
         self.num_consumers = settings.SSE_CONSUMER_POOL_SIZE
         self.consumers: list[UnifiedConsumer] = []
@@ -48,7 +50,7 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
             if self._initialized:
                 return
 
-            logger.info(f"Starting SSE Kafka→Redis bridge with {self.num_consumers} consumers")
+            self.logger.info(f"Starting SSE Kafka→Redis bridge with {self.num_consumers} consumers")
 
             for i in range(self.num_consumers):
                 consumer = await self._create_consumer(i)
@@ -56,14 +58,14 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
 
             self._running = True
             self._initialized = True
-            logger.info("SSE Kafka→Redis bridge started successfully")
+            self.logger.info("SSE Kafka→Redis bridge started successfully")
 
     async def stop(self) -> None:
         async with self._lock:
             if not self._initialized:
                 return
 
-            logger.info("Stopping SSE Kafka→Redis bridge")
+            self.logger.info("Stopping SSE Kafka→Redis bridge")
             self._running = False
 
             for consumer in self.consumers:
@@ -71,7 +73,7 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
 
             self.consumers.clear()
             self._initialized = False
-            logger.info("SSE Kafka→Redis bridge stopped")
+            self.logger.info("SSE Kafka→Redis bridge stopped")
 
     async def _create_consumer(self, consumer_index: int) -> UnifiedConsumer:
         suffix = os.environ.get("KAFKA_GROUP_SUFFIX", "")
@@ -93,10 +95,10 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
             heartbeat_interval_ms=3000,
         )
 
-        dispatcher = EventDispatcher()
+        dispatcher = EventDispatcher(logger=self.logger)
         self._register_routing_handlers(dispatcher)
 
-        consumer = UnifiedConsumer(config=config, event_dispatcher=dispatcher)
+        consumer = UnifiedConsumer(config=config, event_dispatcher=dispatcher, logger=self.logger)
 
         topics = [
             KafkaTopic.EXECUTION_EVENTS,
@@ -109,7 +111,7 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
         ]
         await consumer.start(topics)
 
-        logger.info(f"Bridge consumer {consumer_index} started")
+        self.logger.info(f"Bridge consumer {consumer_index} started")
         return consumer
 
     def _register_routing_handlers(self, dispatcher: EventDispatcher) -> None:
@@ -137,13 +139,13 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
             data = event.model_dump()
             execution_id = data.get("execution_id")
             if not execution_id:
-                logger.debug(f"Event {event.event_type} has no execution_id")
+                self.logger.debug(f"Event {event.event_type} has no execution_id")
                 return
             try:
                 await self.sse_bus.publish_event(execution_id, event)
-                logger.info(f"Published {event.event_type} to Redis for {execution_id}")
+                self.logger.info(f"Published {event.event_type} to Redis for {execution_id}")
             except Exception as e:
-                logger.error(
+                self.logger.error(
                     f"Failed to publish {event.event_type} to Redis for {execution_id}: {e}",
                     exc_info=True,
                 )
@@ -165,10 +167,12 @@ def create_sse_kafka_redis_bridge(
     settings: Settings,
     event_metrics: EventMetrics,
     sse_bus: SSERedisBus,
+    logger: logging.Logger,
 ) -> SSEKafkaRedisBridge:
     return SSEKafkaRedisBridge(
         schema_registry=schema_registry,
         settings=settings,
         event_metrics=event_metrics,
         sse_bus=sse_bus,
+        logger=logger,
     )

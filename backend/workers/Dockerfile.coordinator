@@ -5,4 +5,4 @@ FROM base
 COPY . .
 
 # Run the coordinator service
-CMD ["uv", "run", "python", "-m", "workers.run_coordinator"]
+CMD ["python", "-m", "workers.run_coordinator"]

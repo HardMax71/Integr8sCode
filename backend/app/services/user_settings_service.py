@@ -16,7 +16,6 @@ from app.domain.user import (
     DomainUserSettings,
     DomainUserSettingsUpdate,
 )
-from app.infrastructure.kafka.events.user import EditorSettingsPayload, NotificationSettingsPayload
 from app.services.event_bus import EventBusEvent, EventBusManager
 from app.services.kafka_event_service import KafkaEventService
 
@@ -120,9 +119,6 @@ class UserSettingsService:
             await self.repository.create_snapshot(new_settings)
         return new_settings
 
-    # Mapping for nested settings → typed Avro payloads
-    _payload_types = {"notifications": NotificationSettingsPayload, "editor": EditorSettingsPayload}
-
     async def _publish_settings_event(
         self, user_id: str, changes: dict[str, Any], reason: str | None
     ) -> None:
@@ -134,7 +130,7 @@ class UserSettingsService:
                 "user_id": user_id,
                 "changed_fields": list(changes.keys()),
                 "reason": reason,
-                **{k: self._payload_types[k](**v) if k in self._payload_types else v for k, v in changes.items()},
+                **changes,
             },
             metadata=None,
         )
@@ -178,7 +174,6 @@ class UserSettingsService:
         history: list[DomainSettingsHistoryEntry] = []
         for event in events:
             changed_fields = event.payload.get("changed_fields", [])
-            changes = event.payload.get("changes", {})
             for field in changed_fields:
                 history.append(
                     DomainSettingsHistoryEntry(
@@ -186,7 +181,7 @@ class UserSettingsService:
                         event_type=event.event_type,
                         field=f"/{field}",
                         old_value=None,
-                        new_value=changes.get(field),
+                        new_value=event.payload.get(field),
                         reason=event.payload.get("reason"),
                         correlation_id=event.correlation_id,
                     )
@@ -207,14 +202,13 @@ class UserSettingsService:
         await self.repository.create_snapshot(settings)
         self._add_to_cache(user_id, settings)
 
-        # Publish restoration event
+        # Publish restoration event (marker only, no field changes)
         await self.event_service.publish_event(
             event_type=EventType.USER_SETTINGS_UPDATED,
             aggregate_id=f"user_settings_{user_id}",
             payload={
                 "user_id": user_id,
-                "changed_fields": ["restored"],
-                "changes": {"restored_to": timestamp.isoformat()},
+                "changed_fields": [],
                 "reason": f"Settings restored to {timestamp.isoformat()}",
             },
             metadata=None,
@@ -243,9 +237,13 @@ class UserSettingsService:
             for e in raw
         ]
 
+    # Fields that are stored directly in event payload (not in nested 'changes')
+    _settings_fields = {"theme", "timezone", "date_format", "time_format", "notifications", "editor"}
+
     def _apply_event(self, settings: DomainUserSettings, event: DomainSettingsEvent) -> DomainUserSettings:
         """Apply a settings update event using TypeAdapter merge."""
-        changes = event.payload.get("changes", {})
+        # Extract changes from typed fields in payload
+        changes = {k: v for k, v in event.payload.items() if k in self._settings_fields and v is not None}
         if not changes:
             return settings
 

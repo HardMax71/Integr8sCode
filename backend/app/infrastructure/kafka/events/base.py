@@ -3,7 +3,7 @@ from typing import Any, ClassVar
 from uuid import uuid4
 
 from pydantic import ConfigDict, Field, field_serializer
-from pydantic_avro import AvroBase  # type: ignore[attr-defined]
+from pydantic_avro.to_avro.base import AvroBase
 
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic

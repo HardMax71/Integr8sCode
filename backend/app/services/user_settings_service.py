@@ -1,16 +1,13 @@
-import asyncio
-import json
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, List
 
 from cachetools import TTLCache
+from pydantic import TypeAdapter
 
 from app.db.repositories.user_settings_repository import UserSettingsRepository
 from app.domain.enums import Theme
-from app.domain.enums.auth import SettingsType
 from app.domain.enums.events import EventType
-from app.domain.enums.notification import NotificationChannel
 from app.domain.user import (
     DomainEditorSettings,
     DomainNotificationSettings,
@@ -19,8 +16,13 @@ from app.domain.user import (
     DomainUserSettings,
     DomainUserSettingsUpdate,
 )
+from app.infrastructure.kafka.events.user import EditorSettingsPayload, NotificationSettingsPayload
 from app.services.event_bus import EventBusEvent, EventBusManager
 from app.services.kafka_event_service import KafkaEventService
+
+# TypeAdapters for dict-based settings updates
+_settings_adapter = TypeAdapter(DomainUserSettings)
+_update_adapter = TypeAdapter(DomainUserSettingsUpdate)
 
 
 class UserSettingsService:
@@ -62,8 +64,7 @@ class UserSettingsService:
         async def _handle(evt: EventBusEvent) -> None:
             uid = evt.payload.get("user_id")
             if uid:
-                # Use asyncio.to_thread for the sync operation to make it properly async
-                await asyncio.to_thread(self.invalidate_cache, str(uid))
+                await self.invalidate_cache(str(uid))
 
         self._subscription_id = await bus.subscribe("user.settings.updated*", _handle)
 
@@ -89,128 +90,54 @@ class UserSettingsService:
         self, user_id: str, updates: DomainUserSettingsUpdate, reason: str | None = None
     ) -> DomainUserSettings:
         """Upsert provided fields into current settings, publish minimal event, and cache."""
-        s = await self.get_user_settings(user_id)
-        updated: dict[str, object] = {}
-        old_theme = s.theme
-        # Top-level
-        if updates.theme is not None:
-            s.theme = updates.theme
-            updated["theme"] = str(updates.theme)
-        if updates.timezone is not None:
-            s.timezone = updates.timezone
-            updated["timezone"] = updates.timezone
-        if updates.date_format is not None:
-            s.date_format = updates.date_format
-            updated["date_format"] = updates.date_format
-        if updates.time_format is not None:
-            s.time_format = updates.time_format
-            updated["time_format"] = updates.time_format
-        # Nested
-        if updates.notifications is not None:
-            n = updates.notifications
-            s.notifications = n
-            updated["notifications"] = {
-                "execution_completed": n.execution_completed,
-                "execution_failed": n.execution_failed,
-                "system_updates": n.system_updates,
-                "security_alerts": n.security_alerts,
-                "channels": [str(c) for c in n.channels],
-            }
-        if updates.editor is not None:
-            e = updates.editor
-            s.editor = e
-            updated["editor"] = {
-                "theme": e.theme,
-                "font_size": e.font_size,
-                "tab_size": e.tab_size,
-                "use_tabs": e.use_tabs,
-                "word_wrap": e.word_wrap,
-                "show_line_numbers": e.show_line_numbers,
-            }
-        if updates.custom_settings is not None:
-            s.custom_settings = updates.custom_settings
-            updated["custom_settings"] = updates.custom_settings
+        current = await self.get_user_settings(user_id)
 
-        if not updated:
-            return s
+        # Get only fields that were explicitly set (non-None)
+        changes = _update_adapter.dump_python(updates, exclude_none=True)
+        if not changes:
+            return current
 
-        s.updated_at = datetime.now(timezone.utc)
-        s.version = (s.version or 0) + 1
+        # Merge current settings with changes and update metadata
+        current_dict = _settings_adapter.dump_python(current)
+        merged = {**current_dict, **changes}
+        merged["version"] = (current.version or 0) + 1
+        merged["updated_at"] = datetime.now(timezone.utc)
 
-        # Choose appropriate event payload
-        if "theme" in updated and len(updated) == 1:
-            await self.event_service.publish_event(
-                event_type=EventType.USER_THEME_CHANGED,
-                aggregate_id=f"user_settings_{user_id}",
-                payload={
-                    "user_id": user_id,
-                    "old_theme": str(old_theme),
-                    "new_theme": str(s.theme),
-                    "reason": reason,
-                },
-                metadata=None,
-            )
-        elif "notifications" in updated and len(updated) == 1:
-            # Only notification settings changed
-            notif = updated["notifications"]
-            channels = notif.pop("channels", None) if isinstance(notif, dict) else None
-            await self.event_service.publish_event(
-                event_type=EventType.USER_NOTIFICATION_SETTINGS_UPDATED,
-                aggregate_id=f"user_settings_{user_id}",
-                payload={
-                    "user_id": user_id,
-                    "settings": notif,
-                    "channels": channels,
-                    "reason": reason,
-                },
-                metadata=None,
-            )
-        elif "editor" in updated and len(updated) == 1:
-            # Only editor settings changed
-            await self.event_service.publish_event(
-                event_type=EventType.USER_EDITOR_SETTINGS_UPDATED,
-                aggregate_id=f"user_settings_{user_id}",
-                payload={
-                    "user_id": user_id,
-                    "settings": updated["editor"],
-                    "reason": reason,
-                },
-                metadata=None,
-            )
-        else:
-            # Multiple fields changed or other fields
-            if "notifications" in updated:
-                settings_type = SettingsType.NOTIFICATION
-            elif "editor" in updated:
-                settings_type = SettingsType.EDITOR
-            elif "theme" in updated:
-                settings_type = SettingsType.DISPLAY
-            else:
-                settings_type = SettingsType.PREFERENCES
-            # Stringify all values for Avro compatibility (nested dicts become JSON strings)
-            updated_stringified: dict[str, str] = {
-                k: json.dumps(v) if isinstance(v, dict) else str(v) for k, v in updated.items()
-            }
-            await self.event_service.publish_event(
-                event_type=EventType.USER_SETTINGS_UPDATED,
-                aggregate_id=f"user_settings_{user_id}",
-                payload={
-                    "user_id": user_id,
-                    "settings_type": settings_type,
-                    "updated": updated_stringified,
-                    "reason": reason,
-                },
-                metadata=None,
-            )
+        # Reconstruct settings object (TypeAdapter handles nested dict → dataclass)
+        new_settings = _settings_adapter.validate_python(merged)
 
+        # Publish event with JSON-serializable payload (enums → strings)
+        changes_json = _update_adapter.dump_python(updates, exclude_none=True, mode="json")
+        await self._publish_settings_event(user_id, changes_json, reason)
+
+        # Notify event bus for cache invalidation
         if self._event_bus_manager is not None:
             bus = await self._event_bus_manager.get_event_bus()
             await bus.publish("user.settings.updated", {"user_id": user_id})
 
-        self._add_to_cache(user_id, s)
+        self._add_to_cache(user_id, new_settings)
         if (await self.repository.count_events_since_snapshot(user_id)) >= 10:
-            await self.repository.create_snapshot(s)
-        return s
+            await self.repository.create_snapshot(new_settings)
+        return new_settings
+
+    # Mapping for nested settings → typed Avro payloads
+    _payload_types = {"notifications": NotificationSettingsPayload, "editor": EditorSettingsPayload}
+
+    async def _publish_settings_event(
+        self, user_id: str, changes: dict[str, Any], reason: str | None
+    ) -> None:
+        """Publish settings update event with typed payload fields."""
+        await self.event_service.publish_event(
+            event_type=EventType.USER_SETTINGS_UPDATED,
+            aggregate_id=f"user_settings_{user_id}",
+            payload={
+                "user_id": user_id,
+                "changed_fields": list(changes.keys()),
+                "reason": reason,
+                **{k: self._payload_types[k](**v) if k in self._payload_types else v for k, v in changes.items()},
+            },
+            metadata=None,
+        )
 
     async def update_theme(self, user_id: str, theme: Theme) -> DomainUserSettings:
         """Update user's theme preference"""
@@ -246,35 +173,20 @@ class UserSettingsService:
         )
 
     async def get_settings_history(self, user_id: str, limit: int = 50) -> List[DomainSettingsHistoryEntry]:
-        """Get history from changed paths recorded in events."""
+        """Get history from changed fields recorded in events."""
         events = await self._get_settings_events(user_id, limit=limit)
         history: list[DomainSettingsHistoryEntry] = []
         for event in events:
-            if event.event_type == EventType.USER_THEME_CHANGED:
+            changed_fields = event.payload.get("changed_fields", [])
+            changes = event.payload.get("changes", {})
+            for field in changed_fields:
                 history.append(
                     DomainSettingsHistoryEntry(
                         timestamp=event.timestamp,
                         event_type=event.event_type,
-                        field="/theme",
-                        old_value=event.payload.get("old_theme"),
-                        new_value=event.payload.get("new_theme"),
-                        reason=event.payload.get("reason"),
-                        correlation_id=event.correlation_id,
-                    )
-                )
-                continue
-
-            upd = event.payload.get("updated", {})
-            if not upd:
-                continue
-            for path in (f"/{k}" for k in upd.keys()):
-                history.append(
-                    DomainSettingsHistoryEntry(
-                        timestamp=event.timestamp,
-                        event_type=event.event_type,
-                        field=path,
+                        field=f"/{field}",
                         old_value=None,
-                        new_value=None,
+                        new_value=changes.get(field),
                         reason=event.payload.get("reason"),
                         correlation_id=event.correlation_id,
                     )
@@ -295,14 +207,15 @@ class UserSettingsService:
         await self.repository.create_snapshot(settings)
         self._add_to_cache(user_id, settings)
 
-        # Publish restoration event (generic settings update form)
+        # Publish restoration event
         await self.event_service.publish_event(
             event_type=EventType.USER_SETTINGS_UPDATED,
             aggregate_id=f"user_settings_{user_id}",
             payload={
                 "user_id": user_id,
-                "settings_type": SettingsType.PREFERENCES,
-                "updated": {"restored_to": timestamp.isoformat()},
+                "changed_fields": ["restored"],
+                "changes": {"restored_to": timestamp.isoformat()},
+                "reason": f"Settings restored to {timestamp.isoformat()}",
             },
             metadata=None,
         )
@@ -312,122 +225,39 @@ class UserSettingsService:
     async def _get_settings_events(
         self, user_id: str, since: datetime | None = None, until: datetime | None = None, limit: int | None = None
     ) -> List[DomainSettingsEvent]:
-        """Get settings-related events for a user"""
-        event_types = [
-            EventType.USER_SETTINGS_UPDATED,
-            EventType.USER_THEME_CHANGED,
-            EventType.USER_NOTIFICATION_SETTINGS_UPDATED,
-            EventType.USER_EDITOR_SETTINGS_UPDATED,
+        """Get settings-related events for a user."""
+        raw = await self.repository.get_settings_events(
+            user_id=user_id,
+            event_types=[EventType.USER_SETTINGS_UPDATED],
+            since=since,
+            until=until,
+            limit=limit,
+        )
+        return [
+            DomainSettingsEvent(
+                event_type=EventType.USER_SETTINGS_UPDATED,
+                timestamp=e.timestamp,
+                payload=e.payload,
+                correlation_id=e.metadata.correlation_id if e.metadata else None,
+            )
+            for e in raw
         ]
 
-        raw = await self.repository.get_settings_events(
-            user_id=user_id, event_types=event_types, since=since, until=until, limit=limit
-        )
-        # map to domain
-        out: list[DomainSettingsEvent] = []
-        for e in raw:
-            et = EventType(e.event_type)
-            out.append(
-                DomainSettingsEvent(
-                    event_type=et,
-                    timestamp=e.timestamp,
-                    payload=e.payload,
-                    correlation_id=e.metadata.correlation_id if e.metadata else None,
-                )
-            )
-        return out
-
     def _apply_event(self, settings: DomainUserSettings, event: DomainSettingsEvent) -> DomainUserSettings:
-        if event.event_type == EventType.USER_THEME_CHANGED:
-            new_theme = event.payload.get("new_theme")
-            if new_theme:
-                settings.theme = Theme(new_theme)
+        """Apply a settings update event using TypeAdapter merge."""
+        changes = event.payload.get("changes", {})
+        if not changes:
             return settings
 
-        if event.event_type == EventType.USER_NOTIFICATION_SETTINGS_UPDATED:
-            n = event.payload.get("settings", {})
-            channels_raw = event.payload.get("channels", [])
-            channels: list[NotificationChannel] = [NotificationChannel(c) for c in channels_raw] if channels_raw else []
-            settings.notifications = DomainNotificationSettings(
-                execution_completed=n.get("execution_completed", settings.notifications.execution_completed),
-                execution_failed=n.get("execution_failed", settings.notifications.execution_failed),
-                system_updates=n.get("system_updates", settings.notifications.system_updates),
-                security_alerts=n.get("security_alerts", settings.notifications.security_alerts),
-                channels=channels or settings.notifications.channels,
-            )
-            settings.updated_at = event.timestamp
-            return settings
+        current_dict = _settings_adapter.dump_python(settings)
+        merged = {**current_dict, **changes}
+        merged["updated_at"] = event.timestamp
 
-        if event.event_type == EventType.USER_EDITOR_SETTINGS_UPDATED:
-            e = event.payload.get("settings", {})
-            settings.editor = DomainEditorSettings(
-                theme=e.get("theme", settings.editor.theme),
-                font_size=e.get("font_size", settings.editor.font_size),
-                tab_size=e.get("tab_size", settings.editor.tab_size),
-                use_tabs=e.get("use_tabs", settings.editor.use_tabs),
-                word_wrap=e.get("word_wrap", settings.editor.word_wrap),
-                show_line_numbers=e.get("show_line_numbers", settings.editor.show_line_numbers),
-            )
-            settings.updated_at = event.timestamp
-            return settings
+        return _settings_adapter.validate_python(merged)
 
-        upd = event.payload.get("updated")
-        if not upd:
-            return settings
-
-        # Helper to parse JSON strings or return dict as-is
-        def parse_value(val: object) -> object:
-            if isinstance(val, str):
-                try:
-                    return json.loads(val)
-                except (json.JSONDecodeError, ValueError):
-                    return val
-            return val
-
-        # Top-level
-        if "theme" in upd:
-            settings.theme = Theme(str(upd["theme"]))
-        if "timezone" in upd:
-            settings.timezone = str(upd["timezone"])
-        if "date_format" in upd:
-            settings.date_format = str(upd["date_format"])
-        if "time_format" in upd:
-            settings.time_format = str(upd["time_format"])
-        # Nested (may be JSON strings or dicts)
-        if "notifications" in upd:
-            n = parse_value(upd["notifications"])
-            if isinstance(n, dict):
-                notif_channels: list[NotificationChannel] = [NotificationChannel(c) for c in n.get("channels", [])]
-                settings.notifications = DomainNotificationSettings(
-                    execution_completed=n.get("execution_completed", settings.notifications.execution_completed),
-                    execution_failed=n.get("execution_failed", settings.notifications.execution_failed),
-                    system_updates=n.get("system_updates", settings.notifications.system_updates),
-                    security_alerts=n.get("security_alerts", settings.notifications.security_alerts),
-                    channels=notif_channels or settings.notifications.channels,
-                )
-        if "editor" in upd:
-            e = parse_value(upd["editor"])
-            if isinstance(e, dict):
-                settings.editor = DomainEditorSettings(
-                    theme=e.get("theme", settings.editor.theme),
-                    font_size=e.get("font_size", settings.editor.font_size),
-                    tab_size=e.get("tab_size", settings.editor.tab_size),
-                    use_tabs=e.get("use_tabs", settings.editor.use_tabs),
-                    word_wrap=e.get("word_wrap", settings.editor.word_wrap),
-                    show_line_numbers=e.get("show_line_numbers", settings.editor.show_line_numbers),
-                )
-        if "custom_settings" in upd:
-            cs = parse_value(upd["custom_settings"])
-            if isinstance(cs, dict):
-                settings.custom_settings = cs
-        settings.version = event.payload.get("version", settings.version)
-        settings.updated_at = event.timestamp
-        return settings
-
-    def invalidate_cache(self, user_id: str) -> None:
-        """Invalidate cached settings for a user"""
-        removed = self._cache.pop(user_id, None) is not None
-        if removed:
+    async def invalidate_cache(self, user_id: str) -> None:
+        """Invalidate cached settings for a user."""
+        if self._cache.pop(user_id, None) is not None:
             self.logger.debug(f"Invalidated cache for user {user_id}", extra={"cache_size": len(self._cache)})
 
     def _add_to_cache(self, user_id: str, settings: DomainUserSettings) -> None:
@@ -446,8 +276,7 @@ class UserSettingsService:
 
     async def reset_user_settings(self, user_id: str) -> None:
         """Reset user settings by deleting all data and cache."""
-        # Clear from cache
-        self.invalidate_cache(user_id)
+        await self.invalidate_cache(user_id)
 
         # Delete from database
         await self.repository.delete_user_settings(user_id)

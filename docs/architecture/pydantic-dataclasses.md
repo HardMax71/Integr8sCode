@@ -171,3 +171,8 @@ class ParentModel:
 ```
 
 The model automatically handles nested dict conversion, enum parsing, and type coercion.
+
+## Related docs
+
+- [User Settings Events](user-settings-events.md) — practical example of TypeAdapter usage for event sourcing
+- [Model Conversion Patterns](model-conversion.md) — general patterns for converting between model types

@@ -127,3 +127,8 @@ All event querying—admin browse, replay preview, event export—uses `ReplayFi
 - `db/repositories/replay_repository.py` — replay-specific queries
 - `db/repositories/admin/admin_events_repository.py` — admin dashboard queries
 - `services/kafka_event_service.py` — unified publish (store + Kafka)
+
+## Related docs
+
+- [User Settings Events](user-settings-events.md) — event sourcing pattern for user settings with TypeAdapter merging
+- [Pydantic Dataclasses](pydantic-dataclasses.md) — why domain models use pydantic dataclasses for nested conversion

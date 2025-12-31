@@ -127,30 +127,6 @@ def get_topic_configs() -> dict[KafkaTopic, dict[str, Any]]:
                 "compression.type": "gzip",
             },
         },
-        KafkaTopic.USER_SETTINGS_THEME_EVENTS: {
-            "num_partitions": 3,
-            "replication_factor": 1,
-            "config": {
-                "retention.ms": "2592000000",  # 30 days
-                "compression.type": "gzip",
-            },
-        },
-        KafkaTopic.USER_SETTINGS_NOTIFICATION_EVENTS: {
-            "num_partitions": 3,
-            "replication_factor": 1,
-            "config": {
-                "retention.ms": "2592000000",  # 30 days
-                "compression.type": "gzip",
-            },
-        },
-        KafkaTopic.USER_SETTINGS_EDITOR_EVENTS: {
-            "num_partitions": 3,
-            "replication_factor": 1,
-            "config": {
-                "retention.ms": "2592000000",  # 30 days
-                "compression.type": "gzip",
-            },
-        },
         # Script topics
         KafkaTopic.SCRIPT_EVENTS: {
             "num_partitions": 3,

@@ -34,9 +34,6 @@ class EventType(StringEnum):
 
     # User settings events
     USER_SETTINGS_UPDATED = "user_settings_updated"
-    USER_THEME_CHANGED = "user_theme_changed"
-    USER_NOTIFICATION_SETTINGS_UPDATED = "user_notification_settings_updated"
-    USER_EDITOR_SETTINGS_UPDATED = "user_editor_settings_updated"
 
     # Notification events
     NOTIFICATION_CREATED = "notification_created"

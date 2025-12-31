@@ -57,13 +57,10 @@ from app.infrastructure.kafka.events.system import (
 )
 from app.infrastructure.kafka.events.user import (
     UserDeletedEvent,
-    UserEditorSettingsUpdatedEvent,
     UserLoggedInEvent,
     UserLoggedOutEvent,
-    UserNotificationSettingsUpdatedEvent,
     UserRegisteredEvent,
     UserSettingsUpdatedEvent,
-    UserThemeChangedEvent,
     UserUpdatedEvent,
 )
 
@@ -96,9 +93,6 @@ __all__ = [
     "UserUpdatedEvent",
     "UserDeletedEvent",
     "UserSettingsUpdatedEvent",
-    "UserThemeChangedEvent",
-    "UserNotificationSettingsUpdatedEvent",
-    "UserEditorSettingsUpdatedEvent",
     # Notification
     "NotificationCreatedEvent",
     "NotificationSentEvent",

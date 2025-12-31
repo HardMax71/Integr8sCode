@@ -6,7 +6,7 @@ from pydantic.dataclasses import dataclass
 
 from app.domain.enums.replay import ReplayStatus
 from app.domain.events.event_models import EventSummary
-from app.domain.replay.models import ReplaySessionState
+from app.domain.replay.models import ReplayFilter, ReplaySessionState
 
 
 @dataclass
@@ -37,23 +37,11 @@ class ReplaySessionStatusInfo:
 
 
 @dataclass
-class ReplayQuery:
-    event_ids: list[str] | None = None
-    correlation_id: str | None = None
-    aggregate_id: str | None = None
-    start_time: datetime | None = None
-    end_time: datetime | None = None
-
-    def is_empty(self) -> bool:
-        return not any([self.event_ids, self.correlation_id, self.aggregate_id, self.start_time, self.end_time])
-
-
-@dataclass
 class ReplaySessionData:
     """Unified replay session data for both preview and actual replay."""
 
     total_events: int
     replay_correlation_id: str
     dry_run: bool
-    query: ReplayQuery
+    filter: ReplayFilter
     events_preview: list[EventSummary] = field(default_factory=list)

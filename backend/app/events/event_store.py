@@ -1,8 +1,8 @@
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
-from datetime import datetime, timezone
-from typing import Any, Dict, List
+from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from beanie.odm.enums import SortDirection
 from pymongo.errors import BulkWriteError, DuplicateKeyError
@@ -10,11 +10,13 @@ from pymongo.errors import BulkWriteError, DuplicateKeyError
 from app.core.metrics.context import get_event_metrics
 from app.core.tracing import EventAttributes
 from app.core.tracing.utils import add_span_attributes
-from app.db.docs import EventStoreDocument
-from app.db.docs.event import EventMetadata
+from app.db.docs import EventDocument
 from app.domain.enums.events import EventType
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.events.base import BaseEvent
+
+# Base fields stored at document level (everything else goes into payload)
+_BASE_FIELDS = {"event_id", "event_type", "event_version", "timestamp", "aggregate_id", "metadata"}
 
 
 class EventStore:
@@ -32,7 +34,6 @@ class EventStore:
         self.batch_size = batch_size
         self._initialized = False
 
-        self._PROJECTION = {"stored_at": 0, "_id": 0}
         self._SECURITY_TYPES = [
             EventType.USER_LOGIN,
             EventType.USER_LOGGED_OUT,
@@ -42,43 +43,16 @@ class EventStore:
     async def initialize(self) -> None:
         if self._initialized:
             return
-        # Beanie handles index creation via Document.Settings.indexes
         self._initialized = True
         self.logger.info("Event store initialized with Beanie")
-
-    def _event_to_doc(self, event: BaseEvent) -> EventStoreDocument:
-        """Convert BaseEvent to EventStoreDocument."""
-        event_dict = event.model_dump()
-        metadata_dict = event_dict.pop("metadata", {})
-        metadata = EventMetadata(**metadata_dict)
-        base_fields = set(BaseEvent.model_fields.keys())
-        payload = {k: v for k, v in event_dict.items() if k not in base_fields}
-
-        return EventStoreDocument(
-            event_id=event.event_id,
-            event_type=event.event_type,
-            event_version=event.event_version,
-            timestamp=event.timestamp,
-            aggregate_id=event.aggregate_id,
-            metadata=metadata,
-            payload=payload,
-            stored_at=datetime.now(timezone.utc),
-        )
-
-    def _doc_to_dict(self, doc: EventStoreDocument) -> Dict[str, Any]:
-        """Convert EventStoreDocument to dict for schema_registry deserialization."""
-        result: Dict[str, Any] = doc.model_dump(exclude={"id", "revision_id", "stored_at"})
-        # Ensure metadata is a dict for schema_registry
-        if isinstance(result.get("metadata"), dict):
-            pass  # Already a dict
-        elif hasattr(result.get("metadata"), "model_dump"):
-            result["metadata"] = result["metadata"].model_dump()
-        return result
 
     async def store_event(self, event: BaseEvent) -> bool:
         start = asyncio.get_event_loop().time()
         try:
-            doc = self._event_to_doc(event)
+            now = datetime.now(timezone.utc)
+            data = event.model_dump(exclude={"topic"})
+            payload = {k: data.pop(k) for k in list(data) if k not in _BASE_FIELDS}
+            doc = EventDocument(**data, payload=payload, stored_at=now, ttl_expires_at=now + timedelta(days=self.ttl_days))
             await doc.insert()
 
             add_span_attributes(
@@ -101,22 +75,27 @@ class EventStore:
             self.metrics.record_event_store_failed(event.event_type, type(e).__name__)
             return False
 
-    async def store_batch(self, events: List[BaseEvent]) -> Dict[str, int]:
+    async def store_batch(self, events: list[BaseEvent]) -> dict[str, int]:
         start = asyncio.get_event_loop().time()
         results = {"total": len(events), "stored": 0, "duplicates": 0, "failed": 0}
         if not events:
             return results
 
+        now = datetime.now(timezone.utc)
+        ttl = now + timedelta(days=self.ttl_days)
         try:
-            docs = [self._event_to_doc(e) for e in events]
+            docs = []
+            for e in events:
+                data = e.model_dump(exclude={"topic"})
+                payload = {k: data.pop(k) for k in list(data) if k not in _BASE_FIELDS}
+                docs.append(EventDocument(**data, payload=payload, stored_at=now, ttl_expires_at=ttl))
 
             try:
-                await EventStoreDocument.insert_many(docs)
+                await EventDocument.insert_many(docs)
                 results["stored"] = len(docs)
             except Exception as e:
                 if isinstance(e, BulkWriteError) and e.details:
-                    errs = e.details.get("writeErrors", [])
-                    for err in errs:
+                    for err in e.details.get("writeErrors", []):
                         if err.get("code") == 11000:
                             results["duplicates"] += 1
                         else:
@@ -139,12 +118,12 @@ class EventStore:
 
     async def get_event(self, event_id: str) -> BaseEvent | None:
         start = asyncio.get_event_loop().time()
-        doc = await EventStoreDocument.find_one({"event_id": event_id})
+        doc = await EventDocument.find_one({"event_id": event_id})
         if not doc:
             return None
 
-        event_dict = self._doc_to_dict(doc)
-        event = self.schema_registry.deserialize_json(event_dict)
+        data = doc.model_dump(exclude={"id", "revision_id", "stored_at", "ttl_expires_at"})
+        event = self.schema_registry.deserialize_json({**{k: v for k, v in data.items() if k != "payload"}, **data.get("payload", {})})
 
         duration = asyncio.get_event_loop().time() - start
         self.metrics.record_event_query_duration(duration, "get_by_id", "event_store")
@@ -157,20 +136,23 @@ class EventStore:
         end_time: datetime | None = None,
         limit: int = 100,
         offset: int = 0,
-    ) -> List[BaseEvent]:
+    ) -> list[BaseEvent]:
         start = asyncio.get_event_loop().time()
-        query: Dict[str, Any] = {"event_type": event_type}
+        query: dict[str, Any] = {"event_type": event_type}
         if tr := self._time_range(start_time, end_time):
             query["timestamp"] = tr
 
         docs = await (
-            EventStoreDocument.find(query)
+            EventDocument.find(query)
             .sort([("timestamp", SortDirection.DESCENDING)])
             .skip(offset)
             .limit(limit)
             .to_list()
         )
-        events = [self.schema_registry.deserialize_json(self._doc_to_dict(d)) for d in docs]
+        events = []
+        for doc in docs:
+            d = doc.model_dump(exclude={"id", "revision_id", "stored_at", "ttl_expires_at"})
+            events.append(self.schema_registry.deserialize_json({**{k: v for k, v in d.items() if k != "payload"}, **d.get("payload", {})}))
 
         duration = asyncio.get_event_loop().time() - start
         self.metrics.record_event_query_duration(duration, "get_by_type", "event_store")
@@ -179,15 +161,20 @@ class EventStore:
     async def get_execution_events(
         self,
         execution_id: str,
-        event_types: List[EventType] | None = None,
-    ) -> List[BaseEvent]:
+        event_types: list[EventType] | None = None,
+    ) -> list[BaseEvent]:
         start = asyncio.get_event_loop().time()
-        query: Dict[str, Any] = {"execution_id": execution_id}
+        query: dict[str, Any] = {
+            "$or": [{"payload.execution_id": execution_id}, {"aggregate_id": execution_id}]
+        }
         if event_types:
             query["event_type"] = {"$in": event_types}
 
-        docs = await EventStoreDocument.find(query).sort([("timestamp", SortDirection.ASCENDING)]).to_list()
-        events = [self.schema_registry.deserialize_json(self._doc_to_dict(d)) for d in docs]
+        docs = await EventDocument.find(query).sort([("timestamp", SortDirection.ASCENDING)]).to_list()
+        events = []
+        for doc in docs:
+            d = doc.model_dump(exclude={"id", "revision_id", "stored_at", "ttl_expires_at"})
+            events.append(self.schema_registry.deserialize_json({**{k: v for k, v in d.items() if k != "payload"}, **d.get("payload", {})}))
 
         duration = asyncio.get_event_loop().time() - start
         self.metrics.record_event_query_duration(duration, "get_execution_events", "event_store")
@@ -196,22 +183,23 @@ class EventStore:
     async def get_user_events(
         self,
         user_id: str,
-        event_types: List[EventType] | None = None,
+        event_types: list[EventType] | None = None,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
         limit: int = 100,
-    ) -> List[BaseEvent]:
+    ) -> list[BaseEvent]:
         start = asyncio.get_event_loop().time()
-        query: Dict[str, Any] = {"metadata.user_id": str(user_id)}
+        query: dict[str, Any] = {"metadata.user_id": str(user_id)}
         if event_types:
             query["event_type"] = {"$in": event_types}
         if tr := self._time_range(start_time, end_time):
             query["timestamp"] = tr
 
-        docs = (
-            await EventStoreDocument.find(query).sort([("timestamp", SortDirection.DESCENDING)]).limit(limit).to_list()
-        )
-        events = [self.schema_registry.deserialize_json(self._doc_to_dict(d)) for d in docs]
+        docs = await EventDocument.find(query).sort([("timestamp", SortDirection.DESCENDING)]).limit(limit).to_list()
+        events = []
+        for doc in docs:
+            d = doc.model_dump(exclude={"id", "revision_id", "stored_at", "ttl_expires_at"})
+            events.append(self.schema_registry.deserialize_json({**{k: v for k, v in d.items() if k != "payload"}, **d.get("payload", {})}))
 
         duration = asyncio.get_event_loop().time() - start
         self.metrics.record_event_query_duration(duration, "get_user_events", "event_store")
@@ -223,31 +211,35 @@ class EventStore:
         end_time: datetime | None = None,
         user_id: str | None = None,
         limit: int = 100,
-    ) -> List[BaseEvent]:
+    ) -> list[BaseEvent]:
         start = asyncio.get_event_loop().time()
-        query: Dict[str, Any] = {"event_type": {"$in": self._SECURITY_TYPES}}
+        query: dict[str, Any] = {"event_type": {"$in": self._SECURITY_TYPES}}
         if user_id:
             query["metadata.user_id"] = str(user_id)
         if tr := self._time_range(start_time, end_time):
             query["timestamp"] = tr
 
-        docs = (
-            await EventStoreDocument.find(query).sort([("timestamp", SortDirection.DESCENDING)]).limit(limit).to_list()
-        )
-        events = [self.schema_registry.deserialize_json(self._doc_to_dict(d)) for d in docs]
+        docs = await EventDocument.find(query).sort([("timestamp", SortDirection.DESCENDING)]).limit(limit).to_list()
+        events = []
+        for doc in docs:
+            d = doc.model_dump(exclude={"id", "revision_id", "stored_at", "ttl_expires_at"})
+            events.append(self.schema_registry.deserialize_json({**{k: v for k, v in d.items() if k != "payload"}, **d.get("payload", {})}))
 
         duration = asyncio.get_event_loop().time() - start
         self.metrics.record_event_query_duration(duration, "get_security_events", "event_store")
         return events
 
-    async def get_correlation_chain(self, correlation_id: str) -> List[BaseEvent]:
+    async def get_correlation_chain(self, correlation_id: str) -> list[BaseEvent]:
         start = asyncio.get_event_loop().time()
         docs = await (
-            EventStoreDocument.find({"metadata.correlation_id": str(correlation_id)})
+            EventDocument.find({"metadata.correlation_id": str(correlation_id)})
             .sort([("timestamp", SortDirection.ASCENDING)])
             .to_list()
         )
-        events = [self.schema_registry.deserialize_json(self._doc_to_dict(d)) for d in docs]
+        events = []
+        for doc in docs:
+            d = doc.model_dump(exclude={"id", "revision_id", "stored_at", "ttl_expires_at"})
+            events.append(self.schema_registry.deserialize_json({**{k: v for k, v in d.items() if k != "payload"}, **d.get("payload", {})}))
 
         duration = asyncio.get_event_loop().time() - start
         self.metrics.record_event_query_duration(duration, "get_correlation_chain", "event_store")
@@ -257,22 +249,22 @@ class EventStore:
         self,
         start_time: datetime,
         end_time: datetime | None = None,
-        event_types: List[EventType] | None = None,
+        event_types: list[EventType] | None = None,
         callback: Callable[[BaseEvent], Awaitable[None]] | None = None,
     ) -> int:
         start = asyncio.get_event_loop().time()
         count = 0
 
         try:
-            query: Dict[str, Any] = {"timestamp": {"$gte": start_time}}
+            query: dict[str, Any] = {"timestamp": {"$gte": start_time}}
             if end_time:
                 query["timestamp"]["$lte"] = end_time
             if event_types:
                 query["event_type"] = {"$in": event_types}
 
-            async for doc in EventStoreDocument.find(query).sort([("timestamp", SortDirection.ASCENDING)]):
-                event_dict = self._doc_to_dict(doc)
-                event = self.schema_registry.deserialize_json(event_dict)
+            async for doc in EventDocument.find(query).sort([("timestamp", SortDirection.ASCENDING)]):
+                d = doc.model_dump(exclude={"id", "revision_id", "stored_at", "ttl_expires_at"})
+                event = self.schema_registry.deserialize_json({**{k: v for k, v in d.items() if k != "payload"}, **d.get("payload", {})})
                 if callback:
                     await callback(event)
                 count += 1
@@ -289,10 +281,10 @@ class EventStore:
         self,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
-    ) -> Dict[str, Any]:
-        pipeline: List[Dict[str, Any]] = []
+    ) -> dict[str, Any]:
+        pipeline: list[dict[str, Any]] = []
         if start_time or end_time:
-            match: Dict[str, Any] = {}
+            match: dict[str, Any] = {}
             if start_time:
                 match["timestamp"] = {"$gte": start_time}
             if end_time:
@@ -313,8 +305,8 @@ class EventStore:
             ]
         )
 
-        stats: Dict[str, Any] = {"total_events": 0, "event_types": {}, "start_time": start_time, "end_time": end_time}
-        async for r in EventStoreDocument.aggregate(pipeline):
+        stats: dict[str, Any] = {"total_events": 0, "event_types": {}, "start_time": start_time, "end_time": end_time}
+        async for r in EventDocument.aggregate(pipeline):
             et = r["_id"]
             c = r["count"]
             stats["event_types"][et] = {
@@ -325,23 +317,23 @@ class EventStore:
             stats["total_events"] += c
         return stats
 
-    def _time_range(self, start_time: datetime | None, end_time: datetime | None) -> Dict[str, Any] | None:
+    def _time_range(self, start_time: datetime | None, end_time: datetime | None) -> dict[str, Any] | None:
         if not start_time and not end_time:
             return None
-        tr: Dict[str, Any] = {}
+        tr: dict[str, Any] = {}
         if start_time:
             tr["$gte"] = start_time
         if end_time:
             tr["$lte"] = end_time
         return tr
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         try:
-            event_count = await EventStoreDocument.count()
+            event_count = await EventDocument.count()
             return {
                 "healthy": True,
                 "event_count": event_count,
-                "collection": "event_store",
+                "collection": "events",
                 "initialized": self._initialized,
             }
         except Exception as e:

@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from app.db.docs import ExecutionDocument
-from app.domain.execution import DomainExecution, ResourceUsageDomain
+from app.domain.execution import DomainExecution
 from app.domain.sse import SSEExecutionStatusDomain
 
 
@@ -20,11 +20,4 @@ class SSERepository:
         doc = await ExecutionDocument.find_one({"execution_id": execution_id})
         if not doc:
             return None
-        return DomainExecution(
-            **{
-                **doc.model_dump(exclude={"id", "revision_id"}),
-                "resource_usage": ResourceUsageDomain(**doc.resource_usage.model_dump())
-                if doc.resource_usage
-                else None,
-            }
-        )
+        return DomainExecution(**doc.model_dump(exclude={"id", "revision_id"}))

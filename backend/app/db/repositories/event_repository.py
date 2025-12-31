@@ -11,7 +11,6 @@ from app.core.tracing.utils import add_span_attributes
 from app.db.docs import EventArchiveDocument, EventDocument
 from app.domain.enums.events import EventType
 from app.domain.events import Event
-from app.domain.events import EventMetadata as DomainEventMetadata
 from app.domain.events.event_models import (
     ArchivedEvent,
     EventAggregationResult,
@@ -39,8 +38,6 @@ class EventRepository:
 
     async def store_event(self, event: Event) -> str:
         data = asdict(event)
-        meta = event.metadata.model_dump() if hasattr(event.metadata, "model_dump") else asdict(event.metadata)
-        data["metadata"] = {k: (v.value if hasattr(v, "value") else v) for k, v in meta.items()}
         if not data.get("stored_at"):
             data["stored_at"] = datetime.now(timezone.utc)
         # Remove None values so EventDocument defaults can apply (e.g., ttl_expires_at)
@@ -65,8 +62,6 @@ class EventRepository:
         docs = []
         for event in events:
             data = asdict(event)
-            meta = event.metadata.model_dump() if hasattr(event.metadata, "model_dump") else asdict(event.metadata)
-            data["metadata"] = {k: (v.value if hasattr(v, "value") else v) for k, v in meta.items()}
             if not data.get("stored_at"):
                 data["stored_at"] = now
             # Remove None values so EventDocument defaults can apply
@@ -81,9 +76,7 @@ class EventRepository:
         doc = await EventDocument.find_one({"event_id": event_id})
         if not doc:
             return None
-        data = doc.model_dump(exclude={"id", "revision_id"})
-        data["metadata"] = DomainEventMetadata(**data["metadata"])
-        return Event(**data)
+        return Event(**doc.model_dump(exclude={"id", "revision_id"}))
 
     async def get_events_by_type(
         self,
@@ -104,15 +97,7 @@ class EventRepository:
             .limit(limit)
             .to_list()
         )
-        return [
-            Event(
-                **{
-                    **d.model_dump(exclude={"id", "revision_id"}),
-                    "metadata": DomainEventMetadata(**d.metadata.model_dump()),
-                }
-            )
-            for d in docs
-        ]
+        return [Event(**d.model_dump(exclude={"id", "revision_id"})) for d in docs]
 
     async def get_events_by_aggregate(
         self, aggregate_id: str, event_types: list[EventType] | None = None, limit: int = 100
@@ -125,29 +110,13 @@ class EventRepository:
         docs = (
             await EventDocument.find(*conditions).sort([("timestamp", SortDirection.ASCENDING)]).limit(limit).to_list()
         )
-        return [
-            Event(
-                **{
-                    **d.model_dump(exclude={"id", "revision_id"}),
-                    "metadata": DomainEventMetadata(**d.metadata.model_dump()),
-                }
-            )
-            for d in docs
-        ]
+        return [Event(**d.model_dump(exclude={"id", "revision_id"})) for d in docs]
 
     async def get_events_by_correlation(self, correlation_id: str, limit: int = 100, skip: int = 0) -> EventListResult:
         query = EventDocument.find(EventDocument.metadata.correlation_id == correlation_id)
         total_count = await query.count()
         docs = await query.sort([("timestamp", SortDirection.ASCENDING)]).skip(skip).limit(limit).to_list()
-        events = [
-            Event(
-                **{
-                    **d.model_dump(exclude={"id", "revision_id"}),
-                    "metadata": DomainEventMetadata(**d.metadata.model_dump()),
-                }
-            )
-            for d in docs
-        ]
+        events = [Event(**d.model_dump(exclude={"id", "revision_id"})) for d in docs]
         return EventListResult(
             events=events,
             total=total_count,
@@ -178,15 +147,7 @@ class EventRepository:
             .limit(limit)
             .to_list()
         )
-        return [
-            Event(
-                **{
-                    **d.model_dump(exclude={"id", "revision_id"}),
-                    "metadata": DomainEventMetadata(**d.metadata.model_dump()),
-                }
-            )
-            for d in docs
-        ]
+        return [Event(**d.model_dump(exclude={"id", "revision_id"})) for d in docs]
 
     async def get_execution_events(
         self, execution_id: str, limit: int = 100, skip: int = 0, exclude_system_events: bool = False
@@ -202,15 +163,7 @@ class EventRepository:
         query = EventDocument.find(*conditions)
         total_count = await query.count()
         docs = await query.sort([("timestamp", SortDirection.ASCENDING)]).skip(skip).limit(limit).to_list()
-        events = [
-            Event(
-                **{
-                    **d.model_dump(exclude={"id", "revision_id"}),
-                    "metadata": DomainEventMetadata(**d.metadata.model_dump()),
-                }
-            )
-            for d in docs
-        ]
+        events = [Event(**d.model_dump(exclude={"id", "revision_id"})) for d in docs]
         return EventListResult(
             events=events,
             total=total_count,
@@ -328,16 +281,7 @@ class EventRepository:
         total_count = await query.count()
         sort_direction = SortDirection.DESCENDING if sort_order == "desc" else SortDirection.ASCENDING
         docs = await query.sort([("timestamp", sort_direction)]).skip(skip).limit(limit).to_list()
-        events = [
-            Event(
-                **{
-                    **d.model_dump(exclude={"id", "revision_id"}),
-                    "metadata": DomainEventMetadata(**d.metadata.model_dump()),
-                }
-            )
-            for d in docs
-        ]
-
+        events = [Event(**d.model_dump(exclude={"id", "revision_id"})) for d in docs]
         return EventListResult(
             events=events,
             total=total_count,
@@ -360,15 +304,7 @@ class EventRepository:
         cursor = EventDocument.find(query)
         total_count = await cursor.count()
         docs = await cursor.sort([(sort_field, SortDirection.DESCENDING)]).skip(skip).limit(limit).to_list()
-        events = [
-            Event(
-                **{
-                    **d.model_dump(exclude={"id", "revision_id"}),
-                    "metadata": DomainEventMetadata(**d.metadata.model_dump()),
-                }
-            )
-            for d in docs
-        ]
+        events = [Event(**d.model_dump(exclude={"id", "revision_id"})) for d in docs]
         return EventListResult(
             events=events, total=total_count, skip=skip, limit=limit, has_more=(skip + limit) < total_count
         )
@@ -418,10 +354,7 @@ class EventRepository:
         await archived_doc.insert()
         await doc.delete()
         return ArchivedEvent(
-            **{
-                **doc.model_dump(exclude={"id", "revision_id"}),
-                "metadata": DomainEventMetadata(**doc.metadata.model_dump()),
-            },
+            **doc.model_dump(exclude={"id", "revision_id"}),
             deleted_at=deleted_at,
             deleted_by=deleted_by,
             deletion_reason=deletion_reason,
@@ -448,7 +381,7 @@ class EventRepository:
         ]
 
         async for doc in EventDocument.aggregate(pipeline):
-            events = [Event(**{**e, "metadata": DomainEventMetadata(**e["metadata"])}) for e in doc["events"]]
+            events = [Event(**e) for e in doc["events"]]
             return EventReplayInfo(
                 events=events,
                 event_count=doc["event_count"],

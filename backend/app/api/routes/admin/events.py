@@ -10,8 +10,8 @@ from fastapi.responses import StreamingResponse
 
 from app.api.dependencies import admin_user
 from app.core.correlation import CorrelationContext
-from app.domain.admin import ReplayQuery
 from app.domain.enums.events import EventType
+from app.domain.replay import ReplayFilter
 from app.domain.events.event_models import EventFilter
 from app.schemas_pydantic.admin_events import (
     EventBrowseRequest,
@@ -153,7 +153,7 @@ async def replay_events(
 ) -> EventReplayResponse:
     try:
         replay_correlation_id = f"replay_{CorrelationContext.get_correlation_id()}"
-        rq = ReplayQuery(
+        replay_filter = ReplayFilter(
             event_ids=request.event_ids,
             correlation_id=request.correlation_id,
             aggregate_id=request.aggregate_id,
@@ -162,7 +162,7 @@ async def replay_events(
         )
         try:
             result = await service.prepare_or_schedule_replay(
-                replay_query=rq,
+                replay_filter=replay_filter,
                 dry_run=request.dry_run,
                 replay_correlation_id=replay_correlation_id,
                 target_service=request.target_service,

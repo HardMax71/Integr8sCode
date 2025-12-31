@@ -6,10 +6,10 @@ from typing import Any, AsyncIterator
 from beanie.odm.enums import SortDirection
 from beanie.operators import LT, In
 
-from app.db.docs import EventStoreDocument, ReplaySessionDocument
+from app.db.docs import EventDocument, ReplaySessionDocument
 from app.domain.admin.replay_updates import ReplaySessionUpdate
 from app.domain.enums.replay import ReplayStatus
-from app.domain.replay.models import ReplayConfig, ReplayFilter, ReplaySessionState
+from app.domain.replay.models import ReplayFilter, ReplaySessionState
 
 
 class ReplayRepository:
@@ -18,10 +18,7 @@ class ReplayRepository:
 
     async def save_session(self, session: ReplaySessionState) -> None:
         existing = await ReplaySessionDocument.find_one({"session_id": session.session_id})
-        data = asdict(session)
-        # config is a Pydantic model, convert to dict for document
-        data["config"] = session.config.model_dump()
-        doc = ReplaySessionDocument(**data)
+        doc = ReplaySessionDocument(**asdict(session))
         if existing:
             doc.id = existing.id
         await doc.save()
@@ -30,9 +27,7 @@ class ReplayRepository:
         doc = await ReplaySessionDocument.find_one({"session_id": session_id})
         if not doc:
             return None
-        data = doc.model_dump(exclude={"id", "revision_id"})
-        data["config"] = ReplayConfig.model_validate(data["config"])
-        return ReplaySessionState(**data)
+        return ReplaySessionState(**doc.model_dump(exclude={"id", "revision_id"}))
 
     async def list_sessions(
         self, status: ReplayStatus | None = None, user_id: str | None = None, limit: int = 100, skip: int = 0
@@ -49,12 +44,7 @@ class ReplayRepository:
             .limit(limit)
             .to_list()
         )
-        results = []
-        for doc in docs:
-            data = doc.model_dump(exclude={"id", "revision_id"})
-            data["config"] = ReplayConfig.model_validate(data["config"])
-            results.append(ReplaySessionState(**data))
-        return results
+        return [ReplaySessionState(**doc.model_dump(exclude={"id", "revision_id"})) for doc in docs]
 
     async def update_session_status(self, session_id: str, status: ReplayStatus) -> bool:
         doc = await ReplaySessionDocument.find_one({"session_id": session_id})
@@ -91,17 +81,19 @@ class ReplayRepository:
 
     async def count_events(self, replay_filter: ReplayFilter) -> int:
         query = replay_filter.to_mongo_query()
-        return await EventStoreDocument.find(query).count()
+        return await EventDocument.find(query).count()
 
     async def fetch_events(
         self, replay_filter: ReplayFilter, batch_size: int = 100, skip: int = 0
     ) -> AsyncIterator[list[dict[str, Any]]]:
         query = replay_filter.to_mongo_query()
-        cursor = EventStoreDocument.find(query).sort([("timestamp", SortDirection.ASCENDING)]).skip(skip)
+        cursor = EventDocument.find(query).sort([("timestamp", SortDirection.ASCENDING)]).skip(skip)
 
         batch = []
         async for doc in cursor:
-            batch.append(doc.model_dump(exclude={"id", "revision_id", "stored_at"}))
+            # Merge payload to top level for schema_registry deserialization
+            d = doc.model_dump(exclude={"id", "revision_id", "stored_at", "ttl_expires_at"})
+            batch.append({**{k: v for k, v in d.items() if k != "payload"}, **d.get("payload", {})})
             if len(batch) >= batch_size:
                 yield batch
                 batch = []

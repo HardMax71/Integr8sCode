@@ -1,100 +1,129 @@
 # Event storage architecture
 
-## Two collections, one purpose
+## Unified events collection
 
-The system maintains *two separate MongoDB collections* for events: `events` and `event_store`. This implements a hybrid CQRS pattern where writes and reads are optimized for different use cases.
+The system stores all events in a single `events` MongoDB collection using `EventDocument`. This provides a unified
+approach where all event data—whether from Kafka consumers, API operations, or pod monitors—flows into one collection
+with consistent structure.
 
-## EventDocument vs EventStoreDocument
+## EventDocument structure
 
-**event_store** is the system's *permanent audit log* — an immutable append-only record of everything that happened:
+`EventDocument` uses a flexible payload pattern:
 
-- Sourced from Kafka via `EventStoreConsumer`
-- No TTL — events persist indefinitely
-- Used for replay, compliance, and forensics
-- Single writer: the event store consumer
+```python
+class EventDocument(Document):
+    event_id: str           # Unique event identifier
+    event_type: EventType   # Typed event classification
+    event_version: str      # Schema version
+    timestamp: datetime     # When event occurred
+    aggregate_id: str       # Related entity (e.g., execution_id)
+    metadata: EventMetadata # Service info, correlation, user context
+    payload: dict[str, Any] # Event-specific data (flexible)
+    stored_at: datetime     # When stored in MongoDB
+    ttl_expires_at: datetime # Auto-expiration time
+```
 
-**events** is an *operational projection* — a working copy optimized for day-to-day queries:
+**Base fields** (`event_id`, `event_type`, `timestamp`, `aggregate_id`, `metadata`) are stored at document level for
+efficient indexing.
 
-- Sourced from application code via `KafkaEventService`
-- 30-day TTL — old events expire automatically
-- Used for admin dashboards, user-facing queries, analytics
-- Written by any service publishing events
+**Event-specific fields** go into `payload` dict, allowing different event types to have different data without schema
+changes.
 
-Both collections share identical schemas. The difference is *retention and purpose*.
+## Storage pattern
+
+When storing events, base fields stay at top level while everything else goes into payload:
+
+```python
+_BASE_FIELDS = {"event_id", "event_type", "event_version", "timestamp", "aggregate_id", "metadata"}
+
+data = event.model_dump(exclude={"topic"})
+payload = {k: data.pop(k) for k in list(data) if k not in _BASE_FIELDS}
+doc = EventDocument(**data, payload=payload, stored_at=now, ttl_expires_at=ttl)
+```
+
+## Query pattern
+
+For typed deserialization, flatten payload inline:
+
+```python
+d = doc.model_dump(exclude={"id", "revision_id", "stored_at", "ttl_expires_at"})
+flat = {**{k: v for k, v in d.items() if k != "payload"}, **d.get("payload", {})}
+event = schema_registry.deserialize_json(flat)
+```
+
+For MongoDB queries, access payload fields with dot notation:
+
+```python
+query["payload.execution_id"] = execution_id
+query["metadata.correlation_id"] = correlation_id
+```
 
 ## Write flow
-
-When application code publishes an event, it flows through two paths:
 
 ```mermaid
 graph TD
     App[Application Code] --> KES[KafkaEventService.publish_event]
-    KES --> ER[EventRepository.store_event]
-    ER --> Events[(events collection)]
+    KES --> ES[EventStore.store_event]
+    ES --> Events[(events collection)]
     KES --> Producer[UnifiedProducer]
     Producer --> Kafka[(Kafka)]
     Kafka --> ESC[EventStoreConsumer]
-    ESC --> ES[EventStore.store_batch]
-    ES --> EventStore[(event_store collection)]
+    ESC --> ES
 ```
 
-1. `KafkaEventService.publish_event()` stores to `events` collection AND publishes to Kafka
-2. `EventStoreConsumer` consumes from Kafka and stores to `event_store` collection
-
-This dual-write ensures:
-
-- **Immediate availability**: Events appear in `events` instantly for operational queries
-- **Permanent record**: Events flow through Kafka to `event_store` for audit trail
-- **Decoupling**: If Kafka consumer falls behind, operational queries remain fast
+1. `KafkaEventService.publish_event()` stores to `events` AND publishes to Kafka
+2. `EventStoreConsumer` consumes from Kafka and stores to same `events` collection
+3. Deduplication via unique `event_id` index handles double-writes gracefully
 
 ## Read patterns
 
-Different repositories query different collections based on use case:
+All repositories query the same `events` collection:
 
-| Repository | Collection | Use Case |
-|------------|------------|----------|
-| `EventRepository` | events | User-facing queries, recent events |
-| `AdminEventsRepository` | events | Admin dashboard, analytics |
-| `EventStore` | event_store | Replay, audit, historical queries |
+| Repository              | Use Case                                             |
+|-------------------------|------------------------------------------------------|
+| `EventStore`            | Core event operations, replay, typed deserialization |
+| `AdminEventsRepository` | Admin dashboard, analytics, browsing                 |
+| `ReplayRepository`      | Replay session management, event streaming           |
 
-The admin console and user-facing features query `events` for fast access to recent data. The event store is reserved for replay scenarios and compliance needs.
+## TTL and retention
 
-## Why not just one collection?
+Events have a configurable TTL (default 90 days). The `ttl_expires_at` field triggers MongoDB's TTL index for automatic
+cleanup:
 
-**Storage costs**: The `events` collection with 30-day TTL keeps storage bounded. Without TTL, event volume would grow unbounded — problematic for operational queries that scan recent data.
-
-**Query performance**: Operational queries (last 24 hours, user's recent events) benefit from a smaller, indexed dataset. Scanning a years-long audit log for recent events wastes resources.
-
-**Retention policies**: Different data has different retention requirements. Operational data can expire. Audit logs often cannot.
-
-**Failure isolation**: If the event store consumer falls behind (Kafka lag), operational queries remain unaffected. The `events` collection stays current through direct writes.
-
-## Pod monitor integration
-
-The `PodMonitor` watches Kubernetes pods and publishes lifecycle events. These events must appear in both collections:
-
-```mermaid
-graph LR
-    K8s[Kubernetes Watch] --> PM[PodMonitor]
-    PM --> KES[KafkaEventService.publish_base_event]
-    KES --> Events[(events)]
-    KES --> Kafka[(Kafka)]
-    Kafka --> EventStore[(event_store)]
+```python
+ttl_expires_at = datetime.now(timezone.utc) + timedelta(days=self.ttl_days)
 ```
 
-`PodMonitor` uses `KafkaEventService.publish_base_event()` to:
+For permanent audit requirements, events can be archived to `EventArchiveDocument` before deletion.
 
-1. Store pre-built events to `events` collection
-2. Publish to Kafka for downstream consumers and `event_store`
+## ReplayFilter
 
-This ensures pod events appear in admin dashboards immediately while maintaining the permanent audit trail.
+`ReplayFilter` provides a unified way to query events across all use cases:
+
+```python
+class ReplayFilter(BaseModel):
+    event_ids: list[str] | None = None
+    execution_id: str | None = None
+    correlation_id: str | None = None
+    aggregate_id: str | None = None
+    event_types: list[EventType] | None = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
+    user_id: str | None = None
+    service_name: str | None = None
+    custom_query: dict[str, Any] | None = None
+
+    def to_mongo_query(self) -> dict[str, Any]:
+        # Builds MongoDB query from filter fields
+```
+
+All event querying—admin browse, replay preview, event export—uses `ReplayFilter.to_mongo_query()` for consistency.
 
 ## Key files
 
-- `db/docs/event.py` — `EventDocument` and `EventStoreDocument` definitions
-- `db/repositories/event_repository.py` — operational event queries
+- `db/docs/event.py` — `EventDocument` and `EventArchiveDocument` definitions
+- `domain/replay/models.py` — `ReplayFilter`, `ReplayConfig`, `ReplaySessionState`
+- `events/event_store.py` — event storage and retrieval operations
+- `db/repositories/replay_repository.py` — replay-specific queries
 - `db/repositories/admin/admin_events_repository.py` — admin dashboard queries
-- `events/event_store.py` — permanent event store operations
-- `events/event_store_consumer.py` — Kafka to event_store consumer
 - `services/kafka_event_service.py` — unified publish (store + Kafka)
-- `services/pod_monitor/monitor.py` — pod lifecycle events

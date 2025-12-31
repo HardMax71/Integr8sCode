@@ -7,11 +7,11 @@ from beanie.operators import GTE, LTE, In, Text
 
 from app.db.docs import (
     EventArchiveDocument,
-    EventStoreDocument,
+    EventDocument,
     ExecutionDocument,
     ReplaySessionDocument,
 )
-from app.domain.admin import ReplayQuery, ReplaySessionData, ReplaySessionStatusDetail
+from app.domain.admin import ReplaySessionData, ReplaySessionStatusDetail
 from app.domain.admin.replay_updates import ReplaySessionUpdate
 from app.domain.enums.replay import ReplayStatus
 from app.domain.events import EventMetadata as DomainEventMetadata
@@ -27,32 +27,21 @@ from app.domain.events.event_models import (
     UserEventCount,
 )
 from app.domain.events.query_builders import EventStatsAggregation
-from app.domain.replay.models import ReplayConfig, ReplaySessionState
+from app.domain.replay.models import ReplayConfig, ReplayFilter, ReplaySessionState
 
 
 class AdminEventsRepository:
     def _event_filter_conditions(self, f: EventFilter) -> list[Any]:
-        """Build Beanie query conditions from EventFilter for EventStoreDocument."""
+        """Build Beanie query conditions from EventFilter for EventDocument."""
         conditions = [
-            In(EventStoreDocument.event_type, f.event_types) if f.event_types else None,
-            EventStoreDocument.aggregate_id == f.aggregate_id if f.aggregate_id else None,
-            EventStoreDocument.metadata.correlation_id == f.correlation_id if f.correlation_id else None,
-            EventStoreDocument.metadata.user_id == f.user_id if f.user_id else None,
-            EventStoreDocument.metadata.service_name == f.service_name if f.service_name else None,
-            GTE(EventStoreDocument.timestamp, f.start_time) if f.start_time else None,
-            LTE(EventStoreDocument.timestamp, f.end_time) if f.end_time else None,
+            In(EventDocument.event_type, f.event_types) if f.event_types else None,
+            EventDocument.aggregate_id == f.aggregate_id if f.aggregate_id else None,
+            EventDocument.metadata.correlation_id == f.correlation_id if f.correlation_id else None,
+            EventDocument.metadata.user_id == f.user_id if f.user_id else None,
+            EventDocument.metadata.service_name == f.service_name if f.service_name else None,
+            GTE(EventDocument.timestamp, f.start_time) if f.start_time else None,
+            LTE(EventDocument.timestamp, f.end_time) if f.end_time else None,
             Text(f.search_text) if f.search_text else None,
-        ]
-        return [c for c in conditions if c is not None]
-
-    def _replay_conditions_for_store(self, q: ReplayQuery) -> list[Any]:
-        """Build Beanie query conditions from ReplayQuery for EventStoreDocument."""
-        conditions = [
-            In(EventStoreDocument.event_id, q.event_ids) if q.event_ids else None,
-            EventStoreDocument.metadata.correlation_id == q.correlation_id if q.correlation_id else None,
-            EventStoreDocument.aggregate_id == q.aggregate_id if q.aggregate_id else None,
-            GTE(EventStoreDocument.timestamp, q.start_time) if q.start_time else None,
-            LTE(EventStoreDocument.timestamp, q.end_time) if q.end_time else None,
         ]
         return [c for c in conditions if c is not None]
 
@@ -65,31 +54,37 @@ class AdminEventsRepository:
         sort_order: SortDirection = SortDirection.DESCENDING,
     ) -> EventBrowseResult:
         conditions = self._event_filter_conditions(event_filter)
-        query = EventStoreDocument.find(*conditions)
+        query = EventDocument.find(*conditions)
         total = await query.count()
 
         docs = await query.sort([(sort_by, sort_order)]).skip(skip).limit(limit).to_list()
-        doc_fields = set(EventStoreDocument.model_fields.keys()) - {"id", "revision_id"}
         events = [
-            Event(**{**d.model_dump(include=doc_fields), "metadata": DomainEventMetadata(**d.metadata.model_dump())})
+            Event(
+                **{
+                    **d.model_dump(exclude={"id", "revision_id"}),
+                    "metadata": DomainEventMetadata(**d.metadata.model_dump()),
+                }
+            )
             for d in docs
         ]
 
         return EventBrowseResult(events=events, total=total, skip=skip, limit=limit)
 
     async def get_event_detail(self, event_id: str) -> EventDetail | None:
-        doc = await EventStoreDocument.find_one({"event_id": event_id})
+        doc = await EventDocument.find_one({"event_id": event_id})
         if not doc:
             return None
 
-        doc_fields = set(EventStoreDocument.model_fields.keys()) - {"id", "revision_id"}
         event = Event(
-            **{**doc.model_dump(include=doc_fields), "metadata": DomainEventMetadata(**doc.metadata.model_dump())}
+            **{
+                **doc.model_dump(exclude={"id", "revision_id"}),
+                "metadata": DomainEventMetadata(**doc.metadata.model_dump()),
+            }
         )
 
         related_query = {"metadata.correlation_id": doc.metadata.correlation_id, "event_id": {"$ne": event_id}}
         related_docs = await (
-            EventStoreDocument.find(related_query).sort([("timestamp", SortDirection.ASCENDING)]).limit(10).to_list()
+            EventDocument.find(related_query).sort([("timestamp", SortDirection.ASCENDING)]).limit(10).to_list()
         )
         related_events = [
             EventSummary(
@@ -105,7 +100,7 @@ class AdminEventsRepository:
         return EventDetail(event=event, related_events=related_events, timeline=timeline)
 
     async def delete_event(self, event_id: str) -> bool:
-        doc = await EventStoreDocument.find_one({"event_id": event_id})
+        doc = await EventDocument.find_one({"event_id": event_id})
         if not doc:
             return False
         await doc.delete()
@@ -115,7 +110,7 @@ class AdminEventsRepository:
         start_time = datetime.now(timezone.utc) - timedelta(hours=hours)
 
         overview_pipeline = EventStatsAggregation.build_overview_pipeline(start_time)
-        overview_result = await EventStoreDocument.aggregate(overview_pipeline).to_list()
+        overview_result = await EventDocument.aggregate(overview_pipeline).to_list()
 
         stats = (
             overview_result[0]
@@ -123,7 +118,7 @@ class AdminEventsRepository:
             else {"total_events": 0, "event_type_count": 0, "unique_user_count": 0, "service_count": 0}
         )
 
-        error_count = await EventStoreDocument.find(
+        error_count = await EventDocument.find(
             {
                 "timestamp": {"$gte": start_time},
                 "event_type": {"$regex": "failed|error|timeout", "$options": "i"},
@@ -133,17 +128,17 @@ class AdminEventsRepository:
         error_rate = (error_count / stats["total_events"] * 100) if stats["total_events"] > 0 else 0
 
         type_pipeline = EventStatsAggregation.build_event_types_pipeline(start_time)
-        top_types = await EventStoreDocument.aggregate(type_pipeline).to_list()
+        top_types = await EventDocument.aggregate(type_pipeline).to_list()
         events_by_type = {t["_id"]: t["count"] for t in top_types}
 
         hourly_pipeline = EventStatsAggregation.build_hourly_events_pipeline(start_time)
-        hourly_result = await EventStoreDocument.aggregate(hourly_pipeline).to_list()
+        hourly_result = await EventDocument.aggregate(hourly_pipeline).to_list()
         events_by_hour: list[HourlyEventCount | dict[str, Any]] = [
             HourlyEventCount(hour=doc["_id"], count=doc["count"]) for doc in hourly_result
         ]
 
         user_pipeline = EventStatsAggregation.build_top_users_pipeline(start_time)
-        top_users_result = await EventStoreDocument.aggregate(user_pipeline).to_list()
+        top_users_result = await EventDocument.aggregate(user_pipeline).to_list()
         top_users = [
             UserEventCount(user_id=doc["_id"], event_count=doc["count"]) for doc in top_users_result if doc["_id"]
         ]
@@ -176,7 +171,7 @@ class AdminEventsRepository:
     async def export_events_csv(self, event_filter: EventFilter) -> list[EventExportRow]:
         conditions = self._event_filter_conditions(event_filter)
         docs = await (
-            EventStoreDocument.find(*conditions).sort([("timestamp", SortDirection.DESCENDING)]).limit(10000).to_list()
+            EventDocument.find(*conditions).sort([("timestamp", SortDirection.DESCENDING)]).limit(10000).to_list()
         )
 
         return [
@@ -279,7 +274,7 @@ class AdminEventsRepository:
         execution_results: list[dict[str, Any]] = []
         if doc.config and doc.config.filter and doc.config.filter.custom_query:
             original_query = doc.config.filter.custom_query
-            original_events = await EventStoreDocument.find(original_query).limit(10).to_list()
+            original_events = await EventDocument.find(original_query).limit(10).to_list()
 
             execution_ids = set()
             for event in original_events:
@@ -315,13 +310,11 @@ class AdminEventsRepository:
             execution_results=execution_results,
         )
 
-    async def count_events_for_replay(self, replay_query: ReplayQuery) -> int:
-        conditions = self._replay_conditions_for_store(replay_query)
-        return await EventStoreDocument.find(*conditions).count()
+    async def count_events_for_replay(self, replay_filter: ReplayFilter) -> int:
+        return await EventDocument.find(replay_filter.to_mongo_query()).count()
 
-    async def get_events_preview_for_replay(self, replay_query: ReplayQuery, limit: int = 100) -> list[EventSummary]:
-        conditions = self._replay_conditions_for_store(replay_query)
-        docs = await EventStoreDocument.find(*conditions).limit(limit).to_list()
+    async def get_events_preview_for_replay(self, replay_filter: ReplayFilter, limit: int = 100) -> list[EventSummary]:
+        docs = await EventDocument.find(replay_filter.to_mongo_query()).limit(limit).to_list()
         return [
             EventSummary(
                 event_id=doc.event_id,
@@ -333,9 +326,9 @@ class AdminEventsRepository:
         ]
 
     async def prepare_replay_session(
-        self, replay_query: ReplayQuery, dry_run: bool, replay_correlation_id: str, max_events: int = 1000
+        self, replay_filter: ReplayFilter, dry_run: bool, replay_correlation_id: str, max_events: int = 1000
     ) -> ReplaySessionData:
-        event_count = await self.count_events_for_replay(replay_query)
+        event_count = await self.count_events_for_replay(replay_filter)
         if event_count == 0:
             raise ValueError("No events found matching the criteria")
         if event_count > max_events and not dry_run:
@@ -343,32 +336,27 @@ class AdminEventsRepository:
 
         events_preview: list[EventSummary] = []
         if dry_run:
-            events_preview = await self.get_events_preview_for_replay(replay_query, limit=100)
+            events_preview = await self.get_events_preview_for_replay(replay_filter, limit=100)
 
         return ReplaySessionData(
             total_events=event_count,
             replay_correlation_id=replay_correlation_id,
             dry_run=dry_run,
-            query=replay_query,
+            filter=replay_filter,
             events_preview=events_preview,
         )
 
     async def get_replay_events_preview(
         self, event_ids: list[str] | None = None, correlation_id: str | None = None, aggregate_id: str | None = None
     ) -> dict[str, Any]:
-        replay_query = ReplayQuery(event_ids=event_ids, correlation_id=correlation_id, aggregate_id=aggregate_id)
-        conditions = self._replay_conditions_for_store(replay_query)
+        replay_filter = ReplayFilter(event_ids=event_ids, correlation_id=correlation_id, aggregate_id=aggregate_id)
+        query = replay_filter.to_mongo_query()
 
-        if not conditions:
+        if not query:
             return {"events": [], "total": 0}
 
-        total = await EventStoreDocument.find(*conditions).count()
-        docs = (
-            await EventStoreDocument.find(*conditions)
-            .sort([("timestamp", SortDirection.ASCENDING)])
-            .limit(100)
-            .to_list()
-        )
+        total = await EventDocument.find(query).count()
+        docs = await EventDocument.find(query).sort([("timestamp", SortDirection.ASCENDING)]).limit(100).to_list()
 
         events = [doc.model_dump() for doc in docs]
         return {"events": events, "total": total}

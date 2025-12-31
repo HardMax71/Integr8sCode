@@ -9,7 +9,7 @@ from typing import Any, Dict, List
 from beanie.odm.enums import SortDirection
 
 from app.db.repositories.admin import AdminEventsRepository
-from app.domain.admin import ReplayQuery, ReplaySessionStatusDetail
+from app.domain.admin import ReplaySessionStatusDetail
 from app.domain.admin.replay_updates import ReplaySessionUpdate
 from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
 from app.domain.events.event_models import (
@@ -95,12 +95,12 @@ class AdminEventsService:
     async def prepare_or_schedule_replay(
         self,
         *,
-        replay_query: ReplayQuery,
+        replay_filter: ReplayFilter,
         dry_run: bool,
         replay_correlation_id: str,
         target_service: str | None,
     ) -> AdminReplayResult:
-        if replay_query.is_empty():
+        if replay_filter.is_empty():
             raise ValueError("Must specify at least one filter for replay")
 
         # Prepare and optionally preview
@@ -112,7 +112,7 @@ class AdminEventsService:
             },
         )
         session_data = await self._repo.prepare_replay_session(
-            replay_query=replay_query,
+            replay_filter=replay_filter,
             dry_run=dry_run,
             replay_correlation_id=replay_correlation_id,
             max_events=1000,
@@ -145,11 +145,7 @@ class AdminEventsService:
             )
             return result
 
-        # Build config for actual replay and create session via replay service
-        replay_filter = ReplayFilter(
-            start_time=replay_query.start_time,
-            end_time=replay_query.end_time,
-        )
+        # Build config for actual replay - filter is already unified, just pass it
         config = ReplayConfig(
             replay_type=ReplayType.QUERY,
             target=ReplayTarget.KAFKA if target_service else ReplayTarget.TEST,

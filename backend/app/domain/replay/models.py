@@ -11,20 +11,55 @@ from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
 
 
 class ReplayFilter(BaseModel):
+    # Event selection filters
+    event_ids: List[str] | None = None
     execution_id: str | None = None
+    correlation_id: str | None = None
+    aggregate_id: str | None = None
     event_types: List[EventType] | None = None
+    exclude_event_types: List[EventType] | None = None
+
+    # Time range
     start_time: datetime | None = None
     end_time: datetime | None = None
+
+    # Metadata filters
     user_id: str | None = None
     service_name: str | None = None
+
+    # Escape hatch for complex queries
     custom_query: Dict[str, Any] | None = None
-    exclude_event_types: List[EventType] | None = None
+
+    def is_empty(self) -> bool:
+        return not any(
+            [
+                self.event_ids,
+                self.execution_id,
+                self.correlation_id,
+                self.aggregate_id,
+                self.event_types,
+                self.start_time,
+                self.end_time,
+                self.user_id,
+                self.service_name,
+                self.custom_query,
+            ]
+        )
 
     def to_mongo_query(self) -> Dict[str, Any]:
         query: Dict[str, Any] = {}
 
+        if self.event_ids:
+            query["event_id"] = {"$in": self.event_ids}
+
         if self.execution_id:
-            query["execution_id"] = str(self.execution_id)
+            query["payload.execution_id"] = str(self.execution_id)
+
+        if self.correlation_id:
+            query["metadata.correlation_id"] = self.correlation_id
+
+        if self.aggregate_id:
+            query["aggregate_id"] = self.aggregate_id
 
         if self.event_types:
             query["event_type"] = {"$in": [str(et) for et in self.event_types]}

@@ -9,7 +9,6 @@ from app.db.docs.dlq import DLQMessageDocument
 from app.db.docs.event import (
     EventArchiveDocument,
     EventDocument,
-    EventStoreDocument,
 )
 from app.db.docs.execution import ExecutionDocument, ResourceUsage
 from app.db.docs.notification import (
@@ -44,7 +43,6 @@ ALL_DOCUMENTS = [
     SagaDocument,
     DLQMessageDocument,
     EventDocument,
-    EventStoreDocument,
     EventArchiveDocument,
     ReplaySessionDocument,
     ResourceAllocationDocument,
@@ -74,7 +72,6 @@ __all__ = [
     "DLQMessageDocument",
     # Event
     "EventDocument",
-    "EventStoreDocument",
     "EventArchiveDocument",
     # Replay
     "ReplaySessionDocument",

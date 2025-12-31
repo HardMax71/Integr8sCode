@@ -1,7 +1,8 @@
 import re
-from dataclasses import dataclass
 from datetime import datetime
 from typing import List
+
+from pydantic.dataclasses import dataclass
 
 from app.core.utils import StringEnum
 from app.domain.enums.user import UserRole

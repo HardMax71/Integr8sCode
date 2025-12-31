@@ -1,6 +1,8 @@
-from dataclasses import dataclass, field
+from dataclasses import field
 from datetime import datetime
 from typing import Any
+
+from pydantic.dataclasses import dataclass
 
 from app.core.utils import StringEnum
 from app.domain.enums.events import EventType

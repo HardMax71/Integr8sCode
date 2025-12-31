@@ -1,6 +1,8 @@
-from dataclasses import dataclass, field
+from dataclasses import field
 from datetime import datetime
 from typing import Any
+
+from pydantic.dataclasses import dataclass
 
 from app.domain.enums.replay import ReplayStatus
 from app.domain.events.event_models import EventSummary

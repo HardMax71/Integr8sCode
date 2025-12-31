@@ -1,7 +1,9 @@
 import re
-from dataclasses import dataclass, field
+from dataclasses import field
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
+
+from pydantic.dataclasses import dataclass
 
 from app.core.utils import StringEnum
 

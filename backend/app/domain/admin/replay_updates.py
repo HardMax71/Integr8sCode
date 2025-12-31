@@ -1,7 +1,8 @@
 """Domain models for replay session updates."""
 
-from dataclasses import dataclass
 from datetime import datetime
+
+from pydantic.dataclasses import dataclass
 
 from app.domain.enums.replay import ReplayStatus
 

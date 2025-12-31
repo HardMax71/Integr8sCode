@@ -1,5 +1,7 @@
-from dataclasses import dataclass, field, replace
+from dataclasses import field, replace
 from uuid import uuid4
+
+from pydantic.dataclasses import dataclass
 
 from app.domain.enums.common import Environment
 

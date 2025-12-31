@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import field
 from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
+
+from pydantic.dataclasses import dataclass
 
 from app.domain.enums.notification import (
     NotificationChannel,

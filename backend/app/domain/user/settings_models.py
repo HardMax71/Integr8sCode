@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+
+from pydantic.dataclasses import dataclass
 
 from app.domain.enums.common import Theme
 from app.domain.enums.events import EventType

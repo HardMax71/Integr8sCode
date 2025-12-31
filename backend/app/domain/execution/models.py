@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import field
 from datetime import datetime, timezone
 from typing import Any, Optional
 from uuid import uuid4
+
+from pydantic.dataclasses import dataclass
 
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.storage import ExecutionErrorType

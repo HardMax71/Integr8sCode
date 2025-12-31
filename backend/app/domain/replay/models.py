@@ -1,9 +1,10 @@
-from dataclasses import dataclass, field
+from dataclasses import field
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, PrivateAttr
+from pydantic.dataclasses import dataclass
 
 from app.domain.enums.events import EventType
 from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType

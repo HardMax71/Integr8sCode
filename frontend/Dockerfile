@@ -1,9 +1,10 @@
-FROM node:22
+FROM node:22-slim
 
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm install --ignore-scripts
+# Copy lockfile for reproducible, faster installs
+COPY package.json package-lock.json ./
+RUN npm ci
 
 COPY . .
 

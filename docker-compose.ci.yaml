@@ -136,6 +136,7 @@ services:
     build:
       context: ./cert-generator
       dockerfile: Dockerfile
+    image: integr8scode-cert-generator:latest
     profiles: ["full"]
     volumes:
       - ./backend/certs:/backend-certs
@@ -161,6 +162,7 @@ services:
       dockerfile: Dockerfile
       additional_contexts:
         base: service:base
+    image: integr8scode-backend:latest
     profiles: ["full"]
     container_name: backend
     ports:
@@ -208,6 +210,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    image: integr8scode-frontend:latest
     profiles: ["full"]
     container_name: frontend
     ports:

@@ -51,8 +51,20 @@ jobs:
     name: E2E Tests
     needs: unit
     runs-on: ubuntu-latest
+
+    env:
+      MONGO_IMAGE: mongo:8.0
+      REDIS_IMAGE: redis:7-alpine
+      KAFKA_IMAGE: apache/kafka:3.9.0
+      SCHEMA_REGISTRY_IMAGE: confluentinc/cp-schema-registry:7.5.0
+
     steps:
       - uses: actions/checkout@v6
+
+      - name: Cache and load Docker images
+        uses: ./.github/actions/docker-cache
+        with:
+          images: ${{ env.MONGO_IMAGE }} ${{ env.REDIS_IMAGE }} ${{ env.KAFKA_IMAGE }} ${{ env.SCHEMA_REGISTRY_IMAGE }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -88,9 +100,52 @@ jobs:
             /home/runner/.kube/config > backend/kubeconfig.yaml
           chmod 644 backend/kubeconfig.yaml
 
-      - name: Build and start full stack
+      # Build images with GitHub Actions cache for faster subsequent builds
+      - name: Build base image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile.base
+          load: true
+          tags: integr8scode-base:latest
+          cache-from: type=gha,scope=backend-base
+          cache-to: type=gha,mode=max,scope=backend-base
+
+      - name: Build backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          load: true
+          tags: integr8scode-backend:latest
+          build-contexts: |
+            base=docker-image://integr8scode-base:latest
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+      - name: Build cert-generator image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./cert-generator
+          file: ./cert-generator/Dockerfile
+          load: true
+          tags: integr8scode-cert-generator:latest
+          cache-from: type=gha,scope=cert-generator
+          cache-to: type=gha,mode=max,scope=cert-generator
+
+      - name: Build frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          load: true
+          tags: integr8scode-frontend:latest
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+      - name: Start full stack
         run: |
-          docker compose -f docker-compose.ci.yaml --profile full up -d --build --wait --wait-timeout 300
+          docker compose -f docker-compose.ci.yaml --profile full up -d --wait --wait-timeout 300
           docker compose -f docker-compose.ci.yaml ps
 
       - name: Seed test users

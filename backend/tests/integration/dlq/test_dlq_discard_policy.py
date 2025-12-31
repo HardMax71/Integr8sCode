@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import uuid
 from datetime import datetime, timezone
 
 import pytest
@@ -21,6 +22,7 @@ _test_logger = logging.getLogger("test.dlq.discard_policy")
 
 
 @pytest.mark.asyncio
+@pytest.mark.xdist_group("dlq")
 async def test_dlq_manager_discards_with_manual_policy(db) -> None:  # type: ignore[valid-type]
     schema_registry = create_schema_registry_manager(_test_logger)
     manager = create_dlq_manager(schema_registry=schema_registry, logger=_test_logger)
@@ -28,7 +30,8 @@ async def test_dlq_manager_discards_with_manual_policy(db) -> None:  # type: ign
     topic = f"{prefix}{str(KafkaTopic.EXECUTION_EVENTS)}"
     manager.set_retry_policy(topic, RetryPolicy(topic=topic, strategy=RetryStrategy.MANUAL))
 
-    ev = make_execution_requested_event(execution_id="exec-dlq-discard")
+    # Use unique execution_id to avoid conflicts with parallel test workers
+    ev = make_execution_requested_event(execution_id=f"exec-dlq-discard-{uuid.uuid4().hex[:8]}")
 
     payload = {
         "event": ev.to_dict(),

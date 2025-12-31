@@ -22,7 +22,6 @@ _test_logger = logging.getLogger("test.dlq.discard_policy")
 
 
 @pytest.mark.asyncio
-@pytest.mark.xdist_group("dlq")
 async def test_dlq_manager_discards_with_manual_policy(db) -> None:  # type: ignore[valid-type]
     schema_registry = create_schema_registry_manager(_test_logger)
     manager = create_dlq_manager(schema_registry=schema_registry, logger=_test_logger)

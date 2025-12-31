@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import uuid
 from datetime import datetime, timezone
 
 import pytest
@@ -31,7 +32,8 @@ async def test_dlq_manager_immediate_retry_updates_doc(db) -> None:  # type: ign
         RetryPolicy(topic=topic, strategy=RetryStrategy.IMMEDIATE, max_retries=1, base_delay_seconds=0.1),
     )
 
-    ev = make_execution_requested_event(execution_id="exec-dlq-retry")
+    # Use unique execution_id to avoid conflicts with parallel test workers
+    ev = make_execution_requested_event(execution_id=f"exec-dlq-retry-{uuid.uuid4().hex[:8]}")
 
     payload = {
         "event": ev.to_dict(),

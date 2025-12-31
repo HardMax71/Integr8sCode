@@ -248,6 +248,46 @@ Each service has its own cache scope (`backend-base`, `backend`, `frontend`, `ce
 pollution between unrelated builds. The `mode=max` setting caches all layers, not just the final image, so even
 intermediate layers benefit from caching.
 
+### Local registry for dependent builds
+
+The `docker-container` buildx driver runs in isolation and cannot access images in the local Docker daemon. This
+creates a problem when the backend image needs to reference the base image via `FROM base`. The workflow solves this
+using a local registry:
+
+```yaml
+services:
+  registry:
+    image: registry:2
+    ports:
+      - 5000:5000
+
+steps:
+  - name: Setup Docker Buildx
+    uses: docker/setup-buildx-action@v3
+    with:
+      driver-opts: network=host
+
+  - name: Build and push base image
+    uses: docker/build-push-action@v6
+    with:
+      push: true
+      tags: localhost:5000/integr8scode-base:latest
+      cache-from: type=gha,scope=backend-base
+      cache-to: type=gha,mode=max,scope=backend-base
+
+  - name: Build backend image
+    uses: docker/build-push-action@v6
+    with:
+      build-contexts: |
+        base=docker-image://localhost:5000/integr8scode-base:latest
+      cache-from: type=gha,scope=backend
+      cache-to: type=gha,mode=max,scope=backend
+```
+
+The `network=host` driver option allows buildx to reach `localhost:5000`. After pushing the base image to the local
+registry, subsequent builds can reference it with `docker-image://localhost:5000/...`. This preserves full GHA layer
+caching for all images while allowing dependent builds to work correctly.
+
 ### Infrastructure image caching
 
 A reusable action at `.github/actions/docker-cache` handles infrastructure images (MongoDB, Redis, Kafka, Schema

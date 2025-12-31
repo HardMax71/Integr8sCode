@@ -52,6 +52,13 @@ jobs:
     needs: unit
     runs-on: ubuntu-latest
 
+    # Local registry for buildx to reference base image (docker-container driver is isolated)
+    services:
+      registry:
+        image: registry:2
+        ports:
+          - 5000:5000
+
     env:
       MONGO_IMAGE: mongo:8.0
       REDIS_IMAGE: redis:7-alpine
@@ -83,6 +90,8 @@ jobs:
 
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: network=host
 
       - name: Setup Kubernetes (k3s)
         run: |
@@ -101,15 +110,22 @@ jobs:
           chmod 644 backend/kubeconfig.yaml
 
       # Build images with GitHub Actions cache for faster subsequent builds
-      - name: Build base image
+      # Base image pushed to local registry so buildx can reference it
+      - name: Build and push base image
         uses: docker/build-push-action@v6
         with:
           context: ./backend
           file: ./backend/Dockerfile.base
-          load: true
-          tags: integr8scode-base:latest
+          push: true
+          tags: localhost:5000/integr8scode-base:latest
           cache-from: type=gha,scope=backend-base
           cache-to: type=gha,mode=max,scope=backend-base
+
+      # Pull base to Docker daemon (needed for docker-compose)
+      - name: Load base image to Docker daemon
+        run: |
+          docker pull localhost:5000/integr8scode-base:latest
+          docker tag localhost:5000/integr8scode-base:latest integr8scode-base:latest
 
       - name: Build backend image
         uses: docker/build-push-action@v6
@@ -119,7 +135,7 @@ jobs:
           load: true
           tags: integr8scode-backend:latest
           build-contexts: |
-            base=docker-image://integr8scode-base:latest
+            base=docker-image://localhost:5000/integr8scode-base:latest
           cache-from: type=gha,scope=backend
           cache-to: type=gha,mode=max,scope=backend
 

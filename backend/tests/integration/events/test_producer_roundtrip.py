@@ -10,7 +10,7 @@ from tests.helpers import make_execution_requested_event
 
 pytestmark = [pytest.mark.integration, pytest.mark.kafka]
 
-_test_logger = logging.getLogger("test.events.producer_e2e")
+_test_logger = logging.getLogger("test.events.producer_roundtrip")
 
 
 @pytest.mark.asyncio

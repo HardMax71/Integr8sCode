@@ -7,7 +7,7 @@ from tests.helpers import make_execution_requested_event
 
 pytestmark = [pytest.mark.integration]
 
-_test_logger = logging.getLogger("test.events.schema_registry_e2e")
+_test_logger = logging.getLogger("test.events.schema_registry_roundtrip")
 
 
 @pytest.mark.asyncio

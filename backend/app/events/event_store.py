@@ -17,6 +17,13 @@ from app.infrastructure.kafka.events.base import BaseEvent
 
 # Base fields stored at document level (everything else goes into payload)
 _BASE_FIELDS = {"event_id", "event_type", "event_version", "timestamp", "aggregate_id", "metadata"}
+_EXCLUDE_FIELDS = {"id", "revision_id", "stored_at", "ttl_expires_at"}
+
+
+def _flatten_doc(doc: "EventDocument") -> dict[str, Any]:
+    """Flatten EventDocument payload to top level for schema registry deserialization."""
+    d = doc.model_dump(exclude=_EXCLUDE_FIELDS)
+    return {**{k: v for k, v in d.items() if k != "payload"}, **d.get("payload", {})}
 
 
 class EventStore:
@@ -52,7 +59,8 @@ class EventStore:
             now = datetime.now(timezone.utc)
             data = event.model_dump(exclude={"topic"})
             payload = {k: data.pop(k) for k in list(data) if k not in _BASE_FIELDS}
-            doc = EventDocument(**data, payload=payload, stored_at=now, ttl_expires_at=now + timedelta(days=self.ttl_days))
+            ttl = now + timedelta(days=self.ttl_days)
+            doc = EventDocument(**data, payload=payload, stored_at=now, ttl_expires_at=ttl)
             await doc.insert()
 
             add_span_attributes(
@@ -122,8 +130,7 @@ class EventStore:
         if not doc:
             return None
 
-        data = doc.model_dump(exclude={"id", "revision_id", "stored_at", "ttl_expires_at"})
-        event = self.schema_registry.deserialize_json({**{k: v for k, v in data.items() if k != "payload"}, **data.get("payload", {})})
+        event = self.schema_registry.deserialize_json(_flatten_doc(doc))
 
         duration = asyncio.get_event_loop().time() - start
         self.metrics.record_event_query_duration(duration, "get_by_id", "event_store")
@@ -149,10 +156,7 @@ class EventStore:
             .limit(limit)
             .to_list()
         )
-        events = []
-        for doc in docs:
-            d = doc.model_dump(exclude={"id", "revision_id", "stored_at", "ttl_expires_at"})
-            events.append(self.schema_registry.deserialize_json({**{k: v for k, v in d.items() if k != "payload"}, **d.get("payload", {})}))
+        events = [self.schema_registry.deserialize_json(_flatten_doc(doc)) for doc in docs]
 
         duration = asyncio.get_event_loop().time() - start
         self.metrics.record_event_query_duration(duration, "get_by_type", "event_store")
@@ -164,17 +168,12 @@ class EventStore:
         event_types: list[EventType] | None = None,
     ) -> list[BaseEvent]:
         start = asyncio.get_event_loop().time()
-        query: dict[str, Any] = {
-            "$or": [{"payload.execution_id": execution_id}, {"aggregate_id": execution_id}]
-        }
+        query: dict[str, Any] = {"$or": [{"payload.execution_id": execution_id}, {"aggregate_id": execution_id}]}
         if event_types:
             query["event_type"] = {"$in": event_types}
 
         docs = await EventDocument.find(query).sort([("timestamp", SortDirection.ASCENDING)]).to_list()
-        events = []
-        for doc in docs:
-            d = doc.model_dump(exclude={"id", "revision_id", "stored_at", "ttl_expires_at"})
-            events.append(self.schema_registry.deserialize_json({**{k: v for k, v in d.items() if k != "payload"}, **d.get("payload", {})}))
+        events = [self.schema_registry.deserialize_json(_flatten_doc(doc)) for doc in docs]
 
         duration = asyncio.get_event_loop().time() - start
         self.metrics.record_event_query_duration(duration, "get_execution_events", "event_store")
@@ -196,10 +195,7 @@ class EventStore:
             query["timestamp"] = tr
 
         docs = await EventDocument.find(query).sort([("timestamp", SortDirection.DESCENDING)]).limit(limit).to_list()
-        events = []
-        for doc in docs:
-            d = doc.model_dump(exclude={"id", "revision_id", "stored_at", "ttl_expires_at"})
-            events.append(self.schema_registry.deserialize_json({**{k: v for k, v in d.items() if k != "payload"}, **d.get("payload", {})}))
+        events = [self.schema_registry.deserialize_json(_flatten_doc(doc)) for doc in docs]
 
         duration = asyncio.get_event_loop().time() - start
         self.metrics.record_event_query_duration(duration, "get_user_events", "event_store")
@@ -220,10 +216,7 @@ class EventStore:
             query["timestamp"] = tr
 
         docs = await EventDocument.find(query).sort([("timestamp", SortDirection.DESCENDING)]).limit(limit).to_list()
-        events = []
-        for doc in docs:
-            d = doc.model_dump(exclude={"id", "revision_id", "stored_at", "ttl_expires_at"})
-            events.append(self.schema_registry.deserialize_json({**{k: v for k, v in d.items() if k != "payload"}, **d.get("payload", {})}))
+        events = [self.schema_registry.deserialize_json(_flatten_doc(doc)) for doc in docs]
 
         duration = asyncio.get_event_loop().time() - start
         self.metrics.record_event_query_duration(duration, "get_security_events", "event_store")
@@ -236,10 +229,7 @@ class EventStore:
             .sort([("timestamp", SortDirection.ASCENDING)])
             .to_list()
         )
-        events = []
-        for doc in docs:
-            d = doc.model_dump(exclude={"id", "revision_id", "stored_at", "ttl_expires_at"})
-            events.append(self.schema_registry.deserialize_json({**{k: v for k, v in d.items() if k != "payload"}, **d.get("payload", {})}))
+        events = [self.schema_registry.deserialize_json(_flatten_doc(doc)) for doc in docs]
 
         duration = asyncio.get_event_loop().time() - start
         self.metrics.record_event_query_duration(duration, "get_correlation_chain", "event_store")
@@ -263,8 +253,7 @@ class EventStore:
                 query["event_type"] = {"$in": event_types}
 
             async for doc in EventDocument.find(query).sort([("timestamp", SortDirection.ASCENDING)]):
-                d = doc.model_dump(exclude={"id", "revision_id", "stored_at", "ttl_expires_at"})
-                event = self.schema_registry.deserialize_json({**{k: v for k, v in d.items() if k != "payload"}, **d.get("payload", {})})
+                event = self.schema_registry.deserialize_json(_flatten_doc(doc))
                 if callback:
                     await callback(event)
                 count += 1

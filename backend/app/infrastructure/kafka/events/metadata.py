@@ -1,7 +1,7 @@
 from uuid import uuid4
 
 from pydantic import ConfigDict, Field
-from pydantic_avro import AvroBase
+from pydantic_avro.to_avro.base import AvroBase
 
 from app.domain.enums.common import Environment
 

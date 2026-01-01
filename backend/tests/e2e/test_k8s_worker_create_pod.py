@@ -11,6 +11,8 @@ from app.infrastructure.kafka.events.saga import CreatePodCommandEvent
 from app.services.idempotency import IdempotencyManager
 from app.services.k8s_worker.config import K8sWorkerConfig
 from app.services.k8s_worker.worker import KubernetesWorker
+from app.settings import Settings
+from dishka import AsyncContainer
 from kubernetes.client.rest import ApiException
 
 pytestmark = [pytest.mark.e2e, pytest.mark.k8s]
@@ -19,7 +21,9 @@ _test_logger = logging.getLogger("test.k8s.worker_create_pod")
 
 
 @pytest.mark.asyncio
-async def test_worker_creates_configmap_and_pod(scope, monkeypatch):  # type: ignore[valid-type]
+async def test_worker_creates_configmap_and_pod(
+    scope: AsyncContainer, monkeypatch: pytest.MonkeyPatch, test_settings: Settings
+) -> None:
     # Ensure non-default namespace for worker validation
     ns = os.environ.get("K8S_NAMESPACE", "integr8scode")
     if ns == "default":
@@ -36,6 +40,7 @@ async def test_worker_creates_configmap_and_pod(scope, monkeypatch):  # type: ig
         config=cfg,
         producer=producer,
         schema_registry_manager=schema,
+        settings=test_settings,
         event_store=store,
         idempotency_manager=idem,
         logger=_test_logger,

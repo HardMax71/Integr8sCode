@@ -16,7 +16,6 @@ from app.events.event_store import EventStore
 from app.events.schema.schema_registry import (
     SchemaRegistryManager,
 )
-from app.infrastructure.kafka.events.base import BaseEvent
 from app.infrastructure.kafka.events.execution import (
     ExecutionAcceptedEvent,
     ExecutionCancelledEvent,

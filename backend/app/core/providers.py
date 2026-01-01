@@ -109,7 +109,7 @@ class RedisProvider(Provider):
             socket_timeout=5,
         )
         # Test connection
-        await client.execute_command("PING")
+        await client.ping()  # type: ignore[misc]  # redis-py dual sync/async return type
         logger.info(f"Redis connected: {settings.REDIS_HOST}:{settings.REDIS_PORT}/{settings.REDIS_DB}")
         try:
             yield client

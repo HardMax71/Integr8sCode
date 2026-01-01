@@ -415,14 +415,14 @@ class SagaOrchestrator(LifecycleEnabled):
             # Get saga instance
             saga_instance = await self.get_saga_status(saga_id)
             if not saga_instance:
-                self.logger.error(f"Saga {saga_id} not found")
+                self.logger.error("Saga not found", extra={"saga_id": saga_id})
                 return False
 
             # Check if saga can be cancelled
             if saga_instance.state not in [SagaState.RUNNING, SagaState.CREATED]:
                 self.logger.warning(
-                    f"Cannot cancel saga {saga_id} in state {saga_instance.state}. "
-                    f"Only RUNNING or CREATED sagas can be cancelled."
+                    "Cannot cancel saga in current state. Only RUNNING or CREATED sagas can be cancelled.",
+                    extra={"saga_id": saga_id, "state": saga_instance.state.value},
                 )
                 return False
 
@@ -433,10 +433,14 @@ class SagaOrchestrator(LifecycleEnabled):
 
             # Log cancellation with user context if available
             user_id = saga_instance.context_data.get("user_id")
-            if user_id:
-                self.logger.info(f"User {user_id} cancelled saga {saga_id} (execution: {saga_instance.execution_id})")
-            else:
-                self.logger.info(f"Saga {saga_id} cancelled (execution: {saga_instance.execution_id})")
+            self.logger.info(
+                "Saga cancellation initiated",
+                extra={
+                    "saga_id": saga_id,
+                    "execution_id": saga_instance.execution_id,
+                    "user_id": user_id,
+                },
+            )
 
             # Save state
             await self._save_saga(saga_instance)
@@ -480,13 +484,20 @@ class SagaOrchestrator(LifecycleEnabled):
                     # Execute compensation
                     await self._compensate_saga(saga_instance, context)
                 else:
-                    self.logger.error(f"Saga class {saga_instance.saga_name} not found for compensation")
+                    self.logger.error(
+                        "Saga class not found for compensation",
+                        extra={"saga_name": saga_instance.saga_name, "saga_id": saga_id},
+                    )
 
-            self.logger.info(f"Saga {saga_id} cancelled successfully")
+            self.logger.info("Saga cancelled successfully", extra={"saga_id": saga_id})
             return True
 
         except Exception as e:
-            self.logger.error(f"Error cancelling saga {saga_id}: {e}", exc_info=True)
+            self.logger.error(
+                "Error cancelling saga",
+                extra={"saga_id": saga_id, "error": str(e)},
+                exc_info=True,
+            )
             return False
 
     async def _publish_saga_cancelled_event(self, saga_instance: Saga) -> None:

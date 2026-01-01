@@ -90,6 +90,14 @@ jobs:
           docker compose -f docker-compose.ci.yaml up -d --wait --wait-timeout 120
           docker compose -f docker-compose.ci.yaml ps
 
+      - name: Create Kafka topics
+        env:
+          KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+          KAFKA_TOPIC_PREFIX: "test."
+        run: |
+          cd backend
+          uv run python -m scripts.create_topics
+
       - name: Run integration tests
         timeout-minutes: 10
         env:
@@ -173,6 +181,14 @@ jobs:
           export KUBECONFIG=/home/runner/.kube/config
           timeout 90 bash -c 'until sudo k3s kubectl cluster-info; do sleep 5; done'
           kubectl create namespace integr8scode --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Create Kafka topics
+        env:
+          KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+          KAFKA_TOPIC_PREFIX: "test."
+        run: |
+          cd backend
+          uv run python -m scripts.create_topics
 
       - name: Run E2E tests
         timeout-minutes: 10

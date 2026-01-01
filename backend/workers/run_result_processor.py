@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import signal
 from contextlib import AsyncExitStack
 
 from app.core.container import create_result_processor_container
@@ -11,7 +12,7 @@ from app.domain.enums.kafka import GroupId
 from app.events.core import UnifiedProducer
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.idempotency import IdempotencyManager
-from app.services.result_processor.processor import ResultProcessor
+from app.services.result_processor.processor import ProcessingState, ResultProcessor
 from app.settings import Settings, get_settings
 from beanie import init_beanie
 from pymongo.asynchronous.mongo_client import AsyncMongoClient
@@ -43,12 +44,21 @@ async def run_result_processor(settings: Settings | None = None) -> None:
         logger=logger,
     )
 
+    loop = asyncio.get_running_loop()
+
+    async def shutdown() -> None:
+        logger.info("Initiating graceful shutdown...")
+        await processor.stop()
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, lambda: asyncio.create_task(shutdown()))
+
     async with AsyncExitStack() as stack:
         stack.callback(db_client.close)
         stack.push_async_callback(container.close)
         await stack.enter_async_context(processor)
 
-        while True:
+        while processor._state == ProcessingState.PROCESSING:
             await asyncio.sleep(60)
             status = await processor.get_status()
             logger.info(f"ResultProcessor status: {status}")

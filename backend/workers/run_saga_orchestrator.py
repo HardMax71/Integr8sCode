@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import signal
 from contextlib import AsyncExitStack
 
 from app.core.container import create_saga_orchestrator_container
@@ -33,6 +34,15 @@ async def run_saga_orchestrator(settings: Settings | None = None) -> None:
     producer = await container.get(UnifiedProducer)
     orchestrator = await container.get(SagaOrchestrator)
 
+    loop = asyncio.get_running_loop()
+
+    async def shutdown() -> None:
+        logger.info("Initiating graceful shutdown...")
+        await orchestrator.stop()
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, lambda: asyncio.create_task(shutdown()))
+
     async with AsyncExitStack() as stack:
         stack.push_async_callback(container.close)
         await stack.enter_async_context(producer)
@@ -51,15 +61,11 @@ def main() -> None:
     """Main entry point for saga orchestrator worker"""
     settings = get_settings()
 
-    # Setup logging
     logger = setup_logger(settings.LOG_LEVEL)
-
-    # Configure root logger for worker
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     logger.info("Starting Saga Orchestrator worker...")
 
-    # Initialize tracing
     if settings.ENABLE_TRACING:
         init_tracing(
             service_name=GroupId.SAGA_ORCHESTRATOR,
@@ -70,7 +76,7 @@ def main() -> None:
         )
         logger.info("Tracing initialized for Saga Orchestrator Service")
 
-    asyncio.run(run_saga_orchestrator())
+    asyncio.run(run_saga_orchestrator(settings))
 
 
 if __name__ == "__main__":

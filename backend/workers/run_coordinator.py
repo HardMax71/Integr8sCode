@@ -2,7 +2,6 @@ import asyncio
 import logging
 import signal
 from contextlib import AsyncExitStack
-from typing import Any
 
 from app.core.container import create_coordinator_container
 from app.core.database_context import Database
@@ -35,12 +34,14 @@ async def run_coordinator(settings: Settings | None = None) -> None:
     producer = await container.get(UnifiedProducer)
     coordinator = await container.get(ExecutionCoordinator)
 
-    def signal_handler(sig: int, frame: Any) -> None:
-        logger.info(f"Received signal {sig}, initiating shutdown...")
-        asyncio.create_task(coordinator.stop())
+    loop = asyncio.get_running_loop()
 
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
+    async def shutdown() -> None:
+        logger.info("Initiating graceful shutdown...")
+        await coordinator.stop()
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, lambda: asyncio.create_task(shutdown()))
 
     async with AsyncExitStack() as stack:
         stack.push_async_callback(container.close)

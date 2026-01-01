@@ -119,13 +119,14 @@ async def main(settings: Settings | None = None) -> None:
     _configure_callbacks(manager, testing=settings.TESTING, logger=logger)
 
     stop_event = asyncio.Event()
+    loop = asyncio.get_running_loop()
 
-    def signal_handler(signum: int, frame: object | None) -> None:
-        logger.info(f"Received signal {signum}, initiating shutdown...")
+    def signal_handler() -> None:
+        logger.info("Received signal, initiating shutdown...")
         stop_event.set()
 
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, signal_handler)
 
     async with AsyncExitStack() as stack:
         stack.push_async_callback(container.close)

@@ -1,12 +1,14 @@
 import asyncio
 import logging
 import types
+from unittest.mock import MagicMock
+
 import pytest
-
+from app.core.k8s_clients import K8sClients
 from app.services.pod_monitor.config import PodMonitorConfig
-from app.services.pod_monitor.monitor import PodMonitor
-from tests.helpers.k8s_fakes import make_pod, make_watch, FakeApi
+from app.services.pod_monitor.monitor import PodMonitor, create_pod_monitor
 
+from tests.helpers.k8s_fakes import FakeApi, make_pod, make_watch
 
 pytestmark = pytest.mark.unit
 
@@ -505,8 +507,6 @@ async def test_watch_pods_generic_exception(monkeypatch) -> None:
 
 @pytest.mark.asyncio
 async def test_create_pod_monitor_context_manager(monkeypatch) -> None:
-    from app.services.pod_monitor.monitor import create_pod_monitor
-
     _patch_k8s(monkeypatch)
 
     cfg = PodMonitorConfig()
@@ -516,6 +516,33 @@ async def test_create_pod_monitor_context_manager(monkeypatch) -> None:
 
     async with create_pod_monitor(cfg, fake_service, _test_logger) as monitor:
         assert monitor.state == monitor.state.__class__.RUNNING
+
+    assert monitor.state == monitor.state.__class__.STOPPED
+
+
+@pytest.mark.asyncio
+async def test_create_pod_monitor_with_injected_k8s_clients(monkeypatch) -> None:
+    """Test create_pod_monitor with injected K8sClients (DI path)."""
+    _patch_k8s(monkeypatch)
+
+    cfg = PodMonitorConfig()
+    cfg.enable_state_reconciliation = False
+
+    fake_service = _FakeKafkaEventService()
+
+    mock_v1 = MagicMock()
+    mock_v1.get_api_resources.return_value = None
+    mock_k8s_clients = K8sClients(
+        api_client=MagicMock(),
+        v1=mock_v1,
+        apps_v1=MagicMock(),
+        networking_v1=MagicMock(),
+    )
+
+    async with create_pod_monitor(cfg, fake_service, _test_logger, k8s_clients=mock_k8s_clients) as monitor:
+        assert monitor.state == monitor.state.__class__.RUNNING
+        assert monitor._clients is mock_k8s_clients
+        assert monitor._v1 is mock_v1
 
     assert monitor.state == monitor.state.__class__.STOPPED
 

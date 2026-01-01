@@ -2,51 +2,33 @@
 
 ## The problem
 
-When running tests in parallel (e.g., with `pytest-xdist`), you might encounter sporadic crashes with messages like:
+When running tests in parallel with `pytest-xdist`, you might encounter sporadic crashes:
 
 ```text
 Fatal Python error: Aborted
 ```
 
-The stack trace typically points to `confluent_kafka` operations, often during producer initialization in fixtures or test setup. This isn't a bug in the application code - it's a known race condition in the underlying `librdkafka` C library.
+The stack trace typically points to `confluent_kafka` operations during producer initialization. This isn't a bug in
+the application code—it's a known race condition in the underlying `librdkafka` C library.
 
 ## Why it happens
 
-The `confluent-kafka-python` library is a thin wrapper around `librdkafka`, a high-performance C library. When multiple Python processes or threads try to create Kafka `Producer` instances simultaneously, they can trigger a race condition in `librdkafka`'s internal initialization routines.
-
-This manifests as:
-
-- Random `SIGABRT` signals during test runs
-- Crashes in `rd_kafka_broker_destroy_final` or similar internal functions
-- Flaky CI failures that pass on retry
-
-The issue is particularly common in CI environments where tests run in parallel across multiple workers.
+The `confluent-kafka-python` library wraps `librdkafka`, a high-performance C library. When multiple processes or
+threads create Kafka `Producer` instances simultaneously, they can trigger a race condition in `librdkafka`'s internal
+initialization. This manifests as random `SIGABRT` signals, crashes in `rd_kafka_broker_destroy_final`, or flaky CI
+failures that pass on retry.
 
 ## The fix
 
-The solution is to serialize `Producer` initialization using a global threading lock. This prevents multiple threads from entering `librdkafka`'s initialization code simultaneously.
-
-In `app/events/core/producer.py`:
+Serialize `Producer` initialization using a global threading lock. In
+[`app/events/core/producer.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/events/core/producer.py):
 
 ```python
-import threading
-
-# Global lock to serialize Producer initialization (workaround for librdkafka race condition)
-# See: https://github.com/confluentinc/confluent-kafka-python/issues/1797
-_producer_init_lock = threading.Lock()
-
-class UnifiedProducer:
-    async def start(self) -> None:
-        # ... config setup ...
-
-        # Serialize Producer initialization to prevent librdkafka race condition
-        with _producer_init_lock:
-            self._producer = Producer(producer_config)
-
-        # ... rest of startup ...
+--8<-- "backend/app/events/core/producer.py:22:24"
 ```
 
-The lock is process-global, so all `UnifiedProducer` instances in the same process will serialize their initialization. This adds negligible overhead in production (producers are typically created once at startup) while eliminating the race condition in tests.
+The lock is process-global, so all `UnifiedProducer` instances serialize their initialization. This adds negligible
+overhead in production (producers are created once at startup) while eliminating the race condition in tests.
 
 ## Related issues
 

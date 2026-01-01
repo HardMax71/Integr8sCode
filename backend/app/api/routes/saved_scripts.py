@@ -11,7 +11,7 @@ from app.schemas_pydantic.saved_script import (
 from app.services.auth_service import AuthService
 from app.services.saved_script_service import SavedScriptService
 
-router = APIRouter(route_class=DishkaRoute)
+router = APIRouter(route_class=DishkaRoute, tags=["scripts"])
 
 
 @router.post("/scripts", response_model=SavedScriptResponse)

@@ -1,37 +1,47 @@
-# Model Conversion Patterns
+# Model conversion patterns
 
-This document describes the patterns for converting between domain models, Pydantic schemas, and ODM documents.
+This document describes patterns for converting between domain models, Pydantic schemas, and ODM documents.
 
-## Core Principles
+## Why these patterns
 
-1. **Domain models are dataclasses** - pure Python, no framework dependencies
-2. **Pydantic models are for boundaries** - API schemas, ODM documents, Kafka events
-3. **No custom converter methods** - no `to_dict()`, `from_dict()`, `from_response()`, etc.
-4. **Conversion at boundaries** - happens in repositories and services, not in models
+The codebase separates concerns into layers: domain models are pure Python dataclasses with no framework dependencies,
+while Pydantic models handle API schemas, database documents, and Kafka events. Conversion happens at
+boundaries—repositories and services—not inside models.
 
-## Model Layers
+## Model layers
 
+```mermaid
+graph TB
+    subgraph "API Layer"
+        API["Pydantic Schemas<br/><code>app/schemas_pydantic/</code>"]
+    end
+
+    subgraph "Service Layer"
+        SVC["Services<br/><code>app/services/</code>"]
+    end
+
+    subgraph "Domain Layer"
+        DOM["Dataclasses<br/><code>app/domain/</code>"]
+    end
+
+    subgraph "Infrastructure Layer"
+        INF["Pydantic/ODM<br/><code>app/db/docs/</code><br/><code>app/infrastructure/kafka/events/</code>"]
+    end
+
+    API <--> SVC
+    SVC <--> DOM
+    SVC <--> INF
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  API Layer (Pydantic schemas)                               │
-│  app/schemas_pydantic/                                      │
-├─────────────────────────────────────────────────────────────┤
-│  Service Layer                                              │
-│  app/services/                                              │
-├─────────────────────────────────────────────────────────────┤
-│  Domain Layer (dataclasses)                                 │
-│  app/domain/                                                │
-├─────────────────────────────────────────────────────────────┤
-│  Infrastructure Layer (Pydantic/ODM)                        │
-│  app/db/docs/, app/infrastructure/kafka/events/             │
-└─────────────────────────────────────────────────────────────┘
-```
 
-## Conversion Patterns
+API routes receive and return Pydantic schemas. Services orchestrate business logic using domain dataclasses.
+Repositories translate between domain objects and infrastructure (MongoDB documents, Kafka events). Each layer speaks
+its own language; conversion bridges them.
 
-### Dataclass to Dict
+## Conversion patterns
 
-Use `asdict()` with dict comprehension for enum conversion and None filtering:
+### Dataclass to dict
+
+Use `asdict()` with a dict comprehension for enum conversion and optional None filtering:
 
 ```python
 from dataclasses import asdict
@@ -42,27 +52,15 @@ update_dict = {
     for k, v in asdict(domain_obj).items()
     if v is not None
 }
-
-# Without None filtering (keep all values)
-data = {
-    k: (v.value if hasattr(v, "value") else v)
-    for k, v in asdict(domain_obj).items()
-}
 ```
 
-### Pydantic to Dict
+### Pydantic to dict
 
 Use `model_dump()` directly:
 
 ```python
-# Exclude None values
-data = pydantic_obj.model_dump(exclude_none=True)
-
-# Include all values
-data = pydantic_obj.model_dump()
-
-# JSON-compatible (datetimes as ISO strings)
-data = pydantic_obj.model_dump(mode="json")
+data = pydantic_obj.model_dump(exclude_none=True)  # Skip None values
+data = pydantic_obj.model_dump(mode="json")        # JSON-compatible output
 ```
 
 ### Dict to Pydantic
@@ -70,10 +68,7 @@ data = pydantic_obj.model_dump(mode="json")
 Use `model_validate()` or constructor unpacking:
 
 ```python
-# From dict
 obj = SomeModel.model_validate(data)
-
-# With unpacking
 obj = SomeModel(**data)
 ```
 
@@ -84,18 +79,15 @@ Use `model_validate()` when models have `from_attributes=True`:
 ```python
 class User(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    ...
 
-# Convert between compatible Pydantic models
 user = User.model_validate(user_response)
 ```
 
-### Dict to Dataclass
+### Dict to dataclass
 
-Use constructor unpacking:
+Use constructor unpacking, handling nested objects explicitly:
 
 ```python
-# Direct unpacking
 domain_obj = DomainModel(**data)
 
 # With nested conversion
@@ -107,14 +99,15 @@ domain_obj = DomainModel(
 )
 ```
 
-## Examples
+## Repository examples
 
-### Repository: Saving Domain to Document
+Repositories are the primary conversion boundary. They translate between domain objects and database documents.
+
+### Saving domain to document
 
 ```python
 async def store_event(self, event: Event) -> str:
     data = asdict(event)
-    # Convert nested dataclass with enum handling
     data["metadata"] = {
         k: (v.value if hasattr(v, "value") else v)
         for k, v in asdict(event.metadata).items()
@@ -123,7 +116,7 @@ async def store_event(self, event: Event) -> str:
     await doc.insert()
 ```
 
-### Repository: Loading Document to Domain
+### Loading document to domain
 
 ```python
 async def get_event(self, event_id: str) -> Event | None:
@@ -138,7 +131,7 @@ async def get_event(self, event_id: str) -> Event | None:
     )
 ```
 
-### Repository: Updating with Typed Input
+### Updating with typed input
 
 ```python
 async def update_session(self, session_id: str, updates: SessionUpdate) -> bool:
@@ -156,60 +149,26 @@ async def update_session(self, session_id: str, updates: SessionUpdate) -> bool:
     return True
 ```
 
-### Service: Converting Between Pydantic Models
+## Anti-patterns
 
-```python
-# In API route
-user = User.model_validate(current_user)
+Avoid approaches that scatter conversion logic or couple layers incorrectly.
 
-# In service converting Kafka metadata to domain
-domain_metadata = DomainEventMetadata(**avro_metadata.model_dump())
-```
+| Anti-pattern                     | Why it's bad                                              |
+|----------------------------------|-----------------------------------------------------------|
+| Manual field-by-field conversion | Verbose, error-prone, breaks when fields change           |
+| Pydantic in domain layer         | Couples domain to framework; domain should be pure Python |
+| Conversion logic in models       | Scatters boundary logic; keep it in repositories/services |
 
-## Anti-Patterns
+Thin wrappers that delegate to `model_dump()` with specific options are fine. For example, `BaseEvent.to_dict()` applies
+`by_alias=True, mode="json"` consistently across all events. Methods with additional behavior like filtering private
+keys (`to_public_dict()`) are also acceptable—the anti-pattern is manually listing fields.
 
-### Don't: Custom Converter Methods
+## Quick reference
 
-```python
-# BAD - adds unnecessary abstraction
-class MyModel:
-    def to_dict(self) -> dict:
-        return {...}
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "MyModel":
-        return cls(...)
-```
-
-### Don't: Pydantic in Domain Layer
-
-```python
-# BAD - domain should be framework-agnostic
-from pydantic import BaseModel
-
-class DomainEntity(BaseModel):  # Wrong!
-    ...
-```
-
-### Don't: Manual Field-by-Field Conversion
-
-```python
-# BAD - verbose and error-prone
-def from_response(cls, resp):
-    return cls(
-        field1=resp.field1,
-        field2=resp.field2,
-        field3=resp.field3,
-        ...
-    )
-```
-
-## Summary
-
-| From | To | Method |
-|------|-----|--------|
-| Dataclass | Dict | `{k: (v.value if hasattr(v, "value") else v) for k, v in asdict(obj).items()}` |
-| Pydantic | Dict | `obj.model_dump()` |
-| Dict | Pydantic | `Model.model_validate(data)` or `Model(**data)` |
-| Pydantic | Pydantic | `TargetModel.model_validate(source)` |
-| Dict | Dataclass | `DataclassModel(**data)` |
+| From      | To        | Method                                                                         |
+|-----------|-----------|--------------------------------------------------------------------------------|
+| Dataclass | Dict      | `{k: (v.value if hasattr(v, "value") else v) for k, v in asdict(obj).items()}` |
+| Pydantic  | Dict      | `obj.model_dump()`                                                             |
+| Dict      | Pydantic  | `Model.model_validate(data)` or `Model(**data)`                                |
+| Pydantic  | Pydantic  | `TargetModel.model_validate(source)`                                           |
+| Dict      | Dataclass | `DataclassModel(**data)`                                                       |

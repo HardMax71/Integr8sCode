@@ -1,7 +1,7 @@
-# Nginx Configuration
+# Nginx configuration
 
-The frontend uses Nginx as a reverse proxy and static file server. This document explains the configuration in
-`frontend/nginx.conf.template`.
+The frontend uses Nginx as a reverse proxy and static file server. The configuration lives in
+[`frontend/nginx.conf.template`](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/nginx.conf.template).
 
 ## Architecture
 
@@ -12,22 +12,15 @@ flowchart LR
     Nginx -->|"static files"| Static["Static files"]
 ```
 
-Nginx serves two purposes:
+Nginx serves two purposes: static file server for the Svelte frontend build, and reverse proxy for API requests to the
+backend.
 
-1. **Static file server** for the Svelte frontend build
-2. **Reverse proxy** for API requests to the backend
+## Configuration breakdown
 
-## Configuration Breakdown
-
-### Server Block
+### Server block
 
 ```nginx
-server {
-    listen 5001;
-    server_name _;
-    root /usr/share/nginx/html;
-    index index.html;
-}
+--8<-- "frontend/nginx.conf.template:1:6"
 ```
 
 | Directive       | Purpose                                          |
@@ -39,31 +32,16 @@ server {
 ### Compression
 
 ```nginx
-gzip on;
-gzip_vary on;
-gzip_min_length 1024;
-gzip_types text/plain text/css text/xml text/javascript
-           application/javascript application/xml+rss
-           application/json application/x-font-ttf
-           font/opentype image/svg+xml image/x-icon;
+--8<-- "frontend/nginx.conf.template:8:13"
 ```
 
 Gzip compression reduces bandwidth for text-based assets. Binary files (images, fonts) are excluded as they're already
 compressed.
 
-### API Proxy
+### API proxy
 
 ```nginx
-location /api/ {
-    proxy_pass https://backend:443;
-    proxy_ssl_verify off;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_pass_request_headers on;
-    proxy_set_header Cookie $http_cookie;
-}
+--8<-- "frontend/nginx.conf.template:15:25"
 ```
 
 | Directive              | Purpose                                          |
@@ -79,19 +57,7 @@ location /api/ {
 SSE endpoints require special handling to prevent buffering:
 
 ```nginx
-location ~ ^/api/v1/events/ {
-    proxy_pass https://backend:443;
-    proxy_ssl_verify off;
-
-    # SSE-specific settings
-    proxy_set_header Connection '';
-    proxy_http_version 1.1;
-    proxy_buffering off;
-    proxy_cache off;
-    proxy_read_timeout 86400s;
-    proxy_send_timeout 86400s;
-    proxy_set_header X-Accel-Buffering no;
-}
+--8<-- "frontend/nginx.conf.template:27:54"
 ```
 
 | Directive                   | Purpose                                           |
@@ -104,60 +70,22 @@ location ~ ^/api/v1/events/ {
 
 Without these settings, SSE events would be buffered and delivered in batches instead of real-time.
 
-### Static Asset Caching
+### Static asset caching
 
 ```nginx
-# Immutable assets (hashed filenames)
-location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-    expires 1y;
-    add_header Cache-Control "public, immutable";
-}
-
-# Build directory
-location /build/ {
-    expires 1y;
-    add_header Cache-Control "public, max-age=31536000, immutable";
-}
-
-# HTML (never cache)
-location ~* \.html$ {
-    expires -1;
-    add_header Cache-Control "no-store, no-cache, must-revalidate";
-}
+--8<-- "frontend/nginx.conf.template:57:75"
 ```
 
 Svelte build outputs hashed filenames (`app.abc123.js`), making them safe to cache indefinitely. HTML files must never
 be cached to ensure users get the latest asset references.
 
-### Security Headers
+### Security headers
 
 ```nginx
-location / {
-    add_header Content-Security-Policy "...";
-    add_header X-Frame-Options "SAMEORIGIN";
-    add_header X-Content-Type-Options "nosniff";
-    add_header Referrer-Policy "strict-origin-when-cross-origin";
-    add_header Permissions-Policy "geolocation=(), microphone=(), camera=()";
-    try_files $uri $uri/ /index.html;
-}
+--8<-- "frontend/nginx.conf.template:77:84"
 ```
 
 #### Content Security Policy
-
-```nginx
-Content-Security-Policy "
-    default-src 'self';
-    script-src 'self' 'unsafe-inline';
-    style-src 'self' 'unsafe-inline';
-    img-src 'self' data: blob:;
-    font-src 'self' data:;
-    object-src 'none';
-    base-uri 'self';
-    form-action 'self';
-    frame-ancestors 'none';
-    connect-src 'self';
-"
-```
 
 | Directive         | Value                    | Purpose                             |
 |-------------------|--------------------------|-------------------------------------|
@@ -172,7 +100,7 @@ Content-Security-Policy "
 
 The `data:` source is required for the Monaco editor's inline SVG icons.
 
-#### Other Security Headers
+#### Other security headers
 
 | Header                   | Value                             | Purpose                        |
 |--------------------------|-----------------------------------|--------------------------------|
@@ -181,33 +109,24 @@ The `data:` source is required for the Monaco editor's inline SVG icons.
 | `Referrer-Policy`        | `strict-origin-when-cross-origin` | Limit referrer leakage         |
 | `Permissions-Policy`     | Deny geolocation, mic, camera     | Disable unused APIs            |
 
-### SPA Routing
+### SPA routing
 
-```nginx
-try_files $uri $uri/ /index.html;
-```
-
-This directive enables client-side routing. When a URL like `/editor` is requested directly, Nginx serves `index.html`
-and lets the Svelte router handle the path.
+The `try_files $uri $uri/ /index.html` directive enables client-side routing. When a URL like `/editor` is requested
+directly, Nginx serves `index.html` and lets the Svelte router handle the path.
 
 ## Deployment
 
 The nginx configuration uses environment variable substitution via the official nginx Docker image's built-in `envsubst`
-feature. The template file is processed at container startup, allowing the same image to work in different environments.
+feature:
 
 ```dockerfile
-# frontend/Dockerfile.prod
-FROM nginx:alpine
-COPY --from=builder /app/public /usr/share/nginx/html
-COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+--8<-- "frontend/Dockerfile.prod:12:21"
 ```
 
 The nginx image automatically processes files in `/etc/nginx/templates/*.template` and outputs the result to
 `/etc/nginx/conf.d/` with the `.template` suffix removed.
 
 ### Environment variables
-
-The template uses `${VARIABLE_NAME}` syntax for substitution. Currently, only `BACKEND_URL` is templated:
 
 | Variable      | Purpose                           | Example               |
 |---------------|-----------------------------------|-----------------------|
@@ -227,23 +146,9 @@ kubectl rollout restart deployment/frontend -n integr8scode
 
 ## Troubleshooting
 
-### SSE connections dropping
-
-Check `proxy_read_timeout`. Default is 60s which will close idle SSE connections.
-
-### CSP blocking resources
-
-Check browser console for CSP violation reports. Add the blocked source to the appropriate directive.
-
-### 502 Bad Gateway
-
-Backend service is unreachable. Verify:
-
-```bash
-kubectl get svc backend -n integr8scode
-kubectl logs -n integr8scode deployment/frontend
-```
-
-### Assets not updating
-
-Clear browser cache or add cache-busting query parameters. Verify HTML files have `no-cache` headers.
+| Issue                    | Cause                            | Solution                                  |
+|--------------------------|----------------------------------|-------------------------------------------|
+| SSE connections dropping | Default 60s `proxy_read_timeout` | Verify 86400s timeout is set              |
+| CSP blocking resources   | Missing source in directive      | Check browser console, add blocked source |
+| 502 Bad Gateway          | Backend unreachable              | `kubectl get svc backend -n integr8scode` |
+| Assets not updating      | Browser cache                    | Clear cache or verify `no-cache` on HTML  |

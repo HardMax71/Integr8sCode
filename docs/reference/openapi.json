@@ -619,6 +619,9 @@
     },
     "/api/v1/scripts": {
       "get": {
+        "tags": [
+          "scripts"
+        ],
         "summary": "List Saved Scripts",
         "operationId": "list_saved_scripts_api_v1_scripts_get",
         "responses": {
@@ -639,6 +642,9 @@
         }
       },
       "post": {
+        "tags": [
+          "scripts"
+        ],
         "summary": "Create Saved Script",
         "operationId": "create_saved_script_api_v1_scripts_post",
         "requestBody": {
@@ -677,6 +683,9 @@
     },
     "/api/v1/scripts/{script_id}": {
       "get": {
+        "tags": [
+          "scripts"
+        ],
         "summary": "Get Saved Script",
         "operationId": "get_saved_script_api_v1_scripts__script_id__get",
         "parameters": [
@@ -714,6 +723,9 @@
         }
       },
       "put": {
+        "tags": [
+          "scripts"
+        ],
         "summary": "Update Saved Script",
         "operationId": "update_saved_script_api_v1_scripts__script_id__put",
         "parameters": [
@@ -761,6 +773,9 @@
         }
       },
       "delete": {
+        "tags": [
+          "scripts"
+        ],
         "summary": "Delete Saved Script",
         "operationId": "delete_saved_script_api_v1_scripts__script_id__delete",
         "parameters": [
@@ -6136,9 +6151,6 @@
           "user_updated",
           "user_deleted",
           "user_settings_updated",
-          "user_theme_changed",
-          "user_notification_settings_updated",
-          "user_editor_settings_updated",
           "notification_created",
           "notification_sent",
           "notification_delivered",
@@ -7550,6 +7562,20 @@
       },
       "ReplayFilter": {
         "properties": {
+          "event_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Ids"
+          },
           "execution_id": {
             "anyOf": [
               {
@@ -7560,6 +7586,28 @@
               }
             ],
             "title": "Execution Id"
+          },
+          "correlation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correlation Id"
+          },
+          "aggregate_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aggregate Id"
           },
           "event_types": {
             "anyOf": [
@@ -7574,6 +7622,20 @@
               }
             ],
             "title": "Event Types"
+          },
+          "exclude_event_types": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/EventType"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exclude Event Types"
           },
           "start_time": {
             "anyOf": [
@@ -7631,20 +7693,6 @@
               }
             ],
             "title": "Custom Query"
-          },
-          "exclude_event_types": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/EventType"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Exclude Event Types"
           }
         },
         "type": "object",

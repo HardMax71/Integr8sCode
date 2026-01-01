@@ -1,12 +1,38 @@
 # Logging
 
-This backend uses structured JSON logging with automatic correlation IDs, trace context injection, and sensitive data sanitization. The goal is logs that are both secure against injection attacks and easy to query in aggregation systems like Elasticsearch or Loki.
+This backend uses structured JSON logging with automatic correlation IDs, trace context injection, and sensitive data
+sanitization. The goal is logs that are both secure against injection attacks and easy to query in aggregation systems
+like Elasticsearch or Loki.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    Code[Application Code] --> Logger
+    Logger --> CF[CorrelationFilter]
+    CF --> TF[TracingFilter]
+    TF --> JF[JSONFormatter]
+    JF --> Output[JSON stdout]
+```
 
 ## How it's wired
 
-The logger is created once during application startup via dependency injection. The `setup_logger` function in `app/core/logging.py` configures a JSON formatter and attaches filters for correlation IDs and OpenTelemetry trace context. Every log line comes out as a JSON object with timestamp, level, logger name, message, and whatever structured fields you added. Workers and background services use the same setup, so log format is consistent across the entire system.
+The logger is created once during application startup via dependency injection. The
+[`setup_logger`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/logging.py) function configures a
+JSON formatter and attaches filters for correlation IDs and OpenTelemetry trace context:
 
-The JSON formatter does two things beyond basic formatting. First, it injects context that would be tedious to pass manually - the correlation ID from the current request, the trace and span IDs from OpenTelemetry, and request metadata like method and path. Second, it sanitizes sensitive data by pattern-matching things like API keys, JWT tokens, and database URLs, replacing them with redaction placeholders. This sanitization applies to both the log message and exception tracebacks.
+```python
+--8<-- "backend/app/core/logging.py:110:147"
+```
+
+The JSON formatter does two things beyond basic formatting. First, it injects context that would be tedious to pass
+manually—the correlation ID from the current request, the trace and span IDs from OpenTelemetry, and request metadata
+like method and path. Second, it sanitizes sensitive data by pattern-matching things like API keys, JWT tokens, and
+database URLs:
+
+```python
+--8<-- "backend/app/core/logging.py:35:59"
+```
 
 ## Structured logging
 
@@ -42,16 +68,43 @@ logger.warning(f"Processing event {event_id}")
 
 The fix is to keep user data out of the message string entirely. When you put it in `extra`, the JSON formatter escapes special characters, and the malicious content becomes a harmless string value rather than a log line injection.
 
-The codebase treats these as user-controlled and keeps them in `extra`: path parameters like execution_id or saga_id, query parameters, request body fields, Kafka message content, database results derived from user input, and exception messages (which often contain user data).
+The codebase treats these as user-controlled and keeps them in `extra`: path parameters like execution_id or saga_id,
+query parameters, request body fields, Kafka message content, database results derived from user input, and exception
+messages (which often contain user data).
 
 ## What gets logged
 
-Correlation and trace IDs are injected automatically by filters. The correlation ID follows a request through all services - it's set from incoming headers or generated for new requests. The trace and span IDs come from OpenTelemetry and link logs to distributed traces in Jaeger or Tempo. You don't need to pass these explicitly; they appear in every log line from code running in that request context.
+Correlation and trace IDs are injected automatically by filters:
 
-For domain-specific context, developers add fields to `extra` based on what operation they're logging. An execution service method might include `execution_id`, `user_id`, `language`, and `status`. A replay session logs `session_id`, `replayed_events`, `failed_events`, and `duration_seconds`. A saga operation includes `saga_id` and `user_id`. The pattern is consistent: the message says what happened, `extra` says to what and by whom.
+| Field            | Source                          | Purpose                           |
+|------------------|---------------------------------|-----------------------------------|
+| `correlation_id` | Request header or generated     | Track request across services     |
+| `trace_id`       | OpenTelemetry                   | Link to distributed traces        |
+| `span_id`        | OpenTelemetry                   | Link to specific span             |
+| `request_method` | HTTP request                    | GET, POST, etc.                   |
+| `request_path`   | HTTP request                    | API endpoint path                 |
+| `client_host`    | HTTP request                    | Client IP address                 |
+
+For domain-specific context, developers add fields to `extra` based on what operation they're logging. The pattern is
+consistent: the message says what happened, `extra` says to what and by whom.
 
 ## Practical use
 
-When something goes wrong, start by filtering logs by correlation_id to see everything that happened during that request. If you need to correlate with traces, use the trace_id to jump to Jaeger. If you're investigating a specific execution or saga, filter by those IDs - they're in the structured fields, not buried in message text.
+When something goes wrong, start by filtering logs by `correlation_id` to see everything that happened during that
+request. If you need to correlate with traces, use the `trace_id` to jump to Jaeger.
 
-The log level is controlled by the `LOG_LEVEL` environment variable. In production it's typically INFO, which captures normal operations (started, completed, processed) and problems (warnings for recoverable issues, errors for failures). DEBUG adds detailed diagnostic info and is usually too noisy for production but useful when investigating specific issues locally.
+| Log Level | Use case                                                    |
+|-----------|-------------------------------------------------------------|
+| DEBUG     | Detailed diagnostics (noisy, local debugging only)          |
+| INFO      | Normal operations (started, completed, processed)           |
+| WARNING   | Recoverable issues                                          |
+| ERROR     | Failures requiring attention                                |
+
+The log level is controlled by the `LOG_LEVEL` environment variable.
+
+## Key files
+
+| File                                                                                                       | Purpose                              |
+|------------------------------------------------------------------------------------------------------------|--------------------------------------|
+| [`core/logging.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/logging.py)       | Logger setup, filters, JSON formatter|
+| [`core/correlation.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/correlation.py) | Correlation ID middleware            |

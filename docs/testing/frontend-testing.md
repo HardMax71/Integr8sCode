@@ -1,6 +1,9 @@
 # Frontend testing
 
-The frontend uses Vitest for unit and integration tests, with Playwright for end-to-end scenarios. Tests live alongside the source code in `__tests__` directories, following the same structure as the components they verify. The setup uses jsdom for DOM simulation and @testing-library/svelte for component rendering, giving you a realistic browser-like environment without the overhead of spinning up actual browsers for every test run.
+The frontend uses [Vitest](https://vitest.dev/) for unit and integration tests, with
+[Playwright](https://playwright.dev/) for end-to-end scenarios. Tests live alongside the source code in `__tests__`
+directories, following the same structure as the components they verify. The setup uses jsdom for DOM simulation and
+@testing-library/svelte for component rendering.
 
 ## Quick start
 
@@ -88,60 +91,20 @@ E2E tests run in Playwright against the real application. They exercise full use
 
 ## Configuration
 
-Vitest configuration lives in `vitest.config.ts`:
+Vitest configuration lives in [`vitest.config.ts`](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/vitest.config.ts):
 
 ```typescript
-export default defineConfig({
-  plugins: [svelte({ compilerOptions: { runes: true } }), svelteTesting()],
-  test: {
-    environment: 'jsdom',
-    setupFiles: ['./vitest.setup.ts'],
-    include: ['src/**/*.{test,spec}.{js,ts}'],
-    globals: true,
-    coverage: {
-      provider: 'v8',
-      include: ['src/**/*.{ts,svelte}'],
-      exclude: ['src/lib/api/**', 'src/**/*.test.ts'],
-    },
-  },
-});
+--8<-- "frontend/vitest.config.ts:5:27"
 ```
 
-The setup file (`vitest.setup.ts`) provides browser API mocks that jsdom lacks:
+The setup file [`vitest.setup.ts`](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/vitest.setup.ts)
+provides browser API mocks that jsdom lacks (localStorage, sessionStorage, matchMedia, ResizeObserver,
+IntersectionObserver).
+
+Playwright configuration in [`playwright.config.ts`](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/playwright.config.ts):
 
 ```typescript
-// localStorage and sessionStorage mocks
-vi.stubGlobal('localStorage', localStorageMock);
-vi.stubGlobal('sessionStorage', sessionStorageMock);
-
-// matchMedia for theme detection
-vi.stubGlobal('matchMedia', vi.fn().mockImplementation(query => ({
-  matches: false,
-  media: query,
-  addEventListener: vi.fn(),
-  removeEventListener: vi.fn(),
-})));
-
-// ResizeObserver and IntersectionObserver for layout-dependent components
-vi.stubGlobal('ResizeObserver', vi.fn().mockImplementation(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-})));
-```
-
-Playwright configuration in `playwright.config.ts` sets up browser testing:
-
-```typescript
-export default defineConfig({
-  testDir: './e2e',
-  timeout: 10000,
-  use: {
-    baseURL: 'https://localhost:5001',
-    screenshot: 'only-on-failure',
-    trace: 'on',
-  },
-});
+--8<-- "frontend/playwright.config.ts:3:25"
 ```
 
 ## Writing component tests

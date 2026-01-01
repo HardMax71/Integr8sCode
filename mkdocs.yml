@@ -11,6 +11,8 @@ validation:
 
 theme:
   name: material
+  logo: assets/images/logo.png
+  favicon: assets/images/logo.png
   palette:
     # Light mode
     - media: "(prefers-color-scheme: light)"
@@ -79,7 +81,10 @@ markdown_extensions:
   - pymdownx.keys
   - pymdownx.mark
   - pymdownx.smartsymbols
-  - pymdownx.snippets
+  - pymdownx.snippets:
+      base_path:
+        - .
+        - docs
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid
@@ -103,6 +108,12 @@ nav:
   - Architecture:
     - Overview: architecture/overview.md
     - Services: architecture/services-overview.md
+    - Authentication: architecture/authentication.md
+    - Rate Limiting: architecture/rate-limiting.md
+    - Idempotency: architecture/idempotency.md
+    - Execution Queue: architecture/execution-queue.md
+    - Runtime Registry: architecture/runtime-registry.md
+    - Middleware: architecture/middleware.md
     - Domain Exceptions: architecture/domain-exceptions.md
     - Pydantic Dataclasses: architecture/pydantic-dataclasses.md
     - Model Conversion: architecture/model-conversion.md
@@ -127,6 +138,7 @@ nav:
       - Resource Allocation: components/saga/resource-allocation.md
     - Dead Letter Queue: components/dead-letter-queue.md
     - Schema Manager: components/schema-manager.md
+    - Saved Scripts: components/saved-scripts.md
 
   - Operations:
     - Deployment: operations/deployment.md
@@ -135,9 +147,12 @@ nav:
     - Logging: operations/logging.md
     - Tracing: operations/tracing.md
     - Metrics:
+      - Reference: operations/metrics-reference.md
       - Context Variables: operations/metrics-contextvars.md
       - CPU Time Measurement: operations/cpu-time-measurement.md
     - Notifications: operations/notification-types.md
+    - Grafana Integration: operations/grafana-integration.md
+    - Admin API: operations/admin-api.md
 
   - Network Isolation: security/policies.md
 

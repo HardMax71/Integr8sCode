@@ -1,5 +1,4 @@
 import uvicorn
-from dishka import AsyncContainer
 from dishka.integrations.fastapi import setup_dishka
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -39,18 +38,18 @@ from app.core.middlewares import (
     RequestSizeLimitMiddleware,
     setup_metrics,
 )
-from app.settings import get_settings
+from app.settings import Settings, get_settings
 
 
-def create_app(container: AsyncContainer | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None) -> FastAPI:
     """
     Create the FastAPI application.
 
     Args:
-        container: Optional pre-configured DI container (e.g., for testing).
-                  If None, creates default container via create_app_container().
+        settings: Optional pre-configured settings (e.g., TestSettings for testing).
+                 If None, uses get_settings() which reads from .env.
     """
-    settings = get_settings()
+    settings = settings or get_settings()
     logger = setup_logger(settings.LOG_LEVEL)
     # Disable OpenAPI/Docs in production for security; health endpoints provide readiness
     app = FastAPI(
@@ -61,8 +60,7 @@ def create_app(container: AsyncContainer | None = None) -> FastAPI:
         redoc_url=None,
     )
 
-    if container is None:
-        container = create_app_container()
+    container = create_app_container(settings)
     setup_dishka(container, app)
 
     setup_metrics(app, logger)

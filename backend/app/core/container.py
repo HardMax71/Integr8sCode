@@ -1,4 +1,4 @@
-from dishka import AsyncContainer, Provider, make_async_container
+from dishka import AsyncContainer, make_async_container
 from dishka.integrations.fastapi import FastapiProvider
 
 from app.core.providers import (
@@ -16,18 +16,18 @@ from app.core.providers import (
     SettingsProvider,
     UserServicesProvider,
 )
+from app.settings import Settings
 
 
-def create_app_container(settings_provider: Provider | None = None) -> AsyncContainer:
+def create_app_container(settings: Settings) -> AsyncContainer:
     """
     Create the application DI container.
 
     Args:
-        settings_provider: Optional custom settings provider (e.g., for testing).
-                          If None, uses the default SettingsProvider.
+        settings: Application settings (injected via from_context).
     """
     return make_async_container(
-        settings_provider or SettingsProvider(),
+        SettingsProvider(),
         LoggingProvider(),
         DatabaseProvider(),
         RedisProvider(),
@@ -40,13 +40,16 @@ def create_app_container(settings_provider: Provider | None = None) -> AsyncCont
         AdminServicesProvider(),
         BusinessServicesProvider(),
         FastapiProvider(),
+        context={Settings: settings},
     )
 
 
-def create_result_processor_container() -> AsyncContainer:
+def create_result_processor_container(settings: Settings) -> AsyncContainer:
     """
     Create a minimal DI container for the ResultProcessor worker.
-    Includes only settings, database, event/kafka, and required repositories.
+
+    Args:
+        settings: Application settings (injected via from_context).
     """
     return make_async_container(
         SettingsProvider(),
@@ -58,4 +61,5 @@ def create_result_processor_container() -> AsyncContainer:
         EventProvider(),
         MessagingProvider(),
         ResultProcessorProvider(),
+        context={Settings: settings},
     )

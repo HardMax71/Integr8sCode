@@ -6,18 +6,16 @@ from typing import AsyncGenerator
 import httpx
 import pytest
 import pytest_asyncio
-from dishka import AsyncContainer, Provider, Scope, provide
+import redis.asyncio as redis
+from dishka import AsyncContainer
 from httpx import ASGITransport
 from pydantic_settings import SettingsConfigDict
 
-from app.core.container import create_app_container
 from app.core.database_context import Database
 from app.main import create_app
 from app.settings import Settings
-import redis.asyncio as redis
 
 
-# ===== Test Settings =====
 class TestSettings(Settings):
     """Test configuration - loads from .env.test instead of .env"""
 
@@ -25,22 +23,8 @@ class TestSettings(Settings):
         env_file=".env.test",
         env_file_encoding="utf-8",
         case_sensitive=True,
-        extra="ignore",  # Allow extra env vars in test environment
+        extra="ignore",
     )
-
-
-class TestSettingsProvider(Provider):
-    """Provides TestSettings instance to the DI container."""
-
-    scope = Scope.APP
-
-    def __init__(self, settings: Settings) -> None:
-        super().__init__()
-        self._settings = settings
-
-    @provide
-    def get_settings(self) -> Settings:
-        return self._settings
 
 
 # ===== Worker-specific isolation for pytest-xdist =====
@@ -78,39 +62,31 @@ def _setup_worker_env() -> None:
 _setup_worker_env()
 
 
-# ===== App fixture with DI =====
+# ===== App fixture =====
 @pytest_asyncio.fixture(scope="session")
 async def app():
-    """Create FastAPI app with test DI container.
+    """Create FastAPI app with TestSettings.
 
     Session-scoped to avoid Pydantic schema validator memory issues when
     FastAPI recreates OpenAPI schemas hundreds of times with pytest-xdist.
-    See: https://github.com/pydantic/pydantic/issues/1864
     """
-    # Create test settings and container
-    test_settings = TestSettings()
-    container = create_app_container(settings_provider=TestSettingsProvider(test_settings))
-
-    # Create app with test container
-    application = create_app(container=container)
+    application = create_app(settings=TestSettings())
 
     yield application
 
-    # Cleanup
     if hasattr(application.state, "dishka_container"):
         await application.state.dishka_container.close()
 
 
 @pytest_asyncio.fixture(scope="session")
-async def app_container(app):  # type: ignore[valid-type]
+async def app_container(app):
     """Expose the Dishka container attached to the app."""
-    container: AsyncContainer = app.state.dishka_container  # type: ignore[attr-defined]
+    container: AsyncContainer = app.state.dishka_container
     return container
 
 
-# ===== Client (function-scoped for clean cookies per test) =====
 @pytest_asyncio.fixture
-async def client(app) -> AsyncGenerator[httpx.AsyncClient, None]:  # type: ignore[valid-type]
+async def client(app) -> AsyncGenerator[httpx.AsyncClient, None]:
     """HTTP client for testing API endpoints."""
     async with httpx.AsyncClient(
         transport=ASGITransport(app=app),
@@ -121,27 +97,26 @@ async def client(app) -> AsyncGenerator[httpx.AsyncClient, None]:  # type: ignor
         yield c
 
 
-# ===== Request-scope accessor =====
 @asynccontextmanager
 async def _container_scope(container: AsyncContainer):
-    async with container() as scope:  # type: ignore[misc]
+    async with container() as scope:
         yield scope
 
 
 @pytest_asyncio.fixture
-async def scope(app_container: AsyncContainer):  # type: ignore[valid-type]
+async def scope(app_container: AsyncContainer):
     async with _container_scope(app_container) as s:
         yield s
 
 
 @pytest_asyncio.fixture
-async def db(scope) -> AsyncGenerator[Database, None]:  # type: ignore[valid-type]
+async def db(scope) -> AsyncGenerator[Database, None]:
     database: Database = await scope.get(Database)
     yield database
 
 
 @pytest_asyncio.fixture
-async def redis_client(scope) -> AsyncGenerator[redis.Redis, None]:  # type: ignore[valid-type]
+async def redis_client(scope) -> AsyncGenerator[redis.Redis, None]:
     client: redis.Redis = await scope.get(redis.Redis)
     yield client
 

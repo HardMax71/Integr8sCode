@@ -2,7 +2,7 @@ import logging
 from typing import AsyncIterator
 
 import redis.asyncio as redis
-from dishka import Provider, Scope, provide
+from dishka import Provider, Scope, from_context, provide
 from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 from app.core.database_context import Database
@@ -73,11 +73,9 @@ from app.settings import Settings, get_settings
 
 
 class SettingsProvider(Provider):
-    scope = Scope.APP
+    """Provides Settings from context (passed to make_async_container)."""
 
-    @provide
-    def get_settings(self) -> Settings:
-        return get_settings()
+    settings = from_context(provides=Settings, scope=Scope.APP)
 
 
 class LoggingProvider(Provider):

@@ -3,82 +3,53 @@
 [GitHub :material-github:](https://github.com/HardMax71/Integr8sCode){ .md-button }
 [Live Demo :material-play:](https://app.integr8scode.cc/){ .md-button .md-button--primary }
 
+Run Python scripts in isolated Kubernetes pods with real-time output streaming, resource limits, and full audit trails.
+
 ## Quick start
 
-### Deployment
-
 ```bash
-# 1. Clone the repo
 git clone https://github.com/HardMax71/Integr8sCode.git
 cd Integr8sCode
-
-# 2. Start containers
-docker-compose up --build
+./deploy.sh dev
 ```
 
-Access points:
+| Service     | URL                         | Credentials       |
+|-------------|-----------------------------|-------------------|
+| Frontend    | `https://localhost:5001`    | user / user123    |
+| Backend API | `https://localhost:443`     | —                 |
+| Grafana     | `http://localhost:3000`     | admin / admin123  |
 
-| Service | URL |
-|---------|-----|
-| Frontend | `https://127.0.0.1:5001/` |
-| Backend API | `https://127.0.0.1:443/` |
-| Grafana | `http://127.0.0.1:3000` (admin/admin123) |
-
-### Verify installation
-
-Check if the backend is running:
+Verify the backend is running:
 
 ```bash
-curl -k https://127.0.0.1/api/v1/k8s-limits
+curl -k https://localhost/api/v1/health/live
 ```
 
-Example response:
-
-```json
-{
-  "cpu_limit": "1000m",
-  "memory_limit": "128Mi",
-  "timeout_seconds": 5
-}
-```
-
-### Enable Kubernetes metrics
-
-If CPU and Memory metrics show as `null`, enable the metrics server:
-
-```bash
-kubectl create -f https://raw.githubusercontent.com/pythianarora/total-practice/master/sample-kubernetes-code/metrics-server.yaml
-```
-
-Verify with:
-
-```bash
-kubectl top node
-```
-
-Example output:
-
-```
-NAME             CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%
-docker-desktop   267m         3%     4732Mi          29%
-```
+!!! note "Kubernetes metrics"
+    If CPU/memory metrics show as `null`, enable the metrics server:
+    `kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml`
 
 ## Core features
 
-- Every script runs in its own Kubernetes pod, fully isolated from others
-- Resource limits keep things in check: 1000m CPU, 128Mi memory, configurable timeouts
-- Multiple Python versions supported (3.9, 3.10, 3.11, 3.12)
-- Real-time updates via Server-Sent Events so you see what's happening as it happens
-- Full audit trail through Kafka event streams
-- Failed events get retried automatically via dead letter queue
+Every script runs in its own Kubernetes pod with complete isolation. Resource limits are configurable per execution
+(defaults: 1000m CPU, 128Mi memory, 300s timeout).
+
+The platform supports multiple languages and versions:
+
+| Language | Versions                       |
+|----------|--------------------------------|
+| Python   | 3.7, 3.8, 3.9, 3.10, 3.11, 3.12|
+| Node.js  | 18, 20, 22                     |
+| Ruby     | 3.1, 3.2, 3.3                  |
+| Go       | 1.20, 1.21, 1.22               |
+| Bash     | 5.1, 5.2, 5.3                  |
+
+Execution output streams in real-time via Server-Sent Events. All events flow through Kafka for full audit trails, with
+automatic retries via dead letter queue for failed processing.
 
 ## Architecture
 
-The platform has three main parts:
-
-- A Svelte frontend that users interact with
-- FastAPI backend handling the heavy lifting, backed by MongoDB, Kafka, and Redis
-- Kubernetes cluster where each script runs in its own pod with Cilium network policies
+Svelte frontend → FastAPI backend (MongoDB, Kafka, Redis) → Kubernetes pods with Cilium network policies.
 
 ```mermaid
 flowchart TB
@@ -99,10 +70,12 @@ For detailed architecture diagrams, see the [Architecture](architecture/overview
 
 ## Security
 
-- Pods can't make external network calls (Cilium deny-all policy)
-- Everything runs as non-root with dropped capabilities
-- Read-only root filesystem on containers
-- No service account access to Kubernetes API
+| Control                  | Implementation                              |
+|--------------------------|---------------------------------------------|
+| Network isolation        | Cilium deny-all egress policy               |
+| Non-root execution       | Dropped capabilities, no privilege escalation|
+| Filesystem               | Read-only root filesystem                   |
+| Kubernetes API           | No service account token mounted            |
 
 ## Documentation
 
@@ -134,9 +107,9 @@ For detailed architecture diagrams, see the [Architecture](architecture/overview
 
 </div>
 
-## Sample test
+## Sample code
 
-Verify your installation by running this Python 3.10+ code:
+Try this Python 3.10+ example in the editor:
 
 ```python
 from typing import TypeGuard

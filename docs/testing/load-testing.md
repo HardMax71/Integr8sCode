@@ -1,27 +1,21 @@
 # Load testing
 
-This suite provides two complementary stress tools. Monkey tests fuzz endpoints with random methods, bodies, and parameters to test durability and correctness under garbage requests (with and without auth/CSRF). User load tests authenticate as normal users and exercise the user-accessible API with realistic flows, avoiding admin routes.
+The load testing suite provides two complementary stress tools. Monkey tests fuzz endpoints with random methods, bodies,
+and parameters to test durability under garbage requests. User load tests authenticate as normal users and exercise the
+API with realistic flows.
 
 ## Quick start
 
-Ensure the backend is running locally at `https://localhost:443` (self-signed cert is fine). Run the CLI with default settings for a ~3 minute test:
+With the backend running at `https://localhost:443`:
 
 ```bash
 python -m tests.load.cli --mode both --clients 30 --concurrency 10 --duration 180
 ```
 
-Available options:
+Options: `--base-url` (target URL), `--mode` (monkey/user/both), `--clients` (virtual clients), `--concurrency`
+(parallel tasks), `--duration` (seconds), `--output` (report directory).
 
-| Option | Description |
-|--------|-------------|
-| `--base-url` | Target URL (default: `https://localhost:443`) |
-| `--mode` | `monkey`, `user`, or `both` |
-| `--clients` | Number of virtual clients |
-| `--concurrency` | Parallel tasks |
-| `--duration` | Test duration in seconds (default: 180) |
-| `--output` | Output directory (default: `tests/load/out`) |
-
-Reports are saved as JSON under `backend/tests/load/out/report_<mode>_<timestamp>.json`.
+Reports save as JSON under `backend/tests/load/out/report_<mode>_<timestamp>.json`.
 
 ## Property-based fuzz tests
 
@@ -54,12 +48,14 @@ Tests included:
 
 ## What it tests
 
-The suite covers authentication (register/login with cookies and CSRF tokens), executions (submit scripts, stream SSE or poll results, fetch events), saved scripts (CRUD operations), user settings (get/update), and notifications (list/mark-all-read).
+The suite covers authentication (register/login with cookies and CSRF tokens), executions (submit scripts, stream SSE
+or poll results, fetch events), saved scripts (CRUD operations), user settings (get/update), and notifications
+(list/mark-all-read).
 
-## Metrics
+Each endpoint reports count, error count, status code distribution, latency percentiles (p50/p90/p99), and bytes
+received. Global metrics include total requests, total errors, exception types, and runtime.
 
-Each endpoint reports count, error count, status code distribution, latency percentiles (p50/p90/p99), and bytes received. Global metrics include total requests, total errors, exception types, and runtime.
+For write endpoints, the client sends `X-CSRF-Token` from the `csrf_token` cookie (double-submit pattern). SSE streams
+are sampled with a short read window (~8-10s) to avoid lingering connections.
 
-## Notes
-
-For write endpoints, the client sends `X-CSRF-Token` from the `csrf_token` cookie (double-submit pattern). SSE streams are sampled with a short read window (~8-10s) to avoid lingering connections.
+See [`tests/load/`](https://github.com/HardMax71/Integr8sCode/tree/main/backend/tests/load) for implementation.

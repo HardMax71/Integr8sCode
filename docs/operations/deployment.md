@@ -4,21 +4,35 @@ Integr8sCode supports two deployment modes: local development using Docker Compo
 Kubernetes using Helm. Both modes share the same container images and configuration patterns, so what works locally
 translates directly to production.
 
+## Architecture
+
+```mermaid
+flowchart TB
+    Script[deploy.sh] --> Local & Prod
+
+    subgraph Images["Container Images"]
+        Base[Dockerfile.base] --> Backend[Backend Image]
+        Base --> Workers[Worker Images]
+    end
+
+    subgraph Local["Local Development"]
+        DC[docker-compose.yaml] --> Containers
+    end
+
+    subgraph Prod["Kubernetes"]
+        Helm[Helm Chart] --> Pods
+    end
+
+    Images --> Containers
+    Images --> Pods
+```
+
 ## Deployment script
 
-The unified `deploy.sh` script in the repository root handles both modes. Running it without arguments shows available
-commands.
+The unified [`deploy.sh`](https://github.com/HardMax71/Integr8sCode/blob/main/deploy.sh) script handles both modes:
 
 ```bash
-./deploy.sh dev              # Start local development stack
-./deploy.sh dev --build      # Rebuild images and start
-./deploy.sh down             # Stop local stack
-./deploy.sh check            # Run quality checks (ruff, mypy, bandit)
-./deploy.sh test             # Run full test suite with coverage
-./deploy.sh prod             # Deploy to Kubernetes with Helm
-./deploy.sh prod --dry-run   # Validate Helm templates without applying
-./deploy.sh status           # Show running services
-./deploy.sh logs backend     # Tail logs for a specific service
+--8<-- "deploy.sh:6:18"
 ```
 
 The script abstracts away the differences between environments. For local development it orchestrates Docker Compose,
@@ -59,43 +73,42 @@ trigger Uvicorn to restart automatically. The frontend runs its own dev server w
 
 ### Docker build strategy
 
-The backend uses a multi-stage build with a shared base image to keep startup fast. All Python dependencies are
-installed at build time, so containers start in seconds rather than waiting for package downloads.
+The backend uses a multi-stage build with a shared base image to keep startup fast:
 
+```mermaid
+flowchart LR
+    subgraph Base["Dockerfile.base"]
+        B1[python:3.12-slim]
+        B2[system deps]
+        B3[uv sync --locked]
+    end
+
+    subgraph Services["Service Images"]
+        S1[Backend]
+        S2[Workers]
+    end
+
+    Base --> S1 & S2
 ```
-Dockerfile.base          Dockerfile (backend)         Dockerfile.* (workers)
-┌──────────────────┐     ┌──────────────────────┐     ┌──────────────────────┐
-│ python:3.12-slim │     │ FROM base            │     │ FROM base            │
-│ system deps      │────▶│ COPY app, workers    │     │ COPY app, workers    │
-│ uv sync --locked │     │ entrypoint.sh        │     │ CMD ["python", ...]  │
-│ ENV PATH=.venv   │     └──────────────────────┘     └──────────────────────┘
-└──────────────────┘
+
+The base image installs all production dependencies:
+
+```dockerfile
+--8<-- "backend/Dockerfile.base"
 ```
 
-The base image (`Dockerfile.base`) installs all production dependencies using `uv sync --locked --no-dev`. The
-`--locked` flag ensures the lockfile is respected exactly, and `--no-dev` skips development tools like ruff and mypy
-that aren't needed at runtime. The key optimization is setting `PATH="/app/.venv/bin:$PATH"` so Python and all
-installed packages are available directly without needing `uv run` at startup.
+Each service image extends the base and copies only application code. Since dependencies rarely change, Docker's layer
+caching means most builds only rebuild the thin application layer.
 
-Each service image extends the base and copies only application code. Since dependencies rarely change compared to
-code, Docker's layer caching means most builds only rebuild the thin application layer. First builds take longer
-because they install all packages, but subsequent builds are fast.
-
-For local development, the compose file mounts source directories into the container:
+For local development, the compose file mounts source directories:
 
 ```yaml
-volumes:
-  - ./backend/app:/app/app
-  - ./backend/workers:/app/workers
-  - ./backend/scripts:/app/scripts
+--8<-- "docker-compose.yaml:95:99"
 ```
 
-This selective mounting preserves the container's `.venv` directory (with all installed packages) while allowing live
-code changes. The mounted directories overlay the baked-in copies, so edits take effect immediately. Gunicorn watches
-for file changes and reloads workers automatically.
-
-The design means `git clone` followed by `docker compose up` just works. No local Python environment needed, no named
-volumes for caching, no waiting for package downloads. Dependencies live in the image, code comes from the mount.
+This preserves the container's `.venv` while allowing live code changes. Gunicorn watches for file changes and reloads
+automatically. The design means `git clone` followed by `docker compose up` just works—no local Python environment
+needed.
 
 To stop everything and clean up volumes:
 
@@ -114,7 +127,8 @@ The `test` command runs the full integration and unit test suite:
 
 This builds images, starts services, waits for the backend health endpoint using curl's built-in retry mechanism, runs
 pytest with coverage reporting, then tears down the stack. The curl retry approach is cleaner than shell loops and
-avoids issues with Docker Compose's `--wait` flag (which fails on init containers that exit after completion). Key services define healthchecks in `docker-compose.yaml`:
+avoids issues with Docker Compose's `--wait` flag (which fails on init containers that exit after completion). Key
+services define healthchecks in `docker-compose.yaml`:
 
 | Service         | Healthcheck                                   |
 |-----------------|-----------------------------------------------|
@@ -141,32 +155,22 @@ registry and update the image references in your values file.
 
 ### Chart structure
 
-The Helm chart organizes templates by function.
+The Helm chart organizes templates by function:
 
-```
-helm/integr8scode/
-├── Chart.yaml              # Chart metadata and dependencies
-├── values.yaml             # Default configuration
-├── values-prod.yaml        # Production overrides
-├── templates/
-│   ├── _helpers.tpl        # Template functions
-│   ├── NOTES.txt           # Post-install message
-│   ├── namespace.yaml
-│   ├── rbac/               # ServiceAccount, Role, RoleBinding
-│   ├── secrets/            # Kubeconfig and Kafka JAAS
-│   ├── configmaps/         # Environment variables
-│   ├── infrastructure/     # Zookeeper, Kafka, Schema Registry, Jaeger
-│   ├── app/                # Backend and Frontend deployments
-│   ├── workers/            # All seven worker deployments
-│   └── jobs/               # Kafka topic init and user seed
-└── charts/                 # Downloaded sub-charts (Redis, MongoDB)
-```
+| Directory                   | Contents                                  |
+|-----------------------------|-------------------------------------------|
+| `templates/rbac/`           | ServiceAccount, Role, RoleBinding         |
+| `templates/secrets/`        | Kubeconfig and Kafka JAAS                 |
+| `templates/configmaps/`     | Environment variables                     |
+| `templates/infrastructure/` | Zookeeper, Kafka, Schema Registry, Jaeger |
+| `templates/app/`            | Backend and Frontend deployments          |
+| `templates/workers/`        | All seven worker deployments              |
+| `templates/jobs/`           | Kafka topic init and user seed            |
+| `charts/`                   | Bitnami sub-charts (Redis, MongoDB)       |
 
-The chart uses Bitnami sub-charts for Redis and MongoDB since they handle persistence, health checks, and configuration
-well. Kafka uses custom templates instead of the Bitnami chart because Confluent images require a specific workaround
-for Kubernetes environment variables. Kubernetes automatically creates environment variables like
-`KAFKA_PORT=tcp://10.0.0.1:29092` for services, which conflicts with Confluent's expectation of a numeric port. The
-templates include an `unset KAFKA_PORT` command in the container startup to avoid this collision.
+The chart uses Bitnami sub-charts for Redis and MongoDB. Kafka uses custom templates because Confluent images require
+unsetting Kubernetes auto-generated environment variables like `KAFKA_PORT=tcp://...` that conflict with expected
+numeric values.
 
 ### Running a deployment
 
@@ -204,8 +208,11 @@ the cluster.
 
 ### Configuration
 
-The `values.yaml` file contains all configurable options with comments explaining each setting. Key sections include
-global settings, image references, resource limits, and infrastructure configuration.
+The `values.yaml` file contains all configurable options. Key sections:
+
+```yaml
+--8<-- "helm/integr8scode/values.yaml:10:19"
+```
 
 Environment variables shared across services live in the `env` section and get rendered into a ConfigMap.
 Service-specific overrides go in their respective sections. For example, to increase backend replicas and memory:
@@ -306,67 +313,28 @@ your storage class's reclaim policy.
 
 ## Troubleshooting
 
-A few issues come up regularly during deployment.
+| Issue                 | Cause                             | Solution                                          |
+|-----------------------|-----------------------------------|---------------------------------------------------|
+| Unknown topic errors  | kafka-init failed or wrong prefix | Check `kubectl logs job/integr8scode-kafka-init`  |
+| Confluent port errors | K8s auto-generated `KAFKA_PORT`   | Ensure `unset KAFKA_PORT` in container startup    |
+| ImagePullBackOff      | Images not in cluster             | Use ghcr.io images or import with K3s             |
+| MongoDB auth errors   | Password mismatch                 | Verify secret matches `values-prod.yaml`          |
+| OOMKilled workers     | Resource limits too low           | Increase `workers.common.resources.limits.memory` |
 
-### Kafka topic errors
-
-If workers log errors about unknown topics, the kafka-init job may have failed or topics were created without the
-expected prefix. Check the job logs and verify topics exist with the correct names.
+### Kafka topic debugging
 
 ```bash
 kubectl logs -n integr8scode job/integr8scode-kafka-init
 kubectl exec -n integr8scode integr8scode-kafka-0 -- kafka-topics --list --bootstrap-server localhost:29092
 ```
 
-Topics should be prefixed (e.g., `prefexecution_events` not `execution_events`). If they're missing the prefix, the
-`KAFKA_TOPIC_PREFIX` setting wasn't applied during topic creation.
+Topics should be prefixed (e.g., `prefexecution_events` not `execution_events`).
 
-### Port conflicts with Confluent images
-
-Confluent containers may fail to start with errors about invalid port formats. This happens when Kubernetes environment
-variables like `KAFKA_PORT=tcp://...` override the expected numeric values. The chart templates include
-`unset KAFKA_PORT` and similar commands, but if you're customizing the deployment, ensure these remain in place.
-
-### Image pull failures
-
-If pods stay in ImagePullBackOff, the images aren't available to the cluster. For K3s, the deploy script imports images
-automatically. For other distributions, use the pre-built images from GitHub Container Registry (see below) or push to
-your own registry and update `values.yaml` with the correct repository and tag.
-
-```yaml
-images:
-  backend:
-    repository: your-registry.com/integr8scode-backend
-    tag: v1.0.0
-global:
-  imagePullPolicy: Always
-```
-
-### MongoDB authentication
-
-When `mongodb.auth.enabled` is true (the default in values-prod.yaml), all connections must authenticate. The chart
-constructs the MongoDB URL with credentials from the values file. If you're seeing authentication errors, verify the
-password is set correctly and matches what MongoDB was initialized with.
+### MongoDB password verification
 
 ```bash
 kubectl get secret -n integr8scode integr8scode-mongodb -o jsonpath='{.data.mongodb-root-password}' | base64 -d
 ```
-
-### Resource constraints
-
-Workers may get OOMKilled or throttled if resource limits are too low for your workload. The default values are
-conservative to work on small clusters. For production, increase limits based on observed usage.
-
-```yaml
-workers:
-  common:
-    resources:
-      limits:
-        memory: "1Gi"
-        cpu: "1000m"
-```
-
-Monitor resource usage with kubectl top or your cluster's metrics solution to right-size the limits.
 
 ## Pre-built images
 
@@ -419,5 +387,15 @@ The `--local` flag forces a local build even when using `values-prod.yaml`.
 
 The GitHub Actions workflow in `.github/workflows/docker.yml` handles image building and publishing. On every push to
 main, it builds the base, backend, and frontend images, scans them with Trivy for vulnerabilities, and pushes to
-ghcr.io.
-Pull requests build and scan but don't push, ensuring only tested code reaches the registry.
+ghcr.io. Pull requests build and scan but don't push, ensuring only tested code reaches the registry.
+
+## Key files
+
+| File                                                                                                                           | Purpose                     |
+|--------------------------------------------------------------------------------------------------------------------------------|-----------------------------|
+| [`deploy.sh`](https://github.com/HardMax71/Integr8sCode/blob/main/deploy.sh)                                                   | Unified deployment script   |
+| [`docker-compose.yaml`](https://github.com/HardMax71/Integr8sCode/blob/main/docker-compose.yaml)                               | Local development stack     |
+| [`backend/Dockerfile.base`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/Dockerfile.base)                       | Shared base image with deps |
+| [`helm/integr8scode/values.yaml`](https://github.com/HardMax71/Integr8sCode/blob/main/helm/integr8scode/values.yaml)           | Default Helm configuration  |
+| [`helm/integr8scode/values-prod.yaml`](https://github.com/HardMax71/Integr8sCode/blob/main/helm/integr8scode/values-prod.yaml) | Production overrides        |
+| [`.github/workflows/docker.yml`](https://github.com/HardMax71/Integr8sCode/blob/main/.github/workflows/docker.yml)             | CI/CD image build pipeline  |

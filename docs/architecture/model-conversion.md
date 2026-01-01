@@ -6,8 +6,7 @@ This document describes patterns for converting between domain models, Pydantic 
 
 The codebase separates concerns into layers: domain models are pure Python dataclasses with no framework dependencies,
 while Pydantic models handle API schemas, database documents, and Kafka events. Conversion happens at
-boundaries—repositories and services—not inside models. This avoids custom `to_dict()` or `from_response()` methods that
-scatter conversion logic and break when fields change.
+boundaries—repositories and services—not inside models.
 
 ## Model layers
 
@@ -152,13 +151,17 @@ async def update_session(self, session_id: str, updates: SessionUpdate) -> bool:
 
 ## Anti-patterns
 
-Avoid these approaches that scatter conversion logic or couple layers incorrectly.
+Avoid approaches that scatter conversion logic or couple layers incorrectly.
 
-| Anti-pattern                               | Why it's bad                                                                |
-|--------------------------------------------|-----------------------------------------------------------------------------|
-| Custom `to_dict()` / `from_dict()` methods | Adds abstraction without value; `asdict()` and `model_dump()` already exist |
-| Pydantic in domain layer                   | Couples domain to framework; domain should be pure Python                   |
-| Manual field-by-field conversion           | Verbose, error-prone, breaks when fields change                             |
+| Anti-pattern                     | Why it's bad                                              |
+|----------------------------------|-----------------------------------------------------------|
+| Manual field-by-field conversion | Verbose, error-prone, breaks when fields change           |
+| Pydantic in domain layer         | Couples domain to framework; domain should be pure Python |
+| Conversion logic in models       | Scatters boundary logic; keep it in repositories/services |
+
+Thin wrappers that delegate to `model_dump()` with specific options are fine. For example, `BaseEvent.to_dict()` applies
+`by_alias=True, mode="json"` consistently across all events. Methods with additional behavior like filtering private
+keys (`to_public_dict()`) are also acceptable—the anti-pattern is manually listing fields.
 
 ## Quick reference
 

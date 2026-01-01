@@ -1,0 +1,145 @@
+# Authentication
+
+The platform uses cookie-based JWT authentication with CSRF protection via the double-submit pattern. This approach
+keeps tokens secure (httpOnly cookies) while enabling CSRF protection for state-changing requests.
+
+## Architecture
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant Frontend
+    participant Backend
+    participant MongoDB
+
+    Browser->>Frontend: Login form submit
+    Frontend->>Backend: POST /auth/login
+    Backend->>MongoDB: Verify credentials
+    MongoDB-->>Backend: User record
+    Backend->>Backend: Generate JWT + CSRF token
+    Backend-->>Frontend: Set-Cookie: access_token (httpOnly)
+    Backend-->>Frontend: Set-Cookie: csrf_token
+    Frontend->>Frontend: Store CSRF in memory
+
+    Note over Browser,Backend: Subsequent requests
+    Browser->>Frontend: Click action
+    Frontend->>Backend: POST /api/... + X-CSRF-Token header
+    Backend->>Backend: Validate JWT from cookie
+    Backend->>Backend: Validate CSRF header == cookie
+    Backend-->>Frontend: Response
+```
+
+## Token Flow
+
+Login creates two cookies:
+
+| Cookie         | Properties                         | Purpose                         |
+|----------------|------------------------------------|---------------------------------|
+| `access_token` | httpOnly, secure, samesite=strict  | JWT for authentication          |
+| `csrf_token`   | secure, samesite=strict (readable) | CSRF double-submit verification |
+
+The `access_token` cookie is httpOnly, so JavaScript cannot read it—this prevents XSS attacks from stealing the token.
+The `csrf_token` cookie is readable by JavaScript so the frontend can include it in request headers.
+
+## Backend Implementation
+
+### Password Hashing
+
+Passwords are hashed using bcrypt via passlib:
+
+```python
+--8<-- "backend/app/core/security.py:23:32"
+```
+
+### JWT Creation
+
+JWTs are signed with HS256 using a secret key from settings:
+
+```python
+--8<-- "backend/app/core/security.py:34:39"
+```
+
+The token payload contains the username in the `sub` claim and an expiration time. Token lifetime is configured via
+`ACCESS_TOKEN_EXPIRE_MINUTES` (default: 30 minutes).
+
+### CSRF Validation
+
+The double-submit pattern requires the CSRF token to be sent in both a cookie and a header. The
+[`validate_csrf_token`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/security.py) dependency
+validates this for all authenticated POST/PUT/DELETE requests:
+
+```python
+--8<-- "backend/app/core/security.py:77:107"
+```
+
+Safe methods (GET, HEAD, OPTIONS) and auth endpoints (login, register, logout) skip CSRF validation.
+
+### Cookie Configuration
+
+Login sets cookies with security best practices:
+
+```python
+--8<-- "backend/app/api/routes/auth.py:94:112"
+```
+
+| Setting    | Value  | Purpose                                     |
+|------------|--------|---------------------------------------------|
+| `httponly` | true   | Prevents JavaScript access (XSS protection) |
+| `secure`   | true   | HTTPS only                                  |
+| `samesite` | strict | Prevents CSRF via cross-site requests       |
+| `path`     | /      | Cookie sent for all paths                   |
+
+## Frontend Implementation
+
+### Auth Store
+
+The frontend maintains authentication state in a Svelte store with sessionStorage persistence:
+
+```typescript
+--8<-- "frontend/src/stores/auth.ts:9:17"
+```
+
+The store caches verification results for 30 seconds to reduce server load:
+
+```typescript
+--8<-- "frontend/src/stores/auth.ts:45:47"
+```
+
+### CSRF Injection
+
+The API interceptor automatically adds the CSRF token header to all non-GET requests:
+
+```typescript
+--8<-- "frontend/src/lib/api-interceptors.ts:137:145"
+```
+
+### Session Handling
+
+On 401 responses, the interceptor clears auth state and redirects to login, preserving the original URL for
+post-login redirect:
+
+```typescript
+--8<-- "frontend/src/lib/api-interceptors.ts:64:81"
+```
+
+## Endpoints
+
+<swagger-ui src="../reference/openapi.json" filter="authentication" docExpansion="none" defaultModelsExpandDepth="-1" supportedSubmitMethods="[]"/>
+
+## Offline-First Behavior
+
+The frontend uses an offline-first approach for auth verification. On network failure, it returns the cached auth state
+rather than immediately logging out. This provides better UX during transient network issues but means server-revoked
+tokens may remain "valid" locally for up to 30 seconds.
+
+Security-critical operations should use `verifyAuth(forceRefresh=true)` to bypass the cache.
+
+## Key Files
+
+| File                                                                                                                   | Purpose                        |
+|------------------------------------------------------------------------------------------------------------------------|--------------------------------|
+| [`core/security.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/security.py)                 | JWT, password, CSRF utilities  |
+| [`services/auth_service.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/auth_service.py) | Auth service layer             |
+| [`api/routes/auth.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/api/routes/auth.py)             | Auth endpoints                 |
+| [`stores/auth.ts`](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/src/stores/auth.ts)                    | Frontend auth state            |
+| [`api-interceptors.ts`](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/src/lib/api-interceptors.ts)      | CSRF injection, error handling |

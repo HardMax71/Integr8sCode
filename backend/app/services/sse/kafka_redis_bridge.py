@@ -98,7 +98,13 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
         dispatcher = EventDispatcher(logger=self.logger)
         self._register_routing_handlers(dispatcher)
 
-        consumer = UnifiedConsumer(config=config, event_dispatcher=dispatcher, logger=self.logger)
+        consumer = UnifiedConsumer(
+            config=config,
+            event_dispatcher=dispatcher,
+            schema_registry=self.schema_registry,
+            settings=self.settings,
+            logger=self.logger,
+        )
 
         topics = [
             KafkaTopic.EXECUTION_EVENTS,

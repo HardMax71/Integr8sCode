@@ -9,7 +9,7 @@ from app.events.core import UnifiedConsumer, UnifiedProducer
 from app.events.core.dispatcher import EventDispatcher
 from app.events.core.types import ConsumerConfig
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
-from app.settings import get_settings
+from app.settings import Settings
 
 from tests.helpers import make_execution_requested_event
 
@@ -22,13 +22,13 @@ _test_logger = logging.getLogger("test.events.consume_roundtrip")
 async def test_produce_consume_roundtrip(scope) -> None:  # type: ignore[valid-type]
     # Ensure schemas are registered
     registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
+    settings: Settings = await scope.get(Settings)
     await initialize_event_schemas(registry)
 
     # Real producer from DI
     producer: UnifiedProducer = await scope.get(UnifiedProducer)
 
     # Build a consumer that handles EXECUTION_REQUESTED
-    settings = get_settings()
     dispatcher = EventDispatcher(logger=_test_logger)
     received = asyncio.Event()
 
@@ -44,7 +44,13 @@ async def test_produce_consume_roundtrip(scope) -> None:  # type: ignore[valid-t
         auto_offset_reset="earliest",
     )
 
-    consumer = UnifiedConsumer(config, dispatcher, logger=_test_logger)
+    consumer = UnifiedConsumer(
+        config,
+        dispatcher,
+        schema_registry=registry,
+        settings=settings,
+        logger=_test_logger,
+    )
     await consumer.start([str(KafkaTopic.EXECUTION_EVENTS)])
 
     try:

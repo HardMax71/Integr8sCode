@@ -8,10 +8,11 @@ from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
 from app.events.core.dispatcher import EventDispatcher as Disp
+from app.events.schema.schema_registry import SchemaRegistryManager
 from tests.helpers import make_execution_requested_event
 from app.services.idempotency.idempotency_manager import IdempotencyManager
 from app.services.idempotency.middleware import IdempotentConsumerWrapper
-from app.settings import get_settings
+from app.settings import Settings
 from tests.helpers.eventually import eventually
 
 pytestmark = [pytest.mark.integration, pytest.mark.kafka, pytest.mark.redis]
@@ -23,6 +24,8 @@ _test_logger = logging.getLogger("test.idempotency.consumer_idempotent")
 async def test_consumer_idempotent_wrapper_blocks_duplicates(scope) -> None:  # type: ignore[valid-type]
     producer: UnifiedProducer = await scope.get(UnifiedProducer)
     idm: IdempotencyManager = await scope.get(IdempotencyManager)
+    registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
+    settings: Settings = await scope.get(Settings)
 
     # Build a dispatcher with a counter
     disp: Disp = EventDispatcher(logger=_test_logger)
@@ -33,14 +36,19 @@ async def test_consumer_idempotent_wrapper_blocks_duplicates(scope) -> None:  # 
         seen["n"] += 1
 
     # Real consumer with idempotent wrapper
-    settings = get_settings()
     cfg = ConsumerConfig(
         bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
         group_id=f"test-idem-consumer.{uuid.uuid4().hex[:6]}",
         enable_auto_commit=True,
         auto_offset_reset="earliest",
     )
-    base = UnifiedConsumer(cfg, event_dispatcher=disp, logger=_test_logger)
+    base = UnifiedConsumer(
+        cfg,
+        event_dispatcher=disp,
+        schema_registry=registry,
+        settings=settings,
+        logger=_test_logger,
+    )
     wrapper = IdempotentConsumerWrapper(
         consumer=base,
         idempotency_manager=idm,

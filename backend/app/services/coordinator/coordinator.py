@@ -3,14 +3,14 @@ import logging
 import signal
 import time
 from collections.abc import Coroutine
+from contextlib import AsyncExitStack
 from typing import Any, TypeAlias
 from uuid import uuid4
 
-import redis.asyncio as redis
 from beanie import init_beanie
-from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
-from app.core.database_context import DBClient
+from app.core.container import create_coordinator_container
+from app.core.database_context import Database
 from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics.context import get_coordinator_metrics
 from app.db.docs import ALL_DOCUMENTS
@@ -18,11 +18,10 @@ from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.domain.enums.storage import ExecutionErrorType
-from app.events.core import ConsumerConfig, EventDispatcher, ProducerConfig, UnifiedConsumer, UnifiedProducer
-from app.events.event_store import EventStore, create_event_store
+from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
+from app.events.event_store import EventStore
 from app.events.schema.schema_registry import (
     SchemaRegistryManager,
-    create_schema_registry_manager,
     initialize_event_schemas,
 )
 from app.infrastructure.kafka.events.base import BaseEvent
@@ -38,10 +37,8 @@ from app.infrastructure.kafka.events.saga import CreatePodCommandEvent
 from app.services.coordinator.queue_manager import QueueManager, QueuePriority
 from app.services.coordinator.resource_manager import ResourceAllocation, ResourceManager
 from app.services.idempotency import IdempotencyManager
-from app.services.idempotency.idempotency_manager import IdempotencyConfig, create_idempotency_manager
 from app.services.idempotency.middleware import IdempotentConsumerWrapper
-from app.services.idempotency.redis_repository import RedisIdempotencyRepository
-from app.settings import get_settings
+from app.settings import Settings, get_settings
 
 EventHandler: TypeAlias = Coroutine[Any, Any, None]
 ExecutionMap: TypeAlias = dict[str, ResourceAllocation]
@@ -63,6 +60,7 @@ class ExecutionCoordinator(LifecycleEnabled):
         self,
         producer: UnifiedProducer,
         schema_registry_manager: SchemaRegistryManager,
+        settings: Settings,
         event_store: EventStore,
         execution_repository: ExecutionRepository,
         idempotency_manager: IdempotencyManager,
@@ -73,10 +71,10 @@ class ExecutionCoordinator(LifecycleEnabled):
     ):
         self.logger = logger
         self.metrics = get_coordinator_metrics()
-        settings = get_settings()
+        self._settings = settings
 
         # Kafka configuration
-        self.kafka_servers = settings.KAFKA_BOOTSTRAP_SERVERS
+        self.kafka_servers = self._settings.KAFKA_BOOTSTRAP_SERVERS
         self.consumer_group = consumer_group
 
         # Components
@@ -123,10 +121,9 @@ class ExecutionCoordinator(LifecycleEnabled):
 
         await self.idempotency_manager.initialize()
 
-        settings = get_settings()
         consumer_config = ConsumerConfig(
             bootstrap_servers=self.kafka_servers,
-            group_id=f"{self.consumer_group}.{settings.KAFKA_GROUP_SUFFIX}",
+            group_id=f"{self.consumer_group}.{self._settings.KAFKA_GROUP_SUFFIX}",
             enable_auto_commit=False,
             session_timeout_ms=30000,  # 30 seconds
             heartbeat_interval_ms=10000,  # 10 seconds (must be < session_timeout / 3)
@@ -136,7 +133,13 @@ class ExecutionCoordinator(LifecycleEnabled):
             fetch_min_bytes=1,  # Return immediately if any data available
         )
 
-        self.consumer = UnifiedConsumer(consumer_config, event_dispatcher=self.dispatcher, logger=self.logger)
+        self.consumer = UnifiedConsumer(
+            consumer_config,
+            event_dispatcher=self.dispatcher,
+            schema_registry=self._schema_registry_manager,
+            settings=self._settings,
+            logger=self.logger,
+        )
 
         # Register handlers with EventDispatcher BEFORE wrapping with idempotency
         @self.dispatcher.register(EventType.EXECUTION_REQUESTED)
@@ -495,55 +498,23 @@ class ExecutionCoordinator(LifecycleEnabled):
         }
 
 
-async def run_coordinator() -> None:
-    """Run the execution coordinator service"""
-    import os
-    from contextlib import AsyncExitStack
+async def run_coordinator(settings: Settings | None = None) -> None:
+    """Run the execution coordinator service."""
+    if settings is None:
+        settings = get_settings()
 
-    from app.core.logging import setup_logger
+    container = create_coordinator_container(settings)
+    logger = await container.get(logging.Logger)
+    logger.info("Starting ExecutionCoordinator with DI container...")
 
-    logger = setup_logger(os.environ.get("LOG_LEVEL", "INFO"))
-    settings = get_settings()
-    logger.info("Initializing schema registry for coordinator...")
-    schema_registry_manager = create_schema_registry_manager(settings, logger)
-    await initialize_event_schemas(schema_registry_manager)
-    config = ProducerConfig(bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS)
-    producer = UnifiedProducer(config, schema_registry_manager, logger)
+    db = await container.get(Database)
+    await init_beanie(database=db, document_models=ALL_DOCUMENTS)
 
-    db_client: DBClient = AsyncMongoClient(settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000)
-    db_name = settings.DATABASE_NAME
-    database = db_client[db_name]
+    schema_registry = await container.get(SchemaRegistryManager)
+    await initialize_event_schemas(schema_registry)
 
-    # Initialize Beanie ODM (indexes are idempotently created via Document.Settings.indexes)
-    await init_beanie(database=database, document_models=ALL_DOCUMENTS)
-
-    logger.info("Creating event store for coordinator...")
-    event_store = create_event_store(schema_registry_manager, logger, ttl_days=90)
-
-    exec_repo = ExecutionRepository(logger)
-    r = redis.Redis(
-        host=settings.REDIS_HOST,
-        port=settings.REDIS_PORT,
-        db=settings.REDIS_DB,
-        password=settings.REDIS_PASSWORD,
-        ssl=settings.REDIS_SSL,
-        max_connections=settings.REDIS_MAX_CONNECTIONS,
-        decode_responses=settings.REDIS_DECODE_RESPONSES,
-        socket_connect_timeout=5,
-        socket_timeout=5,
-    )
-    idem_repo = RedisIdempotencyRepository(r, key_prefix="idempotency")
-    idem_manager = create_idempotency_manager(repository=idem_repo, config=IdempotencyConfig(), logger=logger)
-    await idem_manager.initialize()
-
-    coordinator = ExecutionCoordinator(
-        producer=producer,
-        schema_registry_manager=schema_registry_manager,
-        event_store=event_store,
-        execution_repository=exec_repo,
-        idempotency_manager=idem_manager,
-        logger=logger,
-    )
+    producer = await container.get(UnifiedProducer)
+    coordinator = await container.get(ExecutionCoordinator)
 
     def signal_handler(sig: int, frame: Any) -> None:
         logger.info(f"Received signal {sig}, initiating shutdown...")
@@ -555,9 +526,7 @@ async def run_coordinator() -> None:
     async with AsyncExitStack() as stack:
         await stack.enter_async_context(producer)
         await stack.enter_async_context(coordinator)
-        stack.push_async_callback(idem_manager.close)
-        stack.push_async_callback(r.aclose)
-        stack.callback(db_client.close)
+        stack.push_async_callback(container.close)
 
         while coordinator._running:
             await asyncio.sleep(60)
@@ -566,7 +535,4 @@ async def run_coordinator() -> None:
 
 
 if __name__ == "__main__":
-    # Run coordinator as standalone service
-
-    settings = get_settings()
     asyncio.run(run_coordinator())

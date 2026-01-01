@@ -1,5 +1,3 @@
-"""Run KubernetesWorker as a standalone worker service"""
-
 import asyncio
 import logging
 
@@ -33,7 +31,7 @@ def main() -> None:
         )
         logger.info("Tracing initialized for KubernetesWorker")
 
-    asyncio.run(run_kubernetes_worker())
+    asyncio.run(run_kubernetes_worker(settings))
 
 
 if __name__ == "__main__":

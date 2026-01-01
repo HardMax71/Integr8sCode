@@ -20,6 +20,7 @@ from app.domain.enums.kafka import GroupId, KafkaTopic
 from app.domain.enums.storage import ExecutionErrorType, StorageType
 from app.domain.execution import ExecutionNotFoundError, ExecutionResultDomain
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
+from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka import BaseEvent
 from app.infrastructure.kafka.events.execution import (
     ExecutionCompletedEvent,
@@ -33,7 +34,7 @@ from app.infrastructure.kafka.events.system import (
 )
 from app.services.idempotency import IdempotencyManager
 from app.services.idempotency.middleware import IdempotentConsumerWrapper
-from app.settings import get_settings
+from app.settings import Settings, get_settings
 
 
 class ProcessingState(StringEnum):
@@ -69,6 +70,8 @@ class ResultProcessor(LifecycleEnabled):
         self,
         execution_repo: ExecutionRepository,
         producer: UnifiedProducer,
+        schema_registry: SchemaRegistryManager,
+        settings: Settings,
         idempotency_manager: IdempotencyManager,
         logger: logging.Logger,
     ) -> None:
@@ -76,6 +79,8 @@ class ResultProcessor(LifecycleEnabled):
         self.config = ResultProcessorConfig()
         self._execution_repo = execution_repo
         self._producer = producer
+        self._schema_registry = schema_registry
+        self._settings = settings
         self._metrics = get_execution_metrics()
         self._idempotency_manager: IdempotencyManager = idempotency_manager
         self._state = ProcessingState.IDLE
@@ -128,10 +133,9 @@ class ResultProcessor(LifecycleEnabled):
 
     async def _create_consumer(self) -> IdempotentConsumerWrapper:
         """Create and configure idempotent Kafka consumer."""
-        settings = get_settings()
         consumer_config = ConsumerConfig(
-            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=f"{self.config.consumer_group}.{settings.KAFKA_GROUP_SUFFIX}",
+            bootstrap_servers=self._settings.KAFKA_BOOTSTRAP_SERVERS,
+            group_id=f"{self.config.consumer_group}.{self._settings.KAFKA_GROUP_SUFFIX}",
             max_poll_records=1,
             enable_auto_commit=True,
             auto_offset_reset="earliest",
@@ -141,7 +145,13 @@ class ResultProcessor(LifecycleEnabled):
         if not self._dispatcher:
             raise RuntimeError("Event dispatcher not initialized")
 
-        base_consumer = UnifiedConsumer(consumer_config, event_dispatcher=self._dispatcher, logger=self.logger)
+        base_consumer = UnifiedConsumer(
+            consumer_config,
+            event_dispatcher=self._dispatcher,
+            schema_registry=self._schema_registry,
+            settings=self._settings,
+            logger=self.logger,
+        )
         wrapper = IdempotentConsumerWrapper(
             consumer=base_consumer,
             idempotency_manager=self._idempotency_manager,
@@ -187,7 +197,7 @@ class ResultProcessor(LifecycleEnabled):
         self._metrics.record_memory_usage(memory_mib, lang_and_version)
 
         # Calculate and record memory utilization percentage
-        settings_limit = get_settings().K8S_POD_MEMORY_LIMIT
+        settings_limit = self._settings.K8S_POD_MEMORY_LIMIT
         memory_limit_mib = int(settings_limit.rstrip("Mi"))  # TODO: Less brittle acquisition of limit
         memory_percent = (memory_mib / memory_limit_mib) * 100
         self._metrics.memory_utilization_percent.record(
@@ -310,8 +320,9 @@ class ResultProcessor(LifecycleEnabled):
         }
 
 
-async def run_result_processor() -> None:
-    settings = get_settings()
+async def run_result_processor(settings: Settings | None = None) -> None:
+    if settings is None:
+        settings = get_settings()
 
     # Initialize MongoDB and Beanie ODM (required per-process)
     db_client: AsyncMongoClient[dict[str, object]] = AsyncMongoClient(
@@ -321,6 +332,7 @@ async def run_result_processor() -> None:
 
     container = create_result_processor_container(settings)
     producer = await container.get(UnifiedProducer)
+    schema_registry = await container.get(SchemaRegistryManager)
     idempotency_manager = await container.get(IdempotencyManager)
     execution_repo = await container.get(ExecutionRepository)
     logger = await container.get(logging.Logger)
@@ -329,6 +341,8 @@ async def run_result_processor() -> None:
     processor = ResultProcessor(
         execution_repo=execution_repo,
         producer=producer,
+        schema_registry=schema_registry,
+        settings=settings,
         idempotency_manager=idempotency_manager,
         logger=logger,
     )

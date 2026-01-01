@@ -3,28 +3,27 @@ import logging
 import os
 import signal
 import time
+from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import Any
 
-import redis.asyncio as redis
 from beanie import init_beanie
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
 from kubernetes.client.rest import ApiException
-from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
-from app.core.database_context import DBClient
+from app.core.container import create_k8s_worker_container
+from app.core.database_context import Database
 from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics import ExecutionMetrics, KubernetesMetrics
 from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.domain.enums.storage import ExecutionErrorType
-from app.events.core import ConsumerConfig, EventDispatcher, ProducerConfig, UnifiedConsumer, UnifiedProducer
-from app.events.event_store import EventStore, create_event_store
+from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
+from app.events.event_store import EventStore
 from app.events.schema.schema_registry import (
     SchemaRegistryManager,
-    create_schema_registry_manager,
     initialize_event_schemas,
 )
 from app.infrastructure.kafka.events.base import BaseEvent
@@ -36,12 +35,10 @@ from app.infrastructure.kafka.events.pod import PodCreatedEvent
 from app.infrastructure.kafka.events.saga import CreatePodCommandEvent, DeletePodCommandEvent
 from app.runtime_registry import RUNTIME_REGISTRY
 from app.services.idempotency import IdempotencyManager
-from app.services.idempotency.idempotency_manager import IdempotencyConfig, create_idempotency_manager
 from app.services.idempotency.middleware import IdempotentConsumerWrapper
-from app.services.idempotency.redis_repository import RedisIdempotencyRepository
 from app.services.k8s_worker.config import K8sWorkerConfig
 from app.services.k8s_worker.pod_builder import PodBuilder
-from app.settings import get_settings
+from app.settings import Settings, get_settings
 
 
 class KubernetesWorker(LifecycleEnabled):
@@ -61,6 +58,7 @@ class KubernetesWorker(LifecycleEnabled):
         config: K8sWorkerConfig,
         producer: UnifiedProducer,
         schema_registry_manager: SchemaRegistryManager,
+        settings: Settings,
         event_store: EventStore,
         idempotency_manager: IdempotencyManager,
         logger: logging.Logger,
@@ -69,9 +67,9 @@ class KubernetesWorker(LifecycleEnabled):
         self.metrics = KubernetesMetrics()
         self.execution_metrics = ExecutionMetrics()
         self.config = config or K8sWorkerConfig()
-        settings = get_settings()
+        self._settings = settings
 
-        self.kafka_servers = self.config.kafka_bootstrap_servers or settings.KAFKA_BOOTSTRAP_SERVERS
+        self.kafka_servers = self.config.kafka_bootstrap_servers or self._settings.KAFKA_BOOTSTRAP_SERVERS
         self._event_store = event_store
 
         # Kubernetes clients
@@ -118,7 +116,7 @@ class KubernetesWorker(LifecycleEnabled):
         # Create consumer configuration
         consumer_config = ConsumerConfig(
             bootstrap_servers=self.kafka_servers,
-            group_id=f"{self.config.consumer_group}.{get_settings().KAFKA_GROUP_SUFFIX}",
+            group_id=f"{self.config.consumer_group}.{self._settings.KAFKA_GROUP_SUFFIX}",
             enable_auto_commit=False,
         )
 
@@ -128,7 +126,13 @@ class KubernetesWorker(LifecycleEnabled):
         self.dispatcher.register_handler(EventType.DELETE_POD_COMMAND, self._handle_delete_pod_command_wrapper)
 
         # Create consumer with dispatcher
-        self.consumer = UnifiedConsumer(consumer_config, event_dispatcher=self.dispatcher, logger=self.logger)
+        self.consumer = UnifiedConsumer(
+            consumer_config,
+            event_dispatcher=self.dispatcher,
+            schema_registry=self._schema_registry_manager,
+            settings=self._settings,
+            logger=self.logger,
+        )
 
         # Wrap consumer with idempotency - use content hash for pod commands
         self.idempotent_consumer = IdempotentConsumerWrapper(
@@ -516,60 +520,23 @@ exec "$@"
             self.logger.error(f"Unexpected error applying image-puller DaemonSet: {e}", exc_info=True)
 
 
-async def run_kubernetes_worker() -> None:
-    """Run the Kubernetes worker service"""
-    import os
-    from contextlib import AsyncExitStack
+async def run_kubernetes_worker(settings: Settings | None = None) -> None:
+    """Run the Kubernetes worker service."""
+    if settings is None:
+        settings = get_settings()
 
-    from app.core.logging import setup_logger
+    container = create_k8s_worker_container(settings)
+    logger = await container.get(logging.Logger)
+    logger.info("Starting KubernetesWorker with DI container...")
 
-    logger = setup_logger(os.environ.get("LOG_LEVEL", "INFO"))
-    logger.info("Initializing database connection...")
-    settings = get_settings()
-    db_client: DBClient = AsyncMongoClient(settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000)
-    db_name = settings.DATABASE_NAME
-    database = db_client[db_name]
-    await db_client.admin.command("ping")
-    logger.info(f"Connected to database: {db_name}")
+    db = await container.get(Database)
+    await init_beanie(database=db, document_models=ALL_DOCUMENTS)
 
-    # Initialize Beanie ODM (indexes are idempotently created via Document.Settings.indexes)
-    await init_beanie(database=database, document_models=ALL_DOCUMENTS)
+    schema_registry = await container.get(SchemaRegistryManager)
+    await initialize_event_schemas(schema_registry)
 
-    logger.info("Initializing schema registry...")
-    schema_registry_manager = create_schema_registry_manager(settings, logger)
-    await initialize_event_schemas(schema_registry_manager)
-
-    logger.info("Creating event store...")
-    event_store = create_event_store(schema_registry_manager, logger)
-
-    logger.info("Creating producer for Kubernetes worker...")
-    producer_config = ProducerConfig(bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS)
-    producer = UnifiedProducer(producer_config, schema_registry_manager, logger)
-
-    config = K8sWorkerConfig()
-    r = redis.Redis(
-        host=settings.REDIS_HOST,
-        port=settings.REDIS_PORT,
-        db=settings.REDIS_DB,
-        password=settings.REDIS_PASSWORD,
-        ssl=settings.REDIS_SSL,
-        max_connections=settings.REDIS_MAX_CONNECTIONS,
-        decode_responses=settings.REDIS_DECODE_RESPONSES,
-        socket_connect_timeout=5,
-        socket_timeout=5,
-    )
-    idem_repo = RedisIdempotencyRepository(r, key_prefix="idempotency")
-    idem_manager = create_idempotency_manager(repository=idem_repo, config=IdempotencyConfig(), logger=logger)
-    await idem_manager.initialize()
-
-    worker = KubernetesWorker(
-        config=config,
-        producer=producer,
-        schema_registry_manager=schema_registry_manager,
-        event_store=event_store,
-        idempotency_manager=idem_manager,
-        logger=logger,
-    )
+    producer = await container.get(UnifiedProducer)
+    worker = await container.get(KubernetesWorker)
 
     def signal_handler(sig: int, frame: Any) -> None:
         logger.info(f"Received signal {sig}, initiating shutdown...")
@@ -581,9 +548,7 @@ async def run_kubernetes_worker() -> None:
     async with AsyncExitStack() as stack:
         await stack.enter_async_context(producer)
         await stack.enter_async_context(worker)
-        stack.push_async_callback(idem_manager.close)
-        stack.push_async_callback(r.aclose)
-        stack.callback(db_client.close)
+        stack.push_async_callback(container.close)
 
         while worker._running:
             await asyncio.sleep(60)
@@ -592,5 +557,4 @@ async def run_kubernetes_worker() -> None:
 
 
 if __name__ == "__main__":
-    # Run worker as standalone service
     asyncio.run(run_kubernetes_worker())

@@ -31,7 +31,7 @@ def main() -> None:
         )
         logger.info("Tracing initialized for ResultProcessor Service")
 
-    asyncio.run(run_result_processor())
+    asyncio.run(run_result_processor(settings))
 
 
 if __name__ == "__main__":

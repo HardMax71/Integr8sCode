@@ -13,22 +13,21 @@ from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
 from kubernetes import watch
 from kubernetes.client.rest import ApiException
-from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
-from app.core.k8s_clients import K8sClients, close_k8s_clients, create_k8s_clients
+from app.core.container import create_pod_monitor_container
+from app.core.database_context import Database
+from app.core.k8s_clients import K8sClients
 from app.core.lifecycle import LifecycleEnabled
-from app.core.logging import setup_logger
 from app.core.metrics.context import get_kubernetes_metrics
 from app.core.utils import StringEnum
 from app.db.docs import ALL_DOCUMENTS
-from app.db.repositories.event_repository import EventRepository
-from app.events.core import ProducerConfig, UnifiedProducer
-from app.events.schema.schema_registry import create_schema_registry_manager, initialize_event_schemas
+from app.events.core import UnifiedProducer
+from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.infrastructure.kafka.events import BaseEvent
 from app.services.kafka_event_service import KafkaEventService
 from app.services.pod_monitor.config import PodMonitorConfig
 from app.services.pod_monitor.event_mapper import PodEventMapper
-from app.settings import get_settings
+from app.settings import Settings, get_settings
 
 # Type aliases
 type PodName = str
@@ -533,65 +532,38 @@ async def create_pod_monitor(
         await monitor.stop()
 
 
-async def run_pod_monitor() -> None:
+async def run_pod_monitor(settings: Settings | None = None) -> None:
     """Run the pod monitor service."""
-    import os
+    if settings is None:
+        settings = get_settings()
 
-    logger = setup_logger(os.environ.get("LOG_LEVEL", "INFO"))
-    settings = get_settings()
+    container = create_pod_monitor_container(settings)
+    logger = await container.get(logging.Logger)
+    logger.info("Starting PodMonitor with DI container...")
 
-    # Initialize MongoDB
-    db_client: AsyncMongoClient[Any] = AsyncMongoClient(
-        settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000
-    )
-    database = db_client[settings.DATABASE_NAME]
-    await db_client.admin.command("ping")
-    logger.info(f"Connected to database: {settings.DATABASE_NAME}")
-    await init_beanie(database=database, document_models=ALL_DOCUMENTS)
+    db = await container.get(Database)
+    await init_beanie(database=db, document_models=ALL_DOCUMENTS)
 
-    # Initialize schema registry
-    schema_registry_manager = create_schema_registry_manager(settings, logger)
-    await initialize_event_schemas(schema_registry_manager)
+    schema_registry = await container.get(SchemaRegistryManager)
+    await initialize_event_schemas(schema_registry)
 
-    # Create producer
-    producer_config = ProducerConfig(bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS)
-    producer = UnifiedProducer(producer_config, schema_registry_manager, logger)
+    producer = await container.get(UnifiedProducer)
+    monitor = await container.get(PodMonitor)
 
-    # Create KafkaEventService (stores events + publishes to Kafka)
-    event_repository = EventRepository(logger)
-    kafka_event_service = KafkaEventService(
-        event_repository=event_repository,
-        kafka_producer=producer,
-        logger=logger,
-    )
-
-    # Create monitor
-    monitor_config = PodMonitorConfig()
-    clients = create_k8s_clients(logger)
-    monitor = PodMonitor(
-        config=monitor_config,
-        kafka_event_service=kafka_event_service,
-        logger=logger,
-        k8s_clients=clients,
-    )
-
-    # Setup signal handlers
     loop = asyncio.get_running_loop()
 
     async def shutdown() -> None:
-        """Shutdown handler."""
         logger.info("Initiating graceful shutdown...")
         await monitor.stop()
         await producer.stop()
-        await db_client.close()
 
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, lambda: asyncio.create_task(shutdown()))
 
     async with AsyncExitStack() as stack:
-        stack.callback(close_k8s_clients, clients)
         await stack.enter_async_context(producer)
         await stack.enter_async_context(monitor)
+        stack.push_async_callback(container.close)
 
         while monitor.state == MonitorState.RUNNING:
             await asyncio.sleep(RECONCILIATION_LOG_INTERVAL)
@@ -600,5 +572,4 @@ async def run_pod_monitor() -> None:
 
 
 if __name__ == "__main__":
-    settings = get_settings()
     asyncio.run(run_pod_monitor())

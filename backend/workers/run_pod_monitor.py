@@ -1,5 +1,3 @@
-"""Run PodMonitor as a standalone worker service"""
-
 import asyncio
 import logging
 
@@ -33,7 +31,7 @@ def main() -> None:
         )
         logger.info("Tracing initialized for PodMonitor Service")
 
-    asyncio.run(run_pod_monitor())
+    asyncio.run(run_pod_monitor(settings))
 
 
 if __name__ == "__main__":

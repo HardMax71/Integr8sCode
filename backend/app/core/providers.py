@@ -40,6 +40,7 @@ from app.db.repositories.replay_repository import ReplayRepository
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.db.repositories.user_settings_repository import UserSettingsRepository
 from app.dlq.manager import DLQManager, create_dlq_manager
+from app.domain.enums.kafka import KafkaTopic
 from app.domain.saga.models import SagaConfig
 from app.events.core import ProducerConfig, UnifiedProducer
 from app.events.event_store import EventStore, create_event_store
@@ -57,8 +58,12 @@ from app.services.grafana_alert_processor import GrafanaAlertProcessor
 from app.services.idempotency import IdempotencyConfig, IdempotencyManager
 from app.services.idempotency.idempotency_manager import create_idempotency_manager
 from app.services.idempotency.redis_repository import RedisIdempotencyRepository
+from app.services.k8s_worker.config import K8sWorkerConfig
+from app.services.k8s_worker.worker import KubernetesWorker
 from app.services.kafka_event_service import KafkaEventService
 from app.services.notification_service import NotificationService
+from app.services.pod_monitor.config import PodMonitorConfig
+from app.services.pod_monitor.monitor import PodMonitor
 from app.services.rate_limit_service import RateLimitService
 from app.services.replay_service import ReplayService
 from app.services.saga import SagaOrchestrator, create_saga_orchestrator
@@ -201,6 +206,7 @@ class EventProvider(Provider):
         self,
         event_store: EventStore,
         schema_registry: SchemaRegistryManager,
+        settings: Settings,
         kafka_producer: UnifiedProducer,
         logger: logging.Logger,
     ) -> EventStoreConsumer:
@@ -209,6 +215,7 @@ class EventProvider(Provider):
             event_store=event_store,
             topics=list(topics),
             schema_registry_manager=schema_registry,
+            settings=settings,
             producer=kafka_producer,
             logger=logger,
         )
@@ -486,10 +493,12 @@ class BusinessServicesProvider(Provider):
         self,
         saga_repository: SagaRepository,
         kafka_producer: UnifiedProducer,
+        schema_registry: SchemaRegistryManager,
+        settings: Settings,
         event_store: EventStore,
         idempotency_manager: IdempotencyManager,
         resource_allocation_repository: ResourceAllocationRepository,
-        settings: Settings,
+        logger: logging.Logger,
     ) -> AsyncIterator[SagaOrchestrator]:
         config = SagaConfig(
             name="main-orchestrator",
@@ -503,10 +512,13 @@ class BusinessServicesProvider(Provider):
         orchestrator = create_saga_orchestrator(
             saga_repository=saga_repository,
             producer=kafka_producer,
+            schema_registry_manager=schema_registry,
+            settings=settings,
             event_store=event_store,
             idempotency_manager=idempotency_manager,
             resource_allocation_repository=resource_allocation_repository,
             config=config,
+            logger=logger,
         )
         try:
             yield orchestrator
@@ -586,6 +598,7 @@ class BusinessServicesProvider(Provider):
         self,
         kafka_producer: UnifiedProducer,
         schema_registry: SchemaRegistryManager,
+        settings: Settings,
         event_store: EventStore,
         execution_repository: ExecutionRepository,
         idempotency_manager: IdempotencyManager,
@@ -594,6 +607,7 @@ class BusinessServicesProvider(Provider):
         coordinator = ExecutionCoordinator(
             producer=kafka_producer,
             schema_registry_manager=schema_registry,
+            settings=settings,
             event_store=event_store,
             execution_repository=execution_repository,
             idempotency_manager=idempotency_manager,
@@ -611,3 +625,200 @@ class ResultProcessorProvider(Provider):
     @provide
     def get_execution_repository(self, logger: logging.Logger) -> ExecutionRepository:
         return ExecutionRepository(logger)
+
+
+class CoordinatorProvider(Provider):
+    scope = Scope.APP
+
+    @provide
+    def get_execution_repository(self, logger: logging.Logger) -> ExecutionRepository:
+        return ExecutionRepository(logger)
+
+    @provide
+    async def get_execution_coordinator(
+        self,
+        kafka_producer: UnifiedProducer,
+        schema_registry: SchemaRegistryManager,
+        settings: Settings,
+        event_store: EventStore,
+        execution_repository: ExecutionRepository,
+        idempotency_manager: IdempotencyManager,
+        logger: logging.Logger,
+    ) -> AsyncIterator[ExecutionCoordinator]:
+        coordinator = ExecutionCoordinator(
+            producer=kafka_producer,
+            schema_registry_manager=schema_registry,
+            settings=settings,
+            event_store=event_store,
+            execution_repository=execution_repository,
+            idempotency_manager=idempotency_manager,
+            logger=logger,
+        )
+        try:
+            yield coordinator
+        finally:
+            await coordinator.stop()
+
+
+class K8sWorkerProvider(Provider):
+    scope = Scope.APP
+
+    @provide
+    async def get_kubernetes_worker(
+        self,
+        kafka_producer: UnifiedProducer,
+        schema_registry: SchemaRegistryManager,
+        settings: Settings,
+        event_store: EventStore,
+        idempotency_manager: IdempotencyManager,
+        logger: logging.Logger,
+    ) -> AsyncIterator[KubernetesWorker]:
+        config = K8sWorkerConfig()
+        worker = KubernetesWorker(
+            config=config,
+            producer=kafka_producer,
+            schema_registry_manager=schema_registry,
+            settings=settings,
+            event_store=event_store,
+            idempotency_manager=idempotency_manager,
+            logger=logger,
+        )
+        try:
+            yield worker
+        finally:
+            await worker.stop()
+
+
+class PodMonitorProvider(Provider):
+    scope = Scope.APP
+
+    @provide
+    def get_event_repository(self, logger: logging.Logger) -> EventRepository:
+        return EventRepository(logger)
+
+    @provide
+    def get_kafka_event_service(
+        self,
+        event_repository: EventRepository,
+        kafka_producer: UnifiedProducer,
+        logger: logging.Logger,
+    ) -> KafkaEventService:
+        return KafkaEventService(
+            event_repository=event_repository,
+            kafka_producer=kafka_producer,
+            logger=logger,
+        )
+
+    @provide
+    async def get_pod_monitor(
+        self,
+        kafka_event_service: KafkaEventService,
+        k8s_clients: K8sClients,
+        logger: logging.Logger,
+    ) -> AsyncIterator[PodMonitor]:
+        config = PodMonitorConfig()
+        monitor = PodMonitor(
+            config=config,
+            kafka_event_service=kafka_event_service,
+            logger=logger,
+            k8s_clients=k8s_clients,
+        )
+        try:
+            yield monitor
+        finally:
+            await monitor.stop()
+
+
+class SagaOrchestratorProvider(Provider):
+    scope = Scope.APP
+
+    @provide
+    def get_saga_repository(self) -> SagaRepository:
+        return SagaRepository()
+
+    @provide
+    def get_resource_allocation_repository(self) -> ResourceAllocationRepository:
+        return ResourceAllocationRepository()
+
+    @provide
+    async def get_saga_orchestrator(
+        self,
+        saga_repository: SagaRepository,
+        kafka_producer: UnifiedProducer,
+        schema_registry: SchemaRegistryManager,
+        settings: Settings,
+        event_store: EventStore,
+        idempotency_manager: IdempotencyManager,
+        resource_allocation_repository: ResourceAllocationRepository,
+        logger: logging.Logger,
+    ) -> AsyncIterator[SagaOrchestrator]:
+        config = SagaConfig(
+            name="main-orchestrator",
+            timeout_seconds=300,
+            max_retries=3,
+            retry_delay_seconds=5,
+            enable_compensation=True,
+            store_events=True,
+            publish_commands=True,
+        )
+        orchestrator = create_saga_orchestrator(
+            saga_repository=saga_repository,
+            producer=kafka_producer,
+            schema_registry_manager=schema_registry,
+            settings=settings,
+            event_store=event_store,
+            idempotency_manager=idempotency_manager,
+            resource_allocation_repository=resource_allocation_repository,
+            config=config,
+            logger=logger,
+        )
+        try:
+            yield orchestrator
+        finally:
+            await orchestrator.stop()
+
+
+class EventReplayProvider(Provider):
+    scope = Scope.APP
+
+    @provide
+    def get_replay_repository(self, logger: logging.Logger) -> ReplayRepository:
+        return ReplayRepository(logger)
+
+    @provide
+    def get_event_replay_service(
+        self,
+        replay_repository: ReplayRepository,
+        kafka_producer: UnifiedProducer,
+        event_store: EventStore,
+        logger: logging.Logger,
+    ) -> EventReplayService:
+        return EventReplayService(
+            repository=replay_repository,
+            producer=kafka_producer,
+            event_store=event_store,
+            logger=logger,
+        )
+
+
+class DLQProcessorProvider(Provider):
+    scope = Scope.APP
+
+    @provide
+    async def get_dlq_manager(
+        self,
+        settings: Settings,
+        schema_registry: SchemaRegistryManager,
+        logger: logging.Logger,
+    ) -> AsyncIterator[DLQManager]:
+        manager = create_dlq_manager(
+            settings=settings,
+            schema_registry=schema_registry,
+            logger=logger,
+            dlq_topic=KafkaTopic.DEAD_LETTER_QUEUE,
+            retry_topic_suffix="-retry",
+        )
+        try:
+            yield manager
+        finally:
+            await manager.stop()

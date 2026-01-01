@@ -20,7 +20,7 @@ from app.infrastructure.kafka.events.execution import ExecutionCompletedEvent
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.services.idempotency import IdempotencyManager
 from app.services.result_processor.processor import ResultProcessor
-from app.settings import get_settings
+from app.settings import Settings
 
 pytestmark = [pytest.mark.integration, pytest.mark.kafka, pytest.mark.mongodb]
 
@@ -31,6 +31,7 @@ _test_logger = logging.getLogger("test.result_processor.processor")
 async def test_result_processor_persists_and_emits(scope) -> None:  # type: ignore[valid-type]
     # Ensure schemas
     registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
+    settings: Settings = await scope.get(Settings)
     await initialize_event_schemas(registry)
 
     # Dependencies
@@ -53,12 +54,13 @@ async def test_result_processor_persists_and_emits(scope) -> None:  # type: igno
     processor = ResultProcessor(
         execution_repo=repo,
         producer=producer,
+        schema_registry=registry,
+        settings=settings,
         idempotency_manager=idem,
         logger=_test_logger,
     )
 
     # Setup a small consumer to capture ResultStoredEvent
-    settings = get_settings()
     dispatcher = EventDispatcher(logger=_test_logger)
     stored_received = asyncio.Event()
 
@@ -73,7 +75,13 @@ async def test_result_processor_persists_and_emits(scope) -> None:  # type: igno
         enable_auto_commit=True,
         auto_offset_reset="earliest",
     )
-    stored_consumer = UnifiedConsumer(cconf, dispatcher, logger=_test_logger)
+    stored_consumer = UnifiedConsumer(
+        cconf,
+        dispatcher,
+        schema_registry=registry,
+        settings=settings,
+        logger=_test_logger,
+    )
     await stored_consumer.start([str(KafkaTopic.EXECUTION_RESULTS)])
 
     try:

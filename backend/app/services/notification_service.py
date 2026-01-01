@@ -43,7 +43,7 @@ from app.schemas_pydantic.sse import RedisNotificationMessage
 from app.services.event_bus import EventBusManager
 from app.services.kafka_event_service import KafkaEventService
 from app.services.sse.redis_bus import SSERedisBus
-from app.settings import Settings, get_settings
+from app.settings import Settings
 
 # Constants
 ENTITY_EXECUTION_TAG = "entity:execution"
@@ -218,7 +218,7 @@ class NotificationService:
         # Configure consumer for notification-relevant events
         consumer_config = ConsumerConfig(
             bootstrap_servers=self.settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=f"{GroupId.NOTIFICATION_SERVICE}.{get_settings().KAFKA_GROUP_SUFFIX}",
+            group_id=f"{GroupId.NOTIFICATION_SERVICE}.{self.settings.KAFKA_GROUP_SUFFIX}",
             max_poll_records=10,
             enable_auto_commit=True,
             auto_offset_reset="latest",  # Only process new events
@@ -237,7 +237,13 @@ class NotificationService:
         self._dispatcher.register_handler(EventType.EXECUTION_TIMEOUT, self._handle_execution_event)
 
         # Create consumer with dispatcher
-        self._consumer = UnifiedConsumer(consumer_config, event_dispatcher=self._dispatcher, logger=self.logger)
+        self._consumer = UnifiedConsumer(
+            consumer_config,
+            event_dispatcher=self._dispatcher,
+            schema_registry=self.schema_registry_manager,
+            settings=self.settings,
+            logger=self.logger,
+        )
 
         # Start consumer
         await self._consumer.start([execution_results_topic])

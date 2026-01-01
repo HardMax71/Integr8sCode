@@ -11,7 +11,7 @@ from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, Un
 from app.events.event_store import EventStore
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.events.base import BaseEvent
-from app.settings import get_settings
+from app.settings import Settings
 
 
 class EventStoreConsumer(LifecycleEnabled):
@@ -22,6 +22,7 @@ class EventStoreConsumer(LifecycleEnabled):
         event_store: EventStore,
         topics: list[KafkaTopic],
         schema_registry_manager: SchemaRegistryManager,
+        settings: Settings,
         logger: logging.Logger,
         producer: UnifiedProducer | None = None,
         group_id: GroupId = GroupId.EVENT_STORE_CONSUMER,
@@ -30,6 +31,7 @@ class EventStoreConsumer(LifecycleEnabled):
     ):
         self.event_store = event_store
         self.topics = topics
+        self.settings = settings
         self.group_id = group_id
         self.batch_size = batch_size
         self.batch_timeout = batch_timeout_seconds
@@ -50,15 +52,20 @@ class EventStoreConsumer(LifecycleEnabled):
             return
 
         self._last_batch_time = asyncio.get_running_loop().time()
-        settings = get_settings()
         config = ConsumerConfig(
-            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=f"{self.group_id}.{settings.KAFKA_GROUP_SUFFIX}",
+            bootstrap_servers=self.settings.KAFKA_BOOTSTRAP_SERVERS,
+            group_id=f"{self.group_id}.{self.settings.KAFKA_GROUP_SUFFIX}",
             enable_auto_commit=False,
             max_poll_records=self.batch_size,
         )
 
-        self.consumer = UnifiedConsumer(config, event_dispatcher=self.dispatcher, logger=self.logger)
+        self.consumer = UnifiedConsumer(
+            config,
+            event_dispatcher=self.dispatcher,
+            schema_registry=self.schema_registry_manager,
+            settings=self.settings,
+            logger=self.logger,
+        )
 
         # Register handler for all event types - store everything
         for event_type in EventType:
@@ -162,6 +169,7 @@ def create_event_store_consumer(
     event_store: EventStore,
     topics: list[KafkaTopic],
     schema_registry_manager: SchemaRegistryManager,
+    settings: Settings,
     logger: logging.Logger,
     producer: UnifiedProducer | None = None,
     group_id: GroupId = GroupId.EVENT_STORE_CONSUMER,
@@ -175,6 +183,7 @@ def create_event_store_consumer(
         batch_size=batch_size,
         batch_timeout_seconds=batch_timeout_seconds,
         schema_registry_manager=schema_registry_manager,
+        settings=settings,
         logger=logger,
         producer=producer,
     )

@@ -1,5 +1,3 @@
-"""Run ExecutionCoordinator as a standalone worker service"""
-
 import asyncio
 import logging
 
@@ -33,7 +31,7 @@ def main() -> None:
         )
         logger.info("Tracing initialized for ExecutionCoordinator")
 
-    asyncio.run(run_coordinator())
+    asyncio.run(run_coordinator(settings))
 
 
 if __name__ == "__main__":

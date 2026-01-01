@@ -1,6 +1,6 @@
 import json
 import logging
-import os
+import uuid
 from datetime import datetime, timezone
 
 import pytest
@@ -26,10 +26,11 @@ async def test_dlq_manager_persists_in_mongo(db, test_settings) -> None:  # type
     schema_registry = create_schema_registry_manager(test_settings, _test_logger)
     manager = create_dlq_manager(settings=test_settings, schema_registry=schema_registry, logger=_test_logger)
 
-    # Build a DLQ payload
-    ev = make_execution_requested_event(execution_id="exec-dlq-1")
+    # Use prefix from test_settings to match what the manager uses
+    prefix = test_settings.KAFKA_TOPIC_PREFIX
 
-    prefix = os.environ.get("KAFKA_TOPIC_PREFIX", "")
+    # Use unique execution_id to avoid conflicts with parallel test workers
+    ev = make_execution_requested_event(execution_id=f"exec-dlq-persist-{uuid.uuid4().hex[:8]}")
     payload = {
         "event": ev.to_dict(),
         "original_topic": f"{prefix}{str(KafkaTopic.EXECUTION_EVENTS)}",

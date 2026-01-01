@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 import uuid
 from datetime import datetime, timezone
 
@@ -27,7 +26,8 @@ _test_logger = logging.getLogger("test.dlq.retry_immediate")
 async def test_dlq_manager_immediate_retry_updates_doc(db, test_settings) -> None:  # type: ignore[valid-type]
     schema_registry = create_schema_registry_manager(test_settings, _test_logger)
     manager = create_dlq_manager(settings=test_settings, schema_registry=schema_registry, logger=_test_logger)
-    prefix = os.environ.get("KAFKA_TOPIC_PREFIX", "")
+    # Use prefix from test_settings to match what the manager uses
+    prefix = test_settings.KAFKA_TOPIC_PREFIX
     topic = f"{prefix}{str(KafkaTopic.EXECUTION_EVENTS)}"
     manager.set_retry_policy(
         topic,

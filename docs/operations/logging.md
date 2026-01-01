@@ -107,4 +107,4 @@ The log level is controlled by the `LOG_LEVEL` environment variable.
 | File                                                                                                       | Purpose                              |
 |------------------------------------------------------------------------------------------------------------|--------------------------------------|
 | [`core/logging.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/logging.py)       | Logger setup, filters, JSON formatter|
-| [`core/middleware.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/middleware.py) | Correlation ID middleware            |
+| [`core/correlation.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/correlation.py) | Correlation ID middleware            |

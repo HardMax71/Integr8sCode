@@ -49,7 +49,7 @@ Track scheduling and resource allocation.
 
 ### Rate Limit Metrics
 
-Track rate limiting behavior.
+Track rate-limiting behavior.
 
 | Metric                           | Type      | Labels                             | Description               |
 |----------------------------------|-----------|------------------------------------|---------------------------|

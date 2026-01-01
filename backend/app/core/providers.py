@@ -818,6 +818,7 @@ class DLQProcessorProvider(Provider):
             dlq_topic=KafkaTopic.DEAD_LETTER_QUEUE,
             retry_topic_suffix="-retry",
         )
+        await manager.start()
         try:
             yield manager
         finally:

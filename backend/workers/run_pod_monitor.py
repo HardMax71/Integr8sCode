@@ -47,9 +47,9 @@ async def run_pod_monitor(settings: Settings | None = None) -> None:
         loop.add_signal_handler(sig, lambda: asyncio.create_task(shutdown()))
 
     async with AsyncExitStack() as stack:
+        stack.push_async_callback(container.close)
         await stack.enter_async_context(producer)
         await stack.enter_async_context(monitor)
-        stack.push_async_callback(container.close)
 
         while monitor.state == MonitorState.RUNNING:
             await asyncio.sleep(RECONCILIATION_LOG_INTERVAL)

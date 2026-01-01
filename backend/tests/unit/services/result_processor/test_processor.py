@@ -1,12 +1,10 @@
 import logging
-
-import pytest
 from unittest.mock import MagicMock
 
+import pytest
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import GroupId, KafkaTopic
 from app.services.result_processor.processor import ResultProcessor, ResultProcessorConfig
-
 
 pytestmark = pytest.mark.unit
 
@@ -31,7 +29,14 @@ class TestResultProcessorConfig:
 
 
 def test_create_dispatcher_registers_handlers():
-    rp = ResultProcessor(execution_repo=MagicMock(), producer=MagicMock(), idempotency_manager=MagicMock(), logger=_test_logger)
+    rp = ResultProcessor(
+        execution_repo=MagicMock(),
+        producer=MagicMock(),
+        schema_registry=MagicMock(),
+        settings=MagicMock(),
+        idempotency_manager=MagicMock(),
+        logger=_test_logger,
+    )
     dispatcher = rp._create_dispatcher()
     assert dispatcher is not None
     assert EventType.EXECUTION_COMPLETED in dispatcher._handlers

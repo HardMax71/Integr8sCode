@@ -34,9 +34,9 @@ async def run_saga_orchestrator(settings: Settings | None = None) -> None:
     orchestrator = await container.get(SagaOrchestrator)
 
     async with AsyncExitStack() as stack:
+        stack.push_async_callback(container.close)
         await stack.enter_async_context(producer)
         await stack.enter_async_context(orchestrator)
-        stack.push_async_callback(container.close)
 
         logger.info("Saga orchestrator started and running")
 

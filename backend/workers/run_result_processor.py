@@ -44,9 +44,9 @@ async def run_result_processor(settings: Settings | None = None) -> None:
     )
 
     async with AsyncExitStack() as stack:
-        await stack.enter_async_context(processor)
-        stack.push_async_callback(container.close)
         stack.callback(db_client.close)
+        stack.push_async_callback(container.close)
+        await stack.enter_async_context(processor)
 
         while True:
             await asyncio.sleep(60)

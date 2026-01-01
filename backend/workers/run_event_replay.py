@@ -42,8 +42,8 @@ async def run_replay_service(settings: Settings | None = None) -> None:
     logger.info("Event replay service initialized")
 
     async with AsyncExitStack() as stack:
-        await stack.enter_async_context(producer)
         stack.push_async_callback(container.close)
+        await stack.enter_async_context(producer)
 
         task = asyncio.create_task(cleanup_task(replay_service, logger))
 

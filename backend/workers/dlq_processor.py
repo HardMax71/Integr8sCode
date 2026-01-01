@@ -128,7 +128,6 @@ async def main(settings: Settings | None = None) -> None:
     signal.signal(signal.SIGTERM, signal_handler)
 
     async with AsyncExitStack() as stack:
-        await stack.enter_async_context(manager)
         stack.push_async_callback(container.close)
         await stop_event.wait()
 

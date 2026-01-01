@@ -43,9 +43,9 @@ async def run_kubernetes_worker(settings: Settings | None = None) -> None:
     signal.signal(signal.SIGTERM, signal_handler)
 
     async with AsyncExitStack() as stack:
+        stack.push_async_callback(container.close)
         await stack.enter_async_context(producer)
         await stack.enter_async_context(worker)
-        stack.push_async_callback(container.close)
 
         while worker._running:
             await asyncio.sleep(60)

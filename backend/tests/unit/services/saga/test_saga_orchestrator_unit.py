@@ -1,6 +1,6 @@
-import asyncio
-import pytest
+import logging
 
+import pytest
 from app.domain.enums.events import EventType
 from app.domain.enums.saga import SagaState
 from app.domain.saga.models import Saga, SagaConfig
@@ -8,8 +8,9 @@ from app.services.saga.base_saga import BaseSaga
 from app.services.saga.saga_orchestrator import SagaOrchestrator
 from app.services.saga.saga_step import SagaStep
 
-
 pytestmark = pytest.mark.unit
+
+_test_logger = logging.getLogger("test.services.saga.orchestrator")
 
 
 class _Evt:
@@ -44,6 +45,8 @@ class _Idem:
 
 class _Store: ...
 class _Alloc: ...
+class _SchemaRegistry: ...
+class _Settings: ...
 
 
 class _StepOK(SagaStep[_Evt]):
@@ -69,9 +72,12 @@ def _orch() -> SagaOrchestrator:
         config=SagaConfig(name="t", enable_compensation=True, store_events=True, publish_commands=False),
         saga_repository=_Repo(),
         producer=_Prod(),
+        schema_registry_manager=_SchemaRegistry(),  # type: ignore[arg-type]
+        settings=_Settings(),  # type: ignore[arg-type]
         event_store=_Store(),
         idempotency_manager=_Idem(),
         resource_allocation_repository=_Alloc(),
+        logger=_test_logger,
     )
 
 

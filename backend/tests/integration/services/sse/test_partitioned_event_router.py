@@ -1,18 +1,17 @@
-import asyncio
 import logging
 from uuid import uuid4
-from tests.helpers.eventually import eventually
-import pytest
 
+import pytest
 from app.core.metrics.events import EventMetrics
 from app.events.core import EventDispatcher
 from app.events.schema.schema_registry import SchemaRegistryManager
-from tests.helpers import make_execution_requested_event
-from app.infrastructure.kafka.events.pod import PodCreatedEvent
 from app.schemas_pydantic.sse import RedisSSEMessage
 from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
 from app.services.sse.redis_bus import SSERedisBus
 from app.settings import Settings
+
+from tests.helpers import make_execution_requested_event
+from tests.helpers.eventually import eventually
 
 pytestmark = [pytest.mark.integration, pytest.mark.redis]
 
@@ -20,8 +19,7 @@ _test_logger = logging.getLogger("test.services.sse.partitioned_event_router_int
 
 
 @pytest.mark.asyncio
-async def test_router_bridges_to_redis(redis_client) -> None:  # type: ignore[valid-type]
-    settings = Settings()
+async def test_router_bridges_to_redis(redis_client, test_settings: Settings) -> None:
     suffix = uuid4().hex[:6]
     bus = SSERedisBus(
         redis_client,
@@ -30,8 +28,8 @@ async def test_router_bridges_to_redis(redis_client) -> None:  # type: ignore[va
         logger=_test_logger,
     )
     router = SSEKafkaRedisBridge(
-        schema_registry=SchemaRegistryManager(logger=_test_logger),
-        settings=settings,
+        schema_registry=SchemaRegistryManager(settings=test_settings, logger=_test_logger),
+        settings=test_settings,
         event_metrics=EventMetrics(),
         sse_bus=bus,
         logger=_test_logger,
@@ -57,13 +55,12 @@ async def test_router_bridges_to_redis(redis_client) -> None:  # type: ignore[va
 
 
 @pytest.mark.asyncio
-async def test_router_start_and_stop(redis_client) -> None:  # type: ignore[valid-type]
-    settings = Settings()
-    settings.SSE_CONSUMER_POOL_SIZE = 1
+async def test_router_start_and_stop(redis_client, test_settings: Settings) -> None:
+    test_settings.SSE_CONSUMER_POOL_SIZE = 1
     suffix = uuid4().hex[:6]
     router = SSEKafkaRedisBridge(
-        schema_registry=SchemaRegistryManager(logger=_test_logger),
-        settings=settings,
+        schema_registry=SchemaRegistryManager(settings=test_settings, logger=_test_logger),
+        settings=test_settings,
         event_metrics=EventMetrics(),
         sse_bus=SSERedisBus(
             redis_client,

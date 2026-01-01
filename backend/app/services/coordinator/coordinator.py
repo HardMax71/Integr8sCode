@@ -135,20 +135,20 @@ class ExecutionCoordinator(LifecycleEnabled):
 
         # Register handlers with EventDispatcher BEFORE wrapping with idempotency
         @self.dispatcher.register(EventType.EXECUTION_REQUESTED)
-        async def handle_requested(event: BaseEvent) -> None:
+        async def handle_requested(event: ExecutionRequestedEvent) -> None:
             await self._route_execution_event(event)
 
         @self.dispatcher.register(EventType.EXECUTION_COMPLETED)
-        async def handle_completed(event: BaseEvent) -> None:
+        async def handle_completed(event: ExecutionCompletedEvent) -> None:
             await self._route_execution_result(event)
 
         @self.dispatcher.register(EventType.EXECUTION_FAILED)
-        async def handle_failed(event: BaseEvent) -> None:
+        async def handle_failed(event: ExecutionFailedEvent) -> None:
             await self._route_execution_result(event)
 
         @self.dispatcher.register(EventType.EXECUTION_CANCELLED)
-        async def handle_cancelled(event: BaseEvent) -> None:
-            await self._route_execution_result(event)
+        async def handle_cancelled(event: ExecutionCancelledEvent) -> None:
+            await self._route_execution_event(event)
 
         self.idempotent_consumer = IdempotentConsumerWrapper(
             consumer=self.consumer,
@@ -198,7 +198,7 @@ class ExecutionCoordinator(LifecycleEnabled):
 
         self.logger.info(f"ExecutionCoordinator service stopped. Active executions: {len(self._active_executions)}")
 
-    async def _route_execution_event(self, event: BaseEvent) -> None:
+    async def _route_execution_event(self, event: ExecutionRequestedEvent | ExecutionCancelledEvent) -> None:
         """Route execution events to appropriate handlers based on event type"""
         self.logger.info(
             f"COORDINATOR: Routing execution event - type: {event.event_type}, "
@@ -207,18 +207,18 @@ class ExecutionCoordinator(LifecycleEnabled):
         )
 
         if event.event_type == EventType.EXECUTION_REQUESTED:
-            await self._handle_execution_requested(event)  # type: ignore
+            await self._handle_execution_requested(event)
         elif event.event_type == EventType.EXECUTION_CANCELLED:
-            await self._handle_execution_cancelled(event)  # type: ignore
+            await self._handle_execution_cancelled(event)
         else:
             self.logger.debug(f"Ignoring execution event type: {event.event_type}")
 
-    async def _route_execution_result(self, event: BaseEvent) -> None:
+    async def _route_execution_result(self, event: ExecutionCompletedEvent | ExecutionFailedEvent) -> None:
         """Route execution result events to appropriate handlers based on event type"""
         if event.event_type == EventType.EXECUTION_COMPLETED:
-            await self._handle_execution_completed(event)  # type: ignore
+            await self._handle_execution_completed(event)
         elif event.event_type == EventType.EXECUTION_FAILED:
-            await self._handle_execution_failed(event)  # type: ignore
+            await self._handle_execution_failed(event)
         else:
             self.logger.debug(f"Ignoring execution result event type: {event.event_type}")
 

@@ -138,4 +138,4 @@ class RedisIdempotencyRepository:
         return counts
 
     async def health_check(self) -> None:
-        await self._r.execute_command("PING")  # type: ignore[no-untyped-call]
+        await self._r.execute_command("PING")

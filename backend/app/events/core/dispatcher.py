@@ -44,19 +44,25 @@ class EventDispatcher:
                 self._topic_event_types[topic].add(event_class)
                 self.logger.debug(f"Mapped {event_class.__name__} to topic {topic}")
 
-    def register(self, event_type: EventType) -> Callable[[EventHandler], EventHandler]:
+    def register(
+        self, event_type: EventType
+    ) -> Callable[[Callable[[T], Awaitable[None]]], Callable[[T], Awaitable[None]]]:
         """
         Decorator for registering type-safe event handlers.
+
+        Generic over T (any BaseEvent subtype) - accepts handlers with specific
+        event types while preserving their type signature for callers.
 
         Usage:
             @dispatcher.register(EventType.EXECUTION_REQUESTED)
             async def handle_execution(event: ExecutionRequestedEvent) -> None:
-                # Handler logic here
+                # Handler logic here - event is properly typed
         """
 
-        def decorator(handler: EventHandler) -> EventHandler:
+        def decorator(handler: Callable[[T], Awaitable[None]]) -> Callable[[T], Awaitable[None]]:
             self.logger.info(f"Registering handler '{handler.__name__}' for event type '{event_type.value}'")
-            self._handlers[event_type].append(handler)
+            # Safe: dispatch() routes by event_type, guaranteeing correct types at runtime
+            self._handlers[event_type].append(handler)  # type: ignore[arg-type]
             return handler
 
         return decorator

@@ -21,12 +21,13 @@ from app.dlq.models import (
 )
 from app.domain.enums.kafka import GroupId, KafkaTopic
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.settings import get_settings
+from app.settings import Settings
 
 
 class DLQManager(LifecycleEnabled):
     def __init__(
         self,
+        settings: Settings,
         consumer: Consumer,
         producer: Producer,
         schema_registry: SchemaRegistryManager,
@@ -35,6 +36,7 @@ class DLQManager(LifecycleEnabled):
         retry_topic_suffix: str = "-retry",
         default_retry_policy: RetryPolicy | None = None,
     ):
+        self.settings = settings
         self.metrics = get_dlq_metrics()
         self.schema_registry = schema_registry
         self.logger = logger
@@ -147,7 +149,7 @@ class DLQManager(LifecycleEnabled):
         if self._running:
             return
 
-        topic_name = f"{get_settings().KAFKA_TOPIC_PREFIX}{str(self.dlq_topic)}"
+        topic_name = f"{self.settings.KAFKA_TOPIC_PREFIX}{str(self.dlq_topic)}"
         self.consumer.subscribe([topic_name])
 
         self._running = True
@@ -469,13 +471,13 @@ class DLQManager(LifecycleEnabled):
 
 
 def create_dlq_manager(
+    settings: Settings,
     schema_registry: SchemaRegistryManager,
     logger: logging.Logger,
     dlq_topic: KafkaTopic = KafkaTopic.DEAD_LETTER_QUEUE,
     retry_topic_suffix: str = "-retry",
     default_retry_policy: RetryPolicy | None = None,
 ) -> DLQManager:
-    settings = get_settings()
     consumer = Consumer(
         {
             "bootstrap.servers": settings.KAFKA_BOOTSTRAP_SERVERS,
@@ -499,6 +501,7 @@ def create_dlq_manager(
     if default_retry_policy is None:
         default_retry_policy = RetryPolicy(topic="default", strategy=RetryStrategy.EXPONENTIAL_BACKOFF)
     return DLQManager(
+        settings=settings,
         consumer=consumer,
         producer=producer,
         schema_registry=schema_registry,

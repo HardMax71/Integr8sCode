@@ -319,7 +319,7 @@ async def run_result_processor() -> None:
     )
     await init_beanie(database=db_client[settings.DATABASE_NAME], document_models=ALL_DOCUMENTS)
 
-    container = create_result_processor_container()
+    container = create_result_processor_container(settings)
     producer = await container.get(UnifiedProducer)
     idempotency_manager = await container.get(IdempotencyManager)
     execution_repo = await container.get(ExecutionRepository)

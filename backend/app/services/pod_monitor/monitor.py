@@ -550,7 +550,7 @@ async def run_pod_monitor() -> None:
     await init_beanie(database=database, document_models=ALL_DOCUMENTS)
 
     # Initialize schema registry
-    schema_registry_manager = create_schema_registry_manager(logger)
+    schema_registry_manager = create_schema_registry_manager(settings, logger)
     await initialize_event_schemas(schema_registry_manager)
 
     # Create producer

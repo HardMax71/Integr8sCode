@@ -69,7 +69,7 @@ from app.services.sse.redis_bus import SSERedisBus
 from app.services.sse.sse_service import SSEService
 from app.services.sse.sse_shutdown_manager import SSEShutdownManager, create_sse_shutdown_manager
 from app.services.user_settings_service import UserSettingsService
-from app.settings import Settings, get_settings
+from app.settings import Settings
 
 
 class SettingsProvider(Provider):
@@ -159,9 +159,9 @@ class MessagingProvider(Provider):
 
     @provide
     async def get_dlq_manager(
-        self, schema_registry: SchemaRegistryManager, logger: logging.Logger
+        self, settings: Settings, schema_registry: SchemaRegistryManager, logger: logging.Logger
     ) -> AsyncIterator[DLQManager]:
-        manager = create_dlq_manager(schema_registry, logger)
+        manager = create_dlq_manager(settings, schema_registry, logger)
         await manager.start()
         try:
             yield manager
@@ -188,8 +188,8 @@ class EventProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_schema_registry(self, logger: logging.Logger) -> SchemaRegistryManager:
-        return create_schema_registry_manager(logger)
+    def get_schema_registry(self, settings: Settings, logger: logging.Logger) -> SchemaRegistryManager:
+        return create_schema_registry_manager(settings, logger)
 
     @provide
     async def get_event_store(self, schema_registry: SchemaRegistryManager, logger: logging.Logger) -> EventStore:

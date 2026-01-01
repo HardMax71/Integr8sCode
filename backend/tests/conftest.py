@@ -7,13 +7,12 @@ import httpx
 import pytest
 import pytest_asyncio
 import redis.asyncio as redis
-from dishka import AsyncContainer
-from httpx import ASGITransport
-from pydantic_settings import SettingsConfigDict
-
 from app.core.database_context import Database
 from app.main import create_app
 from app.settings import Settings
+from dishka import AsyncContainer
+from httpx import ASGITransport
+from pydantic_settings import SettingsConfigDict
 
 
 class TestSettings(Settings):
@@ -60,6 +59,13 @@ def _setup_worker_env() -> None:
 
 # Set up worker env at module load time (before any Settings instantiation)
 _setup_worker_env()
+
+
+# ===== Settings fixture =====
+@pytest.fixture(scope="session")
+def test_settings() -> Settings:
+    """Provide TestSettings for tests that need to create their own components."""
+    return TestSettings()
 
 
 # ===== App fixture =====

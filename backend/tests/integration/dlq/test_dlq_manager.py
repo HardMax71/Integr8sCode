@@ -1,16 +1,15 @@
-import asyncio
 import json
 import logging
 import os
 from datetime import datetime, timezone
 
 import pytest
-from confluent_kafka import Producer
-
 from app.db.docs import DLQMessageDocument
 from app.dlq.manager import create_dlq_manager
 from app.domain.enums.kafka import KafkaTopic
 from app.events.schema.schema_registry import create_schema_registry_manager
+from confluent_kafka import Producer
+
 from tests.helpers import make_execution_requested_event
 from tests.helpers.eventually import eventually
 
@@ -23,9 +22,9 @@ _test_logger = logging.getLogger("test.dlq.manager")
 
 
 @pytest.mark.asyncio
-async def test_dlq_manager_persists_in_mongo(db) -> None:  # type: ignore[valid-type]
-    schema_registry = create_schema_registry_manager(_test_logger)
-    manager = create_dlq_manager(schema_registry=schema_registry, logger=_test_logger)
+async def test_dlq_manager_persists_in_mongo(db, test_settings) -> None:  # type: ignore[valid-type]
+    schema_registry = create_schema_registry_manager(test_settings, _test_logger)
+    manager = create_dlq_manager(settings=test_settings, schema_registry=schema_registry, logger=_test_logger)
 
     # Build a DLQ payload
     ev = make_execution_requested_event(execution_id="exec-dlq-1")
@@ -51,6 +50,7 @@ async def test_dlq_manager_persists_in_mongo(db) -> None:  # type: ignore[valid-
 
     # Run the manager briefly to consume and persist
     async with manager:
+
         async def _exists():
             doc = await DLQMessageDocument.find_one({"event_id": ev.event_id})
             assert doc is not None

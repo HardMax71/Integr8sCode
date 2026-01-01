@@ -1,17 +1,14 @@
 import logging
 
 import pytest
-
 from app.events.schema.schema_registry import SchemaRegistryManager
+from app.infrastructure.kafka.events.execution import ExecutionRequestedEvent
 
 _test_logger = logging.getLogger("test.events.schema_registry_manager")
-from app.infrastructure.kafka.events.execution import ExecutionRequestedEvent
-from app.infrastructure.kafka.events.metadata import AvroEventMetadata
-from app.infrastructure.kafka.events.pod import PodCreatedEvent
 
 
-def test_deserialize_json_execution_requested() -> None:
-    m = SchemaRegistryManager(logger=_test_logger)
+def test_deserialize_json_execution_requested(test_settings) -> None:  # type: ignore[valid-type]
+    m = SchemaRegistryManager(test_settings, logger=_test_logger)
     data = {
         "event_type": "execution_requested",
         "execution_id": "e1",
@@ -35,10 +32,7 @@ def test_deserialize_json_execution_requested() -> None:
     assert ev.language == "python"
 
 
-def test_deserialize_json_missing_type_raises() -> None:
-    m = SchemaRegistryManager(logger=_test_logger)
+def test_deserialize_json_missing_type_raises(test_settings) -> None:  # type: ignore[valid-type]
+    m = SchemaRegistryManager(test_settings, logger=_test_logger)
     with pytest.raises(ValueError):
         m.deserialize_json({})
-
-
- 

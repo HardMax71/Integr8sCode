@@ -503,11 +503,10 @@ async def run_coordinator() -> None:
     from app.core.logging import setup_logger
 
     logger = setup_logger(os.environ.get("LOG_LEVEL", "INFO"))
-    logger.info("Initializing schema registry for coordinator...")
-    schema_registry_manager = create_schema_registry_manager(logger)
-    await initialize_event_schemas(schema_registry_manager)
-
     settings = get_settings()
+    logger.info("Initializing schema registry for coordinator...")
+    schema_registry_manager = create_schema_registry_manager(settings, logger)
+    await initialize_event_schemas(schema_registry_manager)
     config = ProducerConfig(bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS)
     producer = UnifiedProducer(config, schema_registry_manager, logger)
 

@@ -114,8 +114,9 @@ async def main() -> None:
     await db_client.admin.command("ping")
     logger.info(f"Connected to database: {db_name}")
 
-    schema_registry = create_schema_registry_manager(logger)
+    schema_registry = create_schema_registry_manager(settings, logger)
     manager = create_dlq_manager(
+        settings=settings,
         schema_registry=schema_registry,
         logger=logger,
         dlq_topic=KafkaTopic.DEAD_LETTER_QUEUE,

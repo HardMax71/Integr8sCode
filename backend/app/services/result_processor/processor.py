@@ -1,18 +1,12 @@
-import asyncio
 import logging
-from contextlib import AsyncExitStack
 from enum import auto
 from typing import Any
 
-from beanie import init_beanie
 from pydantic import BaseModel, ConfigDict, Field
-from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
-from app.core.container import create_result_processor_container
 from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics.context import get_execution_metrics
 from app.core.utils import StringEnum
-from app.db.docs import ALL_DOCUMENTS
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
@@ -34,7 +28,7 @@ from app.infrastructure.kafka.events.system import (
 )
 from app.services.idempotency import IdempotencyManager
 from app.services.idempotency.middleware import IdempotentConsumerWrapper
-from app.settings import Settings, get_settings
+from app.settings import Settings
 
 
 class ProcessingState(StringEnum):
@@ -318,41 +312,3 @@ class ResultProcessor(LifecycleEnabled):
             "state": self._state.value,
             "consumer_active": self._consumer is not None,
         }
-
-
-async def run_result_processor(settings: Settings | None = None) -> None:
-    if settings is None:
-        settings = get_settings()
-
-    # Initialize MongoDB and Beanie ODM (required per-process)
-    db_client: AsyncMongoClient[dict[str, object]] = AsyncMongoClient(
-        settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000
-    )
-    await init_beanie(database=db_client[settings.DATABASE_NAME], document_models=ALL_DOCUMENTS)
-
-    container = create_result_processor_container(settings)
-    producer = await container.get(UnifiedProducer)
-    schema_registry = await container.get(SchemaRegistryManager)
-    idempotency_manager = await container.get(IdempotencyManager)
-    execution_repo = await container.get(ExecutionRepository)
-    logger = await container.get(logging.Logger)
-    logger.info(f"Beanie ODM initialized with {len(ALL_DOCUMENTS)} document models")
-
-    processor = ResultProcessor(
-        execution_repo=execution_repo,
-        producer=producer,
-        schema_registry=schema_registry,
-        settings=settings,
-        idempotency_manager=idempotency_manager,
-        logger=logger,
-    )
-
-    async with AsyncExitStack() as stack:
-        await stack.enter_async_context(processor)
-        stack.push_async_callback(container.close)
-        stack.callback(db_client.close)
-
-        while True:
-            await asyncio.sleep(60)
-            status = await processor.get_status()
-            logger.info(f"ResultProcessor status: {status}")

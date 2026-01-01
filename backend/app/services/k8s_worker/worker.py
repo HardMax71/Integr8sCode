@@ -1,22 +1,16 @@
 import asyncio
 import logging
 import os
-import signal
 import time
-from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import Any
 
-from beanie import init_beanie
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
 from kubernetes.client.rest import ApiException
 
-from app.core.container import create_k8s_worker_container
-from app.core.database_context import Database
 from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics import ExecutionMetrics, KubernetesMetrics
-from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.domain.enums.storage import ExecutionErrorType
@@ -24,7 +18,6 @@ from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, Un
 from app.events.event_store import EventStore
 from app.events.schema.schema_registry import (
     SchemaRegistryManager,
-    initialize_event_schemas,
 )
 from app.infrastructure.kafka.events.base import BaseEvent
 from app.infrastructure.kafka.events.execution import (
@@ -38,7 +31,7 @@ from app.services.idempotency import IdempotencyManager
 from app.services.idempotency.middleware import IdempotentConsumerWrapper
 from app.services.k8s_worker.config import K8sWorkerConfig
 from app.services.k8s_worker.pod_builder import PodBuilder
-from app.settings import Settings, get_settings
+from app.settings import Settings
 
 
 class KubernetesWorker(LifecycleEnabled):
@@ -518,43 +511,3 @@ exec "$@"
             self.logger.error(f"K8s API error applying DaemonSet '{daemonset_name}': {e.reason}", exc_info=True)
         except Exception as e:
             self.logger.error(f"Unexpected error applying image-puller DaemonSet: {e}", exc_info=True)
-
-
-async def run_kubernetes_worker(settings: Settings | None = None) -> None:
-    """Run the Kubernetes worker service."""
-    if settings is None:
-        settings = get_settings()
-
-    container = create_k8s_worker_container(settings)
-    logger = await container.get(logging.Logger)
-    logger.info("Starting KubernetesWorker with DI container...")
-
-    db = await container.get(Database)
-    await init_beanie(database=db, document_models=ALL_DOCUMENTS)
-
-    schema_registry = await container.get(SchemaRegistryManager)
-    await initialize_event_schemas(schema_registry)
-
-    producer = await container.get(UnifiedProducer)
-    worker = await container.get(KubernetesWorker)
-
-    def signal_handler(sig: int, frame: Any) -> None:
-        logger.info(f"Received signal {sig}, initiating shutdown...")
-        asyncio.create_task(worker.stop())
-
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-
-    async with AsyncExitStack() as stack:
-        await stack.enter_async_context(producer)
-        await stack.enter_async_context(worker)
-        stack.push_async_callback(container.close)
-
-        while worker._running:
-            await asyncio.sleep(60)
-            status = await worker.get_status()
-            logger.info(f"Kubernetes worker status: {status}")
-
-
-if __name__ == "__main__":
-    asyncio.run(run_kubernetes_worker())

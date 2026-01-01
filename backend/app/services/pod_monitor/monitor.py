@@ -1,33 +1,25 @@
 import asyncio
 import logging
-import signal
 import time
 from collections.abc import AsyncIterator
-from contextlib import AsyncExitStack, asynccontextmanager
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from enum import auto
 from typing import Any
 
-from beanie import init_beanie
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
 from kubernetes import watch
 from kubernetes.client.rest import ApiException
 
-from app.core.container import create_pod_monitor_container
-from app.core.database_context import Database
 from app.core.k8s_clients import K8sClients
 from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics.context import get_kubernetes_metrics
 from app.core.utils import StringEnum
-from app.db.docs import ALL_DOCUMENTS
-from app.events.core import UnifiedProducer
-from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.infrastructure.kafka.events import BaseEvent
 from app.services.kafka_event_service import KafkaEventService
 from app.services.pod_monitor.config import PodMonitorConfig
 from app.services.pod_monitor.event_mapper import PodEventMapper
-from app.settings import Settings, get_settings
 
 # Type aliases
 type PodName = str
@@ -530,46 +522,3 @@ async def create_pod_monitor(
         yield monitor
     finally:
         await monitor.stop()
-
-
-async def run_pod_monitor(settings: Settings | None = None) -> None:
-    """Run the pod monitor service."""
-    if settings is None:
-        settings = get_settings()
-
-    container = create_pod_monitor_container(settings)
-    logger = await container.get(logging.Logger)
-    logger.info("Starting PodMonitor with DI container...")
-
-    db = await container.get(Database)
-    await init_beanie(database=db, document_models=ALL_DOCUMENTS)
-
-    schema_registry = await container.get(SchemaRegistryManager)
-    await initialize_event_schemas(schema_registry)
-
-    producer = await container.get(UnifiedProducer)
-    monitor = await container.get(PodMonitor)
-
-    loop = asyncio.get_running_loop()
-
-    async def shutdown() -> None:
-        logger.info("Initiating graceful shutdown...")
-        await monitor.stop()
-        await producer.stop()
-
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, lambda: asyncio.create_task(shutdown()))
-
-    async with AsyncExitStack() as stack:
-        await stack.enter_async_context(producer)
-        await stack.enter_async_context(monitor)
-        stack.push_async_callback(container.close)
-
-        while monitor.state == MonitorState.RUNNING:
-            await asyncio.sleep(RECONCILIATION_LOG_INTERVAL)
-            status = await monitor.get_status()
-            logger.info(f"Pod monitor status: {status}")
-
-
-if __name__ == "__main__":
-    asyncio.run(run_pod_monitor())

@@ -1,19 +1,12 @@
 import asyncio
 import logging
-import signal
 import time
 from collections.abc import Coroutine
-from contextlib import AsyncExitStack
 from typing import Any, TypeAlias
 from uuid import uuid4
 
-from beanie import init_beanie
-
-from app.core.container import create_coordinator_container
-from app.core.database_context import Database
 from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics.context import get_coordinator_metrics
-from app.db.docs import ALL_DOCUMENTS
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
@@ -22,7 +15,6 @@ from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, Un
 from app.events.event_store import EventStore
 from app.events.schema.schema_registry import (
     SchemaRegistryManager,
-    initialize_event_schemas,
 )
 from app.infrastructure.kafka.events.base import BaseEvent
 from app.infrastructure.kafka.events.execution import (
@@ -38,7 +30,7 @@ from app.services.coordinator.queue_manager import QueueManager, QueuePriority
 from app.services.coordinator.resource_manager import ResourceAllocation, ResourceManager
 from app.services.idempotency import IdempotencyManager
 from app.services.idempotency.middleware import IdempotentConsumerWrapper
-from app.settings import Settings, get_settings
+from app.settings import Settings
 
 EventHandler: TypeAlias = Coroutine[Any, Any, None]
 ExecutionMap: TypeAlias = dict[str, ResourceAllocation]
@@ -496,43 +488,3 @@ class ExecutionCoordinator(LifecycleEnabled):
             "queue_stats": await self.queue_manager.get_queue_stats(),
             "resource_stats": await self.resource_manager.get_resource_stats(),
         }
-
-
-async def run_coordinator(settings: Settings | None = None) -> None:
-    """Run the execution coordinator service."""
-    if settings is None:
-        settings = get_settings()
-
-    container = create_coordinator_container(settings)
-    logger = await container.get(logging.Logger)
-    logger.info("Starting ExecutionCoordinator with DI container...")
-
-    db = await container.get(Database)
-    await init_beanie(database=db, document_models=ALL_DOCUMENTS)
-
-    schema_registry = await container.get(SchemaRegistryManager)
-    await initialize_event_schemas(schema_registry)
-
-    producer = await container.get(UnifiedProducer)
-    coordinator = await container.get(ExecutionCoordinator)
-
-    def signal_handler(sig: int, frame: Any) -> None:
-        logger.info(f"Received signal {sig}, initiating shutdown...")
-        asyncio.create_task(coordinator.stop())
-
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-
-    async with AsyncExitStack() as stack:
-        await stack.enter_async_context(producer)
-        await stack.enter_async_context(coordinator)
-        stack.push_async_callback(container.close)
-
-        while coordinator._running:
-            await asyncio.sleep(60)
-            status = await coordinator.get_status()
-            logger.info(f"Coordinator status: {status}")
-
-
-if __name__ == "__main__":
-    asyncio.run(run_coordinator())

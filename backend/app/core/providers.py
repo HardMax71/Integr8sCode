@@ -559,9 +559,11 @@ async def _provide_execution_coordinator(
 class BusinessServicesProvider(Provider):
     scope = Scope.REQUEST
 
-    # Use shared factory functions (no duplication)
-    get_saga_orchestrator = provide(_provide_saga_orchestrator)
-    get_execution_coordinator = provide(_provide_execution_coordinator)
+    def __init__(self) -> None:
+        super().__init__()
+        # Register shared factory functions on instance (avoids warning about missing self)
+        self.provide(_provide_saga_orchestrator)
+        self.provide(_provide_execution_coordinator)
 
     @provide
     def get_saga_service(
@@ -635,8 +637,9 @@ class BusinessServicesProvider(Provider):
 class CoordinatorProvider(Provider):
     scope = Scope.APP
 
-    # Use shared factory function (no duplication)
-    get_execution_coordinator = provide(_provide_execution_coordinator)
+    def __init__(self) -> None:
+        super().__init__()
+        self.provide(_provide_execution_coordinator)
 
 
 class K8sWorkerProvider(Provider):
@@ -688,8 +691,9 @@ class PodMonitorProvider(Provider):
 class SagaOrchestratorProvider(Provider):
     scope = Scope.APP
 
-    # Use shared factory function (no duplication)
-    get_saga_orchestrator = provide(_provide_saga_orchestrator)
+    def __init__(self) -> None:
+        super().__init__()
+        self.provide(_provide_saga_orchestrator)
 
 
 class EventReplayProvider(Provider):

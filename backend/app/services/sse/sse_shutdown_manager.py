@@ -257,7 +257,7 @@ class SSEShutdownManager:
 
         # If we have a router, tell it to stop accepting new subscriptions
         if self._router:
-            await self._router.stop()
+            await self._router.aclose()
 
         self.metrics.update_sse_draining_connections(0)
         self.logger.info("Force close phase complete")

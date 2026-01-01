@@ -9,9 +9,11 @@ _test_logger = logging.getLogger("test.services.sse.shutdown_manager")
 
 
 class DummyRouter:
-    def __init__(self): self.stopped = False
+    def __init__(self) -> None:
+        self.stopped = False
 
-    async def stop(self): self.stopped = True  # noqa: ANN001
+    async def aclose(self) -> None:
+        self.stopped = True
 
 
 @pytest.mark.asyncio

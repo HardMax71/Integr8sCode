@@ -286,4 +286,4 @@ class KafkaEventService:
 
     async def close(self) -> None:
         """Close event service resources"""
-        await self.kafka_producer.stop()
+        await self.kafka_producer.aclose()

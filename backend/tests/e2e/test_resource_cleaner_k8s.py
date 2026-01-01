@@ -42,14 +42,14 @@ async def test_cleanup_nonexistent_pod() -> None:
     nonexistent_pod = "integr8s-test-nonexistent-pod"
 
     # Should complete within timeout and not raise any exceptions
-    start_time = asyncio.get_event_loop().time()
+    start_time = asyncio.get_running_loop().time()
     await rc.cleanup_pod_resources(
         pod_name=nonexistent_pod,
         namespace=namespace,
         execution_id="test-exec-nonexistent",
         timeout=5,
     )
-    elapsed = asyncio.get_event_loop().time() - start_time
+    elapsed = asyncio.get_running_loop().time() - start_time
 
     # Verify it completed quickly (not waiting full timeout for non-existent resources)
     assert elapsed < 5, f"Cleanup took {elapsed}s, should be quick for non-existent resources"

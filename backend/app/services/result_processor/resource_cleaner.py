@@ -87,7 +87,7 @@ class ResourceCleaner:
             raise InvalidStateError("Kubernetes client not initialized")
 
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, self.v1.read_namespaced_pod, pod_name, namespace)
 
             await loop.run_in_executor(
@@ -134,7 +134,7 @@ class ResourceCleaner:
     ) -> None:
         """Generic function to delete labeled resources"""
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             label_selector = f"execution-id={execution_id}"
 
             resources = await loop.run_in_executor(None, partial(list_func, namespace, label_selector=label_selector))
@@ -179,7 +179,7 @@ class ResourceCleaner:
         if not self.v1:
             raise InvalidStateError("Kubernetes client not initialized")
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         pods = await loop.run_in_executor(
             None, partial(self.v1.list_namespaced_pod, namespace, label_selector="app=integr8s")
         )
@@ -206,7 +206,7 @@ class ResourceCleaner:
         if not self.v1:
             raise InvalidStateError("Kubernetes client not initialized")
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         configmaps = await loop.run_in_executor(
             None, partial(self.v1.list_namespaced_config_map, namespace, label_selector="app=integr8s")
         )
@@ -227,7 +227,7 @@ class ResourceCleaner:
         """Get current resource usage counts"""
         await self.initialize()
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         label_selector = "app=integr8s"
 
         default_counts = {"pods": 0, "configmaps": 0, "network_policies": 0}

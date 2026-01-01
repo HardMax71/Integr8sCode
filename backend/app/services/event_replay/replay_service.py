@@ -67,7 +67,7 @@ class EventReplayService:
         self.logger.info("Started replay session", extra={"session_id": session_id})
 
     async def _run_replay(self, session: ReplaySessionState) -> None:
-        start_time = asyncio.get_event_loop().time()
+        start_time = asyncio.get_running_loop().time()
 
         try:
             with trace_span(
@@ -119,7 +119,7 @@ class EventReplayService:
         session.status = ReplayStatus.COMPLETED
         session.completed_at = datetime.now(timezone.utc)
 
-        duration = asyncio.get_event_loop().time() - start_time
+        duration = asyncio.get_running_loop().time() - start_time
         self._metrics.record_replay_duration(duration, session.config.replay_type)
 
         await self._update_session_in_db(session)
@@ -281,7 +281,7 @@ class EventReplayService:
             self._file_locks[file_path] = asyncio.Lock()
 
         async with self._file_locks[file_path]:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, self._write_to_file_sync, event, file_path)
 
     def _write_to_file_sync(self, event: BaseEvent, file_path: str) -> None:

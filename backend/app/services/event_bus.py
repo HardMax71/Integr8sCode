@@ -96,7 +96,7 @@ class EventBus(LifecycleEnabled):
         self.consumer.subscribe([self._topic])
 
         # Store the executor function for sync operations
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         self._executor = loop.run_in_executor
 
     async def stop(self) -> None:

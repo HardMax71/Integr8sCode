@@ -190,7 +190,7 @@ class DLQManager(LifecycleEnabled):
                 if not await self._validate_message(msg):
                     continue
 
-                start_time = asyncio.get_event_loop().time()
+                start_time = asyncio.get_running_loop().time()
                 dlq_message = self._kafka_msg_to_message(msg)
 
                 await self._record_message_metrics(dlq_message)
@@ -249,7 +249,7 @@ class DLQManager(LifecycleEnabled):
     async def _commit_and_record_duration(self, start_time: float) -> None:
         """Commit offset and record processing duration."""
         await asyncio.to_thread(self.consumer.commit, asynchronous=False)
-        duration = asyncio.get_event_loop().time() - start_time
+        duration = asyncio.get_running_loop().time() - start_time
         self.metrics.record_dlq_processing_duration(duration, "process")
 
     async def _process_dlq_message(self, message: DLQMessage) -> None:

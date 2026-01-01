@@ -40,7 +40,7 @@ class EventStoreConsumer(LifecycleEnabled):
         self.producer = producer  # For DLQ handling
         self._batch_buffer: list[BaseEvent] = []
         self._batch_lock = asyncio.Lock()
-        self._last_batch_time = asyncio.get_event_loop().time()
+        self._last_batch_time: float = 0.0
         self._batch_task: asyncio.Task[None] | None = None
         self._running = False
 
@@ -49,6 +49,7 @@ class EventStoreConsumer(LifecycleEnabled):
         if self._running:
             return
 
+        self._last_batch_time = asyncio.get_running_loop().time()
         settings = get_settings()
         config = ConsumerConfig(
             bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
@@ -126,7 +127,7 @@ class EventStoreConsumer(LifecycleEnabled):
                 await asyncio.sleep(1)
 
                 async with self._batch_lock:
-                    time_since_last_batch = asyncio.get_event_loop().time() - self._last_batch_time
+                    time_since_last_batch = asyncio.get_running_loop().time() - self._last_batch_time
 
                     if self._batch_buffer and time_since_last_batch >= self.batch_timeout:
                         await self._flush_batch()
@@ -140,7 +141,7 @@ class EventStoreConsumer(LifecycleEnabled):
 
         batch = self._batch_buffer.copy()
         self._batch_buffer.clear()
-        self._last_batch_time = asyncio.get_event_loop().time()
+        self._last_batch_time = asyncio.get_running_loop().time()
 
         self.logger.info(f"Event store flushing batch of {len(batch)} events")
         with trace_span(

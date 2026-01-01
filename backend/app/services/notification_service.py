@@ -858,7 +858,7 @@ class NotificationService:
         assert subscription is not None
 
         # Send through channel
-        start_time = asyncio.get_event_loop().time()
+        start_time = asyncio.get_running_loop().time()
         try:
             handler = self._channel_handlers.get(notification.channel)
             if handler is None:
@@ -869,7 +869,7 @@ class NotificationService:
 
             self.logger.debug(f"Using handler {handler.__name__} for channel {notification.channel}")
             await handler(notification, subscription)
-            delivery_time = asyncio.get_event_loop().time() - start_time
+            delivery_time = asyncio.get_running_loop().time() - start_time
 
             # Mark delivered
             await self.repository.update_notification(

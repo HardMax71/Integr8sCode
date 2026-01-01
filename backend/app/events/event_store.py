@@ -54,7 +54,7 @@ class EventStore:
         self.logger.info("Event store initialized with Beanie")
 
     async def store_event(self, event: BaseEvent) -> bool:
-        start = asyncio.get_event_loop().time()
+        start = asyncio.get_running_loop().time()
         try:
             now = datetime.now(timezone.utc)
             data = event.model_dump(exclude={"topic"})
@@ -71,7 +71,7 @@ class EventStore:
                 }
             )
 
-            duration = asyncio.get_event_loop().time() - start
+            duration = asyncio.get_running_loop().time() - start
             self.metrics.record_event_store_duration(duration, "store_single", "event_store")
             self.metrics.record_event_stored(event.event_type, "event_store")
             return True
@@ -84,7 +84,7 @@ class EventStore:
             return False
 
     async def store_batch(self, events: list[BaseEvent]) -> dict[str, int]:
-        start = asyncio.get_event_loop().time()
+        start = asyncio.get_running_loop().time()
         results = {"total": len(events), "stored": 0, "duplicates": 0, "failed": 0}
         if not events:
             return results
@@ -112,7 +112,7 @@ class EventStore:
                 else:
                     raise
 
-            duration = asyncio.get_event_loop().time() - start
+            duration = asyncio.get_running_loop().time() - start
             self.metrics.record_event_store_duration(duration, "store_batch", "event_store")
             add_span_attributes(**{"events.batch.count": len(events)})
             if results["stored"] > 0:
@@ -125,14 +125,14 @@ class EventStore:
             return results
 
     async def get_event(self, event_id: str) -> BaseEvent | None:
-        start = asyncio.get_event_loop().time()
+        start = asyncio.get_running_loop().time()
         doc = await EventDocument.find_one({"event_id": event_id})
         if not doc:
             return None
 
         event = self.schema_registry.deserialize_json(_flatten_doc(doc))
 
-        duration = asyncio.get_event_loop().time() - start
+        duration = asyncio.get_running_loop().time() - start
         self.metrics.record_event_query_duration(duration, "get_by_id", "event_store")
         return event
 
@@ -144,7 +144,7 @@ class EventStore:
         limit: int = 100,
         offset: int = 0,
     ) -> list[BaseEvent]:
-        start = asyncio.get_event_loop().time()
+        start = asyncio.get_running_loop().time()
         query: dict[str, Any] = {"event_type": event_type}
         if tr := self._time_range(start_time, end_time):
             query["timestamp"] = tr
@@ -158,7 +158,7 @@ class EventStore:
         )
         events = [self.schema_registry.deserialize_json(_flatten_doc(doc)) for doc in docs]
 
-        duration = asyncio.get_event_loop().time() - start
+        duration = asyncio.get_running_loop().time() - start
         self.metrics.record_event_query_duration(duration, "get_by_type", "event_store")
         return events
 
@@ -167,7 +167,7 @@ class EventStore:
         execution_id: str,
         event_types: list[EventType] | None = None,
     ) -> list[BaseEvent]:
-        start = asyncio.get_event_loop().time()
+        start = asyncio.get_running_loop().time()
         query: dict[str, Any] = {"$or": [{"payload.execution_id": execution_id}, {"aggregate_id": execution_id}]}
         if event_types:
             query["event_type"] = {"$in": event_types}
@@ -175,7 +175,7 @@ class EventStore:
         docs = await EventDocument.find(query).sort([("timestamp", SortDirection.ASCENDING)]).to_list()
         events = [self.schema_registry.deserialize_json(_flatten_doc(doc)) for doc in docs]
 
-        duration = asyncio.get_event_loop().time() - start
+        duration = asyncio.get_running_loop().time() - start
         self.metrics.record_event_query_duration(duration, "get_execution_events", "event_store")
         return events
 
@@ -187,7 +187,7 @@ class EventStore:
         end_time: datetime | None = None,
         limit: int = 100,
     ) -> list[BaseEvent]:
-        start = asyncio.get_event_loop().time()
+        start = asyncio.get_running_loop().time()
         query: dict[str, Any] = {"metadata.user_id": str(user_id)}
         if event_types:
             query["event_type"] = {"$in": event_types}
@@ -197,7 +197,7 @@ class EventStore:
         docs = await EventDocument.find(query).sort([("timestamp", SortDirection.DESCENDING)]).limit(limit).to_list()
         events = [self.schema_registry.deserialize_json(_flatten_doc(doc)) for doc in docs]
 
-        duration = asyncio.get_event_loop().time() - start
+        duration = asyncio.get_running_loop().time() - start
         self.metrics.record_event_query_duration(duration, "get_user_events", "event_store")
         return events
 
@@ -208,7 +208,7 @@ class EventStore:
         user_id: str | None = None,
         limit: int = 100,
     ) -> list[BaseEvent]:
-        start = asyncio.get_event_loop().time()
+        start = asyncio.get_running_loop().time()
         query: dict[str, Any] = {"event_type": {"$in": self._SECURITY_TYPES}}
         if user_id:
             query["metadata.user_id"] = str(user_id)
@@ -218,12 +218,12 @@ class EventStore:
         docs = await EventDocument.find(query).sort([("timestamp", SortDirection.DESCENDING)]).limit(limit).to_list()
         events = [self.schema_registry.deserialize_json(_flatten_doc(doc)) for doc in docs]
 
-        duration = asyncio.get_event_loop().time() - start
+        duration = asyncio.get_running_loop().time() - start
         self.metrics.record_event_query_duration(duration, "get_security_events", "event_store")
         return events
 
     async def get_correlation_chain(self, correlation_id: str) -> list[BaseEvent]:
-        start = asyncio.get_event_loop().time()
+        start = asyncio.get_running_loop().time()
         docs = await (
             EventDocument.find({"metadata.correlation_id": str(correlation_id)})
             .sort([("timestamp", SortDirection.ASCENDING)])
@@ -231,7 +231,7 @@ class EventStore:
         )
         events = [self.schema_registry.deserialize_json(_flatten_doc(doc)) for doc in docs]
 
-        duration = asyncio.get_event_loop().time() - start
+        duration = asyncio.get_running_loop().time() - start
         self.metrics.record_event_query_duration(duration, "get_correlation_chain", "event_store")
         return events
 
@@ -242,7 +242,7 @@ class EventStore:
         event_types: list[EventType] | None = None,
         callback: Callable[[BaseEvent], Awaitable[None]] | None = None,
     ) -> int:
-        start = asyncio.get_event_loop().time()
+        start = asyncio.get_running_loop().time()
         count = 0
 
         try:
@@ -258,7 +258,7 @@ class EventStore:
                     await callback(event)
                 count += 1
 
-            duration = asyncio.get_event_loop().time() - start
+            duration = asyncio.get_running_loop().time() - start
             self.metrics.record_event_query_duration(duration, "replay_events", "event_store")
             self.logger.info(f"Replayed {count} events from {start_time} to {end_time}")
             return count

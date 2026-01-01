@@ -41,7 +41,7 @@ class AdminUtils:
             futures = self._admin.create_topics([new_topic], operation_timeout=30.0)
 
             # Wait for result - result() returns None on success, raises exception on failure
-            await asyncio.get_event_loop().run_in_executor(None, lambda: futures[topic].result(timeout=30.0))
+            await asyncio.get_running_loop().run_in_executor(None, lambda: futures[topic].result(timeout=30.0))
             self.logger.info(f"Topic {topic} created successfully")
             return True
         except Exception as e:

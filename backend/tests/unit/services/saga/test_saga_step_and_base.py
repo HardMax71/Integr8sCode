@@ -79,4 +79,4 @@ def test_saga_step_str_and_can_execute() -> None:
     assert str(s) == "SagaStep(nm)"
     # can_execute default True
     import asyncio
-    assert asyncio.get_event_loop().run_until_complete(s.can_execute(SagaContext("s","e"), object())) is True
+    assert asyncio.run(s.can_execute(SagaContext("s","e"), object())) is True

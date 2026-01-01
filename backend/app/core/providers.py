@@ -514,36 +514,66 @@ def _create_default_saga_config() -> SagaConfig:
     )
 
 
+# Standalone factory functions for lifecycle-managed services (eliminates duplication)
+async def _provide_saga_orchestrator(
+    saga_repository: SagaRepository,
+    kafka_producer: UnifiedProducer,
+    schema_registry: SchemaRegistryManager,
+    settings: Settings,
+    event_store: EventStore,
+    idempotency_manager: IdempotencyManager,
+    resource_allocation_repository: ResourceAllocationRepository,
+    logger: logging.Logger,
+) -> AsyncIterator[SagaOrchestrator]:
+    """Shared factory for SagaOrchestrator with lifecycle management."""
+    orchestrator = create_saga_orchestrator(
+        saga_repository=saga_repository,
+        producer=kafka_producer,
+        schema_registry_manager=schema_registry,
+        settings=settings,
+        event_store=event_store,
+        idempotency_manager=idempotency_manager,
+        resource_allocation_repository=resource_allocation_repository,
+        config=_create_default_saga_config(),
+        logger=logger,
+    )
+    try:
+        yield orchestrator
+    finally:
+        await orchestrator.stop()
+
+
+async def _provide_execution_coordinator(
+    kafka_producer: UnifiedProducer,
+    schema_registry: SchemaRegistryManager,
+    settings: Settings,
+    event_store: EventStore,
+    execution_repository: ExecutionRepository,
+    idempotency_manager: IdempotencyManager,
+    logger: logging.Logger,
+) -> AsyncIterator[ExecutionCoordinator]:
+    """Shared factory for ExecutionCoordinator with lifecycle management."""
+    coordinator = ExecutionCoordinator(
+        producer=kafka_producer,
+        schema_registry_manager=schema_registry,
+        settings=settings,
+        event_store=event_store,
+        execution_repository=execution_repository,
+        idempotency_manager=idempotency_manager,
+        logger=logger,
+    )
+    try:
+        yield coordinator
+    finally:
+        await coordinator.stop()
+
+
 class BusinessServicesProvider(Provider):
     scope = Scope.REQUEST
 
-    @provide
-    async def get_saga_orchestrator(
-        self,
-        saga_repository: SagaRepository,
-        kafka_producer: UnifiedProducer,
-        schema_registry: SchemaRegistryManager,
-        settings: Settings,
-        event_store: EventStore,
-        idempotency_manager: IdempotencyManager,
-        resource_allocation_repository: ResourceAllocationRepository,
-        logger: logging.Logger,
-    ) -> AsyncIterator[SagaOrchestrator]:
-        orchestrator = create_saga_orchestrator(
-            saga_repository=saga_repository,
-            producer=kafka_producer,
-            schema_registry_manager=schema_registry,
-            settings=settings,
-            event_store=event_store,
-            idempotency_manager=idempotency_manager,
-            resource_allocation_repository=resource_allocation_repository,
-            config=_create_default_saga_config(),
-            logger=logger,
-        )
-        try:
-            yield orchestrator
-        finally:
-            await orchestrator.stop()
+    # Use shared factory functions (no duplication)
+    get_saga_orchestrator = provide(_provide_saga_orchestrator)
+    get_execution_coordinator = provide(_provide_execution_coordinator)
 
     @provide
     def get_saga_service(
@@ -613,59 +643,12 @@ class BusinessServicesProvider(Provider):
             logger=logger,
         )
 
-    @provide
-    async def get_execution_coordinator(
-        self,
-        kafka_producer: UnifiedProducer,
-        schema_registry: SchemaRegistryManager,
-        settings: Settings,
-        event_store: EventStore,
-        execution_repository: ExecutionRepository,
-        idempotency_manager: IdempotencyManager,
-        logger: logging.Logger,
-    ) -> AsyncIterator[ExecutionCoordinator]:
-        coordinator = ExecutionCoordinator(
-            producer=kafka_producer,
-            schema_registry_manager=schema_registry,
-            settings=settings,
-            event_store=event_store,
-            execution_repository=execution_repository,
-            idempotency_manager=idempotency_manager,
-            logger=logger,
-        )
-        try:
-            yield coordinator
-        finally:
-            await coordinator.stop()
-
 
 class CoordinatorProvider(Provider):
     scope = Scope.APP
 
-    @provide
-    async def get_execution_coordinator(
-        self,
-        kafka_producer: UnifiedProducer,
-        schema_registry: SchemaRegistryManager,
-        settings: Settings,
-        event_store: EventStore,
-        execution_repository: ExecutionRepository,
-        idempotency_manager: IdempotencyManager,
-        logger: logging.Logger,
-    ) -> AsyncIterator[ExecutionCoordinator]:
-        coordinator = ExecutionCoordinator(
-            producer=kafka_producer,
-            schema_registry_manager=schema_registry,
-            settings=settings,
-            event_store=event_store,
-            execution_repository=execution_repository,
-            idempotency_manager=idempotency_manager,
-            logger=logger,
-        )
-        try:
-            yield coordinator
-        finally:
-            await coordinator.stop()
+    # Use shared factory function (no duplication)
+    get_execution_coordinator = provide(_provide_execution_coordinator)
 
 
 class K8sWorkerProvider(Provider):
@@ -723,33 +706,8 @@ class PodMonitorProvider(Provider):
 class SagaOrchestratorProvider(Provider):
     scope = Scope.APP
 
-    @provide
-    async def get_saga_orchestrator(
-        self,
-        saga_repository: SagaRepository,
-        kafka_producer: UnifiedProducer,
-        schema_registry: SchemaRegistryManager,
-        settings: Settings,
-        event_store: EventStore,
-        idempotency_manager: IdempotencyManager,
-        resource_allocation_repository: ResourceAllocationRepository,
-        logger: logging.Logger,
-    ) -> AsyncIterator[SagaOrchestrator]:
-        orchestrator = create_saga_orchestrator(
-            saga_repository=saga_repository,
-            producer=kafka_producer,
-            schema_registry_manager=schema_registry,
-            settings=settings,
-            event_store=event_store,
-            idempotency_manager=idempotency_manager,
-            resource_allocation_repository=resource_allocation_repository,
-            config=_create_default_saga_config(),
-            logger=logger,
-        )
-        try:
-            yield orchestrator
-        finally:
-            await orchestrator.stop()
+    # Use shared factory function (no duplication)
+    get_saga_orchestrator = provide(_provide_saga_orchestrator)
 
 
 class EventReplayProvider(Provider):

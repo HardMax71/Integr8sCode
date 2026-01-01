@@ -56,6 +56,12 @@ def _setup_worker_env() -> None:
     # Unique Schema Registry prefix per worker
     os.environ["SCHEMA_SUBJECT_PREFIX"] = f"test.{session_id}.{worker_id}."
 
+    # Disable OpenTelemetry exporters to prevent "otel-collector:4317" retry noise
+    os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = ""
+    os.environ["OTEL_METRICS_EXPORTER"] = "none"
+    os.environ["OTEL_TRACES_EXPORTER"] = "none"
+    os.environ["OTEL_LOGS_EXPORTER"] = "none"
+
 
 # Set up worker env at module load time (before any Settings instantiation)
 _setup_worker_env()

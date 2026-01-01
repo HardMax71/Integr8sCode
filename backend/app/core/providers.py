@@ -241,18 +241,17 @@ class KubernetesProvider(Provider):
             close_k8s_clients(clients)
 
 
-class ConnectionProvider(Provider):
+class MetricsProvider(Provider):
+    """Provides all metrics instances."""
+
     scope = Scope.APP
 
     @provide
     def get_event_metrics(self) -> EventMetrics:
-        # Create the metrics instance that will be placed in context
-        # No longer a singleton - context manages the single instance
         return EventMetrics()
 
     @provide
     def get_connection_metrics(self) -> ConnectionMetrics:
-        # Create the metrics instance that will be placed in context
         return ConnectionMetrics()
 
     @provide
@@ -295,11 +294,80 @@ class ConnectionProvider(Provider):
     def get_security_metrics(self) -> SecurityMetrics:
         return SecurityMetrics()
 
-    @provide(scope=Scope.REQUEST)
-    def get_sse_shutdown_manager(self, logger: logging.Logger) -> SSEShutdownManager:
-        return create_sse_shutdown_manager(logger=logger)
 
-    @provide(scope=Scope.APP)
+class RepositoryProvider(Provider):
+    """Provides all repository instances. Repositories are stateless facades over database operations."""
+
+    scope = Scope.APP
+
+    @provide
+    def get_execution_repository(self, logger: logging.Logger) -> ExecutionRepository:
+        return ExecutionRepository(logger)
+
+    @provide
+    def get_saga_repository(self) -> SagaRepository:
+        return SagaRepository()
+
+    @provide
+    def get_resource_allocation_repository(self) -> ResourceAllocationRepository:
+        return ResourceAllocationRepository()
+
+    @provide
+    def get_saved_script_repository(self) -> SavedScriptRepository:
+        return SavedScriptRepository()
+
+    @provide
+    def get_dlq_repository(self, logger: logging.Logger) -> DLQRepository:
+        return DLQRepository(logger)
+
+    @provide
+    def get_replay_repository(self, logger: logging.Logger) -> ReplayRepository:
+        return ReplayRepository(logger)
+
+    @provide
+    def get_event_repository(self, logger: logging.Logger) -> EventRepository:
+        return EventRepository(logger)
+
+    @provide
+    def get_user_settings_repository(self, logger: logging.Logger) -> UserSettingsRepository:
+        return UserSettingsRepository(logger)
+
+    @provide
+    def get_admin_events_repository(self) -> AdminEventsRepository:
+        return AdminEventsRepository()
+
+    @provide
+    def get_admin_settings_repository(self, logger: logging.Logger) -> AdminSettingsRepository:
+        return AdminSettingsRepository(logger)
+
+    @provide
+    def get_admin_user_repository(self) -> AdminUserRepository:
+        return AdminUserRepository()
+
+    @provide
+    def get_notification_repository(self, logger: logging.Logger) -> NotificationRepository:
+        return NotificationRepository(logger)
+
+    @provide
+    def get_sse_repository(self) -> SSERepository:
+        return SSERepository()
+
+    @provide
+    def get_user_repository(self) -> UserRepository:
+        return UserRepository()
+
+
+class SSEProvider(Provider):
+    """Provides SSE (Server-Sent Events) related services."""
+
+    scope = Scope.APP
+
+    @provide
+    async def get_sse_redis_bus(self, redis_client: redis.Redis, logger: logging.Logger) -> AsyncIterator[SSERedisBus]:
+        bus = SSERedisBus(redis_client, logger)
+        yield bus
+
+    @provide
     async def get_sse_kafka_redis_bridge(
         self,
         schema_registry: SchemaRegistryManager,
@@ -316,14 +384,9 @@ class ConnectionProvider(Provider):
             logger=logger,
         )
 
-    @provide
-    def get_sse_repository(self) -> SSERepository:
-        return SSERepository()
-
-    @provide
-    async def get_sse_redis_bus(self, redis_client: redis.Redis, logger: logging.Logger) -> AsyncIterator[SSERedisBus]:
-        bus = SSERedisBus(redis_client, logger)
-        yield bus
+    @provide(scope=Scope.REQUEST)
+    def get_sse_shutdown_manager(self, logger: logging.Logger) -> SSEShutdownManager:
+        return create_sse_shutdown_manager(logger=logger)
 
     @provide(scope=Scope.REQUEST)
     def get_sse_service(
@@ -335,7 +398,6 @@ class ConnectionProvider(Provider):
         settings: Settings,
         logger: logging.Logger,
     ) -> SSEService:
-        # Ensure shutdown manager coordinates with the router in this request scope
         shutdown_manager.set_router(router)
         return SSEService(
             repository=sse_repository,
@@ -351,34 +413,28 @@ class AuthProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_user_repository(self) -> UserRepository:
-        return UserRepository()
-
-    @provide
     def get_auth_service(self, user_repository: UserRepository, logger: logging.Logger) -> AuthService:
         return AuthService(user_repository, logger)
 
 
-class UserServicesProvider(Provider):
+class KafkaServicesProvider(Provider):
+    """Provides Kafka-related event services used by both main app and workers."""
+
     scope = Scope.APP
 
     @provide
-    def get_user_settings_repository(self, logger: logging.Logger) -> UserSettingsRepository:
-        return UserSettingsRepository(logger)
-
-    @provide
-    def get_event_repository(self, logger: logging.Logger) -> EventRepository:
-        return EventRepository(logger)
-
-    @provide
-    async def get_event_service(self, event_repository: EventRepository) -> EventService:
+    def get_event_service(self, event_repository: EventRepository) -> EventService:
         return EventService(event_repository)
 
     @provide
-    async def get_kafka_event_service(
+    def get_kafka_event_service(
         self, event_repository: EventRepository, kafka_producer: UnifiedProducer, logger: logging.Logger
     ) -> KafkaEventService:
         return KafkaEventService(event_repository=event_repository, kafka_producer=kafka_producer, logger=logger)
+
+
+class UserServicesProvider(Provider):
+    scope = Scope.APP
 
     @provide
     async def get_user_settings_service(
@@ -396,10 +452,6 @@ class UserServicesProvider(Provider):
 class AdminServicesProvider(Provider):
     scope = Scope.APP
 
-    @provide
-    def get_admin_events_repository(self) -> AdminEventsRepository:
-        return AdminEventsRepository()
-
     @provide(scope=Scope.REQUEST)
     def get_admin_events_service(
         self,
@@ -410,28 +462,12 @@ class AdminServicesProvider(Provider):
         return AdminEventsService(admin_events_repository, replay_service, logger)
 
     @provide
-    def get_admin_settings_repository(self, logger: logging.Logger) -> AdminSettingsRepository:
-        return AdminSettingsRepository(logger)
-
-    @provide
     def get_admin_settings_service(
         self,
         admin_settings_repository: AdminSettingsRepository,
         logger: logging.Logger,
     ) -> AdminSettingsService:
         return AdminSettingsService(admin_settings_repository, logger)
-
-    @provide
-    def get_admin_user_repository(self) -> AdminUserRepository:
-        return AdminUserRepository()
-
-    @provide
-    def get_saga_repository(self) -> SagaRepository:
-        return SagaRepository()
-
-    @provide
-    def get_notification_repository(self, logger: logging.Logger) -> NotificationRepository:
-        return NotificationRepository(logger)
 
     @provide
     def get_notification_service(
@@ -465,28 +501,21 @@ class AdminServicesProvider(Provider):
         return GrafanaAlertProcessor(notification_service, logger)
 
 
+def _create_default_saga_config() -> SagaConfig:
+    """Factory for default SagaConfig used by orchestrators."""
+    return SagaConfig(
+        name="main-orchestrator",
+        timeout_seconds=300,
+        max_retries=3,
+        retry_delay_seconds=5,
+        enable_compensation=True,
+        store_events=True,
+        publish_commands=True,
+    )
+
+
 class BusinessServicesProvider(Provider):
     scope = Scope.REQUEST
-
-    @provide
-    def get_execution_repository(self, logger: logging.Logger) -> ExecutionRepository:
-        return ExecutionRepository(logger)
-
-    @provide
-    def get_resource_allocation_repository(self) -> ResourceAllocationRepository:
-        return ResourceAllocationRepository()
-
-    @provide
-    def get_saved_script_repository(self) -> SavedScriptRepository:
-        return SavedScriptRepository()
-
-    @provide
-    def get_dlq_repository(self, logger: logging.Logger) -> DLQRepository:
-        return DLQRepository(logger)
-
-    @provide
-    def get_replay_repository(self, logger: logging.Logger) -> ReplayRepository:
-        return ReplayRepository(logger)
 
     @provide
     async def get_saga_orchestrator(
@@ -500,15 +529,6 @@ class BusinessServicesProvider(Provider):
         resource_allocation_repository: ResourceAllocationRepository,
         logger: logging.Logger,
     ) -> AsyncIterator[SagaOrchestrator]:
-        config = SagaConfig(
-            name="main-orchestrator",
-            timeout_seconds=300,
-            max_retries=3,
-            retry_delay_seconds=5,
-            enable_compensation=True,
-            store_events=True,
-            publish_commands=True,
-        )
         orchestrator = create_saga_orchestrator(
             saga_repository=saga_repository,
             producer=kafka_producer,
@@ -517,7 +537,7 @@ class BusinessServicesProvider(Provider):
             event_store=event_store,
             idempotency_manager=idempotency_manager,
             resource_allocation_repository=resource_allocation_repository,
-            config=config,
+            config=_create_default_saga_config(),
             logger=logger,
         )
         try:
@@ -619,20 +639,8 @@ class BusinessServicesProvider(Provider):
             await coordinator.stop()
 
 
-class ResultProcessorProvider(Provider):
-    scope = Scope.APP
-
-    @provide
-    def get_execution_repository(self, logger: logging.Logger) -> ExecutionRepository:
-        return ExecutionRepository(logger)
-
-
 class CoordinatorProvider(Provider):
     scope = Scope.APP
-
-    @provide
-    def get_execution_repository(self, logger: logging.Logger) -> ExecutionRepository:
-        return ExecutionRepository(logger)
 
     @provide
     async def get_execution_coordinator(
@@ -693,23 +701,6 @@ class PodMonitorProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_event_repository(self, logger: logging.Logger) -> EventRepository:
-        return EventRepository(logger)
-
-    @provide
-    def get_kafka_event_service(
-        self,
-        event_repository: EventRepository,
-        kafka_producer: UnifiedProducer,
-        logger: logging.Logger,
-    ) -> KafkaEventService:
-        return KafkaEventService(
-            event_repository=event_repository,
-            kafka_producer=kafka_producer,
-            logger=logger,
-        )
-
-    @provide
     async def get_pod_monitor(
         self,
         kafka_event_service: KafkaEventService,
@@ -733,14 +724,6 @@ class SagaOrchestratorProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_saga_repository(self) -> SagaRepository:
-        return SagaRepository()
-
-    @provide
-    def get_resource_allocation_repository(self) -> ResourceAllocationRepository:
-        return ResourceAllocationRepository()
-
-    @provide
     async def get_saga_orchestrator(
         self,
         saga_repository: SagaRepository,
@@ -752,15 +735,6 @@ class SagaOrchestratorProvider(Provider):
         resource_allocation_repository: ResourceAllocationRepository,
         logger: logging.Logger,
     ) -> AsyncIterator[SagaOrchestrator]:
-        config = SagaConfig(
-            name="main-orchestrator",
-            timeout_seconds=300,
-            max_retries=3,
-            retry_delay_seconds=5,
-            enable_compensation=True,
-            store_events=True,
-            publish_commands=True,
-        )
         orchestrator = create_saga_orchestrator(
             saga_repository=saga_repository,
             producer=kafka_producer,
@@ -769,7 +743,7 @@ class SagaOrchestratorProvider(Provider):
             event_store=event_store,
             idempotency_manager=idempotency_manager,
             resource_allocation_repository=resource_allocation_repository,
-            config=config,
+            config=_create_default_saga_config(),
             logger=logger,
         )
         try:
@@ -780,10 +754,6 @@ class SagaOrchestratorProvider(Provider):
 
 class EventReplayProvider(Provider):
     scope = Scope.APP
-
-    @provide
-    def get_replay_repository(self, logger: logging.Logger) -> ReplayRepository:
-        return ReplayRepository(logger)
 
     @provide
     def get_event_replay_service(

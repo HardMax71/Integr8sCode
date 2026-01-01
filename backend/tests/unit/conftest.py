@@ -9,12 +9,6 @@ unit_env = Path(__file__).parent / ".env.unit"
 load_dotenv(unit_env, override=True)
 
 
-@pytest.fixture(scope="function", autouse=False)
-def _cleanup():
-    """No-op - unit tests don't need DB/Redis cleanup."""
-    yield
-
-
 @pytest.fixture
 def db():
     raise RuntimeError("Unit tests should not access DB - use mocks or move to integration/")

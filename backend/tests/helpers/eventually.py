@@ -17,7 +17,7 @@ async def eventually(
     - Returns the value of `fn` on success.
     - Raises the last exception after timeout.
     """
-    deadline = asyncio.get_event_loop().time() + timeout
+    deadline = asyncio.get_running_loop().time() + timeout
     last_exc: BaseException | None = None
     while True:
         try:
@@ -27,7 +27,7 @@ async def eventually(
             return res  # type: ignore[return-value]
         except exceptions as exc:  # type: ignore[misc]
             last_exc = exc
-            if asyncio.get_event_loop().time() >= deadline:
+            if asyncio.get_running_loop().time() >= deadline:
                 raise
             await asyncio.sleep(interval)
 

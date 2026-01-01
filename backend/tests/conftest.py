@@ -21,7 +21,7 @@ if test_env_path.exists():
 
 # IMPORTANT: avoid importing app.main at module import time because it
 # constructs the FastAPI app immediately (reading settings from .env).
-# We import lazily inside the fixture after test env vars are set.y
+# We import lazily inside the fixture after test env vars are set.
 # DO NOT import any app.* modules at import time here, as it would
 # construct global singletons (logger, settings) before we set test env.
 
@@ -66,25 +66,6 @@ def _compute_worker_id() -> str:
 
 @pytest.fixture(scope="session", autouse=True)
 def _test_env() -> None:
-    # Core toggles
-    os.environ.setdefault("TESTING", "true")
-    os.environ.setdefault("ENABLE_TRACING", "false")
-    os.environ.setdefault("OTEL_SDK_DISABLED", "true")
-    os.environ.setdefault("OTEL_METRICS_EXPORTER", "none")
-    os.environ.setdefault("OTEL_TRACES_EXPORTER", "none")
-
-    # External services - force localhost when running tests on host
-    os.environ["MONGODB_URL"] = os.environ.get(
-        "MONGODB_URL",
-        "mongodb://root:rootpassword@localhost:27017/?authSource=admin",
-    )
-    os.environ.setdefault("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
-    os.environ.setdefault("REDIS_HOST", "localhost")
-    os.environ.setdefault("REDIS_PORT", "6379")
-    os.environ.setdefault("SCHEMA_REGISTRY_URL", "http://localhost:8081")
-    os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
-    os.environ.setdefault("SECRET_KEY", "test-secret-key-for-testing-only-32chars!!")
-
     # Isolation identifiers
     session_id = os.environ.get("PYTEST_SESSION_ID") or uuid.uuid4().hex[:8]
     worker_id = _compute_worker_id()
@@ -210,10 +191,9 @@ async def _http_login(client: httpx.AsyncClient, username: str, password: str) -
     return resp.json().get("csrf_token", "")
 
 
-# Session-scoped shared users for convenience
-@pytest.fixture(scope="session")
+@pytest.fixture
 def test_user_credentials():
-    uid = os.environ.get("PYTEST_SESSION_ID", uuid.uuid4().hex[:8])
+    uid = uuid.uuid4().hex[:8]
     return {
         "username": f"test_user_{uid}",
         "email": f"test_user_{uid}@example.com",
@@ -222,9 +202,9 @@ def test_user_credentials():
     }
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def test_admin_credentials():
-    uid = os.environ.get("PYTEST_SESSION_ID", uuid.uuid4().hex[:8])
+    uid = uuid.uuid4().hex[:8]
     return {
         "username": f"admin_user_{uid}",
         "email": f"admin_user_{uid}@example.com",
@@ -239,7 +219,7 @@ async def test_user(client: httpx.AsyncClient, test_user_credentials):
     creds = test_user_credentials
     r = await client.post("/api/v1/auth/register", json=creds)
     if r.status_code not in (200, 201, 400):
-        pytest.skip(f"Cannot create test user (status {r.status_code}).")
+        pytest.fail(f"Cannot create test user (status {r.status_code}): {r.text}")
     csrf = await _http_login(client, creds["username"], creds["password"])
     return {**creds, "csrf_token": csrf, "headers": {"X-CSRF-Token": csrf}}
 
@@ -250,7 +230,7 @@ async def test_admin(client: httpx.AsyncClient, test_admin_credentials):
     creds = test_admin_credentials
     r = await client.post("/api/v1/auth/register", json=creds)
     if r.status_code not in (200, 201, 400):
-        pytest.skip(f"Cannot create test admin (status {r.status_code}).")
+        pytest.fail(f"Cannot create test admin (status {r.status_code}): {r.text}")
     csrf = await _http_login(client, creds["username"], creds["password"])
     return {**creds, "csrf_token": csrf, "headers": {"X-CSRF-Token": csrf}}
 

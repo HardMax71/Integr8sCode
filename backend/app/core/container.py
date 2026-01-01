@@ -1,4 +1,4 @@
-from dishka import AsyncContainer, make_async_container
+from dishka import AsyncContainer, Provider, make_async_container
 from dishka.integrations.fastapi import FastapiProvider
 
 from app.core.providers import (
@@ -18,12 +18,16 @@ from app.core.providers import (
 )
 
 
-def create_app_container() -> AsyncContainer:
+def create_app_container(settings_provider: Provider | None = None) -> AsyncContainer:
     """
     Create the application DI container.
+
+    Args:
+        settings_provider: Optional custom settings provider (e.g., for testing).
+                          If None, uses the default SettingsProvider.
     """
     return make_async_container(
-        SettingsProvider(),
+        settings_provider or SettingsProvider(),
         LoggingProvider(),
         DatabaseProvider(),
         RedisProvider(),

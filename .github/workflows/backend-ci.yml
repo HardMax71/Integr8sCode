@@ -91,9 +91,10 @@ jobs:
           docker compose -f docker-compose.ci.yaml ps
 
       - name: Create Kafka topics
+        timeout-minutes: 2
         env:
           KAFKA_BOOTSTRAP_SERVERS: localhost:9092
-          KAFKA_TOPIC_PREFIX: "test."
+          KAFKA_TOPIC_PREFIX: "ci.${{ github.run_id }}."
         run: |
           cd backend
           uv run python -m scripts.create_topics
@@ -107,6 +108,7 @@ jobs:
           MONGODB_PORT: 27017
           MONGODB_URL: mongodb://root:rootpassword@127.0.0.1:27017/?authSource=admin
           KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+          KAFKA_TOPIC_PREFIX: "ci.${{ github.run_id }}."
           SCHEMA_REGISTRY_URL: http://localhost:8081
           REDIS_HOST: localhost
           REDIS_PORT: 6379
@@ -183,9 +185,10 @@ jobs:
           kubectl create namespace integr8scode --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Create Kafka topics
+        timeout-minutes: 2
         env:
           KAFKA_BOOTSTRAP_SERVERS: localhost:9092
-          KAFKA_TOPIC_PREFIX: "test."
+          KAFKA_TOPIC_PREFIX: "ci.${{ github.run_id }}."
         run: |
           cd backend
           uv run python -m scripts.create_topics
@@ -197,6 +200,7 @@ jobs:
           MONGO_ROOT_PASSWORD: rootpassword
           MONGODB_URL: mongodb://root:rootpassword@127.0.0.1:27017/?authSource=admin
           KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+          KAFKA_TOPIC_PREFIX: "ci.${{ github.run_id }}."
           SCHEMA_REGISTRY_URL: http://localhost:8081
           REDIS_HOST: localhost
           REDIS_PORT: 6379

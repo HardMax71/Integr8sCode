@@ -70,6 +70,7 @@ class ResultProcessor(LifecycleEnabled):
         logger: logging.Logger,
     ) -> None:
         """Initialize the result processor."""
+        super().__init__()
         self.config = ResultProcessorConfig()
         self._execution_repo = execution_repo
         self._producer = producer
@@ -82,12 +83,8 @@ class ResultProcessor(LifecycleEnabled):
         self._dispatcher: EventDispatcher | None = None
         self.logger = logger
 
-    async def start(self) -> None:
+    async def _on_start(self) -> None:
         """Start the result processor."""
-        if self._state != ProcessingState.IDLE:
-            self.logger.warning(f"Cannot start processor in state: {self._state}")
-            return
-
         self.logger.info("Starting ResultProcessor...")
 
         # Initialize idempotency manager (safe to call multiple times)
@@ -99,11 +96,8 @@ class ResultProcessor(LifecycleEnabled):
         self._state = ProcessingState.PROCESSING
         self.logger.info("ResultProcessor started successfully with idempotency protection")
 
-    async def stop(self) -> None:
+    async def _on_stop(self) -> None:
         """Stop the result processor."""
-        if self._state == ProcessingState.STOPPED:
-            return
-
         self.logger.info("Stopping ResultProcessor...")
         self._state = ProcessingState.STOPPED
 
@@ -111,7 +105,7 @@ class ResultProcessor(LifecycleEnabled):
             await self._consumer.stop()
 
         await self._idempotency_manager.close()
-        await self._producer.stop()
+        # Note: producer is managed by DI container, not stopped here
         self.logger.info("ResultProcessor stopped")
 
     def _create_dispatcher(self) -> EventDispatcher:

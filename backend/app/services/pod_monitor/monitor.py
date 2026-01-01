@@ -107,6 +107,7 @@ class PodMonitor(LifecycleEnabled):
         k8s_clients: K8sClients | None = None,
     ) -> None:
         """Initialize the pod monitor."""
+        super().__init__()
         self.logger = logger
         self.config = config or PodMonitorConfig()
 
@@ -137,12 +138,8 @@ class PodMonitor(LifecycleEnabled):
         """Get current monitor state."""
         return self._state
 
-    async def start(self) -> None:
+    async def _on_start(self) -> None:
         """Start the pod monitor."""
-        if self._state != MonitorState.IDLE:
-            self.logger.warning(f"Cannot start monitor in state: {self._state}")
-            return
-
         self.logger.info("Starting PodMonitor service...")
 
         # Initialize components
@@ -158,11 +155,8 @@ class PodMonitor(LifecycleEnabled):
 
         self.logger.info("PodMonitor service started successfully")
 
-    async def stop(self) -> None:
+    async def _on_stop(self) -> None:
         """Stop the pod monitor."""
-        if self._state == MonitorState.STOPPED:
-            return
-
         self.logger.info("Stopping PodMonitor service...")
         self._state = MonitorState.STOPPING
 
@@ -517,8 +511,5 @@ async def create_pod_monitor(
         k8s_clients=k8s_clients,
     )
 
-    try:
-        await monitor.start()
+    async with monitor:
         yield monitor
-    finally:
-        await monitor.stop()

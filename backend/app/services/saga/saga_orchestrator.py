@@ -43,6 +43,7 @@ class SagaOrchestrator(LifecycleEnabled):
         resource_allocation_repository: ResourceAllocationRepository,
         logger: logging.Logger,
     ):
+        super().__init__()
         self.config = config
         self._sagas: dict[str, type[BaseSaga]] = {}
         self._running_instances: dict[str, Saga] = {}
@@ -54,7 +55,6 @@ class SagaOrchestrator(LifecycleEnabled):
         self._event_store = event_store
         self._repo: SagaRepository = saga_repository
         self._alloc_repo: ResourceAllocationRepository = resource_allocation_repository
-        self._running = False
         self._tasks: list[asyncio.Task[None]] = []
         self.logger = logger
 
@@ -66,11 +66,8 @@ class SagaOrchestrator(LifecycleEnabled):
         self.register_saga(ExecutionSaga)
         self.logger.info("Registered default sagas")
 
-    @property
-    def is_running(self) -> bool:
-        return self._running
-
-    async def start(self) -> None:
+    async def _on_start(self) -> None:
+        """Start the saga orchestrator."""
         self.logger.info(f"Starting saga orchestrator: {self.config.name}")
 
         self._register_default_sagas()
@@ -80,13 +77,11 @@ class SagaOrchestrator(LifecycleEnabled):
         timeout_task = asyncio.create_task(self._check_timeouts())
         self._tasks.append(timeout_task)
 
-        self._running = True
         self.logger.info("Saga orchestrator started")
 
-    async def stop(self) -> None:
+    async def _on_stop(self) -> None:
+        """Stop the saga orchestrator."""
         self.logger.info("Stopping saga orchestrator...")
-
-        self._running = False
 
         if self._consumer:
             await self._consumer.stop()
@@ -249,7 +244,7 @@ class SagaOrchestrator(LifecycleEnabled):
 
             # Execute each step
             for step in steps:
-                if not self._running:
+                if not self.is_running:
                     break
 
                 # Update current step
@@ -362,7 +357,7 @@ class SagaOrchestrator(LifecycleEnabled):
 
     async def _check_timeouts(self) -> None:
         """Check for saga timeouts"""
-        while self._running:
+        while self.is_running:
             try:
                 # Check every 30 seconds
                 await asyncio.sleep(30)

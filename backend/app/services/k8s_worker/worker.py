@@ -56,6 +56,7 @@ class KubernetesWorker(LifecycleEnabled):
         idempotency_manager: IdempotencyManager,
         logger: logging.Logger,
     ):
+        super().__init__()
         self.logger = logger
         self.metrics = KubernetesMetrics()
         self.execution_metrics = ExecutionMetrics()
@@ -79,17 +80,12 @@ class KubernetesWorker(LifecycleEnabled):
         self.producer: UnifiedProducer = producer
 
         # State tracking
-        self._running = False
         self._active_creations: set[str] = set()
         self._creation_semaphore = asyncio.Semaphore(self.config.max_concurrent_pods)
         self._schema_registry_manager = schema_registry_manager
 
-    async def start(self) -> None:
-        """Start the Kubernetes worker"""
-        if self._running:
-            self.logger.warning("KubernetesWorker already running")
-            return
-
+    async def _on_start(self) -> None:
+        """Start the Kubernetes worker."""
         self.logger.info("Starting KubernetesWorker service...")
         self.logger.info("DEBUG: About to initialize Kubernetes client")
 
@@ -140,7 +136,6 @@ class KubernetesWorker(LifecycleEnabled):
 
         # Start the consumer with idempotency - listen to saga commands topic
         await self.idempotent_consumer.start([KafkaTopic.SAGA_COMMANDS])
-        self._running = True
 
         # Create daemonset for image pre-pulling
         asyncio.create_task(self.ensure_image_pre_puller_daemonset())
@@ -148,13 +143,9 @@ class KubernetesWorker(LifecycleEnabled):
 
         self.logger.info("KubernetesWorker service started successfully")
 
-    async def stop(self) -> None:
-        """Stop the Kubernetes worker"""
-        if not self._running:
-            return
-
+    async def _on_stop(self) -> None:
+        """Stop the Kubernetes worker."""
         self.logger.info("Stopping KubernetesWorker service...")
-        self._running = False
 
         # Wait for active creations to complete
         if self._active_creations:
@@ -175,9 +166,7 @@ class KubernetesWorker(LifecycleEnabled):
         # Close idempotency manager
         await self.idempotency_manager.close()
 
-        # Stop producer if we created it
-        if self.producer:
-            await self.producer.stop()
+        # Note: producer is managed by DI container, not stopped here
 
         self.logger.info("KubernetesWorker service stopped")
 
@@ -434,7 +423,7 @@ exec "$@"
     async def get_status(self) -> dict[str, Any]:
         """Get worker status"""
         return {
-            "running": self._running,
+            "running": self.is_running,
             "active_creations": len(self._active_creations),
             "config": {
                 "namespace": self.config.namespace,

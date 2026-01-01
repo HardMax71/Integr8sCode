@@ -36,6 +36,7 @@ class DLQManager(LifecycleEnabled):
         retry_topic_suffix: str = "-retry",
         default_retry_policy: RetryPolicy | None = None,
     ):
+        super().__init__()
         self.settings = settings
         self.metrics = get_dlq_metrics()
         self.schema_registry = schema_registry
@@ -48,7 +49,6 @@ class DLQManager(LifecycleEnabled):
         self.consumer: Consumer = consumer
         self.producer: Producer = producer
 
-        self._running = False
         self._process_task: asyncio.Task[None] | None = None
         self._monitor_task: asyncio.Task[None] | None = None
 
@@ -144,15 +144,10 @@ class DLQManager(LifecycleEnabled):
             headers=headers,
         )
 
-    async def start(self) -> None:
-        """Start DLQ manager"""
-        if self._running:
-            return
-
+    async def _on_start(self) -> None:
+        """Start DLQ manager."""
         topic_name = f"{self.settings.KAFKA_TOPIC_PREFIX}{str(self.dlq_topic)}"
         self.consumer.subscribe([topic_name])
-
-        self._running = True
 
         # Start processing tasks
         self._process_task = asyncio.create_task(self._process_messages())
@@ -160,13 +155,8 @@ class DLQManager(LifecycleEnabled):
 
         self.logger.info("DLQ Manager started")
 
-    async def stop(self) -> None:
-        """Stop DLQ manager"""
-        if not self._running:
-            return
-
-        self._running = False
-
+    async def _on_stop(self) -> None:
+        """Stop DLQ manager."""
         # Cancel tasks
         for task in [self._process_task, self._monitor_task]:
             if task:
@@ -183,7 +173,7 @@ class DLQManager(LifecycleEnabled):
         self.logger.info("DLQ Manager stopped")
 
     async def _process_messages(self) -> None:
-        while self._running:
+        while self.is_running:
             try:
                 msg = await self._poll_message()
                 if msg is None:
@@ -397,7 +387,7 @@ class DLQManager(LifecycleEnabled):
         self.logger.warning("Discarded message", extra={"event_id": message.event_id, "reason": reason})
 
     async def _monitor_dlq(self) -> None:
-        while self._running:
+        while self.is_running:
             try:
                 # Find messages ready for retry using Beanie
                 now = datetime.now(timezone.utc)

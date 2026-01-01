@@ -17,9 +17,8 @@ _test_logger = logging.getLogger("test.events.producer_roundtrip")
 async def test_unified_producer_start_produce_send_to_dlq_stop(scope):  # type: ignore[valid-type]
     schema: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
     prod = UnifiedProducer(ProducerConfig(bootstrap_servers="localhost:9092"), schema, logger=_test_logger)
-    await prod.start()
 
-    try:
+    async with prod:
         ev = make_execution_requested_event(execution_id=f"exec-{uuid4().hex[:8]}")
         await prod.produce(ev)
 
@@ -28,8 +27,6 @@ async def test_unified_producer_start_produce_send_to_dlq_stop(scope):  # type: 
 
         st = prod.get_status()
         assert st["running"] is True and st["state"] == "running"
-    finally:
-        await prod.stop()
 
 
 def test_producer_handle_stats_path():

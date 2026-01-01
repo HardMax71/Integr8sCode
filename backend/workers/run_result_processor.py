@@ -35,6 +35,7 @@ async def run_result_processor(settings: Settings | None = None) -> None:
     logger = await container.get(logging.Logger)
     logger.info(f"Beanie ODM initialized with {len(ALL_DOCUMENTS)} document models")
 
+    # ResultProcessor is manually created (not from DI), so we own its lifecycle
     processor = ResultProcessor(
         execution_repo=execution_repo,
         producer=producer,
@@ -44,24 +45,27 @@ async def run_result_processor(settings: Settings | None = None) -> None:
         logger=logger,
     )
 
+    # Shutdown event - signal handlers just set this
+    shutdown_event = asyncio.Event()
     loop = asyncio.get_running_loop()
-
-    async def shutdown() -> None:
-        logger.info("Initiating graceful shutdown...")
-        await processor.stop()
-
     for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, lambda: asyncio.create_task(shutdown()))
+        loop.add_signal_handler(sig, shutdown_event.set)
 
+    # We own the processor, so we use async with to manage its lifecycle
     async with AsyncExitStack() as stack:
         stack.callback(db_client.close)
         stack.push_async_callback(container.close)
         await stack.enter_async_context(processor)
 
-        while processor._state == ProcessingState.PROCESSING:
+        logger.info("ResultProcessor started and running")
+
+        # Wait for shutdown signal or service to stop
+        while processor._state == ProcessingState.PROCESSING and not shutdown_event.is_set():
             await asyncio.sleep(60)
             status = await processor.get_status()
             logger.info(f"ResultProcessor status: {status}")
+
+        logger.info("Initiating graceful shutdown...")
 
 
 def main() -> None:

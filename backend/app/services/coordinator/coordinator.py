@@ -60,6 +60,7 @@ class ExecutionCoordinator(LifecycleEnabled):
         max_concurrent_scheduling: int = 10,
         scheduling_interval_seconds: float = 0.5,
     ):
+        super().__init__()
         self.logger = logger
         self.metrics = get_coordinator_metrics()
         self._settings = settings
@@ -93,19 +94,14 @@ class ExecutionCoordinator(LifecycleEnabled):
         self._scheduling_semaphore = asyncio.Semaphore(max_concurrent_scheduling)
 
         # State tracking
-        self._running = False
         self._scheduling_task: asyncio.Task[None] | None = None
         self._active_executions: set[str] = set()
         self._execution_resources: ExecutionMap = {}
         self._schema_registry_manager = schema_registry_manager
         self.dispatcher = EventDispatcher(logger=self.logger)
 
-    async def start(self) -> None:
-        """Start the coordinator service"""
-        if self._running:
-            self.logger.warning("ExecutionCoordinator already running")
-            return
-
+    async def _on_start(self) -> None:
+        """Start the coordinator service."""
         self.logger.info("Starting ExecutionCoordinator service...")
 
         await self.queue_manager.start()
@@ -164,18 +160,13 @@ class ExecutionCoordinator(LifecycleEnabled):
         await self.idempotent_consumer.start([KafkaTopic.EXECUTION_EVENTS])
 
         # Start scheduling task
-        self._running = True
         self._scheduling_task = asyncio.create_task(self._scheduling_loop())
 
         self.logger.info("ExecutionCoordinator service started successfully")
 
-    async def stop(self) -> None:
-        """Stop the coordinator service"""
-        if not self._running:
-            return
-
+    async def _on_stop(self) -> None:
+        """Stop the coordinator service."""
         self.logger.info("Stopping ExecutionCoordinator service...")
-        self._running = False
 
         # Stop scheduling task
         if self._scheduling_task:
@@ -300,7 +291,7 @@ class ExecutionCoordinator(LifecycleEnabled):
 
     async def _scheduling_loop(self) -> None:
         """Main scheduling loop"""
-        while self._running:
+        while self.is_running:
             try:
                 # Get next execution from queue
                 execution = await self.queue_manager.get_next_execution()
@@ -482,7 +473,7 @@ class ExecutionCoordinator(LifecycleEnabled):
     async def get_status(self) -> dict[str, Any]:
         """Get coordinator status"""
         return {
-            "running": self._running,
+            "running": self.is_running,
             "active_executions": len(self._active_executions),
             "queue_stats": await self.queue_manager.get_queue_stats(),
             "resource_stats": await self.resource_manager.get_resource_stats(),

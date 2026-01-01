@@ -117,10 +117,10 @@ async def test_start_and_stop_lifecycle(monkeypatch) -> None:
 
     pm._watch_pods = _quick_watch
 
-    await pm.start()
+    await pm.__aenter__()
     assert pm.state.name == "RUNNING"
 
-    await pm.stop()
+    await pm.aclose()
     assert pm.state.name == "STOPPED" and spy.cleared is True
 
 
@@ -549,27 +549,35 @@ async def test_create_pod_monitor_with_injected_k8s_clients(monkeypatch) -> None
 
 @pytest.mark.asyncio
 async def test_start_already_running() -> None:
+    """Test idempotent start via __aenter__."""
     cfg = PodMonitorConfig()
     pm = PodMonitor(cfg, kafka_event_service=_FakeKafkaEventService(), logger=_test_logger)
+    # Simulate already started state
+    pm._lifecycle_started = True
     pm._state = pm.state.__class__.RUNNING
 
-    await pm.start()
+    # Should be idempotent - just return self
+    await pm.__aenter__()
 
 
 @pytest.mark.asyncio
 async def test_stop_already_stopped() -> None:
+    """Test idempotent stop via aclose()."""
     cfg = PodMonitorConfig()
     pm = PodMonitor(cfg, kafka_event_service=_FakeKafkaEventService(), logger=_test_logger)
     pm._state = pm.state.__class__.STOPPED
+    # Not started, so aclose should be a no-op
 
-    await pm.stop()
+    await pm.aclose()
 
 
 @pytest.mark.asyncio
 async def test_stop_with_tasks() -> None:
+    """Test cleanup of tasks on aclose()."""
     cfg = PodMonitorConfig()
     pm = PodMonitor(cfg, kafka_event_service=_FakeKafkaEventService(), logger=_test_logger)
     pm._state = pm.state.__class__.RUNNING
+    pm._lifecycle_started = True  # Simulate started state
 
     async def dummy_task():
         await asyncio.Event().wait()
@@ -579,7 +587,7 @@ async def test_stop_with_tasks() -> None:
     pm._watch = _StubWatch()
     pm._tracked_pods = {"pod1"}
 
-    await pm.stop()
+    await pm.aclose()
 
     assert pm._state == pm.state.__class__.STOPPED
     assert len(pm._tracked_pods) == 0
@@ -813,8 +821,8 @@ async def test_start_with_reconciliation() -> None:
     pm._watch_pods = mock_watch
     pm._reconciliation_loop = mock_reconcile
 
-    await pm.start()
+    await pm.__aenter__()
     assert pm._watch_task is not None
     assert pm._reconcile_task is not None
 
-    await pm.stop()
+    await pm.aclose()

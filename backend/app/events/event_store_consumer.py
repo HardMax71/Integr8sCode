@@ -29,6 +29,7 @@ class EventStoreConsumer(LifecycleEnabled):
         batch_size: int = 100,
         batch_timeout_seconds: float = 5.0,
     ):
+        super().__init__()
         self.event_store = event_store
         self.topics = topics
         self.settings = settings
@@ -44,13 +45,9 @@ class EventStoreConsumer(LifecycleEnabled):
         self._batch_lock = asyncio.Lock()
         self._last_batch_time: float = 0.0
         self._batch_task: asyncio.Task[None] | None = None
-        self._running = False
 
-    async def start(self) -> None:
+    async def _on_start(self) -> None:
         """Start consuming and storing events."""
-        if self._running:
-            return
-
         self._last_batch_time = asyncio.get_running_loop().time()
         config = ConsumerConfig(
             bootstrap_servers=self.settings.KAFKA_BOOTSTRAP_SERVERS,
@@ -86,19 +83,13 @@ class EventStoreConsumer(LifecycleEnabled):
             self.consumer.register_error_callback(self._handle_error_with_event)
 
         await self.consumer.start(self.topics)
-        self._running = True
 
         self._batch_task = asyncio.create_task(self._batch_processor())
 
         self.logger.info(f"Event store consumer started for topics: {self.topics}")
 
-    async def stop(self) -> None:
+    async def _on_stop(self) -> None:
         """Stop consumer."""
-        if not self._running:
-            return
-
-        self._running = False
-
         await self._flush_batch()
 
         if self._batch_task:
@@ -129,7 +120,7 @@ class EventStoreConsumer(LifecycleEnabled):
 
     async def _batch_processor(self) -> None:
         """Periodically flush batches based on timeout."""
-        while self._running:
+        while self.is_running:
             try:
                 await asyncio.sleep(1)
 

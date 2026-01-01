@@ -35,13 +35,13 @@ class UnifiedProducer(LifecycleEnabled):
         logger: logging.Logger,
         stats_callback: StatsCallback | None = None,
     ):
+        super().__init__()
         self._config = config
         self._schema_registry = schema_registry_manager
         self.logger = logger
         self._producer: Producer | None = None
         self._stats_callback = stats_callback
         self._state = ProducerState.STOPPED
-        self._running = False
         self._metrics = ProducerMetrics()
         self._event_metrics = get_event_metrics()  # Singleton for Kafka metrics
         self._poll_task: asyncio.Task[None] | None = None
@@ -108,11 +108,8 @@ class UnifiedProducer(LifecycleEnabled):
         except Exception as e:
             self.logger.error(f"Error parsing producer stats: {e}")
 
-    async def start(self) -> None:
-        if self._state not in (ProducerState.STOPPED, ProducerState.ERROR):
-            self.logger.warning(f"Producer already in state {self._state}, skipping start")
-            return
-
+    async def _on_start(self) -> None:
+        """Start the Kafka producer."""
         self._state = ProducerState.STARTING
         self.logger.info("Starting producer...")
 
@@ -123,7 +120,6 @@ class UnifiedProducer(LifecycleEnabled):
         # Serialize Producer initialization to prevent librdkafka race condition
         with _producer_init_lock:
             self._producer = Producer(producer_config)
-        self._running = True
         self._poll_task = asyncio.create_task(self._poll_loop())
         self._state = ProducerState.RUNNING
 
@@ -150,14 +146,10 @@ class UnifiedProducer(LifecycleEnabled):
             },
         }
 
-    async def stop(self) -> None:
-        if self._state in (ProducerState.STOPPED, ProducerState.STOPPING):
-            self.logger.info(f"Producer already in state {self._state}, skipping stop")
-            return
-
+    async def _on_stop(self) -> None:
+        """Stop the Kafka producer."""
         self._state = ProducerState.STOPPING
         self.logger.info("Stopping producer...")
-        self._running = False
 
         if self._poll_task:
             self._poll_task.cancel()
@@ -174,7 +166,7 @@ class UnifiedProducer(LifecycleEnabled):
     async def _poll_loop(self) -> None:
         self.logger.info("Started producer poll loop")
 
-        while self._running and self._producer:
+        while self.is_running and self._producer:
             self._producer.poll(timeout=0.1)
             await asyncio.sleep(0.01)
 

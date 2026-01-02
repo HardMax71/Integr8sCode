@@ -12,7 +12,7 @@ from confluent_kafka.serialization import MessageField, SerializationContext
 
 from app.domain.enums.events import EventType
 from app.infrastructure.kafka.events.base import BaseEvent
-from app.settings import get_settings
+from app.settings import Settings
 
 T = TypeVar("T", bound=BaseEvent)
 
@@ -54,9 +54,8 @@ def _get_event_type_to_class_mapping() -> Dict[EventType, Type[BaseEvent]]:
 class SchemaRegistryManager:
     """Schema registry manager for Avro serialization with Confluent wire format."""
 
-    def __init__(self, logger: logging.Logger, schema_registry_url: str | None = None):
+    def __init__(self, settings: Settings, logger: logging.Logger, schema_registry_url: str | None = None):
         self.logger = logger
-        settings = get_settings()
         self.url = schema_registry_url or settings.SCHEMA_REGISTRY_URL
         self.namespace = "com.integr8scode.events"
         # Optional per-session/worker subject prefix for tests/local isolation
@@ -232,9 +231,9 @@ class SchemaRegistryManager:
 
 
 def create_schema_registry_manager(
-    logger: logging.Logger, schema_registry_url: str | None = None
+    settings: Settings, logger: logging.Logger, schema_registry_url: str | None = None
 ) -> SchemaRegistryManager:
-    return SchemaRegistryManager(logger, schema_registry_url)
+    return SchemaRegistryManager(settings, logger, schema_registry_url)
 
 
 async def initialize_event_schemas(registry: SchemaRegistryManager) -> None:

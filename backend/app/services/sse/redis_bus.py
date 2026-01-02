@@ -38,7 +38,7 @@ class SSERedisSubscription:
         try:
             await self._pubsub.unsubscribe(self._channel)
         finally:
-            await self._pubsub.aclose()  # type: ignore[no-untyped-call]
+            await self._pubsub.aclose()  # type: ignore[no-untyped-call]  # redis-py PubSub.aclose lacks annotations
 
 
 class SSERedisBus:

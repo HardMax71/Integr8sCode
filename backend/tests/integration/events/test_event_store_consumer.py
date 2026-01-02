@@ -8,8 +8,10 @@ from app.events.core import UnifiedProducer
 from app.events.event_store import EventStore
 from app.events.event_store_consumer import EventStoreConsumer, create_event_store_consumer
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
+from app.domain.enums.auth import LoginMethod
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.infrastructure.kafka.events.user import UserLoggedInEvent
+from app.settings import Settings
 
 pytestmark = [pytest.mark.integration, pytest.mark.kafka, pytest.mark.mongodb]
 
@@ -26,11 +28,12 @@ async def test_event_store_consumer_stores_events(scope) -> None:  # type: ignor
     producer: UnifiedProducer = await scope.get(UnifiedProducer)
     db: Database = await scope.get(Database)
     store: EventStore = await scope.get(EventStore)
+    settings: Settings = await scope.get(Settings)
 
     # Build an event
     ev = UserLoggedInEvent(
         user_id=f"u-{uuid.uuid4().hex[:6]}",
-        login_method="password",
+        login_method=LoginMethod.PASSWORD,
         metadata=AvroEventMetadata(service_name="tests", service_version="1.0.0"),
     )
 
@@ -39,6 +42,7 @@ async def test_event_store_consumer_stores_events(scope) -> None:  # type: ignor
         event_store=store,
         topics=[KafkaTopic.USER_EVENTS],
         schema_registry_manager=registry,
+        settings=settings,
         logger=_test_logger,
         producer=producer,
         batch_size=10,

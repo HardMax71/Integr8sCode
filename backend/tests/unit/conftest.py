@@ -1,18 +1,9 @@
-import os
-from pathlib import Path
+"""Unit test configuration.
 
+Unit tests should NOT access real infrastructure (DB, Redis, HTTP).
+These fixtures raise errors to catch accidental usage.
+"""
 import pytest
-from dotenv import load_dotenv
-
-# Load unit test env
-unit_env = Path(__file__).parent / ".env.unit"
-load_dotenv(unit_env, override=True)
-
-
-@pytest.fixture(scope="function", autouse=False)
-def _cleanup():
-    """No-op - unit tests don't need DB/Redis cleanup."""
-    yield
 
 
 @pytest.fixture

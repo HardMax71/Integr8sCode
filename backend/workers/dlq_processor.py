@@ -1,21 +1,19 @@
 import asyncio
-import os
+import logging
 import signal
+from contextlib import AsyncExitStack
 from typing import Optional
 
-from app.core.database_context import DBClient
-from app.core.logging import setup_logger
+from app.core.container import create_dlq_processor_container
+from app.core.database_context import Database
+from app.db.docs import ALL_DOCUMENTS
 from app.dlq import DLQMessage, RetryPolicy, RetryStrategy
-from app.dlq.manager import DLQManager, create_dlq_manager
-from app.domain.enums.kafka import KafkaTopic
-from app.events.schema.schema_registry import create_schema_registry_manager
-from app.settings import get_settings
-from pymongo.asynchronous.mongo_client import AsyncMongoClient
-
-logger = setup_logger(os.environ.get("LOG_LEVEL", "INFO"))
+from app.dlq.manager import DLQManager
+from app.settings import Settings, get_settings
+from beanie import init_beanie
 
 
-def _configure_retry_policies(manager: DLQManager) -> None:
+def _configure_retry_policies(manager: DLQManager, logger: logging.Logger) -> None:
     manager.set_retry_policy(
         "execution-requests",
         RetryPolicy(
@@ -58,7 +56,7 @@ def _configure_retry_policies(manager: DLQManager) -> None:
     )
 
 
-def _configure_filters(manager: DLQManager, testing: bool) -> None:
+def _configure_filters(manager: DLQManager, testing: bool, logger: logging.Logger) -> None:
     if not testing:
 
         def filter_test_events(message: DLQMessage) -> bool:
@@ -74,7 +72,7 @@ def _configure_filters(manager: DLQManager, testing: bool) -> None:
     manager.add_filter(filter_old_messages)
 
 
-def _configure_callbacks(manager: DLQManager, testing: bool) -> None:
+def _configure_callbacks(manager: DLQManager, testing: bool, logger: logging.Logger) -> None:
     async def log_before_retry(message: DLQMessage) -> None:
         logger.info(
             f"Retrying message {message.event_id} (type: {message.event_type}, "
@@ -102,44 +100,36 @@ def _configure_callbacks(manager: DLQManager, testing: bool) -> None:
     manager.add_callback("on_discard", alert_on_discard)
 
 
-async def main() -> None:
-    settings = get_settings()
-    db_client: DBClient = AsyncMongoClient(
-        settings.MONGODB_URL,
-        tz_aware=True,
-        serverSelectionTimeoutMS=5000,
-    )
-    db_name = settings.DATABASE_NAME
-    _ = db_client[db_name]  # Access database to verify connection
-    await db_client.admin.command("ping")
-    logger.info(f"Connected to database: {db_name}")
+async def main(settings: Settings | None = None) -> None:
+    """Run the DLQ processor."""
+    if settings is None:
+        settings = get_settings()
 
-    schema_registry = create_schema_registry_manager(logger)
-    manager = create_dlq_manager(
-        schema_registry=schema_registry,
-        logger=logger,
-        dlq_topic=KafkaTopic.DEAD_LETTER_QUEUE,
-        retry_topic_suffix="-retry",
-    )
+    container = create_dlq_processor_container(settings)
+    logger = await container.get(logging.Logger)
+    logger.info("Starting DLQ Processor with DI container...")
 
-    _configure_retry_policies(manager)
-    _configure_filters(manager, testing=settings.TESTING)
-    _configure_callbacks(manager, testing=settings.TESTING)
+    db = await container.get(Database)
+    await init_beanie(database=db, document_models=ALL_DOCUMENTS)
+
+    manager = await container.get(DLQManager)
+
+    _configure_retry_policies(manager, logger)
+    _configure_filters(manager, testing=settings.TESTING, logger=logger)
+    _configure_callbacks(manager, testing=settings.TESTING, logger=logger)
 
     stop_event = asyncio.Event()
+    loop = asyncio.get_running_loop()
 
-    def signal_handler(signum: int, frame: object | None) -> None:
-        logger.info(f"Received signal {signum}, initiating shutdown...")
+    def signal_handler() -> None:
+        logger.info("Received signal, initiating shutdown...")
         stop_event.set()
 
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-
-    from contextlib import AsyncExitStack
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, signal_handler)
 
     async with AsyncExitStack() as stack:
-        await stack.enter_async_context(manager)
-        stack.callback(db_client.close)
+        stack.push_async_callback(container.close)
         await stop_event.wait()
 
 

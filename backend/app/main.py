@@ -38,11 +38,18 @@ from app.core.middlewares import (
     RequestSizeLimitMiddleware,
     setup_metrics,
 )
-from app.settings import get_settings
+from app.settings import Settings, get_settings
 
 
-def create_app() -> FastAPI:
-    settings = get_settings()
+def create_app(settings: Settings | None = None) -> FastAPI:
+    """
+    Create the FastAPI application.
+
+    Args:
+        settings: Optional pre-configured settings (e.g., TestSettings for testing).
+                 If None, uses get_settings() which reads from .env.
+    """
+    settings = settings or get_settings()
     logger = setup_logger(settings.LOG_LEVEL)
     # Disable OpenAPI/Docs in production for security; health endpoints provide readiness
     app = FastAPI(
@@ -53,7 +60,7 @@ def create_app() -> FastAPI:
         redoc_url=None,
     )
 
-    container = create_app_container()
+    container = create_app_container(settings)
     setup_dishka(container, app)
 
     setup_metrics(app, logger)

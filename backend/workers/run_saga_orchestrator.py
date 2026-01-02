@@ -1,134 +1,66 @@
 import asyncio
 import logging
+import signal
 
-import redis.asyncio as redis
-from app.core.database_context import DBClient
+from app.core.container import create_saga_orchestrator_container
+from app.core.database_context import Database
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
-from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
-from app.db.repositories.saga_repository import SagaRepository
 from app.domain.enums.kafka import GroupId
-from app.domain.saga.models import SagaConfig
-from app.events.core import ProducerConfig, UnifiedProducer
-from app.events.event_store import create_event_store
-from app.events.schema.schema_registry import SchemaRegistryManager
-from app.services.idempotency import IdempotencyConfig, create_idempotency_manager
-from app.services.idempotency.redis_repository import RedisIdempotencyRepository
-from app.services.saga import create_saga_orchestrator
-from app.settings import get_settings
+from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
+from app.services.saga import SagaOrchestrator
+from app.settings import Settings, get_settings
 from beanie import init_beanie
-from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 
-async def run_saga_orchestrator() -> None:
-    """Run the saga orchestrator"""
-    # Get settings
-    settings = get_settings()
-    logger = logging.getLogger(__name__)
+async def run_saga_orchestrator(settings: Settings | None = None) -> None:
+    """Run the saga orchestrator."""
+    if settings is None:
+        settings = get_settings()
 
-    # Create database connection
-    db_client: DBClient = AsyncMongoClient(settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000)
-    db_name = settings.DATABASE_NAME
-    database = db_client[db_name]
+    container = create_saga_orchestrator_container(settings)
+    logger = await container.get(logging.Logger)
+    logger.info("Starting SagaOrchestrator with DI container...")
 
-    # Verify connection
-    await db_client.admin.command("ping")
-    logger.info(f"Connected to database: {db_name}")
+    db = await container.get(Database)
+    await init_beanie(database=db, document_models=ALL_DOCUMENTS)
 
-    # Initialize Beanie ODM (indexes are idempotently created via Document.Settings.indexes)
-    await init_beanie(database=database, document_models=ALL_DOCUMENTS)
+    schema_registry = await container.get(SchemaRegistryManager)
+    await initialize_event_schemas(schema_registry)
 
-    # Initialize schema registry
-    logger.info("Initializing schema registry...")
-    schema_registry_manager = SchemaRegistryManager(logger)
-    await schema_registry_manager.initialize_schemas()
+    # Services are already started by the DI container providers
+    orchestrator = await container.get(SagaOrchestrator)
 
-    # Initialize Kafka producer
-    logger.info("Initializing Kafka producer...")
-    producer_config = ProducerConfig(bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS)
-    producer = UnifiedProducer(producer_config, schema_registry_manager, logger)
-    await producer.start()
-
-    # Create event store (schema ensured separately)
-    logger.info("Creating event store...")
-    event_store = create_event_store(schema_registry=schema_registry_manager, logger=logger, ttl_days=90)
-
-    # Create repository and idempotency manager (Redis-backed)
-    saga_repository = SagaRepository()
-    r = redis.Redis(
-        host=settings.REDIS_HOST,
-        port=settings.REDIS_PORT,
-        db=settings.REDIS_DB,
-        password=settings.REDIS_PASSWORD,
-        ssl=settings.REDIS_SSL,
-        max_connections=settings.REDIS_MAX_CONNECTIONS,
-        decode_responses=settings.REDIS_DECODE_RESPONSES,
-        socket_connect_timeout=5,
-        socket_timeout=5,
-    )
-    idem_repo = RedisIdempotencyRepository(r, key_prefix="idempotency")
-    idempotency_manager = create_idempotency_manager(repository=idem_repo, config=IdempotencyConfig(), logger=logger)
-    resource_allocation_repository = ResourceAllocationRepository()
-
-    # Create saga orchestrator
-    saga_config = SagaConfig(
-        name="main-orchestrator",
-        timeout_seconds=300,
-        max_retries=3,
-        retry_delay_seconds=5,
-        enable_compensation=True,
-        store_events=True,
-        publish_commands=True,
-    )
-
-    saga_orchestrator = create_saga_orchestrator(
-        saga_repository=saga_repository,
-        producer=producer,
-        event_store=event_store,
-        idempotency_manager=idempotency_manager,
-        resource_allocation_repository=resource_allocation_repository,
-        config=saga_config,
-    )
-
-    # Start the orchestrator
-    await saga_orchestrator.start()
+    # Shutdown event - signal handlers just set this
+    shutdown_event = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, shutdown_event.set)
 
     logger.info("Saga orchestrator started and running")
 
     try:
-        while True:
-            await asyncio.sleep(60)
-
-            if saga_orchestrator.is_running:
-                logger.info("Saga orchestrator is running...")
-            else:
-                logger.warning("Saga orchestrator stopped unexpectedly")
-                break
-
+        # Wait for shutdown signal or service to stop
+        while orchestrator.is_running and not shutdown_event.is_set():
+            await asyncio.sleep(1)
     finally:
-        logger.info("Shutting down saga orchestrator...")
-        await saga_orchestrator.stop()
-        await producer.stop()
-        await idempotency_manager.close()
-        await r.aclose()
-        await db_client.close()
-        logger.info("Saga orchestrator shutdown complete")
+        # Container cleanup stops everything
+        logger.info("Initiating graceful shutdown...")
+        await container.close()
+
+    logger.warning("Saga orchestrator stopped")
 
 
 def main() -> None:
     """Main entry point for saga orchestrator worker"""
     settings = get_settings()
 
-    # Setup logging
     logger = setup_logger(settings.LOG_LEVEL)
-
-    # Configure root logger for worker
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     logger.info("Starting Saga Orchestrator worker...")
 
-    # Initialize tracing
     if settings.ENABLE_TRACING:
         init_tracing(
             service_name=GroupId.SAGA_ORCHESTRATOR,
@@ -139,7 +71,7 @@ def main() -> None:
         )
         logger.info("Tracing initialized for Saga Orchestrator Service")
 
-    asyncio.run(run_saga_orchestrator())
+    asyncio.run(run_saga_orchestrator(settings))
 
 
 if __name__ == "__main__":

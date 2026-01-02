@@ -1,31 +1,21 @@
 import asyncio
 import logging
-import signal
 import time
 from collections.abc import Coroutine
 from typing import Any, TypeAlias
 from uuid import uuid4
 
-import redis.asyncio as redis
-from beanie import init_beanie
-from pymongo.asynchronous.mongo_client import AsyncMongoClient
-
-from app.core.database_context import DBClient
 from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics.context import get_coordinator_metrics
-from app.db.docs import ALL_DOCUMENTS
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.domain.enums.storage import ExecutionErrorType
-from app.events.core import ConsumerConfig, EventDispatcher, ProducerConfig, UnifiedConsumer, UnifiedProducer
-from app.events.event_store import EventStore, create_event_store
+from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
+from app.events.event_store import EventStore
 from app.events.schema.schema_registry import (
     SchemaRegistryManager,
-    create_schema_registry_manager,
-    initialize_event_schemas,
 )
-from app.infrastructure.kafka.events.base import BaseEvent
 from app.infrastructure.kafka.events.execution import (
     ExecutionAcceptedEvent,
     ExecutionCancelledEvent,
@@ -38,10 +28,8 @@ from app.infrastructure.kafka.events.saga import CreatePodCommandEvent
 from app.services.coordinator.queue_manager import QueueManager, QueuePriority
 from app.services.coordinator.resource_manager import ResourceAllocation, ResourceManager
 from app.services.idempotency import IdempotencyManager
-from app.services.idempotency.idempotency_manager import IdempotencyConfig, create_idempotency_manager
 from app.services.idempotency.middleware import IdempotentConsumerWrapper
-from app.services.idempotency.redis_repository import RedisIdempotencyRepository
-from app.settings import get_settings
+from app.settings import Settings
 
 EventHandler: TypeAlias = Coroutine[Any, Any, None]
 ExecutionMap: TypeAlias = dict[str, ResourceAllocation]
@@ -63,6 +51,7 @@ class ExecutionCoordinator(LifecycleEnabled):
         self,
         producer: UnifiedProducer,
         schema_registry_manager: SchemaRegistryManager,
+        settings: Settings,
         event_store: EventStore,
         execution_repository: ExecutionRepository,
         idempotency_manager: IdempotencyManager,
@@ -71,12 +60,13 @@ class ExecutionCoordinator(LifecycleEnabled):
         max_concurrent_scheduling: int = 10,
         scheduling_interval_seconds: float = 0.5,
     ):
+        super().__init__()
         self.logger = logger
         self.metrics = get_coordinator_metrics()
-        settings = get_settings()
+        self._settings = settings
 
         # Kafka configuration
-        self.kafka_servers = settings.KAFKA_BOOTSTRAP_SERVERS
+        self.kafka_servers = self._settings.KAFKA_BOOTSTRAP_SERVERS
         self.consumer_group = consumer_group
 
         # Components
@@ -104,29 +94,23 @@ class ExecutionCoordinator(LifecycleEnabled):
         self._scheduling_semaphore = asyncio.Semaphore(max_concurrent_scheduling)
 
         # State tracking
-        self._running = False
         self._scheduling_task: asyncio.Task[None] | None = None
         self._active_executions: set[str] = set()
         self._execution_resources: ExecutionMap = {}
         self._schema_registry_manager = schema_registry_manager
         self.dispatcher = EventDispatcher(logger=self.logger)
 
-    async def start(self) -> None:
-        """Start the coordinator service"""
-        if self._running:
-            self.logger.warning("ExecutionCoordinator already running")
-            return
-
+    async def _on_start(self) -> None:
+        """Start the coordinator service."""
         self.logger.info("Starting ExecutionCoordinator service...")
 
         await self.queue_manager.start()
 
         await self.idempotency_manager.initialize()
 
-        settings = get_settings()
         consumer_config = ConsumerConfig(
             bootstrap_servers=self.kafka_servers,
-            group_id=f"{self.consumer_group}.{settings.KAFKA_GROUP_SUFFIX}",
+            group_id=f"{self.consumer_group}.{self._settings.KAFKA_GROUP_SUFFIX}",
             enable_auto_commit=False,
             session_timeout_ms=30000,  # 30 seconds
             heartbeat_interval_ms=10000,  # 10 seconds (must be < session_timeout / 3)
@@ -136,24 +120,30 @@ class ExecutionCoordinator(LifecycleEnabled):
             fetch_min_bytes=1,  # Return immediately if any data available
         )
 
-        self.consumer = UnifiedConsumer(consumer_config, event_dispatcher=self.dispatcher, logger=self.logger)
+        self.consumer = UnifiedConsumer(
+            consumer_config,
+            event_dispatcher=self.dispatcher,
+            schema_registry=self._schema_registry_manager,
+            settings=self._settings,
+            logger=self.logger,
+        )
 
         # Register handlers with EventDispatcher BEFORE wrapping with idempotency
         @self.dispatcher.register(EventType.EXECUTION_REQUESTED)
-        async def handle_requested(event: BaseEvent) -> None:
+        async def handle_requested(event: ExecutionRequestedEvent) -> None:
             await self._route_execution_event(event)
 
         @self.dispatcher.register(EventType.EXECUTION_COMPLETED)
-        async def handle_completed(event: BaseEvent) -> None:
+        async def handle_completed(event: ExecutionCompletedEvent) -> None:
             await self._route_execution_result(event)
 
         @self.dispatcher.register(EventType.EXECUTION_FAILED)
-        async def handle_failed(event: BaseEvent) -> None:
+        async def handle_failed(event: ExecutionFailedEvent) -> None:
             await self._route_execution_result(event)
 
         @self.dispatcher.register(EventType.EXECUTION_CANCELLED)
-        async def handle_cancelled(event: BaseEvent) -> None:
-            await self._route_execution_result(event)
+        async def handle_cancelled(event: ExecutionCancelledEvent) -> None:
+            await self._route_execution_event(event)
 
         self.idempotent_consumer = IdempotentConsumerWrapper(
             consumer=self.consumer,
@@ -170,18 +160,13 @@ class ExecutionCoordinator(LifecycleEnabled):
         await self.idempotent_consumer.start([KafkaTopic.EXECUTION_EVENTS])
 
         # Start scheduling task
-        self._running = True
         self._scheduling_task = asyncio.create_task(self._scheduling_loop())
 
         self.logger.info("ExecutionCoordinator service started successfully")
 
-    async def stop(self) -> None:
-        """Stop the coordinator service"""
-        if not self._running:
-            return
-
+    async def _on_stop(self) -> None:
+        """Stop the coordinator service."""
         self.logger.info("Stopping ExecutionCoordinator service...")
-        self._running = False
 
         # Stop scheduling task
         if self._scheduling_task:
@@ -203,7 +188,7 @@ class ExecutionCoordinator(LifecycleEnabled):
 
         self.logger.info(f"ExecutionCoordinator service stopped. Active executions: {len(self._active_executions)}")
 
-    async def _route_execution_event(self, event: BaseEvent) -> None:
+    async def _route_execution_event(self, event: ExecutionRequestedEvent | ExecutionCancelledEvent) -> None:
         """Route execution events to appropriate handlers based on event type"""
         self.logger.info(
             f"COORDINATOR: Routing execution event - type: {event.event_type}, "
@@ -212,18 +197,18 @@ class ExecutionCoordinator(LifecycleEnabled):
         )
 
         if event.event_type == EventType.EXECUTION_REQUESTED:
-            await self._handle_execution_requested(event)  # type: ignore
+            await self._handle_execution_requested(event)
         elif event.event_type == EventType.EXECUTION_CANCELLED:
-            await self._handle_execution_cancelled(event)  # type: ignore
+            await self._handle_execution_cancelled(event)
         else:
             self.logger.debug(f"Ignoring execution event type: {event.event_type}")
 
-    async def _route_execution_result(self, event: BaseEvent) -> None:
+    async def _route_execution_result(self, event: ExecutionCompletedEvent | ExecutionFailedEvent) -> None:
         """Route execution result events to appropriate handlers based on event type"""
         if event.event_type == EventType.EXECUTION_COMPLETED:
-            await self._handle_execution_completed(event)  # type: ignore
+            await self._handle_execution_completed(event)
         elif event.event_type == EventType.EXECUTION_FAILED:
-            await self._handle_execution_failed(event)  # type: ignore
+            await self._handle_execution_failed(event)
         else:
             self.logger.debug(f"Ignoring execution result event type: {event.event_type}")
 
@@ -306,7 +291,7 @@ class ExecutionCoordinator(LifecycleEnabled):
 
     async def _scheduling_loop(self) -> None:
         """Main scheduling loop"""
-        while self._running:
+        while self.is_running:
             try:
                 # Get next execution from queue
                 execution = await self.queue_manager.get_next_execution()
@@ -488,86 +473,8 @@ class ExecutionCoordinator(LifecycleEnabled):
     async def get_status(self) -> dict[str, Any]:
         """Get coordinator status"""
         return {
-            "running": self._running,
+            "running": self.is_running,
             "active_executions": len(self._active_executions),
             "queue_stats": await self.queue_manager.get_queue_stats(),
             "resource_stats": await self.resource_manager.get_resource_stats(),
         }
-
-
-async def run_coordinator() -> None:
-    """Run the execution coordinator service"""
-    import os
-    from contextlib import AsyncExitStack
-
-    from app.core.logging import setup_logger
-
-    logger = setup_logger(os.environ.get("LOG_LEVEL", "INFO"))
-    logger.info("Initializing schema registry for coordinator...")
-    schema_registry_manager = create_schema_registry_manager(logger)
-    await initialize_event_schemas(schema_registry_manager)
-
-    settings = get_settings()
-    config = ProducerConfig(bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS)
-    producer = UnifiedProducer(config, schema_registry_manager, logger)
-
-    db_client: DBClient = AsyncMongoClient(settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000)
-    db_name = settings.DATABASE_NAME
-    database = db_client[db_name]
-
-    # Initialize Beanie ODM (indexes are idempotently created via Document.Settings.indexes)
-    await init_beanie(database=database, document_models=ALL_DOCUMENTS)
-
-    logger.info("Creating event store for coordinator...")
-    event_store = create_event_store(schema_registry_manager, logger, ttl_days=90)
-
-    exec_repo = ExecutionRepository(logger)
-    r = redis.Redis(
-        host=settings.REDIS_HOST,
-        port=settings.REDIS_PORT,
-        db=settings.REDIS_DB,
-        password=settings.REDIS_PASSWORD,
-        ssl=settings.REDIS_SSL,
-        max_connections=settings.REDIS_MAX_CONNECTIONS,
-        decode_responses=settings.REDIS_DECODE_RESPONSES,
-        socket_connect_timeout=5,
-        socket_timeout=5,
-    )
-    idem_repo = RedisIdempotencyRepository(r, key_prefix="idempotency")
-    idem_manager = create_idempotency_manager(repository=idem_repo, config=IdempotencyConfig(), logger=logger)
-    await idem_manager.initialize()
-
-    coordinator = ExecutionCoordinator(
-        producer=producer,
-        schema_registry_manager=schema_registry_manager,
-        event_store=event_store,
-        execution_repository=exec_repo,
-        idempotency_manager=idem_manager,
-        logger=logger,
-    )
-
-    def signal_handler(sig: int, frame: Any) -> None:
-        logger.info(f"Received signal {sig}, initiating shutdown...")
-        asyncio.create_task(coordinator.stop())
-
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-
-    async with AsyncExitStack() as stack:
-        await stack.enter_async_context(producer)
-        await stack.enter_async_context(coordinator)
-        stack.push_async_callback(idem_manager.close)
-        stack.push_async_callback(r.aclose)
-        stack.callback(db_client.close)
-
-        while coordinator._running:
-            await asyncio.sleep(60)
-            status = await coordinator.get_status()
-            logger.info(f"Coordinator status: {status}")
-
-
-if __name__ == "__main__":
-    # Run coordinator as standalone service
-
-    settings = get_settings()
-    asyncio.run(run_coordinator())

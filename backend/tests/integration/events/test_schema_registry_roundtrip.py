@@ -2,6 +2,7 @@ import logging
 
 import pytest
 from app.events.schema.schema_registry import MAGIC_BYTE, SchemaRegistryManager
+from app.settings import Settings
 
 from tests.helpers import make_execution_requested_event
 
@@ -24,7 +25,7 @@ async def test_schema_registry_serialize_deserialize_roundtrip(scope):  # type: 
     await reg.initialize_schemas()
 
 
-def test_schema_registry_deserialize_invalid_header():
-    reg = SchemaRegistryManager(logger=_test_logger)
+def test_schema_registry_deserialize_invalid_header(test_settings: Settings) -> None:
+    reg = SchemaRegistryManager(settings=test_settings, logger=_test_logger)
     with pytest.raises(ValueError):
         reg.deserialize_event(b"\x01\x00\x00\x00\x01", topic="t")  # wrong magic byte

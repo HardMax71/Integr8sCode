@@ -119,9 +119,7 @@ class UserSettingsService:
             await self.repository.create_snapshot(new_settings)
         return new_settings
 
-    async def _publish_settings_event(
-        self, user_id: str, changes: dict[str, Any], reason: str | None
-    ) -> None:
+    async def _publish_settings_event(self, user_id: str, changes: dict[str, Any], reason: str | None) -> None:
         """Publish settings update event with typed payload fields."""
         await self.event_service.publish_event(
             event_type=EventType.USER_SETTINGS_UPDATED,

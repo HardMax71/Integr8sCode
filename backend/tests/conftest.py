@@ -1,205 +1,136 @@
-import asyncio
 import os
 import uuid
 from contextlib import asynccontextmanager
-from pathlib import Path
-from typing import AsyncGenerator, Callable, Awaitable
+from typing import AsyncGenerator
 
 import httpx
 import pytest
 import pytest_asyncio
-from dishka import AsyncContainer
-from dotenv import load_dotenv
-from httpx import ASGITransport
-from app.core.database_context import Database
 import redis.asyncio as redis
+from app.core.database_context import Database
+from app.main import create_app
+from app.settings import Settings
+from dishka import AsyncContainer
+from httpx import ASGITransport
+from pydantic_settings import SettingsConfigDict
 
-# Load test environment variables BEFORE any app imports
-test_env_path = Path(__file__).parent.parent / ".env.test"
-if test_env_path.exists():
-    load_dotenv(test_env_path, override=True)
 
-# IMPORTANT: avoid importing app.main at module import time because it
-# constructs the FastAPI app immediately (reading settings from .env).
-# We import lazily inside the fixture after test env vars are set.y
-# DO NOT import any app.* modules at import time here, as it would
-# construct global singletons (logger, settings) before we set test env.
+class TestSettings(Settings):
+    """Test configuration - loads from .env.test instead of .env"""
 
-# ===== Early, host-friendly defaults (applied at import time) =====
-# Ensure tests connect to localhost services when run outside Docker.
-os.environ.setdefault("TESTING", "true")
-os.environ.setdefault("ENABLE_TRACING", "false")
-os.environ.setdefault("OTEL_SDK_DISABLED", "true")
-os.environ.setdefault("OTEL_METRICS_EXPORTER", "none")
-os.environ.setdefault("OTEL_TRACES_EXPORTER", "none")
-
-# Force localhost endpoints to avoid Docker DNS names like 'mongo'
-# Do not override if MONGODB_URL is already provided in the environment.
-if "MONGODB_URL" not in os.environ:
-    from urllib.parse import quote_plus
-
-    user = os.environ.get("MONGO_ROOT_USER", "root")
-    pwd = os.environ.get("MONGO_ROOT_PASSWORD", "rootpassword")
-    host = os.environ.get("MONGODB_HOST", "127.0.0.1")
-    port = os.environ.get("MONGODB_PORT", "27017")
-    try:
-        u = quote_plus(user)
-        p = quote_plus(pwd)
-    except Exception:
-        u = user
-        p = pwd
-    os.environ["MONGODB_URL"] = (
-        f"mongodb://{u}:{p}@{host}:{port}/?authSource=admin&authMechanism=SCRAM-SHA-256"
+    model_config = SettingsConfigDict(
+        env_file=".env.test",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="ignore",
     )
-os.environ.setdefault("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
-os.environ.setdefault("REDIS_HOST", "localhost")
-os.environ.setdefault("REDIS_PORT", "6379")
-os.environ.setdefault("SCHEMA_REGISTRY_URL", "http://localhost:8081")
-os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
-os.environ.setdefault("SECRET_KEY", "test-secret-key-for-testing-only-32chars!!")
 
 
-# ===== Global test environment (reinforce and isolation) =====
+# ===== Worker-specific isolation for pytest-xdist =====
 def _compute_worker_id() -> str:
     return os.environ.get("PYTEST_XDIST_WORKER", "gw0")
 
 
-@pytest.fixture(scope="session", autouse=True)
-def _test_env() -> None:
-    # Core toggles
-    os.environ.setdefault("TESTING", "true")
-    os.environ.setdefault("ENABLE_TRACING", "false")
-    os.environ.setdefault("OTEL_SDK_DISABLED", "true")
-    os.environ.setdefault("OTEL_METRICS_EXPORTER", "none")
-    os.environ.setdefault("OTEL_TRACES_EXPORTER", "none")
+def _setup_worker_env() -> None:
+    """Set worker-specific environment variables for pytest-xdist isolation.
 
-    # External services - force localhost when running tests on host
-    os.environ["MONGODB_URL"] = os.environ.get(
-        "MONGODB_URL",
-        "mongodb://root:rootpassword@localhost:27017/?authSource=admin",
-    )
-    os.environ.setdefault("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
-    os.environ.setdefault("REDIS_HOST", "localhost")
-    os.environ.setdefault("REDIS_PORT", "6379")
-    os.environ.setdefault("SCHEMA_REGISTRY_URL", "http://localhost:8081")
-    os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
-    os.environ.setdefault("SECRET_KEY", "test-secret-key-for-testing-only-32chars!!")
-
-    # Isolation identifiers
+    Must be called BEFORE TestSettings is instantiated so env vars are picked up.
+    """
     session_id = os.environ.get("PYTEST_SESSION_ID") or uuid.uuid4().hex[:8]
     worker_id = _compute_worker_id()
     os.environ["PYTEST_SESSION_ID"] = session_id
 
-    # Unique database name for test isolation
+    # Unique database name per worker
     os.environ["DATABASE_NAME"] = f"integr8scode_test_{session_id}_{worker_id}"
 
-    # Try to distribute Redis DBs across workers (0-15 by default). Fallback to 0.
+    # Distribute Redis DBs across workers (0-15)
     try:
         worker_num = int(worker_id[2:]) if worker_id.startswith("gw") else 0
         os.environ["REDIS_DB"] = str(worker_num % 16)
     except Exception:
         os.environ.setdefault("REDIS_DB", "0")
 
-    # Use a single shared test topic prefix for all tests
-    # This avoids creating unique topics per worker/session
-    os.environ.setdefault("KAFKA_TOPIC_PREFIX", "test.")
+    # Unique Kafka consumer group per worker
+    os.environ["KAFKA_GROUP_SUFFIX"] = f"{session_id}.{worker_id}"
 
-    # Schema Registry subject prefix for isolation across local runs/workers
-    # Example: test.<session>.<worker>.
-    os.environ.setdefault("SCHEMA_SUBJECT_PREFIX", f"test.{session_id}.{worker_id}.")
+    # Unique Schema Registry prefix per worker
+    os.environ["SCHEMA_SUBJECT_PREFIX"] = f"test.{session_id}.{worker_id}."
 
-    # Keep unique consumer groups per worker to avoid conflicts
-    # Code under test reads this suffix and appends it to base group IDs.
-    os.environ.setdefault("KAFKA_GROUP_SUFFIX", f"{session_id}.{worker_id}")
-
-
-# ===== App creation for tests =====
-def create_test_app():
-    """Create the FastAPI app for testing."""
-    # Clear settings cache to ensure .env.test values are used
-    from app.settings import get_settings
-    get_settings.cache_clear()
-
-    from importlib import import_module
-    mainmod = import_module("app.main")
-    return getattr(mainmod, "create_app")()
+    # Disable OpenTelemetry exporters to prevent "otel-collector:4317" retry noise
+    os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = ""
+    os.environ["OTEL_METRICS_EXPORTER"] = "none"
+    os.environ["OTEL_TRACES_EXPORTER"] = "none"
+    os.environ["OTEL_LOGS_EXPORTER"] = "none"
 
 
-# ===== App without lifespan for tests =====
+# Set up worker env at module load time (before any Settings instantiation)
+_setup_worker_env()
+
+
+# ===== Settings fixture =====
+@pytest.fixture(scope="session")
+def test_settings() -> Settings:
+    """Provide TestSettings for tests that need to create their own components."""
+    return TestSettings()
+
+
+# ===== App fixture =====
 @pytest_asyncio.fixture(scope="session")
-async def app(_test_env):  # type: ignore[valid-type]
-    """Create FastAPI app once per session/worker.
+async def app():
+    """Create FastAPI app with TestSettings.
 
     Session-scoped to avoid Pydantic schema validator memory issues when
     FastAPI recreates OpenAPI schemas hundreds of times with pytest-xdist.
-    See: https://github.com/pydantic/pydantic/issues/1864
-
-    Depends on _test_env to ensure env vars (REDIS_DB, DATABASE_NAME, etc.)
-    are set before the app/Settings are created.
-
-    Note: Tests must not modify app.state or registered routes.
-    Use function-scoped `client` fixture for test isolation.
     """
-    application = create_test_app()
+    application = create_app(settings=TestSettings())
 
     yield application
 
-    if hasattr(application.state, 'dishka_container'):
-        container: AsyncContainer = application.state.dishka_container
-        await container.close()
+    if hasattr(application.state, "dishka_container"):
+        await application.state.dishka_container.close()
 
 
 @pytest_asyncio.fixture(scope="session")
-async def app_container(app):  # type: ignore[valid-type]
+async def app_container(app):
     """Expose the Dishka container attached to the app."""
-    container: AsyncContainer = app.state.dishka_container  # type: ignore[attr-defined]
+    container: AsyncContainer = app.state.dishka_container
     return container
 
 
-# ===== Client (function-scoped for clean cookies per test) =====
 @pytest_asyncio.fixture
-async def client(app) -> AsyncGenerator[httpx.AsyncClient, None]:  # type: ignore[valid-type]
-    # Use httpx with ASGI app directly
-    # The app fixture already handles lifespan via LifespanManager
-    # Use HTTPS scheme so 'Secure' cookies set by the app (access_token, csrf_token)
-    # are accepted and sent by the client during tests.
+async def client(app) -> AsyncGenerator[httpx.AsyncClient, None]:
+    """HTTP client for testing API endpoints."""
     async with httpx.AsyncClient(
-            transport=ASGITransport(app=app),
-            base_url="https://test",
-            timeout=30.0,
-            follow_redirects=True
+        transport=ASGITransport(app=app),
+        base_url="https://test",
+        timeout=30.0,
+        follow_redirects=True,
     ) as c:
         yield c
 
 
-# ===== Request-scope accessor =====
 @asynccontextmanager
 async def _container_scope(container: AsyncContainer):
-    async with container() as scope:  # type: ignore[misc]
+    async with container() as scope:
         yield scope
 
 
 @pytest_asyncio.fixture
-async def scope(app_container: AsyncContainer):  # type: ignore[valid-type]
+async def scope(app_container: AsyncContainer):
     async with _container_scope(app_container) as s:
         yield s
 
 
 @pytest_asyncio.fixture
-async def db(scope) -> AsyncGenerator[Database, None]:  # type: ignore[valid-type]
+async def db(scope) -> AsyncGenerator[Database, None]:
     database: Database = await scope.get(Database)
     yield database
 
 
 @pytest_asyncio.fixture
-async def redis_client(scope) -> AsyncGenerator[redis.Redis, None]:  # type: ignore[valid-type]
+async def redis_client(scope) -> AsyncGenerator[redis.Redis, None]:
     client: redis.Redis = await scope.get(redis.Redis)
     yield client
-
-
-# ===== Per-test cleanup (only for integration tests, see integration/conftest.py) =====
-# Note: autouse cleanup moved to tests/integration/conftest.py to avoid
-# requiring DB/Redis for unit tests. Unit tests use tests/unit/conftest.py instead.
 
 
 # ===== HTTP helpers (auth) =====
@@ -210,10 +141,9 @@ async def _http_login(client: httpx.AsyncClient, username: str, password: str) -
     return resp.json().get("csrf_token", "")
 
 
-# Session-scoped shared users for convenience
-@pytest.fixture(scope="session")
+@pytest.fixture
 def test_user_credentials():
-    uid = os.environ.get("PYTEST_SESSION_ID", uuid.uuid4().hex[:8])
+    uid = uuid.uuid4().hex[:8]
     return {
         "username": f"test_user_{uid}",
         "email": f"test_user_{uid}@example.com",
@@ -222,9 +152,9 @@ def test_user_credentials():
     }
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def test_admin_credentials():
-    uid = os.environ.get("PYTEST_SESSION_ID", uuid.uuid4().hex[:8])
+    uid = uuid.uuid4().hex[:8]
     return {
         "username": f"admin_user_{uid}",
         "email": f"admin_user_{uid}@example.com",
@@ -235,22 +165,22 @@ def test_admin_credentials():
 
 @pytest_asyncio.fixture
 async def test_user(client: httpx.AsyncClient, test_user_credentials):
-    """Function-scoped authenticated user. Recreated each test (DB wiped between tests)."""
+    """Function-scoped authenticated user."""
     creds = test_user_credentials
     r = await client.post("/api/v1/auth/register", json=creds)
     if r.status_code not in (200, 201, 400):
-        pytest.skip(f"Cannot create test user (status {r.status_code}).")
+        pytest.fail(f"Cannot create test user (status {r.status_code}): {r.text}")
     csrf = await _http_login(client, creds["username"], creds["password"])
     return {**creds, "csrf_token": csrf, "headers": {"X-CSRF-Token": csrf}}
 
 
 @pytest_asyncio.fixture
 async def test_admin(client: httpx.AsyncClient, test_admin_credentials):
-    """Function-scoped authenticated admin. Recreated each test (DB wiped between tests)."""
+    """Function-scoped authenticated admin."""
     creds = test_admin_credentials
     r = await client.post("/api/v1/auth/register", json=creds)
     if r.status_code not in (200, 201, 400):
-        pytest.skip(f"Cannot create test admin (status {r.status_code}).")
+        pytest.fail(f"Cannot create test admin (status {r.status_code}): {r.text}")
     csrf = await _http_login(client, creds["username"], creds["password"])
     return {**creds, "csrf_token": csrf, "headers": {"X-CSRF-Token": csrf}}
 
@@ -260,12 +190,20 @@ async def another_user(client: httpx.AsyncClient):
     username = f"test_user_{uuid.uuid4().hex[:8]}"
     email = f"{username}@example.com"
     password = "TestPass123!"
-    await client.post("/api/v1/auth/register", json={
+    await client.post(
+        "/api/v1/auth/register",
+        json={
+            "username": username,
+            "email": email,
+            "password": password,
+            "role": "user",
+        },
+    )
+    csrf = await _http_login(client, username, password)
+    return {
         "username": username,
         "email": email,
         "password": password,
-        "role": "user",
-    })
-    csrf = await _http_login(client, username, password)
-    return {"username": username, "email": email, "password": password, "csrf_token": csrf,
-            "headers": {"X-CSRF-Token": csrf}}
+        "csrf_token": csrf,
+        "headers": {"X-CSRF-Token": csrf},
+    }

@@ -1,9 +1,9 @@
+"""E2E tests conftest - with infrastructure cleanup."""
 import pytest_asyncio
 import redis.asyncio as redis
-from beanie import init_beanie
 
 from app.core.database_context import Database
-from app.db.docs import ALL_DOCUMENTS
+from tests.helpers.cleanup import cleanup_db_and_redis
 
 
 @pytest_asyncio.fixture(autouse=True)
@@ -12,20 +12,7 @@ async def _cleanup(db: Database, redis_client: redis.Redis):
 
     Only pre-test cleanup - post-test cleanup causes event loop issues
     when SSE/streaming tests hold connections across loop boundaries.
-
-    NOTE: With pytest-xdist, each worker uses a separate Redis database
-    (gw0→db0, gw1→db1, etc.), so flushdb() is safe and only affects
-    that worker's database. See tests/conftest.py for REDIS_DB setup.
     """
-    collections = await db.list_collection_names()
-    for name in collections:
-        if not name.startswith("system."):
-            await db.drop_collection(name)
-
-    await redis_client.flushdb()
-
-    # Initialize Beanie with document models
-    await init_beanie(database=db, document_models=ALL_DOCUMENTS)
-
+    await cleanup_db_and_redis(db, redis_client)
     yield
     # No post-test cleanup to avoid "Event loop is closed" errors

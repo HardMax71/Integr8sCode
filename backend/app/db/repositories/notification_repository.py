@@ -1,6 +1,7 @@
 import logging
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from beanie.odm.enums import SortDirection
 from beanie.operators import GTE, LT, LTE, ElemMatch, In, NotIn, Or
@@ -90,7 +91,7 @@ class NotificationRepository:
         )
         return [DomainNotification(**doc.model_dump(exclude={"id"})) for doc in docs]
 
-    async def count_notifications(self, user_id: str, *additional_conditions) -> int:  # type: ignore[no-untyped-def]
+    async def count_notifications(self, user_id: str, *additional_conditions: Any) -> int:
         conditions = [NotificationDocument.user_id == user_id, *additional_conditions]
         return await NotificationDocument.find(*conditions).count()
 

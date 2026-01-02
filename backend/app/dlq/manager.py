@@ -21,12 +21,13 @@ from app.dlq.models import (
 )
 from app.domain.enums.kafka import GroupId, KafkaTopic
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.settings import get_settings
+from app.settings import Settings
 
 
 class DLQManager(LifecycleEnabled):
     def __init__(
         self,
+        settings: Settings,
         consumer: Consumer,
         producer: Producer,
         schema_registry: SchemaRegistryManager,
@@ -35,6 +36,8 @@ class DLQManager(LifecycleEnabled):
         retry_topic_suffix: str = "-retry",
         default_retry_policy: RetryPolicy | None = None,
     ):
+        super().__init__()
+        self.settings = settings
         self.metrics = get_dlq_metrics()
         self.schema_registry = schema_registry
         self.logger = logger
@@ -46,7 +49,6 @@ class DLQManager(LifecycleEnabled):
         self.consumer: Consumer = consumer
         self.producer: Producer = producer
 
-        self._running = False
         self._process_task: asyncio.Task[None] | None = None
         self._monitor_task: asyncio.Task[None] | None = None
 
@@ -142,15 +144,10 @@ class DLQManager(LifecycleEnabled):
             headers=headers,
         )
 
-    async def start(self) -> None:
-        """Start DLQ manager"""
-        if self._running:
-            return
-
-        topic_name = f"{get_settings().KAFKA_TOPIC_PREFIX}{str(self.dlq_topic)}"
+    async def _on_start(self) -> None:
+        """Start DLQ manager."""
+        topic_name = f"{self.settings.KAFKA_TOPIC_PREFIX}{str(self.dlq_topic)}"
         self.consumer.subscribe([topic_name])
-
-        self._running = True
 
         # Start processing tasks
         self._process_task = asyncio.create_task(self._process_messages())
@@ -158,13 +155,8 @@ class DLQManager(LifecycleEnabled):
 
         self.logger.info("DLQ Manager started")
 
-    async def stop(self) -> None:
-        """Stop DLQ manager"""
-        if not self._running:
-            return
-
-        self._running = False
-
+    async def _on_stop(self) -> None:
+        """Stop DLQ manager."""
         # Cancel tasks
         for task in [self._process_task, self._monitor_task]:
             if task:
@@ -181,7 +173,7 @@ class DLQManager(LifecycleEnabled):
         self.logger.info("DLQ Manager stopped")
 
     async def _process_messages(self) -> None:
-        while self._running:
+        while self.is_running:
             try:
                 msg = await self._poll_message()
                 if msg is None:
@@ -190,7 +182,7 @@ class DLQManager(LifecycleEnabled):
                 if not await self._validate_message(msg):
                     continue
 
-                start_time = asyncio.get_event_loop().time()
+                start_time = asyncio.get_running_loop().time()
                 dlq_message = self._kafka_msg_to_message(msg)
 
                 await self._record_message_metrics(dlq_message)
@@ -249,7 +241,7 @@ class DLQManager(LifecycleEnabled):
     async def _commit_and_record_duration(self, start_time: float) -> None:
         """Commit offset and record processing duration."""
         await asyncio.to_thread(self.consumer.commit, asynchronous=False)
-        duration = asyncio.get_event_loop().time() - start_time
+        duration = asyncio.get_running_loop().time() - start_time
         self.metrics.record_dlq_processing_duration(duration, "process")
 
     async def _process_dlq_message(self, message: DLQMessage) -> None:
@@ -395,7 +387,7 @@ class DLQManager(LifecycleEnabled):
         self.logger.warning("Discarded message", extra={"event_id": message.event_id, "reason": reason})
 
     async def _monitor_dlq(self) -> None:
-        while self._running:
+        while self.is_running:
             try:
                 # Find messages ready for retry using Beanie
                 now = datetime.now(timezone.utc)
@@ -469,13 +461,13 @@ class DLQManager(LifecycleEnabled):
 
 
 def create_dlq_manager(
+    settings: Settings,
     schema_registry: SchemaRegistryManager,
     logger: logging.Logger,
     dlq_topic: KafkaTopic = KafkaTopic.DEAD_LETTER_QUEUE,
     retry_topic_suffix: str = "-retry",
     default_retry_policy: RetryPolicy | None = None,
 ) -> DLQManager:
-    settings = get_settings()
     consumer = Consumer(
         {
             "bootstrap.servers": settings.KAFKA_BOOTSTRAP_SERVERS,
@@ -499,6 +491,7 @@ def create_dlq_manager(
     if default_retry_policy is None:
         default_retry_policy = RetryPolicy(topic="default", strategy=RetryStrategy.EXPONENTIAL_BACKOFF)
     return DLQManager(
+        settings=settings,
         consumer=consumer,
         producer=producer,
         schema_registry=schema_registry,

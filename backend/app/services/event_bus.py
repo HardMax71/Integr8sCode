@@ -46,6 +46,7 @@ class EventBus(LifecycleEnabled):
     """
 
     def __init__(self, logger: logging.Logger) -> None:
+        super().__init__()
         self.logger = logger
         self.settings = get_settings()
         self.metrics = get_connection_metrics()
@@ -53,22 +54,15 @@ class EventBus(LifecycleEnabled):
         self.consumer: Optional[Consumer] = None
         self._subscriptions: dict[str, Subscription] = {}  # id -> Subscription
         self._pattern_index: dict[str, set[str]] = {}  # pattern -> set of subscription ids
-        self._running = False
         self._consumer_task: Optional[asyncio.Task[None]] = None
         self._lock = asyncio.Lock()
         self._topic = f"{self.settings.KAFKA_TOPIC_PREFIX}{KafkaTopic.EVENT_BUS_STREAM}"
         self._executor: Optional[Callable[..., Any]] = None  # Will store the executor function
 
-    async def start(self) -> None:
+    async def _on_start(self) -> None:
         """Start the event bus with Kafka backing."""
-        if self._running:
-            return
-
-        self._running = True
-
         await self._initialize_kafka()
         self._consumer_task = asyncio.create_task(self._kafka_listener())
-        self._running = True
         self.logger.info("Event bus started with Kafka backing")
 
     async def _initialize_kafka(self) -> None:
@@ -96,18 +90,11 @@ class EventBus(LifecycleEnabled):
         self.consumer.subscribe([self._topic])
 
         # Store the executor function for sync operations
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         self._executor = loop.run_in_executor
 
-    async def stop(self) -> None:
+    async def _on_stop(self) -> None:
         """Stop the event bus and clean up resources."""
-        await self._cleanup()
-        self.logger.info("Event bus stopped")
-
-    async def _cleanup(self) -> None:
-        """Clean up all resources."""
-        self._running = False
-
         # Cancel consumer task
         if self._consumer_task and not self._consumer_task.done():
             self._consumer_task.cancel()
@@ -130,6 +117,8 @@ class EventBus(LifecycleEnabled):
         async with self._lock:
             self._subscriptions.clear()
             self._pattern_index.clear()
+
+        self.logger.info("Event bus stopped")
 
     async def publish(self, event_type: str, data: dict[str, Any]) -> None:
         """
@@ -278,7 +267,7 @@ class EventBus(LifecycleEnabled):
         self.logger.info("Kafka listener started")
 
         try:
-            while self._running:
+            while self.is_running:
                 # Poll for messages with small timeout
                 if self._executor:
                     msg = await self._executor(None, self.consumer.poll, 0.1)
@@ -312,7 +301,6 @@ class EventBus(LifecycleEnabled):
             self.logger.info("Kafka listener cancelled")
         except Exception as e:
             self.logger.error(f"Fatal error in Kafka listener: {e}")
-            self._running = False
 
     def _update_metrics(self, pattern: str) -> None:
         """Update metrics for a pattern (must be called within lock)."""
@@ -328,7 +316,7 @@ class EventBus(LifecycleEnabled):
                 "total_patterns": len(self._pattern_index),
                 "total_subscriptions": len(self._subscriptions),
                 "kafka_enabled": self.producer is not None,
-                "running": self._running,
+                "running": self.is_running,
             }
 
 
@@ -345,14 +333,14 @@ class EventBusManager:
         async with self._lock:
             if self._event_bus is None:
                 self._event_bus = EventBus(self.logger)
-                await self._event_bus.start()
+                await self._event_bus.__aenter__()
             return self._event_bus
 
     async def close(self) -> None:
         """Stop and clean up the event bus."""
         async with self._lock:
             if self._event_bus:
-                await self._event_bus.stop()
+                await self._event_bus.aclose()
                 self._event_bus = None
 
 

@@ -1,18 +1,12 @@
-import asyncio
 import logging
-from contextlib import AsyncExitStack
 from enum import auto
 from typing import Any
 
-from beanie import init_beanie
 from pydantic import BaseModel, ConfigDict, Field
-from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
-from app.core.container import create_result_processor_container
 from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics.context import get_execution_metrics
 from app.core.utils import StringEnum
-from app.db.docs import ALL_DOCUMENTS
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
@@ -20,6 +14,7 @@ from app.domain.enums.kafka import GroupId, KafkaTopic
 from app.domain.enums.storage import ExecutionErrorType, StorageType
 from app.domain.execution import ExecutionNotFoundError, ExecutionResultDomain
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
+from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka import BaseEvent
 from app.infrastructure.kafka.events.execution import (
     ExecutionCompletedEvent,
@@ -33,7 +28,7 @@ from app.infrastructure.kafka.events.system import (
 )
 from app.services.idempotency import IdempotencyManager
 from app.services.idempotency.middleware import IdempotentConsumerWrapper
-from app.settings import get_settings
+from app.settings import Settings
 
 
 class ProcessingState(StringEnum):
@@ -69,13 +64,18 @@ class ResultProcessor(LifecycleEnabled):
         self,
         execution_repo: ExecutionRepository,
         producer: UnifiedProducer,
+        schema_registry: SchemaRegistryManager,
+        settings: Settings,
         idempotency_manager: IdempotencyManager,
         logger: logging.Logger,
     ) -> None:
         """Initialize the result processor."""
+        super().__init__()
         self.config = ResultProcessorConfig()
         self._execution_repo = execution_repo
         self._producer = producer
+        self._schema_registry = schema_registry
+        self._settings = settings
         self._metrics = get_execution_metrics()
         self._idempotency_manager: IdempotencyManager = idempotency_manager
         self._state = ProcessingState.IDLE
@@ -83,12 +83,8 @@ class ResultProcessor(LifecycleEnabled):
         self._dispatcher: EventDispatcher | None = None
         self.logger = logger
 
-    async def start(self) -> None:
+    async def _on_start(self) -> None:
         """Start the result processor."""
-        if self._state != ProcessingState.IDLE:
-            self.logger.warning(f"Cannot start processor in state: {self._state}")
-            return
-
         self.logger.info("Starting ResultProcessor...")
 
         # Initialize idempotency manager (safe to call multiple times)
@@ -100,11 +96,8 @@ class ResultProcessor(LifecycleEnabled):
         self._state = ProcessingState.PROCESSING
         self.logger.info("ResultProcessor started successfully with idempotency protection")
 
-    async def stop(self) -> None:
+    async def _on_stop(self) -> None:
         """Stop the result processor."""
-        if self._state == ProcessingState.STOPPED:
-            return
-
         self.logger.info("Stopping ResultProcessor...")
         self._state = ProcessingState.STOPPED
 
@@ -112,7 +105,7 @@ class ResultProcessor(LifecycleEnabled):
             await self._consumer.stop()
 
         await self._idempotency_manager.close()
-        await self._producer.stop()
+        # Note: producer is managed by DI container, not stopped here
         self.logger.info("ResultProcessor stopped")
 
     def _create_dispatcher(self) -> EventDispatcher:
@@ -128,10 +121,9 @@ class ResultProcessor(LifecycleEnabled):
 
     async def _create_consumer(self) -> IdempotentConsumerWrapper:
         """Create and configure idempotent Kafka consumer."""
-        settings = get_settings()
         consumer_config = ConsumerConfig(
-            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=f"{self.config.consumer_group}.{settings.KAFKA_GROUP_SUFFIX}",
+            bootstrap_servers=self._settings.KAFKA_BOOTSTRAP_SERVERS,
+            group_id=f"{self.config.consumer_group}.{self._settings.KAFKA_GROUP_SUFFIX}",
             max_poll_records=1,
             enable_auto_commit=True,
             auto_offset_reset="earliest",
@@ -141,7 +133,13 @@ class ResultProcessor(LifecycleEnabled):
         if not self._dispatcher:
             raise RuntimeError("Event dispatcher not initialized")
 
-        base_consumer = UnifiedConsumer(consumer_config, event_dispatcher=self._dispatcher, logger=self.logger)
+        base_consumer = UnifiedConsumer(
+            consumer_config,
+            event_dispatcher=self._dispatcher,
+            schema_registry=self._schema_registry,
+            settings=self._settings,
+            logger=self.logger,
+        )
         wrapper = IdempotentConsumerWrapper(
             consumer=base_consumer,
             idempotency_manager=self._idempotency_manager,
@@ -187,7 +185,7 @@ class ResultProcessor(LifecycleEnabled):
         self._metrics.record_memory_usage(memory_mib, lang_and_version)
 
         # Calculate and record memory utilization percentage
-        settings_limit = get_settings().K8S_POD_MEMORY_LIMIT
+        settings_limit = self._settings.K8S_POD_MEMORY_LIMIT
         memory_limit_mib = int(settings_limit.rstrip("Mi"))  # TODO: Less brittle acquisition of limit
         memory_percent = (memory_mib / memory_limit_mib) * 100
         self._metrics.memory_utilization_percent.record(
@@ -308,37 +306,3 @@ class ResultProcessor(LifecycleEnabled):
             "state": self._state.value,
             "consumer_active": self._consumer is not None,
         }
-
-
-async def run_result_processor() -> None:
-    settings = get_settings()
-
-    # Initialize MongoDB and Beanie ODM (required per-process)
-    db_client: AsyncMongoClient[dict[str, object]] = AsyncMongoClient(
-        settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000
-    )
-    await init_beanie(database=db_client[settings.DATABASE_NAME], document_models=ALL_DOCUMENTS)
-
-    container = create_result_processor_container()
-    producer = await container.get(UnifiedProducer)
-    idempotency_manager = await container.get(IdempotencyManager)
-    execution_repo = await container.get(ExecutionRepository)
-    logger = await container.get(logging.Logger)
-    logger.info(f"Beanie ODM initialized with {len(ALL_DOCUMENTS)} document models")
-
-    processor = ResultProcessor(
-        execution_repo=execution_repo,
-        producer=producer,
-        idempotency_manager=idempotency_manager,
-        logger=logger,
-    )
-
-    async with AsyncExitStack() as stack:
-        await stack.enter_async_context(processor)
-        stack.push_async_callback(container.close)
-        stack.callback(db_client.close)
-
-        while True:
-            await asyncio.sleep(60)
-            status = await processor.get_status()
-            logger.info(f"ResultProcessor status: {status}")

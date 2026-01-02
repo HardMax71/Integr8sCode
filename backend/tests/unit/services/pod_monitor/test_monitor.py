@@ -1,12 +1,14 @@
 import asyncio
 import logging
 import types
+from unittest.mock import MagicMock
+
 import pytest
-
+from app.core.k8s_clients import K8sClients
 from app.services.pod_monitor.config import PodMonitorConfig
-from app.services.pod_monitor.monitor import PodMonitor
-from tests.helpers.k8s_fakes import make_pod, make_watch, FakeApi
+from app.services.pod_monitor.monitor import PodMonitor, create_pod_monitor
 
+from tests.helpers.k8s_fakes import FakeApi, make_pod, make_watch
 
 pytestmark = pytest.mark.unit
 
@@ -115,10 +117,10 @@ async def test_start_and_stop_lifecycle(monkeypatch) -> None:
 
     pm._watch_pods = _quick_watch
 
-    await pm.start()
+    await pm.__aenter__()
     assert pm.state.name == "RUNNING"
 
-    await pm.stop()
+    await pm.aclose()
     assert pm.state.name == "STOPPED" and spy.cleared is True
 
 
@@ -505,8 +507,6 @@ async def test_watch_pods_generic_exception(monkeypatch) -> None:
 
 @pytest.mark.asyncio
 async def test_create_pod_monitor_context_manager(monkeypatch) -> None:
-    from app.services.pod_monitor.monitor import create_pod_monitor
-
     _patch_k8s(monkeypatch)
 
     cfg = PodMonitorConfig()
@@ -521,28 +521,63 @@ async def test_create_pod_monitor_context_manager(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
+async def test_create_pod_monitor_with_injected_k8s_clients(monkeypatch) -> None:
+    """Test create_pod_monitor with injected K8sClients (DI path)."""
+    _patch_k8s(monkeypatch)
+
+    cfg = PodMonitorConfig()
+    cfg.enable_state_reconciliation = False
+
+    fake_service = _FakeKafkaEventService()
+
+    mock_v1 = MagicMock()
+    mock_v1.get_api_resources.return_value = None
+    mock_k8s_clients = K8sClients(
+        api_client=MagicMock(),
+        v1=mock_v1,
+        apps_v1=MagicMock(),
+        networking_v1=MagicMock(),
+    )
+
+    async with create_pod_monitor(cfg, fake_service, _test_logger, k8s_clients=mock_k8s_clients) as monitor:
+        assert monitor.state == monitor.state.__class__.RUNNING
+        assert monitor._clients is mock_k8s_clients
+        assert monitor._v1 is mock_v1
+
+    assert monitor.state == monitor.state.__class__.STOPPED
+
+
+@pytest.mark.asyncio
 async def test_start_already_running() -> None:
+    """Test idempotent start via __aenter__."""
     cfg = PodMonitorConfig()
     pm = PodMonitor(cfg, kafka_event_service=_FakeKafkaEventService(), logger=_test_logger)
+    # Simulate already started state
+    pm._lifecycle_started = True
     pm._state = pm.state.__class__.RUNNING
 
-    await pm.start()
+    # Should be idempotent - just return self
+    await pm.__aenter__()
 
 
 @pytest.mark.asyncio
 async def test_stop_already_stopped() -> None:
+    """Test idempotent stop via aclose()."""
     cfg = PodMonitorConfig()
     pm = PodMonitor(cfg, kafka_event_service=_FakeKafkaEventService(), logger=_test_logger)
     pm._state = pm.state.__class__.STOPPED
+    # Not started, so aclose should be a no-op
 
-    await pm.stop()
+    await pm.aclose()
 
 
 @pytest.mark.asyncio
 async def test_stop_with_tasks() -> None:
+    """Test cleanup of tasks on aclose()."""
     cfg = PodMonitorConfig()
     pm = PodMonitor(cfg, kafka_event_service=_FakeKafkaEventService(), logger=_test_logger)
     pm._state = pm.state.__class__.RUNNING
+    pm._lifecycle_started = True  # Simulate started state
 
     async def dummy_task():
         await asyncio.Event().wait()
@@ -552,7 +587,7 @@ async def test_stop_with_tasks() -> None:
     pm._watch = _StubWatch()
     pm._tracked_pods = {"pod1"}
 
-    await pm.stop()
+    await pm.aclose()
 
     assert pm._state == pm.state.__class__.STOPPED
     assert len(pm._tracked_pods) == 0
@@ -786,8 +821,8 @@ async def test_start_with_reconciliation() -> None:
     pm._watch_pods = mock_watch
     pm._reconciliation_loop = mock_reconcile
 
-    await pm.start()
+    await pm.__aenter__()
     assert pm._watch_task is not None
     assert pm._reconcile_task is not None
 
-    await pm.stop()
+    await pm.aclose()

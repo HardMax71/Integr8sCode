@@ -9,7 +9,7 @@ from app.events.core import UnifiedConsumer, UnifiedProducer
 from app.events.core.dispatcher import EventDispatcher
 from app.events.core.types import ConsumerConfig
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
-from app.settings import get_settings
+from app.settings import Settings
 
 from tests.helpers import make_execution_requested_event
 
@@ -22,6 +22,7 @@ _test_logger = logging.getLogger("test.events.event_dispatcher")
 async def test_dispatcher_with_multiple_handlers(scope) -> None:  # type: ignore[valid-type]
     # Ensure schema registry is ready
     registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
+    settings: Settings = await scope.get(Settings)
     await initialize_event_schemas(registry)
 
     # Build dispatcher with two handlers for the same event
@@ -38,14 +39,19 @@ async def test_dispatcher_with_multiple_handlers(scope) -> None:  # type: ignore
         h2_called.set()
 
     # Real consumer against execution-events
-    settings = get_settings()
     cfg = ConsumerConfig(
         bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
         group_id=f"dispatcher-it.{uuid.uuid4().hex[:6]}",
         enable_auto_commit=True,
         auto_offset_reset="earliest",
     )
-    consumer = UnifiedConsumer(cfg, dispatcher, logger=_test_logger)
+    consumer = UnifiedConsumer(
+        cfg,
+        dispatcher,
+        schema_registry=registry,
+        settings=settings,
+        logger=_test_logger,
+    )
     await consumer.start([str(KafkaTopic.EXECUTION_EVENTS)])
 
     # Produce a request event via DI

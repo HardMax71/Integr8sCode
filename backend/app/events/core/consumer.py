@@ -15,7 +15,7 @@ from app.core.tracing.utils import extract_trace_context, get_tracer
 from app.domain.enums.kafka import KafkaTopic
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.events.base import BaseEvent
-from app.settings import get_settings
+from app.settings import Settings
 
 from .dispatcher import EventDispatcher
 from .types import ConsumerConfig, ConsumerMetrics, ConsumerMetricsSnapshot, ConsumerState, ConsumerStatus
@@ -26,12 +26,14 @@ class UnifiedConsumer:
         self,
         config: ConsumerConfig,
         event_dispatcher: EventDispatcher,
+        schema_registry: SchemaRegistryManager,
+        settings: Settings,
         logger: logging.Logger,
         stats_callback: Callable[[dict[str, Any]], None] | None = None,
     ):
         self._config = config
         self.logger = logger
-        self._schema_registry = SchemaRegistryManager(logger=logger)
+        self._schema_registry = schema_registry
         self._dispatcher = event_dispatcher
         self._stats_callback = stats_callback
         self._consumer: Consumer | None = None
@@ -41,7 +43,7 @@ class UnifiedConsumer:
         self._event_metrics = get_event_metrics()  # Singleton for Kafka metrics
         self._error_callback: "Callable[[Exception, BaseEvent], Awaitable[None]] | None" = None
         self._consume_task: asyncio.Task[None] | None = None
-        self._topic_prefix = get_settings().KAFKA_TOPIC_PREFIX
+        self._topic_prefix = settings.KAFKA_TOPIC_PREFIX
 
     async def start(self, topics: list[KafkaTopic]) -> None:
         self._state = self._state if self._state != ConsumerState.STOPPED else ConsumerState.STARTING

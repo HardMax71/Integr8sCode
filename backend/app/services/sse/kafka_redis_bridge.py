@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 
@@ -32,6 +31,7 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
         sse_bus: SSERedisBus,
         logger: logging.Logger,
     ) -> None:
+        super().__init__()
         self.schema_registry = schema_registry
         self.settings = settings
         self.event_metrics = event_metrics
@@ -41,39 +41,25 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
         self.num_consumers = settings.SSE_CONSUMER_POOL_SIZE
         self.consumers: list[UnifiedConsumer] = []
 
-        self._lock = asyncio.Lock()
-        self._running = False
-        self._initialized = False
+    async def _on_start(self) -> None:
+        """Start the SSE Kafka→Redis bridge."""
+        self.logger.info(f"Starting SSE Kafka→Redis bridge with {self.num_consumers} consumers")
 
-    async def start(self) -> None:
-        async with self._lock:
-            if self._initialized:
-                return
+        for i in range(self.num_consumers):
+            consumer = await self._create_consumer(i)
+            self.consumers.append(consumer)
 
-            self.logger.info(f"Starting SSE Kafka→Redis bridge with {self.num_consumers} consumers")
+        self.logger.info("SSE Kafka→Redis bridge started successfully")
 
-            for i in range(self.num_consumers):
-                consumer = await self._create_consumer(i)
-                self.consumers.append(consumer)
+    async def _on_stop(self) -> None:
+        """Stop the SSE Kafka→Redis bridge."""
+        self.logger.info("Stopping SSE Kafka→Redis bridge")
 
-            self._running = True
-            self._initialized = True
-            self.logger.info("SSE Kafka→Redis bridge started successfully")
+        for consumer in self.consumers:
+            await consumer.stop()
 
-    async def stop(self) -> None:
-        async with self._lock:
-            if not self._initialized:
-                return
-
-            self.logger.info("Stopping SSE Kafka→Redis bridge")
-            self._running = False
-
-            for consumer in self.consumers:
-                await consumer.stop()
-
-            self.consumers.clear()
-            self._initialized = False
-            self.logger.info("SSE Kafka→Redis bridge stopped")
+        self.consumers.clear()
+        self.logger.info("SSE Kafka→Redis bridge stopped")
 
     async def _create_consumer(self, consumer_index: int) -> UnifiedConsumer:
         suffix = os.environ.get("KAFKA_GROUP_SUFFIX", "")
@@ -98,7 +84,13 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
         dispatcher = EventDispatcher(logger=self.logger)
         self._register_routing_handlers(dispatcher)
 
-        consumer = UnifiedConsumer(config=config, event_dispatcher=dispatcher, logger=self.logger)
+        consumer = UnifiedConsumer(
+            config=config,
+            event_dispatcher=dispatcher,
+            schema_registry=self.schema_registry,
+            settings=self.settings,
+            logger=self.logger,
+        )
 
         topics = [
             KafkaTopic.EXECUTION_EVENTS,
@@ -158,7 +150,7 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
             "num_consumers": len(self.consumers),
             "active_executions": 0,
             "total_buffers": 0,
-            "is_running": self._running,
+            "is_running": self.is_running,
         }
 
 

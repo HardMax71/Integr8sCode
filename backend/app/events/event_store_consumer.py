@@ -11,7 +11,7 @@ from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, Un
 from app.events.event_store import EventStore
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.events.base import BaseEvent
-from app.settings import get_settings
+from app.settings import Settings
 
 
 class EventStoreConsumer(LifecycleEnabled):
@@ -22,14 +22,17 @@ class EventStoreConsumer(LifecycleEnabled):
         event_store: EventStore,
         topics: list[KafkaTopic],
         schema_registry_manager: SchemaRegistryManager,
+        settings: Settings,
         logger: logging.Logger,
         producer: UnifiedProducer | None = None,
         group_id: GroupId = GroupId.EVENT_STORE_CONSUMER,
         batch_size: int = 100,
         batch_timeout_seconds: float = 5.0,
     ):
+        super().__init__()
         self.event_store = event_store
         self.topics = topics
+        self.settings = settings
         self.group_id = group_id
         self.batch_size = batch_size
         self.batch_timeout = batch_timeout_seconds
@@ -40,24 +43,26 @@ class EventStoreConsumer(LifecycleEnabled):
         self.producer = producer  # For DLQ handling
         self._batch_buffer: list[BaseEvent] = []
         self._batch_lock = asyncio.Lock()
-        self._last_batch_time = asyncio.get_event_loop().time()
+        self._last_batch_time: float = 0.0
         self._batch_task: asyncio.Task[None] | None = None
-        self._running = False
 
-    async def start(self) -> None:
+    async def _on_start(self) -> None:
         """Start consuming and storing events."""
-        if self._running:
-            return
-
-        settings = get_settings()
+        self._last_batch_time = asyncio.get_running_loop().time()
         config = ConsumerConfig(
-            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=f"{self.group_id}.{settings.KAFKA_GROUP_SUFFIX}",
+            bootstrap_servers=self.settings.KAFKA_BOOTSTRAP_SERVERS,
+            group_id=f"{self.group_id}.{self.settings.KAFKA_GROUP_SUFFIX}",
             enable_auto_commit=False,
             max_poll_records=self.batch_size,
         )
 
-        self.consumer = UnifiedConsumer(config, event_dispatcher=self.dispatcher, logger=self.logger)
+        self.consumer = UnifiedConsumer(
+            config,
+            event_dispatcher=self.dispatcher,
+            schema_registry=self.schema_registry_manager,
+            settings=self.settings,
+            logger=self.logger,
+        )
 
         # Register handler for all event types - store everything
         for event_type in EventType:
@@ -78,19 +83,13 @@ class EventStoreConsumer(LifecycleEnabled):
             self.consumer.register_error_callback(self._handle_error_with_event)
 
         await self.consumer.start(self.topics)
-        self._running = True
 
         self._batch_task = asyncio.create_task(self._batch_processor())
 
         self.logger.info(f"Event store consumer started for topics: {self.topics}")
 
-    async def stop(self) -> None:
+    async def _on_stop(self) -> None:
         """Stop consumer."""
-        if not self._running:
-            return
-
-        self._running = False
-
         await self._flush_batch()
 
         if self._batch_task:
@@ -121,12 +120,12 @@ class EventStoreConsumer(LifecycleEnabled):
 
     async def _batch_processor(self) -> None:
         """Periodically flush batches based on timeout."""
-        while self._running:
+        while self.is_running:
             try:
                 await asyncio.sleep(1)
 
                 async with self._batch_lock:
-                    time_since_last_batch = asyncio.get_event_loop().time() - self._last_batch_time
+                    time_since_last_batch = asyncio.get_running_loop().time() - self._last_batch_time
 
                     if self._batch_buffer and time_since_last_batch >= self.batch_timeout:
                         await self._flush_batch()
@@ -140,7 +139,7 @@ class EventStoreConsumer(LifecycleEnabled):
 
         batch = self._batch_buffer.copy()
         self._batch_buffer.clear()
-        self._last_batch_time = asyncio.get_event_loop().time()
+        self._last_batch_time = asyncio.get_running_loop().time()
 
         self.logger.info(f"Event store flushing batch of {len(batch)} events")
         with trace_span(
@@ -161,6 +160,7 @@ def create_event_store_consumer(
     event_store: EventStore,
     topics: list[KafkaTopic],
     schema_registry_manager: SchemaRegistryManager,
+    settings: Settings,
     logger: logging.Logger,
     producer: UnifiedProducer | None = None,
     group_id: GroupId = GroupId.EVENT_STORE_CONSUMER,
@@ -174,6 +174,7 @@ def create_event_store_consumer(
         batch_size=batch_size,
         batch_timeout_seconds=batch_timeout_seconds,
         schema_registry_manager=schema_registry_manager,
+        settings=settings,
         logger=logger,
         producer=producer,
     )

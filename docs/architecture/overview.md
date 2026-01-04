@@ -1,8 +1,16 @@
 # Architecture overview
 
 In this file, you can find broad description of main components of project architecture.
-Preciser info about peculiarities of separate components (SSE, Kafka topics, DLQ, ..) are in
-the [Components](../components/dead-letter-queue.md) section.
+For details on specific components, see:
+
+- [SSE Architecture](../components/sse/sse-architecture.md)
+- [Dead Letter Queue](../components/dead-letter-queue.md)
+- [Kafka Topics](kafka-topic-architecture.md)
+- [Workers](../components/workers/pod_monitor.md)
+
+!!! note "Event Streaming"
+    Kafka event streaming is disabled by default (`ENABLE_EVENT_STREAMING=false`). Set this to `true` in your
+    environment to enable the full event-driven architecture.
 
 ## System overview
 

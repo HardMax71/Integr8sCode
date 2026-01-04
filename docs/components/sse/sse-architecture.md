@@ -82,3 +82,12 @@ Key metrics: `sse.connections.active`, `sse.messages.sent.total`, `sse.connectio
 ## Why not WebSockets?
 
 WebSockets were initially implemented but removed because SSE is sufficient for server-to-client communication, simpler connection management, better proxy compatibility (many corporate proxies block WebSockets), excellent browser support with automatic reconnection, and works great with HTTP/2 multiplexing.
+
+## Key files
+
+| File                                                                                                                              | Purpose                |
+|-----------------------------------------------------------------------------------------------------------------------------------|------------------------|
+| [`sse_service.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/sse/sse_service.py)                   | Client connections     |
+| [`kafka_redis_bridge.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/sse/kafka_redis_bridge.py)     | Kafka-to-Redis routing |
+| [`redis_bus.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/sse/redis_bus.py)                       | Redis pub/sub wrapper  |
+| [`sse_shutdown_manager.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/sse/sse_shutdown_manager.py) | Graceful shutdown      |

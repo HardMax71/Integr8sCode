@@ -9,3 +9,10 @@ The SSE router maintains a small pool of Kafka consumers and routes only the eve
 Using `result_stored` as the terminal signal removes artificial waiting. Earlier iterations ended the SSE stream on `execution_completed`/`failed`/`timeout` and slept on the server to "give Mongo time" to commit. That pause is unnecessary once the stream ends only after the result processor confirms persistence.
 
 This approach preserves clean attribution and ordering. The coordinator enriches pod creation commands with user information so pods are labeled correctly. The pod monitor converts Kubernetes phases into domain events. Timeout classification is deterministic: any pod finishing with `reason=DeadlineExceeded` results in an `execution_timeout` event. The result processor is the single writer of terminal state, so the UI never races the database — when the browser sees `result_stored`, the result is already present.
+
+## Related docs
+
+- [SSE Architecture](sse-architecture.md) — overall SSE design and components
+- [SSE Partitioned Router](sse-partitioned-architecture.md) — consumer pool and scaling
+- [Result Processor](../workers/result_processor.md) — terminal event handling
+- [Pod Monitor](../workers/pod_monitor.md) — Kubernetes event translation

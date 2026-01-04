@@ -125,6 +125,7 @@ nav:
     - Service Lifecycle: architecture/lifecycle.md
 
   - API Reference: reference/api-reference.md
+  - Environment Variables: reference/environment-variables.md
 
   - Components:
     - SSE:
@@ -132,8 +133,14 @@ nav:
       - Partitioned Router: components/sse/sse-partitioned-architecture.md
       - Execution Flow: components/sse/execution-sse-flow.md
     - Workers:
+      - Overview: components/workers/index.md
+      - Saga Orchestrator: components/workers/saga_orchestrator.md
+      - K8s Worker: components/workers/k8s_worker.md
       - Pod Monitor: components/workers/pod_monitor.md
       - Result Processor: components/workers/result_processor.md
+      - Coordinator: components/workers/coordinator.md
+      - Event Replay: components/workers/event_replay.md
+      - DLQ Processor: components/workers/dlq_processor.md
     - Saga:
       - Resource Allocation: components/saga/resource-allocation.md
     - Dead Letter Queue: components/dead-letter-queue.md
@@ -157,6 +164,7 @@ nav:
   - Network Isolation: security/policies.md
 
   - Frontend:
+    - Routing: frontend/routing.md
     - Error Handling: frontend/error-handling.md
 
   - Testing:

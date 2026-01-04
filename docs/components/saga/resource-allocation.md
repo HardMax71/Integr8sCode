@@ -104,3 +104,10 @@ if active_count >= 100:  # <- adjust this value
 ```
 
 Future improvements could make this configurable per-language or dynamically adjustable based on cluster capacity.
+
+## Key files
+
+| File                                                                                                                                          | Purpose                  |
+|-----------------------------------------------------------------------------------------------------------------------------------------------|--------------------------|
+| [`execution_saga.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/saga/execution_saga.py)                        | Saga with allocation step |
+| [`resource_allocation_repository.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/db/repositories/resource_allocation_repository.py) | MongoDB operations       |

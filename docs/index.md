@@ -19,6 +19,10 @@ cd Integr8sCode
 | Backend API | `https://localhost:443`     | —                 |
 | Grafana     | `http://localhost:3000`     | admin / admin123  |
 
+!!! warning "Default credentials"
+    The default credentials above are for **development only**. In production, set secure passwords via environment
+    variables and disable the user-seed job.
+
 Verify the backend is running:
 
 ```bash
@@ -93,17 +97,29 @@ For detailed architecture diagrams, see the [Architecture](architecture/overview
 
     Complete REST and SSE endpoint documentation
 
--   :material-cog: **[Components](components/dead-letter-queue.md)**
+-   :material-cog: **[Components](components/workers/index.md)**
 
     ---
 
-    SSE, Workers, DLQ, and Schema management
+    Workers, SSE, DLQ, and Schema management
 
--   :material-wrench: **[Operations](operations/tracing.md)**
+-   :material-wrench: **[Operations](operations/deployment.md)**
 
     ---
 
-    Tracing, metrics, monitoring, and troubleshooting
+    Deployment, tracing, and monitoring
+
+-   :material-variable: **[Environment Variables](reference/environment-variables.md)**
+
+    ---
+
+    Complete configuration reference
+
+-   :material-monitor: **[Frontend](frontend/routing.md)**
+
+    ---
+
+    Frontend routing and components
 
 </div>
 

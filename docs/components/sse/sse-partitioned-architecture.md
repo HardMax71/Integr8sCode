@@ -33,3 +33,10 @@ Memory management uses configurable buffer limits: max size, TTL for expiration,
 The `SSEShutdownManager` complements the router. The router handles the data plane (Kafka consumers, event routing to Redis). The shutdown manager handles the control plane (tracking connections, coordinating graceful shutdown, notifying clients).
 
 When the server shuts down, SSE clients receive a shutdown event so they can display messages and attempt reconnection. The shutdown manager implements phased shutdown: notify clients, wait for graceful disconnection, force-close remaining connections. SSE connections register with the shutdown manager and monitor a shutdown event while streaming from Redis. When shutdown triggers, connections send shutdown messages and close gracefully.
+
+## Key files
+
+| File                                                                                                                              | Purpose              |
+|-----------------------------------------------------------------------------------------------------------------------------------|----------------------|
+| [`kafka_redis_bridge.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/sse/kafka_redis_bridge.py)     | Consumer pool router |
+| [`sse_shutdown_manager.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/sse/sse_shutdown_manager.py) | Connection tracking  |

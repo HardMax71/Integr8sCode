@@ -77,23 +77,50 @@ The example scripts intentionally use features that may not work on older versio
 compatibility. For instance, Python's match statement (3.10+), Node's `Promise.withResolvers()` (22+), and Go's
 `clear()` function (1.21+).
 
-## API Endpoint
+## API Endpoints
 
-The `/api/v1/languages` endpoint returns the available runtimes:
+The runtime information is available via two endpoints:
+
+### GET /api/v1/k8s-limits
+
+Returns resource limits and supported runtimes:
 
 ```json
 {
-  "python": {"versions": ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"], "file_ext": "py"},
-  "node": {"versions": ["18", "20", "22"], "file_ext": "js"},
-  "ruby": {"versions": ["3.1", "3.2", "3.3"], "file_ext": "rb"},
-  "go": {"versions": ["1.20", "1.21", "1.22"], "file_ext": "go"},
-  "bash": {"versions": ["5.1", "5.2", "5.3"], "file_ext": "sh"}
+  "cpu_limit": "1000m",
+  "memory_limit": "128Mi",
+  "cpu_request": "1000m",
+  "memory_request": "128Mi",
+  "execution_timeout": 300,
+  "supported_runtimes": {
+    "python": {"versions": ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"], "file_ext": "py"},
+    "node": {"versions": ["18", "20", "22"], "file_ext": "js"},
+    "ruby": {"versions": ["3.1", "3.2", "3.3"], "file_ext": "rb"},
+    "go": {"versions": ["1.20", "1.21", "1.22"], "file_ext": "go"},
+    "bash": {"versions": ["5.1", "5.2", "5.3"], "file_ext": "sh"}
+  }
+}
+```
+
+### GET /api/v1/example-scripts
+
+Returns example scripts for each language:
+
+```json
+{
+  "scripts": {
+    "python": "# Python example script...",
+    "node": "// Node.js example script...",
+    "ruby": "# Ruby example script...",
+    "go": "package main...",
+    "bash": "#!/bin/bash..."
+  }
 }
 ```
 
 ## Key Files
 
-| File                                                                                                                 | Purpose                                               |
-|----------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------|
-| [`runtime_registry.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/runtime_registry.py)         | Language specifications and runtime config generation |
-| [`api/routes/languages.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/api/routes/languages.py) | API endpoint for available languages                  |
+| File                                                                                                                 | Purpose                                                |
+|----------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|
+| [`runtime_registry.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/runtime_registry.py)         | Language specifications and runtime config generation  |
+| [`api/routes/execution.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/api/routes/execution.py) | API endpoints including k8s-limits and example-scripts |

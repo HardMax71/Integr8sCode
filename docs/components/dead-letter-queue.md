@@ -88,3 +88,11 @@ If sending to DLQ fails (extremely rare - would mean Kafka is down), the produce
 
 The system is designed to be resilient but not perfect. In catastrophic scenarios, you still have Kafka's built-in durability and the ability to replay topics from the beginning if needed.
 
+## Key files
+
+| File                                                                                                                     | Purpose                |
+|--------------------------------------------------------------------------------------------------------------------------|------------------------|
+| [`dlq_processor.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/workers/dlq_processor.py)               | DLQ processor worker   |
+| [`manager.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/dlq/manager.py)                           | DLQ management logic   |
+| [`unified_producer.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/events/unified_producer.py)      | `send_to_dlq()` method |
+| [`dlq.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/api/routes/dlq.py)                            | Admin API routes       |

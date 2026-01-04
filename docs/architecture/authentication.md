@@ -60,7 +60,7 @@ JWTs are signed with HS256 using a secret key from settings:
 ```
 
 The token payload contains the username in the `sub` claim and an expiration time. Token lifetime is configured via
-`ACCESS_TOKEN_EXPIRE_MINUTES` (default: 30 minutes).
+`ACCESS_TOKEN_EXPIRE_MINUTES` (default: 24 hours / 1440 minutes).
 
 ### CSRF Validation
 

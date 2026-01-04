@@ -33,3 +33,11 @@ During API startup, the `lifespan` function in `dishka_lifespan.py` gets the dat
 To force a specific MongoDB migration to run again, delete its document from `schema_versions`. To start fresh, point the app at a new database. Migrations are designed to be additive; the system doesn't support automatic rollbacks. If you need to undo a migration in production, you'll have to drop indexes or modify validators manually.
 
 For Kafka schemas, the registry keeps all versions. If you break compatibility and need to start over, delete the subject from the registry (either via REST API or the registry's UI if available) and let the app re-register on next startup.
+
+## Key files
+
+| File                                                                                                                           | Purpose                    |
+|--------------------------------------------------------------------------------------------------------------------------------|----------------------------|
+| [`schema_manager.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/db/schema/schema_manager.py)             | MongoDB migrations         |
+| [`schema_registry.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/events/schema/schema_registry.py)       | Kafka Avro serialization   |
+| [`dishka_lifespan.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/dishka_lifespan.py)                     | Startup initialization     |

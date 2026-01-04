@@ -66,6 +66,10 @@ The platform ships with default rate limits organized by endpoint group. Higher 
 Execution endpoints have the strictest limits since they spawn Kubernetes pods. The catch-all API rule (priority 1)
 applies to any endpoint not matching a more specific pattern.
 
+!!! note "WebSocket rule"
+    The `/api/v1/ws` pattern is reserved for future WebSocket support. The platform currently uses Server-Sent Events
+    (SSE) for real-time updates via `/api/v1/events/*`.
+
 ## Middleware Integration
 
 The `RateLimitMiddleware` intercepts all HTTP requests, extracts the user identifier, and checks against the configured
@@ -135,10 +139,14 @@ Configuration is cached in Redis for 5 minutes to reduce database load while all
 
 Rate limiting is controlled by environment variables:
 
-| Variable                  | Default      | Description                           |
-|---------------------------|--------------|---------------------------------------|
-| `RATE_LIMIT_ENABLED`      | `true`       | Enable/disable rate limiting globally |
-| `RATE_LIMIT_REDIS_PREFIX` | `ratelimit:` | Redis key prefix for isolation        |
+| Variable                  | Default          | Description                                          |
+|---------------------------|------------------|------------------------------------------------------|
+| `RATE_LIMIT_ENABLED`      | `true`           | Enable/disable rate limiting globally                |
+| `RATE_LIMIT_REDIS_PREFIX` | `rate_limit:`    | Redis key prefix for isolation                       |
+| `RATE_LIMIT_ALGORITHM`    | `sliding_window` | Algorithm to use (`sliding_window` or `token_bucket`)|
+| `RATE_LIMIT_DEFAULT_REQUESTS` | `100`        | Default request limit                                |
+| `RATE_LIMIT_DEFAULT_WINDOW`   | `60`         | Default window in seconds                            |
+| `RATE_LIMIT_BURST_MULTIPLIER` | `1.5`        | Burst multiplier for token bucket                    |
 
 The system gracefully degrades when Redis is unavailable—requests are allowed through rather than failing closed.
 

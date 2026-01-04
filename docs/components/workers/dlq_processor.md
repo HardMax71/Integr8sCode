@@ -43,8 +43,11 @@ The DLQ can be monitored via the admin API:
 
 - `GET /api/v1/dlq/stats` — DLQ statistics by status, topic, event type
 - `GET /api/v1/dlq/messages` — List DLQ messages with filtering
+- `GET /api/v1/dlq/messages/{event_id}` — Retrieve a specific message by ID
+- `GET /api/v1/dlq/topics` — List all topics with DLQ messages
 - `POST /api/v1/dlq/retry` — Manually retry messages
-- `DELETE /api/v1/dlq/messages/{id}` — Discard a message
+- `POST /api/v1/dlq/retry-policy` — Configure retry policy for a topic
+- `DELETE /api/v1/dlq/messages/{event_id}` — Discard a message
 
 ## Key files
 

@@ -1,10 +1,10 @@
 import logging
 from dataclasses import asdict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any, Mapping
 
 from beanie.odm.enums import SortDirection
-from beanie.operators import GTE, LT, LTE, In, Not, Or, RegEx
+from beanie.operators import GTE, LTE, In, Not, Or, RegEx
 
 from app.core.tracing import EventAttributes
 from app.core.tracing.utils import add_span_attributes
@@ -55,49 +55,11 @@ class EventRepository:
         self.logger.debug(f"Stored event {event.event_id} of type {event.event_type}")
         return event.event_id
 
-    async def store_events_batch(self, events: list[Event]) -> list[str]:
-        if not events:
-            return []
-        now = datetime.now(timezone.utc)
-        docs = []
-        for event in events:
-            data = asdict(event)
-            if not data.get("stored_at"):
-                data["stored_at"] = now
-            # Remove None values so EventDocument defaults can apply
-            data = {k: v for k, v in data.items() if v is not None}
-            docs.append(EventDocument(**data))
-        await EventDocument.insert_many(docs)
-        add_span_attributes(**{"events.batch.count": len(events)})
-        self.logger.info(f"Stored {len(events)} events in batch")
-        return [event.event_id for event in events]
-
     async def get_event(self, event_id: str) -> Event | None:
         doc = await EventDocument.find_one({"event_id": event_id})
         if not doc:
             return None
         return Event(**doc.model_dump(exclude={"id", "revision_id"}))
-
-    async def get_events_by_type(
-        self,
-        event_type: str,
-        start_time: datetime | None = None,
-        end_time: datetime | None = None,
-        limit: int = 100,
-        skip: int = 0,
-    ) -> list[Event]:
-        conditions = [
-            EventDocument.event_type == event_type,
-            *self._time_conditions(start_time, end_time),
-        ]
-        docs = (
-            await EventDocument.find(*conditions)
-            .sort([("timestamp", SortDirection.DESCENDING)])
-            .skip(skip)
-            .limit(limit)
-            .to_list()
-        )
-        return [Event(**d.model_dump(exclude={"id", "revision_id"})) for d in docs]
 
     async def get_events_by_aggregate(
         self, aggregate_id: str, event_types: list[EventType] | None = None, limit: int = 100
@@ -124,30 +86,6 @@ class EventRepository:
             limit=limit,
             has_more=(skip + limit) < total_count,
         )
-
-    async def get_events_by_user(
-        self,
-        user_id: str,
-        event_types: list[str] | None = None,
-        start_time: datetime | None = None,
-        end_time: datetime | None = None,
-        limit: int = 100,
-        skip: int = 0,
-    ) -> list[Event]:
-        conditions = [
-            EventDocument.metadata.user_id == user_id,
-            In(EventDocument.event_type, event_types) if event_types else None,
-            *self._time_conditions(start_time, end_time),
-        ]
-        conditions = [c for c in conditions if c is not None]
-        docs = (
-            await EventDocument.find(*conditions)
-            .sort([("timestamp", SortDirection.DESCENDING)])
-            .skip(skip)
-            .limit(limit)
-            .to_list()
-        )
-        return [Event(**d.model_dump(exclude={"id", "revision_id"})) for d in docs]
 
     async def get_execution_events(
         self, execution_id: str, limit: int = 100, skip: int = 0, exclude_system_events: bool = False
@@ -240,26 +178,6 @@ class EventRepository:
 
         return EventStatistics(total_events=0, events_by_type={}, events_by_service={}, events_by_hour=[])
 
-    async def cleanup_old_events(
-        self, older_than_days: int = 30, event_types: list[str] | None = None, dry_run: bool = False
-    ) -> int:
-        cutoff_dt = datetime.now(timezone.utc) - timedelta(days=older_than_days)
-        conditions: list[Any] = [
-            LT(EventDocument.timestamp, cutoff_dt),
-            In(EventDocument.event_type, event_types) if event_types else None,
-        ]
-        conditions = [c for c in conditions if c is not None]
-
-        if dry_run:
-            count = await EventDocument.find(*conditions).count()
-            self.logger.info(f"Would delete {count} events older than {older_than_days} days")
-            return count
-
-        result = await EventDocument.find(*conditions).delete()
-        deleted_count = result.deleted_count if result else 0
-        self.logger.info(f"Deleted {deleted_count} events older than {older_than_days} days")
-        return deleted_count
-
     async def get_user_events_paginated(
         self,
         user_id: str,
@@ -289,9 +207,6 @@ class EventRepository:
             limit=limit,
             has_more=(skip + limit) < total_count,
         )
-
-    async def count_events(self, *conditions: Any) -> int:
-        return await EventDocument.find(*conditions).count()
 
     async def query_events(
         self,
@@ -338,15 +253,7 @@ class EventRepository:
 
         deleted_at = datetime.now(timezone.utc)
         archived_doc = EventArchiveDocument(
-            event_id=doc.event_id,
-            event_type=doc.event_type,
-            event_version=doc.event_version,
-            timestamp=doc.timestamp,
-            metadata=doc.metadata,
-            payload=doc.payload,
-            aggregate_id=doc.aggregate_id,
-            stored_at=doc.stored_at,
-            ttl_expires_at=doc.ttl_expires_at,
+            **doc.model_dump(exclude={"id", "revision_id"}),
             deleted_at=deleted_at,
             deleted_by=deleted_by,
             deletion_reason=deletion_reason,
@@ -359,9 +266,6 @@ class EventRepository:
             deleted_by=deleted_by,
             deletion_reason=deletion_reason,
         )
-
-    async def get_aggregate_events_for_replay(self, aggregate_id: str, limit: int = 10000) -> list[Event]:
-        return await self.get_events_by_aggregate(aggregate_id=aggregate_id, limit=limit)
 
     async def get_aggregate_replay_info(self, aggregate_id: str) -> EventReplayInfo | None:
         pipeline = [
@@ -380,14 +284,10 @@ class EventRepository:
             {"$project": {"_id": 0}},
         ]
 
-        async for doc in EventDocument.aggregate(pipeline):
-            events = [Event(**e) for e in doc["events"]]
-            return EventReplayInfo(
-                events=events,
-                event_count=doc["event_count"],
-                event_types=doc["event_types"],
-                start_time=doc["start_time"],
-                end_time=doc["end_time"],
-            )
-
-        return None
+        doc = await anext(EventDocument.aggregate(pipeline), None)
+        if not doc:
+            return None
+        return EventReplayInfo(
+            events=[Event(**e) for e in doc["events"]],
+            **{k: v for k, v in doc.items() if k != "events"},
+        )

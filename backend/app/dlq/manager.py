@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
 
 from confluent_kafka import Consumer, KafkaError, Message, Producer
+from pymongo.errors import DuplicateKeyError
 from opentelemetry.trace import SpanKind
 
 from app.core.lifecycle import LifecycleEnabled
@@ -279,22 +280,25 @@ class DLQManager(LifecycleEnabled):
     async def _store_message(self, message: DLQMessage) -> bool:
         """Store message in MongoDB. Returns False if already tracked (idempotent).
 
-        Uses atomic upsert to avoid TOCTOU race conditions between concurrent consumers.
+        Catches DuplicateKeyError to handle race conditions between concurrent consumers.
         """
-        message.status = DLQMessageStatus.PENDING
-        message.last_updated = datetime.now(timezone.utc)
-        doc = self._message_to_doc(message)
-
-        # Atomic: insert if not exists, return existing if present (no race condition)
-        existing = await DLQMessageDocument.find_one_and_update(
-            {"event_id": message.event_id},
-            {"$setOnInsert": doc.model_dump(by_alias=True, exclude={"id", "revision_id"})},
-            upsert=True,
-        )
+        # Check if already exists (fast path)
+        existing = await DLQMessageDocument.find_one({"event_id": message.event_id})
         if existing:
             self.logger.debug(f"Skipping already tracked message: {message.event_id} (status={existing.status})")
             return False
-        return True
+
+        # New message - attempt insert
+        message.status = DLQMessageStatus.PENDING
+        message.last_updated = datetime.now(timezone.utc)
+        doc = self._message_to_doc(message)
+        try:
+            await doc.insert()
+            return True
+        except DuplicateKeyError:
+            # Race condition: another consumer inserted first - treat as idempotent
+            self.logger.warning(f"Concurrent insert detected for message: {message.event_id}")
+            return False
 
     async def _update_message_status(self, event_id: str, update: DLQMessageUpdate) -> None:
         doc = await DLQMessageDocument.find_one({"event_id": event_id})

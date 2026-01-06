@@ -1,5 +1,5 @@
 import logging
-from dataclasses import asdict
+from dataclasses import asdict, fields
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
@@ -287,7 +287,9 @@ class EventRepository:
         doc = await anext(EventDocument.aggregate(pipeline), None)
         if not doc:
             return None
+        # Only pass keys that Event dataclass accepts (filters out _id, revision_id, etc.)
+        event_keys = {f.name for f in fields(Event)}
         return EventReplayInfo(
-            events=[Event(**e) for e in doc["events"]],
+            events=[Event(**{k: v for k, v in e.items() if k in event_keys}) for e in doc["events"]],
             **{k: v for k, v in doc.items() if k != "events"},
         )

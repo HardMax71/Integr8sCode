@@ -277,21 +277,22 @@ class DLQManager(LifecycleEnabled):
             await self._retry_message(message)
 
     async def _store_message(self, message: DLQMessage) -> bool:
-        """Store message in MongoDB. Returns False if already processed (skip re-processing)."""
-        # Check if already processed (terminal status) - skip re-processing on re-consume
+        """Store message in MongoDB. Returns False if already tracked (idempotent)."""
+        # Idempotency: if message already exists in DB, skip re-processing entirely.
+        # This handles Kafka redelivery (rebalance, restart, no commit) gracefully:
+        # - PENDING: processing in progress or will be retried by monitor
+        # - SCHEDULED: policy applied, waiting for retry time
+        # - DISCARDED/RETRIED: terminal, definitely done
         existing = await DLQMessageDocument.find_one({"event_id": message.event_id})
-        if existing and existing.status in {DLQMessageStatus.DISCARDED, DLQMessageStatus.RETRIED}:
-            self.logger.debug(f"Skipping already processed message: {message.event_id}")
+        if existing:
+            self.logger.debug(f"Skipping already tracked message: {message.event_id} (status={existing.status})")
             return False
 
-        # Set initial status and timestamps
+        # New message - set initial status
         message.status = DLQMessageStatus.PENDING
         message.last_updated = datetime.now(timezone.utc)
-
         doc = self._message_to_doc(message)
-        if existing:
-            doc.id = existing.id
-        await doc.save()
+        await doc.insert()
         return True
 
     async def _update_message_status(self, event_id: str, update: DLQMessageUpdate) -> None:

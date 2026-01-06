@@ -251,8 +251,9 @@ class DLQManager(LifecycleEnabled):
                 self.logger.info("Message filtered out", extra={"event_id": message.event_id})
                 return
 
-        # Store in MongoDB via Beanie
-        await self._store_message(message)
+        # Store in MongoDB via Beanie (returns False if already processed)
+        if not await self._store_message(message):
+            return
 
         # Get retry policy for topic
         retry_policy = self._retry_policies.get(message.original_topic, self.default_retry_policy)
@@ -275,18 +276,23 @@ class DLQManager(LifecycleEnabled):
         if retry_policy.strategy == RetryStrategy.IMMEDIATE:
             await self._retry_message(message)
 
-    async def _store_message(self, message: DLQMessage) -> None:
-        # Ensure message has proper status and timestamps
+    async def _store_message(self, message: DLQMessage) -> bool:
+        """Store message in MongoDB. Returns False if already processed (skip re-processing)."""
+        # Check if already processed (terminal status) - skip re-processing on re-consume
+        existing = await DLQMessageDocument.find_one({"event_id": message.event_id})
+        if existing and existing.status in {DLQMessageStatus.DISCARDED, DLQMessageStatus.RETRIED}:
+            self.logger.debug(f"Skipping already processed message: {message.event_id}")
+            return False
+
+        # Set initial status and timestamps
         message.status = DLQMessageStatus.PENDING
         message.last_updated = datetime.now(timezone.utc)
 
         doc = self._message_to_doc(message)
-
-        # Upsert using Beanie
-        existing = await DLQMessageDocument.find_one({"event_id": message.event_id})
         if existing:
             doc.id = existing.id
         await doc.save()
+        return True
 
     async def _update_message_status(self, event_id: str, update: DLQMessageUpdate) -> None:
         doc = await DLQMessageDocument.find_one({"event_id": event_id})

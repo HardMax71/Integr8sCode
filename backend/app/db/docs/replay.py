@@ -13,17 +13,27 @@ from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
 class ReplayFilter(BaseModel):
     """Replay filter configuration (embedded document).
 
-    Copied from domain/replay/models.py ReplayFilter.
+    Must match domain/replay/models.py ReplayFilter exactly.
     """
 
+    # Event selection filters
+    event_ids: List[str] | None = None
     execution_id: str | None = None
+    correlation_id: str | None = None
+    aggregate_id: str | None = None
     event_types: List[EventType] | None = None
+    exclude_event_types: List[EventType] | None = None
+
+    # Time range
     start_time: datetime | None = None
     end_time: datetime | None = None
+
+    # Metadata filters
     user_id: str | None = None
     service_name: str | None = None
+
+    # Escape hatch for complex queries
     custom_query: Dict[str, Any] | None = None
-    exclude_event_types: List[EventType] | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -43,7 +53,7 @@ class ReplayConfig(BaseModel):
     batch_size: int = Field(default=100, ge=1, le=1000)
     max_events: int | None = Field(default=None, ge=1)
 
-    target_topics: Dict[str, str] | None = None  # EventType -> topic mapping as strings
+    target_topics: Dict[EventType, str] | None = None
     target_file_path: str | None = None
 
     skip_errors: bool = True

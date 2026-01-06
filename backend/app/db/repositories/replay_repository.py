@@ -66,9 +66,6 @@ class ReplayRepository:
         ).delete()
         return result.deleted_count if result else 0
 
-    async def count_sessions(self, *conditions: Any) -> int:
-        return await ReplaySessionDocument.find(*conditions).count()
-
     async def update_replay_session(self, session_id: str, updates: ReplaySessionUpdate) -> bool:
         update_dict = {k: (v.value if hasattr(v, "value") else v) for k, v in asdict(updates).items() if v is not None}
         if not update_dict:

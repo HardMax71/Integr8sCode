@@ -5,8 +5,8 @@ from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
 
 from confluent_kafka import Consumer, KafkaError, Message, Producer
-from pymongo.errors import DuplicateKeyError
 from opentelemetry.trace import SpanKind
+from pymongo.errors import DuplicateKeyError
 
 from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics.context import get_dlq_metrics
@@ -278,26 +278,37 @@ class DLQManager(LifecycleEnabled):
             await self._retry_message(message)
 
     async def _store_message(self, message: DLQMessage) -> bool:
-        """Store message in MongoDB. Returns False if already tracked (idempotent).
+        """Store message in MongoDB. Returns False if terminal state (idempotent).
 
-        Catches DuplicateKeyError to handle race conditions between concurrent consumers.
+        Only skips terminal states (DISCARDED, RETRIED). Non-terminal states (PENDING,
+        SCHEDULED) may indicate failed processing that should be retried.
         """
-        # Check if already exists (fast path)
         existing = await DLQMessageDocument.find_one({"event_id": message.event_id})
         if existing:
-            self.logger.debug(f"Skipping already tracked message: {message.event_id} (status={existing.status})")
-            return False
+            # Only skip terminal states - non-terminal may need reprocessing
+            if existing.status in {DLQMessageStatus.DISCARDED, DLQMessageStatus.RETRIED}:
+                self.logger.debug(f"Skipping terminal message: {message.event_id} (status={existing.status})")
+                return False
+            # Non-terminal: allow reprocessing (will update existing doc)
+            self.logger.debug(f"Reprocessing non-terminal message: {message.event_id} (status={existing.status})")
 
-        # New message - attempt insert
+        # Set initial status
         message.status = DLQMessageStatus.PENDING
         message.last_updated = datetime.now(timezone.utc)
         doc = self._message_to_doc(message)
+
+        if existing:
+            doc.id = existing.id
         try:
-            await doc.insert()
+            await doc.save()
             return True
         except DuplicateKeyError:
-            # Race condition: another consumer inserted first - treat as idempotent
-            self.logger.warning(f"Concurrent insert detected for message: {message.event_id}")
+            # Race: another consumer inserted - check if terminal
+            check = await DLQMessageDocument.find_one({"event_id": message.event_id})
+            if check and check.status in {DLQMessageStatus.DISCARDED, DLQMessageStatus.RETRIED}:
+                return False
+            # Non-terminal race - allow retry on next delivery
+            self.logger.warning(f"Concurrent insert for non-terminal message: {message.event_id}")
             return False
 
     async def _update_message_status(self, event_id: str, update: DLQMessageUpdate) -> None:

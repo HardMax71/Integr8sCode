@@ -278,38 +278,32 @@ class DLQManager(LifecycleEnabled):
             await self._retry_message(message)
 
     async def _store_message(self, message: DLQMessage) -> bool:
-        """Store message in MongoDB. Returns False if terminal state (idempotent).
+        """Store message in MongoDB. Returns False only for terminal states.
 
-        Only skips terminal states (DISCARDED, RETRIED). Non-terminal states (PENDING,
-        SCHEDULED) may indicate failed processing that should be retried.
+        Idempotency: skip DISCARDED/RETRIED (terminal). All other cases proceed.
         """
         existing = await DLQMessageDocument.find_one({"event_id": message.event_id})
-        if existing:
-            # Only skip terminal states - non-terminal may need reprocessing
-            if existing.status in {DLQMessageStatus.DISCARDED, DLQMessageStatus.RETRIED}:
-                self.logger.debug(f"Skipping terminal message: {message.event_id} (status={existing.status})")
-                return False
-            # Non-terminal: allow reprocessing (will update existing doc)
-            self.logger.debug(f"Reprocessing non-terminal message: {message.event_id} (status={existing.status})")
+        if existing and existing.status in {DLQMessageStatus.DISCARDED, DLQMessageStatus.RETRIED}:
+            self.logger.debug(f"Skipping terminal message: {message.event_id} (status={existing.status})")
+            return False
 
-        # Set initial status
         message.status = DLQMessageStatus.PENDING
         message.last_updated = datetime.now(timezone.utc)
         doc = self._message_to_doc(message)
 
         if existing:
             doc.id = existing.id
+
         try:
             await doc.save()
-            return True
         except DuplicateKeyError:
-            # Race: another consumer inserted - check if terminal
+            # Race: check if winner set terminal state
             check = await DLQMessageDocument.find_one({"event_id": message.event_id})
             if check and check.status in {DLQMessageStatus.DISCARDED, DLQMessageStatus.RETRIED}:
                 return False
-            # Non-terminal race - allow retry on next delivery
-            self.logger.warning(f"Concurrent insert for non-terminal message: {message.event_id}")
-            return False
+            self.logger.warning(f"Concurrent insert for message: {message.event_id}")
+
+        return True
 
     async def _update_message_status(self, event_id: str, update: DLQMessageUpdate) -> None:
         doc = await DLQMessageDocument.find_one({"event_id": event_id})

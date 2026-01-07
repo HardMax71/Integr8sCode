@@ -137,12 +137,7 @@ class TestNotificationRoutes:
         mark_all_response = await authenticated_client.post("/api/v1/notifications/mark-all-read")
         assert mark_all_response.status_code == 204
 
-        # Verify all are now read
-        # Verify via unread-count only (list endpoint pagination can hide remaining)
-        unread_response = await authenticated_client.get("/api/v1/notifications/unread-count")
-        assert unread_response.status_code == 200
-
-        # Also verify unread count is 0
+        # Verify unread count is now 0
         count_response = await authenticated_client.get("/api/v1/notifications/unread-count")
         assert count_response.status_code == 200
         count_data = count_response.json()
@@ -343,23 +338,16 @@ class TestNotificationRoutes:
         self, client: AsyncClient, make_user: MakeUser,
     ) -> None:
         """Test that notifications are isolated between users."""
-        await make_user(UserRole.USER)  # Login as first user
-        admin = await make_user(UserRole.ADMIN)
-
-        # Get user's notifications (already logged in from make_user)
+        # Create user and fetch notifications immediately (make_user logs in)
+        await make_user(UserRole.USER)
         user_notifications_response = await client.get("/api/v1/notifications")
         assert user_notifications_response.status_code == 200
         user_notification_ids = [
             n["notification_id"] for n in user_notifications_response.json()["notifications"]
         ]
 
-        # Login as admin
-        await client.post(
-            "/api/v1/auth/login",
-            data={"username": admin["username"], "password": admin["password"]},
-        )
-
-        # Get admin's notifications
+        # Create admin and fetch notifications immediately (make_user logs in)
+        await make_user(UserRole.ADMIN)
         admin_notifications_response = await client.get("/api/v1/notifications")
         assert admin_notifications_response.status_code == 200
         admin_notification_ids = [

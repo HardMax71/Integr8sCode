@@ -164,22 +164,14 @@ class TestSagaRoutes:
         self, client: AsyncClient, make_user: MakeUser,
     ) -> None:
         """Test that users can only access their own sagas."""
-        await make_user(UserRole.USER)  # Login as first user
-        user2 = await make_user(UserRole.USER)
-
-        # User 1 lists their sagas (already logged in from make_user)
+        # Create user1 and fetch their sagas immediately (make_user logs in)
+        await make_user(UserRole.USER)
         response1 = await client.get("/api/v1/sagas/")
         assert response1.status_code == 200
         user1_sagas = SagaListResponse(**response1.json())
 
-        # Logout and login as user 2
-        await client.post("/api/v1/auth/logout")
-        login_resp = await client.post(
-            "/api/v1/auth/login",
-            data={"username": user2["username"], "password": user2["password"]},
-        )
-        assert login_resp.status_code == 200
-
+        # Create user2 and fetch their sagas immediately (make_user logs in)
+        await make_user(UserRole.USER)
         response2 = await client.get("/api/v1/sagas/")
         assert response2.status_code == 200
         user2_sagas = SagaListResponse(**response2.json())

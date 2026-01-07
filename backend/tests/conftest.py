@@ -182,7 +182,12 @@ async def make_user(client: httpx.AsyncClient) -> MakeUser:
 
 @pytest_asyncio.fixture
 async def authenticated_client(client: httpx.AsyncClient) -> httpx.AsyncClient:
-    """HTTP client logged in as regular user. Use for most API tests."""
+    """HTTP client logged in as regular user.
+
+    Note: This fixture mutates and returns the same `client` instance with
+    auth headers applied. Do NOT use both `client` and `authenticated_client`
+    in the same test. For multi-user tests, use `client` + `make_user` fixture.
+    """
     user = await _register_and_login(client, UserRole.USER)
     client.headers.update(user["headers"])
     return client
@@ -190,7 +195,11 @@ async def authenticated_client(client: httpx.AsyncClient) -> httpx.AsyncClient:
 
 @pytest_asyncio.fixture
 async def authenticated_admin_client(client: httpx.AsyncClient) -> httpx.AsyncClient:
-    """HTTP client logged in as admin. Use for admin API tests."""
+    """HTTP client logged in as admin.
+
+    Note: This fixture mutates and returns the same `client` instance with
+    admin auth headers applied. For multi-user tests, use `make_user` fixture.
+    """
     admin = await _register_and_login(client, UserRole.ADMIN)
     client.headers.update(admin["headers"])
     return client

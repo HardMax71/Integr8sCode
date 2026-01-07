@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass
 from typing import Protocol
 
-from kubernetes import client as k8s_client
+from kubernetes_asyncio import client as k8s_client
 
 from app.domain.enums.kafka import GroupId
 from app.domain.enums.storage import ExecutionErrorType

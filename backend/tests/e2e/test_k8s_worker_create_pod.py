@@ -20,7 +20,7 @@ from app.services.k8s_worker.config import K8sWorkerConfig
 from app.services.k8s_worker.worker import KubernetesWorker
 from app.settings import Settings
 from dishka import AsyncContainer
-from kubernetes.client.rest import ApiException
+from kubernetes_asyncio.client.exceptions import ApiException
 
 pytestmark = [pytest.mark.e2e, pytest.mark.k8s]
 

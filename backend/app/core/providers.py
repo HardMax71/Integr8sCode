@@ -227,11 +227,11 @@ class KubernetesProvider(Provider):
 
     @provide
     async def get_k8s_clients(self, settings: Settings, logger: logging.Logger) -> AsyncIterator[K8sClients]:
-        clients = create_k8s_clients(logger)
+        clients = await create_k8s_clients(logger)
         try:
             yield clients
         finally:
-            close_k8s_clients(clients)
+            await close_k8s_clients(clients)
 
 
 class MetricsProvider(Provider):

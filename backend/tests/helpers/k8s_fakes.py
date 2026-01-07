@@ -139,33 +139,59 @@ def make_pod(
 
 
 class FakeApi:
+    """Fake K8s API for unit tests (sync and async compatible)."""
+
     def __init__(self, logs: str) -> None:
         self._logs = logs
 
     def read_namespaced_pod_log(self, name: str, namespace: str, tail_lines: int = 10000) -> str:  # noqa: ARG002
         return self._logs
 
+    async def get_api_resources(self) -> None:
+        """Async stub for API resources check."""
+        pass
 
-def make_watch(events: list[dict[str, Any]], resource_version: str = "rv2") -> Any:
-    class _StopEvent:
-        def __init__(self, rv: str) -> None:
-            self.resource_version = rv
+    async def list_namespaced_pod(self, namespace: str, **kwargs: Any) -> Any:  # noqa: ARG002
+        """Async stub for listing pods."""
 
-    class _Stream(list[dict[str, Any]]):
-        def __init__(self, ev: list[dict[str, Any]], rv: str) -> None:
-            super().__init__(ev)
-            self._stop_event = _StopEvent(rv)
+        class _PodList:
+            items: list[Pod] = []
 
-    class _Watch:
-        def __init__(self, ev: list[dict[str, Any]], rv: str) -> None:
-            self._events = ev
-            self._rv = rv
+        return _PodList()
 
-        def stream(self, func: Any, **kwargs: Any) -> _Stream:  # noqa: ARG002
-            return _Stream(list(self._events), self._rv)
 
-        def stop(self) -> None:
-            return None
+class FakeAsyncWatch:
+    """Fake async Watch for kubernetes_asyncio compatibility in tests."""
 
-    return _Watch(events, resource_version)
+    def __init__(self, events: list[dict[str, Any]], resource_version: str = "rv2") -> None:
+        self._events = events
+        self.resource_version = resource_version
+        self._stopped = False
+
+    def stream(self, func: Any, **kwargs: Any) -> "FakeAsyncWatch":  # noqa: ARG002
+        """Return self to support async iteration."""
+        return self
+
+    def __aiter__(self) -> "FakeAsyncWatch":
+        self._index = 0
+        return self
+
+    async def __anext__(self) -> dict[str, Any]:
+        if self._stopped or self._index >= len(self._events):
+            raise StopAsyncIteration
+        event = self._events[self._index]
+        self._index += 1
+        return event
+
+    def stop(self) -> None:
+        self._stopped = True
+
+    async def close(self) -> None:
+        """Async close stub."""
+        pass
+
+
+def make_watch(events: list[dict[str, Any]], resource_version: str = "rv2") -> FakeAsyncWatch:
+    """Create a fake async watch for testing."""
+    return FakeAsyncWatch(events, resource_version)
 

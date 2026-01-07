@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import threading
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from typing import Any
@@ -19,6 +20,10 @@ from app.settings import Settings
 
 from .dispatcher import EventDispatcher
 from .types import ConsumerConfig, ConsumerMetrics, ConsumerMetricsSnapshot, ConsumerState, ConsumerStatus
+
+# Global lock to serialize Consumer initialization (workaround for librdkafka race condition)
+# See: https://github.com/confluentinc/confluent-kafka-python/issues/1797
+_consumer_init_lock = threading.Lock()
 
 
 class UnifiedConsumer:
@@ -52,7 +57,9 @@ class UnifiedConsumer:
         if self._stats_callback:
             consumer_config["stats_cb"] = self._handle_stats
 
-        self._consumer = Consumer(consumer_config)
+        # Serialize Consumer initialization to prevent librdkafka race condition
+        with _consumer_init_lock:
+            self._consumer = Consumer(consumer_config)
         topic_strings = [f"{self._topic_prefix}{str(topic)}" for topic in topics]
         self._consumer.subscribe(topic_strings)
         self._running = True

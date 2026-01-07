@@ -5,9 +5,9 @@ import time
 from pathlib import Path
 from typing import Any
 
-from kubernetes import client as k8s_client
-from kubernetes import config as k8s_config
-from kubernetes.client.rest import ApiException
+from kubernetes_asyncio import client as k8s_client
+from kubernetes_asyncio import config as k8s_config
+from kubernetes_asyncio.client.exceptions import ApiException
 
 from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics import ExecutionMetrics, KubernetesMetrics
@@ -66,7 +66,8 @@ class KubernetesWorker(LifecycleEnabled):
         self.kafka_servers = self.config.kafka_bootstrap_servers or self._settings.KAFKA_BOOTSTRAP_SERVERS
         self._event_store = event_store
 
-        # Kubernetes clients
+        # Kubernetes clients (kubernetes_asyncio)
+        self._api_client: k8s_client.ApiClient | None = None
         self.v1: k8s_client.CoreV1Api | None = None
         self.networking_v1: k8s_client.NetworkingV1Api | None = None
         self.apps_v1: k8s_client.AppsV1Api | None = None
@@ -94,8 +95,8 @@ class KubernetesWorker(LifecycleEnabled):
                 "KubernetesWorker namespace 'default' is forbidden. Set K8S_NAMESPACE to a dedicated namespace."
             )
 
-        # Initialize Kubernetes client
-        self._initialize_kubernetes_client()
+        # Initialize Kubernetes client (async for kubernetes_asyncio)
+        await self._initialize_kubernetes_client()
         self.logger.info("DEBUG: Kubernetes client initialized")
 
         self.logger.info("Using provided producer")
@@ -166,45 +167,47 @@ class KubernetesWorker(LifecycleEnabled):
         # Close idempotency manager
         await self.idempotency_manager.close()
 
+        # Close Kubernetes API client (kubernetes_asyncio requires explicit close)
+        if self._api_client:
+            await self._api_client.close()
+            self._api_client = None
+
         # Note: producer is managed by DI container, not stopped here
 
         self.logger.info("KubernetesWorker service stopped")
 
-    def _initialize_kubernetes_client(self) -> None:
-        """Initialize Kubernetes API clients"""
+    async def _initialize_kubernetes_client(self) -> None:
+        """Initialize Kubernetes API clients (async for kubernetes_asyncio)."""
         try:
-            # Load config
+            # Load config (async for kubernetes_asyncio)
             if self.config.in_cluster:
                 self.logger.info("Using in-cluster Kubernetes configuration")
                 k8s_config.load_incluster_config()
             elif self.config.kubeconfig_path and os.path.exists(self.config.kubeconfig_path):
                 self.logger.info(f"Using kubeconfig from {self.config.kubeconfig_path}")
-                k8s_config.load_kube_config(config_file=self.config.kubeconfig_path)
+                await k8s_config.load_kube_config(config_file=self.config.kubeconfig_path)
+            elif os.path.exists("/var/run/secrets/kubernetes.io/serviceaccount"):
+                self.logger.info("Auto-detected in-cluster environment")
+                k8s_config.load_incluster_config()
             else:
-                # Try default locations
-                if os.path.exists("/var/run/secrets/kubernetes.io/serviceaccount"):
-                    self.logger.info("Detected in-cluster environment")
-                    k8s_config.load_incluster_config()
-                else:
-                    self.logger.info("Using default kubeconfig")
-                    k8s_config.load_kube_config()
+                self.logger.info("Using default kubeconfig")
+                await k8s_config.load_kube_config()  # None → ~/.kube/config
 
-            # Get the default configuration that was set by load_kube_config
-            configuration = k8s_client.Configuration.get_default_copy()
+            # Create API client for kubernetes_asyncio
+            self._api_client = k8s_client.ApiClient()
+            configuration = self._api_client.configuration
 
-            # The certificate data should already be configured by load_kube_config
             # Log the configuration for debugging
             self.logger.info(f"Kubernetes API host: {configuration.host}")
             self.logger.info(f"SSL CA cert configured: {configuration.ssl_ca_cert is not None}")
 
-            # Create API clients with the configuration
-            api_client = k8s_client.ApiClient(configuration)
-            self.v1 = k8s_client.CoreV1Api(api_client)
-            self.networking_v1 = k8s_client.NetworkingV1Api(api_client)
-            self.apps_v1 = k8s_client.AppsV1Api(api_client)
+            # Create API clients with the shared api_client
+            self.v1 = k8s_client.CoreV1Api(self._api_client)
+            self.networking_v1 = k8s_client.NetworkingV1Api(self._api_client)
+            self.apps_v1 = k8s_client.AppsV1Api(self._api_client)
 
-            # Test connection with namespace-scoped operation
-            _ = self.v1.list_namespaced_pod(namespace=self.config.namespace, limit=1)
+            # Test connection with namespace-scoped operation (native async)
+            await self.v1.list_namespaced_pod(namespace=self.config.namespace, limit=1)
             self.logger.info(f"Successfully connected to Kubernetes API, namespace {self.config.namespace} accessible")
 
         except Exception as e:
@@ -241,23 +244,20 @@ class KubernetesWorker(LifecycleEnabled):
         self.logger.info(f"Deleting pod for execution {execution_id} due to: {command.reason}")
 
         try:
-            # Delete the pod
+            # Delete the pod (native async with kubernetes_asyncio)
             pod_name = f"executor-{execution_id}"
             if self.v1:
-                await asyncio.to_thread(
-                    self.v1.delete_namespaced_pod,
+                await self.v1.delete_namespaced_pod(
                     name=pod_name,
                     namespace=self.config.namespace,
                     grace_period_seconds=30,
                 )
                 self.logger.info(f"Successfully deleted pod {pod_name}")
 
-            # Delete associated ConfigMap
+            # Delete associated ConfigMap (native async)
             configmap_name = f"script-{execution_id}"
             if self.v1:
-                await asyncio.to_thread(
-                    self.v1.delete_namespaced_config_map, name=configmap_name, namespace=self.config.namespace
-                )
+                await self.v1.delete_namespaced_config_map(name=configmap_name, namespace=self.config.namespace)
                 self.logger.info(f"Successfully deleted ConfigMap {configmap_name}")
 
             # NetworkPolicy cleanup is managed via a static cluster policy; no per-execution NP deletion
@@ -344,13 +344,11 @@ exec "$@"
 """
 
     async def _create_config_map(self, config_map: k8s_client.V1ConfigMap) -> None:
-        """Create ConfigMap in Kubernetes"""
+        """Create ConfigMap in Kubernetes (native async with kubernetes_asyncio)."""
         if not self.v1:
             raise RuntimeError("Kubernetes client not initialized")
         try:
-            await asyncio.to_thread(
-                self.v1.create_namespaced_config_map, namespace=self.config.namespace, body=config_map
-            )
+            await self.v1.create_namespaced_config_map(namespace=self.config.namespace, body=config_map)
             self.metrics.record_k8s_config_map_created("success")
             self.logger.debug(f"Created ConfigMap {config_map.metadata.name}")
         except ApiException as e:
@@ -362,11 +360,11 @@ exec "$@"
                 raise
 
     async def _create_pod(self, pod: k8s_client.V1Pod) -> None:
-        """Create Pod in Kubernetes"""
+        """Create Pod in Kubernetes (native async with kubernetes_asyncio)."""
         if not self.v1:
             raise RuntimeError("Kubernetes client not initialized")
         try:
-            await asyncio.to_thread(self.v1.create_namespaced_pod, namespace=self.config.namespace, body=pod)
+            await self.v1.create_namespaced_pod(namespace=self.config.namespace, body=pod)
             self.logger.debug(f"Created Pod {pod.metadata.name}")
         except ApiException as e:
             if e.status == 409:  # Already exists
@@ -478,20 +476,17 @@ exec "$@"
             }
 
             try:
-                await asyncio.to_thread(
-                    self.apps_v1.read_namespaced_daemon_set, name=daemonset_name, namespace=namespace
-                )
+                # Native async calls with kubernetes_asyncio
+                await self.apps_v1.read_namespaced_daemon_set(name=daemonset_name, namespace=namespace)
                 self.logger.info(f"DaemonSet '{daemonset_name}' exists. Replacing to ensure it is up-to-date.")
-                await asyncio.to_thread(
-                    self.apps_v1.replace_namespaced_daemon_set, name=daemonset_name, namespace=namespace, body=manifest
+                await self.apps_v1.replace_namespaced_daemon_set(
+                    name=daemonset_name, namespace=namespace, body=manifest
                 )
                 self.logger.info(f"DaemonSet '{daemonset_name}' replaced successfully.")
             except ApiException as e:
                 if e.status == 404:
                     self.logger.info(f"DaemonSet '{daemonset_name}' not found. Creating...")
-                    await asyncio.to_thread(
-                        self.apps_v1.create_namespaced_daemon_set, namespace=namespace, body=manifest
-                    )
+                    await self.apps_v1.create_namespaced_daemon_set(namespace=namespace, body=manifest)
                     self.logger.info(f"DaemonSet '{daemonset_name}' created successfully.")
                 else:
                     raise

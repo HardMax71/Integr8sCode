@@ -50,7 +50,6 @@ dependencies = [
     "itsdangerous==2.2.0",
     "Jinja2==3.1.6",
     "kiwisolver==1.4.9",
-    "kubernetes==31.0.0",
     "limits==3.13.0",
     "markdown-it-py==4.0.0",
     "MarkupSafe==3.0.2",
@@ -122,6 +121,7 @@ dependencies = [
     "wrapt==1.16.0",
     "yarl==1.20.1",
     "zipp==3.20.2",
+    "kubernetes-asyncio>=33.3.0",
 ]
 
 [build-system]

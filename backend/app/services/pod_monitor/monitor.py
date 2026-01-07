@@ -7,10 +7,10 @@ from dataclasses import dataclass
 from enum import auto
 from typing import Any
 
-from kubernetes import client as k8s_client
-from kubernetes import config as k8s_config
-from kubernetes import watch
-from kubernetes.client.rest import ApiException
+from kubernetes_asyncio import client as k8s_client
+from kubernetes_asyncio import config as k8s_config
+from kubernetes_asyncio import watch
+from kubernetes_asyncio.client.exceptions import ApiException
 
 from app.core.k8s_clients import K8sClients
 from app.core.lifecycle import LifecycleEnabled
@@ -112,8 +112,8 @@ class PodMonitor(LifecycleEnabled):
         self.config = config or PodMonitorConfig()
 
         # Kubernetes clients (initialized on start)
+        self._api_client: k8s_client.ApiClient | None = None
         self._v1: k8s_client.CoreV1Api | None = None
-        self._watch: watch.Watch | None = None
         self._clients: K8sClients | None = k8s_clients
 
         # Components
@@ -142,8 +142,8 @@ class PodMonitor(LifecycleEnabled):
         """Start the pod monitor."""
         self.logger.info("Starting PodMonitor service...")
 
-        # Initialize components
-        self._initialize_kubernetes_client()
+        # Initialize components (async for kubernetes_asyncio)
+        await self._initialize_kubernetes_client()
 
         # Start monitoring
         self._state = MonitorState.RUNNING
@@ -169,9 +169,10 @@ class PodMonitor(LifecycleEnabled):
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Close watch
-        if self._watch:
-            self._watch.stop()
+        # Close API client (kubernetes_asyncio requires explicit close)
+        if self._api_client:
+            await self._api_client.close()
+            self._api_client = None
 
         # Clear state
         self._tracked_pods.clear()
@@ -180,31 +181,31 @@ class PodMonitor(LifecycleEnabled):
         self._state = MonitorState.STOPPED
         self.logger.info("PodMonitor service stopped")
 
-    def _initialize_kubernetes_client(self) -> None:
-        """Initialize Kubernetes API clients."""
+    async def _initialize_kubernetes_client(self) -> None:
+        """Initialize Kubernetes API clients (async for kubernetes_asyncio)."""
         if self._clients is None:
-            match (self.config.in_cluster, self.config.kubeconfig_path):
-                case (True, _):
-                    self.logger.info("Using in-cluster Kubernetes configuration")
-                    k8s_config.load_incluster_config()
-                case (False, path) if path:
-                    self.logger.info(f"Using kubeconfig from {path}")
-                    k8s_config.load_kube_config(config_file=path)
-                case _:
-                    self.logger.info("Using default kubeconfig")
-                    k8s_config.load_kube_config()
+            if self.config.in_cluster:
+                self.logger.info("Using in-cluster Kubernetes configuration")
+                k8s_config.load_incluster_config()
+            else:
+                path = self.config.kubeconfig_path
+                self.logger.info(f"Using kubeconfig from {path or 'default location'}")
+                await k8s_config.load_kube_config(config_file=path)  # None → ~/.kube/config
 
-            configuration = k8s_client.Configuration.get_default_copy()
+            # Create API client for kubernetes_asyncio
+            self._api_client = k8s_client.ApiClient()
+            self._v1 = k8s_client.CoreV1Api(self._api_client)
+
+            configuration = self._api_client.configuration
             self.logger.info(f"Kubernetes API host: {configuration.host}")
             self.logger.info(f"SSL CA cert configured: {configuration.ssl_ca_cert is not None}")
-
-            api_client = k8s_client.ApiClient(configuration)
-            self._v1 = k8s_client.CoreV1Api(api_client)
         else:
+            # Use injected clients (for testing)
+            self._api_client = self._clients.api_client
             self._v1 = self._clients.v1
 
-        self._watch = watch.Watch()
-        self._v1.get_api_resources()
+        # Test connection
+        await self._v1.get_api_resources()
         self.logger.info("Successfully connected to Kubernetes API")
         self._event_mapper = PodEventMapper(logger=self.logger, k8s_api=self._v1)
 
@@ -233,8 +234,9 @@ class PodMonitor(LifecycleEnabled):
                 await self._handle_watch_error()
 
     async def _watch_pod_events(self) -> None:
-        """Watch for pod events."""
-        # self._v1 and self._watch are guaranteed initialized by start()
+        """Watch for pod events using async iteration (non-blocking)."""
+        if not self._v1:
+            raise RuntimeError("API not initialized")
 
         context = WatchContext(
             namespace=self.config.namespace,
@@ -246,8 +248,8 @@ class PodMonitor(LifecycleEnabled):
 
         self.logger.info(f"Starting pod watch with selector: {context.label_selector}, namespace: {context.namespace}")
 
-        # Create watch stream
-        kwargs = {
+        # Create watch stream kwargs
+        kwargs: dict[str, Any] = {
             "namespace": context.namespace,
             "label_selector": context.label_selector,
             "timeout_seconds": context.timeout_seconds,
@@ -259,30 +261,26 @@ class PodMonitor(LifecycleEnabled):
         if context.resource_version:
             kwargs["resource_version"] = context.resource_version
 
-        # Watch stream
-        if not self._watch or not self._v1:
-            raise RuntimeError("Watch or API not initialized")
-
-        stream = self._watch.stream(self._v1.list_namespaced_pod, **kwargs)
+        # Create new Watch instance for this iteration
+        w = watch.Watch()
 
         try:
-            for event in stream:
+            # Use async for - this is the KEY fix for non-blocking watch
+            async for event in w.stream(self._v1.list_namespaced_pod, **kwargs):
                 if self._state != MonitorState.RUNNING:
+                    w.stop()
                     break
 
                 await self._process_raw_event(event)
 
-        finally:
-            # Store resource version for next watch
-            self._update_resource_version(stream)
+                # Update resource version from watch for continuity
+                if w.resource_version:
+                    self._last_resource_version = w.resource_version
 
-    def _update_resource_version(self, stream: Any) -> None:
-        """Update last resource version from stream."""
-        try:
-            if stream._stop_event and stream._stop_event.resource_version:
-                self._last_resource_version = stream._stop_event.resource_version
-        except AttributeError:
-            pass
+        finally:
+            # Proper cleanup for kubernetes_asyncio watch
+            await w.close()
+
 
     async def _process_raw_event(self, raw_event: KubeEvent) -> None:
         """Process a raw Kubernetes watch event."""
@@ -423,8 +421,9 @@ class PodMonitor(LifecycleEnabled):
                     error="K8s API not initialized",
                 )
 
-            pods = await asyncio.to_thread(
-                self._v1.list_namespaced_pod, namespace=self.config.namespace, label_selector=self.config.label_selector
+            # Native async call with kubernetes_asyncio
+            pods = await self._v1.list_namespaced_pod(
+                namespace=self.config.namespace, label_selector=self.config.label_selector
             )
 
             # Get current pod names

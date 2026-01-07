@@ -1,18 +1,17 @@
-import asyncio
 import logging
 import uuid
 
 import pytest
-
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
 from app.events.core.dispatcher import EventDispatcher as Disp
 from app.events.schema.schema_registry import SchemaRegistryManager
-from tests.helpers import make_execution_requested_event
 from app.services.idempotency.idempotency_manager import IdempotencyManager
 from app.services.idempotency.middleware import IdempotentConsumerWrapper
 from app.settings import Settings
+
+from tests.helpers import make_execution_requested_event
 from tests.helpers.eventually import eventually
 
 pytestmark = [pytest.mark.integration, pytest.mark.kafka, pytest.mark.redis]
@@ -58,14 +57,14 @@ async def test_consumer_idempotent_wrapper_blocks_duplicates(scope) -> None:  # 
         logger=_test_logger,
     )
 
+    # Produce BEFORE starting consumer - with earliest offset, consumer will read from beginning
+    execution_id = f"e-{uuid.uuid4().hex[:8]}"
+    ev = make_execution_requested_event(execution_id=execution_id)
+    await producer.produce(ev, key=execution_id)
+    await producer.produce(ev, key=execution_id)
+
     await wrapper.start([KafkaTopic.EXECUTION_EVENTS])
     try:
-        # Produce the same event twice (same event_id)
-        execution_id = f"e-{uuid.uuid4().hex[:8]}"
-        ev = make_execution_requested_event(execution_id=execution_id)
-        await producer.produce(ev, key=execution_id)
-        await producer.produce(ev, key=execution_id)
-
         async def _one():
             assert seen["n"] >= 1
 

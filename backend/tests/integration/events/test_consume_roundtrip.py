@@ -51,15 +51,15 @@ async def test_produce_consume_roundtrip(scope) -> None:  # type: ignore[valid-t
         settings=settings,
         logger=_test_logger,
     )
+
+    # Produce BEFORE starting consumer - with earliest offset, consumer will read from beginning
+    execution_id = f"exec-{uuid.uuid4().hex[:8]}"
+    evt = make_execution_requested_event(execution_id=execution_id)
+    await producer.produce(evt, key=execution_id)
+
     await consumer.start([str(KafkaTopic.EXECUTION_EVENTS)])
 
     try:
-        # Produce a request event
-        execution_id = f"exec-{uuid.uuid4().hex[:8]}"
-        evt = make_execution_requested_event(execution_id=execution_id)
-        await producer.produce(evt, key=execution_id)
-
-        # Wait for the handler to be called
         await asyncio.wait_for(received.wait(), timeout=10.0)
     finally:
         await consumer.stop()

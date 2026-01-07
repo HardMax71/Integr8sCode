@@ -52,12 +52,13 @@ async def test_dispatcher_with_multiple_handlers(scope) -> None:  # type: ignore
         settings=settings,
         logger=_test_logger,
     )
-    await consumer.start([str(KafkaTopic.EXECUTION_EVENTS)])
 
-    # Produce a request event via DI
+    # Produce BEFORE starting consumer - with earliest offset, consumer will read from beginning
     producer: UnifiedProducer = await scope.get(UnifiedProducer)
     evt = make_execution_requested_event(execution_id=f"exec-{uuid.uuid4().hex[:8]}")
     await producer.produce(evt, key="k")
+
+    await consumer.start([str(KafkaTopic.EXECUTION_EVENTS)])
 
     try:
         await asyncio.wait_for(asyncio.gather(h1_called.wait(), h2_called.wait()), timeout=10.0)

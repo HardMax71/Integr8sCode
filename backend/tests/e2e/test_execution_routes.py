@@ -6,6 +6,7 @@ import pytest
 from app.domain.enums.execution import ExecutionStatus as ExecutionStatusEnum
 from app.schemas_pydantic.execution import ExecutionResponse, ExecutionResult, ResourceLimits, ResourceUsage
 from app.services.k8s_worker.worker import KubernetesWorker
+from app.services.pod_monitor.monitor import PodMonitor
 from app.services.saga import SagaOrchestrator
 from httpx import AsyncClient
 
@@ -13,8 +14,8 @@ from tests.helpers.sse import wait_for_execution_terminal
 
 pytestmark = [pytest.mark.e2e, pytest.mark.k8s]
 
-# Type alias for execution_workers fixture
-ExecutionWorkers = tuple[SagaOrchestrator, KubernetesWorker]
+# Type alias for execution_workers fixture (all three workers for full pipeline)
+ExecutionWorkers = tuple[SagaOrchestrator, KubernetesWorker, PodMonitor]
 
 
 class TestExecution:
@@ -109,7 +110,7 @@ class TestExecution:
         """Test executing a script that produces an error.
 
         Requires execution_workers fixture to run the full pipeline:
-        API -> SagaOrchestrator -> KubernetesWorker -> completion event.
+        API -> SagaOrchestrator -> KubernetesWorker -> PodMonitor -> SSE.
         Uses SSE to wait for terminal state (event-driven, no polling).
         """
         execution_request = {
@@ -142,8 +143,8 @@ class TestExecution:
     ) -> None:
         """Test that execution tracks resource usage.
 
-        Requires execution_workers fixture to run the full pipeline.
-        Uses SSE to wait for terminal state (event-driven, no polling).
+        Requires execution_workers fixture to run the full pipeline:
+        API -> SagaOrchestrator -> KubernetesWorker -> PodMonitor -> SSE.
         """
         execution_request = {
             "script": """
@@ -238,7 +239,8 @@ print('End of output')
     ) -> None:
         """Test cancelling a running execution.
 
-        Requires execution_workers fixture to run the full pipeline.
+        Requires execution_workers fixture to run the full pipeline:
+        API -> SagaOrchestrator -> KubernetesWorker -> PodMonitor -> SSE.
         Submits a long-running script and immediately requests cancellation.
         """
         execution_request = {

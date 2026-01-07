@@ -278,13 +278,10 @@ class DLQManager(LifecycleEnabled):
             await self._retry_message(message)
 
     async def _store_message(self, message: DLQMessage) -> bool:
-        """Store message in MongoDB. Returns False only for terminal states.
-
-        Idempotency: skip DISCARDED/RETRIED (terminal). All other cases proceed.
-        """
+        """Store message. Skip only if already terminal (DISCARDED/RETRIED)."""
         existing = await DLQMessageDocument.find_one({"event_id": message.event_id})
+
         if existing and existing.status in {DLQMessageStatus.DISCARDED, DLQMessageStatus.RETRIED}:
-            self.logger.debug(f"Skipping terminal message: {message.event_id} (status={existing.status})")
             return False
 
         message.status = DLQMessageStatus.PENDING
@@ -297,11 +294,7 @@ class DLQManager(LifecycleEnabled):
         try:
             await doc.save()
         except DuplicateKeyError:
-            # Race: check if winner set terminal state
-            check = await DLQMessageDocument.find_one({"event_id": message.event_id})
-            if check and check.status in {DLQMessageStatus.DISCARDED, DLQMessageStatus.RETRIED}:
-                return False
-            self.logger.warning(f"Concurrent insert for message: {message.event_id}")
+            return False  # Lost race - Kafka will redeliver
 
         return True
 
@@ -484,11 +477,13 @@ def create_dlq_manager(
     dlq_topic: KafkaTopic = KafkaTopic.DEAD_LETTER_QUEUE,
     retry_topic_suffix: str = "-retry",
     default_retry_policy: RetryPolicy | None = None,
+    group_id_suffix: str | None = None,
 ) -> DLQManager:
+    suffix = group_id_suffix or settings.KAFKA_GROUP_SUFFIX
     consumer = Consumer(
         {
             "bootstrap.servers": settings.KAFKA_BOOTSTRAP_SERVERS,
-            "group.id": f"{GroupId.DLQ_MANAGER}.{settings.KAFKA_GROUP_SUFFIX}",
+            "group.id": f"{GroupId.DLQ_MANAGER}.{suffix}",
             "enable.auto.commit": False,
             "auto.offset.reset": "earliest",
             "client.id": "dlq-manager-consumer",

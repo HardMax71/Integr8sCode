@@ -1,14 +1,11 @@
 import json
-import logging
 import uuid
 from datetime import datetime, timezone
 
 import pytest
 from app.db.docs import DLQMessageDocument
-from app.dlq.manager import create_dlq_manager
 from app.dlq.models import DLQMessageStatus, RetryPolicy, RetryStrategy
 from app.domain.enums.kafka import KafkaTopic
-from app.events.schema.schema_registry import create_schema_registry_manager
 from confluent_kafka import Producer
 
 from tests.helpers import make_execution_requested_event
@@ -19,17 +16,12 @@ from tests.helpers.eventually import eventually
 # Serial execution ensures each test's manager processes only its own messages.
 pytestmark = [pytest.mark.integration, pytest.mark.kafka, pytest.mark.mongodb, pytest.mark.xdist_group("dlq")]
 
-_test_logger = logging.getLogger("test.dlq.discard_policy")
-
 
 @pytest.mark.asyncio
-async def test_dlq_manager_discards_with_manual_policy(db, test_settings) -> None:  # type: ignore[valid-type]
-    schema_registry = create_schema_registry_manager(test_settings, _test_logger)
-    manager = create_dlq_manager(settings=test_settings, schema_registry=schema_registry, logger=_test_logger)
-    # Use prefix from test_settings to match what the manager uses
+async def test_dlq_manager_discards_with_manual_policy(db, test_settings, dlq_manager) -> None:  # type: ignore[valid-type]
     prefix = test_settings.KAFKA_TOPIC_PREFIX
     topic = f"{prefix}{str(KafkaTopic.EXECUTION_EVENTS)}"
-    manager.set_retry_policy(topic, RetryPolicy(topic=topic, strategy=RetryStrategy.MANUAL))
+    dlq_manager.set_retry_policy(topic, RetryPolicy(topic=topic, strategy=RetryStrategy.MANUAL))
 
     # Use unique execution_id to avoid conflicts with parallel test workers
     ev = make_execution_requested_event(execution_id=f"exec-dlq-discard-{uuid.uuid4().hex[:8]}")
@@ -51,7 +43,7 @@ async def test_dlq_manager_discards_with_manual_policy(db, test_settings) -> Non
     )
     producer.flush(5)
 
-    async with manager:
+    async with dlq_manager:
 
         async def _discarded() -> None:
             doc = await DLQMessageDocument.find_one({"event_id": ev.event_id})

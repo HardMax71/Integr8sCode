@@ -35,7 +35,9 @@ async def test_middlewares_behavior(client: AsyncClient) -> None:
     resp = await client.get("/api/v1/health")
     assert "x-correlation-id" in resp.headers
 
-    # Cache-Control middleware: adds cache headers
+    # Cache-Control middleware: adds cache headers for configured endpoints
+    resp = await client.get("/api/v1/example-scripts")
+    assert resp.status_code == 200
     assert "cache-control" in resp.headers
 
 

@@ -3,7 +3,7 @@ from uuid import UUID
 
 import pytest
 from app.domain.enums.execution import ExecutionStatus as ExecutionStatusEnum
-from app.schemas_pydantic.execution import ExecutionResponse, ExecutionResult, ResourceUsage
+from app.schemas_pydantic.execution import ExecutionResponse, ExecutionResult, ResourceLimits, ResourceUsage
 from httpx import AsyncClient
 
 from tests.helpers import poll_until_terminal
@@ -111,7 +111,8 @@ class TestExecution:
         execution_id = exec_response.json()["execution_id"]
 
         # Wait for execution to complete and verify error was captured
-        result = await poll_until_terminal(authenticated_client, execution_id)
+        # E2E tests need longer timeout for pod scheduling and execution
+        result = await poll_until_terminal(authenticated_client, execution_id, timeout=120.0)
         assert result["status"] in (ExecutionStatusEnum.FAILED.value, ExecutionStatusEnum.ERROR.value)
         assert "ValueError" in (result.get("stderr") or result.get("stdout") or "")
 
@@ -137,7 +138,8 @@ print('Done')
         execution_id = exec_response.json()["execution_id"]
 
         # Wait for completion and verify resource tracking
-        result = await poll_until_terminal(authenticated_client, execution_id)
+        # E2E tests need longer timeout for pod scheduling and execution
+        result = await poll_until_terminal(authenticated_client, execution_id, timeout=120.0)
         assert result["status"] == ExecutionStatusEnum.COMPLETED.value
 
         # Resource usage must be present after completion
@@ -353,27 +355,25 @@ while True:
     @pytest.mark.asyncio
     async def test_get_example_scripts(self, client: AsyncClient) -> None:
         """Test getting example scripts (public endpoint)."""
-        response = await client.get("/api/v1/examples")
+        response = await client.get("/api/v1/example-scripts")
 
-        # Should either return examples or 404 if not implemented
-        assert response.status_code in [200, 404]
-
-        if response.status_code == 200:
-            data = response.json()
-            assert isinstance(data, list)
-            # If examples exist, verify structure
-            if data:
-                example = data[0]
-                assert "title" in example or "name" in example
-                assert "script" in example or "code" in example
+        assert response.status_code == 200
+        data = response.json()
+        assert "scripts" in data
+        assert isinstance(data["scripts"], dict)
 
     @pytest.mark.asyncio
     async def test_get_k8s_resource_limits(self, client: AsyncClient) -> None:
-        """Test getting K8s resource limits (if available)."""
-        response = await client.get("/api/v1/limits")
+        """Test getting K8s resource limits."""
+        response = await client.get("/api/v1/k8s-limits")
+        assert response.status_code == 200
 
-        # Should either return limits or 404 if not implemented
-        assert response.status_code in [200, 401, 404]
+        # Validate response matches schema
+        limits = ResourceLimits.model_validate(response.json())
+
+        # Verify sensible values
+        assert limits.execution_timeout > 0
+        assert len(limits.supported_runtimes) > 0
 
     @pytest.mark.asyncio
     async def test_get_user_executions_list(self, authenticated_client: AsyncClient) -> None:

@@ -58,10 +58,15 @@ async def test_publish_and_subscribe_round_trip() -> None:
 
     assert msg.execution_id == "exec-1"
 
-    # Invalid JSON should return None
+    # Invalid JSON should be skipped - verify by sending valid message after invalid
+    # and confirming we receive only the valid one (no crash, no stale data)
     await redis.publish("sse:exec:exec-1", "not-json")
-    await asyncio.sleep(0.05)
-    assert await sub.get(RedisSSEMessage) is None
+    evt2 = _make_completed_event("exec-1")
+    await bus.publish_event("exec-1", evt2)
+
+    # Should receive the valid message, proving invalid JSON was skipped
+    msg2 = await _wait_for_message(sub, RedisSSEMessage)
+    assert msg2.execution_id == "exec-1"
 
     await sub.close()
     await redis.aclose()

@@ -77,11 +77,14 @@ async def test_consumer_idempotent_wrapper_blocks_duplicates(
     ev = make_execution_requested_event(execution_id=execution_id)
     await producer.produce(ev, key=execution_id)
     await producer.produce(ev, key=execution_id)
+    # Flush to ensure both messages are delivered to Kafka
+    producer._producer.flush(timeout=5.0)  # type: ignore[union-attr]
 
     await wrapper.start([KafkaTopic.EXECUTION_EVENTS])
     try:
         # Wait until BOTH events have been handled (processed OR detected as duplicate)
-        @backoff.on_exception(backoff.constant, AssertionError, max_time=10.0, interval=0.2)
+        # Kafka consumers can be slow to start and poll - allow more time
+        @backoff.on_exception(backoff.constant, AssertionError, max_time=30.0, interval=0.3)
         async def _wait_all_handled() -> None:
             total = counts["processed"] + counts["duplicates"]
             assert total >= 2, f"Expected 2 events handled, got {total}"

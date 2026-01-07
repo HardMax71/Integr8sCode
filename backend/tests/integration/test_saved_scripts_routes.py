@@ -241,15 +241,8 @@ class TestSavedScripts:
         unique_id: Callable[[str], str],
     ) -> None:
         """Test that users cannot access scripts created by other users."""
-        user = await make_user(UserRole.USER)
-        admin = await make_user(UserRole.ADMIN)
-
-        # Login as regular user
-        await client.post(
-            "/api/v1/auth/login",
-            data={"username": user["username"], "password": user["password"]},
-        )
-
+        # Create user and immediately create their script (make_user logs in with proper headers)
+        await make_user(UserRole.USER)
         uid = unique_id("")
         user_script_data = {
             "name": f"User Private Script {uid}",
@@ -258,16 +251,12 @@ class TestSavedScripts:
             "lang_version": "3.11",
             "description": "Should only be visible to creating user",
         }
-
         create_response = await client.post("/api/v1/scripts", json=user_script_data)
         assert create_response.status_code in [200, 201]
         user_script_id = create_response.json()["script_id"]
 
-        # Login as admin
-        await client.post(
-            "/api/v1/auth/login",
-            data={"username": admin["username"], "password": admin["password"]},
-        )
+        # Create admin and immediately try to access user's script (make_user logs in with proper headers)
+        await make_user(UserRole.ADMIN)
 
         # Try to access the user's script as admin - should fail
         get_response = await client.get(f"/api/v1/scripts/{user_script_id}")

@@ -1,3 +1,10 @@
+"""E2E test for KubernetesWorker pod creation.
+
+Requires:
+- K8S_NAMESPACE env var set to a non-default namespace
+- KUBECONFIG pointing to a valid kubeconfig or in-cluster config
+- Permissions to create/delete ConfigMaps and Pods in the namespace
+"""
 import logging
 import os
 import uuid
@@ -24,6 +31,11 @@ _test_logger = logging.getLogger("test.k8s.worker_create_pod")
 async def test_worker_creates_configmap_and_pod(
     scope: AsyncContainer, monkeypatch: pytest.MonkeyPatch, test_settings: Settings
 ) -> None:
+    """Test that KubernetesWorker can create ConfigMap and Pod resources.
+
+    This test requires a working Kubernetes cluster with proper permissions.
+    In CI, K3s is set up via .github/workflows/backend-ci.yml.
+    """
     # Ensure non-default namespace for worker validation
     ns = os.environ.get("K8S_NAMESPACE", "integr8scode")
     if ns == "default":
@@ -46,10 +58,13 @@ async def test_worker_creates_configmap_and_pod(
         logger=_test_logger,
     )
 
-    # Initialize k8s clients using worker's own method
+    # Initialize k8s clients - must succeed for this E2E test
     worker._initialize_kubernetes_client()  # noqa: SLF001
-    if worker.v1 is None:
-        pytest.skip("Kubernetes cluster not available")
+    assert worker.v1 is not None, (
+        "Kubernetes client initialization failed. "
+        "Ensure KUBECONFIG is set or running in-cluster. "
+        f"KUBECONFIG={os.environ.get('KUBECONFIG', 'not set')}"
+    )
 
     exec_id = uuid.uuid4().hex[:8]
     cmd = CreatePodCommandEvent(
@@ -79,9 +94,11 @@ async def test_worker_creates_configmap_and_pod(
     try:
         await worker._create_config_map(cm)  # noqa: SLF001
     except ApiException as e:
-        if e.status in (403, 404):
-            pytest.skip(f"Insufficient permissions or namespace not found: {e}")
-        raise
+        pytest.fail(
+            f"Failed to create ConfigMap: {e.status} {e.reason}. "
+            f"Ensure namespace '{ns}' exists and test has RBAC permissions. "
+            f"Create namespace: kubectl create namespace {ns}"
+        )
 
     pod = worker.pod_builder.build_pod_manifest(cmd)
     await worker._create_pod(pod)  # noqa: SLF001

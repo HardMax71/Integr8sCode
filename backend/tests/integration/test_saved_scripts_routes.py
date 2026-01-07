@@ -346,20 +346,19 @@ class TestSavedScripts:
         response = await authenticated_client.post("/api/v1/scripts", json=large_script_data)
         assert response.status_code in [200, 201]
 
-        # Test excessively large script (should fail)
+        # Test excessively large script (should fail with 413 from RequestSizeLimitMiddleware)
+        # Middleware default is 10MB; 10MB script + JSON overhead exceeds this
         huge_content = "x" * (1024 * 1024 * 10)  # 10MB
         huge_script_data = {
             "name": f"Huge Script {uid}",
             "script": huge_content,
             "lang": "python",
-            "lang_version": "3.11"
+            "lang_version": "3.11",
         }
 
         response = await authenticated_client.post("/api/v1/scripts", json=huge_script_data)
-        # If backend returns 500 for oversized payload, skip as environment-specific
-        if response.status_code >= 500:
-            pytest.skip("Backend returned 5xx for oversized script upload")
-        assert response.status_code in [200, 201, 400, 413, 422]
+        assert response.status_code == 413, f"Expected 413 Payload Too Large, got {response.status_code}"
+        assert "too large" in response.json().get("detail", "").lower()
 
     @pytest.mark.asyncio
     async def test_update_nonexistent_script(self, authenticated_client: AsyncClient) -> None:

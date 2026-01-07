@@ -46,16 +46,11 @@ async def test_publish_and_subscribe_round_trip() -> None:
     sub = await bus.open_subscription("exec-1")
     evt = _make_completed_event("exec-1")
 
-    async def publish_later() -> None:
-        await asyncio.sleep(0.05)
-        await bus.publish_event("exec-1", evt)
+    # Publish directly (subscription is already open and ready)
+    await bus.publish_event("exec-1", evt)
 
-    pub_task = asyncio.create_task(publish_later())
-
-    # Wait with explicit timeout instead of polling loop
+    # Wait with explicit timeout
     msg = await _wait_for_message(sub, RedisSSEMessage)
-    await pub_task
-
     assert msg.execution_id == "exec-1"
 
     # Invalid JSON should be skipped - verify by sending valid message after invalid
@@ -90,16 +85,11 @@ async def test_notifications_channels() -> None:
         created_at="2025-01-01T00:00:00Z",
     )
 
-    async def publish_later() -> None:
-        await asyncio.sleep(0.05)
-        await bus.publish_notification("user-1", notif)
+    # Publish directly (subscription is already open and ready)
+    await bus.publish_notification("user-1", notif)
 
-    pub_task = asyncio.create_task(publish_later())
-
-    # Wait with explicit timeout instead of polling loop
+    # Wait with explicit timeout
     got = await _wait_for_message(nsub, RedisNotificationMessage)
-    await pub_task
-
     assert got.notification_id == "n1"
 
     await nsub.close()

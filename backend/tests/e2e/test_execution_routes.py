@@ -1,14 +1,20 @@
 import asyncio
+from typing import Any
 from uuid import UUID
 
 import pytest
 from app.domain.enums.execution import ExecutionStatus as ExecutionStatusEnum
 from app.schemas_pydantic.execution import ExecutionResponse, ExecutionResult, ResourceLimits, ResourceUsage
+from app.services.k8s_worker.worker import KubernetesWorker
+from app.services.saga import SagaOrchestrator
 from httpx import AsyncClient
 
-from tests.helpers import poll_until_terminal
+from tests.helpers.sse import wait_for_execution_terminal
 
 pytestmark = [pytest.mark.e2e, pytest.mark.k8s]
+
+# Type alias for execution_workers fixture
+ExecutionWorkers = tuple[SagaOrchestrator, KubernetesWorker]
 
 
 class TestExecution:
@@ -97,12 +103,19 @@ class TestExecution:
             assert "Line 2" in execution_result.stdout
 
     @pytest.mark.asyncio
-    async def test_execute_with_error(self, authenticated_client: AsyncClient) -> None:
-        """Test executing a script that produces an error."""
+    async def test_execute_with_error(
+        self, authenticated_client: AsyncClient, execution_workers: ExecutionWorkers
+    ) -> None:
+        """Test executing a script that produces an error.
+
+        Requires execution_workers fixture to run the full pipeline:
+        API -> SagaOrchestrator -> KubernetesWorker -> completion event.
+        Uses SSE to wait for terminal state (event-driven, no polling).
+        """
         execution_request = {
             "script": "print('Before error')\nraise ValueError('Test error')\nprint('After error')",
             "lang": "python",
-            "lang_version": "3.11"
+            "lang_version": "3.11",
         }
 
         exec_response = await authenticated_client.post("/api/v1/execute", json=execution_request)
@@ -110,15 +123,28 @@ class TestExecution:
 
         execution_id = exec_response.json()["execution_id"]
 
-        # Wait for execution to complete and verify error was captured
-        # E2E tests need longer timeout for pod scheduling and execution
-        result = await poll_until_terminal(authenticated_client, execution_id, timeout=120.0)
+        # Wait for terminal state via SSE (event-driven, no polling)
+        terminal_event = await wait_for_execution_terminal(
+            authenticated_client, execution_id, timeout=120.0
+        )
+
+        # Fetch final result to verify error was captured
+        result_response = await authenticated_client.get(f"/api/v1/result/{execution_id}")
+        assert result_response.status_code == 200
+        result: dict[str, Any] = result_response.json()
+
         assert result["status"] in (ExecutionStatusEnum.FAILED.value, ExecutionStatusEnum.ERROR.value)
         assert "ValueError" in (result.get("stderr") or result.get("stdout") or "")
 
     @pytest.mark.asyncio
-    async def test_execute_with_resource_tracking(self, authenticated_client: AsyncClient) -> None:
-        """Test that execution tracks resource usage."""
+    async def test_execute_with_resource_tracking(
+        self, authenticated_client: AsyncClient, execution_workers: ExecutionWorkers
+    ) -> None:
+        """Test that execution tracks resource usage.
+
+        Requires execution_workers fixture to run the full pipeline.
+        Uses SSE to wait for terminal state (event-driven, no polling).
+        """
         execution_request = {
             "script": """
 import time
@@ -129,7 +155,7 @@ time.sleep(0.1)  # Small delay to ensure measurable execution time
 print('Done')
 """,
             "lang": "python",
-            "lang_version": "3.11"
+            "lang_version": "3.11",
         }
 
         exec_response = await authenticated_client.post("/api/v1/execute", json=execution_request)
@@ -137,9 +163,14 @@ print('Done')
 
         execution_id = exec_response.json()["execution_id"]
 
-        # Wait for completion and verify resource tracking
-        # E2E tests need longer timeout for pod scheduling and execution
-        result = await poll_until_terminal(authenticated_client, execution_id, timeout=120.0)
+        # Wait for terminal state via SSE (event-driven, no polling)
+        await wait_for_execution_terminal(authenticated_client, execution_id, timeout=120.0)
+
+        # Fetch final result to verify resource tracking
+        result_response = await authenticated_client.get(f"/api/v1/result/{execution_id}")
+        assert result_response.status_code == 200
+        result: dict[str, Any] = result_response.json()
+
         assert result["status"] == ExecutionStatusEnum.COMPLETED.value
 
         # Resource usage must be present after completion
@@ -202,8 +233,14 @@ print('End of output')
                 assert "End of output" in result_data["stdout"] or len(result_data["stdout"]) > 10000
 
     @pytest.mark.asyncio
-    async def test_cancel_running_execution(self, authenticated_client: AsyncClient) -> None:
-        """Test cancelling a running execution."""
+    async def test_cancel_running_execution(
+        self, authenticated_client: AsyncClient, execution_workers: ExecutionWorkers
+    ) -> None:
+        """Test cancelling a running execution.
+
+        Requires execution_workers fixture to run the full pipeline.
+        Submits a long-running script and immediately requests cancellation.
+        """
         execution_request = {
             "script": """
 import time
@@ -214,7 +251,7 @@ for i in range(30):
 print('Should not reach here if cancelled')
 """,
             "lang": "python",
-            "lang_version": "3.11"
+            "lang_version": "3.11",
         }
 
         exec_response = await authenticated_client.post("/api/v1/execute", json=execution_request)
@@ -222,21 +259,17 @@ print('Should not reach here if cancelled')
 
         execution_id = exec_response.json()["execution_id"]
 
-        # Try to cancel immediately - no waiting
-        cancel_request = {
-            "reason": "Test cancellation"
-        }
+        # Try to cancel immediately
+        cancel_request = {"reason": "Test cancellation"}
+        cancel_response = await authenticated_client.post(
+            f"/api/v1/{execution_id}/cancel", json=cancel_request
+        )
 
-        try:
-            cancel_response = await authenticated_client.post(f"/api/v1/{execution_id}/cancel", json=cancel_request)
-        except Exception:
-            pytest.skip("Cancel endpoint not available or connection dropped")
-        if cancel_response.status_code >= 500:
-            pytest.skip("Cancellation not wired; backend returned 5xx")
-        # Should succeed or fail if already completed
-        assert cancel_response.status_code in [200, 400, 404]
-
-        # Cancel response of 200 means cancellation was accepted
+        # Cancel should succeed (200), or fail if execution already completed (400/404)
+        # 5xx errors indicate a real bug in the cancellation endpoint
+        assert cancel_response.status_code in [200, 400, 404], (
+            f"Unexpected cancel response: {cancel_response.status_code} - {cancel_response.text}"
+        )
 
     @pytest.mark.asyncio
     async def test_execution_with_timeout(self, authenticated_client: AsyncClient) -> None:

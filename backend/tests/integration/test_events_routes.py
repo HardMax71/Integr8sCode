@@ -334,8 +334,7 @@ class TestEventsRoutes:
         }
 
         response = await authenticated_admin_client.post("/api/v1/events/publish", json=publish_request)
-        if response.status_code != 200:
-            pytest.skip("Kafka not available for publishing events")
+        assert response.status_code == 200, f"Publish failed: {response.status_code} - {response.text}"
 
         publish_response = PublishEventResponse(**response.json())
         assert publish_response.event_id is not None

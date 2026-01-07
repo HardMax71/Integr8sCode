@@ -30,14 +30,19 @@ async def test_consumer_idempotent_wrapper_blocks_duplicates(
     registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
     settings: Settings = await scope.get(Settings)
 
-    # Track processed events AND duplicates separately
+    # Produce 2 identical events BEFORE starting consumer
+    execution_id = unique_id("e-")
+
+    # Track processed events AND duplicates separately (filter by our execution_id)
     counts = {"processed": 0, "duplicates": 0}
 
-    async def handle(_ev: Any) -> None:
-        counts["processed"] += 1
+    async def handle(ev: Any) -> None:
+        if getattr(ev, "execution_id", None) == execution_id:
+            counts["processed"] += 1
 
-    async def on_duplicate(_ev: Any, _result: Any) -> None:
-        counts["duplicates"] += 1
+    async def on_duplicate(ev: Any, _result: Any) -> None:
+        if getattr(ev, "execution_id", None) == execution_id:
+            counts["duplicates"] += 1
 
     # Build dispatcher (no auto-registration - we'll use subscribe_idempotent_handler)
     disp: Disp = EventDispatcher(logger=_test_logger)
@@ -72,8 +77,6 @@ async def test_consumer_idempotent_wrapper_blocks_duplicates(
         on_duplicate=on_duplicate,
     )
 
-    # Produce 2 identical events BEFORE starting consumer
-    execution_id = unique_id("e-")
     ev = make_execution_requested_event(execution_id=execution_id)
     await producer.produce(ev, key=execution_id)
     await producer.produce(ev, key=execution_id)

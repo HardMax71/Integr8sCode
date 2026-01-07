@@ -118,6 +118,7 @@ def create_pod_monitor_container(settings: Settings) -> AsyncContainer:
         SettingsProvider(),
         LoggingProvider(),
         DatabaseProvider(),
+        RedisProvider(),
         CoreServicesProvider(),
         MetricsProvider(),
         RepositoryProvider(),

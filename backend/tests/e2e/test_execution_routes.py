@@ -125,7 +125,7 @@ class TestExecution:
         execution_id = exec_response.json()["execution_id"]
 
         # Wait for terminal state via SSE (event-driven, no polling)
-        terminal_event = await wait_for_execution_terminal(
+        await wait_for_execution_terminal(
             authenticated_client, execution_id, timeout=120.0
         )
 

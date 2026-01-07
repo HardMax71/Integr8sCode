@@ -15,7 +15,7 @@ from app.dlq.models import DLQMessage, DLQMessageStatus
 from app.domain.enums.kafka import KafkaTopic
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.events import BaseEvent
-from app.settings import get_settings
+from app.settings import Settings
 
 from .types import ProducerConfig, ProducerMetrics, ProducerState
 
@@ -32,6 +32,7 @@ class UnifiedProducer(LifecycleEnabled):
         self,
         config: ProducerConfig,
         schema_registry_manager: SchemaRegistryManager,
+        settings: Settings,
         logger: logging.Logger,
         stats_callback: StatsCallback | None = None,
     ):
@@ -45,8 +46,8 @@ class UnifiedProducer(LifecycleEnabled):
         self._metrics = ProducerMetrics()
         self._event_metrics = get_event_metrics()  # Singleton for Kafka metrics
         self._poll_task: asyncio.Task[None] | None = None
-        # Topic prefix (for tests/local isolation); cached on init
-        self._topic_prefix = get_settings().KAFKA_TOPIC_PREFIX
+        # Topic prefix (for tests/local isolation); use injected settings
+        self._topic_prefix = settings.KAFKA_TOPIC_PREFIX
 
     @property
     def is_running(self) -> bool:

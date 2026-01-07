@@ -5,6 +5,7 @@ from collections.abc import Callable
 import pytest
 from app.events.core import ProducerConfig, UnifiedProducer
 from app.events.schema.schema_registry import SchemaRegistryManager
+from app.settings import Settings
 from dishka import AsyncContainer
 
 from tests.helpers import make_execution_requested_event
@@ -19,7 +20,13 @@ async def test_unified_producer_start_produce_send_to_dlq_stop(
     scope: AsyncContainer, unique_id: Callable[[str], str]
 ) -> None:
     schema: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
-    prod = UnifiedProducer(ProducerConfig(bootstrap_servers="localhost:9092"), schema, logger=_test_logger)
+    settings: Settings = await scope.get(Settings)
+    prod = UnifiedProducer(
+        ProducerConfig(bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS),
+        schema,
+        settings,
+        logger=_test_logger,
+    )
 
     async with prod:
         ev = make_execution_requested_event(execution_id=unique_id("exec-"))

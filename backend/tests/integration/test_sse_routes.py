@@ -1,7 +1,6 @@
 import asyncio
 import json
 from collections.abc import Callable
-from typing import Dict
 
 import backoff
 import pytest
@@ -37,8 +36,8 @@ class TestSSERoutes:
         assert r.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_sse_health_status(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
-        r = await client.get("/api/v1/events/health")
+    async def test_sse_health_status(self, authenticated_client: AsyncClient) -> None:
+        r = await authenticated_client.get("/api/v1/events/health")
         assert r.status_code == 200
         health = SSEHealthResponse(**r.json())
         assert health.status in ("healthy", "degraded", "unhealthy", "draining")
@@ -46,7 +45,7 @@ class TestSSERoutes:
 
     @pytest.mark.asyncio
     async def test_notification_stream_service(
-        self, scope: AsyncContainer, test_user: Dict[str, str], unique_id: Callable[[str], str]
+        self, scope: AsyncContainer, unique_id: Callable[[str], str]
     ) -> None:
         """Test SSE notification stream directly through service (httpx doesn't support SSE streaming)."""
         sse_service: SSEService = await scope.get(SSEService)
@@ -102,7 +101,7 @@ class TestSSERoutes:
 
     @pytest.mark.asyncio
     async def test_execution_event_stream_service(
-        self, scope: AsyncContainer, test_user: Dict[str, str], unique_id: Callable[[str], str]
+        self, scope: AsyncContainer, unique_id: Callable[[str], str]
     ) -> None:
         """Test SSE execution stream directly through service (httpx doesn't support SSE streaming)."""
         exec_id = unique_id("e-")
@@ -167,25 +166,22 @@ class TestSSERoutes:
         assert r.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_sse_endpoint_returns_correct_headers(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
-        task = asyncio.create_task(client.get("/api/v1/events/notifications/stream"))
-        
-        # Brief pause to let the request start
-        await asyncio.sleep(0.1)
-        
+    async def test_sse_cancellation_doesnt_break_client(self, authenticated_client: AsyncClient) -> None:
+        """Test that cancelling an SSE stream doesn't break the client."""
+        task = asyncio.create_task(authenticated_client.get("/api/v1/events/notifications/stream"))
+
+        # Cancel immediately - no sleep needed, cancellation valid at any point
         task.cancel()
-        try:
+        with pytest.raises(asyncio.CancelledError):
             await task
-        except asyncio.CancelledError:
-            pass
-        
-        r = await client.get("/api/v1/events/health")
+
+        # Verify client still works after cancellation
+        r = await authenticated_client.get("/api/v1/events/health")
         assert r.status_code == 200
-        assert isinstance(r.json(), dict)
 
     @pytest.mark.asyncio
     async def test_multiple_concurrent_sse_service_connections(
-        self, scope: AsyncContainer, test_user: Dict[str, str]
+        self, scope: AsyncContainer
     ) -> None:
         """Test multiple concurrent SSE connections through the service."""
         sse_service: SSEService = await scope.get(SSEService)

@@ -7,6 +7,8 @@ from app.domain.enums.execution import ExecutionStatus as ExecutionStatusEnum
 from app.schemas_pydantic.execution import ExecutionResponse, ExecutionResult, ResourceUsage
 from httpx import AsyncClient
 
+from tests.helpers import poll_until_terminal
+
 pytestmark = [pytest.mark.e2e, pytest.mark.k8s]
 
 
@@ -134,9 +136,12 @@ class TestExecution:
         exec_response = await client.post("/api/v1/execute", json=execution_request)
         assert exec_response.status_code == 200
 
-        _execution_id = exec_response.json()["execution_id"]
+        execution_id = exec_response.json()["execution_id"]
 
-        # No waiting - execution was accepted, error will be processed asynchronously
+        # Wait for execution to complete and verify error was captured
+        result = await poll_until_terminal(client, execution_id)
+        assert result["status"] in (ExecutionStatusEnum.FAILED, ExecutionStatusEnum.ERROR)
+        assert "ValueError" in (result.get("stderr") or result.get("stdout") or "")
 
     @pytest.mark.asyncio
     async def test_execute_with_resource_tracking(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
@@ -168,16 +173,15 @@ print('Done')
 
         execution_id = exec_response.json()["execution_id"]
 
-        # No waiting - execution was accepted, error will be processed asynchronously
+        # Wait for completion and verify resource tracking
+        result = await poll_until_terminal(client, execution_id)
+        assert result["status"] == ExecutionStatusEnum.COMPLETED
 
-        # Fetch result and validate resource usage if present
-        result_response = await client.get(f"/api/v1/result/{execution_id}")
-        if result_response.status_code == 200 and result_response.json().get("resource_usage"):
-            resource_usage = ResourceUsage(**result_response.json()["resource_usage"])
-            if resource_usage.execution_time_wall_seconds is not None:
-                assert resource_usage.execution_time_wall_seconds >= 0
-            if resource_usage.peak_memory_kb is not None:
-                assert resource_usage.peak_memory_kb >= 0
+        # Resource usage must be present after completion
+        assert result.get("resource_usage") is not None, "resource_usage should be populated"
+        resource_usage = ResourceUsage(**result["resource_usage"])
+        assert resource_usage.execution_time_wall_seconds is not None
+        assert resource_usage.execution_time_wall_seconds >= 0
 
     @pytest.mark.asyncio
     async def test_execute_with_different_language_versions(self, client: AsyncClient,
@@ -329,10 +333,18 @@ while True:
         exec_response = await client.post("/api/v1/execute", json=execution_request)
         assert exec_response.status_code == 200
 
-        _execution_id = exec_response.json()["execution_id"]
+        execution_id = exec_response.json()["execution_id"]
+        assert execution_id is not None
+        assert len(execution_id) > 0
 
-        # Just verify the execution was created - it will run forever until timeout
-        # No need to wait or observe states
+        # Verify the execution was created and is being tracked
+        result_response = await client.get(f"/api/v1/result/{execution_id}")
+        assert result_response.status_code == 200
+
+        result_data = result_response.json()
+        assert result_data["execution_id"] == execution_id
+        # Execution should be in some valid state (likely queued/running since it's long-running)
+        assert result_data["status"] in [e.value for e in ExecutionStatusEnum]
 
     @pytest.mark.asyncio
     async def test_sandbox_restrictions(self, client: AsyncClient, test_user: Dict[str, str]) -> None:

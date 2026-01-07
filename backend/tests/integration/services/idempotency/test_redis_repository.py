@@ -136,28 +136,31 @@ async def test_update_record_when_missing(
 
 @pytest.mark.asyncio
 async def test_aggregate_status_counts(
-    repository: RedisIdempotencyRepository, redis_client: aioredis.Redis, unique_id: Callable[[str], str]
+    redis_client: aioredis.Redis, unique_id: Callable[[str], str]
 ) -> None:
+    # Use unique prefix to isolate this test from parallel runs
+    prefix = unique_id("idemp-agg-")
+    repo = RedisIdempotencyRepository(redis_client, key_prefix=prefix)
+
     statuses = (IdempotencyStatus.PROCESSING, IdempotencyStatus.PROCESSING, IdempotencyStatus.COMPLETED)
-    # Seed few keys directly using repository
     for i, status in enumerate(statuses):
         rec = IdempotencyRecord(
-            key=unique_id(f"k-{i}-"),
+            key=f"k-{i}",
             status=status,
             event_type="t",
-            event_id=unique_id(f"e-{i}-"),
+            event_id=f"e-{i}",
             created_at=datetime.now(timezone.utc),
             ttl_seconds=60,
         )
-        await repository.insert_processing(rec)
+        await repo.insert_processing(rec)
         if status != IdempotencyStatus.PROCESSING:
             rec.status = status
             rec.completed_at = datetime.now(timezone.utc)
-            await repository.update_record(rec)
+            await repo.update_record(rec)
 
-    counts = await repository.aggregate_status_counts("idempotency")
-    assert counts[IdempotencyStatus.PROCESSING] >= 2
-    assert counts[IdempotencyStatus.COMPLETED] >= 1
+    counts = await repo.aggregate_status_counts(prefix)
+    assert counts[IdempotencyStatus.PROCESSING] == 2
+    assert counts[IdempotencyStatus.COMPLETED] == 1
 
 
 @pytest.mark.asyncio

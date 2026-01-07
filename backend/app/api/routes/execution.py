@@ -163,12 +163,6 @@ async def cancel_execution(
     cancel_request: CancelExecutionRequest,
     event_service: FromDishka[KafkaEventService],
 ) -> CancelResponse:
-    # Handle terminal states
-    terminal_states = [ExecutionStatus.COMPLETED, ExecutionStatus.FAILED, ExecutionStatus.TIMEOUT]
-
-    if execution.status in terminal_states:
-        raise HTTPException(status_code=400, detail=f"Cannot cancel execution in {str(execution.status)} state")
-
     # Handle idempotency - if already cancelled, return success
     if execution.status == ExecutionStatus.CANCELLED:
         return CancelResponse(
@@ -177,6 +171,10 @@ async def cancel_execution(
             message="Execution was already cancelled",
             event_id="-1",  # exact event_id unknown
         )
+
+    # Reject cancellation for other terminal states
+    if execution.status.is_terminal:
+        raise HTTPException(status_code=400, detail=f"Cannot cancel execution in {execution.status} state")
 
     settings = get_settings()
     payload = {

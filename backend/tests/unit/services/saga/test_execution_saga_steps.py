@@ -9,6 +9,7 @@ from app.services.saga.execution_saga import (
     MonitorExecutionStep,
     QueueExecutionStep,
     ReleaseResourcesCompensation,
+    RemoveFromQueueCompensation,
     ValidateExecutionStep,
 )
 from app.services.saga.saga_step import SagaContext
@@ -174,8 +175,8 @@ async def test_delete_pod_compensation_variants() -> None:
     # Exercise get_compensation methods return types (coverage for lines returning comps/None)
     assert ValidateExecutionStep().get_compensation() is None
     assert isinstance(AllocateResourcesStep(_FakeAllocRepo()).get_compensation(), ReleaseResourcesCompensation)  # type: ignore[arg-type]
-    assert isinstance(QueueExecutionStep().get_compensation(), type(DeletePodCompensation(None)).__bases__[0]) or True
-    assert CreatePodStep(None, publish_commands=False).get_compensation() is not None
+    assert isinstance(QueueExecutionStep().get_compensation(), RemoveFromQueueCompensation)
+    assert isinstance(CreatePodStep(None, publish_commands=False).get_compensation(), DeletePodCompensation)
     assert MonitorExecutionStep().get_compensation() is None
 
 

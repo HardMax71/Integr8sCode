@@ -22,9 +22,14 @@ def test_create_app_real_instance(app: FastAPI) -> None:
 @pytest.mark.asyncio
 async def test_middlewares_behavior(client: AsyncClient) -> None:
     """Test middleware behavior via HTTP - the proper way to verify middleware config."""
-    # CORS middleware: responds to preflight OPTIONS with CORS headers
-    resp = await client.options("/api/v1/health", headers={"Origin": "http://test.com"})
-    assert "access-control-allow-origin" in resp.headers or resp.status_code == 200
+    # CORS middleware: responds to preflight OPTIONS with CORS headers for allowed origins
+    allowed_origin = "https://localhost:5001"
+    resp = await client.options(
+        "/api/v1/health",
+        headers={"Origin": allowed_origin, "Access-Control-Request-Method": "GET"},
+    )
+    assert resp.status_code == 200
+    assert resp.headers.get("access-control-allow-origin") == allowed_origin
 
     # Correlation middleware: adds correlation ID header to responses
     resp = await client.get("/api/v1/health")

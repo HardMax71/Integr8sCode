@@ -1,11 +1,13 @@
 from collections.abc import Callable
 from datetime import datetime, timezone
-from typing import Dict
 from uuid import UUID
 
 import pytest
+from app.domain.enums.user import UserRole
 from app.schemas_pydantic.saved_script import SavedScriptResponse
 from httpx import AsyncClient
+
+from tests.conftest import MakeUser
 
 
 @pytest.mark.integration
@@ -32,11 +34,9 @@ class TestSavedScripts:
 
     @pytest.mark.asyncio
     async def test_create_and_retrieve_saved_script(
-        self, client: AsyncClient, test_user: Dict[str, str], unique_id: Callable[[str], str],
+        self, authenticated_client: AsyncClient, unique_id: Callable[[str], str],
     ) -> None:
         """Test creating and retrieving a saved script."""
-        # Already authenticated via test_user fixture
-
         # Create a unique script
         uid = unique_id("")
         script_data = {
@@ -48,7 +48,7 @@ class TestSavedScripts:
         }
 
         # Create the script
-        create_response = await client.post("/api/v1/scripts", json=script_data)
+        create_response = await authenticated_client.post("/api/v1/scripts", json=script_data)
         assert create_response.status_code in [200, 201]
 
         # Validate response structure
@@ -77,7 +77,7 @@ class TestSavedScripts:
         assert saved_script.updated_at is not None
 
         # Now retrieve the script by ID
-        get_response = await client.get(f"/api/v1/scripts/{saved_script.script_id}")
+        get_response = await authenticated_client.get(f"/api/v1/scripts/{saved_script.script_id}")
         assert get_response.status_code == 200
 
         retrieved_data = get_response.json()
@@ -90,11 +90,9 @@ class TestSavedScripts:
 
     @pytest.mark.asyncio
     async def test_list_user_scripts(
-        self, client: AsyncClient, test_user: Dict[str, str], unique_id: Callable[[str], str]
+        self, authenticated_client: AsyncClient, unique_id: Callable[[str], str]
     ) -> None:
         """Test listing user's saved scripts."""
-        # Already authenticated via test_user fixture
-
         # Create a few scripts
         uid = unique_id("")
         scripts_to_create = [
@@ -122,12 +120,12 @@ class TestSavedScripts:
 
         created_ids = []
         for script_data in scripts_to_create:
-            create_response = await client.post("/api/v1/scripts", json=script_data)
+            create_response = await authenticated_client.post("/api/v1/scripts", json=script_data)
             if create_response.status_code in [200, 201]:
                 created_ids.append(create_response.json()["script_id"])
 
         # List all scripts
-        list_response = await client.get("/api/v1/scripts")
+        list_response = await authenticated_client.get("/api/v1/scripts")
         assert list_response.status_code == 200
 
         scripts_list = list_response.json()
@@ -152,11 +150,9 @@ class TestSavedScripts:
 
     @pytest.mark.asyncio
     async def test_update_saved_script(
-        self, client: AsyncClient, test_user: Dict[str, str], unique_id: Callable[[str], str]
+        self, authenticated_client: AsyncClient, unique_id: Callable[[str], str]
     ) -> None:
         """Test updating a saved script."""
-        # Already authenticated via test_user fixture
-
         # Create a script
         uid = unique_id("")
         original_data = {
@@ -167,7 +163,7 @@ class TestSavedScripts:
             "description": "Original description"
         }
 
-        create_response = await client.post("/api/v1/scripts", json=original_data)
+        create_response = await authenticated_client.post("/api/v1/scripts", json=original_data)
         assert create_response.status_code in [200, 201]
 
         created_script = create_response.json()
@@ -183,7 +179,7 @@ class TestSavedScripts:
             "description": "Updated description with more details"
         }
 
-        update_response = await client.put(f"/api/v1/scripts/{script_id}", json=updated_data)
+        update_response = await authenticated_client.put(f"/api/v1/scripts/{script_id}", json=updated_data)
         assert update_response.status_code == 200
 
         updated_script_data = update_response.json()
@@ -207,11 +203,9 @@ class TestSavedScripts:
 
     @pytest.mark.asyncio
     async def test_delete_saved_script(
-        self, client: AsyncClient, test_user: Dict[str, str], unique_id: Callable[[str], str]
+        self, authenticated_client: AsyncClient, unique_id: Callable[[str], str]
     ) -> None:
         """Test deleting a saved script."""
-        # Already authenticated via test_user fixture
-
         # Create a script to delete
         uid = unique_id("")
         script_data = {
@@ -222,17 +216,17 @@ class TestSavedScripts:
             "description": "This script will be deleted"
         }
 
-        create_response = await client.post("/api/v1/scripts", json=script_data)
+        create_response = await authenticated_client.post("/api/v1/scripts", json=script_data)
         assert create_response.status_code in [200, 201]
 
         script_id = create_response.json()["script_id"]
 
         # Delete the script
-        delete_response = await client.delete(f"/api/v1/scripts/{script_id}")
+        delete_response = await authenticated_client.delete(f"/api/v1/scripts/{script_id}")
         assert delete_response.status_code in [200, 204]
 
         # Verify it's deleted by trying to get it
-        get_response = await client.get(f"/api/v1/scripts/{script_id}")
+        get_response = await authenticated_client.get(f"/api/v1/scripts/{script_id}")
         assert get_response.status_code in [404, 403]
 
         if get_response.status_code == 404:
@@ -243,18 +237,18 @@ class TestSavedScripts:
     async def test_cannot_access_other_users_scripts(
         self,
         client: AsyncClient,
-        test_user: Dict[str, str],
-        test_admin: Dict[str, str],
+        make_user: MakeUser,
         unique_id: Callable[[str], str],
     ) -> None:
         """Test that users cannot access scripts created by other users."""
-        # Create a script as regular user
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
+        user = await make_user(UserRole.USER)
+        admin = await make_user(UserRole.ADMIN)
+
+        # Login as regular user
+        await client.post(
+            "/api/v1/auth/login",
+            data={"username": user["username"], "password": user["password"]},
+        )
 
         uid = unique_id("")
         user_script_data = {
@@ -262,50 +256,34 @@ class TestSavedScripts:
             "script": "print('Private to user')",
             "lang": "python",
             "lang_version": "3.11",
-            "description": "Should only be visible to creating user"
+            "description": "Should only be visible to creating user",
         }
 
         create_response = await client.post("/api/v1/scripts", json=user_script_data)
         assert create_response.status_code in [200, 201]
-
         user_script_id = create_response.json()["script_id"]
 
-        # Now login as admin
-        admin_login_data = {
-            "username": test_admin["username"],
-            "password": test_admin["password"]
-        }
-        admin_login_response = await client.post("/api/v1/auth/login", data=admin_login_data)
-        assert admin_login_response.status_code == 200
+        # Login as admin
+        await client.post(
+            "/api/v1/auth/login",
+            data={"username": admin["username"], "password": admin["password"]},
+        )
 
-        # Try to access the user's script as admin
-        # This should fail unless admin has special permissions
+        # Try to access the user's script as admin - should fail
         get_response = await client.get(f"/api/v1/scripts/{user_script_id}")
-        # Should be forbidden or not found
         assert get_response.status_code in [403, 404]
 
         # List scripts as admin - should not include user's script
         list_response = await client.get("/api/v1/scripts")
         assert list_response.status_code == 200
-
-        admin_scripts = list_response.json()
-        admin_script_ids = [s["script_id"] for s in admin_scripts]
-        # User's script should not be in admin's list
+        admin_script_ids = [s["script_id"] for s in list_response.json()]
         assert user_script_id not in admin_script_ids
 
     @pytest.mark.asyncio
     async def test_script_with_invalid_language(
-        self, client: AsyncClient, test_user: Dict[str, str], unique_id: Callable[[str], str],
+        self, authenticated_client: AsyncClient, unique_id: Callable[[str], str],
     ) -> None:
         """Test that invalid language/version combinations are handled."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         uid = unique_id("")
 
         # Try invalid language
@@ -316,7 +294,7 @@ class TestSavedScripts:
             "lang_version": "1.0"
         }
 
-        response = await client.post("/api/v1/scripts", json=invalid_lang_data)
+        response = await authenticated_client.post("/api/v1/scripts", json=invalid_lang_data)
         # Backend may accept arbitrary lang values; accept any outcome
         assert response.status_code in [200, 201, 400, 422]
 
@@ -328,21 +306,13 @@ class TestSavedScripts:
             "lang_version": "2.7"  # Python 2 likely not supported
         }
 
-        response = await client.post("/api/v1/scripts", json=unsupported_version_data)
+        response = await authenticated_client.post("/api/v1/scripts", json=unsupported_version_data)
         # Might accept but warn, or reject
         assert response.status_code in [200, 201, 400, 422]
 
     @pytest.mark.asyncio
-    async def test_script_name_constraints(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_script_name_constraints(self, authenticated_client: AsyncClient) -> None:
         """Test script name validation and constraints."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Test empty name
         empty_name_data = {
             "name": "",
@@ -351,7 +321,7 @@ class TestSavedScripts:
             "lang_version": "3.11"
         }
 
-        response = await client.post("/api/v1/scripts", json=empty_name_data)
+        response = await authenticated_client.post("/api/v1/scripts", json=empty_name_data)
         assert response.status_code in [200, 201, 400, 422]
 
         # Test very long name
@@ -362,7 +332,7 @@ class TestSavedScripts:
             "lang_version": "3.11"
         }
 
-        response = await client.post("/api/v1/scripts", json=long_name_data)
+        response = await authenticated_client.post("/api/v1/scripts", json=long_name_data)
         # Should either accept or reject based on max length
         if response.status_code in [400, 422]:
             error_data = response.json()
@@ -370,17 +340,9 @@ class TestSavedScripts:
 
     @pytest.mark.asyncio
     async def test_script_content_size_limits(
-        self, client: AsyncClient, test_user: Dict[str, str], unique_id: Callable[[str], str]
+        self, authenticated_client: AsyncClient, unique_id: Callable[[str], str]
     ) -> None:
         """Test script content size limits."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         uid = unique_id("")
 
         # Test reasonably large script (should succeed)
@@ -392,7 +354,7 @@ class TestSavedScripts:
             "lang_version": "3.11"
         }
 
-        response = await client.post("/api/v1/scripts", json=large_script_data)
+        response = await authenticated_client.post("/api/v1/scripts", json=large_script_data)
         assert response.status_code in [200, 201]
 
         # Test excessively large script (should fail)
@@ -404,23 +366,15 @@ class TestSavedScripts:
             "lang_version": "3.11"
         }
 
-        response = await client.post("/api/v1/scripts", json=huge_script_data)
+        response = await authenticated_client.post("/api/v1/scripts", json=huge_script_data)
         # If backend returns 500 for oversized payload, skip as environment-specific
         if response.status_code >= 500:
             pytest.skip("Backend returned 5xx for oversized script upload")
         assert response.status_code in [200, 201, 400, 413, 422]
 
     @pytest.mark.asyncio
-    async def test_update_nonexistent_script(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_update_nonexistent_script(self, authenticated_client: AsyncClient) -> None:
         """Test updating a non-existent script."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         fake_script_id = "00000000-0000-0000-0000-000000000000"
 
         update_data = {
@@ -430,7 +384,7 @@ class TestSavedScripts:
             "lang_version": "3.11"
         }
 
-        response = await client.put(f"/api/v1/scripts/{fake_script_id}", json=update_data)
+        response = await authenticated_client.put(f"/api/v1/scripts/{fake_script_id}", json=update_data)
         # Non-existent script must return 404/403 (no server error)
         assert response.status_code in [404, 403]
 
@@ -438,34 +392,20 @@ class TestSavedScripts:
         assert "detail" in error_data
 
     @pytest.mark.asyncio
-    async def test_delete_nonexistent_script(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_delete_nonexistent_script(self, authenticated_client: AsyncClient) -> None:
         """Test deleting a non-existent script."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         fake_script_id = "00000000-0000-0000-0000-000000000000"
 
-        response = await client.delete(f"/api/v1/scripts/{fake_script_id}")
+        response = await authenticated_client.delete(f"/api/v1/scripts/{fake_script_id}")
         # Could be 404 (not found) or 204 (idempotent delete)
         assert response.status_code in [404, 403, 204]
 
     @pytest.mark.asyncio
     async def test_scripts_persist_across_sessions(
-        self, client: AsyncClient, test_user: Dict[str, str], unique_id: Callable[[str], str],
+        self, client: AsyncClient, make_user: MakeUser, unique_id: Callable[[str], str],
     ) -> None:
         """Test that scripts persist across login sessions."""
-        # First session - create script
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
+        user = await make_user(UserRole.USER)
 
         uid = unique_id("")
         script_data = {
@@ -473,21 +413,22 @@ class TestSavedScripts:
             "script": "print('Should persist')",
             "lang": "python",
             "lang_version": "3.11",
-            "description": "Testing persistence"
+            "description": "Testing persistence",
         }
 
         create_response = await client.post("/api/v1/scripts", json=script_data)
         assert create_response.status_code in [200, 201]
-
         script_id = create_response.json()["script_id"]
 
         # Logout
-        logout_response = await client.post("/api/v1/auth/logout")
-        assert logout_response.status_code == 200
+        await client.post("/api/v1/auth/logout")
 
-        # Second session - retrieve script
-        login_response2 = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response2.status_code == 200
+        # Second session - login again and retrieve script
+        login_resp = await client.post(
+            "/api/v1/auth/login",
+            data={"username": user["username"], "password": user["password"]},
+        )
+        assert login_resp.status_code == 200
 
         # Script should still exist
         get_response = await client.get(f"/api/v1/scripts/{script_id}")

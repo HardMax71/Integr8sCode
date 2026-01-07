@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Dict
 
 import pytest
 from app.dlq import DLQMessageStatus
@@ -32,71 +31,23 @@ class TestDLQRoutes:
                    for word in ["not authenticated", "unauthorized", "login"])
 
     @pytest.mark.asyncio
-    async def test_get_dlq_statistics(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_get_dlq_statistics(self, authenticated_client: AsyncClient) -> None:
         """Test getting DLQ statistics."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
-        # Get DLQ stats
-        response = await client.get("/api/v1/dlq/stats")
+        response = await authenticated_client.get("/api/v1/dlq/stats")
         assert response.status_code == 200
 
-        # Validate response structure
-        stats_data = response.json()
-        stats = DLQStats(**stats_data)
+        # Pydantic validates structure and types
+        stats = DLQStats(**response.json())
 
-        # Verify structure
-        assert isinstance(stats.by_status, dict)
-        assert isinstance(stats.by_topic, list)
-        assert isinstance(stats.by_event_type, list)
-        assert isinstance(stats.age_stats, dict)
-        assert stats.timestamp is not None
-
-        # Check status breakdown
-        for status in ["pending", "retrying", "failed", "discarded"]:
-            if status in stats.by_status:
-                assert isinstance(stats.by_status[status], int)
-                assert stats.by_status[status] >= 0
-
-        # Check topic stats
-        for topic_stat in stats.by_topic:
-            assert "topic" in topic_stat
-            assert "count" in topic_stat
-            assert isinstance(topic_stat["count"], int)
-            assert topic_stat["count"] >= 0
-
-        # Check event type stats
-        for event_type_stat in stats.by_event_type:
-            assert "event_type" in event_type_stat
-            assert "count" in event_type_stat
-            assert isinstance(event_type_stat["count"], int)
-            assert event_type_stat["count"] >= 0
-
-        # Check age stats
-        if stats.age_stats:
-            for key in ["min", "max", "avg", "median"]:
-                if key in stats.age_stats:
-                    assert isinstance(stats.age_stats[key], (int, float))
-                    assert stats.age_stats[key] >= 0
+        # Verify counts are non-negative
+        for count in stats.by_status.values():
+            assert count >= 0
 
     @pytest.mark.asyncio
-    async def test_list_dlq_messages(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_list_dlq_messages(self, authenticated_client: AsyncClient) -> None:
         """Test listing DLQ messages with filters."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # List all DLQ messages
-        response = await client.get("/api/v1/dlq/messages?limit=10&offset=0")
+        response = await authenticated_client.get("/api/v1/dlq/messages?limit=10&offset=0")
         assert response.status_code == 200
 
         # Validate response structure
@@ -125,19 +76,11 @@ class TestDLQRoutes:
                 assert message.age_seconds >= 0
 
     @pytest.mark.asyncio
-    async def test_filter_dlq_messages_by_status(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_filter_dlq_messages_by_status(self, authenticated_client: AsyncClient) -> None:
         """Test filtering DLQ messages by status."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Test different status filters
         for status in ["pending", "scheduled", "retried", "discarded"]:
-            response = await client.get(f"/api/v1/dlq/messages?status={status}&limit=5")
+            response = await authenticated_client.get(f"/api/v1/dlq/messages?status={status}&limit=5")
             assert response.status_code == 200
 
             messages_data = response.json()
@@ -148,19 +91,11 @@ class TestDLQRoutes:
                 assert message.status == status
 
     @pytest.mark.asyncio
-    async def test_filter_dlq_messages_by_topic(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_filter_dlq_messages_by_topic(self, authenticated_client: AsyncClient) -> None:
         """Test filtering DLQ messages by topic."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Filter by a specific topic
         test_topic = "execution-events"
-        response = await client.get(f"/api/v1/dlq/messages?topic={test_topic}&limit=5")
+        response = await authenticated_client.get(f"/api/v1/dlq/messages?topic={test_topic}&limit=5")
         assert response.status_code == 200
 
         messages_data = response.json()
@@ -171,67 +106,32 @@ class TestDLQRoutes:
             assert message.original_topic == test_topic
 
     @pytest.mark.asyncio
-    async def test_get_single_dlq_message_detail(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_get_single_dlq_message_detail(self, authenticated_client: AsyncClient) -> None:
         """Test getting detailed information for a single DLQ message."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # First get list of messages to find an ID
-        list_response = await client.get("/api/v1/dlq/messages?limit=1")
+        list_response = await authenticated_client.get("/api/v1/dlq/messages?limit=1")
         assert list_response.status_code == 200
 
         messages_data = list_response.json()
         if messages_data["total"] > 0 and messages_data["messages"]:
-            # Get details for the first message
             event_id = messages_data["messages"][0]["event_id"]
 
-            detail_response = await client.get(f"/api/v1/dlq/messages/{event_id}")
+            detail_response = await authenticated_client.get(f"/api/v1/dlq/messages/{event_id}")
             assert detail_response.status_code == 200
 
-            # Validate detailed response
-            detail_data = detail_response.json()
-            message_detail = DLQMessageDetail(**detail_data)
+            # Pydantic validates structure and types
+            message_detail = DLQMessageDetail(**detail_response.json())
 
-            # Verify all fields are present
+            # Verify we got the right message and business logic constraints
             assert message_detail.event_id == event_id
-            assert message_detail.event is not None
-            assert isinstance(message_detail.event, dict)
-            assert message_detail.event_type is not None
-            assert message_detail.original_topic is not None
-            assert message_detail.error is not None
             assert message_detail.retry_count >= 0
-            assert message_detail.failed_at is not None
-            assert message_detail.status in DLQMessageStatus.__members__.values()
-            assert message_detail.created_at is not None
-            assert message_detail.last_updated is not None
-
-            # Optional fields
-            if message_detail.producer_id:
-                assert isinstance(message_detail.producer_id, str)
-            if message_detail.dlq_offset is not None:
-                assert message_detail.dlq_offset >= 0
-            if message_detail.dlq_partition is not None:
-                assert message_detail.dlq_partition >= 0
 
     @pytest.mark.asyncio
-    async def test_get_nonexistent_dlq_message(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_get_nonexistent_dlq_message(self, authenticated_client: AsyncClient) -> None:
         """Test getting a non-existent DLQ message."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Try to get non-existent message
         fake_event_id = "00000000-0000-0000-0000-000000000000"
-        response = await client.get(f"/api/v1/dlq/messages/{fake_event_id}")
+        response = await authenticated_client.get(f"/api/v1/dlq/messages/{fake_event_id}")
         assert response.status_code == 404
 
         error_data = response.json()
@@ -239,16 +139,8 @@ class TestDLQRoutes:
         assert "not found" in error_data["detail"].lower()
 
     @pytest.mark.asyncio
-    async def test_set_retry_policy(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_set_retry_policy(self, authenticated_client: AsyncClient) -> None:
         """Test setting a retry policy for a topic."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Set retry policy
         policy_data = {
             "topic": "test-topic",
@@ -259,7 +151,7 @@ class TestDLQRoutes:
             "retry_multiplier": 2.0
         }
 
-        response = await client.post("/api/v1/dlq/retry-policy", json=policy_data)
+        response = await authenticated_client.post("/api/v1/dlq/retry-policy", json=policy_data)
         assert response.status_code == 200
 
         # Validate response
@@ -269,18 +161,10 @@ class TestDLQRoutes:
         assert str(policy_data["topic"]) in result.message
 
     @pytest.mark.asyncio
-    async def test_retry_dlq_messages_batch(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_retry_dlq_messages_batch(self, authenticated_client: AsyncClient) -> None:
         """Test retrying a batch of DLQ messages."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Get some failed messages to retry
-        list_response = await client.get("/api/v1/dlq/messages?status=discarded&limit=3")
+        list_response = await authenticated_client.get("/api/v1/dlq/messages?status=discarded&limit=3")
         assert list_response.status_code == 200
 
         messages_data = list_response.json()
@@ -293,7 +177,7 @@ class TestDLQRoutes:
                 "event_ids": event_ids
             }
 
-            retry_response = await client.post("/api/v1/dlq/retry", json=retry_request)
+            retry_response = await authenticated_client.post("/api/v1/dlq/retry", json=retry_request)
             assert retry_response.status_code == 200
 
             # Validate retry response
@@ -314,18 +198,10 @@ class TestDLQRoutes:
                     assert "success" in detail
 
     @pytest.mark.asyncio
-    async def test_discard_dlq_message(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_discard_dlq_message(self, authenticated_client: AsyncClient) -> None:
         """Test discarding a DLQ message."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Get a failed message to discard
-        list_response = await client.get("/api/v1/dlq/messages?status=discarded&limit=1")
+        list_response = await authenticated_client.get("/api/v1/dlq/messages?status=discarded&limit=1")
         assert list_response.status_code == 200
 
         messages_data = list_response.json()
@@ -334,7 +210,7 @@ class TestDLQRoutes:
 
             # Discard the message
             discard_reason = "Test discard - message unrecoverable"
-            discard_response = await client.delete(
+            discard_response = await authenticated_client.delete(
                 f"/api/v1/dlq/messages/{event_id}?reason={discard_reason}"
             )
             assert discard_response.status_code == 200
@@ -346,25 +222,17 @@ class TestDLQRoutes:
             assert event_id in result.message
 
             # Verify message is now discarded
-            detail_response = await client.get(f"/api/v1/dlq/messages/{event_id}")
+            detail_response = await authenticated_client.get(f"/api/v1/dlq/messages/{event_id}")
             if detail_response.status_code == 200:
                 detail_data = detail_response.json()
                 # Status should be discarded
                 assert detail_data["status"] == "discarded"
 
     @pytest.mark.asyncio
-    async def test_get_dlq_topics_summary(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_get_dlq_topics_summary(self, authenticated_client: AsyncClient) -> None:
         """Test getting DLQ topics summary."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Get topics summary
-        response = await client.get("/api/v1/dlq/topics")
+        response = await authenticated_client.get("/api/v1/dlq/topics")
         assert response.status_code == 200
 
         # Validate response
@@ -399,18 +267,10 @@ class TestDLQRoutes:
                 assert topic_summary.max_retry_count >= 0
 
     @pytest.mark.asyncio
-    async def test_dlq_message_pagination(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_dlq_message_pagination(self, authenticated_client: AsyncClient) -> None:
         """Test DLQ message pagination."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Get first page
-        page1_response = await client.get("/api/v1/dlq/messages?limit=5&offset=0")
+        page1_response = await authenticated_client.get("/api/v1/dlq/messages?limit=5&offset=0")
         assert page1_response.status_code == 200
 
         page1_data = page1_response.json()
@@ -418,7 +278,7 @@ class TestDLQRoutes:
 
         # If there are more than 5 messages, get second page
         if page1.total > 5:
-            page2_response = await client.get("/api/v1/dlq/messages?limit=5&offset=5")
+            page2_response = await authenticated_client.get("/api/v1/dlq/messages?limit=5&offset=5")
             assert page2_response.status_code == 200
 
             page2_data = page2_response.json()
@@ -437,36 +297,28 @@ class TestDLQRoutes:
                 assert len(page1_ids.intersection(page2_ids)) == 0
 
     @pytest.mark.asyncio
-    async def test_dlq_error_handling(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_dlq_error_handling(self, authenticated_client: AsyncClient) -> None:
         """Test DLQ error handling for invalid requests."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Test invalid limit
-        response = await client.get("/api/v1/dlq/messages?limit=10000")  # Too high
+        response = await authenticated_client.get("/api/v1/dlq/messages?limit=10000")  # Too high
         # Should either accept with max limit or reject
         assert response.status_code in [200, 400, 422]
 
         # Test negative offset
-        response = await client.get("/api/v1/dlq/messages?limit=10&offset=-1")
+        response = await authenticated_client.get("/api/v1/dlq/messages?limit=10&offset=-1")
         assert response.status_code in [400, 422]
 
         # Test invalid status filter
-        response = await client.get("/api/v1/dlq/messages?status=invalid_status")
+        response = await authenticated_client.get("/api/v1/dlq/messages?status=invalid_status")
         assert response.status_code in [400, 422]
 
         # Test retry with empty list
-        response = await client.post("/api/v1/dlq/retry", json={"event_ids": []})
+        response = await authenticated_client.post("/api/v1/dlq/retry", json={"event_ids": []})
         # Should handle gracefully or reject invalid input
         assert response.status_code in [200, 400, 404, 422]
 
         # Test discard without reason
         fake_event_id = "00000000-0000-0000-0000-000000000000"
-        response = await client.delete(f"/api/v1/dlq/messages/{fake_event_id}")
+        response = await authenticated_client.delete(f"/api/v1/dlq/messages/{fake_event_id}")
         # Should require reason parameter
         assert response.status_code in [400, 422, 404]

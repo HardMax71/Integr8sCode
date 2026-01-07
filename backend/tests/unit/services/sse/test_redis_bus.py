@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from typing import Any, TypeVar
 
 import pytest
 from app.domain.enums.notification import NotificationSeverity, NotificationStatus
@@ -13,6 +14,7 @@ from fakeredis import FakeAsyncRedis
 pytestmark = pytest.mark.unit
 
 _test_logger = logging.getLogger("test.services.sse.redis_bus")
+_T = TypeVar("_T")
 
 
 def _make_completed_event(execution_id: str) -> ExecutionCompletedEvent:
@@ -26,15 +28,22 @@ def _make_completed_event(execution_id: str) -> ExecutionCompletedEvent:
     )
 
 
+async def _wait_for_message(sub: Any, model: type[_T], timeout: float = 1.0) -> _T:
+    """Wait for a non-None message with explicit timeout."""
+    async with asyncio.timeout(timeout):
+        while True:
+            msg: _T | None = await sub.get(model)
+            if msg is not None:
+                return msg
+            await asyncio.sleep(0.01)  # Yield, not timing dependency
+
+
 @pytest.mark.asyncio
 async def test_publish_and_subscribe_round_trip() -> None:
     redis = FakeAsyncRedis()
     bus = SSERedisBus(redis, logger=_test_logger)
 
-    # Subscribe in background to receive published messages
     sub = await bus.open_subscription("exec-1")
-
-    # Publish event
     evt = _make_completed_event("exec-1")
 
     async def publish_later() -> None:
@@ -43,16 +52,10 @@ async def test_publish_and_subscribe_round_trip() -> None:
 
     pub_task = asyncio.create_task(publish_later())
 
-    # Wait for message
-    msg = None
-    for _ in range(20):
-        msg = await sub.get(RedisSSEMessage)
-        if msg:
-            break
-        await asyncio.sleep(0.05)
-
+    # Wait with explicit timeout instead of polling loop
+    msg = await _wait_for_message(sub, RedisSSEMessage)
     await pub_task
-    assert msg is not None
+
     assert msg.execution_id == "exec-1"
 
     # Invalid JSON should return None
@@ -88,16 +91,10 @@ async def test_notifications_channels() -> None:
 
     pub_task = asyncio.create_task(publish_later())
 
-    # Wait for message
-    got = None
-    for _ in range(20):
-        got = await nsub.get(RedisNotificationMessage)
-        if got:
-            break
-        await asyncio.sleep(0.05)
-
+    # Wait with explicit timeout instead of polling loop
+    got = await _wait_for_message(nsub, RedisNotificationMessage)
     await pub_task
-    assert got is not None
+
     assert got.notification_id == "n1"
 
     await nsub.close()

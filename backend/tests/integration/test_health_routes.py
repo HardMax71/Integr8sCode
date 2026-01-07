@@ -1,6 +1,5 @@
 import asyncio
 import time
-from typing import Dict
 
 import pytest
 from httpx import AsyncClient
@@ -48,15 +47,7 @@ class TestHealthRoutes:
         assert all(r.status_code == 200 for r in responses)
 
     @pytest.mark.asyncio
-    async def test_app_responds_during_load(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
-        # Login first for creating load
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
+    async def test_app_responds_during_load(self, authenticated_client: AsyncClient) -> None:
         # Create some load with execution requests
         async def create_load() -> int | None:
             execution_request = {
@@ -65,7 +56,7 @@ class TestHealthRoutes:
                 "lang_version": "3.11"
             }
             try:
-                response = await client.post("/api/v1/execute", json=execution_request)
+                response = await authenticated_client.post("/api/v1/execute", json=execution_request)
                 return response.status_code
             except Exception:
                 return None
@@ -74,14 +65,14 @@ class TestHealthRoutes:
         load_tasks = [create_load() for _ in range(5)]
 
         # Check readiness during load
-        r0 = await client.get("/api/v1/health/live")
+        r0 = await authenticated_client.get("/api/v1/health/live")
         assert r0.status_code == 200
 
         # Wait for load tasks to complete
         await asyncio.gather(*load_tasks, return_exceptions=True)
 
         # Check readiness after load
-        r1 = await client.get("/api/v1/health/live")
+        r1 = await authenticated_client.get("/api/v1/health/live")
         assert r1.status_code == 200
 
     @pytest.mark.asyncio

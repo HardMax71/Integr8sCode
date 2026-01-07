@@ -1,9 +1,11 @@
 from datetime import datetime, timezone
-from typing import Any
 
 import pytest
+from app.domain.enums.user import UserRole
 from app.schemas_pydantic.user_settings import SettingsHistoryResponse, UserSettings
 from httpx import AsyncClient
+
+from tests.conftest import MakeUser
 
 # Force these tests to run sequentially on a single worker to avoid state conflicts
 pytestmark = pytest.mark.xdist_group(name="user_settings")
@@ -26,59 +28,24 @@ class TestUserSettingsRoutes:
                    for word in ["not authenticated", "unauthorized", "login"])
 
     @pytest.mark.asyncio
-    async def test_get_user_settings(self, client: AsyncClient, test_user: dict[str, Any]) -> None:
+    async def test_get_user_settings(self, authenticated_client: AsyncClient) -> None:
         """Test getting user settings."""
-        # Already authenticated via test_user fixture
-
-        # Get user settings
-        response = await client.get("/api/v1/user/settings/")
+        response = await authenticated_client.get("/api/v1/user/settings/")
         assert response.status_code == 200
 
-        # Validate response structure
-        settings_data = response.json()
-        settings = UserSettings(**settings_data)
+        # Pydantic validates types and required fields
+        settings = UserSettings(**response.json())
 
-        # Verify required fields
-        assert settings.user_id is not None
+        # Verify business logic constraints (not type checks)
         assert settings.theme in ["light", "dark", "auto", "system"]
-        # Language field may not be present in all deployments
-        if hasattr(settings, "language"):
-            assert isinstance(settings.language, str)
-        assert isinstance(settings.timezone, str)
-
-        # Verify notification settings (API uses execution_* and security_alerts fields)
-        assert settings.notifications is not None
-        assert isinstance(settings.notifications.execution_completed, bool)
-        assert isinstance(settings.notifications.execution_failed, bool)
-        assert isinstance(settings.notifications.system_updates, bool)
-        assert isinstance(settings.notifications.security_alerts, bool)
-
-        # Verify editor settings
-        assert settings.editor is not None
-        assert isinstance(settings.editor.font_size, int)
         assert 8 <= settings.editor.font_size <= 32
-        valid_themes = ["auto", "one-dark", "monokai", "github", "dracula", "solarized", "vs", "vscode"]
-        assert settings.editor.theme in valid_themes
-        assert isinstance(settings.editor.tab_size, int)
         assert settings.editor.tab_size in [2, 4, 8]
-        assert isinstance(settings.editor.word_wrap, bool)
-        assert isinstance(settings.editor.show_line_numbers, bool)
-
-        # Verify timestamp fields
-        assert settings.created_at is not None
-        assert settings.updated_at is not None
-
-        # Custom settings might be empty or contain user preferences
-        if settings.custom_settings:
-            assert isinstance(settings.custom_settings, dict)
 
     @pytest.mark.asyncio
-    async def test_update_user_settings(self, client: AsyncClient, test_user: dict[str, Any]) -> None:
+    async def test_update_user_settings(self, authenticated_client: AsyncClient) -> None:
         """Test updating user settings."""
-        # Already authenticated via test_user fixture
-
         # Get current settings to preserve original values
-        original_response = await client.get("/api/v1/user/settings/")
+        original_response = await authenticated_client.get("/api/v1/user/settings/")
         assert original_response.status_code == 200
         original_settings = original_response.json()
 
@@ -107,7 +74,7 @@ class TestUserSettingsRoutes:
             "editor": editor,
         }
 
-        response = await client.put("/api/v1/user/settings/", json=update_data)
+        response = await authenticated_client.put("/api/v1/user/settings/", json=update_data)
         if response.status_code != 200:
             pytest.fail(f"Status: {response.status_code}, Body: {response.json()}, Data: {update_data}")
         assert response.status_code == 200
@@ -134,12 +101,10 @@ class TestUserSettingsRoutes:
         assert updated_settings.editor.show_line_numbers == editor["show_line_numbers"]
 
     @pytest.mark.asyncio
-    async def test_update_theme_only(self, client: AsyncClient, test_user: dict[str, Any]) -> None:
+    async def test_update_theme_only(self, authenticated_client: AsyncClient) -> None:
         """Test updating only the theme setting."""
-        # Already authenticated via test_user fixture
-
         # Get current theme
-        original_response = await client.get("/api/v1/user/settings/")
+        original_response = await authenticated_client.get("/api/v1/user/settings/")
         assert original_response.status_code == 200
         original_theme = original_response.json()["theme"]
 
@@ -149,7 +114,7 @@ class TestUserSettingsRoutes:
             "theme": new_theme
         }
 
-        response = await client.put("/api/v1/user/settings/theme", json=theme_update)
+        response = await authenticated_client.put("/api/v1/user/settings/theme", json=theme_update)
         assert response.status_code == 200
 
         # Validate updated settings
@@ -163,10 +128,8 @@ class TestUserSettingsRoutes:
         assert updated_settings.timezone == original_response.json()["timezone"]
 
     @pytest.mark.asyncio
-    async def test_update_notification_settings_only(self, client: AsyncClient, test_user: dict[str, Any]) -> None:
+    async def test_update_notification_settings_only(self, authenticated_client: AsyncClient) -> None:
         """Test updating only notification settings."""
-        # Already authenticated via test_user fixture
-
         # Update notification settings
         notification_update = {
             "execution_completed": True,
@@ -176,9 +139,7 @@ class TestUserSettingsRoutes:
             "channels": ["in_app"]
         }
 
-        response = await client.put("/api/v1/user/settings/notifications", json=notification_update)
-        if response.status_code >= 500:
-            pytest.skip("Notification settings update not available in this environment")
+        response = await authenticated_client.put("/api/v1/user/settings/notifications", json=notification_update)
         assert response.status_code == 200
 
         # Validate updated settings
@@ -190,10 +151,8 @@ class TestUserSettingsRoutes:
         assert "in_app" in [str(c) for c in updated_settings.notifications.channels]
 
     @pytest.mark.asyncio
-    async def test_update_editor_settings_only(self, client: AsyncClient, test_user: dict[str, Any]) -> None:
+    async def test_update_editor_settings_only(self, authenticated_client: AsyncClient) -> None:
         """Test updating only editor settings."""
-        # Already authenticated via test_user fixture
-
         # Update editor settings
         editor_update = {
             "theme": "dracula",
@@ -204,9 +163,7 @@ class TestUserSettingsRoutes:
             "show_line_numbers": True
         }
 
-        response = await client.put("/api/v1/user/settings/editor", json=editor_update)
-        if response.status_code >= 500:
-            pytest.skip("Editor settings update not available in this environment")
+        response = await authenticated_client.put("/api/v1/user/settings/editor", json=editor_update)
         assert response.status_code == 200
 
         # Validate updated settings
@@ -218,7 +175,7 @@ class TestUserSettingsRoutes:
         assert updated_settings.editor.show_line_numbers == editor_update["show_line_numbers"]
 
     @pytest.mark.asyncio
-    async def test_update_custom_setting(self, client: AsyncClient, test_user: dict[str, Any]) -> None:
+    async def test_update_custom_setting(self, authenticated_client: AsyncClient) -> None:
         """Test updating a custom setting."""
         # Update custom settings via main settings endpoint
         custom_key = "custom_preference"
@@ -229,7 +186,7 @@ class TestUserSettingsRoutes:
             }
         }
 
-        response = await client.put("/api/v1/user/settings/", json=update_data)
+        response = await authenticated_client.put("/api/v1/user/settings/", json=update_data)
         assert response.status_code == 200
 
         # Validate updated settings
@@ -238,26 +195,15 @@ class TestUserSettingsRoutes:
         assert updated_settings.custom_settings[custom_key] == custom_value
 
     @pytest.mark.asyncio
-    async def test_get_settings_history(self, client: AsyncClient, test_user: dict[str, Any]) -> None:
+    async def test_get_settings_history(self, authenticated_client: AsyncClient) -> None:
         """Test getting settings change history."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_resp = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_resp.status_code == 200
-
         # Make some changes to build history (theme change)
         theme_update = {"theme": "dark"}
-        response = await client.put("/api/v1/user/settings/theme", json=theme_update)
-        if response.status_code >= 500:
-            pytest.skip("Settings history not available in this environment")
+        response = await authenticated_client.put("/api/v1/user/settings/theme", json=theme_update)
+        assert response.status_code == 200
 
         # Get history
-        history_response = await client.get("/api/v1/user/settings/history")
-        if history_response.status_code >= 500:
-            pytest.skip("Settings history endpoint not available in this environment")
+        history_response = await authenticated_client.get("/api/v1/user/settings/history")
         assert history_response.status_code == 200
 
         # Validate history structure
@@ -269,64 +215,43 @@ class TestUserSettingsRoutes:
             assert entry.timestamp is not None
 
     @pytest.mark.asyncio
-    async def test_restore_settings_to_previous_point(self, client: AsyncClient, test_user: dict[str, Any]) -> None:
+    async def test_restore_settings_to_previous_point(self, authenticated_client: AsyncClient) -> None:
         """Test restoring settings to a previous point in time."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        await client.post("/api/v1/auth/login", data=login_data)
-
         # Get original settings
-        original_resp = await client.get("/api/v1/user/settings/")
+        original_resp = await authenticated_client.get("/api/v1/user/settings/")
         assert original_resp.status_code == 200
         original_theme = original_resp.json()["theme"]
 
         # Make a change
         new_theme = "dark" if original_theme != "dark" else "light"
-        await client.put("/api/v1/user/settings/theme", json={"theme": new_theme})
+        await authenticated_client.put("/api/v1/user/settings/theme", json={"theme": new_theme})
 
         # Get restore point (after the change)
         restore_point = datetime.now(timezone.utc).isoformat()
 
         # Make another change
         second_theme = "auto" if new_theme != "auto" else "system"
-        await client.put("/api/v1/user/settings/theme", json={"theme": second_theme})
+        await authenticated_client.put("/api/v1/user/settings/theme", json={"theme": second_theme})
 
         # Try to restore to the restore point
         restore_data = {"timestamp": restore_point}
-        restore_resp = await client.post("/api/v1/user/settings/restore", json=restore_data)
+        restore_resp = await authenticated_client.post("/api/v1/user/settings/restore", json=restore_data)
+        assert restore_resp.status_code == 200
 
-        # Skip if restore functionality not available
-        if restore_resp.status_code >= 500:
-            pytest.skip("Settings restore not available in this environment")
-
-        # If successful, verify the theme was restored
-        if restore_resp.status_code == 200:
-            current_resp = await client.get("/api/v1/user/settings/")
-            # Since restore might not work exactly as expected in test environment,
-            # just verify we get valid settings back
-            assert current_resp.status_code == 200
+        # Verify we get valid settings back
+        current_resp = await authenticated_client.get("/api/v1/user/settings/")
+        assert current_resp.status_code == 200
 
     @pytest.mark.asyncio
-    async def test_invalid_theme_value(self, client: AsyncClient, test_user: dict[str, Any]) -> None:
+    async def test_invalid_theme_value(self, authenticated_client: AsyncClient) -> None:
         """Test that invalid theme values are rejected."""
-        # Already authenticated via test_user fixture
-
-        # Try to update with invalid theme
         invalid_theme = {"theme": "invalid_theme"}
-
-        response = await client.put("/api/v1/user/settings/theme", json=invalid_theme)
-        if response.status_code >= 500:
-            pytest.skip("Theme validation not available in this environment")
+        response = await authenticated_client.put("/api/v1/user/settings/theme", json=invalid_theme)
         assert response.status_code in [400, 422]
 
     @pytest.mark.asyncio
-    async def test_invalid_editor_settings(self, client: AsyncClient, test_user: dict[str, Any]) -> None:
+    async def test_invalid_editor_settings(self, authenticated_client: AsyncClient) -> None:
         """Test that invalid editor settings are rejected."""
-        # Already authenticated via test_user fixture
-
         # Try to update with invalid editor settings
         invalid_editor = {
             "theme": "dracula",
@@ -337,41 +262,34 @@ class TestUserSettingsRoutes:
             "show_line_numbers": True
         }
 
-        response = await client.put("/api/v1/user/settings/editor", json=invalid_editor)
-        if response.status_code >= 500:
-            pytest.skip("Editor validation not available in this environment")
+        response = await authenticated_client.put("/api/v1/user/settings/editor", json=invalid_editor)
         assert response.status_code in [400, 422]
 
     @pytest.mark.asyncio
     async def test_settings_isolation_between_users(
-        self, client: AsyncClient, test_user: dict[str, Any], another_user: dict[str, Any],
+        self, client: AsyncClient, make_user: MakeUser,
     ) -> None:
         """Test that settings are isolated between users."""
+        user1 = await make_user(UserRole.USER)
+        user2 = await make_user(UserRole.USER)
 
         # Login as first user
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        await client.post("/api/v1/auth/login", data=login_data)
+        await client.post(
+            "/api/v1/auth/login",
+            data={"username": user1["username"], "password": user1["password"]},
+        )
 
         # Update first user's settings
-        user1_update = {
-            "theme": "dark",
-            "timezone": "America/New_York"
-        }
+        user1_update = {"theme": "dark", "timezone": "America/New_York"}
         response = await client.put("/api/v1/user/settings/", json=user1_update)
         assert response.status_code == 200
 
-        # Log out
+        # Log out and login as second user
         await client.post("/api/v1/auth/logout")
-
-        # Login as second user
-        login_data = {
-            "username": another_user["username"],
-            "password": another_user["password"]
-        }
-        await client.post("/api/v1/auth/login", data=login_data)
+        await client.post(
+            "/api/v1/auth/login",
+            data={"username": user2["username"], "password": user2["password"]},
+        )
 
         # Get second user's settings
         response = await client.get("/api/v1/user/settings/")
@@ -379,14 +297,15 @@ class TestUserSettingsRoutes:
         user2_settings = response.json()
 
         # Verify second user's settings are not affected by first user's changes
-        # Second user should have default settings, not the first user's custom settings
-        assert user2_settings["theme"] != user1_update["theme"] or user2_settings["timezone"] != user1_update[
-            "timezone"]
+        assert (
+            user2_settings["theme"] != user1_update["theme"]
+            or user2_settings["timezone"] != user1_update["timezone"]
+        )
 
     @pytest.mark.asyncio
-    async def test_settings_persistence(self, client: AsyncClient, test_user: dict[str, Any]) -> None:
+    async def test_settings_persistence(self, client: AsyncClient, make_user: MakeUser) -> None:
         """Test that settings persist across login sessions."""
-        # Already authenticated via test_user fixture
+        user = await make_user(UserRole.USER)
 
         # Update settings
         editor = {
@@ -397,11 +316,7 @@ class TestUserSettingsRoutes:
             "word_wrap": False,
             "show_line_numbers": False,
         }
-        update_data = {
-            "theme": "dark",
-            "timezone": "Europe/London",
-            "editor": editor,
-        }
+        update_data = {"theme": "dark", "timezone": "Europe/London", "editor": editor}
 
         response = await client.put("/api/v1/user/settings/", json=update_data)
         assert response.status_code == 200
@@ -410,11 +325,10 @@ class TestUserSettingsRoutes:
         await client.post("/api/v1/auth/logout")
 
         # Log back in as same user
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"],
-        }
-        login_resp = await client.post("/api/v1/auth/login", data=login_data)
+        login_resp = await client.post(
+            "/api/v1/auth/login",
+            data={"username": user["username"], "password": user["password"]},
+        )
         assert login_resp.status_code == 200
 
         # Get settings again

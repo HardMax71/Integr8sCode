@@ -20,6 +20,44 @@ pytestmark = pytest.mark.unit
 _test_logger = logging.getLogger("test.services.pod_monitor.event_mapper")
 
 
+# ===== Reusable test stubs =====
+
+
+class _Cond:
+    """Fake Kubernetes pod condition."""
+
+    def __init__(self, condition_type: str, status: str) -> None:
+        self.type = condition_type
+        self.status = status
+
+
+class _API404(FakeApi):
+    """FakeApi that raises 404 on log read."""
+
+    def read_namespaced_pod_log(
+        self, name: str, namespace: str, tail_lines: int = 10000  # noqa: ARG002
+    ) -> str:
+        raise Exception("404 Not Found")
+
+
+class _API400(FakeApi):
+    """FakeApi that raises 400 on log read."""
+
+    def read_namespaced_pod_log(
+        self, name: str, namespace: str, tail_lines: int = 10000  # noqa: ARG002
+    ) -> str:
+        raise Exception("400 Bad Request")
+
+
+class _APIGenericError(FakeApi):
+    """FakeApi that raises generic error on log read."""
+
+    def read_namespaced_pod_log(
+        self, name: str, namespace: str, tail_lines: int = 10000  # noqa: ARG002
+    ) -> str:
+        raise Exception("boom")
+
+
 def _ctx(pod: Pod, event_type: str = "ADDED") -> PodContext:  # noqa: ARG001
     return PodContext(
         pod=pod,
@@ -47,13 +85,7 @@ def test_pending_running_and_succeeded_mapping() -> None:
     # Pending -> scheduled (set execution-id label and PodScheduled condition)
     pend = Pod("p", "Pending")
     pend.metadata.labels = {"execution-id": "e1"}
-
-    class Cond:
-        def __init__(self, t: str, s: str) -> None:
-            self.type = t
-            self.status = s
-
-    pend.status.conditions = [Cond("PodScheduled", "True")]
+    pend.status.conditions = [_Cond("PodScheduled", "True")]
     pend.spec.node_name = "n"
     evts = pem.map_pod_event(pend, "ADDED")
     assert any(e.event_type.value == "pod_scheduled" for e in evts)
@@ -141,20 +173,15 @@ def test_extract_id_and_metadata_priority_and_duplicates() -> None:
 
 
 def test_scheduled_requires_condition() -> None:
-    class Cond:
-        def __init__(self, t: str, s: str) -> None:
-            self.type = t
-            self.status = s
-
     pem = PodEventMapper(k8s_api=FakeApi(""), logger=_test_logger)
     pod = Pod("p", "Pending")
     # No conditions -> None
     assert pem._map_scheduled(_ctx(pod)) is None
     # Wrong condition -> None
-    pod.status.conditions = [Cond("Ready", "True")]
+    pod.status.conditions = [_Cond("Ready", "True")]
     assert pem._map_scheduled(_ctx(pod)) is None
     # Correct -> event
-    pod.status.conditions = [Cond("PodScheduled", "True")]
+    pod.status.conditions = [_Cond("PodScheduled", "True")]
     pod.spec.node_name = "n"
     assert pem._map_scheduled(_ctx(pod)) is not None
 
@@ -172,29 +199,11 @@ def test_parse_and_log_paths_and_analyze_failure_variants(caplog: pytest.LogCapt
     assert pem2._extract_logs(pod) is None
 
     # _extract_logs exceptions -> 404/400/generic branches, all return None
-    class _API404(FakeApi):
-        def read_namespaced_pod_log(
-            self, name: str, namespace: str, tail_lines: int = 10000
-        ) -> str:
-            raise Exception("404 Not Found")
-
-    class _API400(FakeApi):
-        def read_namespaced_pod_log(
-            self, name: str, namespace: str, tail_lines: int = 10000
-        ) -> str:
-            raise Exception("400 Bad Request")
-
-    class _APIGen(FakeApi):
-        def read_namespaced_pod_log(
-            self, name: str, namespace: str, tail_lines: int = 10000
-        ) -> str:
-            raise Exception("boom")
-
     pem404 = PodEventMapper(k8s_api=_API404(""), logger=_test_logger)
     assert pem404._extract_logs(pod) is None
     pem400 = PodEventMapper(k8s_api=_API400(""), logger=_test_logger)
     assert pem400._extract_logs(pod) is None
-    pemg = PodEventMapper(k8s_api=_APIGen(""), logger=_test_logger)
+    pemg = PodEventMapper(k8s_api=_APIGenericError(""), logger=_test_logger)
     assert pemg._extract_logs(pod) is None
 
     # _analyze_failure: Evicted

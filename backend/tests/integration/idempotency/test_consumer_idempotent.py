@@ -30,15 +30,19 @@ async def test_consumer_idempotent_wrapper_blocks_duplicates(
     registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
     settings: Settings = await scope.get(Settings)
 
-    # Build a dispatcher with a counter
-    disp: Disp = EventDispatcher(logger=_test_logger)
-    seen = {"n": 0}
+    # Track processed events AND duplicates separately
+    counts = {"processed": 0, "duplicates": 0}
 
-    @disp.register(EventType.EXECUTION_REQUESTED)
     async def handle(_ev: Any) -> None:
-        seen["n"] += 1
+        counts["processed"] += 1
 
-    # Real consumer with idempotent wrapper
+    async def on_duplicate(_ev: Any, _result: Any) -> None:
+        counts["duplicates"] += 1
+
+    # Build dispatcher (no auto-registration - we'll use subscribe_idempotent_handler)
+    disp: Disp = EventDispatcher(logger=_test_logger)
+
+    # Real consumer with idempotent wrapper (disable auto-wrapping)
     cfg = ConsumerConfig(
         bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
         group_id=unique_id("test-idem-consumer-"),
@@ -57,11 +61,18 @@ async def test_consumer_idempotent_wrapper_blocks_duplicates(
         idempotency_manager=idm,
         dispatcher=disp,
         default_key_strategy="event_based",
-        enable_for_all_handlers=True,
+        enable_for_all_handlers=False,  # Don't auto-wrap; we register with on_duplicate
         logger=_test_logger,
     )
 
-    # Produce BEFORE starting consumer - with earliest offset, consumer will read from beginning
+    # Register handler WITH on_duplicate callback to track duplicates
+    wrapper.subscribe_idempotent_handler(
+        event_type=EventType.EXECUTION_REQUESTED,
+        handler=handle,
+        on_duplicate=on_duplicate,
+    )
+
+    # Produce 2 identical events BEFORE starting consumer
     execution_id = unique_id("e-")
     ev = make_execution_requested_event(execution_id=execution_id)
     await producer.produce(ev, key=execution_id)
@@ -69,11 +80,16 @@ async def test_consumer_idempotent_wrapper_blocks_duplicates(
 
     await wrapper.start([KafkaTopic.EXECUTION_EVENTS])
     try:
-
+        # Wait until BOTH events have been handled (processed OR detected as duplicate)
         @backoff.on_exception(backoff.constant, AssertionError, max_time=10.0, interval=0.2)
-        async def _wait_one() -> None:
-            assert seen["n"] >= 1
+        async def _wait_all_handled() -> None:
+            total = counts["processed"] + counts["duplicates"]
+            assert total >= 2, f"Expected 2 events handled, got {total}"
 
-        await _wait_one()
+        await _wait_all_handled()
+
+        # Verify exactly 1 processed, 1 duplicate blocked
+        assert counts["processed"] == 1, f"Expected 1 processed, got {counts['processed']}"
+        assert counts["duplicates"] == 1, f"Expected 1 duplicate blocked, got {counts['duplicates']}"
     finally:
         await wrapper.stop()

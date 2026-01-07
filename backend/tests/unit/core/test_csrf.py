@@ -1,5 +1,6 @@
 import pytest
 from app.core.security import security_service, validate_csrf_token
+from app.domain.user import CSRFValidationError
 from starlette.requests import Request
 
 
@@ -29,7 +30,7 @@ def test_csrf_skips_on_get() -> None:
 
 def test_csrf_missing_header_raises_when_authenticated() -> None:
     req = make_request("POST", "/api/v1/items", cookies={"access_token": "tok", "csrf_token": "abc"})
-    with pytest.raises(ValueError):
+    with pytest.raises(CSRFValidationError):
         validate_csrf_token(req)
 
 

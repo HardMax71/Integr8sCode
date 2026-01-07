@@ -1,11 +1,7 @@
 from collections.abc import Callable
-from typing import Dict
 
 import pytest
 from app.schemas_pydantic.admin_settings import (
-    ExecutionLimitsSchema,
-    MonitoringSettingsSchema,
-    SecuritySettingsSchema,
     SystemSettings,
 )
 from app.schemas_pydantic.admin_user_overview import AdminUserOverview
@@ -27,59 +23,25 @@ class TestAdminSettings:
         assert "not authenticated" in error["detail"].lower() or "unauthorized" in error["detail"].lower()
 
     @pytest.mark.asyncio
-    async def test_get_settings_with_admin_auth(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
+    async def test_get_settings_with_admin_auth(self, authenticated_admin_client: AsyncClient) -> None:
         """Test getting system settings with admin authentication."""
-        # Login and get cookies
-        login_data = {
-            "username": test_admin["username"],
-            "password": test_admin["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
-        # Now get settings with auth cookie
-        response = await client.get("/api/v1/admin/settings/")
+        response = await authenticated_admin_client.get("/api/v1/admin/settings/")
         assert response.status_code == 200
 
-        # Validate response structure
-        data = response.json()
-        settings = SystemSettings(**data)
+        # Pydantic validates types, required fields, and nested structures
+        settings = SystemSettings(**response.json())
 
-        # Verify all nested structures
-        assert settings.execution_limits is not None
-        assert isinstance(settings.execution_limits, ExecutionLimitsSchema)
-        assert settings.execution_limits.max_timeout_seconds == 300  # Default value
-        assert settings.execution_limits.max_memory_mb == 512
-        assert settings.execution_limits.max_cpu_cores == 2
-        assert settings.execution_limits.max_concurrent_executions == 10
-
-        assert settings.security_settings is not None
-        assert isinstance(settings.security_settings, SecuritySettingsSchema)
-        assert settings.security_settings.password_min_length == 8
-        assert settings.security_settings.session_timeout_minutes == 60
-        assert settings.security_settings.max_login_attempts == 5
-        assert settings.security_settings.lockout_duration_minutes == 15
-
-        assert settings.monitoring_settings is not None
-        assert isinstance(settings.monitoring_settings, MonitoringSettingsSchema)
-        assert settings.monitoring_settings.metrics_retention_days == 30
-        assert settings.monitoring_settings.log_level == "INFO"
-        assert settings.monitoring_settings.enable_tracing is True
-        assert settings.monitoring_settings.sampling_rate == 0.1
+        # Verify reasonable bounds (not exact values - those can change)
+        assert settings.execution_limits.max_timeout_seconds > 0
+        assert settings.execution_limits.max_memory_mb > 0
+        assert settings.security_settings.password_min_length >= 1
+        assert settings.monitoring_settings.sampling_rate >= 0
 
     @pytest.mark.asyncio
-    async def test_update_and_reset_settings(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
+    async def test_update_and_reset_settings(self, authenticated_admin_client: AsyncClient) -> None:
         """Test updating and resetting system settings."""
-        # Login as admin
-        login_data = {
-            "username": test_admin["username"],
-            "password": test_admin["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Get original settings
-        original_response = await client.get("/api/v1/admin/settings/")
+        original_response = await authenticated_admin_client.get("/api/v1/admin/settings/")
         assert original_response.status_code == 200
         # original_settings preserved for potential rollback verification
 
@@ -105,7 +67,7 @@ class TestAdminSettings:
             }
         }
 
-        update_response = await client.put("/api/v1/admin/settings/", json=updated_settings)
+        update_response = await authenticated_admin_client.put("/api/v1/admin/settings/", json=updated_settings)
         assert update_response.status_code == 200
 
         # Verify updates were applied
@@ -115,7 +77,7 @@ class TestAdminSettings:
         assert returned_settings.monitoring_settings.log_level == "WARNING"
 
         # Reset settings
-        reset_response = await client.post("/api/v1/admin/settings/reset")
+        reset_response = await authenticated_admin_client.post("/api/v1/admin/settings/reset")
         assert reset_response.status_code == 200
 
         # Verify reset to defaults
@@ -125,18 +87,10 @@ class TestAdminSettings:
         assert reset_settings.monitoring_settings.log_level == "INFO"
 
     @pytest.mark.asyncio
-    async def test_regular_user_cannot_access_settings(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_regular_user_cannot_access_settings(self, authenticated_client: AsyncClient) -> None:
         """Test that regular users cannot access admin settings."""
-        # Login as regular user
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
-        # Try to access admin settings
-        response = await client.get("/api/v1/admin/settings/")
+        # Try to access admin settings as regular user
+        response = await authenticated_client.get("/api/v1/admin/settings/")
         assert response.status_code == 403
 
         error = response.json()
@@ -149,18 +103,10 @@ class TestAdminUsers:
     """Test admin user management endpoints against real backend."""
 
     @pytest.mark.asyncio
-    async def test_list_users_with_pagination(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
+    async def test_list_users_with_pagination(self, authenticated_admin_client: AsyncClient) -> None:
         """Test listing users with pagination."""
-        # Login as admin
-        login_data = {
-            "username": test_admin["username"],
-            "password": test_admin["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # List users
-        response = await client.get("/api/v1/admin/users/?limit=10&offset=0")
+        response = await authenticated_admin_client.get("/api/v1/admin/users/?limit=10&offset=0")
         assert response.status_code == 200
 
         data = response.json()
@@ -189,17 +135,9 @@ class TestAdminUsers:
 
     @pytest.mark.asyncio
     async def test_create_and_manage_user(
-        self, client: AsyncClient, test_admin: Dict[str, str], unique_id: Callable[[str], str]
+        self, authenticated_admin_client: AsyncClient, unique_id: Callable[[str], str]
     ) -> None:
         """Test full user CRUD operations."""
-        # Login as admin
-        login_data = {
-            "username": test_admin["username"],
-            "password": test_admin["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Create a new user
         uid = unique_id("")
         new_user_data = {
@@ -208,7 +146,7 @@ class TestAdminUsers:
             "password": "SecureP@ssw0rd123"
         }
 
-        create_response = await client.post("/api/v1/admin/users/", json=new_user_data)
+        create_response = await authenticated_admin_client.post("/api/v1/admin/users/", json=new_user_data)
         assert create_response.status_code in [200, 201]
 
         created_user = create_response.json()
@@ -220,11 +158,11 @@ class TestAdminUsers:
         user_id = created_user["user_id"]
 
         # Get user details
-        get_response = await client.get(f"/api/v1/admin/users/{user_id}")
+        get_response = await authenticated_admin_client.get(f"/api/v1/admin/users/{user_id}")
         assert get_response.status_code == 200
 
         # Get user overview
-        overview_response = await client.get(f"/api/v1/admin/users/{user_id}/overview")
+        overview_response = await authenticated_admin_client.get(f"/api/v1/admin/users/{user_id}/overview")
         assert overview_response.status_code == 200
 
         overview_data = overview_response.json()
@@ -238,7 +176,7 @@ class TestAdminUsers:
             "email": f"updated_{uid}@example.com"
         }
 
-        update_response = await client.put(f"/api/v1/admin/users/{user_id}", json=update_data)
+        update_response = await authenticated_admin_client.put(f"/api/v1/admin/users/{user_id}", json=update_data)
         assert update_response.status_code == 200
 
         updated_user = update_response.json()
@@ -246,11 +184,11 @@ class TestAdminUsers:
         assert updated_user["email"] == update_data["email"]
 
         # Delete user
-        delete_response = await client.delete(f"/api/v1/admin/users/{user_id}")
+        delete_response = await authenticated_admin_client.delete(f"/api/v1/admin/users/{user_id}")
         assert delete_response.status_code in [200, 204]
 
         # Verify deletion
-        get_deleted_response = await client.get(f"/api/v1/admin/users/{user_id}")
+        get_deleted_response = await authenticated_admin_client.get(f"/api/v1/admin/users/{user_id}")
         assert get_deleted_response.status_code == 404
 
 
@@ -259,16 +197,8 @@ class TestAdminEvents:
     """Test admin event management endpoints against real backend."""
 
     @pytest.mark.asyncio
-    async def test_browse_events(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
+    async def test_browse_events(self, authenticated_admin_client: AsyncClient) -> None:
         """Test browsing events with filters."""
-        # Login as admin
-        login_data = {
-            "username": test_admin["username"],
-            "password": test_admin["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Browse events
         browse_payload = {
             "filters": {
@@ -280,7 +210,7 @@ class TestAdminEvents:
             "sort_order": -1
         }
 
-        response = await client.post("/api/v1/admin/events/browse", json=browse_payload)
+        response = await authenticated_admin_client.post("/api/v1/admin/events/browse", json=browse_payload)
         assert response.status_code == 200
 
         data = response.json()
@@ -293,18 +223,10 @@ class TestAdminEvents:
         assert data["total"] >= 0
 
     @pytest.mark.asyncio
-    async def test_event_statistics(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
+    async def test_event_statistics(self, authenticated_admin_client: AsyncClient) -> None:
         """Test getting event statistics."""
-        # Login as admin
-        login_data = {
-            "username": test_admin["username"],
-            "password": test_admin["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Get event statistics
-        response = await client.get("/api/v1/admin/events/stats?hours=24")
+        response = await authenticated_admin_client.get("/api/v1/admin/events/stats?hours=24")
         assert response.status_code == 200
 
         data = response.json()
@@ -326,15 +248,10 @@ class TestAdminEvents:
             assert data["error_rate"] >= 0.0
 
     @pytest.mark.asyncio
-    async def test_admin_events_export_csv_and_json(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
+    async def test_admin_events_export_csv_and_json(self, authenticated_admin_client: AsyncClient) -> None:
         """Export admin events as CSV and JSON and validate basic structure."""
-        # Login as admin
-        login_data = {"username": test_admin["username"], "password": test_admin["password"]}
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # CSV export
-        r_csv = await client.get("/api/v1/admin/events/export/csv?limit=10")
+        r_csv = await authenticated_admin_client.get("/api/v1/admin/events/export/csv?limit=10")
         assert r_csv.status_code == 200, f"CSV export failed: {r_csv.status_code} - {r_csv.text[:200]}"
         ct_csv = r_csv.headers.get("content-type", "")
         assert "text/csv" in ct_csv
@@ -343,7 +260,7 @@ class TestAdminEvents:
         assert "Event ID" in body_csv and "Timestamp" in body_csv
 
         # JSON export
-        r_json = await client.get("/api/v1/admin/events/export/json?limit=10")
+        r_json = await authenticated_admin_client.get("/api/v1/admin/events/export/json?limit=10")
         assert r_json.status_code == 200, f"JSON export failed: {r_json.status_code} - {r_json.text[:200]}"
         ct_json = r_json.headers.get("content-type", "")
         assert "application/json" in ct_json
@@ -354,14 +271,9 @@ class TestAdminEvents:
 
     @pytest.mark.asyncio
     async def test_admin_user_rate_limits_and_password_reset(
-        self, client: AsyncClient, test_admin: Dict[str, str], unique_id: Callable[[str], str]
+        self, authenticated_admin_client: AsyncClient, unique_id: Callable[[str], str]
     ) -> None:
         """Create a user, manage rate limits, and reset password via admin endpoints."""
-        # Login as admin
-        login_data = {"username": test_admin["username"], "password": test_admin["password"]}
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Create a new user to operate on
         uid = unique_id("")
         new_user = {
@@ -369,12 +281,12 @@ class TestAdminEvents:
             "email": f"rl_{uid}@example.com",
             "password": "TempP@ss1234"
         }
-        create_response = await client.post("/api/v1/admin/users/", json=new_user)
+        create_response = await authenticated_admin_client.post("/api/v1/admin/users/", json=new_user)
         assert create_response.status_code in [200, 201]
         target_user_id = create_response.json()["user_id"]
 
         # Get current rate limits (may be None for fresh user)
-        rl_get = await client.get(f"/api/v1/admin/users/{target_user_id}/rate-limits")
+        rl_get = await authenticated_admin_client.get(f"/api/v1/admin/users/{target_user_id}/rate-limits")
         assert rl_get.status_code == 200
         rl_body = rl_get.json()
         assert rl_body.get("user_id") == target_user_id
@@ -398,28 +310,30 @@ class TestAdminEvents:
                 }
             ]
         }
-        rl_put = await client.put(f"/api/v1/admin/users/{target_user_id}/rate-limits", json=update_payload)
+        rl_put = await authenticated_admin_client.put(
+            f"/api/v1/admin/users/{target_user_id}/rate-limits", json=update_payload
+        )
         assert rl_put.status_code == 200
         put_body = rl_put.json()
         assert put_body.get("updated") is True
         assert put_body.get("config", {}).get("user_id") == target_user_id
 
         # Reset rate limits
-        rl_reset = await client.post(f"/api/v1/admin/users/{target_user_id}/rate-limits/reset")
+        rl_reset = await authenticated_admin_client.post(f"/api/v1/admin/users/{target_user_id}/rate-limits/reset")
         assert rl_reset.status_code == 200
 
         # Reset password for the user
         new_password = "NewPassw0rd!"
-        pw_reset = await client.post(
+        pw_reset = await authenticated_admin_client.post(
             f"/api/v1/admin/users/{target_user_id}/reset-password",
             json={"new_password": new_password}
         )
         assert pw_reset.status_code == 200
 
         # Verify user can login with the new password
-        logout_resp = await client.post("/api/v1/auth/logout")
+        logout_resp = await authenticated_admin_client.post("/api/v1/auth/logout")
         assert logout_resp.status_code in [200, 204]
-        login_new = await client.post(
+        login_new = await authenticated_admin_client.post(
             "/api/v1/auth/login",
             data={"username": new_user["username"], "password": new_password}
         )

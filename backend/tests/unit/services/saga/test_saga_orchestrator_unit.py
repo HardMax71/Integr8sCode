@@ -7,7 +7,7 @@ from app.domain.enums.saga import SagaState
 from app.domain.saga.models import Saga, SagaConfig
 from app.services.saga.base_saga import BaseSaga
 from app.services.saga.saga_orchestrator import SagaOrchestrator
-from app.services.saga.saga_step import SagaStep
+from app.services.saga.saga_step import CompensationStep, SagaContext, SagaStep
 
 pytestmark = pytest.mark.unit
 
@@ -50,13 +50,25 @@ class _SchemaRegistry: ...
 class _Settings: ...
 
 
+class _NoOpCompensation(CompensationStep):
+    """No-op compensation step for testing."""
+
+    def __init__(self) -> None:
+        super().__init__("noop_compensation")
+
+    async def compensate(self, context: SagaContext) -> bool:  # noqa: ARG002
+        return True
+
+
 class _StepOK(SagaStep[Any]):
     def __init__(self) -> None:
         super().__init__("ok")
+
     async def execute(self, context: Any, event: Any) -> bool:  # noqa: ARG002
         return True
-    def get_compensation(self) -> None:
-        return None
+
+    def get_compensation(self) -> CompensationStep:
+        return _NoOpCompensation()
 
 
 class _Saga(BaseSaga):

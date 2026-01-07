@@ -1,6 +1,6 @@
 import os
 import uuid
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable, Coroutine
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -9,6 +9,7 @@ import pytest
 import pytest_asyncio
 import redis.asyncio as redis
 from app.core.database_context import Database
+from app.domain.enums.user import UserRole
 from app.main import create_app
 from app.settings import Settings
 from dishka import AsyncContainer
@@ -88,8 +89,7 @@ async def app() -> AsyncGenerator[FastAPI, None]:
 
     yield application
 
-    if hasattr(application.state, "dishka_container"):
-        await application.state.dishka_container.close()
+    await application.state.dishka_container.close()
 
 
 @pytest_asyncio.fixture(scope="session")
@@ -135,78 +135,62 @@ async def redis_client(scope: AsyncContainer) -> AsyncGenerator[redis.Redis, Non
     yield client
 
 
-# ===== HTTP helpers (auth) =====
-async def _http_login(client: httpx.AsyncClient, username: str, password: str) -> str:
-    data = {"username": username, "password": password}
-    resp = await client.post("/api/v1/auth/login", data=data)
-    resp.raise_for_status()
-    token: str = resp.json().get("csrf_token", "")
-    return token
-
-
-@pytest.fixture
-def test_user_credentials() -> dict[str, str]:
+# ===== User creation & authentication =====
+async def _register_and_login(
+    client: httpx.AsyncClient, role: UserRole = UserRole.USER
+) -> dict[str, Any]:
+    """Create user with role, register, login, return user info with CSRF headers."""
     uid = uuid.uuid4().hex[:8]
-    return {
-        "username": f"test_user_{uid}",
-        "email": f"test_user_{uid}@example.com",
+    creds = {
+        "username": f"{role.value}_{uid}",
+        "email": f"{role.value}_{uid}@example.com",
         "password": "TestPass123!",
-        "role": "user",
+        "role": role.value,
     }
-
-
-@pytest.fixture
-def test_admin_credentials() -> dict[str, str]:
-    uid = uuid.uuid4().hex[:8]
-    return {
-        "username": f"admin_user_{uid}",
-        "email": f"admin_user_{uid}@example.com",
-        "password": "AdminPass123!",
-        "role": "admin",
-    }
-
-
-@pytest_asyncio.fixture
-async def test_user(client: httpx.AsyncClient, test_user_credentials: dict[str, str]) -> dict[str, Any]:
-    """Function-scoped authenticated user."""
-    creds = test_user_credentials
     r = await client.post("/api/v1/auth/register", json=creds)
     if r.status_code not in (200, 201, 400):
-        pytest.fail(f"Cannot create test user (status {r.status_code}): {r.text}")
-    csrf = await _http_login(client, creds["username"], creds["password"])
-    return {**creds, "csrf_token": csrf, "headers": {"X-CSRF-Token": csrf}}
+        pytest.fail(f"Cannot create {role.value}: {r.status_code} - {r.text}")
 
-
-@pytest_asyncio.fixture
-async def test_admin(client: httpx.AsyncClient, test_admin_credentials: dict[str, str]) -> dict[str, Any]:
-    """Function-scoped authenticated admin."""
-    creds = test_admin_credentials
-    r = await client.post("/api/v1/auth/register", json=creds)
-    if r.status_code not in (200, 201, 400):
-        pytest.fail(f"Cannot create test admin (status {r.status_code}): {r.text}")
-    csrf = await _http_login(client, creds["username"], creds["password"])
-    return {**creds, "csrf_token": csrf, "headers": {"X-CSRF-Token": csrf}}
-
-
-@pytest_asyncio.fixture
-async def another_user(client: httpx.AsyncClient) -> dict[str, Any]:
-    username = f"test_user_{uuid.uuid4().hex[:8]}"
-    email = f"{username}@example.com"
-    password = "TestPass123!"
-    await client.post(
-        "/api/v1/auth/register",
-        json={
-            "username": username,
-            "email": email,
-            "password": password,
-            "role": "user",
-        },
+    resp = await client.post(
+        "/api/v1/auth/login",
+        data={"username": creds["username"], "password": creds["password"]},
     )
-    csrf = await _http_login(client, username, password)
-    return {
-        "username": username,
-        "email": email,
-        "password": password,
-        "csrf_token": csrf,
-        "headers": {"X-CSRF-Token": csrf},
-    }
+    resp.raise_for_status()
+    csrf: str = resp.json().get("csrf_token", "")
+    return {**creds, "csrf_token": csrf, "headers": {"X-CSRF-Token": csrf}}
+
+
+# Type alias for the make_user factory
+MakeUser = Callable[[UserRole], Coroutine[Any, Any, dict[str, Any]]]
+
+
+@pytest_asyncio.fixture
+async def make_user(client: httpx.AsyncClient) -> MakeUser:
+    """Factory to create users with any role. Use for isolation tests.
+
+    Example:
+        user1 = await make_user(UserRole.USER)
+        user2 = await make_user(UserRole.USER)  # another user
+        admin = await make_user(UserRole.ADMIN)
+    """
+
+    async def _make(role: UserRole = UserRole.USER) -> dict[str, Any]:
+        return await _register_and_login(client, role)
+
+    return _make
+
+
+@pytest_asyncio.fixture
+async def authenticated_client(client: httpx.AsyncClient) -> httpx.AsyncClient:
+    """HTTP client logged in as regular user. Use for most API tests."""
+    user = await _register_and_login(client, UserRole.USER)
+    client.headers.update(user["headers"])
+    return client
+
+
+@pytest_asyncio.fixture
+async def authenticated_admin_client(client: httpx.AsyncClient) -> httpx.AsyncClient:
+    """HTTP client logged in as admin. Use for admin API tests."""
+    admin = await _register_and_login(client, UserRole.ADMIN)
+    client.headers.update(admin["headers"])
+    return client

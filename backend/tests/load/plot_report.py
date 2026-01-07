@@ -10,7 +10,8 @@ import matplotlib.pyplot as plt
 
 def _load_report(path: str | Path) -> Dict[str, Any]:
     with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+        result: Dict[str, Any] = json.load(f)
+        return result
 
 
 def _ensure_out_dir(path: str | Path) -> Path:
@@ -89,7 +90,7 @@ def plot_endpoint_throughput(report: Dict[str, Any], out_dir: Path, top_n: int =
     labels = [k for k, _ in data]
     total = [v.get("count", 0) for _, v in data]
     errors = [v.get("errors", 0) for _, v in data]
-    successes = [t - e for t, e in zip(total, errors)]
+    successes = [t - e for t, e in zip(total, errors, strict=True)]
 
     x = range(len(labels))
     width = 0.45

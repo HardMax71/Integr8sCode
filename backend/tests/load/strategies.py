@@ -5,7 +5,6 @@ from typing import Any
 
 from hypothesis import strategies as st
 
-
 # Generic JSON strategies (bounded sizes to keep payloads realistic)
 json_scalar = st.one_of(
     st.none(),
@@ -48,8 +47,8 @@ user_create = st.fixed_dictionaries(
 severity = st.sampled_from(["info", "warning", "error", "critical"])  # common values
 label_key = st.text(min_size=1, max_size=24)
 label_val = st.text(min_size=0, max_size=64)
-labels = st.dictionaries(label_key, label_val, max_size=8)
-annotations = st.dictionaries(label_key, label_val, max_size=8)
+labels: st.SearchStrategy[dict[str, str]] = st.dictionaries(label_key, label_val, max_size=8)
+annot_strat: st.SearchStrategy[dict[str, str]] = st.dictionaries(label_key, label_val, max_size=8)
 
 def _iso_time() -> st.SearchStrategy[str]:
     base = datetime(2024, 1, 1)
@@ -61,7 +60,7 @@ alert = st.fixed_dictionaries(
     {
         "status": st.sampled_from(["firing", "resolved"]),
         "labels": labels,
-        "annotations": annotations,
+        "annotations": annot_strat,
         "startsAt": _iso_time(),
         "endsAt": _iso_time(),
         "generatorURL": st.text(min_size=0, max_size=120),
@@ -77,7 +76,7 @@ grafana_webhook = st.fixed_dictionaries(
         "groupKey": st.text(min_size=0, max_size=64),
         "groupLabels": labels,
         "commonLabels": labels,
-        "commonAnnotations": annotations,
+        "commonAnnotations": annot_strat,
         "externalURL": st.text(min_size=0, max_size=120),
         "version": st.text(min_size=1, max_size=16),
     }

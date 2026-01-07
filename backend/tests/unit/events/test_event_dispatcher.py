@@ -1,15 +1,29 @@
 import logging
 
 from app.domain.enums.events import EventType
+from app.domain.enums.storage import ExecutionErrorType
 from app.events.core import EventDispatcher
 from app.infrastructure.kafka.events.base import BaseEvent
+from app.infrastructure.kafka.events.execution import ExecutionFailedEvent, ExecutionRequestedEvent
+from app.infrastructure.kafka.events.metadata import AvroEventMetadata
+
 from tests.helpers import make_execution_requested_event
 
 _test_logger = logging.getLogger("test.events.event_dispatcher")
 
 
-def make_event():
+def make_requested_event() -> ExecutionRequestedEvent:
     return make_execution_requested_event(execution_id="e1")
+
+
+def make_failed_event() -> ExecutionFailedEvent:
+    return ExecutionFailedEvent(
+        execution_id="e1",
+        exit_code=1,
+        error_type=ExecutionErrorType.SCRIPT_ERROR,
+        error_message="Test failure",
+        metadata=AvroEventMetadata(service_name="test", service_version="1.0"),
+    )
 
 
 async def _async_noop(_: BaseEvent) -> None:
@@ -47,12 +61,9 @@ async def test_dispatch_metrics_processed_and_skipped() -> None:
     async def handler(_: BaseEvent) -> None:
         called["n"] += 1
 
-    await disp.dispatch(make_event())
+    await disp.dispatch(make_requested_event())
     # Dispatch event with no handlers (different type)
-    # Reuse base event but fake type by replacing value
-    e = make_event()
-    e.event_type = EventType.EXECUTION_FAILED  # type: ignore[attr-defined]
-    await disp.dispatch(e)
+    await disp.dispatch(make_failed_event())
 
     metrics = disp.get_metrics()
     assert called["n"] == 1

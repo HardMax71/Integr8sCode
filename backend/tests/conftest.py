@@ -1,7 +1,8 @@
 import os
 import uuid
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+from typing import Any
 
 import httpx
 import pytest
@@ -11,6 +12,7 @@ from app.core.database_context import Database
 from app.main import create_app
 from app.settings import Settings
 from dishka import AsyncContainer
+from fastapi import FastAPI
 from httpx import ASGITransport
 from pydantic_settings import SettingsConfigDict
 
@@ -76,7 +78,7 @@ def test_settings() -> Settings:
 
 # ===== App fixture =====
 @pytest_asyncio.fixture(scope="session")
-async def app():
+async def app() -> AsyncGenerator[FastAPI, None]:
     """Create FastAPI app with TestSettings.
 
     Session-scoped to avoid Pydantic schema validator memory issues when
@@ -91,14 +93,14 @@ async def app():
 
 
 @pytest_asyncio.fixture(scope="session")
-async def app_container(app):
+async def app_container(app: FastAPI) -> AsyncContainer:
     """Expose the Dishka container attached to the app."""
     container: AsyncContainer = app.state.dishka_container
     return container
 
 
 @pytest_asyncio.fixture
-async def client(app) -> AsyncGenerator[httpx.AsyncClient, None]:
+async def client(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
     """HTTP client for testing API endpoints."""
     async with httpx.AsyncClient(
         transport=ASGITransport(app=app),
@@ -110,26 +112,26 @@ async def client(app) -> AsyncGenerator[httpx.AsyncClient, None]:
 
 
 @asynccontextmanager
-async def _container_scope(container: AsyncContainer):
+async def _container_scope(container: AsyncContainer) -> AsyncGenerator[AsyncContainer, None]:
     async with container() as scope:
         yield scope
 
 
 @pytest_asyncio.fixture
-async def scope(app_container: AsyncContainer):
+async def scope(app_container: AsyncContainer) -> AsyncGenerator[AsyncContainer, None]:
     async with _container_scope(app_container) as s:
         yield s
 
 
 @pytest_asyncio.fixture
-async def db(scope) -> AsyncGenerator[Database, None]:
-    database: Database = await scope.get(Database)
+async def db(scope: AsyncContainer) -> AsyncGenerator[Database, None]:
+    database = await scope.get(Database)
     yield database
 
 
 @pytest_asyncio.fixture
-async def redis_client(scope) -> AsyncGenerator[redis.Redis, None]:
-    client: redis.Redis = await scope.get(redis.Redis)
+async def redis_client(scope: AsyncContainer) -> AsyncGenerator[redis.Redis, None]:
+    client = await scope.get(redis.Redis)
     yield client
 
 
@@ -138,11 +140,12 @@ async def _http_login(client: httpx.AsyncClient, username: str, password: str) -
     data = {"username": username, "password": password}
     resp = await client.post("/api/v1/auth/login", data=data)
     resp.raise_for_status()
-    return resp.json().get("csrf_token", "")
+    token: str = resp.json().get("csrf_token", "")
+    return token
 
 
 @pytest.fixture
-def test_user_credentials():
+def test_user_credentials() -> dict[str, str]:
     uid = uuid.uuid4().hex[:8]
     return {
         "username": f"test_user_{uid}",
@@ -153,7 +156,7 @@ def test_user_credentials():
 
 
 @pytest.fixture
-def test_admin_credentials():
+def test_admin_credentials() -> dict[str, str]:
     uid = uuid.uuid4().hex[:8]
     return {
         "username": f"admin_user_{uid}",
@@ -164,7 +167,7 @@ def test_admin_credentials():
 
 
 @pytest_asyncio.fixture
-async def test_user(client: httpx.AsyncClient, test_user_credentials):
+async def test_user(client: httpx.AsyncClient, test_user_credentials: dict[str, str]) -> dict[str, Any]:
     """Function-scoped authenticated user."""
     creds = test_user_credentials
     r = await client.post("/api/v1/auth/register", json=creds)
@@ -175,7 +178,7 @@ async def test_user(client: httpx.AsyncClient, test_user_credentials):
 
 
 @pytest_asyncio.fixture
-async def test_admin(client: httpx.AsyncClient, test_admin_credentials):
+async def test_admin(client: httpx.AsyncClient, test_admin_credentials: dict[str, str]) -> dict[str, Any]:
     """Function-scoped authenticated admin."""
     creds = test_admin_credentials
     r = await client.post("/api/v1/auth/register", json=creds)
@@ -186,7 +189,7 @@ async def test_admin(client: httpx.AsyncClient, test_admin_credentials):
 
 
 @pytest_asyncio.fixture
-async def another_user(client: httpx.AsyncClient):
+async def another_user(client: httpx.AsyncClient) -> dict[str, Any]:
     username = f"test_user_{uuid.uuid4().hex[:8]}"
     email = f"{username}@example.com"
     password = "TestPass123!"

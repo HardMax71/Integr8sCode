@@ -1,12 +1,11 @@
 from uuid import uuid4
 
 import pytest
-from kubernetes import client as k8s_client
-
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.infrastructure.kafka.events.saga import CreatePodCommandEvent
 from app.services.k8s_worker.config import K8sWorkerConfig
 from app.services.k8s_worker.pod_builder import PodBuilder
+from kubernetes import client as k8s_client
 
 
 class TestPodBuilder:

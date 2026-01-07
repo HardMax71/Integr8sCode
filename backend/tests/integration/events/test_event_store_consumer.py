@@ -1,17 +1,19 @@
 import logging
-import uuid
+from collections.abc import Callable
 
+import backoff
 import pytest
 from app.core.database_context import Database
+from app.domain.enums.auth import LoginMethod
 from app.domain.enums.kafka import KafkaTopic
 from app.events.core import UnifiedProducer
 from app.events.event_store import EventStore
 from app.events.event_store_consumer import EventStoreConsumer, create_event_store_consumer
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
-from app.domain.enums.auth import LoginMethod
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.infrastructure.kafka.events.user import UserLoggedInEvent
 from app.settings import Settings
+from dishka import AsyncContainer
 
 pytestmark = [pytest.mark.integration, pytest.mark.kafka, pytest.mark.mongodb]
 
@@ -19,7 +21,7 @@ _test_logger = logging.getLogger("test.events.event_store_consumer")
 
 
 @pytest.mark.asyncio
-async def test_event_store_consumer_stores_events(scope) -> None:  # type: ignore[valid-type]
+async def test_event_store_consumer_stores_events(scope: AsyncContainer, unique_id: Callable[[str], str]) -> None:
     # Ensure schemas
     registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
     await initialize_event_schemas(registry)
@@ -32,7 +34,7 @@ async def test_event_store_consumer_stores_events(scope) -> None:  # type: ignor
 
     # Build an event
     ev = UserLoggedInEvent(
-        user_id=f"u-{uuid.uuid4().hex[:6]}",
+        user_id=unique_id("u-"),
         login_method=LoginMethod.PASSWORD,
         metadata=AvroEventMetadata(service_name="tests", service_version="1.0.0"),
     )
@@ -55,10 +57,10 @@ async def test_event_store_consumer_stores_events(scope) -> None:  # type: ignor
 
         # Wait until the event is persisted in Mongo
         coll = db.get_collection("events")
-        from tests.helpers.eventually import eventually
 
-        async def _exists() -> None:
+        @backoff.on_exception(backoff.constant, AssertionError, max_time=12.0, interval=0.2)
+        async def _wait_exists() -> None:
             doc = await coll.find_one({"event_id": ev.event_id})
             assert doc is not None
 
-        await eventually(_exists, timeout=12.0, interval=0.2)
+        await _wait_exists()

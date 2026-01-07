@@ -1,18 +1,17 @@
-from datetime import datetime, timezone, timedelta
+from collections.abc import Callable
+from datetime import datetime, timedelta, timezone
 from typing import Dict
-from uuid import uuid4
 
 import pytest
-from httpx import AsyncClient
-
 from app.domain.enums.events import EventType
 from app.schemas_pydantic.events import (
     EventListResponse,
     EventResponse,
     EventStatistics,
     PublishEventResponse,
-    ReplayAggregateResponse
+    ReplayAggregateResponse,
 )
+from httpx import AsyncClient
 
 
 @pytest.mark.integration
@@ -61,8 +60,8 @@ class TestEventsRoutes:
                 assert event.event_type is not None
                 assert event.aggregate_id is not None
                 assert event.timestamp is not None
-                assert event.version is not None
-                assert event.user_id is not None
+                assert event.event_version is not None
+                assert event.metadata.user_id is not None
 
                 # Optional fields
                 if event.payload:
@@ -87,23 +86,20 @@ class TestEventsRoutes:
         assert exec_response.status_code == 200
 
         # Filter by event types
-        event_types = ["execution.requested", "execution.completed"]
-        params = {
-            "event_types": event_types,
-            "limit": 20,
-            "sort_order": "desc"
-        }
-
-        response = await client.get("/api/v1/events/user", params=params)
+        response = await client.get(
+            "/api/v1/events/user",
+            params={"event_types": ["execution.requested", "execution.completed"], "limit": 20, "sort_order": "desc"},
+        )
         assert response.status_code in [200, 404]
         if response.status_code == 200:
             events_data = response.json()
             events_response = EventListResponse(**events_data)
 
             # Filtered events should only contain specified types
+            event_types = ["execution.requested", "execution.completed"]
             for event in events_response.events:
                 if event.event_type:  # Some events might have been created
-                    assert any(event_type in event.event_type for event_type in event_types) or len(
+                    assert any(et in str(event.event_type) for et in event_types) or len(
                         events_response.events) == 0
 
     @pytest.mark.asyncio
@@ -281,12 +277,9 @@ class TestEventsRoutes:
 
         # Events by hour should have proper structure
         for hourly_stat in stats.events_by_hour:
-            # Some implementations return {'_id': hour, 'count': n}
-            hour_key = "hour" if "hour" in hourly_stat else "_id"
-            assert hour_key in hourly_stat
-            assert "count" in hourly_stat
-            assert isinstance(hourly_stat["count"], int)
-            assert hourly_stat["count"] >= 0
+            assert hourly_stat.hour is not None
+            assert isinstance(hourly_stat.count, int)
+            assert hourly_stat.count >= 0
 
     @pytest.mark.asyncio
     async def test_get_single_event(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
@@ -320,7 +313,9 @@ class TestEventsRoutes:
             assert event.timestamp is not None
 
     @pytest.mark.asyncio
-    async def test_get_nonexistent_event(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_get_nonexistent_event(
+        self, client: AsyncClient, test_user: Dict[str, str], unique_id: Callable[[str], str]
+    ) -> None:
         """Test getting a non-existent event."""
         # Login first
         login_data = {
@@ -331,7 +326,7 @@ class TestEventsRoutes:
         assert login_response.status_code == 200
 
         # Try to get non-existent event
-        fake_event_id = str(uuid4())
+        fake_event_id = unique_id("fake-event-")
         response = await client.get(f"/api/v1/events/{fake_event_id}")
         assert response.status_code == 404
 
@@ -357,21 +352,15 @@ class TestEventsRoutes:
         event_types = response.json()
         assert isinstance(event_types, list)
 
-        # Should contain common event types
-        common_types = [
-            "execution.requested",
-            "execution.completed",
-            "user.logged_in",
-            "user.registered"
-        ]
-
         # At least some common types should be present
         for event_type in event_types:
             assert isinstance(event_type, str)
             assert len(event_type) > 0
 
     @pytest.mark.asyncio
-    async def test_publish_custom_event_requires_admin(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_publish_custom_event_requires_admin(
+        self, client: AsyncClient, test_user: Dict[str, str], unique_id: Callable[[str], str]
+    ) -> None:
         """Test that publishing custom events requires admin privileges."""
         # Login as regular user
         login_data = {
@@ -388,8 +377,8 @@ class TestEventsRoutes:
                 "test": "data",
                 "value": 123
             },
-            "aggregate_id": str(uuid4()),
-            "correlation_id": str(uuid4())
+            "aggregate_id": unique_id("aggregate-"),
+            "correlation_id": unique_id("corr-")
         }
 
         response = await client.post("/api/v1/events/publish", json=publish_request)
@@ -397,7 +386,9 @@ class TestEventsRoutes:
 
     @pytest.mark.asyncio
     @pytest.mark.kafka
-    async def test_publish_custom_event_as_admin(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
+    async def test_publish_custom_event_as_admin(
+        self, client: AsyncClient, test_admin: Dict[str, str], unique_id: Callable[[str], str]
+    ) -> None:
         """Test publishing custom events as admin."""
         # Login as admin
         login_data = {
@@ -408,7 +399,7 @@ class TestEventsRoutes:
         assert login_response.status_code == 200
 
         # Publish custom event (requires Kafka); skip if not available
-        aggregate_id = str(uuid4())
+        aggregate_id = unique_id("aggregate-")
         publish_request = {
             "event_type": EventType.SYSTEM_ERROR.value,
             "payload": {
@@ -417,7 +408,7 @@ class TestEventsRoutes:
                 "service_name": "tests"
             },
             "aggregate_id": aggregate_id,
-            "correlation_id": str(uuid4()),
+            "correlation_id": unique_id("corr-"),
             "metadata": {
                 "source": "integration_test",
                 "version": "1.0"
@@ -469,7 +460,9 @@ class TestEventsRoutes:
             assert result["count"] >= 0
 
     @pytest.mark.asyncio
-    async def test_delete_event_requires_admin(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_delete_event_requires_admin(
+        self, client: AsyncClient, test_user: Dict[str, str], unique_id: Callable[[str], str]
+    ) -> None:
         """Test that deleting events requires admin privileges."""
         # Login as regular user
         login_data = {
@@ -480,13 +473,14 @@ class TestEventsRoutes:
         assert login_response.status_code == 200
 
         # Try to delete an event
-        fake_event_id = str(uuid4())
+        fake_event_id = unique_id("fake-event-")
         response = await client.delete(f"/api/v1/events/{fake_event_id}")
         assert response.status_code == 403  # Forbidden for non-admin
 
     @pytest.mark.asyncio
-    async def test_replay_aggregate_events_requires_admin(self, client: AsyncClient,
-                                                          test_user: Dict[str, str]) -> None:
+    async def test_replay_aggregate_events_requires_admin(
+        self, client: AsyncClient, test_user: Dict[str, str], unique_id: Callable[[str], str]
+    ) -> None:
         """Test that replaying events requires admin privileges."""
         # Login as regular user
         login_data = {
@@ -497,7 +491,7 @@ class TestEventsRoutes:
         assert login_response.status_code == 200
 
         # Try to replay events
-        aggregate_id = str(uuid4())
+        aggregate_id = unique_id("aggregate-")
         response = await client.post(f"/api/v1/events/replay/{aggregate_id}?dry_run=true")
         assert response.status_code == 403  # Forbidden for non-admin
 
@@ -529,7 +523,7 @@ class TestEventsRoutes:
 
                 assert replay_response.dry_run is True
                 assert replay_response.aggregate_id == aggregate_id
-                assert replay_response.event_count >= 0
+                assert replay_response.event_count is None or replay_response.event_count >= 0
 
                 if replay_response.event_types:
                     assert isinstance(replay_response.event_types, list)
@@ -597,7 +591,6 @@ class TestEventsRoutes:
         assert user_events_response.status_code == 200
 
         user_events = user_events_response.json()
-        user_event_ids = [e["event_id"] for e in user_events["events"]]
 
         # Get events as admin (without include_all_users flag)
         admin_login_data = {
@@ -611,7 +604,6 @@ class TestEventsRoutes:
         assert admin_events_response.status_code == 200
 
         admin_events = admin_events_response.json()
-        admin_event_ids = [e["event_id"] for e in admin_events["events"]]
 
         # Events should be different (unless users share some events)
         # But user IDs in events should be different

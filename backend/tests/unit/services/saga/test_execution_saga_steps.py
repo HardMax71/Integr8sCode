@@ -1,23 +1,24 @@
-import pytest
+from typing import Any
 
+import pytest
 from app.domain.saga import DomainResourceAllocation
 from app.services.saga.execution_saga import (
-    ValidateExecutionStep,
     AllocateResourcesStep,
-    QueueExecutionStep,
     CreatePodStep,
-    MonitorExecutionStep,
-    ReleaseResourcesCompensation,
     DeletePodCompensation,
+    MonitorExecutionStep,
+    QueueExecutionStep,
+    ReleaseResourcesCompensation,
+    ValidateExecutionStep,
 )
 from app.services.saga.saga_step import SagaContext
-from tests.helpers import make_execution_requested_event
 
+from tests.helpers import make_execution_requested_event
 
 pytestmark = pytest.mark.unit
 
 
-def _req(timeout: int = 30, script: str = "print('x')"):
+def _req(timeout: int = 30, script: str = "print('x')") -> Any:
     return make_execution_requested_event(execution_id="e1", script=script, timeout_seconds=timeout)
 
 
@@ -48,7 +49,7 @@ class _FakeAllocRepo:
     async def count_active(self, language: str) -> int:  # noqa: ARG002
         return self.active
 
-    async def create_allocation(self, create_data) -> DomainResourceAllocation:  # noqa: ARG002
+    async def create_allocation(self, create_data: Any) -> DomainResourceAllocation:  # noqa: ARG002
         return DomainResourceAllocation(
             allocation_id=self.alloc_id,
             execution_id=create_data.execution_id,
@@ -67,13 +68,13 @@ class _FakeAllocRepo:
 async def test_allocate_resources_step_paths() -> None:
     ctx = SagaContext("s1", "e1")
     ctx.set("execution_id", "e1")
-    ok = await AllocateResourcesStep(alloc_repo=_FakeAllocRepo(active=0, alloc_id="alloc-1")).execute(ctx, _req())
+    ok = await AllocateResourcesStep(alloc_repo=_FakeAllocRepo(active=0, alloc_id="alloc-1")).execute(ctx, _req())  # type: ignore[arg-type]
     assert ok is True and ctx.get("resources_allocated") is True and ctx.get("allocation_id") == "alloc-1"
 
     # Limit exceeded
     ctx2 = SagaContext("s2", "e2")
     ctx2.set("execution_id", "e2")
-    ok2 = await AllocateResourcesStep(alloc_repo=_FakeAllocRepo(active=100)).execute(ctx2, _req())
+    ok2 = await AllocateResourcesStep(alloc_repo=_FakeAllocRepo(active=100)).execute(ctx2, _req())  # type: ignore[arg-type]
     assert ok2 is False
 
     # Missing repo
@@ -95,7 +96,7 @@ async def test_queue_and_monitor_steps() -> None:
 
     # Force exceptions to exercise except paths
     class _Ctx(SagaContext):
-        def set(self, key, value):  # type: ignore[override]
+        def set(self, key: str, value: Any) -> None:
             raise RuntimeError("boom")
     bad = _Ctx("s", "e")
     assert await QueueExecutionStep().execute(bad, _req()) is False
@@ -106,7 +107,7 @@ class _FakeProducer:
     def __init__(self) -> None:
         self.events: list[object] = []
 
-    async def produce(self, event_to_produce, key: str | None = None):  # noqa: ARG002
+    async def produce(self, event_to_produce: Any, key: str | None = None) -> None:  # noqa: ARG002
         self.events.append(event_to_produce)
 
 
@@ -123,7 +124,7 @@ async def test_create_pod_step_publish_flag_and_compensation() -> None:
     ctx2 = SagaContext("s2", "e2")
     ctx2.set("execution_id", "e2")
     prod = _FakeProducer()
-    s2 = CreatePodStep(producer=prod, publish_commands=True)
+    s2 = CreatePodStep(producer=prod, publish_commands=True)  # type: ignore[arg-type]
     ok2 = await s2.execute(ctx2, _req())
     assert ok2 is True and ctx2.get("pod_creation_triggered") is True and prod.events
 
@@ -135,7 +136,7 @@ async def test_create_pod_step_publish_flag_and_compensation() -> None:
     assert ok3 is False and ctx3.error is not None
 
     # DeletePod compensation triggers only when flagged and producer exists
-    comp = DeletePodCompensation(producer=prod)
+    comp = DeletePodCompensation(producer=prod)  # type: ignore[arg-type]
     ctx2.set("pod_creation_triggered", True)
     assert await comp.compensate(ctx2) is True
 
@@ -143,7 +144,7 @@ async def test_create_pod_step_publish_flag_and_compensation() -> None:
 @pytest.mark.asyncio
 async def test_release_resources_compensation() -> None:
     repo = _FakeAllocRepo()
-    comp = ReleaseResourcesCompensation(alloc_repo=repo)
+    comp = ReleaseResourcesCompensation(alloc_repo=repo)  # type: ignore[arg-type]
     ctx = SagaContext("s1", "e1")
     ctx.set("allocation_id", "alloc-1")
     assert await comp.compensate(ctx) is True and repo.released == ["alloc-1"]
@@ -153,7 +154,7 @@ async def test_release_resources_compensation() -> None:
     assert await comp2.compensate(ctx) is False
     # Missing allocation_id -> True short-circuit
     ctx2 = SagaContext("sX", "eX")
-    assert await ReleaseResourcesCompensation(alloc_repo=repo).compensate(ctx2) is True
+    assert await ReleaseResourcesCompensation(alloc_repo=repo).compensate(ctx2) is True  # type: ignore[arg-type]
 
 
 @pytest.mark.asyncio
@@ -172,7 +173,7 @@ async def test_delete_pod_compensation_variants() -> None:
 
     # Exercise get_compensation methods return types (coverage for lines returning comps/None)
     assert ValidateExecutionStep().get_compensation() is None
-    assert isinstance(AllocateResourcesStep(_FakeAllocRepo()).get_compensation(), ReleaseResourcesCompensation)
+    assert isinstance(AllocateResourcesStep(_FakeAllocRepo()).get_compensation(), ReleaseResourcesCompensation)  # type: ignore[arg-type]
     assert isinstance(QueueExecutionStep().get_compensation(), type(DeletePodCompensation(None)).__bases__[0]) or True
     assert CreatePodStep(None, publish_commands=False).get_compensation() is not None
     assert MonitorExecutionStep().get_compensation() is None
@@ -180,19 +181,19 @@ async def test_delete_pod_compensation_variants() -> None:
 
 def test_execution_saga_bind_and_get_steps_sets_flags_and_types() -> None:
     # Dummy subclasses to satisfy isinstance checks without real deps
-    from app.events.core import UnifiedProducer
     from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
+    from app.events.core import UnifiedProducer
 
     class DummyProd(UnifiedProducer):
-        def __init__(self): pass  # type: ignore[no-untyped-def]
+        def __init__(self) -> None: pass
 
     class DummyAlloc(ResourceAllocationRepository):
-        def __init__(self): pass  # type: ignore[no-untyped-def]
+        def __init__(self) -> None: pass
 
-    from app.services.saga.execution_saga import ExecutionSaga, CreatePodStep
+    from app.services.saga.execution_saga import CreatePodStep, ExecutionSaga
     s = ExecutionSaga()
     s.bind_dependencies(producer=DummyProd(), alloc_repo=DummyAlloc(), publish_commands=True)
     steps = s.get_steps()
     # CreatePod step should be configured and present
     cps = [st for st in steps if isinstance(st, CreatePodStep)][0]
-    assert getattr(cps, "publish_commands") is True
+    assert cps.publish_commands is True

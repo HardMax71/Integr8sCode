@@ -9,7 +9,7 @@ _test_logger = logging.getLogger("test.events.consumer_group_monitor")
 @pytest.mark.integration
 @pytest.mark.kafka
 @pytest.mark.asyncio
-async def test_list_groups_and_error_status():
+async def test_list_groups_and_error_status() -> None:
     mon = NativeConsumerGroupMonitor(logger=_test_logger)
     groups = await mon.list_consumer_groups()
     assert isinstance(groups, list)

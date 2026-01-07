@@ -3,9 +3,7 @@ import logging
 import os
 
 import pytest
-
 from app.services.result_processor.resource_cleaner import ResourceCleaner
-
 
 pytestmark = [pytest.mark.e2e, pytest.mark.k8s]
 

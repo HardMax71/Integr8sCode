@@ -1,9 +1,12 @@
 import logging
-import pytest
+from typing import Any
 
-from tests.helpers import make_execution_requested_event
+import pytest
 from app.services.idempotency.idempotency_manager import IdempotencyManager
 from app.services.idempotency.middleware import idempotent_handler
+from dishka import AsyncContainer
+
+from tests.helpers import make_execution_requested_event
 
 _test_logger = logging.getLogger("test.idempotency.decorator_idempotent")
 
@@ -12,13 +15,13 @@ pytestmark = [pytest.mark.integration]
 
 
 @pytest.mark.asyncio
-async def test_decorator_blocks_duplicate_event(scope) -> None:  # type: ignore[valid-type]
+async def test_decorator_blocks_duplicate_event(scope: AsyncContainer) -> None:
     idm: IdempotencyManager = await scope.get(IdempotencyManager)
 
     calls = {"n": 0}
 
     @idempotent_handler(idempotency_manager=idm, key_strategy="event_based", logger=_test_logger)
-    async def h(ev):  # noqa: ANN001
+    async def h(ev: Any) -> None:
         calls["n"] += 1
 
     ev = make_execution_requested_event(execution_id="exec-deco-1")
@@ -29,16 +32,16 @@ async def test_decorator_blocks_duplicate_event(scope) -> None:  # type: ignore[
 
 
 @pytest.mark.asyncio
-async def test_decorator_custom_key_blocks(scope) -> None:  # type: ignore[valid-type]
+async def test_decorator_custom_key_blocks(scope: AsyncContainer) -> None:
     idm: IdempotencyManager = await scope.get(IdempotencyManager)
 
     calls = {"n": 0}
 
-    def fixed_key(_ev):  # noqa: ANN001
+    def fixed_key(_ev: Any) -> str:
         return "fixed-key"
 
     @idempotent_handler(idempotency_manager=idm, key_strategy="custom", custom_key_func=fixed_key, logger=_test_logger)
-    async def h(ev):  # noqa: ANN001
+    async def h(ev: Any) -> None:
         calls["n"] += 1
 
     e1 = make_execution_requested_event(execution_id="exec-deco-2a")

@@ -1,14 +1,14 @@
 import pytest
-
 from app.domain.enums.replay import ReplayTarget, ReplayType
 from app.services.event_replay import ReplayConfig, ReplayFilter
 from app.services.replay_service import ReplayService
+from dishka import AsyncContainer
 
 pytestmark = pytest.mark.integration
 
 
 @pytest.mark.asyncio
-async def test_replay_service_create_and_list(scope) -> None:  # type: ignore[valid-type]
+async def test_replay_service_create_and_list(scope: AsyncContainer) -> None:
     svc: ReplayService = await scope.get(ReplayService)
 
     cfg = ReplayConfig(

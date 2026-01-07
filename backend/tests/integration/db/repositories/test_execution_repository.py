@@ -1,5 +1,5 @@
 import logging
-from uuid import uuid4
+from collections.abc import Callable
 
 import pytest
 from app.db.repositories.execution_repository import ExecutionRepository
@@ -12,9 +12,9 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.mark.asyncio
-async def test_execution_crud_and_query() -> None:
+async def test_execution_crud_and_query(unique_id: Callable[[str], str]) -> None:
     repo = ExecutionRepository(logger=_test_logger)
-    user_id = str(uuid4())
+    user_id = unique_id("user-")
 
     # Create
     create_data = DomainExecutionCreate(

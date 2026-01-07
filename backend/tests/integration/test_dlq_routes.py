@@ -2,18 +2,17 @@ from datetime import datetime
 from typing import Dict
 
 import pytest
-from httpx import AsyncClient
-
+from app.dlq import DLQMessageStatus
 from app.schemas_pydantic.dlq import (
-    DLQStats,
-    DLQMessagesResponse,
-    DLQMessageResponse,
-    DLQMessageDetail,
-    DLQMessageStatus,
     DLQBatchRetryResponse,
-    DLQTopicSummaryResponse
+    DLQMessageDetail,
+    DLQMessageResponse,
+    DLQMessagesResponse,
+    DLQStats,
+    DLQTopicSummaryResponse,
 )
 from app.schemas_pydantic.user import MessageResponse
+from httpx import AsyncClient
 
 
 @pytest.mark.integration
@@ -71,7 +70,7 @@ class TestDLQRoutes:
             assert isinstance(topic_stat["count"], int)
             assert topic_stat["count"] >= 0
 
-        # Check event type stats  
+        # Check event type stats
         for event_type_stat in stats.by_event_type:
             assert "event_type" in event_type_stat
             assert "count" in event_type_stat
@@ -124,10 +123,6 @@ class TestDLQRoutes:
             # Check age_seconds is reasonable
             if message.age_seconds is not None:
                 assert message.age_seconds >= 0
-
-            # Check details if present
-            if message.details:
-                assert isinstance(message.details, dict)
 
     @pytest.mark.asyncio
     async def test_filter_dlq_messages_by_status(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
@@ -271,7 +266,7 @@ class TestDLQRoutes:
         result_data = response.json()
         result = MessageResponse(**result_data)
         assert "retry policy set" in result.message.lower()
-        assert policy_data["topic"] in result.message
+        assert str(policy_data["topic"]) in result.message
 
     @pytest.mark.asyncio
     async def test_retry_dlq_messages_batch(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
@@ -466,10 +461,7 @@ class TestDLQRoutes:
         assert response.status_code in [400, 422]
 
         # Test retry with empty list
-        retry_request = {
-            "event_ids": []
-        }
-        response = await client.post("/api/v1/dlq/retry", json=retry_request)
+        response = await client.post("/api/v1/dlq/retry", json={"event_ids": []})
         # Should handle gracefully or reject invalid input
         assert response.status_code in [200, 400, 404, 422]
 

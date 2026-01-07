@@ -1,6 +1,8 @@
 import logging
-from uuid import uuid4
+from collections.abc import Callable
+from typing import Any
 
+import backoff
 import pytest
 from app.core.metrics.events import EventMetrics
 from app.events.core import EventDispatcher
@@ -11,7 +13,6 @@ from app.services.sse.redis_bus import SSERedisBus
 from app.settings import Settings
 
 from tests.helpers import make_execution_requested_event
-from tests.helpers.eventually import eventually
 
 pytestmark = [pytest.mark.integration, pytest.mark.redis]
 
@@ -19,8 +20,10 @@ _test_logger = logging.getLogger("test.services.sse.partitioned_event_router_int
 
 
 @pytest.mark.asyncio
-async def test_router_bridges_to_redis(redis_client, test_settings: Settings) -> None:
-    suffix = uuid4().hex[:6]
+async def test_router_bridges_to_redis(
+    redis_client: Any, test_settings: Settings, unique_id: Callable[[str], str]
+) -> None:
+    suffix = unique_id("")
     bus = SSERedisBus(
         redis_client,
         exec_prefix=f"sse:exec:{suffix}:",
@@ -38,26 +41,33 @@ async def test_router_bridges_to_redis(redis_client, test_settings: Settings) ->
     router._register_routing_handlers(disp)
 
     # Open Redis subscription for our execution id
-    execution_id = f"e-{uuid4().hex[:8]}"
+    execution_id = unique_id("e-")
     subscription = await bus.open_subscription(execution_id)
 
     ev = make_execution_requested_event(execution_id=execution_id)
     handler = disp.get_handlers(ev.event_type)[0]
     await handler(ev)
 
-    async def _recv():
+    msg: RedisSSEMessage | None = None
+
+    @backoff.on_exception(backoff.constant, AssertionError, max_time=2.0, interval=0.05)
+    async def _wait_recv() -> None:
+        nonlocal msg
         m = await subscription.get(RedisSSEMessage)
         assert m is not None
-        return m
+        msg = m
 
-    msg = await eventually(_recv, timeout=2.0, interval=0.05)
+    await _wait_recv()
+    assert msg is not None
     assert str(msg.event_type) == str(ev.event_type)
 
 
 @pytest.mark.asyncio
-async def test_router_start_and_stop(redis_client, test_settings: Settings) -> None:
+async def test_router_start_and_stop(
+    redis_client: Any, test_settings: Settings, unique_id: Callable[[str], str]
+) -> None:
     test_settings.SSE_CONSUMER_POOL_SIZE = 1
-    suffix = uuid4().hex[:6]
+    suffix = unique_id("")
     router = SSEKafkaRedisBridge(
         schema_registry=SchemaRegistryManager(settings=test_settings, logger=_test_logger),
         settings=test_settings,

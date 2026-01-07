@@ -1,10 +1,14 @@
 import pytest
+from app.core.security import security_service, validate_csrf_token
 from starlette.requests import Request
 
-from app.core.security import validate_csrf_token, security_service
 
-
-def make_request(method: str, path: str, headers: dict[str, str] | None = None, cookies: dict[str, str] | None = None) -> Request:
+def make_request(
+    method: str,
+    path: str,
+    headers: dict[str, str] | None = None,
+    cookies: dict[str, str] | None = None,
+) -> Request:
     headers = headers or {}
     if cookies:
         cookie_header = "; ".join(f"{k}={v}" for k, v in cookies.items())
@@ -25,7 +29,7 @@ def test_csrf_skips_on_get() -> None:
 
 def test_csrf_missing_header_raises_when_authenticated() -> None:
     req = make_request("POST", "/api/v1/items", cookies={"access_token": "tok", "csrf_token": "abc"})
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         validate_csrf_token(req)
 
 

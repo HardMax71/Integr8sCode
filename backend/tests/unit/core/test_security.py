@@ -4,11 +4,9 @@ from uuid import uuid4
 
 import jwt
 import pytest
-from jwt.exceptions import InvalidTokenError
-
 from app.core.security import SecurityService
 from app.domain.enums.user import UserRole
- 
+from jwt.exceptions import InvalidTokenError
 
 
 class TestPasswordHashing:
@@ -222,11 +220,9 @@ class TestSecurityService:
     ) -> None:
         """Test decoding token without username."""
         # Create token without 'sub' field
-        data = {"user_id": str(uuid4())}
-
+        user_id = str(uuid4())
         expire = datetime.now(timezone.utc) + timedelta(minutes=15)
-        to_encode = data.copy()
-        to_encode.update({"exp": expire})
+        to_encode: dict[str, str | datetime] = {"user_id": user_id, "exp": expire}
 
         token = jwt.encode(
             to_encode,
@@ -239,7 +235,7 @@ class TestSecurityService:
             token, security_service.settings.SECRET_KEY, algorithms=[security_service.settings.ALGORITHM]
         )
         assert "sub" not in decoded
-        assert decoded["user_id"] == data["user_id"]
+        assert decoded["user_id"] == user_id
 
     async def test_concurrent_token_creation(
             self,

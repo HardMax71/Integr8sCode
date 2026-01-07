@@ -1,6 +1,7 @@
 import asyncio
 import logging
-import uuid
+from collections.abc import Callable
+from typing import Any
 
 import pytest
 from app.domain.enums.events import EventType
@@ -10,6 +11,7 @@ from app.events.core.dispatcher import EventDispatcher
 from app.events.core.types import ConsumerConfig
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.settings import Settings
+from dishka import AsyncContainer
 
 from tests.helpers import make_execution_requested_event
 
@@ -19,7 +21,7 @@ _test_logger = logging.getLogger("test.events.consume_roundtrip")
 
 
 @pytest.mark.asyncio
-async def test_produce_consume_roundtrip(scope) -> None:  # type: ignore[valid-type]
+async def test_produce_consume_roundtrip(scope: AsyncContainer, unique_id: Callable[[str], str]) -> None:
     # Ensure schemas are registered
     registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
     settings: Settings = await scope.get(Settings)
@@ -33,10 +35,10 @@ async def test_produce_consume_roundtrip(scope) -> None:  # type: ignore[valid-t
     received = asyncio.Event()
 
     @dispatcher.register(EventType.EXECUTION_REQUESTED)
-    async def _handle(_event) -> None:  # noqa: ANN001
+    async def _handle(_event: Any) -> None:
         received.set()
 
-    group_id = f"test-consumer.{uuid.uuid4().hex[:6]}"
+    group_id = unique_id("test-consumer-")
     config = ConsumerConfig(
         bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
         group_id=group_id,
@@ -53,11 +55,11 @@ async def test_produce_consume_roundtrip(scope) -> None:  # type: ignore[valid-t
     )
 
     # Produce BEFORE starting consumer - with earliest offset, consumer will read from beginning
-    execution_id = f"exec-{uuid.uuid4().hex[:8]}"
+    execution_id = unique_id("exec-")
     evt = make_execution_requested_event(execution_id=execution_id)
     await producer.produce(evt, key=execution_id)
 
-    await consumer.start([str(KafkaTopic.EXECUTION_EVENTS)])
+    await consumer.start([KafkaTopic.EXECUTION_EVENTS])
 
     try:
         await asyncio.wait_for(received.wait(), timeout=10.0)

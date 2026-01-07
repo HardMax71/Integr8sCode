@@ -1,12 +1,11 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
-
 from app.domain.enums.notification import NotificationChannel, NotificationSeverity, NotificationStatus
 from app.schemas_pydantic.notification import Notification, NotificationBatch
 
 
-def test_notification_scheduled_for_must_be_future():
+def test_notification_scheduled_for_must_be_future() -> None:
     n = Notification(
         user_id="u1",
         channel=NotificationChannel.IN_APP,
@@ -28,7 +27,7 @@ def test_notification_scheduled_for_must_be_future():
         )
 
 
-def test_notification_batch_validation_limits():
+def test_notification_batch_validation_limits() -> None:
     n1 = Notification(user_id="u1", channel=NotificationChannel.IN_APP, subject="a", body="b")
     ok = NotificationBatch(notifications=[n1])
     assert ok.processed_count == 0

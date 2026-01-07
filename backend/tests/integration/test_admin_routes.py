@@ -1,5 +1,5 @@
+from collections.abc import Callable
 from typing import Dict
-from uuid import uuid4
 
 import pytest
 from app.schemas_pydantic.admin_settings import (
@@ -81,7 +81,7 @@ class TestAdminSettings:
         # Get original settings
         original_response = await client.get("/api/v1/admin/settings/")
         assert original_response.status_code == 200
-        original_settings = original_response.json()
+        # original_settings preserved for potential rollback verification
 
         # Update settings
         updated_settings = {
@@ -188,7 +188,9 @@ class TestAdminUsers:
             assert "updated_at" in user
 
     @pytest.mark.asyncio
-    async def test_create_and_manage_user(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
+    async def test_create_and_manage_user(
+        self, client: AsyncClient, test_admin: Dict[str, str], unique_id: Callable[[str], str]
+    ) -> None:
         """Test full user CRUD operations."""
         # Login as admin
         login_data = {
@@ -199,10 +201,10 @@ class TestAdminUsers:
         assert login_response.status_code == 200
 
         # Create a new user
-        unique_id = str(uuid4())[:8]
+        uid = unique_id("")
         new_user_data = {
-            "username": f"test_managed_user_{unique_id}",
-            "email": f"managed_{unique_id}@example.com",
+            "username": f"test_managed_user_{uid}",
+            "email": f"managed_{uid}@example.com",
             "password": "SecureP@ssw0rd123"
         }
 
@@ -232,8 +234,8 @@ class TestAdminUsers:
 
         # Update user
         update_data = {
-            "username": f"updated_{unique_id}",
-            "email": f"updated_{unique_id}@example.com"
+            "username": f"updated_{uid}",
+            "email": f"updated_{uid}@example.com"
         }
 
         update_response = await client.put(f"/api/v1/admin/users/{user_id}", json=update_data)
@@ -351,8 +353,9 @@ class TestAdminEvents:
         assert "exported_at" in data["export_metadata"]
 
     @pytest.mark.asyncio
-    async def test_admin_user_rate_limits_and_password_reset(self, client: AsyncClient,
-                                                             test_admin: Dict[str, str]) -> None:
+    async def test_admin_user_rate_limits_and_password_reset(
+        self, client: AsyncClient, test_admin: Dict[str, str], unique_id: Callable[[str], str]
+    ) -> None:
         """Create a user, manage rate limits, and reset password via admin endpoints."""
         # Login as admin
         login_data = {"username": test_admin["username"], "password": test_admin["password"]}
@@ -360,10 +363,10 @@ class TestAdminEvents:
         assert login_response.status_code == 200
 
         # Create a new user to operate on
-        unique_id = str(uuid4())[:8]
+        uid = unique_id("")
         new_user = {
-            "username": f"rate_limit_user_{unique_id}",
-            "email": f"rl_{unique_id}@example.com",
+            "username": f"rate_limit_user_{uid}",
+            "email": f"rl_{uid}@example.com",
             "password": "TempP@ss1234"
         }
         create_response = await client.post("/api/v1/admin/users/", json=new_user)

@@ -67,7 +67,7 @@ class APIClient:
         r = await self._request("POST", url, data=httpx.QueryParams(data), headers=headers)
         if r.status_code == 200:
             # Extract csrf cookie (not httpOnly) for subsequent writes
-            for cookie in self.client.cookies.jar:  # type: ignore[attr-defined]
+            for cookie in self.client.cookies.jar:
                 if cookie.name == "csrf_token":
                     self.csrf_token = cookie.value
                     break
@@ -107,7 +107,7 @@ class APIClient:
         # Use a separate streaming client to avoid interfering with normal client timeouts
         async with httpx.AsyncClient(verify=self.cfg.verify_tls, timeout=None) as s:
             # Reuse cookies for auth
-            s.cookies = self.client.cookies.copy()
+            s.cookies.update(self.client.cookies)
             t0 = time.perf_counter()
             try:
                 async with s.stream("GET", url) as resp:

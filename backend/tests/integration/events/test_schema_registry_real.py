@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 
 import pytest
 from app.events.schema.schema_registry import SchemaRegistryManager
@@ -11,12 +12,14 @@ pytestmark = [pytest.mark.integration, pytest.mark.kafka]
 _test_logger = logging.getLogger("test.events.schema_registry_real")
 
 
-def test_serialize_and_deserialize_event_real_registry(test_settings: Settings) -> None:
+def test_serialize_and_deserialize_event_real_registry(
+    test_settings: Settings, unique_id: Callable[[str], str]
+) -> None:
     # Uses real Schema Registry configured via env (SCHEMA_REGISTRY_URL)
     m = SchemaRegistryManager(settings=test_settings, logger=_test_logger)
     ev = PodCreatedEvent(
-        execution_id="e1",
-        pod_name="p",
+        execution_id=unique_id("exec-"),
+        pod_name=unique_id("pod-"),
         namespace="n",
         metadata=AvroEventMetadata(service_name="s", service_version="1"),
     )

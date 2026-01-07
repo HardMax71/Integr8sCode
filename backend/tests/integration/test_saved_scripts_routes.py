@@ -1,13 +1,11 @@
+from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Dict
-from uuid import UUID, uuid4
+from uuid import UUID
 
 import pytest
+from app.schemas_pydantic.saved_script import SavedScriptResponse
 from httpx import AsyncClient
-
-from app.schemas_pydantic.saved_script import (
-    SavedScriptResponse
-)
 
 
 @pytest.mark.integration
@@ -33,15 +31,17 @@ class TestSavedScripts:
                    for word in ["not authenticated", "unauthorized", "login"])
 
     @pytest.mark.asyncio
-    async def test_create_and_retrieve_saved_script(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_create_and_retrieve_saved_script(
+        self, client: AsyncClient, test_user: Dict[str, str], unique_id: Callable[[str], str],
+    ) -> None:
         """Test creating and retrieving a saved script."""
         # Already authenticated via test_user fixture
 
         # Create a unique script
-        unique_id = str(uuid4())[:8]
+        uid = unique_id("")
         script_data = {
-            "name": f"Test Script {unique_id}",
-            "script": f"# Script {unique_id}\nprint('Hello from saved script {unique_id}')",
+            "name": f"Test Script {uid}",
+            "script": f"# Script {uid}\nprint('Hello from saved script {uid}')",
             "lang": "python",
             "lang_version": "3.11",
             "description": f"Test script created at {datetime.now(timezone.utc).isoformat()}"
@@ -89,29 +89,31 @@ class TestSavedScripts:
         assert retrieved_script.script == script_data["script"]
 
     @pytest.mark.asyncio
-    async def test_list_user_scripts(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_list_user_scripts(
+        self, client: AsyncClient, test_user: Dict[str, str], unique_id: Callable[[str], str]
+    ) -> None:
         """Test listing user's saved scripts."""
         # Already authenticated via test_user fixture
 
         # Create a few scripts
-        unique_id = str(uuid4())[:8]
+        uid = unique_id("")
         scripts_to_create = [
             {
-                "name": f"List Test Script 1 {unique_id}",
+                "name": f"List Test Script 1 {uid}",
                 "script": "print('Script 1')",
                 "lang": "python",
                 "lang_version": "3.11",
                 "description": "First script"
             },
             {
-                "name": f"List Test Script 2 {unique_id}",
+                "name": f"List Test Script 2 {uid}",
                 "script": "console.log('Script 2');",
                 "lang": "javascript",
                 "lang_version": "18",
                 "description": "Second script"
             },
             {
-                "name": f"List Test Script 3 {unique_id}",
+                "name": f"List Test Script 3 {uid}",
                 "script": "print('Script 3')",
                 "lang": "python",
                 "lang_version": "3.10"
@@ -149,14 +151,16 @@ class TestSavedScripts:
             assert created_id in returned_ids
 
     @pytest.mark.asyncio
-    async def test_update_saved_script(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_update_saved_script(
+        self, client: AsyncClient, test_user: Dict[str, str], unique_id: Callable[[str], str]
+    ) -> None:
         """Test updating a saved script."""
         # Already authenticated via test_user fixture
 
         # Create a script
-        unique_id = str(uuid4())[:8]
+        uid = unique_id("")
         original_data = {
-            "name": f"Original Script {unique_id}",
+            "name": f"Original Script {uid}",
             "script": "print('Original content')",
             "lang": "python",
             "lang_version": "3.11",
@@ -172,7 +176,7 @@ class TestSavedScripts:
 
         # Update the script
         updated_data = {
-            "name": f"Updated Script {unique_id}",
+            "name": f"Updated Script {uid}",
             "script": "print('Updated content with more features')",
             "lang": "python",
             "lang_version": "3.12",
@@ -202,14 +206,16 @@ class TestSavedScripts:
         assert updated_script.updated_at > updated_script.created_at
 
     @pytest.mark.asyncio
-    async def test_delete_saved_script(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_delete_saved_script(
+        self, client: AsyncClient, test_user: Dict[str, str], unique_id: Callable[[str], str]
+    ) -> None:
         """Test deleting a saved script."""
         # Already authenticated via test_user fixture
 
         # Create a script to delete
-        unique_id = str(uuid4())[:8]
+        uid = unique_id("")
         script_data = {
-            "name": f"Script to Delete {unique_id}",
+            "name": f"Script to Delete {uid}",
             "script": "print('Delete me')",
             "lang": "python",
             "lang_version": "3.11",
@@ -234,8 +240,13 @@ class TestSavedScripts:
             assert "detail" in error_data
 
     @pytest.mark.asyncio
-    async def test_cannot_access_other_users_scripts(self, client: AsyncClient, test_user: Dict[str, str],
-                                                     test_admin: Dict[str, str]) -> None:
+    async def test_cannot_access_other_users_scripts(
+        self,
+        client: AsyncClient,
+        test_user: Dict[str, str],
+        test_admin: Dict[str, str],
+        unique_id: Callable[[str], str],
+    ) -> None:
         """Test that users cannot access scripts created by other users."""
         # Create a script as regular user
         login_data = {
@@ -245,9 +256,9 @@ class TestSavedScripts:
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
 
-        unique_id = str(uuid4())[:8]
+        uid = unique_id("")
         user_script_data = {
-            "name": f"User Private Script {unique_id}",
+            "name": f"User Private Script {uid}",
             "script": "print('Private to user')",
             "lang": "python",
             "lang_version": "3.11",
@@ -283,7 +294,9 @@ class TestSavedScripts:
         assert user_script_id not in admin_script_ids
 
     @pytest.mark.asyncio
-    async def test_script_with_invalid_language(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_script_with_invalid_language(
+        self, client: AsyncClient, test_user: Dict[str, str], unique_id: Callable[[str], str],
+    ) -> None:
         """Test that invalid language/version combinations are handled."""
         # Login first
         login_data = {
@@ -293,11 +306,11 @@ class TestSavedScripts:
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
 
-        unique_id = str(uuid4())[:8]
+        uid = unique_id("")
 
         # Try invalid language
         invalid_lang_data = {
-            "name": f"Invalid Language Script {unique_id}",
+            "name": f"Invalid Language Script {uid}",
             "script": "print('test')",
             "lang": "invalid_language",
             "lang_version": "1.0"
@@ -309,7 +322,7 @@ class TestSavedScripts:
 
         # Try unsupported version
         unsupported_version_data = {
-            "name": f"Unsupported Version Script {unique_id}",
+            "name": f"Unsupported Version Script {uid}",
             "script": "print('test')",
             "lang": "python",
             "lang_version": "2.7"  # Python 2 likely not supported
@@ -356,7 +369,9 @@ class TestSavedScripts:
             assert "detail" in error_data
 
     @pytest.mark.asyncio
-    async def test_script_content_size_limits(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_script_content_size_limits(
+        self, client: AsyncClient, test_user: Dict[str, str], unique_id: Callable[[str], str]
+    ) -> None:
         """Test script content size limits."""
         # Login first
         login_data = {
@@ -366,12 +381,12 @@ class TestSavedScripts:
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
 
-        unique_id = str(uuid4())[:8]
+        uid = unique_id("")
 
         # Test reasonably large script (should succeed)
         large_content = "# Large script\n" + "\n".join([f"print('Line {i}')" for i in range(1000)])
         large_script_data = {
-            "name": f"Large Script {unique_id}",
+            "name": f"Large Script {uid}",
             "script": large_content,
             "lang": "python",
             "lang_version": "3.11"
@@ -383,7 +398,7 @@ class TestSavedScripts:
         # Test excessively large script (should fail)
         huge_content = "x" * (1024 * 1024 * 10)  # 10MB
         huge_script_data = {
-            "name": f"Huge Script {unique_id}",
+            "name": f"Huge Script {uid}",
             "script": huge_content,
             "lang": "python",
             "lang_version": "3.11"
@@ -440,7 +455,9 @@ class TestSavedScripts:
         assert response.status_code in [404, 403, 204]
 
     @pytest.mark.asyncio
-    async def test_scripts_persist_across_sessions(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_scripts_persist_across_sessions(
+        self, client: AsyncClient, test_user: Dict[str, str], unique_id: Callable[[str], str],
+    ) -> None:
         """Test that scripts persist across login sessions."""
         # First session - create script
         login_data = {
@@ -450,9 +467,9 @@ class TestSavedScripts:
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
 
-        unique_id = str(uuid4())[:8]
+        uid = unique_id("")
         script_data = {
-            "name": f"Persistent Script {unique_id}",
+            "name": f"Persistent Script {uid}",
             "script": "print('Should persist')",
             "lang": "python",
             "lang_version": "3.11",

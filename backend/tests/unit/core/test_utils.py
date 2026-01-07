@@ -1,6 +1,5 @@
-from starlette.requests import Request
-
 from app.core.utils import StringEnum, get_client_ip
+from starlette.requests import Request
 
 
 class E(StringEnum):

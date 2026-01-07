@@ -1,16 +1,16 @@
 import asyncio
 import logging
-import uuid
-from tests.helpers.eventually import eventually
+from collections.abc import Callable
+from typing import Any
+
+import backoff
 import pytest
-
 from app.core.database_context import Database
-
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
-from app.domain.execution import DomainExecutionCreate
 from app.domain.enums.kafka import KafkaTopic
+from app.domain.execution import DomainExecutionCreate
 from app.domain.execution.models import ResourceUsageDomain
 from app.events.core import UnifiedConsumer, UnifiedProducer
 from app.events.core.dispatcher import EventDispatcher
@@ -21,6 +21,7 @@ from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.services.idempotency import IdempotencyManager
 from app.services.result_processor.processor import ResultProcessor
 from app.settings import Settings
+from dishka import AsyncContainer
 
 pytestmark = [pytest.mark.integration, pytest.mark.kafka, pytest.mark.mongodb]
 
@@ -28,7 +29,7 @@ _test_logger = logging.getLogger("test.result_processor.processor")
 
 
 @pytest.mark.asyncio
-async def test_result_processor_persists_and_emits(scope) -> None:  # type: ignore[valid-type]
+async def test_result_processor_persists_and_emits(scope: AsyncContainer, unique_id: Callable[[str], str]) -> None:
     # Ensure schemas
     registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
     settings: Settings = await scope.get(Settings)
@@ -65,10 +66,10 @@ async def test_result_processor_persists_and_emits(scope) -> None:  # type: igno
     stored_received = asyncio.Event()
 
     @dispatcher.register(EventType.RESULT_STORED)
-    async def _stored(_event) -> None:  # noqa: ANN001
+    async def _stored(_event: Any) -> None:
         stored_received.set()
 
-    group_id = f"rp-test.{uuid.uuid4().hex[:6]}"
+    group_id = unique_id("rp-test-")
     cconf = ConsumerConfig(
         bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
         group_id=group_id,
@@ -82,7 +83,7 @@ async def test_result_processor_persists_and_emits(scope) -> None:  # type: igno
         settings=settings,
         logger=_test_logger,
     )
-    await stored_consumer.start([str(KafkaTopic.EXECUTION_RESULTS)])
+    await stored_consumer.start([KafkaTopic.EXECUTION_RESULTS])
 
     try:
         async with processor:
@@ -104,12 +105,13 @@ async def test_result_processor_persists_and_emits(scope) -> None:  # type: igno
             await producer.produce(evt, key=execution_id)
 
             # Wait for DB persistence (event-driven polling)
-            async def _persisted() -> None:
+            @backoff.on_exception(backoff.constant, AssertionError, max_time=12.0, interval=0.2)
+            async def _wait_persisted() -> None:
                 doc = await db.get_collection("executions").find_one({"execution_id": execution_id})
                 assert doc is not None
                 assert doc.get("status") == ExecutionStatus.COMPLETED.value
 
-            await eventually(_persisted, timeout=12.0, interval=0.2)
+            await _wait_persisted()
 
             # Wait for result stored event
             await asyncio.wait_for(stored_received.wait(), timeout=10.0)

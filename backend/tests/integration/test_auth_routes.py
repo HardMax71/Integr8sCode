@@ -1,10 +1,9 @@
-from uuid import uuid4
+from typing import Callable
 
 import pytest
-from httpx import AsyncClient
-
 from app.domain.enums.user import UserRole as UserRoleEnum
 from app.schemas_pydantic.user import UserResponse
+from httpx import AsyncClient
 
 
 @pytest.mark.integration
@@ -12,12 +11,12 @@ class TestAuthentication:
     """Test authentication endpoints against real backend."""
 
     @pytest.mark.asyncio
-    async def test_user_registration_success(self, client: AsyncClient) -> None:
+    async def test_user_registration_success(self, client: AsyncClient, unique_id: Callable[[str], str]) -> None:
         """Test successful user registration with all required fields."""
-        unique_id = str(uuid4())[:8]
+        uid = unique_id("")
         registration_data = {
-            "username": f"test_auth_user_{unique_id}",
-            "email": f"test_auth_{unique_id}@example.com",
+            "username": f"test_auth_user_{uid}",
+            "email": f"test_auth_{uid}@example.com",
             "password": "SecureP@ssw0rd123"
         }
 
@@ -48,12 +47,14 @@ class TestAuthentication:
         assert user.is_superuser is False
 
     @pytest.mark.asyncio
-    async def test_user_registration_with_weak_password(self, client: AsyncClient) -> None:
+    async def test_user_registration_with_weak_password(
+        self, client: AsyncClient, unique_id: Callable[[str], str]
+    ) -> None:
         """Test that registration fails with weak passwords."""
-        unique_id = str(uuid4())[:8]
+        uid = unique_id("")
         registration_data = {
-            "username": f"test_weak_pwd_{unique_id}",
-            "email": f"test_weak_{unique_id}@example.com",
+            "username": f"test_weak_pwd_{uid}",
+            "email": f"test_weak_{uid}@example.com",
             "password": "weak"  # Too short
         }
 
@@ -71,12 +72,12 @@ class TestAuthentication:
         assert any(word in error_text for word in ["password", "length", "characters", "weak", "short"])
 
     @pytest.mark.asyncio
-    async def test_duplicate_username_registration(self, client: AsyncClient) -> None:
+    async def test_duplicate_username_registration(self, client: AsyncClient, unique_id: Callable[[str], str]) -> None:
         """Test that duplicate username registration is prevented."""
-        unique_id = str(uuid4())[:8]
+        uid = unique_id("")
         registration_data = {
-            "username": f"duplicate_user_{unique_id}",
-            "email": f"duplicate1_{unique_id}@example.com",
+            "username": f"duplicate_user_{uid}",
+            "email": f"duplicate1_{uid}@example.com",
             "password": "SecureP@ssw0rd123"
         }
 
@@ -87,7 +88,7 @@ class TestAuthentication:
         # Attempt duplicate registration with same username, different email
         duplicate_data = {
             "username": registration_data["username"],  # Same username
-            "email": f"duplicate2_{unique_id}@example.com",  # Different email
+            "email": f"duplicate2_{uid}@example.com",  # Different email
             "password": "SecureP@ssw0rd123"
         }
 
@@ -100,12 +101,12 @@ class TestAuthentication:
                    for word in ["already", "exists", "taken", "duplicate"])
 
     @pytest.mark.asyncio
-    async def test_duplicate_email_registration(self, client: AsyncClient) -> None:
+    async def test_duplicate_email_registration(self, client: AsyncClient, unique_id: Callable[[str], str]) -> None:
         """Test that duplicate email registration is prevented."""
-        unique_id = str(uuid4())[:8]
+        uid = unique_id("")
         registration_data = {
-            "username": f"user_email1_{unique_id}",
-            "email": f"duplicate_email_{unique_id}@example.com",
+            "username": f"user_email1_{uid}",
+            "email": f"duplicate_email_{uid}@example.com",
             "password": "SecureP@ssw0rd123"
         }
 
@@ -115,23 +116,25 @@ class TestAuthentication:
 
         # Attempt duplicate registration with same email, different username
         duplicate_data = {
-            "username": f"user_email2_{unique_id}",  # Different username
+            "username": f"user_email2_{uid}",  # Different username
             "email": registration_data["email"],  # Same email
             "password": "SecureP@ssw0rd123"
         }
 
         duplicate_response = await client.post("/api/v1/auth/register", json=duplicate_data)
         # Backend might allow duplicate emails but not duplicate usernames
-        # If it allows the registration, that's also valid behavior  
+        # If it allows the registration, that's also valid behavior
         assert duplicate_response.status_code in [200, 201, 400, 409]
 
     @pytest.mark.asyncio
-    async def test_login_success_with_valid_credentials(self, client: AsyncClient) -> None:
+    async def test_login_success_with_valid_credentials(
+        self, client: AsyncClient, unique_id: Callable[[str], str]
+    ) -> None:
         """Test successful login with valid credentials."""
-        unique_id = str(uuid4())[:8]
+        uid = unique_id("")
         registration_data = {
-            "username": f"login_test_{unique_id}",
-            "email": f"login_{unique_id}@example.com",
+            "username": f"login_test_{uid}",
+            "email": f"login_{uid}@example.com",
             "password": "SecureLoginP@ss123"
         }
 
@@ -166,12 +169,14 @@ class TestAuthentication:
         assert len(cookies) > 0  # Should have at least one cookie
 
     @pytest.mark.asyncio
-    async def test_login_failure_with_wrong_password(self, client: AsyncClient) -> None:
+    async def test_login_failure_with_wrong_password(
+        self, client: AsyncClient, unique_id: Callable[[str], str]
+    ) -> None:
         """Test that login fails with incorrect password."""
-        unique_id = str(uuid4())[:8]
+        uid = unique_id("")
         registration_data = {
-            "username": f"wrong_pwd_{unique_id}",
-            "email": f"wrong_pwd_{unique_id}@example.com",
+            "username": f"wrong_pwd_{uid}",
+            "email": f"wrong_pwd_{uid}@example.com",
             "password": "CorrectP@ssw0rd123"
         }
 
@@ -193,11 +198,13 @@ class TestAuthentication:
                    for word in ["invalid", "incorrect", "credentials", "unauthorized"])
 
     @pytest.mark.asyncio
-    async def test_login_failure_with_nonexistent_user(self, client: AsyncClient) -> None:
+    async def test_login_failure_with_nonexistent_user(
+        self, client: AsyncClient, unique_id: Callable[[str], str]
+    ) -> None:
         """Test that login fails for non-existent user."""
-        unique_id = str(uuid4())[:8]
+        uid = unique_id("")
         login_data = {
-            "username": f"nonexistent_user_{unique_id}",
+            "username": f"nonexistent_user_{uid}",
             "password": "AnyP@ssw0rd123"
         }
 
@@ -208,12 +215,12 @@ class TestAuthentication:
         assert "detail" in error_data
 
     @pytest.mark.asyncio
-    async def test_get_current_user_info(self, client: AsyncClient) -> None:
+    async def test_get_current_user_info(self, client: AsyncClient, unique_id: Callable[[str], str]) -> None:
         """Test getting current user information via /me endpoint."""
-        unique_id = str(uuid4())[:8]
+        uid = unique_id("")
         registration_data = {
-            "username": f"me_test_{unique_id}",
-            "email": f"me_test_{unique_id}@example.com",
+            "username": f"me_test_{uid}",
+            "email": f"me_test_{uid}@example.com",
             "password": "SecureP@ssw0rd123"
         }
 
@@ -259,12 +266,12 @@ class TestAuthentication:
                    for word in ["not authenticated", "unauthorized", "login"])
 
     @pytest.mark.asyncio
-    async def test_logout_clears_session(self, client: AsyncClient) -> None:
+    async def test_logout_clears_session(self, client: AsyncClient, unique_id: Callable[[str], str]) -> None:
         """Test logout functionality clears the session."""
-        unique_id = str(uuid4())[:8]
+        uid = unique_id("")
         registration_data = {
-            "username": f"logout_test_{unique_id}",
-            "email": f"logout_{unique_id}@example.com",
+            "username": f"logout_test_{uid}",
+            "email": f"logout_{uid}@example.com",
             "password": "SecureP@ssw0rd123"
         }
 
@@ -295,12 +302,12 @@ class TestAuthentication:
         assert me_after_logout.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_verify_token_endpoint(self, client: AsyncClient) -> None:
+    async def test_verify_token_endpoint(self, client: AsyncClient, unique_id: Callable[[str], str]) -> None:
         """Test token verification endpoint."""
-        unique_id = str(uuid4())[:8]
+        uid = unique_id("")
         registration_data = {
-            "username": f"verify_token_{unique_id}",
-            "email": f"verify_{unique_id}@example.com",
+            "username": f"verify_token_{uid}",
+            "email": f"verify_{uid}@example.com",
             "password": "SecureP@ssw0rd123"
         }
 
@@ -328,9 +335,8 @@ class TestAuthentication:
             assert verify_data["username"] == registration_data["username"]
 
     @pytest.mark.asyncio
-    async def test_invalid_email_format_rejected(self, client: AsyncClient) -> None:
+    async def test_invalid_email_format_rejected(self, client: AsyncClient, unique_id: Callable[[str], str]) -> None:
         """Test that invalid email formats are rejected during registration."""
-        unique_id = str(uuid4())[:8]
         invalid_emails = [
             "not-an-email",
             "@example.com",
@@ -338,9 +344,9 @@ class TestAuthentication:
             "user@.com",
         ]
 
-        for invalid_email in invalid_emails:
+        for i, invalid_email in enumerate(invalid_emails):
             registration_data = {
-                "username": f"invalid_email_{unique_id}",
+                "username": f"invalid_email_{unique_id('')}_{i}",
                 "email": invalid_email,
                 "password": "ValidP@ssw0rd123"
             }
@@ -351,16 +357,13 @@ class TestAuthentication:
             error_data = response.json()
             assert "detail" in error_data
 
-            # Update unique_id for next iteration to avoid username conflicts
-            unique_id = str(uuid4())[:8]
-
     @pytest.mark.asyncio
-    async def test_csrf_token_generation(self, client: AsyncClient) -> None:
+    async def test_csrf_token_generation(self, client: AsyncClient, unique_id: Callable[[str], str]) -> None:
         """Test CSRF token generation on login."""
-        unique_id = str(uuid4())[:8]
+        uid = unique_id("")
         registration_data = {
-            "username": f"csrf_test_{unique_id}",
-            "email": f"csrf_{unique_id}@example.com",
+            "username": f"csrf_test_{uid}",
+            "email": f"csrf_{uid}@example.com",
             "password": "SecureP@ssw0rd123"
         }
 
@@ -385,12 +388,14 @@ class TestAuthentication:
             assert isinstance(response_data["csrf_token"], str)
 
     @pytest.mark.asyncio
-    async def test_session_persistence_across_requests(self, client: AsyncClient) -> None:
+    async def test_session_persistence_across_requests(
+        self, client: AsyncClient, unique_id: Callable[[str], str]
+    ) -> None:
         """Test that session persists across multiple requests after login."""
-        unique_id = str(uuid4())[:8]
+        uid = unique_id("")
         registration_data = {
-            "username": f"session_test_{unique_id}",
-            "email": f"session_{unique_id}@example.com",
+            "username": f"session_test_{uid}",
+            "email": f"session_{uid}@example.com",
             "password": "SecureP@ssw0rd123"
         }
 

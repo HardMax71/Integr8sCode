@@ -1,10 +1,11 @@
 import json
 import logging
-from uuid import uuid4
+from collections.abc import Callable
 
 import pytest
 from app.events.core import ProducerConfig, UnifiedProducer
 from app.events.schema.schema_registry import SchemaRegistryManager
+from dishka import AsyncContainer
 
 from tests.helpers import make_execution_requested_event
 
@@ -14,12 +15,14 @@ _test_logger = logging.getLogger("test.events.producer_roundtrip")
 
 
 @pytest.mark.asyncio
-async def test_unified_producer_start_produce_send_to_dlq_stop(scope):  # type: ignore[valid-type]
+async def test_unified_producer_start_produce_send_to_dlq_stop(
+    scope: AsyncContainer, unique_id: Callable[[str], str]
+) -> None:
     schema: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
     prod = UnifiedProducer(ProducerConfig(bootstrap_servers="localhost:9092"), schema, logger=_test_logger)
 
     async with prod:
-        ev = make_execution_requested_event(execution_id=f"exec-{uuid4().hex[:8]}")
+        ev = make_execution_requested_event(execution_id=unique_id("exec-"))
         await prod.produce(ev)
 
         # Exercise send_to_dlq path
@@ -29,16 +32,16 @@ async def test_unified_producer_start_produce_send_to_dlq_stop(scope):  # type: 
         assert st["running"] is True and st["state"] == "running"
 
 
-def test_producer_handle_stats_path():
+def test_producer_handle_stats_path() -> None:
     # Directly run stats parsing to cover branch logic; avoid relying on timing
-    from app.events.core.producer import ProducerMetrics
-    from app.events.core.producer import UnifiedProducer as UP
+    from app.events.core import ProducerMetrics
+    from app.events.core import UnifiedProducer as UP
 
     m = ProducerMetrics()
     p = object.__new__(UP)  # bypass __init__ safely for method call
     # Inject required attributes
-    p._metrics = m  # type: ignore[attr-defined]
-    p._stats_callback = None  # type: ignore[attr-defined]
+    p._metrics = m
+    p._stats_callback = None
     payload = json.dumps({"msg_cnt": 1, "topics": {"t": {"partitions": {"0": {"msgq_cnt": 2, "rtt": {"avg": 5}}}}}})
-    UP._handle_stats(p, payload)  # type: ignore[misc]
+    UP._handle_stats(p, payload)
     assert m.queue_size == 1 and m.avg_latency_ms > 0

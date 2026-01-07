@@ -1,13 +1,13 @@
+import backoff
 import pytest
-
 from app.services.event_bus import EventBusEvent, EventBusManager
-from tests.helpers.eventually import eventually
+from dishka import AsyncContainer
 
 pytestmark = pytest.mark.integration
 
 
 @pytest.mark.asyncio
-async def test_event_bus_publish_subscribe(scope) -> None:  # type: ignore[valid-type]
+async def test_event_bus_publish_subscribe(scope: AsyncContainer) -> None:
     manager: EventBusManager = await scope.get(EventBusManager)
     bus = await manager.get_event_bus()
 
@@ -19,7 +19,8 @@ async def test_event_bus_publish_subscribe(scope) -> None:  # type: ignore[valid
     await bus.subscribe("test.*", handler)
     await bus.publish("test.created", {"x": 1})
 
-    async def _received():
+    @backoff.on_exception(backoff.constant, AssertionError, max_time=2.0, interval=0.05)
+    async def _wait_received() -> None:
         assert any(e.event_type == "test.created" for e in received)
 
-    await eventually(_received, timeout=2.0, interval=0.05)
+    await _wait_received()

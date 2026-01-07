@@ -1,40 +1,58 @@
 import json
 import logging
-import pytest
 
+import pytest
 from app.domain.enums.storage import ExecutionErrorType
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.services.pod_monitor.event_mapper import PodContext, PodEventMapper
+
 from tests.helpers.k8s_fakes import (
-    Meta,
+    ContainerStatus,
+    FakeApi,
+    Pod,
+    State,
     Terminated,
     Waiting,
-    State,
-    ContainerStatus,
-    Spec,
-    Status,
-    Pod,
-    FakeApi,
 )
-
 
 pytestmark = pytest.mark.unit
 
 _test_logger = logging.getLogger("test.services.pod_monitor.event_mapper")
 
 
-def _ctx(pod: Pod, event_type: str = "ADDED") -> PodContext:
-    return PodContext(pod=pod, execution_id="e1", metadata=AvroEventMetadata(service_name="t", service_version="1"), phase=pod.status.phase or "", event_type=event_type)
+def _ctx(pod: Pod, event_type: str = "ADDED") -> PodContext:  # noqa: ARG001
+    return PodContext(
+        pod=pod,
+        execution_id="e1",
+        metadata=AvroEventMetadata(service_name="t", service_version="1"),
+        phase=pod.status.phase or "",
+        event_type=event_type,
+    )
 
 
 def test_pending_running_and_succeeded_mapping() -> None:
-    pem = PodEventMapper(k8s_api=FakeApi(json.dumps({"stdout": "ok", "stderr": "", "exit_code": 0, "resource_usage": {"execution_time_wall_seconds": 0, "cpu_time_jiffies": 0, "clk_tck_hertz": 0, "peak_memory_kb": 0}})), logger=_test_logger)
+    logs_json = json.dumps({
+        "stdout": "ok",
+        "stderr": "",
+        "exit_code": 0,
+        "resource_usage": {
+            "execution_time_wall_seconds": 0,
+            "cpu_time_jiffies": 0,
+            "clk_tck_hertz": 0,
+            "peak_memory_kb": 0,
+        },
+    })
+    pem = PodEventMapper(k8s_api=FakeApi(logs_json), logger=_test_logger)
 
     # Pending -> scheduled (set execution-id label and PodScheduled condition)
     pend = Pod("p", "Pending")
     pend.metadata.labels = {"execution-id": "e1"}
+
     class Cond:
-        def __init__(self, t, s): self.type=t; self.status=s
+        def __init__(self, t: str, s: str) -> None:
+            self.type = t
+            self.status = s
+
     pend.status.conditions = [Cond("PodScheduled", "True")]
     pend.spec.node_name = "n"
     evts = pem.map_pod_event(pend, "ADDED")
@@ -50,7 +68,7 @@ def test_pending_running_and_succeeded_mapping() -> None:
         print(f"Events returned: {[e.event_type.value for e in evts]}")
     assert any(e.event_type.value == "pod_running" for e in evts)
     pr = [e for e in evts if e.event_type.value == "pod_running"][0]
-    statuses = json.loads(pr.container_statuses)
+    statuses = json.loads(pr.container_statuses)  # type: ignore[attr-defined]
     assert any("waiting" in s["state"] for s in statuses) and any("terminated" in s["state"] for s in statuses)
 
     # Succeeded -> completed; logs parsed JSON used
@@ -59,7 +77,7 @@ def test_pending_running_and_succeeded_mapping() -> None:
     suc.metadata.labels = {"execution-id": "e1"}
     evts = pem.map_pod_event(suc, "MODIFIED")
     comp = [e for e in evts if e.event_type.value == "execution_completed"][0]
-    assert comp.exit_code == 0 and comp.stdout == "ok"
+    assert comp.exit_code == 0 and comp.stdout == "ok"  # type: ignore[attr-defined]
 
 
 def test_failed_timeout_and_deleted() -> None:
@@ -67,10 +85,15 @@ def test_failed_timeout_and_deleted() -> None:
     pem = PodEventMapper(k8s_api=FakeApi(valid_logs), logger=_test_logger)
 
     # Timeout via DeadlineExceeded
-    pod_to = Pod("p", "Failed", cs=[ContainerStatus(State(terminated=Terminated(137)))], reason="DeadlineExceeded", adl=5)
+    pod_to = Pod(
+        "p", "Failed",
+        cs=[ContainerStatus(State(terminated=Terminated(137)))],
+        reason="DeadlineExceeded",
+        adl=5,
+    )
     pod_to.metadata.labels = {"execution-id": "e1"}
     ev = pem.map_pod_event(pod_to, "MODIFIED")[0]
-    assert ev.event_type.value == "execution_timeout" and ev.timeout_seconds == 5
+    assert ev.event_type.value == "execution_timeout" and ev.timeout_seconds == 5  # type: ignore[attr-defined]
 
     # Failed: terminated exit_code nonzero, message used as stderr, error type defaults to SCRIPT_ERROR
     # Note: ExecutionFailedEvent can have None resource_usage when logs extraction fails
@@ -78,7 +101,7 @@ def test_failed_timeout_and_deleted() -> None:
     pod_fail = Pod("p2", "Failed", cs=[ContainerStatus(State(terminated=Terminated(2, message="boom")))])
     pod_fail.metadata.labels = {"execution-id": "e2"}
     evf = pem_no_logs.map_pod_event(pod_fail, "MODIFIED")[0]
-    assert evf.event_type.value == "execution_failed" and evf.error_type in {ExecutionErrorType.SCRIPT_ERROR}
+    assert evf.event_type.value == "execution_failed" and evf.error_type in {ExecutionErrorType.SCRIPT_ERROR}  # type: ignore[attr-defined]
 
     # Deleted -> terminated when container terminated present (exit code 0 returns completed for DELETED)
     valid_logs_0 = json.dumps({"stdout": "", "stderr": "", "exit_code": 0, "resource_usage": {}})
@@ -96,7 +119,7 @@ def test_extract_id_and_metadata_priority_and_duplicates() -> None:
     # From label
     p = Pod("any", "Pending")
     p.metadata.labels = {"execution-id": "L1", "user-id": "u", "correlation-id": "corrL"}
-    ctx = _ctx(p)
+    _ctx(p)  # validate context creation works
     md = pem._create_metadata(p)
     assert pem._extract_execution_id(p) == "L1" and md.user_id == "u" and md.correlation_id == "corrL"
 
@@ -119,7 +142,9 @@ def test_extract_id_and_metadata_priority_and_duplicates() -> None:
 
 def test_scheduled_requires_condition() -> None:
     class Cond:
-        def __init__(self, t, s): self.type=t; self.status=s
+        def __init__(self, t: str, s: str) -> None:
+            self.type = t
+            self.status = s
 
     pem = PodEventMapper(k8s_api=FakeApi(""), logger=_test_logger)
     pod = Pod("p", "Pending")
@@ -134,13 +159,13 @@ def test_scheduled_requires_condition() -> None:
     assert pem._map_scheduled(_ctx(pod)) is not None
 
 
-def test_parse_and_log_paths_and_analyze_failure_variants(caplog) -> None:
+def test_parse_and_log_paths_and_analyze_failure_variants(caplog: pytest.LogCaptureFixture) -> None:
     # _parse_executor_output line-by-line
     line_json = '{"stdout":"x","stderr":"","exit_code":3,"resource_usage":{}}'
     pem = PodEventMapper(k8s_api=FakeApi("junk\n" + line_json), logger=_test_logger)
     pod = Pod("p", "Succeeded", cs=[ContainerStatus(State(terminated=Terminated(0)))])
     logs = pem._extract_logs(pod)
-    assert logs.exit_code == 3 and logs.stdout == "x"
+    assert logs is not None and logs.exit_code == 3 and logs.stdout == "x"
 
     # _extract_logs: no api -> returns None
     pem2 = PodEventMapper(k8s_api=None, logger=_test_logger)
@@ -148,11 +173,22 @@ def test_parse_and_log_paths_and_analyze_failure_variants(caplog) -> None:
 
     # _extract_logs exceptions -> 404/400/generic branches, all return None
     class _API404(FakeApi):
-        def read_namespaced_pod_log(self, *a, **k): raise Exception("404 Not Found")
+        def read_namespaced_pod_log(
+            self, name: str, namespace: str, tail_lines: int = 10000
+        ) -> str:
+            raise Exception("404 Not Found")
+
     class _API400(FakeApi):
-        def read_namespaced_pod_log(self, *a, **k): raise Exception("400 Bad Request")
+        def read_namespaced_pod_log(
+            self, name: str, namespace: str, tail_lines: int = 10000
+        ) -> str:
+            raise Exception("400 Bad Request")
+
     class _APIGen(FakeApi):
-        def read_namespaced_pod_log(self, *a, **k): raise Exception("boom")
+        def read_namespaced_pod_log(
+            self, name: str, namespace: str, tail_lines: int = 10000
+        ) -> str:
+            raise Exception("boom")
 
     pem404 = PodEventMapper(k8s_api=_API404(""), logger=_test_logger)
     assert pem404._extract_logs(pod) is None

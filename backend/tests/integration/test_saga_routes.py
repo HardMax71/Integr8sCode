@@ -1,5 +1,5 @@
 import asyncio
-import uuid
+from collections.abc import Callable
 from typing import Dict
 
 import pytest
@@ -15,57 +15,57 @@ class TestSagaRoutes:
     """Test saga routes against the real backend."""
 
     @pytest.mark.asyncio
-    async def test_get_saga_requires_auth(self, client: AsyncClient) -> None:
+    async def test_get_saga_requires_auth(self, client: AsyncClient, unique_id: Callable[[str], str]) -> None:
         """Test that getting saga status requires authentication."""
-        saga_id = str(uuid.uuid4())
+        saga_id = unique_id("saga-")
         response = await client.get(f"/api/v1/sagas/{saga_id}")
         assert response.status_code == 401
         assert "Not authenticated" in response.json()["detail"]
 
     @pytest.mark.asyncio
     async def test_get_saga_not_found(
-            self, client: AsyncClient, test_user: Dict[str, str]
+            self, client: AsyncClient, test_user: Dict[str, str], unique_id: Callable[[str], str]
     ) -> None:
         """Test getting non-existent saga returns 404."""
         # Already authenticated via test_user fixture
 
         # Try to get non-existent saga
-        saga_id = str(uuid.uuid4())
+        saga_id = unique_id("saga-")
         response = await client.get(f"/api/v1/sagas/{saga_id}")
         assert response.status_code == 404
         assert "not found" in response.json()["detail"]
 
     @pytest.mark.asyncio
     async def test_get_execution_sagas_requires_auth(
-            self, client: AsyncClient
+            self, client: AsyncClient, unique_id: Callable[[str], str]
     ) -> None:
         """Test that getting execution sagas requires authentication."""
-        execution_id = str(uuid.uuid4())
+        execution_id = unique_id("exec-")
         response = await client.get(f"/api/v1/sagas/execution/{execution_id}")
         assert response.status_code == 401
 
     @pytest.mark.asyncio
     async def test_get_execution_sagas_empty(
-            self, client: AsyncClient, test_user: Dict[str, str]
+            self, client: AsyncClient, test_user: Dict[str, str], unique_id: Callable[[str], str]
     ) -> None:
         """Test getting sagas for execution with no sagas."""
         # Already authenticated via test_user fixture
 
         # Get sagas for non-existent execution
-        execution_id = str(uuid.uuid4())
+        execution_id = unique_id("exec-")
         response = await client.get(f"/api/v1/sagas/execution/{execution_id}")
         # Access to a random execution (non-owned) must be forbidden
         assert response.status_code == 403
 
     @pytest.mark.asyncio
     async def test_get_execution_sagas_with_state_filter(
-            self, client: AsyncClient, test_user: Dict[str, str]
+            self, client: AsyncClient, test_user: Dict[str, str], unique_id: Callable[[str], str]
     ) -> None:
         """Test getting execution sagas filtered by state."""
         # Already authenticated via test_user fixture
 
         # Get sagas filtered by running state
-        execution_id = str(uuid.uuid4())
+        execution_id = unique_id("exec-")
         response = await client.get(
             f"/api/v1/sagas/execution/{execution_id}",
             params={"state": SagaState.RUNNING.value}
@@ -172,15 +172,15 @@ class TestSagaRoutes:
         assert response.status_code == 422  # Validation error
 
     @pytest.mark.asyncio
-    async def test_cancel_saga_requires_auth(self, client: AsyncClient) -> None:
+    async def test_cancel_saga_requires_auth(self, client: AsyncClient, unique_id: Callable[[str], str]) -> None:
         """Test that cancelling saga requires authentication."""
-        saga_id = str(uuid.uuid4())
+        saga_id = unique_id("saga-")
         response = await client.post(f"/api/v1/sagas/{saga_id}/cancel")
         assert response.status_code == 401
 
     @pytest.mark.asyncio
     async def test_cancel_saga_not_found(
-            self, client: AsyncClient, test_user: Dict[str, str]
+            self, client: AsyncClient, test_user: Dict[str, str], unique_id: Callable[[str], str]
     ) -> None:
         """Test cancelling non-existent saga returns 404."""
         # Login first
@@ -192,7 +192,7 @@ class TestSagaRoutes:
         assert login_response.status_code == 200
 
         # Try to cancel non-existent saga
-        saga_id = str(uuid.uuid4())
+        saga_id = unique_id("saga-")
         response = await client.post(f"/api/v1/sagas/{saga_id}/cancel")
         assert response.status_code == 404
         assert "not found" in response.json()["detail"]
@@ -335,7 +335,7 @@ class TestSagaRoutes:
 
     @pytest.mark.asyncio
     async def test_get_execution_sagas_multiple_states(
-            self, client: AsyncClient, test_user: Dict[str, str]
+            self, client: AsyncClient, test_user: Dict[str, str], unique_id: Callable[[str], str]
     ) -> None:
         """Test getting execution sagas across different states."""
         # Login first
@@ -346,7 +346,7 @@ class TestSagaRoutes:
         login_response = await client.post("/api/v1/auth/login", data=login_data)
         assert login_response.status_code == 200
 
-        execution_id = str(uuid.uuid4())
+        execution_id = unique_id("exec-")
 
         # Test each state filter
         for state in [SagaState.CREATED, SagaState.RUNNING, SagaState.COMPLETED,

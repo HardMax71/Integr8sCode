@@ -1,8 +1,8 @@
+from typing import Any
+
 import pytest
-
-from app.services.saga.saga_step import SagaContext, CompensationStep
 from app.services.saga.base_saga import BaseSaga
-
+from app.services.saga.saga_step import CompensationStep, SagaContext
 
 pytestmark = pytest.mark.unit
 
@@ -37,9 +37,9 @@ class _DummyComp(CompensationStep):
 
 @pytest.mark.asyncio
 async def test_context_adders() -> None:
-    from app.infrastructure.kafka.events.metadata import AvroEventMetadata
-    from app.infrastructure.kafka.events.base import BaseEvent
     from app.domain.enums.events import EventType
+    from app.infrastructure.kafka.events.base import BaseEvent
+    from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 
     class E(BaseEvent):
         event_type: EventType = EventType.SYSTEM_ERROR
@@ -63,18 +63,18 @@ def test_base_saga_abstract_calls_cover_pass_lines() -> None:
     # And the default bind hook returns None when called
     class Dummy(BaseSaga):
         @classmethod
-        def get_name(cls): return "d"
+        def get_name(cls) -> str: return "d"
         @classmethod
-        def get_trigger_events(cls): return []
-        def get_steps(self): return []
-    assert Dummy().bind_dependencies() is None
+        def get_trigger_events(cls) -> list[Any]: return []
+        def get_steps(self) -> list[Any]: return []
+    Dummy().bind_dependencies()  # Returns None by design
 
 
 def test_saga_step_str_and_can_execute() -> None:
     from app.services.saga.saga_step import SagaStep
-    class S(SagaStep):
-        async def execute(self, context, event): return True
-        def get_compensation(self): return None
+    class S(SagaStep[Any]):
+        async def execute(self, context: Any, event: Any) -> bool: return True
+        def get_compensation(self) -> None: return None
     s = S("nm")
     assert str(s) == "SagaStep(nm)"
     # can_execute default True

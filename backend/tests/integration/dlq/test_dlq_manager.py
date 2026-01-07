@@ -1,14 +1,17 @@
 import json
-import uuid
+from collections.abc import Callable
 from datetime import datetime, timezone
 
+import backoff
 import pytest
+from app.core.database_context import Database
 from app.db.docs import DLQMessageDocument
+from app.dlq.manager import DLQManager
 from app.domain.enums.kafka import KafkaTopic
+from app.settings import Settings
 from confluent_kafka import Producer
 
 from tests.helpers import make_execution_requested_event
-from tests.helpers.eventually import eventually
 
 # xdist_group: DLQ tests share a Kafka consumer group. When running in parallel,
 # different workers' managers consume each other's messages and apply wrong policies.
@@ -17,11 +20,16 @@ pytestmark = [pytest.mark.integration, pytest.mark.kafka, pytest.mark.mongodb, p
 
 
 @pytest.mark.asyncio
-async def test_dlq_manager_persists_in_mongo(db, test_settings, dlq_manager) -> None:  # type: ignore[valid-type]
+async def test_dlq_manager_persists_in_mongo(
+    db: Database,
+    test_settings: Settings,
+    dlq_manager: DLQManager,
+    unique_id: Callable[[str], str],
+) -> None:
     prefix = test_settings.KAFKA_TOPIC_PREFIX
 
     # Use unique execution_id to avoid conflicts with parallel test workers
-    ev = make_execution_requested_event(execution_id=f"exec-dlq-persist-{uuid.uuid4().hex[:8]}")
+    ev = make_execution_requested_event(execution_id=unique_id("exec-dlq-persist-"))
     payload = {
         "event": ev.to_dict(),
         "original_topic": f"{prefix}{str(KafkaTopic.EXECUTION_EVENTS)}",
@@ -42,9 +50,10 @@ async def test_dlq_manager_persists_in_mongo(db, test_settings, dlq_manager) -> 
 
     async with dlq_manager:
 
-        async def _exists():
+        @backoff.on_exception(backoff.constant, AssertionError, max_time=10.0, interval=0.2)
+        async def _wait_exists() -> None:
             doc = await DLQMessageDocument.find_one({"event_id": ev.event_id})
             assert doc is not None
 
         # Poll until the document appears
-        await eventually(_exists, timeout=10.0, interval=0.2)
+        await _wait_exists()

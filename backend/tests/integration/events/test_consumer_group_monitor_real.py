@@ -1,5 +1,5 @@
 import logging
-from uuid import uuid4
+from collections.abc import Callable
 
 import pytest
 from app.events.consumer_group_monitor import (
@@ -14,10 +14,10 @@ _test_logger = logging.getLogger("test.events.consumer_group_monitor_real")
 
 
 @pytest.mark.asyncio
-async def test_consumer_group_status_error_path_and_summary():
+async def test_consumer_group_status_error_path_and_summary(unique_id: Callable[[str], str]) -> None:
     monitor = NativeConsumerGroupMonitor(bootstrap_servers="localhost:9092", logger=_test_logger)
     # Non-existent group triggers error-handling path and returns minimal status
-    gid = f"does-not-exist-{uuid4().hex[:8]}"
+    gid = unique_id("does-not-exist-")
     status = await monitor.get_consumer_group_status(gid, timeout=5.0, include_lag=False)
     assert status.group_id == gid
     # Some clusters report non-existent groups as DEAD/UNKNOWN rather than raising
@@ -27,7 +27,7 @@ async def test_consumer_group_status_error_path_and_summary():
     assert summary["group_id"] == gid and summary["health"] == ConsumerGroupHealth.UNHEALTHY.value
 
 
-def test_assess_group_health_branches():
+def test_assess_group_health_branches() -> None:
     m = NativeConsumerGroupMonitor(logger=_test_logger)
     # Error state
     s = ConsumerGroupStatus(
@@ -81,9 +81,9 @@ def test_assess_group_health_branches():
 
 
 @pytest.mark.asyncio
-async def test_multiple_group_status_mixed_errors():
+async def test_multiple_group_status_mixed_errors(unique_id: Callable[[str], str]) -> None:
     m = NativeConsumerGroupMonitor(bootstrap_servers="localhost:9092", logger=_test_logger)
-    gids = [f"none-{uuid4().hex[:6]}", f"none-{uuid4().hex[:6]}"]
+    gids = [unique_id("none1-"), unique_id("none2-")]
     res = await m.get_multiple_group_status(gids, timeout=5.0, include_lag=False)
     assert set(res.keys()) == set(gids)
     assert all(v.health is ConsumerGroupHealth.UNHEALTHY for v in res.values())

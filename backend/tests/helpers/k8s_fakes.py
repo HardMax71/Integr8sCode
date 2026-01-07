@@ -45,7 +45,12 @@ class Waiting:
 
 
 class State:
-    def __init__(self, terminated: Terminated | None = None, waiting: Waiting | None = None, running: Any | None = None) -> None:
+    def __init__(
+        self,
+        terminated: Terminated | None = None,
+        waiting: Waiting | None = None,
+        running: Any | None = None,
+    ) -> None:
         self.terminated = terminated
         self.waiting = waiting
         self.running = running
@@ -89,7 +94,13 @@ class Pod:
         annotations: dict[str, str] | None = None,
         resource_version: str | None = None,
     ) -> None:
-        self.metadata = Meta(name, namespace=namespace, labels=labels, annotations=annotations, resource_version=resource_version)
+        self.metadata = Meta(
+            name,
+            namespace=namespace,
+            labels=labels,
+            annotations=annotations,
+            resource_version=resource_version,
+        )
         self.status = Status(phase, reason, msg, cs)
         self.spec = Spec(adl)
 
@@ -131,16 +142,16 @@ class FakeApi:
     def __init__(self, logs: str) -> None:
         self._logs = logs
 
-    def read_namespaced_pod_log(self, name: str, namespace: str, tail_lines: int = 10000):  # noqa: ARG002
+    def read_namespaced_pod_log(self, name: str, namespace: str, tail_lines: int = 10000) -> str:  # noqa: ARG002
         return self._logs
 
 
-def make_watch(events: list[dict[str, Any]], resource_version: str = "rv2"):
+def make_watch(events: list[dict[str, Any]], resource_version: str = "rv2") -> Any:
     class _StopEvent:
         def __init__(self, rv: str) -> None:
             self.resource_version = rv
 
-    class _Stream(list):
+    class _Stream(list[dict[str, Any]]):
         def __init__(self, ev: list[dict[str, Any]], rv: str) -> None:
             super().__init__(ev)
             self._stop_event = _StopEvent(rv)
@@ -150,7 +161,7 @@ def make_watch(events: list[dict[str, Any]], resource_version: str = "rv2"):
             self._events = ev
             self._rv = rv
 
-        def stream(self, func, **kwargs):  # noqa: ARG002
+        def stream(self, func: Any, **kwargs: Any) -> _Stream:  # noqa: ARG002
             return _Stream(list(self._events), self._rv)
 
         def stop(self) -> None:

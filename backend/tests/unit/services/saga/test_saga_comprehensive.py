@@ -4,16 +4,16 @@ This file intentionally focuses on deterministic, pure logic checks that don't
 require heavy mocking or external services. Full end‑to‑end behavior is covered
 by integration tests under tests/integration/saga/.
 """
+from typing import Any
 
 import pytest
-
 from app.domain.enums.events import EventType
 from app.domain.enums.saga import SagaState
 from app.domain.saga.models import Saga
-from tests.helpers import make_execution_requested_event
 from app.services.saga.execution_saga import ExecutionSaga
 from app.services.saga.saga_step import CompensationStep, SagaContext, SagaStep
 
+from tests.helpers import make_execution_requested_event
 
 pytestmark = pytest.mark.unit
 
@@ -23,19 +23,19 @@ class _NoopComp(CompensationStep):
         return True
 
 
-class _Step(SagaStep):
+class _Step(SagaStep[Any]):
     def __init__(self, name: str, ok: bool = True):
         super().__init__(name)
         self._ok = ok
 
-    async def execute(self, context: SagaContext, event) -> bool:  # noqa: ARG002
+    async def execute(self, context: SagaContext, event: Any) -> bool:  # noqa: ARG002
         return self._ok
 
-    def get_compensation(self):
+    def get_compensation(self) -> CompensationStep:
         return _NoopComp(f"{self.name}-comp")
 
 
-def _req_event():
+def _req_event() -> Any:
     return make_execution_requested_event(execution_id="e1", script="print('x')")
 
 

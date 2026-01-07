@@ -1,10 +1,7 @@
 import importlib
-import types
 
 import pytest
-
 from app.services.pod_monitor.config import PodMonitorConfig
-
 
 pytestmark = pytest.mark.unit
 

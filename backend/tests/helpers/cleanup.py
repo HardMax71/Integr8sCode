@@ -1,9 +1,8 @@
 """Shared cleanup utilities for integration and E2E tests."""
 import redis.asyncio as redis
-from beanie import init_beanie
-
 from app.core.database_context import Database
 from app.db.docs import ALL_DOCUMENTS
+from beanie import init_beanie
 
 
 async def cleanup_db_and_redis(db: Database, redis_client: redis.Redis) -> None:

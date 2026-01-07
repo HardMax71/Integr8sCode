@@ -1,6 +1,8 @@
 import logging
-import uuid
+from collections.abc import Callable
+from typing import Any
 
+import backoff
 import pytest
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
@@ -10,9 +12,9 @@ from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.idempotency.idempotency_manager import IdempotencyManager
 from app.services.idempotency.middleware import IdempotentConsumerWrapper
 from app.settings import Settings
+from dishka import AsyncContainer
 
 from tests.helpers import make_execution_requested_event
-from tests.helpers.eventually import eventually
 
 pytestmark = [pytest.mark.integration, pytest.mark.kafka, pytest.mark.redis]
 
@@ -20,7 +22,9 @@ _test_logger = logging.getLogger("test.idempotency.consumer_idempotent")
 
 
 @pytest.mark.asyncio
-async def test_consumer_idempotent_wrapper_blocks_duplicates(scope) -> None:  # type: ignore[valid-type]
+async def test_consumer_idempotent_wrapper_blocks_duplicates(
+    scope: AsyncContainer, unique_id: Callable[[str], str]
+) -> None:
     producer: UnifiedProducer = await scope.get(UnifiedProducer)
     idm: IdempotencyManager = await scope.get(IdempotencyManager)
     registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
@@ -31,13 +35,13 @@ async def test_consumer_idempotent_wrapper_blocks_duplicates(scope) -> None:  # 
     seen = {"n": 0}
 
     @disp.register(EventType.EXECUTION_REQUESTED)
-    async def handle(_ev):  # noqa: ANN001
+    async def handle(_ev: Any) -> None:
         seen["n"] += 1
 
     # Real consumer with idempotent wrapper
     cfg = ConsumerConfig(
         bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-        group_id=f"test-idem-consumer.{uuid.uuid4().hex[:6]}",
+        group_id=unique_id("test-idem-consumer-"),
         enable_auto_commit=True,
         auto_offset_reset="earliest",
     )
@@ -58,16 +62,18 @@ async def test_consumer_idempotent_wrapper_blocks_duplicates(scope) -> None:  # 
     )
 
     # Produce BEFORE starting consumer - with earliest offset, consumer will read from beginning
-    execution_id = f"e-{uuid.uuid4().hex[:8]}"
+    execution_id = unique_id("e-")
     ev = make_execution_requested_event(execution_id=execution_id)
     await producer.produce(ev, key=execution_id)
     await producer.produce(ev, key=execution_id)
 
     await wrapper.start([KafkaTopic.EXECUTION_EVENTS])
     try:
-        async def _one():
+
+        @backoff.on_exception(backoff.constant, AssertionError, max_time=10.0, interval=0.2)
+        async def _wait_one() -> None:
             assert seen["n"] >= 1
 
-        await eventually(_one, timeout=10.0, interval=0.2)
+        await _wait_one()
     finally:
         await wrapper.stop()

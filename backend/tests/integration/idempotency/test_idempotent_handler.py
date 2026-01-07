@@ -1,12 +1,13 @@
 import logging
+from collections.abc import Callable
+from typing import Any
 
 import pytest
-
-from app.events.schema.schema_registry import SchemaRegistryManager
-from tests.helpers import make_execution_requested_event
 from app.services.idempotency.idempotency_manager import IdempotencyManager
 from app.services.idempotency.middleware import IdempotentEventHandler
+from dishka import AsyncContainer
 
+from tests.helpers import make_execution_requested_event
 
 pytestmark = [pytest.mark.integration]
 
@@ -14,12 +15,12 @@ _test_logger = logging.getLogger("test.idempotency.idempotent_handler")
 
 
 @pytest.mark.asyncio
-async def test_idempotent_handler_blocks_duplicates(scope) -> None:  # type: ignore[valid-type]
+async def test_idempotent_handler_blocks_duplicates(scope: AsyncContainer, unique_id: Callable[[str], str]) -> None:
     manager: IdempotencyManager = await scope.get(IdempotencyManager)
 
     processed: list[str] = []
 
-    async def _handler(ev) -> None:  # noqa: ANN001
+    async def _handler(ev: Any) -> None:
         processed.append(ev.event_id)
 
     handler = IdempotentEventHandler(
@@ -29,7 +30,7 @@ async def test_idempotent_handler_blocks_duplicates(scope) -> None:  # type: ign
         logger=_test_logger,
     )
 
-    ev = make_execution_requested_event(execution_id="exec-dup-1")
+    ev = make_execution_requested_event(execution_id=unique_id("exec-"))
 
     await handler(ev)
     await handler(ev)  # duplicate
@@ -38,12 +39,14 @@ async def test_idempotent_handler_blocks_duplicates(scope) -> None:  # type: ign
 
 
 @pytest.mark.asyncio
-async def test_idempotent_handler_content_hash_blocks_same_content(scope) -> None:  # type: ignore[valid-type]
+async def test_idempotent_handler_content_hash_blocks_same_content(
+    scope: AsyncContainer, unique_id: Callable[[str], str]
+) -> None:
     manager: IdempotencyManager = await scope.get(IdempotencyManager)
 
     processed: list[str] = []
 
-    async def _handler(ev) -> None:  # noqa: ANN001
+    async def _handler(ev: Any) -> None:
         processed.append(ev.execution_id)
 
     handler = IdempotentEventHandler(
@@ -53,8 +56,10 @@ async def test_idempotent_handler_content_hash_blocks_same_content(scope) -> Non
         logger=_test_logger,
     )
 
-    e1 = make_execution_requested_event(execution_id="exec-dup-2")
-    e2 = make_execution_requested_event(execution_id="exec-dup-2")
+    # Same execution_id means same content hash
+    execution_id = unique_id("exec-")
+    e1 = make_execution_requested_event(execution_id=execution_id)
+    e2 = make_execution_requested_event(execution_id=execution_id)
 
     await handler(e1)
     await handler(e2)

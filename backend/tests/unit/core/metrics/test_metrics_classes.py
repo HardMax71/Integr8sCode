@@ -10,9 +10,10 @@ from app.core.metrics.notifications import NotificationMetrics
 from app.core.metrics.rate_limit import RateLimitMetrics
 from app.core.metrics.replay import ReplayMetrics
 from app.core.metrics.security import SecurityMetrics
+from app.domain.enums.execution import ExecutionStatus
 
 
-def test_connection_metrics_smoke():
+def test_connection_metrics_smoke() -> None:
     """Test ConnectionMetrics smoke test with no-op metrics."""
     # Create ConnectionMetrics instance - will use NoOpMeterProvider automatically
     m = ConnectionMetrics()
@@ -25,7 +26,7 @@ def test_connection_metrics_smoke():
     m.update_event_bus_subscribers(3, "*")
 
 
-def test_event_metrics_smoke():
+def test_event_metrics_smoke() -> None:
     """Test EventMetrics smoke test with no-op metrics."""
     # Create EventMetrics instance - will use NoOpMeterProvider automatically
     m = EventMetrics()
@@ -54,13 +55,13 @@ def test_event_metrics_smoke():
     m.set_event_bus_queue_size(5)
 
 
-def test_other_metrics_classes_smoke():
+def test_other_metrics_classes_smoke() -> None:
     """Test other metrics classes smoke test with no-op metrics."""
     # Create metrics instances - will use NoOpMeterProvider automatically
     CoordinatorMetrics().record_coordinator_processing_time(0.01)
     DatabaseMetrics().record_mongodb_operation("read", "ok")
     DLQMetrics().record_dlq_message_received("topic", "type")
-    ExecutionMetrics().record_script_execution("QUEUED", "python")
+    ExecutionMetrics().record_script_execution(ExecutionStatus.QUEUED, "python")
     HealthMetrics().record_health_check_duration(0.001, "liveness", "basic")
     KubernetesMetrics().record_k8s_pod_created("success", "python")
     NotificationMetrics().record_notification_sent("welcome", channel="email")

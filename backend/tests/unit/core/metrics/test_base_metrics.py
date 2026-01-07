@@ -1,7 +1,5 @@
 import pytest
-
 from app.core.metrics.base import BaseMetrics
-
 
 pytestmark = pytest.mark.unit
 

@@ -1,17 +1,15 @@
 from typing import Dict
 
 import pytest
-from httpx import AsyncClient
-
+from app.domain.enums.notification import NotificationChannel, NotificationStatus
 from app.schemas_pydantic.notification import (
+    DeleteNotificationResponse,
     NotificationListResponse,
-    NotificationStatus,
-    NotificationChannel,
     NotificationSubscription,
     SubscriptionsResponse,
     UnreadCountResponse,
-    DeleteNotificationResponse
 )
+from httpx import AsyncClient
 
 
 @pytest.mark.integration
@@ -77,7 +75,12 @@ class TestNotificationRoutes:
         assert login_response.status_code == 200
 
         # Test different status filters
-        for status in [NotificationStatus.READ.value, NotificationStatus.DELIVERED.value, NotificationStatus.SKIPPED.value]:
+        statuses = [
+            NotificationStatus.READ.value,
+            NotificationStatus.DELIVERED.value,
+            NotificationStatus.SKIPPED.value,
+        ]
+        for status in statuses:
             response = await client.get(f"/api/v1/notifications?status={status}&limit=5")
             assert response.status_code == 200
 

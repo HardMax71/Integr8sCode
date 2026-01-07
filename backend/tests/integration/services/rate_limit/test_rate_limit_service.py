@@ -1,11 +1,8 @@
-import asyncio
 import json
-import time
-from datetime import datetime, timezone
-from uuid import uuid4
+from collections.abc import Callable
+from typing import Any, Self
 
 import pytest
-
 from app.domain.rate_limit import (
     EndpointGroup,
     RateLimitAlgorithm,
@@ -14,14 +11,17 @@ from app.domain.rate_limit import (
     UserRateLimit,
 )
 from app.services.rate_limit_service import RateLimitService
+from dishka import AsyncContainer
 
 pytestmark = [pytest.mark.integration, pytest.mark.redis]
 
 
 @pytest.mark.asyncio
-async def test_normalize_and_disabled_and_bypass_and_no_rule(scope) -> None:  # type: ignore[valid-type]
+async def test_normalize_and_disabled_and_bypass_and_no_rule(
+    scope: AsyncContainer, unique_id: Callable[[str], str]
+) -> None:
     svc: RateLimitService = await scope.get(RateLimitService)
-    svc.prefix = f"{svc.prefix}{uuid4().hex[:6]}:"
+    svc.prefix = f"{svc.prefix}{unique_id('')}:"
     # ensure disabled for first path
     await svc.update_config(RateLimitConfig(default_rules=[]))
     svc.settings.RATE_LIMIT_ENABLED = False
@@ -48,9 +48,11 @@ async def test_normalize_and_disabled_and_bypass_and_no_rule(scope) -> None:  # 
 
 
 @pytest.mark.asyncio
-async def test_sliding_window_allowed_and_rejected(scope) -> None:  # type: ignore[valid-type]
+async def test_sliding_window_allowed_and_rejected(
+    scope: AsyncContainer, unique_id: Callable[[str], str]
+) -> None:
     svc: RateLimitService = await scope.get(RateLimitService)
-    svc.prefix = f"{svc.prefix}{uuid4().hex[:6]}:"
+    svc.prefix = f"{svc.prefix}{unique_id('')}:"
     svc.settings.RATE_LIMIT_ENABLED = True  # Enable rate limiting for this test
     # matching rule with window 5, limit 3
     rule = RateLimitRule(endpoint_pattern=r"^/api/v1/x", group=EndpointGroup.API, requests=3, window_seconds=5,
@@ -73,9 +75,9 @@ async def test_sliding_window_allowed_and_rejected(scope) -> None:  # type: igno
 
 
 @pytest.mark.asyncio
-async def test_token_bucket_paths(scope) -> None:  # type: ignore[valid-type]
+async def test_token_bucket_paths(scope: AsyncContainer, unique_id: Callable[[str], str]) -> None:
     svc: RateLimitService = await scope.get(RateLimitService)
-    svc.prefix = f"{svc.prefix}{uuid4().hex[:6]}:"
+    svc.prefix = f"{svc.prefix}{unique_id('')}:"
     svc.settings.RATE_LIMIT_ENABLED = True  # Enable rate limiting for this test
     rule = RateLimitRule(endpoint_pattern=r"^/api/v1/t", group=EndpointGroup.API, requests=2, window_seconds=10,
                          burst_multiplier=1.0, algorithm=RateLimitAlgorithm.TOKEN_BUCKET)
@@ -101,9 +103,11 @@ async def test_token_bucket_paths(scope) -> None:  # type: ignore[valid-type]
 
 
 @pytest.mark.asyncio
-async def test_config_update_and_user_helpers(scope) -> None:  # type: ignore[valid-type]
+async def test_config_update_and_user_helpers(
+    scope: AsyncContainer, unique_id: Callable[[str], str]
+) -> None:
     svc: RateLimitService = await scope.get(RateLimitService)
-    svc.prefix = f"{svc.prefix}{uuid4().hex[:6]}:"
+    svc.prefix = f"{svc.prefix}{unique_id('')}:"
     cfg = RateLimitConfig(
         default_rules=[RateLimitRule(endpoint_pattern=r"^/a", group=EndpointGroup.API, requests=1, window_seconds=1)])
     await svc.update_config(cfg)
@@ -124,10 +128,10 @@ async def test_config_update_and_user_helpers(scope) -> None:  # type: ignore[va
 
 
 @pytest.mark.asyncio
-async def test_ip_based_rate_limiting(scope) -> None:  # type: ignore[valid-type]
+async def test_ip_based_rate_limiting(scope: AsyncContainer, unique_id: Callable[[str], str]) -> None:
     """Test IP-based rate limiting."""
     svc: RateLimitService = await scope.get(RateLimitService)
-    svc.prefix = f"{svc.prefix}{uuid4().hex[:6]}:"
+    svc.prefix = f"{svc.prefix}{unique_id('')}:"
 
     # Test IP-based check
     cfg = RateLimitConfig(
@@ -151,22 +155,27 @@ async def test_ip_based_rate_limiting(scope) -> None:  # type: ignore[valid-type
 
 
 @pytest.mark.asyncio
-async def test_get_config_roundtrip(scope) -> None:  # type: ignore[valid-type]
+async def test_get_config_roundtrip(scope: AsyncContainer, unique_id: Callable[[str], str]) -> None:
     svc: RateLimitService = await scope.get(RateLimitService)
-    svc.prefix = f"{svc.prefix}{uuid4().hex[:6]}:"
-    cfg = RateLimitConfig(default_rules=[RateLimitRule(endpoint_pattern=r"^/z", group=EndpointGroup.API, requests=1, window_seconds=1)])
+    svc.prefix = f"{svc.prefix}{unique_id('')}:"
+    rule = RateLimitRule(endpoint_pattern=r"^/z", group=EndpointGroup.API, requests=1, window_seconds=1)
+    cfg = RateLimitConfig(default_rules=[rule])
     await svc.update_config(cfg)
     got = await svc._get_config()
     assert isinstance(got, RateLimitConfig)
 
 
 @pytest.mark.asyncio
-async def test_sliding_window_edge(scope) -> None:  # type: ignore[valid-type]
+async def test_sliding_window_edge(scope: AsyncContainer, unique_id: Callable[[str], str]) -> None:
     svc: RateLimitService = await scope.get(RateLimitService)
-    svc.prefix = f"{svc.prefix}{uuid4().hex[:6]}:"
+    svc.prefix = f"{svc.prefix}{unique_id('')}:"
     svc.settings.RATE_LIMIT_ENABLED = True  # Enable rate limiting for this test
     # Configure a tight window and ensure behavior is consistent
-    cfg = RateLimitConfig(default_rules=[RateLimitRule(endpoint_pattern=r"^/edge", group=EndpointGroup.API, requests=1, window_seconds=1, algorithm=RateLimitAlgorithm.SLIDING_WINDOW)])
+    rule = RateLimitRule(
+        endpoint_pattern=r"^/edge", group=EndpointGroup.API,
+        requests=1, window_seconds=1, algorithm=RateLimitAlgorithm.SLIDING_WINDOW,
+    )
+    cfg = RateLimitConfig(default_rules=[rule])
     await svc.update_config(cfg)
     ok = await svc.check_rate_limit("u", "/edge")
     assert ok.allowed is True
@@ -176,16 +185,18 @@ async def test_sliding_window_edge(scope) -> None:  # type: ignore[valid-type]
 
 
 @pytest.mark.asyncio
-async def test_sliding_window_pipeline_failure(scope, monkeypatch) -> None:  # type: ignore[valid-type]
+async def test_sliding_window_pipeline_failure(
+    scope: AsyncContainer, monkeypatch: pytest.MonkeyPatch, unique_id: Callable[[str], str]
+) -> None:
     svc: RateLimitService = await scope.get(RateLimitService)
-    svc.prefix = f"{svc.prefix}{uuid4().hex[:6]}:"
+    svc.prefix = f"{svc.prefix}{unique_id('')}:"
 
     class FailingPipe:
-        def zremrangebyscore(self, *a, **k): return self  # noqa: ANN001, D401
-        def zadd(self, *a, **k): return self  # noqa: ANN001, D401
-        def zcard(self, *a, **k): return self  # noqa: ANN001, D401
-        def expire(self, *a, **k): return self  # noqa: ANN001, D401
-        async def execute(self): raise ConnectionError("Pipeline failed")
+        def zremrangebyscore(self, *a: Any, **k: Any) -> Self: return self
+        def zadd(self, *a: Any, **k: Any) -> Self: return self
+        def zcard(self, *a: Any, **k: Any) -> Self: return self
+        def expire(self, *a: Any, **k: Any) -> Self: return self
+        async def execute(self) -> None: raise ConnectionError("Pipeline failed")
 
     monkeypatch.setattr(svc.redis, "pipeline", lambda: FailingPipe())
 
@@ -204,7 +215,7 @@ async def test_sliding_window_pipeline_failure(scope, monkeypatch) -> None:  # t
 
 
 @pytest.mark.asyncio
-async def test_token_bucket_invalid_data(scope) -> None:  # type: ignore[valid-type]
+async def test_token_bucket_invalid_data(scope: AsyncContainer) -> None:
     svc: RateLimitService = await scope.get(RateLimitService)
     key = f"{svc.prefix}tb:user:/api"
     await svc.redis.set(key, "invalid-json")
@@ -224,9 +235,12 @@ async def test_token_bucket_invalid_data(scope) -> None:  # type: ignore[valid-t
 
 
 @pytest.mark.asyncio
-async def test_update_config_serialization_error(scope, monkeypatch) -> None:  # type: ignore[valid-type]
+async def test_update_config_serialization_error(
+    scope: AsyncContainer, monkeypatch: pytest.MonkeyPatch
+) -> None:
     svc: RateLimitService = await scope.get(RateLimitService)
-    async def failing_setex(key, ttl, value):  # noqa: ANN001
+
+    async def failing_setex(key: str, ttl: int, value: str) -> None:
         raise ValueError("Serialization failed")
     monkeypatch.setattr(svc.redis, "setex", failing_setex)
 
@@ -236,16 +250,17 @@ async def test_update_config_serialization_error(scope, monkeypatch) -> None:  #
 
 
 @pytest.mark.asyncio
-async def test_get_user_rate_limit_not_found(scope) -> None:  # type: ignore[valid-type]
+async def test_get_user_rate_limit_not_found(scope: AsyncContainer) -> None:
     svc: RateLimitService = await scope.get(RateLimitService)
     result = await svc.get_user_rate_limit("nonexistent")
     assert result is None
 
 
 @pytest.mark.asyncio
-async def test_reset_user_limits_error(scope, monkeypatch) -> None:  # type: ignore[valid-type]
+async def test_reset_user_limits_error(scope: AsyncContainer, monkeypatch: pytest.MonkeyPatch) -> None:
     svc: RateLimitService = await scope.get(RateLimitService)
-    async def failing_smembers(key):  # noqa: ANN001
+
+    async def failing_smembers(key: str) -> None:
         raise ConnectionError("smembers failed")
     monkeypatch.setattr(svc.redis, "smembers", failing_smembers)
     with pytest.raises(ConnectionError):
@@ -253,18 +268,17 @@ async def test_reset_user_limits_error(scope, monkeypatch) -> None:  # type: ign
 
 
 @pytest.mark.asyncio
-async def test_get_usage_stats_with_keys(scope) -> None:  # type: ignore[valid-type]
+async def test_get_usage_stats_with_keys(scope: AsyncContainer) -> None:
     svc: RateLimitService = await scope.get(RateLimitService)
     user_id = "user"
-    index_key = f"{svc.prefix}index:{user_id}"
     sw_key = f"{svc.prefix}sw:{user_id}:/api:key1"
-    await svc.redis.sadd(index_key, sw_key)
+    await svc._register_user_key(user_id, sw_key)
     stats = await svc.get_usage_stats(user_id)
     assert isinstance(stats, dict)
 
 
 @pytest.mark.asyncio
-async def test_check_rate_limit_with_user_override(scope) -> None:  # type: ignore[valid-type]
+async def test_check_rate_limit_with_user_override(scope: AsyncContainer) -> None:
     svc: RateLimitService = await scope.get(RateLimitService)
     svc.settings.RATE_LIMIT_ENABLED = True  # Enable rate limiting for this test
     rule = RateLimitRule(
@@ -281,15 +295,13 @@ async def test_check_rate_limit_with_user_override(scope) -> None:  # type: igno
     endpoint = "/api/test"
     allowed_count = 0
     for _ in range(5):
-        res = await svc.check_rate_limit("normal_user", endpoint, config=cfg)
-        allowed_count += 1 if res.allowed else 0
-        await asyncio.sleep(0.05)
+        if (await svc.check_rate_limit("normal_user", endpoint, config=cfg)).allowed:
+            allowed_count += 1
     assert allowed_count == int(rule.requests)  # Should be exactly 3
 
     # Special user: higher multiplier allows more requests
     allowed_count_special = 0
     for _ in range(6):
-        res = await svc.check_rate_limit("special_user", endpoint, config=cfg)
-        allowed_count_special += 1 if res.allowed else 0
-        await asyncio.sleep(0.05)
+        if (await svc.check_rate_limit("special_user", endpoint, config=cfg)).allowed:
+            allowed_count_special += 1
     assert allowed_count_special > allowed_count

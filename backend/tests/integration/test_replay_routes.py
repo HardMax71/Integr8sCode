@@ -1,21 +1,15 @@
-import asyncio
-from datetime import datetime, timezone, timedelta
+from collections.abc import Callable
+from datetime import datetime, timedelta, timezone
 from typing import Dict
-from uuid import uuid4
 
+import backoff
 import pytest
-from httpx import AsyncClient
-
 from app.domain.enums.events import EventType
-from app.domain.enums.replay import ReplayStatus, ReplayType, ReplayTarget
-from app.schemas_pydantic.replay import (
-    ReplayRequest,
-    ReplayResponse,
-    SessionSummary,
-    CleanupResponse
-)
+from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
+from app.domain.replay import ReplayFilter
+from app.schemas_pydantic.replay import CleanupResponse, ReplayRequest, ReplayResponse, SessionSummary
 from app.schemas_pydantic.replay_models import ReplaySession
-from tests.helpers.eventually import eventually
+from httpx import AsyncClient
 
 
 @pytest.mark.integration
@@ -45,9 +39,11 @@ class TestReplayRoutes:
         replay_request = ReplayRequest(
             replay_type=ReplayType.QUERY,
             target=ReplayTarget.KAFKA,
-            event_types=[EventType.EXECUTION_REQUESTED, EventType.EXECUTION_COMPLETED],
-            start_time=datetime.now(timezone.utc) - timedelta(days=7),
-            end_time=datetime.now(timezone.utc),
+            filter=ReplayFilter(
+                event_types=[EventType.EXECUTION_REQUESTED, EventType.EXECUTION_COMPLETED],
+                start_time=datetime.now(timezone.utc) - timedelta(days=7),
+                end_time=datetime.now(timezone.utc),
+            ),
             speed_multiplier=1.0,
             preserve_timestamps=True,
         ).model_dump(mode="json")
@@ -96,9 +92,11 @@ class TestReplayRoutes:
         replay_request = ReplayRequest(
             replay_type=ReplayType.QUERY,
             target=ReplayTarget.KAFKA,
-            event_types=[EventType.USER_LOGGED_IN],
-            start_time=datetime.now(timezone.utc) - timedelta(hours=24),
-            end_time=datetime.now(timezone.utc),
+            filter=ReplayFilter(
+                event_types=[EventType.USER_LOGGED_IN],
+                start_time=datetime.now(timezone.utc) - timedelta(hours=24),
+                end_time=datetime.now(timezone.utc),
+            ),
             speed_multiplier=2.0,
         ).model_dump(mode="json")
 
@@ -135,9 +133,11 @@ class TestReplayRoutes:
         replay_request = ReplayRequest(
             replay_type=ReplayType.QUERY,
             target=ReplayTarget.KAFKA,
-            event_types=[EventType.SYSTEM_ERROR],
-            start_time=datetime.now(timezone.utc) - timedelta(hours=1),
-            end_time=datetime.now(timezone.utc),
+            filter=ReplayFilter(
+                event_types=[EventType.SYSTEM_ERROR],
+                start_time=datetime.now(timezone.utc) - timedelta(hours=1),
+                end_time=datetime.now(timezone.utc),
+            ),
             speed_multiplier=1.0,
         ).model_dump(mode="json")
 
@@ -174,9 +174,11 @@ class TestReplayRoutes:
         replay_request = ReplayRequest(
             replay_type=ReplayType.QUERY,
             target=ReplayTarget.KAFKA,
-            event_types=[EventType.SYSTEM_ERROR],
-            start_time=datetime.now(timezone.utc) - timedelta(hours=2),
-            end_time=datetime.now(timezone.utc),
+            filter=ReplayFilter(
+                event_types=[EventType.SYSTEM_ERROR],
+                start_time=datetime.now(timezone.utc) - timedelta(hours=2),
+                end_time=datetime.now(timezone.utc),
+            ),
             speed_multiplier=0.5,
         ).model_dump(mode="json")
 
@@ -229,9 +231,11 @@ class TestReplayRoutes:
         replay_request = ReplayRequest(
             replay_type=ReplayType.QUERY,
             target=ReplayTarget.KAFKA,
-            event_types=[EventType.SYSTEM_ERROR],
-            start_time=datetime.now(timezone.utc) - timedelta(hours=1),
-            end_time=datetime.now(timezone.utc),
+            filter=ReplayFilter(
+                event_types=[EventType.SYSTEM_ERROR],
+                start_time=datetime.now(timezone.utc) - timedelta(hours=1),
+                end_time=datetime.now(timezone.utc),
+            ),
             speed_multiplier=1.0,
         ).model_dump(mode="json")
 
@@ -308,7 +312,9 @@ class TestReplayRoutes:
         assert cleanup_result.message is not None
 
     @pytest.mark.asyncio
-    async def test_get_nonexistent_session(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
+    async def test_get_nonexistent_session(
+        self, client: AsyncClient, test_admin: Dict[str, str], unique_id: Callable[[str], str]
+    ) -> None:
         """Test getting a non-existent replay session."""
         # Login as admin
         login_data = {
@@ -319,7 +325,7 @@ class TestReplayRoutes:
         assert login_response.status_code == 200
 
         # Try to get non-existent session
-        fake_session_id = str(uuid4())
+        fake_session_id = unique_id("session-")
         response = await client.get(f"/api/v1/replay/sessions/{fake_session_id}")
         # Could return 404 or empty result
         assert response.status_code in [200, 404]
@@ -329,7 +335,9 @@ class TestReplayRoutes:
             assert "detail" in error_data
 
     @pytest.mark.asyncio
-    async def test_start_nonexistent_session(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
+    async def test_start_nonexistent_session(
+        self, client: AsyncClient, test_admin: Dict[str, str], unique_id: Callable[[str], str]
+    ) -> None:
         """Test starting a non-existent replay session."""
         # Login as admin
         login_data = {
@@ -340,13 +348,15 @@ class TestReplayRoutes:
         assert login_response.status_code == 200
 
         # Try to start non-existent session
-        fake_session_id = str(uuid4())
+        fake_session_id = unique_id("session-")
         response = await client.post(f"/api/v1/replay/sessions/{fake_session_id}/start")
         # Should fail
         assert response.status_code in [400, 404]
 
     @pytest.mark.asyncio
-    async def test_replay_session_state_transitions(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
+    async def test_replay_session_state_transitions(
+        self, client: AsyncClient, test_admin: Dict[str, str], unique_id: Callable[[str], str],
+    ) -> None:
         """Test valid state transitions for replay sessions."""
         # Login as admin
         login_data = {
@@ -358,7 +368,7 @@ class TestReplayRoutes:
 
         # Create a session
         replay_request = {
-            "name": f"State Test Session {uuid4().hex[:8]}",
+            "name": f"State Test Session {unique_id('')}",
             "description": "Testing state transitions",
             "filters": {
                 "event_types": ["state.test.event"],
@@ -391,7 +401,9 @@ class TestReplayRoutes:
         assert start_again_response.status_code in [200, 400, 409]  # Might be idempotent or error
 
     @pytest.mark.asyncio
-    async def test_replay_with_complex_filters(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
+    async def test_replay_with_complex_filters(
+        self, client: AsyncClient, test_admin: Dict[str, str], unique_id: Callable[[str], str],
+    ) -> None:
         """Test creating replay session with complex filters."""
         # Login as admin
         login_data = {
@@ -403,7 +415,7 @@ class TestReplayRoutes:
 
         # Create session with complex filters
         replay_request = {
-            "name": f"Complex Filter Session {uuid4().hex[:8]}",
+            "name": f"Complex Filter Session {unique_id('')}",
             "description": "Testing complex event filters",
             "filters": {
                 "event_types": [
@@ -414,8 +426,8 @@ class TestReplayRoutes:
                 ],
                 "start_time": (datetime.now(timezone.utc) - timedelta(days=30)).isoformat(),
                 "end_time": datetime.now(timezone.utc).isoformat(),
-                "aggregate_id": str(uuid4()),
-                "correlation_id": str(uuid4()),
+                "aggregate_id": unique_id("aggregate-"),
+                "correlation_id": unique_id("corr-"),
                 "user_id": test_admin.get("user_id"),
                 "service_name": "execution-service"
             },
@@ -437,7 +449,9 @@ class TestReplayRoutes:
         assert replay_response.status in ["created", "pending"]
 
     @pytest.mark.asyncio
-    async def test_replay_session_progress_tracking(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
+    async def test_replay_session_progress_tracking(
+        self, client: AsyncClient, test_admin: Dict[str, str], unique_id: Callable[[str], str],
+    ) -> None:
         """Test tracking progress of replay sessions."""
         # Login as admin
         login_data = {
@@ -449,7 +463,7 @@ class TestReplayRoutes:
 
         # Create and start a session
         replay_request = {
-            "name": f"Progress Test Session {uuid4().hex[:8]}",
+            "name": f"Progress Test Session {unique_id('')}",
             "description": "Testing progress tracking",
             "filters": {
                 "event_types": ["progress.test.event"],
@@ -471,15 +485,15 @@ class TestReplayRoutes:
         await client.post(f"/api/v1/replay/sessions/{session_id}/start")
 
         # Poll progress without fixed sleeps
-        async def _check_progress_once() -> None:
+        @backoff.on_exception(backoff.constant, AssertionError, max_time=5.0, interval=0.5)
+        async def _wait_progress() -> None:
             detail_response = await client.get(f"/api/v1/replay/sessions/{session_id}")
             assert detail_response.status_code == 200
             session_data = detail_response.json()
             session = ReplaySession(**session_data)
-            if session.events_replayed is not None and session.events_total is not None:
-                assert 0 <= session.events_replayed <= session.events_total
-                if session.events_total > 0:
-                    progress = (session.events_replayed / session.events_total) * 100
-                    assert 0.0 <= progress <= 100.0
+            assert 0 <= session.replayed_events <= session.total_events
+            if session.total_events > 0:
+                progress = (session.replayed_events / session.total_events) * 100
+                assert 0.0 <= progress <= 100.0
 
-        await eventually(_check_progress_once, timeout=5.0, interval=0.5)
+        await _wait_progress()

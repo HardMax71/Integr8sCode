@@ -1,13 +1,13 @@
 import pytest
-
 from app.domain.execution import ResourceLimitsDomain
 from app.services.execution_service import ExecutionService
+from dishka import AsyncContainer
 
 pytestmark = pytest.mark.integration
 
 
 @pytest.mark.asyncio
-async def test_execute_script_and_limits(scope) -> None:  # type: ignore[valid-type]
+async def test_execute_script_and_limits(scope: AsyncContainer) -> None:
     svc: ExecutionService = await scope.get(ExecutionService)
     limits = await svc.get_k8s_resource_limits()
     assert isinstance(limits, ResourceLimitsDomain)

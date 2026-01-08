@@ -28,6 +28,7 @@ from app.services.pod_monitor.monitor import PodMonitor
 from app.services.saga import SagaOrchestrator
 from app.settings import Settings
 from beanie import init_beanie
+from dishka import AsyncContainer
 
 from tests.helpers.cleanup import cleanup_db_and_redis
 
@@ -35,15 +36,18 @@ _e2e_logger = logging.getLogger("test.e2e.workers")
 
 
 @pytest_asyncio.fixture(scope="module")
-async def _init_beanie(db: Database) -> None:
+async def _init_beanie(app_container: AsyncContainer) -> None:
     """Initialize Beanie once before any module-scoped workers start.
 
     Module-scoped fixtures run before function-scoped fixtures.
     Workers (also module-scoped) need Beanie initialized before they start,
     but _cleanup (function-scoped) runs later. This fixture ensures Beanie
     is ready for workers at module startup.
+
+    Uses app_container (session-scoped) to get Database, avoiding scope mismatch.
     """
-    await init_beanie(database=db, document_models=ALL_DOCUMENTS)
+    database = await app_container.get(Database)
+    await init_beanie(database=database, document_models=ALL_DOCUMENTS)
     _e2e_logger.info("Beanie ODM initialized for E2E module")
 
 

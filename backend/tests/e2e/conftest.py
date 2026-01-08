@@ -36,109 +36,84 @@ _e2e_logger = logging.getLogger("test.e2e.workers")
 
 @pytest_asyncio.fixture(autouse=True)
 async def _cleanup(db: Database, redis_client: redis.Redis) -> Any:
-    """Clean DB and Redis before each E2E test.
-
-    Only pre-test cleanup - post-test cleanup causes event loop issues
-    when SSE/streaming tests hold connections across loop boundaries.
-    """
+    """Clean DB and Redis before each E2E test."""
     await cleanup_db_and_redis(db, redis_client)
     yield
-    # No post-test cleanup to avoid "Event loop is closed" errors
 
 
 @pytest_asyncio.fixture
-async def saga_orchestrator(test_settings: Settings) -> AsyncGenerator[SagaOrchestrator, None]:
-    """Start SagaOrchestrator for E2E tests requiring execution pipeline.
+async def _init_schemas(test_settings: Settings) -> None:
+    """Initialize event schemas once, shared across all worker fixtures."""
+    container = create_saga_orchestrator_container(test_settings)
+    schema_registry = await container.get(SchemaRegistryManager)
+    await initialize_event_schemas(schema_registry)
+    await container.close()
 
-    The orchestrator consumes EXECUTION_REQUESTED events and creates pods.
-    """
+
+@pytest_asyncio.fixture
+async def saga_orchestrator(
+    test_settings: Settings, _init_schemas: None
+) -> AsyncGenerator[SagaOrchestrator, None]:
+    """Start SagaOrchestrator for E2E tests requiring execution pipeline."""
     container = create_saga_orchestrator_container(test_settings)
 
-    # Initialize Beanie for saga persistence
     db = await container.get(Database)
     await init_beanie(database=db, document_models=ALL_DOCUMENTS)
 
-    # Initialize schema registry
-    schema_registry = await container.get(SchemaRegistryManager)
-    await initialize_event_schemas(schema_registry)
-
-    # Get and start the orchestrator
     orchestrator = await container.get(SagaOrchestrator)
     _e2e_logger.info("SagaOrchestrator started for E2E test")
 
     yield orchestrator
 
-    # Container cleanup stops the orchestrator
     await container.close()
     _e2e_logger.info("SagaOrchestrator stopped")
 
 
 @pytest_asyncio.fixture
-async def k8s_worker(test_settings: Settings) -> AsyncGenerator[KubernetesWorker, None]:
-    """Start KubernetesWorker for E2E tests requiring pod creation.
-
-    The worker consumes CreatePodCommand events and creates actual K8s pods.
-    """
+async def k8s_worker(
+    test_settings: Settings, _init_schemas: None
+) -> AsyncGenerator[KubernetesWorker, None]:
+    """Start KubernetesWorker for E2E tests requiring pod creation."""
     container = create_k8s_worker_container(test_settings)
 
-    # Initialize schema registry
-    schema_registry = await container.get(SchemaRegistryManager)
-    await initialize_event_schemas(schema_registry)
-
-    # Get and start the worker
     worker = await container.get(KubernetesWorker)
     _e2e_logger.info("KubernetesWorker started for E2E test")
 
-    # Fail fast if K8s isn't properly initialized
     if worker.v1 is None:
         await container.close()
         raise RuntimeError(
             "KubernetesWorker failed to initialize K8s client. "
-            "E2E tests require a working Kubernetes cluster. "
-            "Ensure K3s/minikube is running and KUBECONFIG is valid."
+            "E2E tests require a working Kubernetes cluster."
         )
 
     yield worker
 
-    # Container cleanup stops the worker
     await container.close()
     _e2e_logger.info("KubernetesWorker stopped")
 
 
 @pytest_asyncio.fixture
-async def pod_monitor(test_settings: Settings) -> AsyncGenerator[PodMonitor, None]:
-    """Start PodMonitor for E2E tests requiring pod lifecycle events.
-
-    The monitor watches K8s pods and publishes ExecutionCompleted/Failed events.
-    This is CRITICAL for the execution pipeline - without it, tests never receive
-    terminal events via SSE.
-    """
+async def pod_monitor(
+    test_settings: Settings, _init_schemas: None
+) -> AsyncGenerator[PodMonitor, None]:
+    """Start PodMonitor for E2E tests requiring pod lifecycle events."""
     container = create_pod_monitor_container(test_settings)
 
-    # Initialize Beanie for event persistence
     db = await container.get(Database)
     await init_beanie(database=db, document_models=ALL_DOCUMENTS)
 
-    # Initialize schema registry
-    schema_registry = await container.get(SchemaRegistryManager)
-    await initialize_event_schemas(schema_registry)
-
-    # Get the monitor (DI starts it via LifecycleEnabled)
     monitor = await container.get(PodMonitor)
     _e2e_logger.info("PodMonitor started for E2E test")
 
-    # Fail fast if K8s isn't properly initialized
     if monitor._v1 is None:  # noqa: SLF001
         await container.close()
         raise RuntimeError(
             "PodMonitor failed to initialize K8s client. "
-            "E2E tests require a working Kubernetes cluster. "
-            "Ensure K3s/minikube is running and KUBECONFIG is valid."
+            "E2E tests require a working Kubernetes cluster."
         )
 
     yield monitor
 
-    # Container cleanup stops the monitor
     await container.close()
     _e2e_logger.info("PodMonitor stopped")
 

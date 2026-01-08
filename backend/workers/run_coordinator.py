@@ -8,7 +8,6 @@ from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.kafka import GroupId
-from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.services.coordinator.coordinator import ExecutionCoordinator
 from app.settings import Settings, get_settings
 from beanie import init_beanie
@@ -25,9 +24,6 @@ async def run_coordinator(settings: Settings | None = None) -> None:
 
     db = await container.get(Database)
     await init_beanie(database=db, document_models=ALL_DOCUMENTS)
-
-    schema_registry = await container.get(SchemaRegistryManager)
-    await initialize_event_schemas(schema_registry)
 
     # Services are already started by the DI container providers
     coordinator = await container.get(ExecutionCoordinator)

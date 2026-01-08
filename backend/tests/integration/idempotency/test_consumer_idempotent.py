@@ -81,7 +81,8 @@ async def test_consumer_idempotent_wrapper_blocks_duplicates(
     await producer.produce(ev, key=execution_id)
     await producer.produce(ev, key=execution_id)
     # Flush to ensure both messages are delivered to Kafka
-    producer.producer.flush(timeout=5.0)
+    if producer.producer:
+        producer.producer.flush(timeout=5.0)
 
     await wrapper.start([KafkaTopic.EXECUTION_EVENTS])
     try:

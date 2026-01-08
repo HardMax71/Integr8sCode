@@ -208,7 +208,8 @@ jobs:
         run: |
           HOST_IP=$(ip route get 1 | awk '{print $7}')
 
-          # Extract client certificate auth from k3s kubeconfig
+          # Extract certificates from k3s kubeconfig
+          CA_CERT=$(sudo k3s kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
           CLIENT_CERT=$(sudo k3s kubectl config view --raw -o jsonpath='{.users[0].user.client-certificate-data}')
           CLIENT_KEY=$(sudo k3s kubectl config view --raw -o jsonpath='{.users[0].user.client-key-data}')
 
@@ -218,7 +219,7 @@ jobs:
           clusters:
           - cluster:
               server: https://${HOST_IP}:6443
-              insecure-skip-tls-verify: true
+              certificate-authority-data: ${CA_CERT}
             name: k3s
           contexts:
           - context:
@@ -254,18 +255,9 @@ jobs:
           docker compose up -d --no-build --wait --wait-timeout 180 \
             mongo redis zookeeper-certgen zookeeper kafka schema-registry
 
-          # Then init jobs
-          docker compose up -d --no-build user-seed kafka-init
-
-          # Wait for init jobs to complete
-          sleep 10
-
-          # Start workers
-          docker compose up -d --no-build \
+          # Start backend and workers (Docker Compose handles init job dependencies via service_completed_successfully)
+          docker compose up -d --no-build --wait --wait-timeout 180 \
             backend coordinator saga-orchestrator k8s-worker pod-monitor result-processor
-
-          # Wait for backend to be healthy (HTTPS on 443)
-          timeout 60 bash -c 'until curl -ksf https://localhost:443/api/v1/health/live; do sleep 2; done'
 
           docker compose ps
 

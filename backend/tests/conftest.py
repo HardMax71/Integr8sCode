@@ -50,11 +50,13 @@ def test_settings(worker_id: str) -> Settings:
     # xdist worker: create isolated settings
     worker_num = int(worker_id[2:]) if worker_id.startswith("gw") else 0
 
+    # Set env var for schema registry (read directly from env, not Settings)
+    os.environ["SCHEMA_SUBJECT_PREFIX"] = f"test.{worker_id}."
+
     return TestSettings(
         DATABASE_NAME=f"integr8scode_test_{worker_id}",
         REDIS_DB=worker_num % 16,
         KAFKA_GROUP_SUFFIX=worker_id,
-        SCHEMA_SUBJECT_PREFIX=f"test.{worker_id}.",
     )
 
 
@@ -129,8 +131,7 @@ async def _register_and_login(
         "role": role.value,
     }
     r = await client.post("/api/v1/auth/register", json=creds)
-    if r.status_code not in (200, 201, 400):
-        pytest.fail(f"Cannot create {role.value}: {r.status_code} - {r.text}")
+    r.raise_for_status()
 
     resp = await client.post(
         "/api/v1/auth/login",

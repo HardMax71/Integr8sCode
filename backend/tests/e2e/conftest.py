@@ -5,23 +5,13 @@ from collections.abc import AsyncGenerator
 import httpx
 import pytest
 import pytest_asyncio
-from app.main import create_app
 from app.settings import Settings
-from fastapi import FastAPI
 
 
 @pytest.fixture(scope="session")
 def test_settings() -> Settings:
     """E2E tests use Settings matching containers (no worker isolation)."""
     return Settings()
-
-
-@pytest_asyncio.fixture(scope="session")
-async def app(test_settings: Settings) -> AsyncGenerator[FastAPI, None]:
-    """App using container-matching settings."""
-    application = create_app(settings=test_settings)
-    yield application
-    await application.state.dishka_container.close()
 
 
 @pytest_asyncio.fixture

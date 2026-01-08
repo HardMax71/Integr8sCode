@@ -21,6 +21,7 @@ _test_logger = logging.getLogger("test.events.event_store_consumer")
 
 
 @pytest.mark.asyncio
+@pytest.mark.xdist_group("event-store-consumer")
 async def test_event_store_consumer_stores_events(scope: AsyncContainer, unique_id: Callable[[str], str]) -> None:
     # Ensure schemas
     registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)

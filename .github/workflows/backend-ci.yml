@@ -200,47 +200,15 @@ jobs:
       # Setup K3s before starting services (workers need kubeconfig)
       - name: Setup Kubernetes (k3s)
         run: |
-          curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik" sh -
+          curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik --tls-san host.docker.internal" sh -
           mkdir -p /home/runner/.kube
           sudo k3s kubectl config view --raw > /home/runner/.kube/config
           sudo chmod 600 /home/runner/.kube/config
           export KUBECONFIG=/home/runner/.kube/config
           timeout 90 bash -c 'until sudo k3s kubectl cluster-info; do sleep 5; done'
           kubectl create namespace integr8scode --dry-run=client -o yaml | kubectl apply -f -
-
-      # Create kubeconfig for workers running in containers
-      - name: Create kubeconfig for containers
-        run: |
-          HOST_IP=$(ip route get 1 | awk '{print $7}')
-
-          # Extract certificates from k3s kubeconfig
-          CA_CERT=$(sudo k3s kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
-          CLIENT_CERT=$(sudo k3s kubectl config view --raw -o jsonpath='{.users[0].user.client-certificate-data}')
-          CLIENT_KEY=$(sudo k3s kubectl config view --raw -o jsonpath='{.users[0].user.client-key-data}')
-
-          export HOST_IP CA_CERT CLIENT_CERT CLIENT_KEY
-          envsubst > kubeconfig.yaml << 'KUBECONFIG_EOF'
-          apiVersion: v1
-          kind: Config
-          clusters:
-          - cluster:
-              server: https://${HOST_IP}:6443
-              certificate-authority-data: ${CA_CERT}
-            name: k3s
-          contexts:
-          - context:
-              cluster: k3s
-              user: k3s
-            name: k3s
-          current-context: k3s
-          users:
-          - name: k3s
-            user:
-              client-certificate-data: ${CLIENT_CERT}
-              client-key-data: ${CLIENT_KEY}
-          KUBECONFIG_EOF
-          sed -i 's/^          //' kubeconfig.yaml
-          cp kubeconfig.yaml backend/kubeconfig.yaml
+          # Create kubeconfig for containers: replace localhost with host.docker.internal
+          sudo cat /etc/rancher/k3s/k3s.yaml | sed 's/127.0.0.1/host.docker.internal/g' > backend/kubeconfig.yaml
 
       # Start all services (images already built by bake)
       - name: Start services

@@ -207,8 +207,12 @@ jobs:
           export KUBECONFIG=/home/runner/.kube/config
           timeout 90 bash -c 'until sudo k3s kubectl cluster-info; do sleep 5; done'
           kubectl create namespace integr8scode --dry-run=client -o yaml | kubectl apply -f -
-          # Create kubeconfig for containers: replace localhost with host.docker.internal
-          sudo cat /etc/rancher/k3s/k3s.yaml | sed 's/127.0.0.1/host.docker.internal/g' > backend/kubeconfig.yaml
+          # Create kubeconfig for containers: use kubectl config view which is more reliable
+          sudo k3s kubectl config view --raw | sed 's/127.0.0.1/host.docker.internal/g' > backend/kubeconfig.yaml
+          # Verify the kubeconfig is valid
+          echo "=== Verifying kubeconfig ==="
+          grep -q "current-context" backend/kubeconfig.yaml && echo "OK: current-context found" || (echo "ERROR: current-context missing"; cat backend/kubeconfig.yaml; exit 1)
+          grep -q "host.docker.internal" backend/kubeconfig.yaml && echo "OK: host.docker.internal found" || (echo "ERROR: host.docker.internal missing"; exit 1)
 
       # Start all services (images already built by bake)
       - name: Start services

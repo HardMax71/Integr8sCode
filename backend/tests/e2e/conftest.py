@@ -21,15 +21,30 @@ from app.core.container import (
     create_saga_orchestrator_container,
 )
 from app.core.database_context import Database
+from app.db.docs import ALL_DOCUMENTS
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.services.k8s_worker.worker import KubernetesWorker
 from app.services.pod_monitor.monitor import PodMonitor
 from app.services.saga import SagaOrchestrator
 from app.settings import Settings
+from beanie import init_beanie
 
 from tests.helpers.cleanup import cleanup_db_and_redis
 
 _e2e_logger = logging.getLogger("test.e2e.workers")
+
+
+@pytest_asyncio.fixture(scope="module")
+async def _init_beanie(db: Database) -> None:
+    """Initialize Beanie once before any module-scoped workers start.
+
+    Module-scoped fixtures run before function-scoped fixtures.
+    Workers (also module-scoped) need Beanie initialized before they start,
+    but _cleanup (function-scoped) runs later. This fixture ensures Beanie
+    is ready for workers at module startup.
+    """
+    await init_beanie(database=db, document_models=ALL_DOCUMENTS)
+    _e2e_logger.info("Beanie ODM initialized for E2E module")
 
 
 @pytest_asyncio.fixture(autouse=True)
@@ -40,8 +55,11 @@ async def _cleanup(db: Database, redis_client: redis.Redis) -> Any:
 
 
 @pytest_asyncio.fixture(scope="module")
-async def _init_schemas(test_settings: Settings) -> None:
-    """Initialize event schemas once, shared across all worker fixtures."""
+async def _init_schemas(test_settings: Settings, _init_beanie: None) -> None:
+    """Initialize event schemas once, shared across all worker fixtures.
+
+    Depends on _init_beanie to ensure Beanie is ready before schema registration.
+    """
     container = create_saga_orchestrator_container(test_settings)
     schema_registry = await container.get(SchemaRegistryManager)
     await initialize_event_schemas(schema_registry)

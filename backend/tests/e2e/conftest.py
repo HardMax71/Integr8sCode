@@ -21,13 +21,11 @@ from app.core.container import (
     create_saga_orchestrator_container,
 )
 from app.core.database_context import Database
-from app.db.docs import ALL_DOCUMENTS
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.services.k8s_worker.worker import KubernetesWorker
 from app.services.pod_monitor.monitor import PodMonitor
 from app.services.saga import SagaOrchestrator
 from app.settings import Settings
-from beanie import init_beanie
 
 from tests.helpers.cleanup import cleanup_db_and_redis
 
@@ -56,10 +54,6 @@ async def saga_orchestrator(
 ) -> AsyncGenerator[SagaOrchestrator, None]:
     """Start SagaOrchestrator for E2E tests requiring execution pipeline."""
     container = create_saga_orchestrator_container(test_settings)
-
-    db = await container.get(Database)
-    await init_beanie(database=db, document_models=ALL_DOCUMENTS)
-
     orchestrator = await container.get(SagaOrchestrator)
     _e2e_logger.info("SagaOrchestrator started for E2E test")
 
@@ -98,10 +92,6 @@ async def pod_monitor(
 ) -> AsyncGenerator[PodMonitor, None]:
     """Start PodMonitor for E2E tests requiring pod lifecycle events."""
     container = create_pod_monitor_container(test_settings)
-
-    db = await container.get(Database)
-    await init_beanie(database=db, document_models=ALL_DOCUMENTS)
-
     monitor = await container.get(PodMonitor)
     _e2e_logger.info("PodMonitor started for E2E test")
 

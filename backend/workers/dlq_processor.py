@@ -5,12 +5,9 @@ from contextlib import AsyncExitStack
 from typing import Optional
 
 from app.core.container import create_dlq_processor_container
-from app.core.database_context import Database
-from app.db.docs import ALL_DOCUMENTS
 from app.dlq import DLQMessage, RetryPolicy, RetryStrategy
 from app.dlq.manager import DLQManager
 from app.settings import Settings, get_settings
-from beanie import init_beanie
 
 
 def _configure_retry_policies(manager: DLQManager, logger: logging.Logger) -> None:
@@ -108,9 +105,6 @@ async def main(settings: Settings | None = None) -> None:
     container = create_dlq_processor_container(settings)
     logger = await container.get(logging.Logger)
     logger.info("Starting DLQ Processor with DI container...")
-
-    db = await container.get(Database)
-    await init_beanie(database=db, document_models=ALL_DOCUMENTS)
 
     manager = await container.get(DLQManager)
 

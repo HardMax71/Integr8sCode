@@ -3,14 +3,11 @@ import logging
 import signal
 
 from app.core.container import create_saga_orchestrator_container
-from app.core.database_context import Database
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
-from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.kafka import GroupId
 from app.services.saga import SagaOrchestrator
 from app.settings import Settings, get_settings
-from beanie import init_beanie
 
 
 async def run_saga_orchestrator(settings: Settings | None = None) -> None:
@@ -21,9 +18,6 @@ async def run_saga_orchestrator(settings: Settings | None = None) -> None:
     container = create_saga_orchestrator_container(settings)
     logger = await container.get(logging.Logger)
     logger.info("Starting SagaOrchestrator with DI container...")
-
-    db = await container.get(Database)
-    await init_beanie(database=db, document_models=ALL_DOCUMENTS)
 
     # Services are already started by the DI container providers
     orchestrator = await container.get(SagaOrchestrator)

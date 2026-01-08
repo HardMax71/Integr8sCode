@@ -80,13 +80,13 @@ def test_settings() -> Settings:
 
 # ===== App fixture =====
 @pytest_asyncio.fixture(scope="session")
-async def app():
+async def app(test_settings: Settings):
     """Create FastAPI app with TestSettings.
 
     Session-scoped to avoid Pydantic schema validator memory issues when
     FastAPI recreates OpenAPI schemas hundreds of times with pytest-xdist.
     """
-    application = create_app(settings=TestSettings())
+    application = create_app(settings=test_settings)
 
     yield application
 

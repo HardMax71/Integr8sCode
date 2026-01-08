@@ -166,6 +166,8 @@ group "workers" {
     "k8s-worker",
     "pod-monitor",
     "result-processor",
+    "event-replay",
+    "dlq-processor",
   ]
 }
 

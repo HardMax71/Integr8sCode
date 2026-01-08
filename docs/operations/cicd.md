@@ -152,13 +152,9 @@ The workflow starts by installing [k3s](https://k3s.io/), a lightweight Kubernet
 interact with a real cluster during tests. It pre-pulls container images in parallel to avoid cold-start delays during
 the build step.
 
-Before building, the workflow modifies `docker-compose.yaml` using [yq](https://github.com/mikefarah/yq) to create a
-CI-specific configuration. These modifications disable SASL authentication on Kafka and Zookeeper (unnecessary for
-isolated CI), remove volume mounts that cause permission conflicts, inject test credentials for MongoDB, and disable
-OpenTelemetry export to avoid connection errors. The result is a `docker-compose.ci.yaml` that works reliably in the
-ephemeral CI environment.
-
-The [docker/bake-action](https://github.com/docker/bake-action) builds all services with GitHub Actions cache support.
+The [docker/bake-action](https://github.com/docker/bake-action) builds all services using `docker-bake.hcl` with GitHub
+Actions cache support. The bake file defines build targets with proper dependencies (e.g., backend depends on base) and
+cache configuration. Using a single `docker-compose.yaml` for both development and CI ensures consistency.
 It reads cache layers from previous runs and writes new layers back, so unchanged dependencies don't rebuild. The cache
 scopes are branch-specific with a fallback to main, meaning feature branches benefit from the main branch cache even on
 their first run.

@@ -11,7 +11,6 @@ import uuid
 
 import pytest
 from app.events.core import UnifiedProducer
-from app.events.event_store import EventStore
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.infrastructure.kafka.events.saga import CreatePodCommandEvent
@@ -43,7 +42,6 @@ async def test_worker_creates_configmap_and_pod(
         monkeypatch.setenv("K8S_NAMESPACE", ns)
 
     schema: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
-    store: EventStore = await scope.get(EventStore)
     producer: UnifiedProducer = await scope.get(UnifiedProducer)
     idem: IdempotencyManager = await scope.get(IdempotencyManager)
 
@@ -53,7 +51,6 @@ async def test_worker_creates_configmap_and_pod(
         producer=producer,
         schema_registry_manager=schema,
         settings=test_settings,
-        event_store=store,
         idempotency_manager=idem,
         logger=_test_logger,
     )

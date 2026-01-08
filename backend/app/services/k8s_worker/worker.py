@@ -15,7 +15,6 @@ from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.domain.enums.storage import ExecutionErrorType
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
-from app.events.event_store import EventStore
 from app.events.schema.schema_registry import (
     SchemaRegistryManager,
 )
@@ -52,7 +51,6 @@ class KubernetesWorker(LifecycleEnabled):
         producer: UnifiedProducer,
         schema_registry_manager: SchemaRegistryManager,
         settings: Settings,
-        event_store: EventStore,
         idempotency_manager: IdempotencyManager,
         logger: logging.Logger,
     ):
@@ -64,7 +62,6 @@ class KubernetesWorker(LifecycleEnabled):
         self._settings = settings
 
         self.kafka_servers = self.config.kafka_bootstrap_servers or self._settings.KAFKA_BOOTSTRAP_SERVERS
-        self._event_store = event_store
 
         # Kubernetes clients (kubernetes_asyncio)
         self._api_client: k8s_client.ApiClient | None = None

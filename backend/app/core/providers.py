@@ -651,7 +651,6 @@ class K8sWorkerProvider(Provider):
         kafka_producer: UnifiedProducer,
         schema_registry: SchemaRegistryManager,
         settings: Settings,
-        event_store: EventStore,
         idempotency_manager: IdempotencyManager,
         logger: logging.Logger,
     ) -> AsyncIterator[KubernetesWorker]:
@@ -661,7 +660,6 @@ class K8sWorkerProvider(Provider):
             producer=kafka_producer,
             schema_registry_manager=schema_registry,
             settings=settings,
-            event_store=event_store,
             idempotency_manager=idempotency_manager,
             logger=logger,
         ) as worker:

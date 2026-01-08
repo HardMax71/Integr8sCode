@@ -48,7 +48,7 @@ class TestExtractSeverity:
             ({"other": "value"}, {"severity": "info"}, "info"),
             # Default when both empty
             ({}, {}, "warning"),
-            (None, None, "warning"),  # type: ignore
+            (None, None, "warning"),
         ],
         ids=[
             "alert-precedence",
@@ -137,7 +137,7 @@ class TestExtractTitle:
             ({"other": "label"}, {"title": "Network Issue"}, "Network Issue"),
             # Default when nothing found
             ({}, {}, "Grafana Alert"),
-            (None, None, "Grafana Alert"),  # type: ignore
+            (None, None, "Grafana Alert"),
         ],
         ids=[
             "alertname-precedence",
@@ -181,7 +181,7 @@ class TestBuildMessage:
             ({"description": "Memory threshold exceeded"}, "Memory threshold exceeded"),
             # Empty annotations
             ({}, "Alert triggered"),
-            (None, "Alert triggered"),  # type: ignore
+            (None, "Alert triggered"),
             # Other annotations ignored
             ({"other": "value"}, "Alert triggered"),
         ],

@@ -274,7 +274,7 @@ class TestExecutionEvents:
     def test_execution_event_types_and_topics(
         self,
         metadata: AvroEventMetadata,
-        event_cls: type,
+        event_cls: type[BaseEvent],
         event_type: EventType,
         topic: KafkaTopic,
         extra_fields: dict[str, Any],
@@ -399,7 +399,7 @@ class TestSagaEvents:
     def test_saga_event_types(
         self,
         metadata: AvroEventMetadata,
-        event_cls: type,
+        event_cls: type[BaseEvent],
         event_type: EventType,
         extra_fields: dict[str, Any],
     ) -> None:
@@ -481,7 +481,7 @@ class TestSagaEvents:
     def test_saga_command_events(
         self,
         metadata: AvroEventMetadata,
-        event_cls: type,
+        event_cls: type[BaseEvent],
         event_type: EventType,
         extra_fields: dict[str, Any],
     ) -> None:
@@ -566,7 +566,7 @@ class TestNotificationEvents:
     def test_notification_event_types(
         self,
         metadata: AvroEventMetadata,
-        event_cls: type,
+        event_cls: type[BaseEvent],
         event_type: EventType,
         extra_fields: dict[str, Any],
     ) -> None:
@@ -629,7 +629,7 @@ class TestUserEvents:
     def test_user_event_types(
         self,
         metadata: AvroEventMetadata,
-        event_cls: type,
+        event_cls: type[BaseEvent],
         event_type: EventType,
         extra_fields: dict[str, Any],
     ) -> None:

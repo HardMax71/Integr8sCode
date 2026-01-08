@@ -1,7 +1,6 @@
+"""Integration tests for NotificationRepository."""
 import logging
 from collections.abc import Callable
-from datetime import UTC, datetime, timedelta
-from uuid import uuid4
 
 import pytest
 from app.db.repositories.notification_repository import NotificationRepository
@@ -19,23 +18,19 @@ pytestmark = pytest.mark.integration
 
 def _make_notification_create(
     user_id: str,
-    notification_id: str | None = None,
-    title: str = "Test Notification",
-    message: str = "Test message content",
+    subject: str = "Test Notification",
+    body: str = "Test message content",
     severity: NotificationSeverity = NotificationSeverity.MEDIUM,
-    status: NotificationStatus = NotificationStatus.PENDING,
     tags: list[str] | None = None,
 ) -> DomainNotificationCreate:
     """Factory for notification create data."""
     return DomainNotificationCreate(
-        notification_id=notification_id or str(uuid4()),
         user_id=user_id,
-        title=title,
-        message=message,
+        channel=NotificationChannel.IN_APP,
+        subject=subject,
+        body=body,
         severity=severity,
-        status=status,
         tags=tags or ["test"],
-        channels=[NotificationChannel.IN_APP],
     )
 
 
@@ -44,19 +39,18 @@ async def test_create_and_get_notification(unique_id: Callable[[str], str]) -> N
     """Create notification and retrieve by ID."""
     repo = NotificationRepository(logger=_test_logger)
     user_id = unique_id("user-")
-    notif_id = unique_id("notif-")
 
-    create_data = _make_notification_create(user_id, notif_id)
+    create_data = _make_notification_create(user_id)
     created = await repo.create_notification(create_data)
 
-    assert created.notification_id == notif_id
+    assert created.notification_id
     assert created.user_id == user_id
     assert created.status == NotificationStatus.PENDING
 
     # Retrieve
-    retrieved = await repo.get_notification(notif_id, user_id)
+    retrieved = await repo.get_notification(created.notification_id, user_id)
     assert retrieved is not None
-    assert retrieved.title == "Test Notification"
+    assert retrieved.subject == "Test Notification"
 
 
 @pytest.mark.asyncio
@@ -64,12 +58,11 @@ async def test_get_notification_wrong_user(unique_id: Callable[[str], str]) -> N
     """Cannot get notification belonging to another user."""
     repo = NotificationRepository(logger=_test_logger)
     user_id = unique_id("user-")
-    notif_id = unique_id("notif-")
 
-    await repo.create_notification(_make_notification_create(user_id, notif_id))
+    created = await repo.create_notification(_make_notification_create(user_id))
 
     # Try to get with wrong user
-    result = await repo.get_notification(notif_id, unique_id("other-user-"))
+    result = await repo.get_notification(created.notification_id, unique_id("other-user-"))
     assert result is None
 
 
@@ -78,17 +71,16 @@ async def test_update_notification(unique_id: Callable[[str], str]) -> None:
     """Update notification fields."""
     repo = NotificationRepository(logger=_test_logger)
     user_id = unique_id("user-")
-    notif_id = unique_id("notif-")
 
-    await repo.create_notification(_make_notification_create(user_id, notif_id))
+    created = await repo.create_notification(_make_notification_create(user_id))
 
     # Update
     update = DomainNotificationUpdate(status=NotificationStatus.DELIVERED)
-    success = await repo.update_notification(notif_id, user_id, update)
+    success = await repo.update_notification(created.notification_id, user_id, update)
     assert success is True
 
     # Verify
-    updated = await repo.get_notification(notif_id, user_id)
+    updated = await repo.get_notification(created.notification_id, user_id)
     assert updated is not None
     assert updated.status == NotificationStatus.DELIVERED
 
@@ -107,16 +99,17 @@ async def test_mark_as_read(unique_id: Callable[[str], str]) -> None:
     """Mark notification as read."""
     repo = NotificationRepository(logger=_test_logger)
     user_id = unique_id("user-")
-    notif_id = unique_id("notif-")
 
-    await repo.create_notification(
-        _make_notification_create(user_id, notif_id, status=NotificationStatus.DELIVERED)
+    created = await repo.create_notification(_make_notification_create(user_id))
+    # Set to delivered first
+    await repo.update_notification(
+        created.notification_id, user_id, DomainNotificationUpdate(status=NotificationStatus.DELIVERED)
     )
 
-    success = await repo.mark_as_read(notif_id, user_id)
+    success = await repo.mark_as_read(created.notification_id, user_id)
     assert success is True
 
-    notif = await repo.get_notification(notif_id, user_id)
+    notif = await repo.get_notification(created.notification_id, user_id)
     assert notif is not None
     assert notif.status == NotificationStatus.READ
     assert notif.read_at is not None
@@ -128,10 +121,11 @@ async def test_mark_all_as_read(unique_id: Callable[[str], str]) -> None:
     repo = NotificationRepository(logger=_test_logger)
     user_id = unique_id("user-")
 
-    # Create multiple delivered notifications
+    # Create multiple notifications and set to delivered
     for _ in range(3):
-        await repo.create_notification(
-            _make_notification_create(user_id, status=NotificationStatus.DELIVERED)
+        created = await repo.create_notification(_make_notification_create(user_id))
+        await repo.update_notification(
+            created.notification_id, user_id, DomainNotificationUpdate(status=NotificationStatus.DELIVERED)
         )
 
     count = await repo.mark_all_as_read(user_id)
@@ -143,15 +137,14 @@ async def test_delete_notification(unique_id: Callable[[str], str]) -> None:
     """Delete notification."""
     repo = NotificationRepository(logger=_test_logger)
     user_id = unique_id("user-")
-    notif_id = unique_id("notif-")
 
-    await repo.create_notification(_make_notification_create(user_id, notif_id))
+    created = await repo.create_notification(_make_notification_create(user_id))
 
-    success = await repo.delete_notification(notif_id, user_id)
+    success = await repo.delete_notification(created.notification_id, user_id)
     assert success is True
 
     # Verify deleted
-    assert await repo.get_notification(notif_id, user_id) is None
+    assert await repo.get_notification(created.notification_id, user_id) is None
 
 
 @pytest.mark.asyncio
@@ -160,16 +153,14 @@ async def test_list_notifications_with_filters(unique_id: Callable[[str], str]) 
     repo = NotificationRepository(logger=_test_logger)
     user_id = unique_id("user-")
 
-    # Create notifications with different tags and statuses
-    await repo.create_notification(
-        _make_notification_create(user_id, tags=["alert", "critical"], status=NotificationStatus.DELIVERED)
-    )
-    await repo.create_notification(
-        _make_notification_create(user_id, tags=["info"], status=NotificationStatus.PENDING)
-    )
-    await repo.create_notification(
-        _make_notification_create(user_id, tags=["alert", "warning"], status=NotificationStatus.DELIVERED)
-    )
+    # Create notifications with different tags
+    n1 = await repo.create_notification(_make_notification_create(user_id, tags=["alert", "critical"]))
+    await repo.update_notification(n1.notification_id, user_id, DomainNotificationUpdate(status=NotificationStatus.DELIVERED))
+
+    await repo.create_notification(_make_notification_create(user_id, tags=["info"]))
+
+    n3 = await repo.create_notification(_make_notification_create(user_id, tags=["alert", "warning"]))
+    await repo.update_notification(n3.notification_id, user_id, DomainNotificationUpdate(status=NotificationStatus.DELIVERED))
 
     # List all
     all_notifs = await repo.list_notifications(user_id)
@@ -183,10 +174,6 @@ async def test_list_notifications_with_filters(unique_id: Callable[[str], str]) 
     alerts = await repo.list_notifications(user_id, include_tags=["alert"])
     assert len(alerts) >= 2
 
-    # Filter by tag prefix
-    with_prefix = await repo.list_notifications(user_id, tag_prefix="alert")
-    assert len(with_prefix) >= 2
-
 
 @pytest.mark.asyncio
 async def test_count_and_unread_count(unique_id: Callable[[str], str]) -> None:
@@ -194,12 +181,11 @@ async def test_count_and_unread_count(unique_id: Callable[[str], str]) -> None:
     repo = NotificationRepository(logger=_test_logger)
     user_id = unique_id("user-")
 
-    await repo.create_notification(
-        _make_notification_create(user_id, status=NotificationStatus.DELIVERED)
-    )
-    await repo.create_notification(
-        _make_notification_create(user_id, status=NotificationStatus.READ)
-    )
+    n1 = await repo.create_notification(_make_notification_create(user_id))
+    await repo.update_notification(n1.notification_id, user_id, DomainNotificationUpdate(status=NotificationStatus.DELIVERED))
+
+    n2 = await repo.create_notification(_make_notification_create(user_id))
+    await repo.update_notification(n2.notification_id, user_id, DomainNotificationUpdate(status=NotificationStatus.READ))
 
     total = await repo.count_notifications(user_id)
     assert total >= 2
@@ -213,17 +199,14 @@ async def test_try_claim_pending(unique_id: Callable[[str], str]) -> None:
     """Claim pending notification for processing."""
     repo = NotificationRepository(logger=_test_logger)
     user_id = unique_id("user-")
-    notif_id = unique_id("notif-")
 
-    await repo.create_notification(
-        _make_notification_create(user_id, notif_id, status=NotificationStatus.PENDING)
-    )
+    created = await repo.create_notification(_make_notification_create(user_id))
 
-    claimed = await repo.try_claim_pending(notif_id)
+    claimed = await repo.try_claim_pending(created.notification_id)
     assert claimed is True
 
     # Verify status changed
-    notif = await repo.get_notification(notif_id, user_id)
+    notif = await repo.get_notification(created.notification_id, user_id)
     assert notif is not None
     assert notif.status == NotificationStatus.SENDING
 
@@ -233,13 +216,13 @@ async def test_try_claim_already_claimed(unique_id: Callable[[str], str]) -> Non
     """Cannot claim already claimed notification."""
     repo = NotificationRepository(logger=_test_logger)
     user_id = unique_id("user-")
-    notif_id = unique_id("notif-")
 
-    await repo.create_notification(
-        _make_notification_create(user_id, notif_id, status=NotificationStatus.SENDING)
+    created = await repo.create_notification(_make_notification_create(user_id))
+    await repo.update_notification(
+        created.notification_id, user_id, DomainNotificationUpdate(status=NotificationStatus.SENDING)
     )
 
-    claimed = await repo.try_claim_pending(notif_id)
+    claimed = await repo.try_claim_pending(created.notification_id)
     assert claimed is False
 
 
@@ -251,9 +234,7 @@ async def test_find_pending_notifications(unique_id: Callable[[str], str]) -> No
 
     # Create pending notifications
     for _ in range(3):
-        await repo.create_notification(
-            _make_notification_create(user_id, status=NotificationStatus.PENDING)
-        )
+        await repo.create_notification(_make_notification_create(user_id))
 
     pending = await repo.find_pending_notifications(batch_size=10)
     assert len(pending) >= 3

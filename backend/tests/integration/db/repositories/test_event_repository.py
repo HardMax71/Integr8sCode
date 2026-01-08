@@ -1,6 +1,7 @@
 import logging
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 import pytest
 from app.db.repositories.event_repository import EventRepository
@@ -216,7 +217,7 @@ async def test_aggregate_events(unique_id: Callable[[str], str]) -> None:
     for _ in range(3):
         await repo.store_event(_make_event(unique_id("evt-"), service_name=service_name))
 
-    pipeline = [
+    pipeline: list[dict[str, Any]] = [
         {"$match": {"metadata.service_name": service_name}},
         {"$group": {"_id": "$event_type", "count": {"$sum": 1}}},
     ]

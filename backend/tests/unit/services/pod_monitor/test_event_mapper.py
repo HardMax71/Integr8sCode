@@ -58,7 +58,7 @@ class _APIGenericError(FakeApi):
         raise Exception("boom")
 
 
-def _ctx(pod: Pod, event_type: str = "ADDED") -> PodContext:  # noqa: ARG001
+def _ctx(pod: Pod, event_type: str = "ADDED") -> PodContext:
     return PodContext(
         pod=pod,
         execution_id="e1",

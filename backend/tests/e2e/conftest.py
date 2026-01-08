@@ -89,6 +89,15 @@ async def k8s_worker(test_settings: Settings) -> AsyncGenerator[KubernetesWorker
     worker = await container.get(KubernetesWorker)
     _e2e_logger.info("KubernetesWorker started for E2E test")
 
+    # Fail fast if K8s isn't properly initialized
+    if worker.v1 is None:
+        await container.close()
+        raise RuntimeError(
+            "KubernetesWorker failed to initialize K8s client. "
+            "E2E tests require a working Kubernetes cluster. "
+            "Ensure K3s/minikube is running and KUBECONFIG is valid."
+        )
+
     yield worker
 
     # Container cleanup stops the worker
@@ -117,6 +126,15 @@ async def pod_monitor(test_settings: Settings) -> AsyncGenerator[PodMonitor, Non
     # Get the monitor (DI starts it via LifecycleEnabled)
     monitor = await container.get(PodMonitor)
     _e2e_logger.info("PodMonitor started for E2E test")
+
+    # Fail fast if K8s isn't properly initialized
+    if monitor._v1 is None:  # noqa: SLF001
+        await container.close()
+        raise RuntimeError(
+            "PodMonitor failed to initialize K8s client. "
+            "E2E tests require a working Kubernetes cluster. "
+            "Ensure K3s/minikube is running and KUBECONFIG is valid."
+        )
 
     yield monitor
 

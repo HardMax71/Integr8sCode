@@ -1,8 +1,8 @@
+import asyncio
 import logging
 from collections.abc import Callable
 from typing import Any
 
-import backoff
 import pytest
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
@@ -30,81 +30,56 @@ async def test_consumer_idempotent_wrapper_blocks_duplicates(
     registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
     settings: Settings = await scope.get(Settings)
 
-    # Produce 2 identical events BEFORE starting consumer
     execution_id = unique_id("e-")
-
-    # Track processed events AND duplicates separately (filter by our execution_id)
-    counts = {"processed": 0, "duplicates": 0}
+    done = asyncio.Event()
+    processed: list[str] = []
+    duplicates: list[str] = []
 
     async def handle(ev: Any) -> None:
-        if getattr(ev, "execution_id", None) == execution_id:
-            counts["processed"] += 1
+        processed.append(ev.execution_id)
+        if len(processed) + len(duplicates) >= 2:
+            done.set()
 
     async def on_duplicate(ev: Any, _result: Any) -> None:
-        if getattr(ev, "execution_id", None) == execution_id:
-            counts["duplicates"] += 1
+        duplicates.append(ev.execution_id)
+        if len(processed) + len(duplicates) >= 2:
+            done.set()
 
-    # Build dispatcher (no auto-registration - we'll use subscribe_idempotent_handler)
     disp: Disp = EventDispatcher(logger=_test_logger)
-
-    # Real consumer with idempotent wrapper (disable auto-wrapping)
     cfg = ConsumerConfig(
         bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
         group_id=unique_id("test-idem-consumer-"),
         enable_auto_commit=True,
         auto_offset_reset="earliest",
     )
-    base = UnifiedConsumer(
-        cfg,
-        event_dispatcher=disp,
-        schema_registry=registry,
-        settings=settings,
-        logger=_test_logger,
-    )
+    base = UnifiedConsumer(cfg, disp, registry, settings, _test_logger)
     wrapper = IdempotentConsumerWrapper(
         consumer=base,
         idempotency_manager=idm,
         dispatcher=disp,
-        default_key_strategy="event_based",
-        enable_for_all_handlers=False,  # Don't auto-wrap; we register with on_duplicate
         logger=_test_logger,
+        default_key_strategy="event_based",
+        enable_for_all_handlers=False,
     )
+    wrapper.subscribe_idempotent_handler(EventType.EXECUTION_REQUESTED, handle, on_duplicate=on_duplicate)
 
-    # Register handler WITH on_duplicate callback to track duplicates
-    wrapper.subscribe_idempotent_handler(
-        event_type=EventType.EXECUTION_REQUESTED,
-        handler=handle,
-        on_duplicate=on_duplicate,
-    )
+    await wrapper.start([KafkaTopic.EXECUTION_EVENTS])
 
+    # Wait for partition assignment
+    for _ in range(100):
+        if base._consumer and base._consumer.assignment():  # noqa: SLF001
+            break
+        await asyncio.sleep(0.1)
+
+    # Produce after consumer is ready
     ev = make_execution_requested_event(execution_id=execution_id)
     await producer.produce(ev, key=execution_id)
     await producer.produce(ev, key=execution_id)
-    # Flush to ensure both messages are delivered to Kafka
     if producer.producer:
         producer.producer.flush(timeout=5.0)
 
-    await wrapper.start([KafkaTopic.EXECUTION_EVENTS])
-    try:
-        # Wait for partition assignment before checking for messages
-        # Consumer group coordination can take several seconds
-        @backoff.on_exception(backoff.constant, AssertionError, max_time=15.0, interval=0.2)
-        async def _wait_assignment() -> None:
-            assignment = base._consumer and base._consumer.assignment()  # noqa: SLF001
-            assert assignment, "No partition assignment yet"
+    await asyncio.wait_for(done.wait(), timeout=30.0)
+    await wrapper.stop()
 
-        await _wait_assignment()
-
-        # Wait until BOTH events have been handled (processed OR detected as duplicate)
-        @backoff.on_exception(backoff.constant, AssertionError, max_time=30.0, interval=0.3)
-        async def _wait_all_handled() -> None:
-            total = counts["processed"] + counts["duplicates"]
-            assert total >= 2, f"Expected 2 events handled, got {total}"
-
-        await _wait_all_handled()
-
-        # Verify exactly 1 processed, 1 duplicate blocked
-        assert counts["processed"] == 1, f"Expected 1 processed, got {counts['processed']}"
-        assert counts["duplicates"] == 1, f"Expected 1 duplicate blocked, got {counts['duplicates']}"
-    finally:
-        await wrapper.stop()
+    assert processed.count(execution_id) == 1
+    assert duplicates.count(execution_id) == 1

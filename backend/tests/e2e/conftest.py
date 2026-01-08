@@ -41,7 +41,7 @@ async def _cleanup(db: Database, redis_client: redis.Redis) -> Any:
     yield
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(scope="module")
 async def _init_schemas(test_settings: Settings) -> None:
     """Initialize event schemas once, shared across all worker fixtures."""
     container = create_saga_orchestrator_container(test_settings)
@@ -50,7 +50,7 @@ async def _init_schemas(test_settings: Settings) -> None:
     await container.close()
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(scope="module")
 async def saga_orchestrator(
     test_settings: Settings, _init_schemas: None
 ) -> AsyncGenerator[SagaOrchestrator, None]:
@@ -69,7 +69,7 @@ async def saga_orchestrator(
     _e2e_logger.info("SagaOrchestrator stopped")
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(scope="module")
 async def k8s_worker(
     test_settings: Settings, _init_schemas: None
 ) -> AsyncGenerator[KubernetesWorker, None]:
@@ -92,7 +92,7 @@ async def k8s_worker(
     _e2e_logger.info("KubernetesWorker stopped")
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(scope="module")
 async def pod_monitor(
     test_settings: Settings, _init_schemas: None
 ) -> AsyncGenerator[PodMonitor, None]:
@@ -118,7 +118,7 @@ async def pod_monitor(
     _e2e_logger.info("PodMonitor stopped")
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(scope="module")
 async def execution_workers(
     saga_orchestrator: SagaOrchestrator,
     k8s_worker: KubernetesWorker,

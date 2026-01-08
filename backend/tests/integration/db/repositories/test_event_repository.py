@@ -177,14 +177,15 @@ async def test_get_user_events_paginated(unique_id: Callable[[str], str]) -> Non
 
     # Get all user events
     result = await repo.get_user_events_paginated(user_id, limit=10)
-    assert result.total >= 3
+    assert result.total == 3
 
-    # Filter by event type
+    # Filter by event type (i=0,2 are EXECUTION_REQUESTED, i=1 is EXECUTION_COMPLETED)
     filtered = await repo.get_user_events_paginated(
         user_id,
         event_types=[EventType.EXECUTION_REQUESTED.value],
         limit=10,
     )
+    assert filtered.total == 2
     assert all(e.event_type == EventType.EXECUTION_REQUESTED for e in filtered.events)
 
 

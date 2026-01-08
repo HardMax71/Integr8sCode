@@ -213,27 +213,28 @@ jobs:
           CLIENT_CERT=$(sudo k3s kubectl config view --raw -o jsonpath='{.users[0].user.client-certificate-data}')
           CLIENT_KEY=$(sudo k3s kubectl config view --raw -o jsonpath='{.users[0].user.client-key-data}')
 
-          cat > kubeconfig.yaml << EOF
-apiVersion: v1
-kind: Config
-clusters:
-- cluster:
-    server: https://${HOST_IP}:6443
-    certificate-authority-data: ${CA_CERT}
-  name: k3s
-contexts:
-- context:
-    cluster: k3s
-    user: k3s
-  name: k3s
-current-context: k3s
-users:
-- name: k3s
-  user:
-    client-certificate-data: ${CLIENT_CERT}
-    client-key-data: ${CLIENT_KEY}
-EOF
-
+          export HOST_IP CA_CERT CLIENT_CERT CLIENT_KEY
+          envsubst > kubeconfig.yaml << 'KUBECONFIG_EOF'
+          apiVersion: v1
+          kind: Config
+          clusters:
+          - cluster:
+              server: https://${HOST_IP}:6443
+              certificate-authority-data: ${CA_CERT}
+            name: k3s
+          contexts:
+          - context:
+              cluster: k3s
+              user: k3s
+            name: k3s
+          current-context: k3s
+          users:
+          - name: k3s
+            user:
+              client-certificate-data: ${CLIENT_CERT}
+              client-key-data: ${CLIENT_KEY}
+          KUBECONFIG_EOF
+          sed -i 's/^          //' kubeconfig.yaml
           cp kubeconfig.yaml backend/kubeconfig.yaml
 
       # Start all services (images already built by bake)

@@ -110,12 +110,13 @@ class TestAvroEventMetadata:
             service_version="1.0",
             correlation_id="",
         )
-        # Empty string is falsy, so new correlation should be generated
-        # Actually, looking at the code, it checks `if self.correlation_id:`
-        # which means empty string returns self. Let me verify the behavior.
         result = metadata.ensure_correlation_id()
-        # Empty string is falsy, should generate new
-        assert result.correlation_id != "" or metadata.correlation_id == ""
+        # Empty string is falsy, should generate new UUID
+        assert result.correlation_id != ""
+        assert result.correlation_id != metadata.correlation_id
+        UUID(result.correlation_id)  # Raises ValueError if invalid
+        assert result is not metadata  # Returns new instance
+        assert metadata.correlation_id == ""  # Original unchanged
 
 
 class TestBaseEvent:

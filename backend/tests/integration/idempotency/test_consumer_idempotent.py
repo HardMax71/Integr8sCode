@@ -36,11 +36,15 @@ async def test_consumer_idempotent_wrapper_blocks_duplicates(
     duplicates: list[str] = []
 
     async def handle(ev: Any) -> None:
+        if ev.execution_id != execution_id:
+            return
         processed.append(ev.execution_id)
         if len(processed) + len(duplicates) >= 2:
             done.set()
 
     async def on_duplicate(ev: Any, _result: Any) -> None:
+        if ev.execution_id != execution_id:
+            return
         duplicates.append(ev.execution_id)
         if len(processed) + len(duplicates) >= 2:
             done.set()

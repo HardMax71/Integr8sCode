@@ -29,7 +29,7 @@ async def client(test_settings: Settings) -> AsyncGenerator[httpx.AsyncClient, N
     ssl_context.verify_mode = ssl.CERT_NONE
 
     async with httpx.AsyncClient(
-        base_url=f"https://localhost:{test_settings.HTTPS_PORT}",
+        base_url=f"https://localhost:{test_settings.SERVER_PORT}",
         timeout=60.0,
         follow_redirects=True,
         verify=ssl_context,

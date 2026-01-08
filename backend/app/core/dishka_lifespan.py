@@ -44,25 +44,31 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Metrics setup moved to app creation to allow middleware registration
     logger.info("Lifespan start: tracing and services initialization")
 
-    # Initialize tracing
-    instrumentation_report = init_tracing(
-        service_name=settings.TRACING_SERVICE_NAME,
-        logger=logger,
-        service_version=settings.TRACING_SERVICE_VERSION,
-        sampling_rate=settings.TRACING_SAMPLING_RATE,
-        enable_console_exporter=settings.TESTING,
-        adaptive_sampling=settings.TRACING_ADAPTIVE_SAMPLING,
-    )
-
-    if instrumentation_report.has_failures():
-        logger.warning(
-            "Some instrumentation libraries failed to initialize",
-            extra={"instrumentation_summary": instrumentation_report.get_summary()},
+    # Initialize tracing only when enabled (avoid exporter retries in tests)
+    if settings.ENABLE_TRACING and not settings.TESTING:
+        instrumentation_report = init_tracing(
+            service_name=settings.TRACING_SERVICE_NAME,
+            logger=logger,
+            service_version=settings.TRACING_SERVICE_VERSION,
+            sampling_rate=settings.TRACING_SAMPLING_RATE,
+            enable_console_exporter=settings.TESTING,
+            adaptive_sampling=settings.TRACING_ADAPTIVE_SAMPLING,
         )
+
+        if instrumentation_report.has_failures():
+            logger.warning(
+                "Some instrumentation libraries failed to initialize",
+                extra={"instrumentation_summary": instrumentation_report.get_summary()},
+            )
+        else:
+            logger.info(
+                "Distributed tracing initialized successfully",
+                extra={"instrumentation_summary": instrumentation_report.get_summary()},
+            )
     else:
         logger.info(
-            "Distributed tracing initialized successfully",
-            extra={"instrumentation_summary": instrumentation_report.get_summary()},
+            "Distributed tracing disabled",
+            extra={"testing": settings.TESTING, "enable_tracing": settings.ENABLE_TRACING},
         )
 
     # Initialize schema registry once at startup

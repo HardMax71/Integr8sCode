@@ -13,16 +13,25 @@ Environment Variables:
 """
 
 import asyncio
-import os
 from datetime import datetime, timezone
 from typing import Any
 
 from bson import ObjectId
 from passlib.context import CryptContext
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+class SeedSettings(BaseSettings):
+    model_config = SettingsConfigDict(case_sensitive=False)
+
+    mongodb_url: str = "mongodb://mongo:27017/integr8scode"
+    database_name: str = "integr8scode_db"
+    default_user_password: str = "user123"
+    admin_user_password: str = "admin123"
 
 
 async def upsert_user(
@@ -69,8 +78,9 @@ async def upsert_user(
 
 
 async def seed_users() -> None:
-    mongodb_url = os.getenv("MONGODB_URL", "mongodb://mongo:27017/integr8scode")
-    db_name = os.getenv("DATABASE_NAME", "integr8scode_db")
+    settings = SeedSettings()
+    mongodb_url = settings.mongodb_url
+    db_name = settings.database_name
 
     print(f"Connecting to MongoDB (database: {db_name})...")
 
@@ -82,7 +92,7 @@ async def seed_users() -> None:
         db,
         username="user",
         email="user@integr8scode.com",
-        password=os.getenv("DEFAULT_USER_PASSWORD", "user123"),
+        password=settings.default_user_password,
         role="user",
         is_superuser=False,
     )
@@ -92,7 +102,7 @@ async def seed_users() -> None:
         db,
         username="admin",
         email="admin@integr8scode.com",
-        password=os.getenv("ADMIN_USER_PASSWORD", "admin123"),
+        password=settings.admin_user_password,
         role="admin",
         is_superuser=True,
     )

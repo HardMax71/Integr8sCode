@@ -73,6 +73,7 @@ class Settings(BaseSettings):
     SCHEMA_BASE_PATH: str = "app/schemas_avro"
     SCHEMA_AVRO_PATH: str = "app/schemas_avro"
     SCHEMA_CONFIG_PATH: str | None = None
+    SCHEMA_SUBJECT_PREFIX: str = ""
 
     # OpenTelemetry / Jaeger Configuration
     ENABLE_TRACING: bool = True

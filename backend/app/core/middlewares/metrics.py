@@ -122,8 +122,8 @@ def setup_metrics(app: FastAPI, logger: logging.Logger) -> None:
     """Set up OpenTelemetry metrics with OTLP exporter."""
     settings = get_settings()
     # Fast opt-out for tests or when explicitly disabled
-    if settings.TESTING or os.getenv("OTEL_SDK_DISABLED", "").lower() in {"1", "true", "yes"}:
-        logger.info("OpenTelemetry metrics disabled (TESTING/OTEL_SDK_DISABLED)")
+    if settings.TESTING:
+        logger.info("OpenTelemetry metrics disabled (TESTING)")
         return
 
     # Configure OpenTelemetry resource
@@ -137,10 +137,8 @@ def setup_metrics(app: FastAPI, logger: logging.Logger) -> None:
 
     # Configure OTLP exporter (sends to OpenTelemetry Collector or compatible backend)
     # Default endpoint is localhost:4317 for gRPC
-    otlp_exporter = OTLPMetricExporter(
-        endpoint=os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317"),
-        insecure=True,  # Use insecure for local development
-    )
+    endpoint = settings.OTEL_EXPORTER_OTLP_ENDPOINT or "localhost:4317"
+    otlp_exporter = OTLPMetricExporter(endpoint=endpoint, insecure=True)
 
     # Create metric reader with 60 second export interval
     metric_reader = PeriodicExportingMetricReader(

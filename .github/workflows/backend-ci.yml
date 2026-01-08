@@ -5,21 +5,24 @@ on:
     branches: [main, dev]
     paths:
       - 'backend/**'
+      - 'docker-compose.yaml'
+      - 'docker-bake.hcl'
       - '.github/workflows/backend-ci.yml'
-      - 'docker-compose.ci.yaml'
   pull_request:
     branches: [main, dev]
     paths:
       - 'backend/**'
+      - 'docker-compose.yaml'
+      - 'docker-bake.hcl'
       - '.github/workflows/backend-ci.yml'
-      - 'docker-compose.ci.yaml'
   workflow_dispatch:
 
 # Pin image versions for cache key consistency
 env:
   MONGO_IMAGE: mongo:8.0
   REDIS_IMAGE: redis:7-alpine
-  KAFKA_IMAGE: apache/kafka:3.9.0
+  ZOOKEEPER_IMAGE: confluentinc/cp-zookeeper:7.5.0
+  KAFKA_IMAGE: confluentinc/cp-kafka:7.5.0
   SCHEMA_REGISTRY_IMAGE: confluentinc/cp-schema-registry:7.5.0
 
 jobs:
@@ -71,7 +74,7 @@ jobs:
       - name: Cache and load Docker images
         uses: ./.github/actions/docker-cache
         with:
-          images: ${{ env.MONGO_IMAGE }} ${{ env.REDIS_IMAGE }} ${{ env.KAFKA_IMAGE }} ${{ env.SCHEMA_REGISTRY_IMAGE }}
+          images: ${{ env.MONGO_IMAGE }} ${{ env.REDIS_IMAGE }} ${{ env.ZOOKEEPER_IMAGE }} ${{ env.KAFKA_IMAGE }} ${{ env.SCHEMA_REGISTRY_IMAGE }}
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
@@ -87,8 +90,10 @@ jobs:
 
       - name: Start infrastructure services
         run: |
-          docker compose -f docker-compose.ci.yaml up -d --wait --wait-timeout 120
-          docker compose -f docker-compose.ci.yaml ps
+          # Start only infra services (no workers, no build)
+          docker compose up -d --wait --wait-timeout 180 \
+            mongo redis zookeeper-certgen zookeeper kafka schema-registry
+          docker compose ps
 
       - name: Create Kafka topics
         timeout-minutes: 2
@@ -134,15 +139,15 @@ jobs:
         if: failure()
         run: |
           mkdir -p logs
-          docker compose -f docker-compose.ci.yaml logs > logs/docker-compose.log 2>&1
-          docker compose -f docker-compose.ci.yaml logs kafka > logs/kafka.log 2>&1
-          docker compose -f docker-compose.ci.yaml logs schema-registry > logs/schema-registry.log 2>&1
+          docker compose logs > logs/docker-compose.log 2>&1
+          docker compose logs kafka > logs/kafka.log 2>&1
+          docker compose logs schema-registry > logs/schema-registry.log 2>&1
 
       - name: Upload logs
         if: failure()
         uses: actions/upload-artifact@v6
         with:
-          name: backend-logs
+          name: integration-logs
           path: logs/
 
   e2e:
@@ -152,10 +157,28 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      # Cache third-party images (mongo, redis, kafka, etc.)
       - name: Cache and load Docker images
         uses: ./.github/actions/docker-cache
         with:
-          images: ${{ env.MONGO_IMAGE }} ${{ env.REDIS_IMAGE }} ${{ env.KAFKA_IMAGE }} ${{ env.SCHEMA_REGISTRY_IMAGE }}
+          images: ${{ env.MONGO_IMAGE }} ${{ env.REDIS_IMAGE }} ${{ env.ZOOKEEPER_IMAGE }} ${{ env.KAFKA_IMAGE }} ${{ env.SCHEMA_REGISTRY_IMAGE }}
+
+      # Set up Docker Buildx for bake action (use latest for GHA cache v2 support)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          version: latest
+
+      # Build all backend images using bake with GitHub Actions cache
+      - name: Build images with cache
+        uses: docker/bake-action@v6
+        with:
+          files: docker-bake.hcl
+          targets: backend-e2e
+          load: true
+          set: |
+            *.cache-from=type=gha
+            *.cache-to=type=gha,mode=max
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
@@ -169,11 +192,7 @@ jobs:
           uv python install 3.12
           uv sync --frozen
 
-      - name: Start infrastructure services
-        run: |
-          docker compose -f docker-compose.ci.yaml up -d --wait --wait-timeout 120
-          docker compose -f docker-compose.ci.yaml ps
-
+      # Setup K3s before starting services (workers need kubeconfig)
       - name: Setup Kubernetes (k3s)
         run: |
           curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik" sh -
@@ -184,14 +203,69 @@ jobs:
           timeout 90 bash -c 'until sudo k3s kubectl cluster-info; do sleep 5; done'
           kubectl create namespace integr8scode --dry-run=client -o yaml | kubectl apply -f -
 
-      - name: Create Kafka topics
-        timeout-minutes: 2
-        env:
-          KAFKA_BOOTSTRAP_SERVERS: localhost:9092
-          KAFKA_TOPIC_PREFIX: "ci.${{ github.run_id }}."
+      # Create kubeconfig for workers running in containers
+      - name: Create kubeconfig for containers
         run: |
-          cd backend
-          uv run python -m scripts.create_topics
+          # Get the host IP that containers can reach
+          HOST_IP=$(ip route get 1 | awk '{print $7}')
+
+          # Create kubeconfig that points to host's k3s API server
+          cat > kubeconfig.yaml << EOF
+          apiVersion: v1
+          kind: Config
+          clusters:
+          - cluster:
+              server: https://${HOST_IP}:6443
+              insecure-skip-tls-verify: true
+            name: k3s
+          contexts:
+          - context:
+              cluster: k3s
+              user: k3s
+            name: k3s
+          current-context: k3s
+          users:
+          - name: k3s
+            user:
+              token: $(sudo cat /var/lib/rancher/k3s/server/node-token)
+          EOF
+
+          # Copy to backend dir for volume mount
+          cp kubeconfig.yaml backend/kubeconfig.yaml
+
+      # Start all services (images already built by bake)
+      - name: Start services
+        env:
+          MONGO_ROOT_USER: root
+          MONGO_ROOT_PASSWORD: rootpassword
+          ENABLE_TRACING: "false"
+        run: |
+          # Start cert generation first (backend needs certs)
+          docker compose up -d --no-build shared-ca
+          docker compose up -d --no-build cert-generator
+
+          # Wait for certs to be generated
+          timeout 60 bash -c 'until [ -f backend/certs/server.key ]; do sleep 2; done'
+          echo "Certificates generated"
+
+          # Start infra
+          docker compose up -d --no-build --wait --wait-timeout 180 \
+            mongo redis zookeeper-certgen zookeeper kafka schema-registry
+
+          # Then init jobs
+          docker compose up -d --no-build user-seed kafka-init
+
+          # Wait for init jobs to complete
+          sleep 10
+
+          # Start workers
+          docker compose up -d --no-build \
+            backend coordinator saga-orchestrator k8s-worker pod-monitor result-processor
+
+          # Wait for backend to be healthy (HTTPS on 443)
+          timeout 60 bash -c 'until curl -ksf https://localhost:443/api/v1/health/live; do sleep 2; done'
+
+          docker compose ps
 
       - name: Run E2E tests
         timeout-minutes: 10
@@ -200,13 +274,18 @@ jobs:
           MONGO_ROOT_PASSWORD: rootpassword
           MONGODB_URL: mongodb://root:rootpassword@127.0.0.1:27017/?authSource=admin
           KAFKA_BOOTSTRAP_SERVERS: localhost:9092
-          KAFKA_TOPIC_PREFIX: "ci.${{ github.run_id }}."
+          KAFKA_TOPIC_PREFIX: ""
           SCHEMA_REGISTRY_URL: http://localhost:8081
           REDIS_HOST: localhost
           REDIS_PORT: 6379
-          SCHEMA_SUBJECT_PREFIX: "ci.${{ github.run_id }}."
+          SCHEMA_SUBJECT_PREFIX: ""
           KUBECONFIG: /home/runner/.kube/config
           K8S_NAMESPACE: integr8scode
+          # Tests connect to backend running in container (HTTPS)
+          BACKEND_URL: https://localhost:443
+          # Trust self-signed certs
+          REQUESTS_CA_BUNDLE: ""
+          CURL_CA_BUNDLE: ""
         run: |
           cd backend
           uv run pytest tests/e2e -v -rs \
@@ -228,13 +307,18 @@ jobs:
         if: failure()
         run: |
           mkdir -p logs
-          docker compose -f docker-compose.ci.yaml logs > logs/docker-compose.log 2>&1
+          docker compose logs > logs/docker-compose.log 2>&1
+          docker compose logs backend > logs/backend.log 2>&1
+          docker compose logs saga-orchestrator > logs/saga-orchestrator.log 2>&1
+          docker compose logs k8s-worker > logs/k8s-worker.log 2>&1
+          docker compose logs pod-monitor > logs/pod-monitor.log 2>&1
           kubectl get events --sort-by='.metadata.creationTimestamp' -A > logs/k8s-events.log 2>&1 || true
           kubectl describe pods -A > logs/k8s-describe-pods.log 2>&1 || true
+          kubectl logs -l app=executor -n integr8scode --tail=100 > logs/executor-pods.log 2>&1 || true
 
       - name: Upload logs
         if: failure()
         uses: actions/upload-artifact@v6
         with:
-          name: k8s-logs
+          name: e2e-logs
           path: logs/

@@ -15,6 +15,7 @@ services:
       - app-network
 
   cert-generator:
+    image: integr8scode-cert-generator:latest
     build:
       context: ./cert-generator
       dockerfile: Dockerfile
@@ -49,10 +50,10 @@ services:
     container_name: mongo
     healthcheck:
       test: echo 'db.runCommand("ping").ok' | mongosh localhost/integr8scode -u ${MONGO_ROOT_USER:-root} -p ${MONGO_ROOT_PASSWORD:-rootpassword} --authenticationDatabase admin --quiet
-      interval: 10s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   redis:
     image: redis:7-alpine
@@ -66,12 +67,13 @@ services:
       - app-network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
 
   backend:
+    image: integr8scode-backend:latest
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -123,6 +125,7 @@ services:
       start_period: 10s
 
   frontend:
+    image: integr8scode-frontend:latest
     container_name: frontend
     build:
       context: ./frontend
@@ -165,6 +168,7 @@ services:
   # Kafka Infrastructure for Event-Driven Design
   # Certificate generator for Zookeeper/Kafka SSL
   zookeeper-certgen:
+    image: integr8scode-zookeeper-certgen:latest
     build:
       context: ./backend/zookeeper
       dockerfile: Dockerfile.certgen
@@ -247,10 +251,10 @@ services:
         hard: 65536
     healthcheck:
       test: ["CMD-SHELL", "echo ruok | nc localhost 2181 | grep imok"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      interval: 5s
+      timeout: 5s
+      retries: 15
+      start_period: 15s
 
   kafka:
     image: confluentinc/cp-kafka:7.5.0
@@ -308,10 +312,10 @@ services:
         hard: 65536
     healthcheck:
       test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
-      interval: 30s
+      interval: 5s
       timeout: 10s
-      retries: 3
-      start_period: 60s
+      retries: 20
+      start_period: 20s
 
   schema-registry:
     image: confluentinc/cp-schema-registry:7.5.0
@@ -329,10 +333,10 @@ services:
       - app-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8081/config"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
-      retries: 5
-      start_period: 30s
+      retries: 15
+      start_period: 10s
 
   kafdrop:
     image: obsidiandynamics/kafdrop:3.31.0
@@ -351,6 +355,7 @@ services:
 
   # Kafka topic initialization
   kafka-init:
+    image: integr8scode-backend:latest
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -374,6 +379,7 @@ services:
 
   # Seed default users (runs once after mongo is ready)
   user-seed:
+    image: integr8scode-backend:latest
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -396,6 +402,7 @@ services:
 
   # Event-driven workers
   coordinator:
+    image: integr8scode-coordinator:latest
     build:
       context: ./backend
       dockerfile: workers/Dockerfile.coordinator
@@ -427,6 +434,7 @@ services:
     restart: unless-stopped
 
   k8s-worker:
+    image: integr8scode-k8s-worker:latest
     build:
       context: ./backend
       dockerfile: workers/Dockerfile.k8s_worker
@@ -465,6 +473,7 @@ services:
     restart: unless-stopped
 
   pod-monitor:
+    image: integr8scode-pod-monitor:latest
     build:
       context: ./backend
       dockerfile: workers/Dockerfile.pod_monitor
@@ -500,6 +509,7 @@ services:
     restart: unless-stopped
 
   result-processor:
+    image: integr8scode-result-processor:latest
     build:
       context: ./backend
       dockerfile: workers/Dockerfile.result_processor
@@ -537,6 +547,7 @@ services:
     restart: unless-stopped
 
   saga-orchestrator:
+    image: integr8scode-saga-orchestrator:latest
     build:
       context: ./backend
       dockerfile: workers/Dockerfile.saga_orchestrator
@@ -587,6 +598,7 @@ services:
 
   # Event replay service
   event-replay:
+    image: integr8scode-event-replay:latest
     build:
       context: ./backend
       dockerfile: workers/Dockerfile.event_replay
@@ -618,6 +630,7 @@ services:
 
   # DLQ Processor Service
   dlq-processor:
+    image: integr8scode-dlq-processor:latest
     build:
       context: ./backend
       dockerfile: workers/Dockerfile.dlq_processor

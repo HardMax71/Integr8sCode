@@ -5,17 +5,11 @@ from uuid import UUID
 import pytest
 from app.domain.enums.execution import ExecutionStatus as ExecutionStatusEnum
 from app.schemas_pydantic.execution import ExecutionResponse, ExecutionResult, ResourceLimits, ResourceUsage
-from app.services.k8s_worker.worker import KubernetesWorker
-from app.services.pod_monitor.monitor import PodMonitor
-from app.services.saga import SagaOrchestrator
 from httpx import AsyncClient
 
 from tests.helpers.sse import wait_for_execution_terminal
 
 pytestmark = [pytest.mark.e2e, pytest.mark.k8s]
-
-# Type alias for execution_workers fixture (all three workers for full pipeline)
-ExecutionWorkers = tuple[SagaOrchestrator, KubernetesWorker, PodMonitor]
 
 
 class TestExecution:
@@ -104,12 +98,10 @@ class TestExecution:
             assert "Line 2" in execution_result.stdout
 
     @pytest.mark.asyncio
-    async def test_execute_with_error(
-        self, authenticated_client: AsyncClient, execution_workers: ExecutionWorkers
-    ) -> None:
+    async def test_execute_with_error(self, authenticated_client: AsyncClient) -> None:
         """Test executing a script that produces an error.
 
-        Requires execution_workers fixture to run the full pipeline:
+        Workers run as containers (docker-compose) for full pipeline:
         API -> SagaOrchestrator -> KubernetesWorker -> PodMonitor -> SSE.
         Uses SSE to wait for terminal state (event-driven, no polling).
         """
@@ -138,12 +130,10 @@ class TestExecution:
         assert "ValueError" in (result.get("stderr") or result.get("stdout") or "")
 
     @pytest.mark.asyncio
-    async def test_execute_with_resource_tracking(
-        self, authenticated_client: AsyncClient, execution_workers: ExecutionWorkers
-    ) -> None:
+    async def test_execute_with_resource_tracking(self, authenticated_client: AsyncClient) -> None:
         """Test that execution tracks resource usage.
 
-        Requires execution_workers fixture to run the full pipeline:
+        Workers run as containers (docker-compose) for full pipeline:
         API -> SagaOrchestrator -> KubernetesWorker -> PodMonitor -> SSE.
         """
         execution_request = {
@@ -234,12 +224,10 @@ print('End of output')
                 assert "End of output" in result_data["stdout"] or len(result_data["stdout"]) > 10000
 
     @pytest.mark.asyncio
-    async def test_cancel_running_execution(
-        self, authenticated_client: AsyncClient, execution_workers: ExecutionWorkers
-    ) -> None:
+    async def test_cancel_running_execution(self, authenticated_client: AsyncClient) -> None:
         """Test cancelling a running execution.
 
-        Requires execution_workers fixture to run the full pipeline:
+        Workers run as containers (docker-compose) for full pipeline:
         API -> SagaOrchestrator -> KubernetesWorker -> PodMonitor -> SSE.
         Submits a long-running script and immediately requests cancellation.
         """

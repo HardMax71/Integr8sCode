@@ -296,8 +296,8 @@ services:
       KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
       KAFKA_LOG_CLEANUP_POLICY: 'delete'
       
-      # JVM settings
-      KAFKA_HEAP_OPTS: '-Xms2G -Xmx2G'
+      # JVM settings (CI overrides with smaller heap via KAFKA_HEAP_OPTS env var)
+      KAFKA_HEAP_OPTS: ${KAFKA_HEAP_OPTS:--Xms2G -Xmx2G}
       KAFKA_JVM_PERFORMANCE_OPTS: '-server -XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:InitiatingHeapOccupancyPercent=35 -XX:+ExplicitGCInvokesConcurrent -Djava.awt.headless=true'
       
     volumes:

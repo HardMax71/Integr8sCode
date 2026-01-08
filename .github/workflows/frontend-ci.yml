@@ -100,6 +100,9 @@ jobs:
             *.cache-from=type=gha
             *.cache-to=type=gha,mode=max
 
+      - name: Prune Docker build cache
+        run: docker builder prune -af
+
       - name: Setup Kubernetes (k3s)
         run: |
           curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik --tls-san host.docker.internal" sh -
@@ -148,6 +151,7 @@ jobs:
           MONGO_ROOT_USER: root
           MONGO_ROOT_PASSWORD: rootpassword
           ENABLE_TRACING: "false"
+          KAFKA_HEAP_OPTS: "-Xms256M -Xmx512M"
         run: |
           # Start cert generation first
           docker compose up -d --no-build shared-ca

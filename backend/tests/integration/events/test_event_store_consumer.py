@@ -58,9 +58,9 @@ async def test_event_store_consumer_stores_events(scope: AsyncContainer, unique_
         # Wait until the event is persisted in Mongo
         coll = db.get_collection("events")
 
-        @backoff.on_exception(backoff.constant, AssertionError, max_time=12.0, interval=0.2)
+        @backoff.on_exception(backoff.constant, AssertionError, max_time=30.0, interval=0.3)
         async def _wait_exists() -> None:
             doc = await coll.find_one({"event_id": ev.event_id})
-            assert doc is not None
+            assert doc is not None, f"Event {ev.event_id} not found in MongoDB"
 
         await _wait_exists()

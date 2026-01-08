@@ -89,6 +89,8 @@ jobs:
           uv sync --frozen
 
       - name: Start infrastructure services
+        env:
+          KAFKA_HEAP_OPTS: "-Xms256M -Xmx512M"
         run: |
           # Start only infra services (no workers, no build)
           docker compose up -d --wait --wait-timeout 180 \
@@ -180,6 +182,9 @@ jobs:
             *.cache-from=type=gha
             *.cache-to=type=gha,mode=max
 
+      - name: Prune Docker build cache
+        run: docker builder prune -af
+
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
         with:
@@ -243,6 +248,7 @@ jobs:
           MONGO_ROOT_USER: root
           MONGO_ROOT_PASSWORD: rootpassword
           ENABLE_TRACING: "false"
+          KAFKA_HEAP_OPTS: "-Xms256M -Xmx512M"
         run: |
           # Start cert generation first (backend needs certs)
           docker compose up -d --no-build shared-ca

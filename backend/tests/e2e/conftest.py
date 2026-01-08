@@ -3,19 +3,22 @@ import ssl
 from collections.abc import AsyncGenerator
 
 import httpx
+import pytest
 import pytest_asyncio
-import redis.asyncio as redis
-from app.core.database_context import Database
 from app.main import create_app
 from app.settings import Settings
 from fastapi import FastAPI
 
-from tests.helpers.cleanup import cleanup_db_and_redis
+
+@pytest.fixture(scope="session")
+def test_settings() -> Settings:
+    """E2E tests use Settings matching containers (no worker isolation)."""
+    return Settings()
 
 
 @pytest_asyncio.fixture(scope="session")
 async def app(test_settings: Settings) -> AsyncGenerator[FastAPI, None]:
-    """App using test_settings from .env.test."""
+    """App using container-matching settings."""
     application = create_app(settings=test_settings)
     yield application
     await application.state.dishka_container.close()
@@ -35,10 +38,3 @@ async def client(test_settings: Settings) -> AsyncGenerator[httpx.AsyncClient, N
         verify=ssl_context,
     ) as c:
         yield c
-
-
-@pytest_asyncio.fixture(autouse=True)
-async def _cleanup(db: Database, redis_client: redis.Redis) -> AsyncGenerator[None, None]:
-    """Clean DB and Redis before each E2E test."""
-    await cleanup_db_and_redis(db, redis_client)
-    yield

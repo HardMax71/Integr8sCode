@@ -17,9 +17,15 @@ from fastapi import FastAPI
 from httpx import ASGITransport
 from pydantic_settings import SettingsConfigDict
 
+# Disable OpenTelemetry exporters to prevent stalls from reconnection attempts
+os.environ.setdefault("OTEL_EXPORTER_OTLP_ENDPOINT", "")
+os.environ.setdefault("OTEL_METRICS_EXPORTER", "none")
+os.environ.setdefault("OTEL_TRACES_EXPORTER", "none")
+os.environ.setdefault("OTEL_LOGS_EXPORTER", "none")
+
 
 class TestSettings(Settings):
-    """Test configuration - loads from .env.test instead of .env"""
+    """Test configuration - loads from .env.test instead of .env."""
 
     model_config = SettingsConfigDict(
         env_file=".env.test",
@@ -29,63 +35,38 @@ class TestSettings(Settings):
     )
 
 
-# ===== Worker-specific isolation for pytest-xdist =====
-def _compute_worker_id() -> str:
-    return os.environ.get("PYTEST_XDIST_WORKER", "gw0")
-
-
-def _setup_worker_env() -> None:
-    """Set worker-specific environment variables for pytest-xdist isolation.
-
-    Uses setdefault so CI-provided env vars (for E2E tests) take precedence.
-    """
-    session_id = os.environ.get("PYTEST_SESSION_ID") or uuid.uuid4().hex[:8]
-    worker_id = _compute_worker_id()
-    os.environ["PYTEST_SESSION_ID"] = session_id
-
-    # Unique database name per worker (unless CI provides one)
-    os.environ.setdefault("DATABASE_NAME", f"integr8scode_test_{session_id}_{worker_id}")
-
-    # Distribute Redis DBs across workers (0-15)
-    try:
-        worker_num = int(worker_id[2:]) if worker_id.startswith("gw") else 0
-        os.environ.setdefault("REDIS_DB", str(worker_num % 16))
-    except Exception:
-        os.environ.setdefault("REDIS_DB", "0")
-
-    # Unique Kafka consumer group per worker (unless CI provides one)
-    os.environ.setdefault("KAFKA_GROUP_SUFFIX", f"{session_id}.{worker_id}")
-
-    # Unique Schema Registry prefix per worker (unless CI provides one)
-    os.environ.setdefault("SCHEMA_SUBJECT_PREFIX", f"test.{session_id}.{worker_id}.")
-
-    # Disable OpenTelemetry exporters to prevent "otel-collector:4317" retry noise
-    os.environ.setdefault("OTEL_EXPORTER_OTLP_ENDPOINT", "")
-    os.environ.setdefault("OTEL_METRICS_EXPORTER", "none")
-    os.environ.setdefault("OTEL_TRACES_EXPORTER", "none")
-    os.environ.setdefault("OTEL_LOGS_EXPORTER", "none")
-
-
-# Set up worker env at module load time (before any Settings instantiation)
-_setup_worker_env()
-
-
-# ===== Settings fixture =====
+# ===== Settings fixture with pytest-xdist worker isolation =====
 @pytest.fixture(scope="session")
-def test_settings() -> Settings:
-    """Provide TestSettings for tests that need to create their own components."""
-    return TestSettings()
+def test_settings(worker_id: str) -> Settings:
+    """Test settings with worker-specific isolation for pytest-xdist.
+
+    Uses the built-in worker_id fixture from pytest-xdist.
+    - "master": non-xdist run, uses defaults from .env.test
+    - "gw0", "gw1", etc.: xdist workers get unique DB/Redis/Kafka config
+    """
+    if worker_id == "master":
+        return TestSettings()
+
+    # xdist worker: create isolated settings
+    worker_num = int(worker_id[2:]) if worker_id.startswith("gw") else 0
+
+    return TestSettings(
+        DATABASE_NAME=f"integr8scode_test_{worker_id}",
+        REDIS_DB=worker_num % 16,
+        KAFKA_GROUP_SUFFIX=worker_id,
+        SCHEMA_SUBJECT_PREFIX=f"test.{worker_id}.",
+    )
 
 
 # ===== App fixture =====
 @pytest_asyncio.fixture(scope="session")
-async def app() -> AsyncGenerator[FastAPI, None]:
-    """Create FastAPI app with TestSettings.
+async def app(test_settings: Settings) -> AsyncGenerator[FastAPI, None]:
+    """Create FastAPI app with worker-isolated settings.
 
     Session-scoped to avoid Pydantic schema validator memory issues when
     FastAPI recreates OpenAPI schemas hundreds of times with pytest-xdist.
     """
-    application = create_app(settings=TestSettings())
+    application = create_app(settings=test_settings)
 
     yield application
 

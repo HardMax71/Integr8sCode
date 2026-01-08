@@ -17,11 +17,16 @@ from fastapi import FastAPI
 from httpx import ASGITransport
 from pydantic_settings import SettingsConfigDict
 
-# Disable OpenTelemetry exporters to prevent stalls from reconnection attempts
+# Disable OpenTelemetry/tracing exporters to prevent stalls from reconnection attempts
 os.environ.setdefault("OTEL_EXPORTER_OTLP_ENDPOINT", "")
 os.environ.setdefault("OTEL_METRICS_EXPORTER", "none")
 os.environ.setdefault("OTEL_TRACES_EXPORTER", "none")
 os.environ.setdefault("OTEL_LOGS_EXPORTER", "none")
+# Disable Jaeger tracing (custom code uses JAEGER_AGENT_HOST to build endpoint)
+os.environ.setdefault("JAEGER_AGENT_HOST", "")
+os.environ.setdefault("ENABLE_TRACING", "false")
+# Disable rate limiting in tests (parallel workers share Redis, would hit 429s)
+os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
 
 
 class TestSettings(Settings):

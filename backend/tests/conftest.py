@@ -37,33 +37,33 @@ def _compute_worker_id() -> str:
 def _setup_worker_env() -> None:
     """Set worker-specific environment variables for pytest-xdist isolation.
 
-    Must be called BEFORE TestSettings is instantiated so env vars are picked up.
+    Uses setdefault so CI-provided env vars (for E2E tests) take precedence.
     """
     session_id = os.environ.get("PYTEST_SESSION_ID") or uuid.uuid4().hex[:8]
     worker_id = _compute_worker_id()
     os.environ["PYTEST_SESSION_ID"] = session_id
 
-    # Unique database name per worker
-    os.environ["DATABASE_NAME"] = f"integr8scode_test_{session_id}_{worker_id}"
+    # Unique database name per worker (unless CI provides one)
+    os.environ.setdefault("DATABASE_NAME", f"integr8scode_test_{session_id}_{worker_id}")
 
     # Distribute Redis DBs across workers (0-15)
     try:
         worker_num = int(worker_id[2:]) if worker_id.startswith("gw") else 0
-        os.environ["REDIS_DB"] = str(worker_num % 16)
+        os.environ.setdefault("REDIS_DB", str(worker_num % 16))
     except Exception:
         os.environ.setdefault("REDIS_DB", "0")
 
-    # Unique Kafka consumer group per worker
-    os.environ["KAFKA_GROUP_SUFFIX"] = f"{session_id}.{worker_id}"
+    # Unique Kafka consumer group per worker (unless CI provides one)
+    os.environ.setdefault("KAFKA_GROUP_SUFFIX", f"{session_id}.{worker_id}")
 
-    # Unique Schema Registry prefix per worker
-    os.environ["SCHEMA_SUBJECT_PREFIX"] = f"test.{session_id}.{worker_id}."
+    # Unique Schema Registry prefix per worker (unless CI provides one)
+    os.environ.setdefault("SCHEMA_SUBJECT_PREFIX", f"test.{session_id}.{worker_id}.")
 
     # Disable OpenTelemetry exporters to prevent "otel-collector:4317" retry noise
-    os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = ""
-    os.environ["OTEL_METRICS_EXPORTER"] = "none"
-    os.environ["OTEL_TRACES_EXPORTER"] = "none"
-    os.environ["OTEL_LOGS_EXPORTER"] = "none"
+    os.environ.setdefault("OTEL_EXPORTER_OTLP_ENDPOINT", "")
+    os.environ.setdefault("OTEL_METRICS_EXPORTER", "none")
+    os.environ.setdefault("OTEL_TRACES_EXPORTER", "none")
+    os.environ.setdefault("OTEL_LOGS_EXPORTER", "none")
 
 
 # Set up worker env at module load time (before any Settings instantiation)

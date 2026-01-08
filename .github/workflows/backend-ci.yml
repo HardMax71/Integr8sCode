@@ -206,10 +206,12 @@ jobs:
       # Create kubeconfig for workers running in containers
       - name: Create kubeconfig for containers
         run: |
-          # Get the host IP that containers can reach
           HOST_IP=$(ip route get 1 | awk '{print $7}')
 
-          # Create kubeconfig that points to host's k3s API server
+          # Extract client certificate auth from k3s kubeconfig
+          CLIENT_CERT=$(sudo k3s kubectl config view --raw -o jsonpath='{.users[0].user.client-certificate-data}')
+          CLIENT_KEY=$(sudo k3s kubectl config view --raw -o jsonpath='{.users[0].user.client-key-data}')
+
           cat > kubeconfig.yaml << EOF
           apiVersion: v1
           kind: Config
@@ -227,10 +229,10 @@ jobs:
           users:
           - name: k3s
             user:
-              token: $(sudo cat /var/lib/rancher/k3s/server/node-token)
+              client-certificate-data: ${CLIENT_CERT}
+              client-key-data: ${CLIENT_KEY}
           EOF
 
-          # Copy to backend dir for volume mount
           cp kubeconfig.yaml backend/kubeconfig.yaml
 
       # Start all services (images already built by bake)

@@ -113,6 +113,11 @@ jobs:
       - name: Create kubeconfig for Docker containers
         run: |
           HOST_IP=$(ip route get 1 | awk '{print $7}')
+
+          # Extract client certificate auth from k3s kubeconfig
+          CLIENT_CERT=$(sudo k3s kubectl config view --raw -o jsonpath='{.users[0].user.client-certificate-data}')
+          CLIENT_KEY=$(sudo k3s kubectl config view --raw -o jsonpath='{.users[0].user.client-key-data}')
+
           cat > kubeconfig.yaml << EOF
           apiVersion: v1
           kind: Config
@@ -130,7 +135,8 @@ jobs:
           users:
           - name: k3s
             user:
-              token: $(sudo cat /var/lib/rancher/k3s/server/node-token)
+              client-certificate-data: ${CLIENT_CERT}
+              client-key-data: ${CLIENT_KEY}
           EOF
           cp kubeconfig.yaml backend/kubeconfig.yaml
 

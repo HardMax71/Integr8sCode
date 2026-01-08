@@ -70,8 +70,12 @@ _setup_worker_env()
 # ===== Settings fixture =====
 @pytest.fixture(scope="session")
 def test_settings() -> Settings:
-    """Provide TestSettings for tests that need to create their own components."""
-    return TestSettings()
+    """Provide TestSettings with a unique Kafka topic prefix for isolation."""
+    base = TestSettings()
+    session_id = os.environ.get("PYTEST_SESSION_ID", uuid.uuid4().hex[:8])
+    worker_id = _compute_worker_id()
+    unique_prefix = f"{base.KAFKA_TOPIC_PREFIX}{session_id}.{worker_id}."
+    return base.model_copy(update={"KAFKA_TOPIC_PREFIX": unique_prefix})
 
 
 # ===== App fixture =====

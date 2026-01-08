@@ -169,10 +169,10 @@ class PodMonitor(LifecycleEnabled):
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Close API client (kubernetes_asyncio requires explicit close)
-        if self._api_client:
+        # Close API client only if we created it (not injected)
+        if self._api_client and self._clients is None:
             await self._api_client.close()
-            self._api_client = None
+        self._api_client = None
 
         # Clear state
         self._tracked_pods.clear()
@@ -325,8 +325,8 @@ class PodMonitor(LifecycleEnabled):
             # Update metrics
             self._metrics.update_pod_monitor_pods_watched(len(self._tracked_pods))
 
-            # Map to application events
-            app_events = self._event_mapper.map_pod_event(event.pod, event.event_type)
+            # Map to application events (async for kubernetes_asyncio log fetching)
+            app_events = await self._event_mapper.map_pod_event(event.pod, event.event_type)
 
             # Publish events
             for app_event in app_events:

@@ -85,8 +85,16 @@ async def test_consumer_idempotent_wrapper_blocks_duplicates(
 
     await wrapper.start([KafkaTopic.EXECUTION_EVENTS])
     try:
+        # Wait for partition assignment before checking for messages
+        # Consumer group coordination can take several seconds
+        @backoff.on_exception(backoff.constant, AssertionError, max_time=15.0, interval=0.2)
+        async def _wait_assignment() -> None:
+            assignment = base._consumer and base._consumer.assignment()  # noqa: SLF001
+            assert assignment, "No partition assignment yet"
+
+        await _wait_assignment()
+
         # Wait until BOTH events have been handled (processed OR detected as duplicate)
-        # Kafka consumers can be slow to start and poll - allow more time
         @backoff.on_exception(backoff.constant, AssertionError, max_time=30.0, interval=0.3)
         async def _wait_all_handled() -> None:
             total = counts["processed"] + counts["duplicates"]

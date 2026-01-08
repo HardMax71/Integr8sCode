@@ -1206,7 +1206,7 @@ requires-dist = [
     { name = "itsdangerous", specifier = "==2.2.0" },
     { name = "jinja2", specifier = "==3.1.6" },
     { name = "kiwisolver", specifier = "==1.4.9" },
-    { name = "kubernetes-asyncio", specifier = ">=33.3.0" },
+    { name = "kubernetes-asyncio", specifier = "==33.3.0" },
     { name = "limits", specifier = "==3.13.0" },
     { name = "markdown-it-py", specifier = "==4.0.0" },
     { name = "markupsafe", specifier = "==3.0.2" },

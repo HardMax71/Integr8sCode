@@ -139,12 +139,12 @@ def make_pod(
 
 
 class FakeApi:
-    """Fake K8s API for unit tests (sync and async compatible)."""
+    """Fake K8s API for unit tests (async compatible with kubernetes_asyncio)."""
 
     def __init__(self, logs: str) -> None:
         self._logs = logs
 
-    def read_namespaced_pod_log(self, name: str, namespace: str, tail_lines: int = 10000) -> str:  # noqa: ARG002
+    async def read_namespaced_pod_log(self, name: str, namespace: str, tail_lines: int = 10000) -> str:  # noqa: ARG002
         return self._logs
 
     async def get_api_resources(self) -> None:

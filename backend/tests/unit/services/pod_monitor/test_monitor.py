@@ -328,7 +328,7 @@ async def test_process_pod_event_full_flow() -> None:
     pm = PodMonitor(cfg, kafka_event_service=_make_kafka_service_mock(), logger=_test_logger)
 
     class MockMapper:
-        def map_pod_event(self, pod: Any, event_type: Any) -> list[Any]:
+        async def map_pod_event(self, pod: Any, event_type: Any) -> list[Any]:
             class Event:
                 event_type = types.SimpleNamespace(value="test_event")
                 metadata = types.SimpleNamespace(correlation_id=None)
@@ -385,7 +385,7 @@ async def test_process_pod_event_exception_handling() -> None:
     pm = PodMonitor(cfg, kafka_event_service=_make_kafka_service_mock(), logger=_test_logger)
 
     class FailMapper:
-        def map_pod_event(self, pod: Any, event_type: Any) -> list[Any]:
+        async def map_pod_event(self, pod: Any, event_type: Any) -> list[Any]:
             raise RuntimeError("Mapping failed")
 
     pm._event_mapper = FailMapper()  # type: ignore[assignment]

@@ -24,19 +24,20 @@ async def _ensure_kubeconfig() -> k8s_client.ApiClient:
 @pytest.mark.asyncio
 async def test_cleanup_orphaned_configmaps_dry_run() -> None:
     api_client = await _ensure_kubeconfig()
-    v1 = k8s_client.CoreV1Api(api_client)
-    ns = "default"
-    name = f"int-test-cm-{int(datetime.now().timestamp())}"
-
-    # Create a configmap labeled like the app uses
-    metadata = k8s_client.V1ObjectMeta(
-        name=name,
-        labels={"app": "integr8s", "execution-id": "e-int-test"},
-    )
-    body = k8s_client.V1ConfigMap(metadata=metadata, data={"k": "v"})
-    await v1.create_namespaced_config_map(namespace=ns, body=body)
-
+    name: str | None = None
     try:
+        v1 = k8s_client.CoreV1Api(api_client)
+        ns = "default"
+        name = f"int-test-cm-{int(datetime.now().timestamp())}"
+
+        # Create a configmap labeled like the app uses
+        metadata = k8s_client.V1ObjectMeta(
+            name=name,
+            labels={"app": "integr8s", "execution-id": "e-int-test"},
+        )
+        body = k8s_client.V1ConfigMap(metadata=metadata, data={"k": "v"})
+        await v1.create_namespaced_config_map(namespace=ns, body=body)
+
         cleaner = ResourceCleaner(logger=_test_logger)
 
         # We expect our configmap to be a candidate; poll the response
@@ -48,9 +49,11 @@ async def test_cleanup_orphaned_configmaps_dry_run() -> None:
 
         await _wait_has_cm()
     finally:
-        # Cleanup resource
-        try:
-            await v1.delete_namespaced_config_map(name=name, namespace=ns)
-        except Exception:
-            pass
+        # Cleanup resource (only if created)
+        if name:
+            try:
+                v1 = k8s_client.CoreV1Api(api_client)
+                await v1.delete_namespaced_config_map(name=name, namespace="default")
+            except Exception:
+                pass
         await api_client.close()

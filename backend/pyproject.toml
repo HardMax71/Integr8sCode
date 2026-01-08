@@ -121,7 +121,7 @@ dependencies = [
     "wrapt==1.16.0",
     "yarl==1.20.1",
     "zipp==3.20.2",
-    "kubernetes-asyncio>=33.3.0",
+    "kubernetes-asyncio==33.3.0",
 ]
 
 [build-system]

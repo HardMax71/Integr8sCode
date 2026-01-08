@@ -1,6 +1,7 @@
 import ast
 import json
 import logging
+from collections.abc import Awaitable
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -49,9 +50,9 @@ class PodLogs:
 
 
 class EventMapper(Protocol):
-    """Protocol for event mapping functions"""
+    """Protocol for async event mapping functions"""
 
-    def __call__(self, ctx: PodContext) -> BaseEvent | None: ...
+    def __call__(self, ctx: PodContext) -> Awaitable[BaseEvent | None]: ...
 
 
 class PodEventMapper:
@@ -75,8 +76,8 @@ class PodEventMapper:
             "DELETED": [self._map_terminated],
         }
 
-    def map_pod_event(self, pod: k8s_client.V1Pod, event_type: str) -> EventList:
-        """Map a Kubernetes pod to application events"""
+    async def map_pod_event(self, pod: k8s_client.V1Pod, event_type: str) -> EventList:
+        """Map a Kubernetes pod to application events (async for kubernetes_asyncio)"""
         self.logger.info(
             f"POD-EVENT: type={event_type} name={getattr(pod.metadata, 'name', None)} "
             f"ns={getattr(pod.metadata, 'namespace', None)} phase={getattr(pod.status, 'phase', None)}"
@@ -114,7 +115,7 @@ class PodEventMapper:
         events: list[BaseEvent] = []
 
         # Check for timeout first - if pod timed out, only return timeout event
-        if timeout_event := self._check_timeout(ctx):
+        if timeout_event := await self._check_timeout(ctx):
             self.logger.info(
                 f"POD-EVENT: mapped TIMEOUT exec={ctx.execution_id} phase={ctx.phase} "
                 f"adl={getattr(getattr(pod, 'spec', None), 'active_deadline_seconds', None)}"
@@ -135,16 +136,16 @@ class PodEventMapper:
             )
             return events
 
-        # Phase-based mappers
+        # Phase-based mappers (async)
         for mapper in self._phase_mappers.get(phase, []):
-            if event := mapper(ctx):
+            if event := await mapper(ctx):
                 mapper_name = getattr(mapper, "__name__", repr(mapper))
                 self.logger.info(f"POD-EVENT: phase-map {mapper_name} -> {event.event_type} exec={ctx.execution_id}")
                 events.append(event)
 
-        # Event type mappers
+        # Event type mappers (async)
         for mapper in self._event_type_mappers.get(event_type, []):
-            if event := mapper(ctx):
+            if event := await mapper(ctx):
                 mapper_name = getattr(mapper, "__name__", repr(mapper))
                 self.logger.info(f"POD-EVENT: type-map {mapper_name} -> {event.event_type} exec={ctx.execution_id}")
                 events.append(event)
@@ -200,7 +201,7 @@ class PodEventMapper:
         self._event_cache[pod_name] = phase
         return False
 
-    def _map_scheduled(self, ctx: PodContext) -> PodScheduledEvent | None:
+    async def _map_scheduled(self, ctx: PodContext) -> PodScheduledEvent | None:
         """Map pending pod to scheduled event"""
         # K8s API can return pods without status
         if not ctx.pod.status or not ctx.pod.status.conditions:
@@ -223,7 +224,7 @@ class PodEventMapper:
         self.logger.debug(f"POD-EVENT: mapped scheduled -> {evt.event_type} exec={ctx.execution_id}")
         return evt
 
-    def _map_running(self, ctx: PodContext) -> PodRunningEvent | None:
+    async def _map_running(self, ctx: PodContext) -> PodRunningEvent | None:
         """Map running pod to running event"""
         # K8s API can return pods without status
         if not ctx.pod.status:
@@ -248,13 +249,13 @@ class PodEventMapper:
         self.logger.debug(f"POD-EVENT: mapped running -> {evt.event_type} exec={ctx.execution_id}")
         return evt
 
-    def _map_completed(self, ctx: PodContext) -> ExecutionCompletedEvent | None:
+    async def _map_completed(self, ctx: PodContext) -> ExecutionCompletedEvent | None:
         """Map succeeded pod to completed event"""
         container = self._get_main_container(ctx.pod)
         if not container or not container.state or not container.state.terminated:
             return None
 
-        logs = self._extract_logs(ctx.pod)
+        logs = await self._extract_logs(ctx.pod)
         if not logs:
             self.logger.error(f"POD-EVENT: failed to extract logs for completed pod exec={ctx.execution_id}")
             return None
@@ -271,20 +272,20 @@ class PodEventMapper:
         self.logger.info(f"POD-EVENT: mapped completed exec={ctx.execution_id} exit_code={logs.exit_code}")
         return evt
 
-    def _map_failed_or_completed(self, ctx: PodContext) -> BaseEvent | None:
+    async def _map_failed_or_completed(self, ctx: PodContext) -> BaseEvent | None:
         """Map failed pod to either timeout, completed, or failed"""
         if ctx.pod.status and ctx.pod.status.reason == "DeadlineExceeded":
-            return self._check_timeout(ctx)
+            return await self._check_timeout(ctx)
 
         if self._all_containers_succeeded(ctx.pod):
-            return self._map_completed(ctx)
+            return await self._map_completed(ctx)
 
-        return self._map_failed(ctx)
+        return await self._map_failed(ctx)
 
-    def _map_failed(self, ctx: PodContext) -> ExecutionFailedEvent | None:
+    async def _map_failed(self, ctx: PodContext) -> ExecutionFailedEvent | None:
         """Map failed pod to failed event"""
         error_info = self._analyze_failure(ctx.pod)
-        logs = self._extract_logs(ctx.pod)
+        logs = await self._extract_logs(ctx.pod)
 
         # Use logs data if available, fallback to error_info
         stdout = logs.stdout if logs else ""
@@ -307,7 +308,7 @@ class PodEventMapper:
         )
         return evt
 
-    def _map_terminated(self, ctx: PodContext) -> PodTerminatedEvent | None:
+    async def _map_terminated(self, ctx: PodContext) -> PodTerminatedEvent | None:
         """Map deleted pod to terminated event"""
         container = self._get_main_container(ctx.pod)
         if not container or not container.state or not container.state.terminated:
@@ -328,11 +329,11 @@ class PodEventMapper:
         )
         return evt
 
-    def _check_timeout(self, ctx: PodContext) -> ExecutionTimeoutEvent | None:
+    async def _check_timeout(self, ctx: PodContext) -> ExecutionTimeoutEvent | None:
         if not (ctx.pod.status and ctx.pod.status.reason == "DeadlineExceeded"):
             return None
 
-        logs = self._extract_logs(ctx.pod)
+        logs = await self._extract_logs(ctx.pod)
         if not logs:
             self.logger.error(f"POD-EVENT: failed to extract logs for timed out pod exec={ctx.execution_id}")
             return None
@@ -443,7 +444,7 @@ class PodEventMapper:
 
         return default
 
-    def _extract_logs(self, pod: k8s_client.V1Pod) -> PodLogs | None:
+    async def _extract_logs(self, pod: k8s_client.V1Pod) -> PodLogs | None:
         """Extract and parse pod logs. Returns None if extraction fails."""
         # Without k8s API or metadata, can't fetch logs
         if not self._k8s_api or not pod.metadata:
@@ -459,7 +460,7 @@ class PodEventMapper:
             return None
 
         try:
-            logs = self._k8s_api.read_namespaced_pod_log(
+            logs = await self._k8s_api.read_namespaced_pod_log(
                 name=pod.metadata.name, namespace=pod.metadata.namespace or "integr8scode", tail_lines=10000
             )
 

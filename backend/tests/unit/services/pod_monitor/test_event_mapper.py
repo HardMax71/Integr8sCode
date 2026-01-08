@@ -34,7 +34,7 @@ class _Cond:
 class _API404(FakeApi):
     """FakeApi that raises 404 on log read."""
 
-    def read_namespaced_pod_log(
+    async def read_namespaced_pod_log(
         self, name: str, namespace: str, tail_lines: int = 10000  # noqa: ARG002
     ) -> str:
         raise Exception("404 Not Found")
@@ -43,7 +43,7 @@ class _API404(FakeApi):
 class _API400(FakeApi):
     """FakeApi that raises 400 on log read."""
 
-    def read_namespaced_pod_log(
+    async def read_namespaced_pod_log(
         self, name: str, namespace: str, tail_lines: int = 10000  # noqa: ARG002
     ) -> str:
         raise Exception("400 Bad Request")
@@ -52,7 +52,7 @@ class _API400(FakeApi):
 class _APIGenericError(FakeApi):
     """FakeApi that raises generic error on log read."""
 
-    def read_namespaced_pod_log(
+    async def read_namespaced_pod_log(
         self, name: str, namespace: str, tail_lines: int = 10000  # noqa: ARG002
     ) -> str:
         raise Exception("boom")
@@ -68,7 +68,8 @@ def _ctx(pod: Pod, event_type: str = "ADDED") -> PodContext:  # noqa: ARG001
     )
 
 
-def test_pending_running_and_succeeded_mapping() -> None:
+@pytest.mark.asyncio
+async def test_pending_running_and_succeeded_mapping() -> None:
     logs_json = json.dumps({
         "stdout": "ok",
         "stderr": "",
@@ -87,14 +88,14 @@ def test_pending_running_and_succeeded_mapping() -> None:
     pend.metadata.labels = {"execution-id": "e1"}
     pend.status.conditions = [_Cond("PodScheduled", "True")]
     pend.spec.node_name = "n"
-    evts = pem.map_pod_event(pend, "ADDED")
+    evts = await pem.map_pod_event(pend, "ADDED")
     assert any(e.event_type.value == "pod_scheduled" for e in evts)
 
     # Running -> running, includes container statuses JSON
     cs = [ContainerStatus(State(waiting=Waiting("Init"))), ContainerStatus(State(terminated=Terminated(2)))]
     run = Pod("p", "Running", cs=cs)
     run.metadata.labels = {"execution-id": "e1"}
-    evts = pem.map_pod_event(run, "MODIFIED")
+    evts = await pem.map_pod_event(run, "MODIFIED")
     # Print for debugging if test fails
     if not any(e.event_type.value == "pod_running" for e in evts):
         print(f"Events returned: {[e.event_type.value for e in evts]}")
@@ -107,12 +108,13 @@ def test_pending_running_and_succeeded_mapping() -> None:
     term = ContainerStatus(State(terminated=Terminated(0)))
     suc = Pod("p", "Succeeded", cs=[term])
     suc.metadata.labels = {"execution-id": "e1"}
-    evts = pem.map_pod_event(suc, "MODIFIED")
+    evts = await pem.map_pod_event(suc, "MODIFIED")
     comp = [e for e in evts if e.event_type.value == "execution_completed"][0]
     assert comp.exit_code == 0 and comp.stdout == "ok"  # type: ignore[attr-defined]
 
 
-def test_failed_timeout_and_deleted() -> None:
+@pytest.mark.asyncio
+async def test_failed_timeout_and_deleted() -> None:
     valid_logs = json.dumps({"stdout": "", "stderr": "", "exit_code": 137, "resource_usage": {}})
     pem = PodEventMapper(k8s_api=FakeApi(valid_logs), logger=_test_logger)
 
@@ -124,7 +126,7 @@ def test_failed_timeout_and_deleted() -> None:
         adl=5,
     )
     pod_to.metadata.labels = {"execution-id": "e1"}
-    ev = pem.map_pod_event(pod_to, "MODIFIED")[0]
+    ev = (await pem.map_pod_event(pod_to, "MODIFIED"))[0]
     assert ev.event_type.value == "execution_timeout" and ev.timeout_seconds == 5  # type: ignore[attr-defined]
 
     # Failed: terminated exit_code nonzero, message used as stderr, error type defaults to SCRIPT_ERROR
@@ -132,7 +134,7 @@ def test_failed_timeout_and_deleted() -> None:
     pem_no_logs = PodEventMapper(k8s_api=FakeApi(""), logger=_test_logger)
     pod_fail = Pod("p2", "Failed", cs=[ContainerStatus(State(terminated=Terminated(2, message="boom")))])
     pod_fail.metadata.labels = {"execution-id": "e2"}
-    evf = pem_no_logs.map_pod_event(pod_fail, "MODIFIED")[0]
+    evf = (await pem_no_logs.map_pod_event(pod_fail, "MODIFIED"))[0]
     assert evf.event_type.value == "execution_failed" and evf.error_type in {ExecutionErrorType.SCRIPT_ERROR}  # type: ignore[attr-defined]
 
     # Deleted -> terminated when container terminated present (exit code 0 returns completed for DELETED)
@@ -140,7 +142,7 @@ def test_failed_timeout_and_deleted() -> None:
     pem_completed = PodEventMapper(k8s_api=FakeApi(valid_logs_0), logger=_test_logger)
     pod_del = Pod("p3", "Failed", cs=[ContainerStatus(State(terminated=Terminated(0, reason="Completed")))])
     pod_del.metadata.labels = {"execution-id": "e3"}
-    evd = pem_completed.map_pod_event(pod_del, "DELETED")[0]
+    evd = (await pem_completed.map_pod_event(pod_del, "DELETED"))[0]
     # For DELETED event with exit code 0, it returns execution_completed, not pod_terminated
     assert evd.event_type.value == "execution_completed"
 
@@ -172,39 +174,41 @@ def test_extract_id_and_metadata_priority_and_duplicates() -> None:
     assert pem._is_duplicate("n1", "Running") is True
 
 
-def test_scheduled_requires_condition() -> None:
+@pytest.mark.asyncio
+async def test_scheduled_requires_condition() -> None:
     pem = PodEventMapper(k8s_api=FakeApi(""), logger=_test_logger)
     pod = Pod("p", "Pending")
     # No conditions -> None
-    assert pem._map_scheduled(_ctx(pod)) is None
+    assert await pem._map_scheduled(_ctx(pod)) is None
     # Wrong condition -> None
     pod.status.conditions = [_Cond("Ready", "True")]
-    assert pem._map_scheduled(_ctx(pod)) is None
+    assert await pem._map_scheduled(_ctx(pod)) is None
     # Correct -> event
     pod.status.conditions = [_Cond("PodScheduled", "True")]
     pod.spec.node_name = "n"
-    assert pem._map_scheduled(_ctx(pod)) is not None
+    assert await pem._map_scheduled(_ctx(pod)) is not None
 
 
-def test_parse_and_log_paths_and_analyze_failure_variants(caplog: pytest.LogCaptureFixture) -> None:
+@pytest.mark.asyncio
+async def test_parse_and_log_paths_and_analyze_failure_variants(caplog: pytest.LogCaptureFixture) -> None:
     # _parse_executor_output line-by-line
     line_json = '{"stdout":"x","stderr":"","exit_code":3,"resource_usage":{}}'
     pem = PodEventMapper(k8s_api=FakeApi("junk\n" + line_json), logger=_test_logger)
     pod = Pod("p", "Succeeded", cs=[ContainerStatus(State(terminated=Terminated(0)))])
-    logs = pem._extract_logs(pod)
+    logs = await pem._extract_logs(pod)
     assert logs is not None and logs.exit_code == 3 and logs.stdout == "x"
 
     # _extract_logs: no api -> returns None
     pem2 = PodEventMapper(k8s_api=None, logger=_test_logger)
-    assert pem2._extract_logs(pod) is None
+    assert await pem2._extract_logs(pod) is None
 
     # _extract_logs exceptions -> 404/400/generic branches, all return None
     pem404 = PodEventMapper(k8s_api=_API404(""), logger=_test_logger)
-    assert pem404._extract_logs(pod) is None
+    assert await pem404._extract_logs(pod) is None
     pem400 = PodEventMapper(k8s_api=_API400(""), logger=_test_logger)
-    assert pem400._extract_logs(pod) is None
+    assert await pem400._extract_logs(pod) is None
     pemg = PodEventMapper(k8s_api=_APIGenericError(""), logger=_test_logger)
-    assert pemg._extract_logs(pod) is None
+    assert await pemg._extract_logs(pod) is None
 
     # _analyze_failure: Evicted
     pod_e = Pod("p", "Failed")
@@ -225,7 +229,8 @@ def test_parse_and_log_paths_and_analyze_failure_variants(caplog: pytest.LogCapt
     assert pem._analyze_failure(pod_oom).error_type == ExecutionErrorType.RESOURCE_LIMIT
 
 
-def test_all_containers_succeeded_and_cache_behavior() -> None:
+@pytest.mark.asyncio
+async def test_all_containers_succeeded_and_cache_behavior() -> None:
     valid_logs = json.dumps({"stdout": "", "stderr": "", "exit_code": 0, "resource_usage": {}})
     pem = PodEventMapper(k8s_api=FakeApi(valid_logs), logger=_test_logger)
     term0 = ContainerStatus(State(terminated=Terminated(0)))
@@ -233,13 +238,13 @@ def test_all_containers_succeeded_and_cache_behavior() -> None:
     pod = Pod("p", "Failed", cs=[term0, term0b])
     pod.metadata.labels = {"execution-id": "e1"}
     # When all succeeded, failed mapping returns completed instead of failed
-    ev = pem.map_pod_event(pod, "MODIFIED")[0]
+    ev = (await pem.map_pod_event(pod, "MODIFIED"))[0]
     assert ev.event_type.value == "execution_completed"
 
     # Cache prevents duplicate for same phase unless event type changes
     p2 = Pod("p2", "Running")
-    a = pem.map_pod_event(p2, "ADDED")
-    b = pem.map_pod_event(p2, "MODIFIED")
+    a = await pem.map_pod_event(p2, "ADDED")
+    b = await pem.map_pod_event(p2, "MODIFIED")
     # First ADD should map; second MODIFIED with same phase might be filtered by cache → allow either empty or same
     assert a == [] or all(x.event_type for x in a)
     assert b == [] or all(x.event_type for x in b)

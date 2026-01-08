@@ -59,7 +59,7 @@ async def test_worker_creates_configmap_and_pod(
     )
 
     # Initialize k8s clients - must succeed for this E2E test
-    worker._initialize_kubernetes_client()  # noqa: SLF001
+    await worker._initialize_kubernetes_client()  # noqa: SLF001
     assert worker.v1 is not None, (
         "Kubernetes client initialization failed. "
         "Ensure KUBECONFIG is set or running in-cluster. "
@@ -104,11 +104,11 @@ async def test_worker_creates_configmap_and_pod(
     await worker._create_pod(pod)  # noqa: SLF001
 
     # Verify resources exist
-    got_cm = worker.v1.read_namespaced_config_map(name=f"script-{exec_id}", namespace=ns)
+    got_cm = await worker.v1.read_namespaced_config_map(name=f"script-{exec_id}", namespace=ns)
     assert got_cm is not None
-    got_pod = worker.v1.read_namespaced_pod(name=f"executor-{exec_id}", namespace=ns)
+    got_pod = await worker.v1.read_namespaced_pod(name=f"executor-{exec_id}", namespace=ns)
     assert got_pod is not None
 
     # Cleanup
-    worker.v1.delete_namespaced_pod(name=f"executor-{exec_id}", namespace=ns)
-    worker.v1.delete_namespaced_config_map(name=f"script-{exec_id}", namespace=ns)
+    await worker.v1.delete_namespaced_pod(name=f"executor-{exec_id}", namespace=ns)
+    await worker.v1.delete_namespaced_config_map(name=f"script-{exec_id}", namespace=ns)

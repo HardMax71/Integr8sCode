@@ -48,6 +48,7 @@ from app.core.metrics import (
 from app.core.metrics.context import MetricsContext
 from app.core.middlewares import (
     CacheControlMiddleware,
+    CSRFMiddleware,
     MetricsMiddleware,
     RateLimitMiddleware,
     RequestSizeLimitMiddleware,
@@ -101,6 +102,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if settings.RATE_LIMIT_ENABLED:
         app.add_middleware(RateLimitMiddleware)
 
+    app.add_middleware(CSRFMiddleware)
     app.add_middleware(CorrelationMiddleware)
     app.add_middleware(RequestSizeLimitMiddleware)
     app.add_middleware(CacheControlMiddleware)

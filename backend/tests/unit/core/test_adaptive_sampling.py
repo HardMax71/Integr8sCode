@@ -1,9 +1,10 @@
 import time
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from app.core.adaptive_sampling import AdaptiveSampler, create_adaptive_sampler
+from app.settings import Settings
 
 
 def test_is_error_variants() -> None:
@@ -66,9 +67,6 @@ def test_get_description_and_factory(monkeypatch: pytest.MonkeyPatch) -> None:
         desc = s.get_description()
         assert "AdaptiveSampler(" in desc
         s._running = False
-
-        from unittest.mock import MagicMock
-        from app.core.config import Settings
 
         mock_settings = MagicMock(spec=Settings)
         mock_settings.TRACING_SAMPLING_RATE = 0.2

@@ -15,6 +15,7 @@ from app.schemas_pydantic.dlq import (
 )
 from app.schemas_pydantic.user import MessageResponse
 from app.settings import Settings
+from tests.conftest import UserCredentials
 
 
 class _RetryRequest(TypedDict):
@@ -198,7 +199,7 @@ class TestDLQRoutes:
 
     @pytest.mark.asyncio
     async def test_set_retry_policy(
-        self, client: AsyncClient, test_user: dict[str, str], test_settings: Settings
+        self, client: AsyncClient, test_user: UserCredentials, test_settings: Settings
     ) -> None:
         """Test setting a retry policy for a topic."""
         # Set retry policy
@@ -212,7 +213,7 @@ class TestDLQRoutes:
             "retry_multiplier": 2.0
         }
 
-        response = await client.post("/api/v1/dlq/retry-policy", json=policy_data)
+        response = await client.post("/api/v1/dlq/retry-policy", json=policy_data, headers=test_user["headers"])
         assert response.status_code == 200
 
         # Validate response
@@ -222,7 +223,7 @@ class TestDLQRoutes:
         assert topic in result.message
 
     @pytest.mark.asyncio
-    async def test_retry_dlq_messages_batch(self, client: AsyncClient, test_user: dict[str, str]) -> None:
+    async def test_retry_dlq_messages_batch(self, client: AsyncClient, test_user: UserCredentials) -> None:
         """Test retrying a batch of DLQ messages."""
         # Get some failed messages to retry
         list_response = await client.get("/api/v1/dlq/messages?status=discarded&limit=3")
@@ -238,7 +239,7 @@ class TestDLQRoutes:
                 "event_ids": event_ids
             }
 
-            retry_response = await client.post("/api/v1/dlq/retry", json=retry_request)
+            retry_response = await client.post("/api/v1/dlq/retry", json=retry_request, headers=test_user["headers"])
             assert retry_response.status_code == 200
 
             # Validate retry response
@@ -259,7 +260,7 @@ class TestDLQRoutes:
                     assert "success" in detail
 
     @pytest.mark.asyncio
-    async def test_discard_dlq_message(self, client: AsyncClient, test_user: dict[str, str]) -> None:
+    async def test_discard_dlq_message(self, client: AsyncClient, test_user: UserCredentials) -> None:
         """Test discarding a DLQ message."""
         # Get a failed message to discard
         list_response = await client.get("/api/v1/dlq/messages?status=discarded&limit=1")
@@ -272,7 +273,8 @@ class TestDLQRoutes:
             # Discard the message
             discard_reason = "Test discard - message unrecoverable"
             discard_response = await client.delete(
-                f"/api/v1/dlq/messages/{event_id}?reason={discard_reason}"
+                f"/api/v1/dlq/messages/{event_id}?reason={discard_reason}",
+                headers=test_user["headers"]
             )
             assert discard_response.status_code == 200
 
@@ -358,7 +360,7 @@ class TestDLQRoutes:
                 assert len(page1_ids.intersection(page2_ids)) == 0
 
     @pytest.mark.asyncio
-    async def test_dlq_error_handling(self, client: AsyncClient, test_user: dict[str, str]) -> None:
+    async def test_dlq_error_handling(self, client: AsyncClient, test_user: UserCredentials) -> None:
         """Test DLQ error handling for invalid requests."""
         # Test invalid limit
         response = await client.get("/api/v1/dlq/messages?limit=10000")  # Too high
@@ -377,12 +379,12 @@ class TestDLQRoutes:
         retry_request: _RetryRequest = {
             "event_ids": []
         }
-        response = await client.post("/api/v1/dlq/retry", json=retry_request)
+        response = await client.post("/api/v1/dlq/retry", json=retry_request, headers=test_user["headers"])
         # Should handle gracefully or reject invalid input
         assert response.status_code in [200, 400, 404, 422]
 
         # Test discard without reason
         fake_event_id = "00000000-0000-0000-0000-000000000000"
-        response = await client.delete(f"/api/v1/dlq/messages/{fake_event_id}")
+        response = await client.delete(f"/api/v1/dlq/messages/{fake_event_id}", headers=test_user["headers"])
         # Should require reason parameter
         assert response.status_code in [400, 422, 404]

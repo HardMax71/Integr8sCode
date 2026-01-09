@@ -177,7 +177,7 @@ async def test_get_status() -> None:
 async def test_reconciliation_loop_and_state() -> None:
     cfg = PodMonitorConfig()
     cfg.enable_state_reconciliation = True
-    cfg.reconcile_interval_seconds = 1  # Use 1 second for testing
+    cfg.reconcile_interval_seconds = 0  # sleep(0) yields control immediately
 
     pm = make_pod_monitor(config=cfg)
     pm._state = MonitorState.RUNNING
@@ -334,7 +334,7 @@ async def test_process_pod_event_exception_handling() -> None:
 
     event = PodEvent(
         event_type=WatchEventType.ADDED,
-        pod=make_pod(name="fail-pod", phase="Pending"),  # type: ignore[arg-type]
+        pod=make_pod(name="fail-pod", phase="Pending"),
         resource_version=None,
     )
 
@@ -699,7 +699,7 @@ async def test_watch_pod_events_with_field_selector() -> None:
 async def test_reconciliation_loop_exception() -> None:
     cfg = PodMonitorConfig()
     cfg.enable_state_reconciliation = True
-    cfg.reconcile_interval_seconds = 1  # Use 1 second for testing
+    cfg.reconcile_interval_seconds = 0  # sleep(0) yields control immediately
 
     pm = make_pod_monitor(config=cfg)
     pm._state = MonitorState.RUNNING

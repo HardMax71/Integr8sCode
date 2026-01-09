@@ -74,17 +74,32 @@ class SecurityService:
 
         return hmac.compare_digest(header_token, cookie_token)
 
+    # Paths exempt from CSRF validation (auth handles its own security)
+    CSRF_EXEMPT_PATHS: frozenset[str] = frozenset({
+        "/api/v1/auth/login",
+        "/api/v1/auth/register",
+        "/api/v1/auth/logout",
+    })
+
     def validate_csrf_from_request(self, request: Request) -> str:
-        """Validate CSRF token from HTTP request using double-submit cookie pattern"""
+        """Validate CSRF token from HTTP request using double-submit cookie pattern.
+
+        Returns:
+            "skip" if validation was skipped (safe method, exempt path, or unauthenticated)
+            The validated token string if validation passed
+
+        Raises:
+            CSRFValidationError: If token is missing or invalid
+        """
         # Skip CSRF validation for safe methods
-        if request.method in ["GET", "HEAD", "OPTIONS"]:
+        if request.method in ("GET", "HEAD", "OPTIONS"):
             return "skip"
 
         # Skip CSRF validation for auth endpoints
-        if request.url.path in ["/api/v1/login", "/api/v1/register", "/api/v1/logout"]:
+        if request.url.path in self.CSRF_EXEMPT_PATHS:
             return "skip"
 
-        # Skip CSRF validation for non-API endpoints
+        # Skip CSRF validation for non-API endpoints (health, metrics, etc.)
         if not request.url.path.startswith("/api/"):
             return "skip"
 
@@ -99,9 +114,9 @@ class SecurityService:
         cookie_token = request.cookies.get("csrf_token", "")
 
         if not header_token:
-            raise CSRFValidationError("CSRF token missing")
+            raise CSRFValidationError("CSRF token missing from X-CSRF-Token header")
 
         if not self.validate_csrf_token(header_token, cookie_token):
-            raise CSRFValidationError("CSRF token invalid")
+            raise CSRFValidationError("CSRF token invalid or does not match cookie")
 
         return header_token

@@ -12,7 +12,7 @@ from app.domain.enums.kafka import KafkaTopic
 from app.events.core import EventDispatcher
 from app.infrastructure.kafka.events import BaseEvent
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata
-from app.services.schema_registry_manager import SchemaRegistryManager
+from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
 from app.services.sse.redis_bus import SSERedisBus
 from app.settings import Settings

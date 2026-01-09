@@ -146,7 +146,7 @@ class PodMonitor(LifecycleEnabled):
         self.logger.info("Starting PodMonitor service...")
 
         # Verify K8s connectivity (all clients already injected via __init__)
-        self._v1.get_api_resources()
+        await asyncio.to_thread(self._v1.get_api_resources)
         self.logger.info("Successfully connected to Kubernetes API")
 
         # Start monitoring

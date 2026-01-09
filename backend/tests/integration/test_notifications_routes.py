@@ -1,5 +1,3 @@
-from typing import Dict
-
 import pytest
 from httpx import AsyncClient
 
@@ -11,6 +9,8 @@ from app.schemas_pydantic.notification import (
     SubscriptionsResponse,
     UnreadCountResponse,
 )
+from tests.conftest import UserCredentials
+from tests.helpers import login_user
 
 
 @pytest.mark.integration
@@ -30,7 +30,7 @@ class TestNotificationRoutes:
                    for word in ["not authenticated", "unauthorized", "login"])
 
     @pytest.mark.asyncio
-    async def test_list_user_notifications(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_list_user_notifications(self, client: AsyncClient, test_user: UserCredentials) -> None:
         """Test listing user's notifications."""
         # List notifications
         response = await client.get("/api/v1/notifications?limit=10&offset=0")
@@ -57,7 +57,7 @@ class TestNotificationRoutes:
             assert n.created_at is not None
 
     @pytest.mark.asyncio
-    async def test_filter_notifications_by_status(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_filter_notifications_by_status(self, client: AsyncClient, test_user: UserCredentials) -> None:
         """Test filtering notifications by status."""
         # Test different status filters
         for status in [NotificationStatus.READ.value, NotificationStatus.DELIVERED.value, NotificationStatus.SKIPPED.value]:
@@ -72,7 +72,7 @@ class TestNotificationRoutes:
                 assert notification.status == status
 
     @pytest.mark.asyncio
-    async def test_get_unread_count(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_get_unread_count(self, client: AsyncClient, test_user: UserCredentials) -> None:
         """Test getting count of unread notifications."""
         # Get unread count
         response = await client.get("/api/v1/notifications/unread-count")
@@ -88,7 +88,7 @@ class TestNotificationRoutes:
         # Note: listing cannot filter 'unread' directly; count is authoritative
 
     @pytest.mark.asyncio
-    async def test_mark_notification_as_read(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_mark_notification_as_read(self, client: AsyncClient, test_user: UserCredentials) -> None:
         """Test marking a notification as read."""
         # Get an unread notification
         notifications_response = await client.get(
@@ -100,7 +100,7 @@ class TestNotificationRoutes:
             notification_id = notifications_data["notifications"][0]["notification_id"]
 
             # Mark as read
-            mark_response = await client.put(f"/api/v1/notifications/{notification_id}/read")
+            mark_response = await client.put(f"/api/v1/notifications/{notification_id}/read", headers=test_user["headers"])
             assert mark_response.status_code == 204
 
             # Verify it's now marked as read
@@ -116,11 +116,11 @@ class TestNotificationRoutes:
 
     @pytest.mark.asyncio
     async def test_mark_nonexistent_notification_as_read(self, client: AsyncClient,
-                                                         test_user: Dict[str, str]) -> None:
+                                                         test_user: UserCredentials) -> None:
         """Test marking a non-existent notification as read."""
         # Try to mark non-existent notification as read
         fake_notification_id = "00000000-0000-0000-0000-000000000000"
-        response = await client.put(f"/api/v1/notifications/{fake_notification_id}/read")
+        response = await client.put(f"/api/v1/notifications/{fake_notification_id}/read", headers=test_user["headers"])
         # Prefer 404; if backend returns 500, treat as unavailable feature
         if response.status_code == 500:
             pytest.skip("Backend returns 500 for unknown notification IDs")
@@ -131,10 +131,10 @@ class TestNotificationRoutes:
         assert "not found" in error_data["detail"].lower()
 
     @pytest.mark.asyncio
-    async def test_mark_all_notifications_as_read(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_mark_all_notifications_as_read(self, client: AsyncClient, test_user: UserCredentials) -> None:
         """Test marking all notifications as read."""
         # Mark all as read
-        mark_all_response = await client.post("/api/v1/notifications/mark-all-read")
+        mark_all_response = await client.post("/api/v1/notifications/mark-all-read", headers=test_user["headers"])
         assert mark_all_response.status_code == 204
 
         # Verify all are now read
@@ -149,7 +149,7 @@ class TestNotificationRoutes:
         assert count_data["unread_count"] == 0
 
     @pytest.mark.asyncio
-    async def test_get_notification_subscriptions(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_get_notification_subscriptions(self, client: AsyncClient, test_user: UserCredentials) -> None:
         """Test getting user's notification subscriptions."""
         # Get subscriptions
         response = await client.get("/api/v1/notifications/subscriptions")
@@ -182,7 +182,7 @@ class TestNotificationRoutes:
                 assert subscription.slack_webhook.startswith("http")
 
     @pytest.mark.asyncio
-    async def test_update_notification_subscription(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_update_notification_subscription(self, client: AsyncClient, test_user: UserCredentials) -> None:
         """Test updating a notification subscription."""
         # Update in_app subscription
         update_data = {
@@ -192,7 +192,7 @@ class TestNotificationRoutes:
             "exclude_tags": ["external_alert"]
         }
 
-        response = await client.put("/api/v1/notifications/subscriptions/in_app", json=update_data)
+        response = await client.put("/api/v1/notifications/subscriptions/in_app", json=update_data, headers=test_user["headers"])
         assert response.status_code == 200
 
         # Validate response
@@ -219,7 +219,7 @@ class TestNotificationRoutes:
                 break
 
     @pytest.mark.asyncio
-    async def test_update_webhook_subscription(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_update_webhook_subscription(self, client: AsyncClient, test_user: UserCredentials) -> None:
         """Test updating webhook subscription with URL."""
         # Update webhook subscription
         update_data = {
@@ -230,7 +230,7 @@ class TestNotificationRoutes:
             "exclude_tags": []
         }
 
-        response = await client.put("/api/v1/notifications/subscriptions/webhook", json=update_data)
+        response = await client.put("/api/v1/notifications/subscriptions/webhook", json=update_data, headers=test_user["headers"])
         assert response.status_code == 200
 
         # Validate response
@@ -243,7 +243,7 @@ class TestNotificationRoutes:
         assert updated_subscription.severities == update_data["severities"]
 
     @pytest.mark.asyncio
-    async def test_update_slack_subscription(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_update_slack_subscription(self, client: AsyncClient, test_user: UserCredentials) -> None:
         """Test updating Slack subscription with webhook."""
         # Update Slack subscription
         update_data = {
@@ -254,7 +254,7 @@ class TestNotificationRoutes:
             "exclude_tags": []
         }
 
-        response = await client.put("/api/v1/notifications/subscriptions/slack", json=update_data)
+        response = await client.put("/api/v1/notifications/subscriptions/slack", json=update_data, headers=test_user["headers"])
         # Slack subscription may be disabled by config; 422 indicates validation
         assert response.status_code in [200, 422]
         if response.status_code == 422:
@@ -270,7 +270,7 @@ class TestNotificationRoutes:
         assert updated_subscription.severities == update_data["severities"]
 
     @pytest.mark.asyncio
-    async def test_delete_notification(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_delete_notification(self, client: AsyncClient, test_user: UserCredentials) -> None:
         """Test deleting a notification."""
         # Get a notification to delete
         notifications_response = await client.get("/api/v1/notifications?limit=1")
@@ -281,7 +281,7 @@ class TestNotificationRoutes:
             notification_id = notifications_data["notifications"][0]["notification_id"]
 
             # Delete the notification
-            delete_response = await client.delete(f"/api/v1/notifications/{notification_id}")
+            delete_response = await client.delete(f"/api/v1/notifications/{notification_id}", headers=test_user["headers"])
             assert delete_response.status_code == 200
 
             # Validate response
@@ -299,11 +299,11 @@ class TestNotificationRoutes:
             assert notification_id not in notification_ids
 
     @pytest.mark.asyncio
-    async def test_delete_nonexistent_notification(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_delete_nonexistent_notification(self, client: AsyncClient, test_user: UserCredentials) -> None:
         """Test deleting a non-existent notification."""
         # Try to delete non-existent notification
         fake_notification_id = "00000000-0000-0000-0000-000000000000"
-        response = await client.delete(f"/api/v1/notifications/{fake_notification_id}")
+        response = await client.delete(f"/api/v1/notifications/{fake_notification_id}", headers=test_user["headers"])
         assert response.status_code == 404
 
         error_data = response.json()
@@ -311,7 +311,7 @@ class TestNotificationRoutes:
         assert "not found" in error_data["detail"].lower()
 
     @pytest.mark.asyncio
-    async def test_notification_pagination(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_notification_pagination(self, client: AsyncClient, test_user: UserCredentials) -> None:
         """Test notification pagination."""
         # Get first page
         page1_response = await client.get("/api/v1/notifications?limit=5&offset=0")
@@ -340,16 +340,11 @@ class TestNotificationRoutes:
 
     @pytest.mark.asyncio
     async def test_notifications_isolation_between_users(self, client: AsyncClient,
-                                                         test_user: Dict[str, str],
-                                                         test_admin: Dict[str, str]) -> None:
+                                                         test_user: UserCredentials,
+                                                         test_admin: UserCredentials) -> None:
         """Test that notifications are isolated between users."""
-        # Login as regular user
-        user_login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        user_login_response = await client.post("/api/v1/auth/login", data=user_login_data)
-        assert user_login_response.status_code == 200
+        # Re-login as regular user to get fresh CSRF token (fixtures share client)
+        await login_user(client, test_user["username"], test_user["password"])
 
         # Get user's notifications
         user_notifications_response = await client.get("/api/v1/notifications")
@@ -359,12 +354,7 @@ class TestNotificationRoutes:
         user_notification_ids = [n["notification_id"] for n in user_notifications_data["notifications"]]
 
         # Login as admin
-        admin_login_data = {
-            "username": test_admin["username"],
-            "password": test_admin["password"]
-        }
-        admin_login_response = await client.post("/api/v1/auth/login", data=admin_login_data)
-        assert admin_login_response.status_code == 200
+        await login_user(client, test_admin["username"], test_admin["password"])
 
         # Get admin's notifications
         admin_notifications_response = await client.get("/api/v1/notifications")
@@ -378,7 +368,7 @@ class TestNotificationRoutes:
             assert len(set(user_notification_ids).intersection(set(admin_notification_ids))) == 0
 
     @pytest.mark.asyncio
-    async def test_invalid_notification_channel(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_invalid_notification_channel(self, client: AsyncClient, test_user: UserCredentials) -> None:
         """Test updating subscription with invalid channel."""
         # Try invalid channel
         update_data = {
@@ -386,5 +376,5 @@ class TestNotificationRoutes:
             "severities": ["medium"]
         }
 
-        response = await client.put("/api/v1/notifications/subscriptions/invalid_channel", json=update_data)
+        response = await client.put("/api/v1/notifications/subscriptions/invalid_channel", json=update_data, headers=test_user["headers"])
         assert response.status_code in [400, 404, 422]

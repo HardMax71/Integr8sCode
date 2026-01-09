@@ -107,7 +107,10 @@ async def db(scope: AsyncContainer) -> AsyncGenerator[Database, None]:
 @pytest_asyncio.fixture
 async def redis_client(scope: AsyncContainer) -> AsyncGenerator[redis.Redis, None]:
     client: redis.Redis = await scope.get(redis.Redis)
-    yield client
+    try:
+        yield client
+    finally:
+        await client.aclose()
 
 
 # ===== HTTP helpers (auth) =====

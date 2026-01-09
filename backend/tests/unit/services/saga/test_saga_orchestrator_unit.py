@@ -20,7 +20,7 @@ from app.services.idempotency.idempotency_manager import IdempotencyManager
 from app.services.saga.base_saga import BaseSaga
 from app.services.saga.saga_orchestrator import SagaOrchestrator
 from app.services.saga.saga_step import CompensationStep, SagaContext, SagaStep
-from app.services.schema_registry_manager import SchemaRegistryManager
+from app.events.schema.schema_registry import SchemaRegistryManager
 from app.settings import Settings
 
 pytestmark = pytest.mark.unit
@@ -29,9 +29,13 @@ _test_logger = logging.getLogger("test.services.saga.orchestrator")
 
 
 class _FakeEvent(BaseEvent):
-    """Fake event for testing that extends BaseEvent."""
+    """Fake event for testing that extends BaseEvent.
 
-    event_type: EventType = EventType.EXECUTION_REQUESTED
+    Note: event_type has no default to avoid polluting the global event type mapping
+    (which is built from BaseEvent subclasses with default event_type values).
+    """
+
+    event_type: EventType  # No default - set explicitly in _make_event()
     execution_id: str = ""
     topic: ClassVar[KafkaTopic] = KafkaTopic.EXECUTION_EVENTS
     metadata: AvroEventMetadata = Field(default_factory=lambda: AvroEventMetadata(

@@ -115,7 +115,7 @@ class _FakeRouter(SSEKafkaRedisBridge):
         # Skip parent __init__
         pass
 
-    def get_stats(self) -> dict[str, int | bool]:  # type: ignore[override]
+    def get_stats(self) -> dict[str, int | bool]:
         return {"num_consumers": 3, "active_executions": 2, "is_running": True, "total_buffers": 0}
 
 

@@ -562,7 +562,6 @@ class BusinessServicesProvider(Provider):
     def __init__(self) -> None:
         super().__init__()
         # Register shared factory functions on instance (avoids warning about missing self)
-        self.provide(_provide_saga_orchestrator)
         self.provide(_provide_execution_coordinator)
 
     @provide

@@ -34,7 +34,7 @@ class UnifiedProducer(LifecycleEnabled):
         schema_registry_manager: SchemaRegistryManager,
         logger: logging.Logger,
         stats_callback: StatsCallback | None = None,
-        settings: Settings | None = None,
+        settings: Settings = get_settings(),
     ):
         super().__init__()
         self._config = config
@@ -46,8 +46,7 @@ class UnifiedProducer(LifecycleEnabled):
         self._metrics = ProducerMetrics()
         self._event_metrics = get_event_metrics()  # Singleton for Kafka metrics
         self._poll_task: asyncio.Task[None] | None = None
-        # Topic prefix (for tests/local isolation); cached on init
-        self._topic_prefix = (settings or get_settings()).KAFKA_TOPIC_PREFIX
+        self._topic_prefix = settings.KAFKA_TOPIC_PREFIX
 
     @property
     def is_running(self) -> bool:

@@ -120,9 +120,8 @@ class MetricsMiddleware:
 
 def setup_metrics(app: FastAPI, settings: Settings, logger: logging.Logger) -> None:
     """Set up OpenTelemetry metrics with OTLP exporter."""
-    # Fast opt-out for tests or when explicitly disabled
-    if settings.TESTING:
-        logger.info("OpenTelemetry metrics disabled (TESTING)")
+    if not settings.OTEL_EXPORTER_OTLP_ENDPOINT:
+        logger.warning("OTEL_EXPORTER_OTLP_ENDPOINT not configured, skipping metrics setup")
         return
 
     # Configure OpenTelemetry resource
@@ -130,7 +129,7 @@ def setup_metrics(app: FastAPI, settings: Settings, logger: logging.Logger) -> N
         {
             SERVICE_NAME: settings.PROJECT_NAME,
             SERVICE_VERSION: "1.0.0",
-            "service.environment": "test" if settings.TESTING else "production",
+            "service.environment": "production",
         }
     )
 

@@ -51,7 +51,7 @@ class BaseMetrics:
         """
         # If tracing/metrics disabled or no OTLP endpoint configured, use NoOp meter to avoid threads/network
         settings = get_settings()
-        if settings.TESTING or not settings.ENABLE_TRACING:
+        if settings.TESTING or not settings.ENABLE_TRACING or not config.otlp_endpoint:
             return NoOpMeterProvider().get_meter(meter_name)
 
         resource = Resource.create(

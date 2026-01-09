@@ -61,6 +61,8 @@ class TestSSERoutes:
 
                         # After connected, publish the notification
                         if data.get("event_type") == "connected":
+                            # Small delay to let Redis pubsub subscription fully establish
+                            await asyncio.sleep(0.1)
                             notification = RedisNotificationMessage(
                                 notification_id=f"notif-{uuid4().hex[:8]}",
                                 severity=NotificationSeverity.MEDIUM,
@@ -105,6 +107,8 @@ class TestSSERoutes:
 
                         # After connected, publish the pod event
                         if data.get("event_type") == "connected":
+                            # Small delay to let Redis pubsub subscription fully establish
+                            await asyncio.sleep(0.1)
                             ev = PodCreatedEvent(
                                 execution_id=exec_id,
                                 pod_name=f"executor-{exec_id}",

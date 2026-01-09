@@ -104,32 +104,16 @@ async def _http_login(client: httpx.AsyncClient, username: str, password: str) -
     return resp.json().get("csrf_token", "")
 
 
-@pytest.fixture
-def test_user_credentials():
+@pytest_asyncio.fixture
+async def test_user(client: httpx.AsyncClient):
+    """Function-scoped authenticated user."""
     uid = uuid.uuid4().hex[:8]
-    return {
+    creds = {
         "username": f"test_user_{uid}",
         "email": f"test_user_{uid}@example.com",
         "password": "TestPass123!",
         "role": "user",
     }
-
-
-@pytest.fixture
-def test_admin_credentials():
-    uid = uuid.uuid4().hex[:8]
-    return {
-        "username": f"admin_user_{uid}",
-        "email": f"admin_user_{uid}@example.com",
-        "password": "AdminPass123!",
-        "role": "admin",
-    }
-
-
-@pytest_asyncio.fixture
-async def test_user(client: httpx.AsyncClient, test_user_credentials):
-    """Function-scoped authenticated user."""
-    creds = test_user_credentials
     r = await client.post("/api/v1/auth/register", json=creds)
     if r.status_code not in (200, 201, 400):
         pytest.fail(f"Cannot create test user (status {r.status_code}): {r.text}")
@@ -138,9 +122,15 @@ async def test_user(client: httpx.AsyncClient, test_user_credentials):
 
 
 @pytest_asyncio.fixture
-async def test_admin(client: httpx.AsyncClient, test_admin_credentials):
+async def test_admin(client: httpx.AsyncClient):
     """Function-scoped authenticated admin."""
-    creds = test_admin_credentials
+    uid = uuid.uuid4().hex[:8]
+    creds = {
+        "username": f"admin_user_{uid}",
+        "email": f"admin_user_{uid}@example.com",
+        "password": "AdminPass123!",
+        "role": "admin",
+    }
     r = await client.post("/api/v1/auth/register", json=creds)
     if r.status_code not in (200, 201, 400):
         pytest.fail(f"Cannot create test admin (status {r.status_code}): {r.text}")

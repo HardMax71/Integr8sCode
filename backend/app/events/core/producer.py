@@ -6,15 +6,16 @@ import threading
 from datetime import datetime, timezone
 from typing import Any, Callable, TypeAlias
 
+from confluent_kafka import Message, Producer
+from confluent_kafka.error import KafkaError
+
 from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics.context import get_event_metrics
 from app.dlq.models import DLQMessage, DLQMessageStatus
 from app.domain.enums.kafka import KafkaTopic
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.events import BaseEvent
-from app.settings import Settings, get_settings
-from confluent_kafka import Message, Producer
-from confluent_kafka.error import KafkaError
+from app.settings import Settings
 
 from .types import ProducerConfig, ProducerMetrics, ProducerState
 

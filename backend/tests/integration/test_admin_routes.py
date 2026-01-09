@@ -29,15 +29,7 @@ class TestAdminSettings:
     @pytest.mark.asyncio
     async def test_get_settings_with_admin_auth(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
         """Test getting system settings with admin authentication."""
-        # Login and get cookies
-        login_data = {
-            "username": test_admin["username"],
-            "password": test_admin["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
-        # Now get settings with auth cookie
+        # Get settings with auth cookie (logged in via test_admin fixture)
         response = await client.get("/api/v1/admin/settings/")
         assert response.status_code == 200
 
@@ -70,14 +62,6 @@ class TestAdminSettings:
     @pytest.mark.asyncio
     async def test_update_and_reset_settings(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
         """Test updating and resetting system settings."""
-        # Login as admin
-        login_data = {
-            "username": test_admin["username"],
-            "password": test_admin["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Get original settings
         original_response = await client.get("/api/v1/admin/settings/")
         assert original_response.status_code == 200
@@ -127,15 +111,7 @@ class TestAdminSettings:
     @pytest.mark.asyncio
     async def test_regular_user_cannot_access_settings(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test that regular users cannot access admin settings."""
-        # Login as regular user
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
-        # Try to access admin settings
+        # Try to access admin settings (logged in as regular user via test_user fixture)
         response = await client.get("/api/v1/admin/settings/")
         assert response.status_code == 403
 
@@ -151,14 +127,6 @@ class TestAdminUsers:
     @pytest.mark.asyncio
     async def test_list_users_with_pagination(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
         """Test listing users with pagination."""
-        # Login as admin
-        login_data = {
-            "username": test_admin["username"],
-            "password": test_admin["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # List users
         response = await client.get("/api/v1/admin/users/?limit=10&offset=0")
         assert response.status_code == 200
@@ -190,14 +158,6 @@ class TestAdminUsers:
     @pytest.mark.asyncio
     async def test_create_and_manage_user(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
         """Test full user CRUD operations."""
-        # Login as admin
-        login_data = {
-            "username": test_admin["username"],
-            "password": test_admin["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Create a new user
         unique_id = str(uuid4())[:8]
         new_user_data = {
@@ -259,14 +219,6 @@ class TestAdminEvents:
     @pytest.mark.asyncio
     async def test_browse_events(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
         """Test browsing events with filters."""
-        # Login as admin
-        login_data = {
-            "username": test_admin["username"],
-            "password": test_admin["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Browse events
         browse_payload = {
             "filters": {
@@ -293,14 +245,6 @@ class TestAdminEvents:
     @pytest.mark.asyncio
     async def test_event_statistics(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
         """Test getting event statistics."""
-        # Login as admin
-        login_data = {
-            "username": test_admin["username"],
-            "password": test_admin["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Get event statistics
         response = await client.get("/api/v1/admin/events/stats?hours=24")
         assert response.status_code == 200
@@ -326,11 +270,6 @@ class TestAdminEvents:
     @pytest.mark.asyncio
     async def test_admin_events_export_csv_and_json(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
         """Export admin events as CSV and JSON and validate basic structure."""
-        # Login as admin
-        login_data = {"username": test_admin["username"], "password": test_admin["password"]}
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # CSV export
         r_csv = await client.get("/api/v1/admin/events/export/csv?limit=10")
         assert r_csv.status_code == 200, f"CSV export failed: {r_csv.status_code} - {r_csv.text[:200]}"
@@ -354,11 +293,6 @@ class TestAdminEvents:
     async def test_admin_user_rate_limits_and_password_reset(self, client: AsyncClient,
                                                              test_admin: Dict[str, str]) -> None:
         """Create a user, manage rate limits, and reset password via admin endpoints."""
-        # Login as admin
-        login_data = {"username": test_admin["username"], "password": test_admin["password"]}
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Create a new user to operate on
         unique_id = str(uuid4())[:8]
         new_user = {

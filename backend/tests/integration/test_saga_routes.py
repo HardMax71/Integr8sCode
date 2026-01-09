@@ -107,14 +107,6 @@ class TestSagaRoutes:
             self, client: AsyncClient, test_user: Dict[str, str]
     ) -> None:
         """Test listing sagas filtered by state."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # List completed sagas
         response = await client.get(
             "/api/v1/sagas/",
@@ -133,14 +125,6 @@ class TestSagaRoutes:
             self, client: AsyncClient, test_user: Dict[str, str]
     ) -> None:
         """Test listing sagas with maximum limit."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # List with max limit
         response = await client.get(
             "/api/v1/sagas/",
@@ -156,14 +140,6 @@ class TestSagaRoutes:
             self, client: AsyncClient, test_user: Dict[str, str]
     ) -> None:
         """Test listing sagas with invalid limit."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Try with limit too large
         response = await client.get(
             "/api/v1/sagas/",
@@ -183,14 +159,6 @@ class TestSagaRoutes:
             self, client: AsyncClient, test_user: Dict[str, str]
     ) -> None:
         """Test cancelling non-existent saga returns 404."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Try to cancel non-existent saga
         saga_id = str(uuid.uuid4())
         response = await client.post(f"/api/v1/sagas/{saga_id}/cancel")
@@ -243,14 +211,6 @@ class TestSagaRoutes:
             self, client: AsyncClient, test_user: Dict[str, str]
     ) -> None:
         """Test getting saga with all details when it exists."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # First list sagas to potentially find one
         list_response = await client.get("/api/v1/sagas/", params={"limit": 1})
         assert list_response.status_code == 200
@@ -274,14 +234,6 @@ class TestSagaRoutes:
             self, client: AsyncClient, test_user: Dict[str, str]
     ) -> None:
         """Test listing sagas with offset for pagination."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Get first page
         response1 = await client.get(
             "/api/v1/sagas/",
@@ -310,14 +262,6 @@ class TestSagaRoutes:
             self, client: AsyncClient, test_user: Dict[str, str]
     ) -> None:
         """Test cancelling a saga in invalid state (if one exists)."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Try to find a completed saga to cancel
         response = await client.get(
             "/api/v1/sagas/",
@@ -338,14 +282,6 @@ class TestSagaRoutes:
             self, client: AsyncClient, test_user: Dict[str, str]
     ) -> None:
         """Test getting execution sagas across different states."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         execution_id = str(uuid.uuid4())
 
         # Test each state filter
@@ -370,14 +306,6 @@ class TestSagaRoutes:
             self, client: AsyncClient, test_user: Dict[str, str]
     ) -> None:
         """Test that saga responses have correct structure."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # List sagas to verify response structure
         response = await client.get("/api/v1/sagas/", params={"limit": 1})
         assert response.status_code == 200
@@ -401,14 +329,6 @@ class TestSagaRoutes:
             self, client: AsyncClient, test_user: Dict[str, str]
     ) -> None:
         """Test concurrent access to saga endpoints."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Make multiple concurrent requests
         tasks = []
         for i in range(5):

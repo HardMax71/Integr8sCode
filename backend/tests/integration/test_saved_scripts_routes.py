@@ -285,14 +285,6 @@ class TestSavedScripts:
     @pytest.mark.asyncio
     async def test_script_with_invalid_language(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test that invalid language/version combinations are handled."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         unique_id = str(uuid4())[:8]
 
         # Try invalid language
@@ -322,14 +314,6 @@ class TestSavedScripts:
     @pytest.mark.asyncio
     async def test_script_name_constraints(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test script name validation and constraints."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Test empty name
         empty_name_data = {
             "name": "",
@@ -358,14 +342,6 @@ class TestSavedScripts:
     @pytest.mark.asyncio
     async def test_script_content_size_limits(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test script content size limits."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         unique_id = str(uuid4())[:8]
 
         # Test reasonably large script (should succeed)
@@ -398,14 +374,6 @@ class TestSavedScripts:
     @pytest.mark.asyncio
     async def test_update_nonexistent_script(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test updating a non-existent script."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         fake_script_id = "00000000-0000-0000-0000-000000000000"
 
         update_data = {
@@ -425,14 +393,6 @@ class TestSavedScripts:
     @pytest.mark.asyncio
     async def test_delete_nonexistent_script(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test deleting a non-existent script."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         fake_script_id = "00000000-0000-0000-0000-000000000000"
 
         response = await client.delete(f"/api/v1/scripts/{fake_script_id}")

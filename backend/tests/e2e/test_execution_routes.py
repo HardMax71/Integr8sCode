@@ -39,14 +39,6 @@ class TestExecution:
     @pytest.mark.asyncio
     async def test_execute_simple_python_script(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test executing a simple Python script."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Execute script
         execution_request = {
             "script": "print('Hello from real backend!')",
@@ -82,14 +74,6 @@ class TestExecution:
     @pytest.mark.asyncio
     async def test_get_execution_result(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test getting execution result after completion using SSE (event-driven)."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Execute a simple script
         execution_request = {
             "script": "print('Test output')\nprint('Line 2')",
@@ -122,14 +106,6 @@ class TestExecution:
     @pytest.mark.asyncio
     async def test_execute_with_error(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test executing a script that produces an error."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Execute script with intentional error
         execution_request = {
             "script": "print('Before error')\nraise ValueError('Test error')\nprint('After error')",
@@ -147,14 +123,6 @@ class TestExecution:
     @pytest.mark.asyncio
     async def test_execute_with_resource_tracking(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test that execution tracks resource usage."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Execute script that uses some resources
         execution_request = {
             "script": """
@@ -189,14 +157,6 @@ print('Done')
     async def test_execute_with_different_language_versions(self, client: AsyncClient,
                                                             test_user: Dict[str, str]) -> None:
         """Test execution with different Python versions."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Test different Python versions (if supported)
         test_cases = [
             ("3.10", "import sys; print(f'Python {sys.version}')"),
@@ -222,14 +182,6 @@ print('Done')
     @pytest.mark.asyncio
     async def test_execute_with_large_output(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test execution with large output."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Script that produces large output
         execution_request = {
             "script": """
@@ -260,14 +212,6 @@ print('End of output')
     @pytest.mark.asyncio
     async def test_cancel_running_execution(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test cancelling a running execution."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Start a long-running script
         execution_request = {
             "script": """
@@ -311,14 +255,6 @@ print('Should not reach here if cancelled')
         assert that within a short window the execution is either still
         running or has transitioned to a terminal state due to platform limits.
         """
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Script that would run forever
         execution_request = {
             "script": """
@@ -343,14 +279,6 @@ while True:
     @pytest.mark.asyncio
     async def test_sandbox_restrictions(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test that dangerous operations are blocked by sandbox."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Try dangerous operations that should be blocked
         dangerous_scripts = [
             # File system access
@@ -399,14 +327,6 @@ while True:
     @pytest.mark.asyncio
     async def test_concurrent_executions_by_same_user(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test running multiple executions concurrently."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Submit multiple executions
         execution_request = {
             "script": "import time; time.sleep(1); print('Concurrent test')",
@@ -466,11 +386,6 @@ while True:
     @pytest.mark.asyncio
     async def test_get_user_executions_list(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """User executions list returns paginated executions for current user."""
-        # Login first
-        login_data = {"username": test_user["username"], "password": test_user["password"]}
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # List executions
         response = await client.get("/api/v1/user/executions?limit=5&skip=0")
         assert response.status_code == 200
@@ -481,11 +396,6 @@ while True:
     async def test_execution_idempotency_same_key_returns_same_execution(self, client: AsyncClient,
                                                                          test_user: Dict[str, str]) -> None:
         """Submitting the same request with the same Idempotency-Key yields the same execution_id."""
-        # Login first
-        login_data = {"username": test_user["username"], "password": test_user["password"]}
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         execution_request = {
             "script": "print('Idempotency integration test')",
             "lang": "python",

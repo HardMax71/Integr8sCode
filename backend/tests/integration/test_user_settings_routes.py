@@ -1,10 +1,7 @@
-import asyncio
 from datetime import datetime, timezone
 from typing import Dict
-from uuid import uuid4
 
 import pytest
-import pytest_asyncio
 from httpx import AsyncClient
 
 from app.schemas_pydantic.user_settings import (
@@ -15,70 +12,6 @@ from tests.helpers.eventually import eventually
 
 # Force these tests to run sequentially on a single worker to avoid state conflicts
 pytestmark = pytest.mark.xdist_group(name="user_settings")
-
-
-@pytest_asyncio.fixture
-async def test_user(client: AsyncClient) -> Dict[str, str]:
-    """Create a fresh user for each test."""
-    uid = uuid4().hex[:8]
-    username = f"test_user_{uid}"
-    email = f"{username}@example.com"
-    password = "TestPass123!"
-
-    # Register the user
-    await client.post("/api/v1/auth/register", json={
-        "username": username,
-        "email": email,
-        "password": password,
-        "role": "user"
-    })
-
-    # Login to get CSRF token
-    login_resp = await client.post("/api/v1/auth/login", data={
-        "username": username,
-        "password": password
-    })
-    csrf = login_resp.json().get("csrf_token", "")
-
-    return {
-        "username": username,
-        "email": email,
-        "password": password,
-        "csrf_token": csrf,
-        "headers": {"X-CSRF-Token": csrf}
-    }
-
-
-@pytest_asyncio.fixture
-async def test_user2(client: AsyncClient) -> Dict[str, str]:
-    """Create a second fresh user for isolation tests."""
-    uid = uuid4().hex[:8]
-    username = f"test_user2_{uid}"
-    email = f"{username}@example.com"
-    password = "TestPass123!"
-
-    # Register the user
-    await client.post("/api/v1/auth/register", json={
-        "username": username,
-        "email": email,
-        "password": password,
-        "role": "user"
-    })
-
-    # Login to get CSRF token
-    login_resp = await client.post("/api/v1/auth/login", data={
-        "username": username,
-        "password": password
-    })
-    csrf = login_resp.json().get("csrf_token", "")
-
-    return {
-        "username": username,
-        "email": email,
-        "password": password,
-        "csrf_token": csrf,
-        "headers": {"X-CSRF-Token": csrf}
-    }
 
 
 @pytest.mark.integration
@@ -310,14 +243,6 @@ class TestUserSettingsRoutes:
     @pytest.mark.asyncio
     async def test_get_settings_history(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test getting settings change history."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_resp = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_resp.status_code == 200
-
         # Make some changes to build history (theme change)
         theme_update = {"theme": "dark"}
         response = await client.put("/api/v1/user/settings/theme", json=theme_update)
@@ -341,13 +266,6 @@ class TestUserSettingsRoutes:
     @pytest.mark.asyncio
     async def test_restore_settings_to_previous_point(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test restoring settings to a previous point in time."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        await client.post("/api/v1/auth/login", data=login_data)
-
         # Get original settings
         original_resp = await client.get("/api/v1/user/settings/")
         assert original_resp.status_code == 200
@@ -424,10 +342,10 @@ class TestUserSettingsRoutes:
     @pytest.mark.asyncio
     async def test_settings_isolation_between_users(self, client: AsyncClient,
                                                     test_user: Dict[str, str],
-                                                    test_user2: Dict[str, str]) -> None:
+                                                    another_user: Dict[str, str]) -> None:
         """Test that settings are isolated between users."""
 
-        # Login as first user
+        # Login as first user (fixture logs in another_user last, so re-login as test_user)
         login_data = {
             "username": test_user["username"],
             "password": test_user["password"]
@@ -447,8 +365,8 @@ class TestUserSettingsRoutes:
 
         # Login as second user
         login_data = {
-            "username": test_user2["username"],
-            "password": test_user2["password"]
+            "username": another_user["username"],
+            "password": another_user["password"]
         }
         await client.post("/api/v1/auth/login", data=login_data)
 

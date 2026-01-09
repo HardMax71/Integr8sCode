@@ -49,14 +49,6 @@ class TestHealthRoutes:
 
     @pytest.mark.asyncio
     async def test_app_responds_during_load(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
-        # Login first for creating load
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Create some load with execution requests
         async def create_load():
             execution_request = {

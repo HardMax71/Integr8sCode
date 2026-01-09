@@ -109,14 +109,6 @@ class TestEventsRoutes:
     @pytest.mark.asyncio
     async def test_get_execution_events(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test getting events for a specific execution."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Create an execution
         execution_request = {
             "script": "print('Test execution events')",
@@ -149,14 +141,6 @@ class TestEventsRoutes:
     @pytest.mark.asyncio
     async def test_query_events_advanced(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test advanced event querying with filters."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Query events with multiple filters
         query_request = {
             "event_types": [
@@ -193,14 +177,6 @@ class TestEventsRoutes:
     @pytest.mark.asyncio
     async def test_get_events_by_correlation_id(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test getting events by correlation ID."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Create an execution (which generates correlated events)
         execution_request = {
             "script": "print('Test correlation')",
@@ -233,14 +209,6 @@ class TestEventsRoutes:
     @pytest.mark.asyncio
     async def test_get_current_request_events(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test getting events for the current request."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Get current request events (might be empty if no correlation context)
         response = await client.get("/api/v1/events/current-request?limit=10")
         assert response.status_code == 200
@@ -255,14 +223,6 @@ class TestEventsRoutes:
     @pytest.mark.asyncio
     async def test_get_event_statistics(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test getting event statistics."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Get statistics for last 24 hours
         response = await client.get("/api/v1/events/statistics")
         assert response.status_code == 200
@@ -291,14 +251,6 @@ class TestEventsRoutes:
     @pytest.mark.asyncio
     async def test_get_single_event(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test getting a single event by ID."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Get user events to find an event ID
         events_response = await client.get("/api/v1/events/user?limit=1")
         assert events_response.status_code == 200
@@ -322,14 +274,6 @@ class TestEventsRoutes:
     @pytest.mark.asyncio
     async def test_get_nonexistent_event(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test getting a non-existent event."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Try to get non-existent event
         fake_event_id = str(uuid4())
         response = await client.get(f"/api/v1/events/{fake_event_id}")
@@ -342,14 +286,6 @@ class TestEventsRoutes:
     @pytest.mark.asyncio
     async def test_list_event_types(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test listing available event types."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # List event types
         response = await client.get("/api/v1/events/types/list")
         assert response.status_code == 200
@@ -373,15 +309,7 @@ class TestEventsRoutes:
     @pytest.mark.asyncio
     async def test_publish_custom_event_requires_admin(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test that publishing custom events requires admin privileges."""
-        # Login as regular user
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
-        # Try to publish custom event
+        # Try to publish custom event (logged in as regular user via fixture)
         publish_request = {
             "event_type": EventType.SYSTEM_ERROR.value,
             "payload": {
@@ -399,14 +327,6 @@ class TestEventsRoutes:
     @pytest.mark.kafka
     async def test_publish_custom_event_as_admin(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
         """Test publishing custom events as admin."""
-        # Login as admin
-        login_data = {
-            "username": test_admin["username"],
-            "password": test_admin["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Publish custom event (requires Kafka); skip if not available
         aggregate_id = str(uuid4())
         publish_request = {
@@ -436,14 +356,6 @@ class TestEventsRoutes:
     @pytest.mark.asyncio
     async def test_aggregate_events(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test event aggregation."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Create aggregation pipeline
         aggregation_request = {
             "pipeline": [
@@ -471,15 +383,7 @@ class TestEventsRoutes:
     @pytest.mark.asyncio
     async def test_delete_event_requires_admin(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test that deleting events requires admin privileges."""
-        # Login as regular user
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
-        # Try to delete an event
+        # Try to delete an event (logged in as regular user via fixture)
         fake_event_id = str(uuid4())
         response = await client.delete(f"/api/v1/events/{fake_event_id}")
         assert response.status_code == 403  # Forbidden for non-admin
@@ -488,15 +392,7 @@ class TestEventsRoutes:
     async def test_replay_aggregate_events_requires_admin(self, client: AsyncClient,
                                                           test_user: Dict[str, str]) -> None:
         """Test that replaying events requires admin privileges."""
-        # Login as regular user
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
-        # Try to replay events
+        # Try to replay events (logged in as regular user via fixture)
         aggregate_id = str(uuid4())
         response = await client.post(f"/api/v1/events/replay/{aggregate_id}?dry_run=true")
         assert response.status_code == 403  # Forbidden for non-admin
@@ -504,14 +400,6 @@ class TestEventsRoutes:
     @pytest.mark.asyncio
     async def test_replay_aggregate_events_dry_run(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
         """Test replaying events in dry-run mode."""
-        # Login as admin
-        login_data = {
-            "username": test_admin["username"],
-            "password": test_admin["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Get an existing aggregate ID from events
         events_response = await client.get("/api/v1/events/user?limit=1")
         assert events_response.status_code == 200
@@ -545,14 +433,6 @@ class TestEventsRoutes:
     @pytest.mark.asyncio
     async def test_event_pagination(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         """Test event pagination."""
-        # Login first
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Get first page
         page1_response = await client.get("/api/v1/events/user?limit=5&skip=0")
         assert page1_response.status_code == 200

@@ -3,16 +3,16 @@ import logging
 import uuid
 
 import pytest
-
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
 from app.events.core.dispatcher import EventDispatcher as Disp
 from app.events.schema.schema_registry import SchemaRegistryManager
-from tests.helpers import make_execution_requested_event
 from app.services.idempotency.idempotency_manager import IdempotencyManager
 from app.services.idempotency.middleware import IdempotentConsumerWrapper
 from app.settings import Settings
+
+from tests.helpers import make_execution_requested_event
 from tests.helpers.eventually import eventually
 
 pytestmark = [pytest.mark.integration, pytest.mark.kafka, pytest.mark.redis]
@@ -59,6 +59,8 @@ async def test_consumer_idempotent_wrapper_blocks_duplicates(scope) -> None:  # 
     )
 
     await wrapper.start([KafkaTopic.EXECUTION_EVENTS])
+    # Allow time for consumer to join group and get partition assignments
+    await asyncio.sleep(2)
     try:
         # Produce the same event twice (same event_id)
         execution_id = f"e-{uuid.uuid4().hex[:8]}"

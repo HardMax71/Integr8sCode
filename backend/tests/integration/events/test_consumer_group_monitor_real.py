@@ -7,6 +7,7 @@ from app.events.consumer_group_monitor import (
     ConsumerGroupStatus,
     NativeConsumerGroupMonitor,
 )
+from app.settings import Settings
 
 pytestmark = [pytest.mark.integration, pytest.mark.kafka]
 
@@ -14,8 +15,8 @@ _test_logger = logging.getLogger("test.events.consumer_group_monitor_real")
 
 
 @pytest.mark.asyncio
-async def test_consumer_group_status_error_path_and_summary():
-    monitor = NativeConsumerGroupMonitor(bootstrap_servers="localhost:9092", logger=_test_logger)
+async def test_consumer_group_status_error_path_and_summary(test_settings: Settings) -> None:
+    monitor = NativeConsumerGroupMonitor(settings=test_settings, logger=_test_logger)
     # Non-existent group triggers error-handling path and returns minimal status
     gid = f"does-not-exist-{uuid4().hex[:8]}"
     status = await monitor.get_consumer_group_status(gid, timeout=5.0, include_lag=False)
@@ -27,8 +28,8 @@ async def test_consumer_group_status_error_path_and_summary():
     assert summary["group_id"] == gid and summary["health"] == ConsumerGroupHealth.UNHEALTHY.value
 
 
-def test_assess_group_health_branches():
-    m = NativeConsumerGroupMonitor(logger=_test_logger)
+def test_assess_group_health_branches(test_settings: Settings) -> None:
+    m = NativeConsumerGroupMonitor(settings=test_settings, logger=_test_logger)
     # Error state
     s = ConsumerGroupStatus(
         group_id="g",
@@ -81,8 +82,8 @@ def test_assess_group_health_branches():
 
 
 @pytest.mark.asyncio
-async def test_multiple_group_status_mixed_errors():
-    m = NativeConsumerGroupMonitor(bootstrap_servers="localhost:9092", logger=_test_logger)
+async def test_multiple_group_status_mixed_errors(test_settings: Settings) -> None:
+    m = NativeConsumerGroupMonitor(settings=test_settings, logger=_test_logger)
     gids = [f"none-{uuid4().hex[:6]}", f"none-{uuid4().hex[:6]}"]
     res = await m.get_multiple_group_status(gids, timeout=5.0, include_lag=False)
     assert set(res.keys()) == set(gids)

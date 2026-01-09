@@ -27,7 +27,7 @@ from app.schemas_pydantic.events import (
 from app.schemas_pydantic.user import UserResponse
 from app.services.event_service import EventService
 from app.services.kafka_event_service import KafkaEventService
-from app.settings import get_settings
+from app.settings import Settings
 
 router = APIRouter(prefix="/events", tags=["events"], route_class=DishkaRoute)
 
@@ -229,8 +229,8 @@ async def publish_custom_event(
     event_request: PublishEventRequest,
     request: Request,
     event_service: FromDishka[KafkaEventService],
+    settings: FromDishka[Settings],
 ) -> PublishEventResponse:
-    settings = get_settings()
     base_meta = EventMetadata(
         service_name=settings.SERVICE_NAME,
         service_version=settings.SERVICE_VERSION,
@@ -311,6 +311,7 @@ async def replay_aggregate_events(
     admin: Annotated[UserResponse, Depends(admin_user)],
     event_service: FromDishka[EventService],
     kafka_event_service: FromDishka[KafkaEventService],
+    settings: FromDishka[Settings],
     logger: FromDishka[logging.Logger],
     target_service: str | None = Query(None, description="Service to replay events to"),
     dry_run: bool = Query(True, description="If true, only show what would be replayed"),
@@ -339,7 +340,6 @@ async def replay_aggregate_events(
             await asyncio.sleep(0.1)
 
         try:
-            settings = get_settings()
             meta = EventMetadata(
                 service_name=settings.SERVICE_NAME,
                 service_version=settings.SERVICE_VERSION,

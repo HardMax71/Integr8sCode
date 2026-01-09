@@ -17,18 +17,24 @@ from app.events.core import UnifiedProducer
 from app.infrastructure.kafka.events.base import BaseEvent
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.infrastructure.kafka.mappings import get_event_class_for_type
-from app.settings import get_settings
+from app.settings import Settings
 
 tracer = trace.get_tracer(__name__)
 
 
 class KafkaEventService:
-    def __init__(self, event_repository: EventRepository, kafka_producer: UnifiedProducer, logger: logging.Logger):
+    def __init__(
+        self,
+        event_repository: EventRepository,
+        kafka_producer: UnifiedProducer,
+        settings: Settings,
+        logger: logging.Logger,
+    ):
         self.event_repository = event_repository
         self.kafka_producer = kafka_producer
         self.logger = logger
         self.metrics = get_event_metrics()
-        self.settings = get_settings()
+        self.settings = settings
 
     async def publish_event(
         self,

@@ -48,6 +48,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if settings.ENABLE_TRACING and not settings.TESTING:
         instrumentation_report = init_tracing(
             service_name=settings.TRACING_SERVICE_NAME,
+            settings=settings,
             logger=logger,
             service_version=settings.TRACING_SERVICE_VERSION,
             sampling_rate=settings.TRACING_SAMPLING_RATE,

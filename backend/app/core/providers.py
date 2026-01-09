@@ -219,8 +219,8 @@ class EventProvider(Provider):
             yield consumer
 
     @provide
-    async def get_event_bus_manager(self, logger: logging.Logger) -> AsyncIterator[EventBusManager]:
-        manager = EventBusManager(logger)
+    async def get_event_bus_manager(self, settings: Settings, logger: logging.Logger) -> AsyncIterator[EventBusManager]:
+        manager = EventBusManager(settings, logger)
         try:
             yield manager
         finally:
@@ -429,9 +429,18 @@ class KafkaServicesProvider(Provider):
 
     @provide
     def get_kafka_event_service(
-        self, event_repository: EventRepository, kafka_producer: UnifiedProducer, logger: logging.Logger
+        self,
+        event_repository: EventRepository,
+        kafka_producer: UnifiedProducer,
+        settings: Settings,
+        logger: logging.Logger,
     ) -> KafkaEventService:
-        return KafkaEventService(event_repository=event_repository, kafka_producer=kafka_producer, logger=logger)
+        return KafkaEventService(
+            event_repository=event_repository,
+            kafka_producer=kafka_producer,
+            settings=settings,
+            logger=logger,
+        )
 
 
 class UserServicesProvider(Provider):

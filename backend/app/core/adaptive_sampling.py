@@ -2,14 +2,14 @@ import logging
 import threading
 import time
 from collections import deque
-from typing import Any, Sequence, Tuple
+from typing import Sequence, Tuple
 
 from opentelemetry.context import Context
 from opentelemetry.sdk.trace.sampling import Decision, Sampler, SamplingResult
 from opentelemetry.trace import Link, SpanKind, TraceState, get_current_span
 from opentelemetry.util.types import Attributes
 
-from app.settings import get_settings
+from app.settings import Settings
 
 
 class AdaptiveSampler(Sampler):
@@ -239,11 +239,8 @@ class AdaptiveSampler(Sampler):
             self._adjustment_thread.join(timeout=5.0)
 
 
-def create_adaptive_sampler(settings: Any | None = None) -> AdaptiveSampler:
+def create_adaptive_sampler(settings: Settings) -> AdaptiveSampler:
     """Create adaptive sampler with settings"""
-    if settings is None:
-        settings = get_settings()
-
     return AdaptiveSampler(
         base_rate=settings.TRACING_SAMPLING_RATE,
         min_rate=max(0.001, settings.TRACING_SAMPLING_RATE / 100),  # 1/100th of base

@@ -63,7 +63,7 @@ class KubernetesWorker(LifecycleEnabled):
         self.config = config or K8sWorkerConfig()
         self._settings = settings
 
-        self.kafka_servers = self.config.kafka_bootstrap_servers or self._settings.KAFKA_BOOTSTRAP_SERVERS
+        self.kafka_servers = self._settings.KAFKA_BOOTSTRAP_SERVERS
         self._event_store = event_store
 
         # Kubernetes clients

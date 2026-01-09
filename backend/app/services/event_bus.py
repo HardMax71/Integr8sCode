@@ -13,7 +13,7 @@ from fastapi import Request
 from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics.context import get_connection_metrics
 from app.domain.enums.kafka import KafkaTopic
-from app.settings import get_settings
+from app.settings import Settings
 
 
 @dataclass
@@ -45,10 +45,10 @@ class EventBus(LifecycleEnabled):
     - *.completed - matches all completed events
     """
 
-    def __init__(self, logger: logging.Logger) -> None:
+    def __init__(self, settings: Settings, logger: logging.Logger) -> None:
         super().__init__()
         self.logger = logger
-        self.settings = get_settings()
+        self.settings = settings
         self.metrics = get_connection_metrics()
         self.producer: Optional[Producer] = None
         self.consumer: Optional[Consumer] = None
@@ -323,7 +323,8 @@ class EventBus(LifecycleEnabled):
 class EventBusManager:
     """Manages EventBus lifecycle as a singleton."""
 
-    def __init__(self, logger: logging.Logger) -> None:
+    def __init__(self, settings: Settings, logger: logging.Logger) -> None:
+        self.settings = settings
         self.logger = logger
         self._event_bus: Optional[EventBus] = None
         self._lock = asyncio.Lock()
@@ -332,7 +333,7 @@ class EventBusManager:
         """Get or create the event bus instance."""
         async with self._lock:
             if self._event_bus is None:
-                self._event_bus = EventBus(self.logger)
+                self._event_bus = EventBus(self.settings, self.logger)
                 await self._event_bus.__aenter__()
             return self._event_bus
 

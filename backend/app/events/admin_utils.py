@@ -4,18 +4,17 @@ from typing import Dict, List
 
 from confluent_kafka.admin import AdminClient, NewTopic
 
-from app.settings import get_settings
+from app.settings import Settings
 
 
 class AdminUtils:
     """Minimal admin utilities using native AdminClient."""
 
-    def __init__(self, logger: logging.Logger, bootstrap_servers: str | None = None):
+    def __init__(self, settings: Settings, logger: logging.Logger):
         self.logger = logger
-        settings = get_settings()
         self._admin = AdminClient(
             {
-                "bootstrap.servers": bootstrap_servers or settings.KAFKA_BOOTSTRAP_SERVERS,
+                "bootstrap.servers": settings.KAFKA_BOOTSTRAP_SERVERS,
                 "client.id": "integr8scode-admin",
             }
         )
@@ -63,6 +62,6 @@ class AdminUtils:
         return self._admin
 
 
-def create_admin_utils(logger: logging.Logger, bootstrap_servers: str | None = None) -> AdminUtils:
+def create_admin_utils(settings: Settings, logger: logging.Logger) -> AdminUtils:
     """Create admin utilities."""
-    return AdminUtils(logger, bootstrap_servers)
+    return AdminUtils(settings, logger)

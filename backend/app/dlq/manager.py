@@ -246,6 +246,13 @@ class DLQManager(LifecycleEnabled):
         duration = asyncio.get_running_loop().time() - start_time
         self.metrics.record_dlq_processing_duration(duration, "process")
 
+    def _normalize_topic(self, topic: str) -> str:
+        """Normalize topics for retry policy matching."""
+        prefix = self.settings.KAFKA_TOPIC_PREFIX
+        if prefix and topic.startswith(prefix):
+            return topic[len(prefix) :]
+        return topic
+
     async def _process_dlq_message(self, message: DLQMessage) -> None:
         # Apply filters
         for filter_func in self._filters:
@@ -257,7 +264,8 @@ class DLQManager(LifecycleEnabled):
         await self._store_message(message)
 
         # Get retry policy for topic
-        retry_policy = self._retry_policies.get(message.original_topic, self.default_retry_policy)
+        retry_policy = self._retry_policies.get(self._normalize_topic(message.original_topic))
+        retry_policy = retry_policy or self.default_retry_policy
 
         # Check if should retry
         if not retry_policy.should_retry(message):
@@ -428,7 +436,7 @@ class DLQManager(LifecycleEnabled):
             self.metrics.update_dlq_queue_size(result["_id"], result["count"])
 
     def set_retry_policy(self, topic: str, policy: RetryPolicy) -> None:
-        self._retry_policies[topic] = policy
+        self._retry_policies[self._normalize_topic(topic)] = policy
 
     def add_filter(self, filter_func: Callable[[DLQMessage], bool]) -> None:
         self._filters.append(filter_func)

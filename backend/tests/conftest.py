@@ -132,7 +132,10 @@ async def db(scope: AsyncContainer) -> AsyncGenerator[Database, None]:
 async def redis_client(scope: AsyncContainer) -> AsyncGenerator[redis.Redis, None]:
     # Don't close here - Dishka's RedisProvider handles cleanup when scope exits
     client: redis.Redis = await scope.get(redis.Redis)
-    yield client
+    try:
+        yield client
+    finally:
+        await client.aclose()
 
 
 # ===== Authenticated client fixtures =====

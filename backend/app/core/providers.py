@@ -245,52 +245,52 @@ class MetricsProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_event_metrics(self) -> EventMetrics:
-        return EventMetrics()
+    def get_event_metrics(self, settings: Settings) -> EventMetrics:
+        return EventMetrics(settings)
 
     @provide
-    def get_connection_metrics(self) -> ConnectionMetrics:
-        return ConnectionMetrics()
+    def get_connection_metrics(self, settings: Settings) -> ConnectionMetrics:
+        return ConnectionMetrics(settings)
 
     @provide
-    def get_rate_limit_metrics(self) -> RateLimitMetrics:
-        return RateLimitMetrics()
+    def get_rate_limit_metrics(self, settings: Settings) -> RateLimitMetrics:
+        return RateLimitMetrics(settings)
 
     @provide
-    def get_execution_metrics(self) -> ExecutionMetrics:
-        return ExecutionMetrics()
+    def get_execution_metrics(self, settings: Settings) -> ExecutionMetrics:
+        return ExecutionMetrics(settings)
 
     @provide
-    def get_database_metrics(self) -> DatabaseMetrics:
-        return DatabaseMetrics()
+    def get_database_metrics(self, settings: Settings) -> DatabaseMetrics:
+        return DatabaseMetrics(settings)
 
     @provide
-    def get_health_metrics(self) -> HealthMetrics:
-        return HealthMetrics()
+    def get_health_metrics(self, settings: Settings) -> HealthMetrics:
+        return HealthMetrics(settings)
 
     @provide
-    def get_kubernetes_metrics(self) -> KubernetesMetrics:
-        return KubernetesMetrics()
+    def get_kubernetes_metrics(self, settings: Settings) -> KubernetesMetrics:
+        return KubernetesMetrics(settings)
 
     @provide
-    def get_coordinator_metrics(self) -> CoordinatorMetrics:
-        return CoordinatorMetrics()
+    def get_coordinator_metrics(self, settings: Settings) -> CoordinatorMetrics:
+        return CoordinatorMetrics(settings)
 
     @provide
-    def get_dlq_metrics(self) -> DLQMetrics:
-        return DLQMetrics()
+    def get_dlq_metrics(self, settings: Settings) -> DLQMetrics:
+        return DLQMetrics(settings)
 
     @provide
-    def get_notification_metrics(self) -> NotificationMetrics:
-        return NotificationMetrics()
+    def get_notification_metrics(self, settings: Settings) -> NotificationMetrics:
+        return NotificationMetrics(settings)
 
     @provide
-    def get_replay_metrics(self) -> ReplayMetrics:
-        return ReplayMetrics()
+    def get_replay_metrics(self, settings: Settings) -> ReplayMetrics:
+        return ReplayMetrics(settings)
 
     @provide
-    def get_security_metrics(self) -> SecurityMetrics:
-        return SecurityMetrics()
+    def get_security_metrics(self, settings: Settings) -> SecurityMetrics:
+        return SecurityMetrics(settings)
 
 
 class RepositoryProvider(Provider):
@@ -624,10 +624,11 @@ class BusinessServicesProvider(Provider):
         replay_repository: ReplayRepository,
         kafka_producer: UnifiedProducer,
         event_store: EventStore,
+        settings: Settings,
         logger: logging.Logger,
     ) -> ReplayService:
         event_replay_service = EventReplayService(
-            repository=replay_repository, producer=kafka_producer, event_store=event_store, logger=logger
+            repository=replay_repository, producer=kafka_producer, event_store=event_store, settings=settings, logger=logger
         )
         return ReplayService(replay_repository, event_replay_service, logger)
 
@@ -722,12 +723,14 @@ class EventReplayProvider(Provider):
         replay_repository: ReplayRepository,
         kafka_producer: UnifiedProducer,
         event_store: EventStore,
+        settings: Settings,
         logger: logging.Logger,
     ) -> EventReplayService:
         return EventReplayService(
             repository=replay_repository,
             producer=kafka_producer,
             event_store=event_store,
+            settings=settings,
             logger=logger,
         )
 

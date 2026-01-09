@@ -1,19 +1,20 @@
-
 import pytest
 
 from app.core.metrics.replay import ReplayMetrics
 from app.core.metrics.security import SecurityMetrics
+from app.settings import Settings
 
 
 pytestmark = pytest.mark.unit
 
 
-def test_replay_metrics_methods() -> None:
+def test_replay_metrics_methods(test_settings: Settings) -> None:
     """Test ReplayMetrics methods with no-op metrics."""
-    # Create ReplayMetrics instance - will use NoOpMeterProvider automatically
-    m = ReplayMetrics()
+    m = ReplayMetrics(test_settings)
     m.record_session_created("by_id", "kafka")
-    m.update_active_replays(2); m.increment_active_replays(); m.decrement_active_replays()
+    m.update_active_replays(2)
+    m.increment_active_replays()
+    m.decrement_active_replays()
     m.record_events_replayed("by_id", "etype", "success", 3)
     m.record_event_replayed("by_id", "etype", "failed")
     m.record_replay_duration(2.0, "by_id", total_events=4)
@@ -21,20 +22,21 @@ def test_replay_metrics_methods() -> None:
     m.record_replay_error("timeout", "by_id")
     m.record_status_change("s1", "running", "completed")
     m.update_sessions_by_status("running", -1)
-    m.record_replay_by_target("kafka", True); m.record_replay_by_target("kafka", False)
+    m.record_replay_by_target("kafka", True)
+    m.record_replay_by_target("kafka", False)
     m.record_speed_multiplier(2.0, "by_id")
     m.record_delay_applied(0.05)
     m.record_batch_size(10, "by_id")
     m.record_events_filtered("type", 5)
     m.record_filter_effectiveness(5, 10, "type")
     m.record_replay_memory_usage(123.0, "s1")
-    m.update_replay_queue_size("s1", 10); m.update_replay_queue_size("s1", 4)
+    m.update_replay_queue_size("s1", 10)
+    m.update_replay_queue_size("s1", 4)
 
 
-def test_security_metrics_methods() -> None:
+def test_security_metrics_methods(test_settings: Settings) -> None:
     """Test SecurityMetrics methods with no-op metrics."""
-    # Create SecurityMetrics instance - will use NoOpMeterProvider automatically
-    m = SecurityMetrics()
+    m = SecurityMetrics(test_settings)
     m.record_security_event("scan_started", severity="high", source="scanner")
     m.record_security_violation("csrf", user_id="u1", ip_address="127.0.0.1")
     m.record_authentication_attempt("password", False, user_id="u1", duration_seconds=0.2)

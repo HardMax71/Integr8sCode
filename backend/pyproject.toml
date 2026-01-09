@@ -208,7 +208,7 @@ asyncio_default_test_loop_scope = "session"
 log_cli = false
 log_cli_level = "ERROR"
 log_level = "ERROR"
-addopts = "-n 4 --dist loadgroup --tb=short -q --no-header -q"
+addopts = "--tb=short"
 
 # Coverage configuration
 [tool.coverage.run]

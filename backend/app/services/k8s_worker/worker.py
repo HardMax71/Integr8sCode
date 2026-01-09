@@ -58,8 +58,8 @@ class KubernetesWorker(LifecycleEnabled):
     ):
         super().__init__()
         self.logger = logger
-        self.metrics = KubernetesMetrics()
-        self.execution_metrics = ExecutionMetrics()
+        self.metrics = KubernetesMetrics(settings)
+        self.execution_metrics = ExecutionMetrics(settings)
         self.config = config or K8sWorkerConfig()
         self._settings = settings
 

@@ -7,6 +7,8 @@ from tests.helpers import make_execution_requested_event
 
 _test_logger = logging.getLogger("test.services.coordinator.queue_manager")
 
+pytestmark = pytest.mark.unit
+
 
 def ev(execution_id: str, priority: int = QueuePriority.NORMAL.value):
     return make_execution_requested_event(execution_id=execution_id, priority=priority)

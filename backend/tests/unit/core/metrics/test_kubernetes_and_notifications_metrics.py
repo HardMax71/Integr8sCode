@@ -1,24 +1,27 @@
-
-
 import pytest
 
 from app.core.metrics.kubernetes import KubernetesMetrics
 from app.core.metrics.notifications import NotificationMetrics
+from app.settings import Settings
 
 
 pytestmark = pytest.mark.unit
 
 
-def test_kubernetes_metrics_methods() -> None:
+def test_kubernetes_metrics_methods(test_settings: Settings) -> None:
     """Test with no-op metrics."""
-    
-    m = KubernetesMetrics()
+    m = KubernetesMetrics(test_settings)
     m.record_pod_creation_failure("quota")
-    m.record_pod_created("success", "python"); m.record_pod_creation_duration(0.4, "python")
-    m.update_active_pod_creations(2); m.increment_active_pod_creations(); m.decrement_active_pod_creations()
+    m.record_pod_created("success", "python")
+    m.record_pod_creation_duration(0.4, "python")
+    m.update_active_pod_creations(2)
+    m.increment_active_pod_creations()
+    m.decrement_active_pod_creations()
     m.record_config_map_created("ok")
-    m.record_k8s_pod_created("success", "python"); m.record_k8s_pod_creation_duration(0.3, "python")
-    m.record_k8s_config_map_created("ok"); m.record_k8s_network_policy_created("ok")
+    m.record_k8s_pod_created("success", "python")
+    m.record_k8s_pod_creation_duration(0.3, "python")
+    m.record_k8s_config_map_created("ok")
+    m.record_k8s_network_policy_created("ok")
     m.update_k8s_active_creations(1)
     m.increment_pod_monitor_watch_reconnects()
     m.record_pod_monitor_event_processing_duration(0.2, "ADDED")
@@ -34,10 +37,9 @@ def test_kubernetes_metrics_methods() -> None:
     m.record_pods_per_node("node1", 7)
 
 
-def test_notification_metrics_methods() -> None:
+def test_notification_metrics_methods(test_settings: Settings) -> None:
     """Test with no-op metrics."""
-    
-    m = NotificationMetrics()
+    m = NotificationMetrics(test_settings)
     m.record_notification_sent("welcome", channel="email", severity="high")
     m.record_notification_failed("welcome", "smtp_error", channel="email")
     m.record_notification_delivery_time(0.5, "welcome", channel="email")

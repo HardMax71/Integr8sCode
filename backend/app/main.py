@@ -127,8 +127,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     return app
 
 
-app = create_app()
-
 if __name__ == "__main__":
     settings = get_settings()
     logger = setup_logger(settings.LOG_LEVEL)
@@ -144,7 +142,8 @@ if __name__ == "__main__":
         },
     )
     uvicorn.run(
-        app,
+        "app.main:create_app",
+        factory=True,
         host=settings.SERVER_HOST,
         port=settings.SERVER_PORT,
         ssl_keyfile=settings.SSL_KEYFILE,

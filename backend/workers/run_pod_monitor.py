@@ -66,6 +66,7 @@ def main() -> None:
     if settings.ENABLE_TRACING:
         init_tracing(
             service_name=GroupId.POD_MONITOR,
+            settings=settings,
             logger=logger,
             service_version=settings.TRACING_SERVICE_VERSION,
             enable_console_exporter=False,

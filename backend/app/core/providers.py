@@ -628,7 +628,11 @@ class BusinessServicesProvider(Provider):
         logger: logging.Logger,
     ) -> ReplayService:
         event_replay_service = EventReplayService(
-            repository=replay_repository, producer=kafka_producer, event_store=event_store, settings=settings, logger=logger
+            repository=replay_repository,
+            producer=kafka_producer,
+            event_store=event_store,
+            settings=settings,
+            logger=logger,
         )
         return ReplayService(replay_repository, event_replay_service, logger)
 

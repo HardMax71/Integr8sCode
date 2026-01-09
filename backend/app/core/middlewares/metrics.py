@@ -127,9 +127,9 @@ def setup_metrics(app: FastAPI, settings: Settings, logger: logging.Logger) -> N
     # Configure OpenTelemetry resource
     resource = Resource.create(
         {
-            SERVICE_NAME: settings.PROJECT_NAME,
-            SERVICE_VERSION: "1.0.0",
-            "service.environment": "production",
+            SERVICE_NAME: settings.SERVICE_NAME,
+            SERVICE_VERSION: settings.SERVICE_VERSION,
+            "service.environment": settings.ENVIRONMENT,
         }
     )
 

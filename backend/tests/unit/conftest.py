@@ -26,7 +26,7 @@ _unit_test_logger = logging.getLogger("test.unit")
 
 
 @pytest.fixture(scope="session", autouse=True)
-def init_metrics_for_unit_tests(test_settings: Settings) -> None:
+def init_metrics_for_unit_tests(test_settings: Settings):
     """Initialize all metrics context for unit tests."""
     MetricsContext.initialize_all(
         _unit_test_logger,

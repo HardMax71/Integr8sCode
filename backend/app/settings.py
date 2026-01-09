@@ -130,6 +130,7 @@ class Settings(BaseSettings):
     # Service metadata
     SERVICE_NAME: str = "integr8scode-backend"
     SERVICE_VERSION: str = "1.0.0"
+    ENVIRONMENT: str = "production"  # deployment environment (production, staging, development)
 
     # OpenTelemetry Configuration
     OTEL_EXPORTER_OTLP_ENDPOINT: str | None = None

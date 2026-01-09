@@ -15,7 +15,14 @@ from app.settings import Settings
 from tests.helpers import make_execution_requested_event
 from tests.helpers.eventually import eventually
 
-pytestmark = [pytest.mark.integration, pytest.mark.kafka, pytest.mark.redis]
+# xdist_group: Kafka consumer creation can crash librdkafka when multiple workers
+# instantiate Consumer() objects simultaneously. Serial execution prevents this.
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.kafka,
+    pytest.mark.redis,
+    pytest.mark.xdist_group("kafka_consumers"),
+]
 
 _test_logger = logging.getLogger("test.idempotency.consumer_idempotent")
 

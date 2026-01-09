@@ -13,7 +13,9 @@ from app.settings import Settings
 
 from tests.helpers import make_execution_requested_event
 
-pytestmark = [pytest.mark.integration, pytest.mark.kafka]
+# xdist_group: Kafka consumer creation can crash librdkafka when multiple workers
+# instantiate Consumer() objects simultaneously. Serial execution prevents this.
+pytestmark = [pytest.mark.integration, pytest.mark.kafka, pytest.mark.xdist_group("kafka_consumers")]
 
 _test_logger = logging.getLogger("test.events.event_dispatcher")
 

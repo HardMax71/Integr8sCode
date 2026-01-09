@@ -1,16 +1,14 @@
 import asyncio
 import logging
 import uuid
-from tests.helpers.eventually import eventually
+
 import pytest
-
 from app.core.database_context import Database
-
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
-from app.domain.execution import DomainExecutionCreate
 from app.domain.enums.kafka import KafkaTopic
+from app.domain.execution import DomainExecutionCreate
 from app.domain.execution.models import ResourceUsageDomain
 from app.events.core import UnifiedConsumer, UnifiedProducer
 from app.events.core.dispatcher import EventDispatcher
@@ -22,7 +20,16 @@ from app.services.idempotency import IdempotencyManager
 from app.services.result_processor.processor import ResultProcessor
 from app.settings import Settings
 
-pytestmark = [pytest.mark.integration, pytest.mark.kafka, pytest.mark.mongodb]
+from tests.helpers.eventually import eventually
+
+# xdist_group: Kafka consumer creation can crash librdkafka when multiple workers
+# instantiate Consumer() objects simultaneously. Serial execution prevents this.
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.kafka,
+    pytest.mark.mongodb,
+    pytest.mark.xdist_group("kafka_consumers"),
+]
 
 _test_logger = logging.getLogger("test.result_processor.processor")
 

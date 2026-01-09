@@ -3,17 +3,24 @@ import uuid
 
 import pytest
 from app.core.database_context import Database
+from app.domain.enums.auth import LoginMethod
 from app.domain.enums.kafka import KafkaTopic
 from app.events.core import UnifiedProducer
 from app.events.event_store import EventStore
 from app.events.event_store_consumer import EventStoreConsumer, create_event_store_consumer
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
-from app.domain.enums.auth import LoginMethod
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.infrastructure.kafka.events.user import UserLoggedInEvent
 from app.settings import Settings
 
-pytestmark = [pytest.mark.integration, pytest.mark.kafka, pytest.mark.mongodb]
+# xdist_group: Kafka consumer creation can crash librdkafka when multiple workers
+# instantiate Consumer() objects simultaneously. Serial execution prevents this.
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.kafka,
+    pytest.mark.mongodb,
+    pytest.mark.xdist_group("kafka_consumers"),
+]
 
 _test_logger = logging.getLogger("test.events.event_store_consumer")
 

@@ -61,14 +61,13 @@ class TestEventsRoutes:
                 assert event.event_type is not None
                 assert event.aggregate_id is not None
                 assert event.timestamp is not None
-                assert event.version is not None
-                assert event.user_id is not None
+                assert event.event_version is not None
+                assert event.metadata is not None
+                assert event.metadata.user_id is not None
 
                 # Optional fields
                 if event.payload:
                     assert isinstance(event.payload, dict)
-                if event.metadata:
-                    assert isinstance(event.metadata, dict)
                 if event.correlation_id:
                     assert isinstance(event.correlation_id, str)
 

@@ -30,7 +30,7 @@ async def test_router_bridges_to_redis(redis_client, test_settings: Settings) ->
     router = SSEKafkaRedisBridge(
         schema_registry=SchemaRegistryManager(settings=test_settings, logger=_test_logger),
         settings=test_settings,
-        event_metrics=EventMetrics(),
+        event_metrics=EventMetrics(test_settings),
         sse_bus=bus,
         logger=_test_logger,
     )
@@ -61,7 +61,7 @@ async def test_router_start_and_stop(redis_client, test_settings: Settings) -> N
     router = SSEKafkaRedisBridge(
         schema_registry=SchemaRegistryManager(settings=test_settings, logger=_test_logger),
         settings=test_settings,
-        event_metrics=EventMetrics(),
+        event_metrics=EventMetrics(test_settings),
         sse_bus=SSERedisBus(
             redis_client,
             exec_prefix=f"sse:exec:{suffix}:",

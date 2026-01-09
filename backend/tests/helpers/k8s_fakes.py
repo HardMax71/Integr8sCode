@@ -131,30 +131,95 @@ class FakeApi:
     def __init__(self, logs: str) -> None:
         self._logs = logs
 
-    def read_namespaced_pod_log(self, name: str, namespace: str, tail_lines: int = 10000):  # noqa: ARG002
+    def read_namespaced_pod_log(self, name: str, namespace: str, tail_lines: int = 10000) -> str:  # noqa: ARG002
         return self._logs
 
 
-def make_watch(events: list[dict[str, Any]], resource_version: str = "rv2"):
-    class _StopEvent:
-        def __init__(self, rv: str) -> None:
-            self.resource_version = rv
+class StopEvent:
+    """Fake stop event for FakeWatch - holds resource_version."""
 
-    class _Stream(list):
-        def __init__(self, ev: list[dict[str, Any]], rv: str) -> None:
-            super().__init__(ev)
-            self._stop_event = _StopEvent(rv)
+    def __init__(self, resource_version: str) -> None:
+        self.resource_version = resource_version
 
-    class _Watch:
-        def __init__(self, ev: list[dict[str, Any]], rv: str) -> None:
-            self._events = ev
-            self._rv = rv
 
-        def stream(self, func, **kwargs):  # noqa: ARG002
-            return _Stream(list(self._events), self._rv)
+class FakeWatchStream:
+    """Fake watch stream object returned by FakeWatch.stream().
 
-        def stop(self) -> None:
-            return None
+    The real kubernetes watch stream has a _stop_event attribute that
+    holds the resource_version for use by _update_resource_version.
+    """
 
-    return _Watch(events, resource_version)
+    def __init__(self, events: list[dict[str, Any]], resource_version: str) -> None:
+        self._events = events
+        self._stop_event = StopEvent(resource_version)
+        self._index = 0
+
+    def __iter__(self) -> "FakeWatchStream":
+        return self
+
+    def __next__(self) -> dict[str, Any]:
+        if self._index >= len(self._events):
+            raise StopIteration
+        event = self._events[self._index]
+        self._index += 1
+        return event
+
+
+class FakeWatch:
+    """Fake kubernetes Watch for testing."""
+
+    def __init__(self, events: list[dict[str, Any]], resource_version: str) -> None:
+        self._events = events
+        self._rv = resource_version
+
+    def stream(
+        self, func: Any, **kwargs: Any  # noqa: ARG002
+    ) -> FakeWatchStream:
+        return FakeWatchStream(self._events, self._rv)
+
+    def stop(self) -> None:
+        return None
+
+
+def make_watch(events: list[dict[str, Any]], resource_version: str = "rv2") -> FakeWatch:
+    return FakeWatch(events, resource_version)
+
+
+class FakeV1Api:
+    """Fake CoreV1Api for testing PodMonitor."""
+
+    def __init__(self, logs: str = "{}", pods: list[Pod] | None = None) -> None:
+        self._logs = logs
+        self._pods = pods or []
+
+    def read_namespaced_pod_log(self, name: str, namespace: str, tail_lines: int = 10000) -> str:  # noqa: ARG002
+        return self._logs
+
+    def get_api_resources(self) -> None:
+        """Stub for connectivity check."""
+        return None
+
+    def list_namespaced_pod(self, namespace: str, label_selector: str) -> Any:  # noqa: ARG002
+        """Return configured pods for reconciliation tests."""
+
+        class PodList:
+            def __init__(self, items: list[Pod]) -> None:
+                self.items = items
+
+        return PodList(list(self._pods))
+
+
+def make_k8s_clients(
+    logs: str = "{}",
+    events: list[dict[str, Any]] | None = None,
+    resource_version: str = "rv1",
+    pods: list[Pod] | None = None,
+) -> tuple[FakeV1Api, FakeWatch]:
+    """Create fake K8s clients for testing.
+
+    Returns (v1_api, watch) tuple for pure DI into PodMonitor.
+    """
+    v1 = FakeV1Api(logs=logs, pods=pods)
+    watch = make_watch(events or [], resource_version)
+    return v1, watch
 

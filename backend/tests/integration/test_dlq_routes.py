@@ -108,10 +108,6 @@ class TestDLQRoutes:
             if message.age_seconds is not None:
                 assert message.age_seconds >= 0
 
-            # Check details if present
-            if message.details:
-                assert isinstance(message.details, dict)
-
     @pytest.mark.asyncio
     async def test_filter_dlq_messages_by_status(self, client: AsyncClient, test_user: dict[str, str]) -> None:
         """Test filtering DLQ messages by status."""

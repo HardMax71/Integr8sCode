@@ -38,14 +38,16 @@ def capture_log(formatter: logging.Formatter, msg: str, extra: dict[str, Any] | 
     string_io.close()
 
     if output:
-        return json.loads(output)
+        result: dict[str, Any] = json.loads(output)
+        return result
 
     # Fallback: create and format record manually
     lr = logging.LogRecord("t", logging.INFO, __file__, 1, msg, (), None, None)
     # Apply the filter manually
     correlation_filter.filter(lr)
     s = formatter.format(lr)
-    return json.loads(s)
+    fallback_result: dict[str, Any] = json.loads(s)
+    return fallback_result
 
 
 def test_json_formatter_sanitizes_tokens(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -83,6 +85,6 @@ def test_correlation_middleware_sets_header() -> None:
         assert "X-Correlation-ID" in r.headers
 
 
-def test_setup_logger_returns_logger():
+def test_setup_logger_returns_logger() -> None:
     lg = setup_logger(log_level="INFO")
     assert hasattr(lg, "info")

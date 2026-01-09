@@ -67,11 +67,14 @@ def test_get_description_and_factory(monkeypatch: pytest.MonkeyPatch) -> None:
         assert "AdaptiveSampler(" in desc
         s._running = False
 
-        class S:
-            TRACING_SAMPLING_RATE = 0.2
+        from unittest.mock import MagicMock
+        from app.core.config import Settings
+
+        mock_settings = MagicMock(spec=Settings)
+        mock_settings.TRACING_SAMPLING_RATE = 0.2
 
         monkeypatch.setenv("TRACING_SAMPLING_RATE", "0.2")
         # create_adaptive_sampler pulls settings via get_settings; just ensure it constructs
-        sampler = create_adaptive_sampler(S())
+        sampler = create_adaptive_sampler(mock_settings)
         sampler._running = False
 

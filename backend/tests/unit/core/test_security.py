@@ -222,11 +222,11 @@ class TestSecurityService:
     ) -> None:
         """Test decoding token without username."""
         # Create token without 'sub' field
-        data = {"user_id": str(uuid4())}
+        data: dict[str, str | datetime] = {"user_id": str(uuid4())}
 
         expire = datetime.now(timezone.utc) + timedelta(minutes=15)
         to_encode = data.copy()
-        to_encode.update({"exp": expire})
+        to_encode["exp"] = expire
 
         token = jwt.encode(
             to_encode,

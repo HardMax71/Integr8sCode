@@ -4,6 +4,8 @@ Unit tests should NOT access real infrastructure (DB, Redis, HTTP).
 These fixtures raise errors to catch accidental usage.
 """
 import logging
+from collections.abc import Generator
+from typing import NoReturn
 
 import pytest
 
@@ -26,7 +28,7 @@ _unit_test_logger = logging.getLogger("test.unit")
 
 
 @pytest.fixture(scope="session", autouse=True)
-def init_metrics_for_unit_tests(test_settings: Settings):
+def init_metrics_for_unit_tests(test_settings: Settings) -> Generator[None, None, None]:
     """Initialize all metrics context for unit tests."""
     MetricsContext.initialize_all(
         _unit_test_logger,
@@ -48,20 +50,20 @@ def init_metrics_for_unit_tests(test_settings: Settings):
 
 
 @pytest.fixture
-def db():
+def db() -> NoReturn:
     raise RuntimeError("Unit tests should not access DB - use mocks or move to integration/")
 
 
 @pytest.fixture
-def redis_client():
+def redis_client() -> NoReturn:
     raise RuntimeError("Unit tests should not access Redis - use mocks or move to integration/")
 
 
 @pytest.fixture
-def client():
+def client() -> NoReturn:
     raise RuntimeError("Unit tests should not use HTTP client - use mocks or move to integration/")
 
 
 @pytest.fixture
-def app():
+def app() -> NoReturn:
     raise RuntimeError("Unit tests should not use full app - use mocks or move to integration/")

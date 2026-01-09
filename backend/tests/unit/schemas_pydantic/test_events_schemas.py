@@ -4,7 +4,7 @@ from app.schemas_pydantic.events import EventFilterRequest
 from app.domain.enums.common import SortOrder
 
 
-def test_event_filter_request_sort_validator_accepts_allowed_fields():
+def test_event_filter_request_sort_validator_accepts_allowed_fields() -> None:
     req = EventFilterRequest(sort_by="timestamp", sort_order=SortOrder.DESC)
     assert req.sort_by == "timestamp"
 
@@ -13,6 +13,6 @@ def test_event_filter_request_sort_validator_accepts_allowed_fields():
         assert req2.sort_by == field
 
 
-def test_event_filter_request_sort_validator_rejects_invalid():
+def test_event_filter_request_sort_validator_rejects_invalid() -> None:
     with pytest.raises(ValueError):
         EventFilterRequest(sort_by="not-a-field")

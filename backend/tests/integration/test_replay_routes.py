@@ -8,6 +8,7 @@ from httpx import AsyncClient
 
 from app.domain.enums.events import EventType
 from app.domain.enums.replay import ReplayStatus, ReplayType, ReplayTarget
+from app.domain.replay.models import ReplayFilter
 from app.schemas_pydantic.replay import (
     ReplayRequest,
     ReplayResponse,
@@ -45,9 +46,11 @@ class TestReplayRoutes:
         replay_request = ReplayRequest(
             replay_type=ReplayType.QUERY,
             target=ReplayTarget.KAFKA,
-            event_types=[EventType.EXECUTION_REQUESTED, EventType.EXECUTION_COMPLETED],
-            start_time=datetime.now(timezone.utc) - timedelta(days=7),
-            end_time=datetime.now(timezone.utc),
+            filter=ReplayFilter(
+                event_types=[EventType.EXECUTION_REQUESTED, EventType.EXECUTION_COMPLETED],
+                start_time=datetime.now(timezone.utc) - timedelta(days=7),
+                end_time=datetime.now(timezone.utc),
+            ),
             speed_multiplier=1.0,
             preserve_timestamps=True,
         ).model_dump(mode="json")
@@ -96,9 +99,11 @@ class TestReplayRoutes:
         replay_request = ReplayRequest(
             replay_type=ReplayType.QUERY,
             target=ReplayTarget.KAFKA,
-            event_types=[EventType.USER_LOGGED_IN],
-            start_time=datetime.now(timezone.utc) - timedelta(hours=24),
-            end_time=datetime.now(timezone.utc),
+            filter=ReplayFilter(
+                event_types=[EventType.USER_LOGGED_IN],
+                start_time=datetime.now(timezone.utc) - timedelta(hours=24),
+                end_time=datetime.now(timezone.utc),
+            ),
             speed_multiplier=2.0,
         ).model_dump(mode="json")
 
@@ -127,9 +132,11 @@ class TestReplayRoutes:
         replay_request = ReplayRequest(
             replay_type=ReplayType.QUERY,
             target=ReplayTarget.KAFKA,
-            event_types=[EventType.SYSTEM_ERROR],
-            start_time=datetime.now(timezone.utc) - timedelta(hours=1),
-            end_time=datetime.now(timezone.utc),
+            filter=ReplayFilter(
+                event_types=[EventType.SYSTEM_ERROR],
+                start_time=datetime.now(timezone.utc) - timedelta(hours=1),
+                end_time=datetime.now(timezone.utc),
+            ),
             speed_multiplier=1.0,
         ).model_dump(mode="json")
 
@@ -158,9 +165,11 @@ class TestReplayRoutes:
         replay_request = ReplayRequest(
             replay_type=ReplayType.QUERY,
             target=ReplayTarget.KAFKA,
-            event_types=[EventType.SYSTEM_ERROR],
-            start_time=datetime.now(timezone.utc) - timedelta(hours=2),
-            end_time=datetime.now(timezone.utc),
+            filter=ReplayFilter(
+                event_types=[EventType.SYSTEM_ERROR],
+                start_time=datetime.now(timezone.utc) - timedelta(hours=2),
+                end_time=datetime.now(timezone.utc),
+            ),
             speed_multiplier=0.5,
         ).model_dump(mode="json")
 
@@ -205,9 +214,11 @@ class TestReplayRoutes:
         replay_request = ReplayRequest(
             replay_type=ReplayType.QUERY,
             target=ReplayTarget.KAFKA,
-            event_types=[EventType.SYSTEM_ERROR],
-            start_time=datetime.now(timezone.utc) - timedelta(hours=1),
-            end_time=datetime.now(timezone.utc),
+            filter=ReplayFilter(
+                event_types=[EventType.SYSTEM_ERROR],
+                start_time=datetime.now(timezone.utc) - timedelta(hours=1),
+                end_time=datetime.now(timezone.utc),
+            ),
             speed_multiplier=1.0,
         ).model_dump(mode="json")
 
@@ -396,10 +407,10 @@ class TestReplayRoutes:
             assert detail_response.status_code == 200
             session_data = detail_response.json()
             session = ReplaySession(**session_data)
-            if session.events_replayed is not None and session.events_total is not None:
-                assert 0 <= session.events_replayed <= session.events_total
-                if session.events_total > 0:
-                    progress = (session.events_replayed / session.events_total) * 100
+            if session.replayed_events is not None and session.total_events is not None:
+                assert 0 <= session.replayed_events <= session.total_events
+                if session.total_events > 0:
+                    progress = (session.replayed_events / session.total_events) * 100
                     assert 0.0 <= progress <= 100.0
 
         await eventually(_check_progress_once, timeout=5.0, interval=0.5)

@@ -1,6 +1,7 @@
 import pytest
 
 from app.core.metrics.connections import ConnectionMetrics
+from app.domain.enums.execution import ExecutionStatus
 from app.core.metrics.coordinator import CoordinatorMetrics
 from app.core.metrics.database import DatabaseMetrics
 from app.core.metrics.dlq import DLQMetrics
@@ -62,7 +63,7 @@ def test_other_metrics_classes_smoke(test_settings: Settings) -> None:
     CoordinatorMetrics(test_settings).record_coordinator_processing_time(0.01)
     DatabaseMetrics(test_settings).record_mongodb_operation("read", "ok")
     DLQMetrics(test_settings).record_dlq_message_received("topic", "type")
-    ExecutionMetrics(test_settings).record_script_execution("QUEUED", "python")
+    ExecutionMetrics(test_settings).record_script_execution(ExecutionStatus.QUEUED, "python")
     HealthMetrics(test_settings).record_health_check_duration(0.001, "liveness", "basic")
     KubernetesMetrics(test_settings).record_k8s_pod_created("success", "python")
     NotificationMetrics(test_settings).record_notification_sent("welcome", channel="email")

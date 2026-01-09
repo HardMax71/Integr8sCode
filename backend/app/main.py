@@ -31,6 +31,21 @@ from app.core.correlation import CorrelationMiddleware
 from app.core.dishka_lifespan import lifespan
 from app.core.exceptions import configure_exception_handlers
 from app.core.logging import setup_logger
+from app.core.metrics import (
+    ConnectionMetrics,
+    CoordinatorMetrics,
+    DatabaseMetrics,
+    DLQMetrics,
+    EventMetrics,
+    ExecutionMetrics,
+    HealthMetrics,
+    KubernetesMetrics,
+    NotificationMetrics,
+    RateLimitMetrics,
+    ReplayMetrics,
+    SecurityMetrics,
+)
+from app.core.metrics.context import MetricsContext
 from app.core.middlewares import (
     CacheControlMiddleware,
     MetricsMiddleware,
@@ -51,6 +66,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     """
     settings = settings or get_settings()
     logger = setup_logger(settings.LOG_LEVEL)
+
+    # Initialize metrics context for all services
+    MetricsContext.initialize_all(
+        logger,
+        connection=ConnectionMetrics(settings),
+        coordinator=CoordinatorMetrics(settings),
+        database=DatabaseMetrics(settings),
+        dlq=DLQMetrics(settings),
+        event=EventMetrics(settings),
+        execution=ExecutionMetrics(settings),
+        health=HealthMetrics(settings),
+        kubernetes=KubernetesMetrics(settings),
+        notification=NotificationMetrics(settings),
+        rate_limit=RateLimitMetrics(settings),
+        replay=ReplayMetrics(settings),
+        security=SecurityMetrics(settings),
+    )
+
     # Disable OpenAPI/Docs in production for security; health endpoints provide readiness
     app = FastAPI(
         title=settings.PROJECT_NAME,

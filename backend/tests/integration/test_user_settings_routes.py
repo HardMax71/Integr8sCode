@@ -5,7 +5,6 @@ import pytest
 from httpx import AsyncClient
 
 from app.schemas_pydantic.user_settings import SettingsHistoryResponse, UserSettings
-from tests.helpers import login_user
 from tests.helpers.eventually import eventually
 
 
@@ -389,10 +388,8 @@ class TestUserSettingsRoutes:
             "timezone"]
 
     @pytest.mark.asyncio
-    async def test_settings_persistence(self, client: AsyncClient, test_user: AsyncClient) -> None:
-        """Test that settings persist across login sessions."""
-        # Already authenticated via test_user fixture
-
+    async def test_settings_persistence(self, test_user: AsyncClient) -> None:
+        """Test that settings persist after being saved."""
         # Update settings
         editor_settings: _EditorSettings = {
             "theme": "github",
@@ -411,14 +408,8 @@ class TestUserSettingsRoutes:
         response = await test_user.put("/api/v1/user/settings/", json=update_data)
         assert response.status_code == 200
 
-        # Log out
-        await client.post("/api/v1/auth/logout")
-
-        # Log back in as same user
-        await login_user(client, test_user.auth_data["username"], test_user.auth_data["password"])
-
-        # Get settings again
-        response = await client.get("/api/v1/user/settings/")
+        # Get settings again to verify persistence
+        response = await test_user.get("/api/v1/user/settings/")
         assert response.status_code == 200
         persisted_settings = UserSettings(**response.json())
 

@@ -37,6 +37,7 @@ def test_settings() -> Settings:
             "SCHEMA_SUBJECT_PREFIX": f"test.{session_id}.{_WORKER_ID}.",
             "KAFKA_TOPIC_PREFIX": unique_prefix,
             "OTEL_EXPORTER_OTLP_ENDPOINT": None,  # Disable OTel metrics export in tests
+            "ENABLE_TRACING": False,  # Fully disable tracing/metrics in tests
         }
     )
 

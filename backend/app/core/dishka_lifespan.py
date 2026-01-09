@@ -14,7 +14,7 @@ from app.db.docs import ALL_DOCUMENTS
 from app.events.event_store_consumer import EventStoreConsumer
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
-from app.settings import get_settings
+from app.settings import Settings
 
 
 @asynccontextmanager
@@ -27,10 +27,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     - No manual service management
     - Dishka handles all lifecycle automatically
     """
-    settings = get_settings()
-
-    # Get logger from DI container
+    # Get settings and logger from DI container (uses test settings in tests)
     container: AsyncContainer = app.state.dishka_container
+    settings = await container.get(Settings)
     logger = await container.get(logging.Logger)
 
     logger.info(

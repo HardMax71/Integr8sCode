@@ -107,7 +107,7 @@ class APIClient:
         # Use a separate streaming client to avoid interfering with normal client timeouts
         async with httpx.AsyncClient(verify=self.cfg.verify_tls, timeout=None) as s:
             # Reuse cookies for auth
-            s.cookies = self.client.cookies.copy()
+            s.cookies.update(self.client.cookies)
             t0 = time.perf_counter()
             try:
                 async with s.stream("GET", url) as resp:

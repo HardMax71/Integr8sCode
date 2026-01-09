@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Any
 
 from hypothesis import strategies as st
 
+
+# Type alias for JSON values
+type JsonValue = None | bool | int | float | str | list[JsonValue] | dict[str, JsonValue]
 
 # Generic JSON strategies (bounded sizes to keep payloads realistic)
 json_scalar = st.one_of(
@@ -15,7 +17,7 @@ json_scalar = st.one_of(
     st.text(min_size=0, max_size=256),
 )
 
-json_value: st.SearchStrategy[Any]
+json_value: st.SearchStrategy[JsonValue]
 json_value = st.recursive(
     json_scalar,
     lambda children: st.one_of(
@@ -48,8 +50,8 @@ user_create = st.fixed_dictionaries(
 severity = st.sampled_from(["info", "warning", "error", "critical"])  # common values
 label_key = st.text(min_size=1, max_size=24)
 label_val = st.text(min_size=0, max_size=64)
-labels = st.dictionaries(label_key, label_val, max_size=8)
-annotations = st.dictionaries(label_key, label_val, max_size=8)
+label_dict = st.dictionaries(label_key, label_val, max_size=8)
+annotation_dict = st.dictionaries(label_key, label_val, max_size=8)
 
 def _iso_time() -> st.SearchStrategy[str]:
     base = datetime(2024, 1, 1)
@@ -60,8 +62,8 @@ def _iso_time() -> st.SearchStrategy[str]:
 alert = st.fixed_dictionaries(
     {
         "status": st.sampled_from(["firing", "resolved"]),
-        "labels": labels,
-        "annotations": annotations,
+        "labels": label_dict,
+        "annotations": annotation_dict,
         "startsAt": _iso_time(),
         "endsAt": _iso_time(),
         "generatorURL": st.text(min_size=0, max_size=120),
@@ -75,9 +77,9 @@ grafana_webhook = st.fixed_dictionaries(
         "status": st.sampled_from(["firing", "resolved"]),
         "alerts": st.lists(alert, min_size=1, max_size=5),
         "groupKey": st.text(min_size=0, max_size=64),
-        "groupLabels": labels,
-        "commonLabels": labels,
-        "commonAnnotations": annotations,
+        "groupLabels": label_dict,
+        "commonLabels": label_dict,
+        "commonAnnotations": annotation_dict,
         "externalURL": st.text(min_size=0, max_size=120),
         "version": st.text(min_size=1, max_size=16),
     }

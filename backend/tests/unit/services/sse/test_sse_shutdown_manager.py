@@ -1,10 +1,12 @@
 import asyncio
 import logging
+from typing import cast
 
 import pytest
 
 pytestmark = pytest.mark.unit
 
+from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
 from app.services.sse.sse_shutdown_manager import SSEShutdownManager
 
 _test_logger = logging.getLogger("test.services.sse.sse_shutdown_manager")
@@ -21,7 +23,7 @@ class _FakeRouter:
 @pytest.mark.asyncio
 async def test_register_unregister_and_shutdown_flow() -> None:
     mgr = SSEShutdownManager(drain_timeout=0.5, notification_timeout=0.1, force_close_timeout=0.1, logger=_test_logger)
-    mgr.set_router(_FakeRouter())
+    mgr.set_router(cast(SSEKafkaRedisBridge, _FakeRouter()))
 
     # Register two connections
     e1 = await mgr.register_connection("exec-1", "c1")
@@ -34,7 +36,7 @@ async def test_register_unregister_and_shutdown_flow() -> None:
     # Wait until manager enters NOTIFYING phase (event-driven)
     from tests.helpers.eventually import eventually
 
-    async def _is_notifying():
+    async def _is_notifying() -> bool:
         return mgr.get_shutdown_status().phase == "notifying"
 
     await eventually(_is_notifying, timeout=1.0, interval=0.02)
@@ -60,7 +62,7 @@ async def test_reject_new_connection_during_shutdown() -> None:
     t = asyncio.create_task(mgr.initiate_shutdown())
     from tests.helpers.eventually import eventually
 
-    async def _initiated():
+    async def _initiated() -> None:
         assert mgr.is_shutting_down() is True
 
     await eventually(_initiated, timeout=1.0, interval=0.02)

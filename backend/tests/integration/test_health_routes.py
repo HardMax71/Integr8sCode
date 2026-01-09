@@ -50,7 +50,7 @@ class TestHealthRoutes:
     @pytest.mark.asyncio
     async def test_app_responds_during_load(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
         # Create some load with execution requests
-        async def create_load():
+        async def create_load() -> int | None:
             execution_request = {
                 "script": "print('Load test')",
                 "lang": "python",
@@ -59,7 +59,7 @@ class TestHealthRoutes:
             try:
                 response = await client.post("/api/v1/execute", json=execution_request)
                 return response.status_code
-            except:
+            except Exception:
                 return None
 
         # Start load generation

@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Dict
+from typing import TypedDict
 
 import pytest
 from httpx import AsyncClient
@@ -9,6 +9,33 @@ from app.schemas_pydantic.user_settings import (
     SettingsHistoryResponse
 )
 from tests.helpers.eventually import eventually
+
+
+class _NotificationSettings(TypedDict):
+    execution_completed: bool
+    execution_failed: bool
+    system_updates: bool
+    security_alerts: bool
+    channels: list[str]
+
+
+class _EditorSettings(TypedDict):
+    theme: str
+    font_size: int
+    tab_size: int
+    use_tabs: bool
+    word_wrap: bool
+    show_line_numbers: bool
+
+
+class _UpdateSettingsData(TypedDict, total=False):
+    theme: str
+    timezone: str
+    date_format: str
+    time_format: str
+    notifications: _NotificationSettings
+    editor: _EditorSettings
+    custom_settings: dict[str, str]
 
 # Force these tests to run sequentially on a single worker to avoid state conflicts
 pytestmark = pytest.mark.xdist_group(name="user_settings")
@@ -31,7 +58,7 @@ class TestUserSettingsRoutes:
                    for word in ["not authenticated", "unauthorized", "login"])
 
     @pytest.mark.asyncio
-    async def test_get_user_settings(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_get_user_settings(self, client: AsyncClient, test_user: dict[str, str]) -> None:
         """Test getting user settings."""
         # Already authenticated via test_user fixture
 
@@ -77,7 +104,7 @@ class TestUserSettingsRoutes:
             assert isinstance(settings.custom_settings, dict)
 
     @pytest.mark.asyncio
-    async def test_update_user_settings(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_update_user_settings(self, client: AsyncClient, test_user: dict[str, str]) -> None:
         """Test updating user settings."""
         # Already authenticated via test_user fixture
 
@@ -87,7 +114,7 @@ class TestUserSettingsRoutes:
         original_settings = original_response.json()
 
         # Update settings
-        update_data = {
+        update_data: _UpdateSettingsData = {
             "theme": "dark" if original_settings["theme"] == "light" else "light",
             "timezone": "America/New_York" if original_settings["timezone"] != "America/New_York" else "UTC",
             "date_format": "MM/DD/YYYY",
@@ -137,7 +164,7 @@ class TestUserSettingsRoutes:
         assert updated_settings.editor.show_line_numbers == update_data["editor"]["show_line_numbers"]
 
     @pytest.mark.asyncio
-    async def test_update_theme_only(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_update_theme_only(self, client: AsyncClient, test_user: dict[str, str]) -> None:
         """Test updating only the theme setting."""
         # Already authenticated via test_user fixture
 
@@ -166,7 +193,7 @@ class TestUserSettingsRoutes:
         assert updated_settings.timezone == original_response.json()["timezone"]
 
     @pytest.mark.asyncio
-    async def test_update_notification_settings_only(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_update_notification_settings_only(self, client: AsyncClient, test_user: dict[str, str]) -> None:
         """Test updating only notification settings."""
         # Already authenticated via test_user fixture
 
@@ -193,7 +220,7 @@ class TestUserSettingsRoutes:
         assert "in_app" in [str(c) for c in updated_settings.notifications.channels]
 
     @pytest.mark.asyncio
-    async def test_update_editor_settings_only(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_update_editor_settings_only(self, client: AsyncClient, test_user: dict[str, str]) -> None:
         """Test updating only editor settings."""
         # Already authenticated via test_user fixture
 
@@ -221,7 +248,7 @@ class TestUserSettingsRoutes:
         assert updated_settings.editor.show_line_numbers == editor_update["show_line_numbers"]
 
     @pytest.mark.asyncio
-    async def test_update_custom_setting(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_update_custom_setting(self, client: AsyncClient, test_user: dict[str, str]) -> None:
         """Test updating a custom setting."""
         # Update custom settings via main settings endpoint
         custom_key = "custom_preference"
@@ -241,7 +268,7 @@ class TestUserSettingsRoutes:
         assert updated_settings.custom_settings[custom_key] == custom_value
 
     @pytest.mark.asyncio
-    async def test_get_settings_history(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_get_settings_history(self, client: AsyncClient, test_user: dict[str, str]) -> None:
         """Test getting settings change history."""
         # Make some changes to build history (theme change)
         theme_update = {"theme": "dark"}
@@ -264,7 +291,7 @@ class TestUserSettingsRoutes:
             assert entry.timestamp is not None
 
     @pytest.mark.asyncio
-    async def test_restore_settings_to_previous_point(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_restore_settings_to_previous_point(self, client: AsyncClient, test_user: dict[str, str]) -> None:
         """Test restoring settings to a previous point in time."""
         # Get original settings
         original_resp = await client.get("/api/v1/user/settings/")
@@ -278,7 +305,7 @@ class TestUserSettingsRoutes:
         # Ensure restore point is distinct by checking time monotonicity
         prev = datetime.now(timezone.utc)
 
-        async def _tick():
+        async def _tick() -> None:
             now = datetime.now(timezone.utc)
             assert (now - prev).total_seconds() >= 0
 
@@ -307,7 +334,7 @@ class TestUserSettingsRoutes:
             assert current_resp.status_code == 200
 
     @pytest.mark.asyncio
-    async def test_invalid_theme_value(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_invalid_theme_value(self, client: AsyncClient, test_user: dict[str, str]) -> None:
         """Test that invalid theme values are rejected."""
         # Already authenticated via test_user fixture
 
@@ -320,7 +347,7 @@ class TestUserSettingsRoutes:
         assert response.status_code in [400, 422]
 
     @pytest.mark.asyncio
-    async def test_invalid_editor_settings(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_invalid_editor_settings(self, client: AsyncClient, test_user: dict[str, str]) -> None:
         """Test that invalid editor settings are rejected."""
         # Already authenticated via test_user fixture
 
@@ -341,8 +368,8 @@ class TestUserSettingsRoutes:
 
     @pytest.mark.asyncio
     async def test_settings_isolation_between_users(self, client: AsyncClient,
-                                                    test_user: Dict[str, str],
-                                                    another_user: Dict[str, str]) -> None:
+                                                    test_user: dict[str, str],
+                                                    another_user: dict[str, str]) -> None:
         """Test that settings are isolated between users."""
 
         # Login as first user (fixture logs in another_user last, so re-login as test_user)
@@ -381,22 +408,23 @@ class TestUserSettingsRoutes:
             "timezone"]
 
     @pytest.mark.asyncio
-    async def test_settings_persistence(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_settings_persistence(self, client: AsyncClient, test_user: dict[str, str]) -> None:
         """Test that settings persist across login sessions."""
         # Already authenticated via test_user fixture
 
         # Update settings
-        update_data = {
+        editor_settings: _EditorSettings = {
+            "theme": "github",
+            "font_size": 18,
+            "tab_size": 8,
+            "use_tabs": True,
+            "word_wrap": False,
+            "show_line_numbers": False
+        }
+        update_data: _UpdateSettingsData = {
             "theme": "dark",
             "timezone": "Europe/London",
-            "editor": {
-                "theme": "github",
-                "font_size": 18,
-                "tab_size": 8,
-                "use_tabs": True,
-                "word_wrap": False,
-                "show_line_numbers": False
-            }
+            "editor": editor_settings
         }
 
         response = await client.put("/api/v1/user/settings/", json=update_data)
@@ -421,8 +449,8 @@ class TestUserSettingsRoutes:
         # Verify settings persisted
         assert persisted_settings.theme == update_data["theme"]
         assert persisted_settings.timezone == update_data["timezone"]
-        assert persisted_settings.editor.theme == update_data["editor"]["theme"]
-        assert persisted_settings.editor.font_size == update_data["editor"]["font_size"]
-        assert persisted_settings.editor.tab_size == update_data["editor"]["tab_size"]
-        assert persisted_settings.editor.word_wrap == update_data["editor"]["word_wrap"]
-        assert persisted_settings.editor.show_line_numbers == update_data["editor"]["show_line_numbers"]
+        assert persisted_settings.editor.theme == editor_settings["theme"]
+        assert persisted_settings.editor.font_size == editor_settings["font_size"]
+        assert persisted_settings.editor.tab_size == editor_settings["tab_size"]
+        assert persisted_settings.editor.word_wrap == editor_settings["word_wrap"]
+        assert persisted_settings.editor.show_line_numbers == editor_settings["show_line_numbers"]

@@ -64,6 +64,7 @@ from app.services.k8s_worker.worker import KubernetesWorker
 from app.services.kafka_event_service import KafkaEventService
 from app.services.notification_service import NotificationService
 from app.services.pod_monitor.config import PodMonitorConfig
+from app.services.pod_monitor.event_mapper import PodEventMapper
 from app.services.pod_monitor.monitor import PodMonitor
 from app.services.rate_limit_service import RateLimitService
 from app.services.replay_service import ReplayService
@@ -694,11 +695,20 @@ class PodMonitorProvider(Provider):
     scope = Scope.APP
 
     @provide
+    def get_event_mapper(
+        self,
+        logger: logging.Logger,
+        k8s_clients: K8sClients,
+    ) -> PodEventMapper:
+        return PodEventMapper(logger=logger, k8s_api=k8s_clients.v1)
+
+    @provide
     async def get_pod_monitor(
         self,
         kafka_event_service: KafkaEventService,
         k8s_clients: K8sClients,
         logger: logging.Logger,
+        event_mapper: PodEventMapper,
     ) -> AsyncIterator[PodMonitor]:
         config = PodMonitorConfig()
         async with PodMonitor(
@@ -706,6 +716,7 @@ class PodMonitorProvider(Provider):
             kafka_event_service=kafka_event_service,
             logger=logger,
             k8s_clients=k8s_clients,
+            event_mapper=event_mapper,
         ) as monitor:
             yield monitor
 

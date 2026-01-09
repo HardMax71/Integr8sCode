@@ -61,22 +61,39 @@ def test_base_saga_abstract_calls_cover_pass_lines() -> None:
     # Instance-less call to abstract instance method to hit 'pass'
     assert BaseSaga.get_steps(None) is None  # type: ignore[arg-type]
     # And the default bind hook returns None when called
+    from app.domain.enums.events import EventType
+    from app.services.saga.saga_step import SagaStep
+    from app.infrastructure.kafka.events import BaseEvent
+
     class Dummy(BaseSaga):
         @classmethod
-        def get_name(cls): return "d"
+        def get_name(cls) -> str:
+            return "d"
+
         @classmethod
-        def get_trigger_events(cls): return []
-        def get_steps(self): return []
-    assert Dummy().bind_dependencies() is None
+        def get_trigger_events(cls) -> list[EventType]:
+            return []
+
+        def get_steps(self) -> list[SagaStep[BaseEvent]]:
+            return []
+
+    Dummy().bind_dependencies()
 
 
 def test_saga_step_str_and_can_execute() -> None:
     from app.services.saga.saga_step import SagaStep
-    class S(SagaStep):
-        async def execute(self, context, event): return True
-        def get_compensation(self): return None
+    from app.infrastructure.kafka.events import BaseEvent
+
+    class S(SagaStep[BaseEvent]):
+        async def execute(self, context: SagaContext, event: BaseEvent) -> bool:
+            return True
+
+        def get_compensation(self) -> CompensationStep | None:
+            return None
+
     s = S("nm")
     assert str(s) == "SagaStep(nm)"
     # can_execute default True
     import asyncio
-    assert asyncio.run(s.can_execute(SagaContext("s","e"), object())) is True
+    from unittest.mock import MagicMock
+    assert asyncio.run(s.can_execute(SagaContext("s", "e"), MagicMock(spec=BaseEvent))) is True

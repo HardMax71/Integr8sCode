@@ -10,9 +10,11 @@ import pytest
 from app.domain.enums.events import EventType
 from app.domain.enums.saga import SagaState
 from app.domain.saga.models import Saga
-from tests.helpers import make_execution_requested_event
+from app.infrastructure.kafka.events.base import BaseEvent
+from app.infrastructure.kafka.events.execution import ExecutionRequestedEvent
 from app.services.saga.execution_saga import ExecutionSaga
 from app.services.saga.saga_step import CompensationStep, SagaContext, SagaStep
+from tests.helpers import make_execution_requested_event
 
 
 pytestmark = pytest.mark.unit
@@ -23,19 +25,19 @@ class _NoopComp(CompensationStep):
         return True
 
 
-class _Step(SagaStep):
-    def __init__(self, name: str, ok: bool = True):
+class _Step(SagaStep[BaseEvent]):
+    def __init__(self, name: str, ok: bool = True) -> None:
         super().__init__(name)
         self._ok = ok
 
-    async def execute(self, context: SagaContext, event) -> bool:  # noqa: ARG002
+    async def execute(self, context: SagaContext, event: BaseEvent) -> bool:  # noqa: ARG002
         return self._ok
 
-    def get_compensation(self):
+    def get_compensation(self) -> CompensationStep:
         return _NoopComp(f"{self.name}-comp")
 
 
-def _req_event():
+def _req_event() -> ExecutionRequestedEvent:
     return make_execution_requested_event(execution_id="e1", script="print('x')")
 
 

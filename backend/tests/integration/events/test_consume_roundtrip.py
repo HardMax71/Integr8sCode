@@ -3,14 +3,16 @@ import logging
 import uuid
 
 import pytest
+from dishka import AsyncContainer
+
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.events.core import UnifiedConsumer, UnifiedProducer
 from app.events.core.dispatcher import EventDispatcher
 from app.events.core.types import ConsumerConfig
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
+from app.infrastructure.kafka.events.base import BaseEvent
 from app.settings import Settings
-
 from tests.helpers import make_execution_requested_event
 
 # xdist_group: Kafka consumer creation can crash librdkafka when multiple workers
@@ -21,7 +23,7 @@ _test_logger = logging.getLogger("test.events.consume_roundtrip")
 
 
 @pytest.mark.asyncio
-async def test_produce_consume_roundtrip(scope) -> None:  # type: ignore[valid-type]
+async def test_produce_consume_roundtrip(scope: AsyncContainer) -> None:
     # Ensure schemas are registered
     registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
     settings: Settings = await scope.get(Settings)
@@ -35,7 +37,7 @@ async def test_produce_consume_roundtrip(scope) -> None:  # type: ignore[valid-t
     received = asyncio.Event()
 
     @dispatcher.register(EventType.EXECUTION_REQUESTED)
-    async def _handle(_event) -> None:  # noqa: ANN001
+    async def _handle(_event: BaseEvent) -> None:
         received.set()
 
     group_id = f"test-consumer.{uuid.uuid4().hex[:6]}"
@@ -53,7 +55,7 @@ async def test_produce_consume_roundtrip(scope) -> None:  # type: ignore[valid-t
         settings=settings,
         logger=_test_logger,
     )
-    await consumer.start([str(KafkaTopic.EXECUTION_EVENTS)])
+    await consumer.start([KafkaTopic.EXECUTION_EVENTS])
 
     try:
         # Produce a request event

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import TypedDict
 
 import pytest
 from httpx import AsyncClient
@@ -13,6 +14,11 @@ from app.schemas_pydantic.dlq import (
     DLQTopicSummaryResponse
 )
 from app.schemas_pydantic.user import MessageResponse
+from app.settings import Settings
+
+
+class _RetryRequest(TypedDict):
+    event_ids: list[str]
 
 
 @pytest.mark.integration
@@ -192,12 +198,13 @@ class TestDLQRoutes:
 
     @pytest.mark.asyncio
     async def test_set_retry_policy(
-        self, client: AsyncClient, test_user: dict[str, str], test_settings
+        self, client: AsyncClient, test_user: dict[str, str], test_settings: Settings
     ) -> None:
         """Test setting a retry policy for a topic."""
         # Set retry policy
+        topic = f"{test_settings.KAFKA_TOPIC_PREFIX}test-topic"
         policy_data = {
-            "topic": f"{test_settings.KAFKA_TOPIC_PREFIX}test-topic",
+            "topic": topic,
             "strategy": "exponential_backoff",
             "max_retries": 5,
             "base_delay_seconds": 10,
@@ -212,7 +219,7 @@ class TestDLQRoutes:
         result_data = response.json()
         result = MessageResponse(**result_data)
         assert "retry policy set" in result.message.lower()
-        assert policy_data["topic"] in result.message
+        assert topic in result.message
 
     @pytest.mark.asyncio
     async def test_retry_dlq_messages_batch(self, client: AsyncClient, test_user: dict[str, str]) -> None:
@@ -367,7 +374,7 @@ class TestDLQRoutes:
         assert response.status_code in [400, 422]
 
         # Test retry with empty list
-        retry_request = {
+        retry_request: _RetryRequest = {
             "event_ids": []
         }
         response = await client.post("/api/v1/dlq/retry", json=retry_request)

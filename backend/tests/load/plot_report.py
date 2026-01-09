@@ -3,14 +3,38 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Dict, List, Tuple, TypedDict
 
 import matplotlib.pyplot as plt
 
 
-def _load_report(path: str | Path) -> Dict[str, Any]:
+class LatencyStats(TypedDict, total=False):
+    p50: int
+    p90: int
+    p99: int
+
+
+class EndpointData(TypedDict, total=False):
+    count: int
+    errors: int
+    latency_ms_success: LatencyStats
+
+
+class TimelineData(TypedDict, total=False):
+    seconds: List[int]
+    rps: List[int]
+    eps: List[int]
+
+
+class ReportDict(TypedDict, total=False):
+    timeline: TimelineData
+    endpoints: Dict[str, EndpointData]
+
+
+def _load_report(path: str | Path) -> ReportDict:
     with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+        result: ReportDict = json.load(f)
+        return result
 
 
 def _ensure_out_dir(path: str | Path) -> Path:
@@ -19,8 +43,8 @@ def _ensure_out_dir(path: str | Path) -> Path:
     return p
 
 
-def plot_timeline(report: Dict[str, Any], out_dir: Path) -> Path:
-    tl = report.get("timeline", {})
+def plot_timeline(report: ReportDict, out_dir: Path) -> Path:
+    tl: TimelineData = report.get("timeline", {})
     seconds: List[int] = tl.get("seconds", [])
     rps: List[int] = tl.get("rps", [])
     eps: List[int] = tl.get("eps", [])
@@ -44,22 +68,23 @@ def plot_timeline(report: Dict[str, Any], out_dir: Path) -> Path:
     return out_path
 
 
-def _top_endpoints(report: Dict[str, Any], top_n: int = 10) -> List[Tuple[str, Dict[str, Any]]]:
-    eps: Dict[str, Any] = report.get("endpoints", {})
+def _top_endpoints(report: ReportDict, top_n: int = 10) -> List[Tuple[str, EndpointData]]:
+    eps: Dict[str, EndpointData] = report.get("endpoints", {})
     items = list(eps.items())
     items.sort(key=lambda kv: kv[1].get("count", 0), reverse=True)
     return items[:top_n]
 
 
-def plot_endpoint_latency(report: Dict[str, Any], out_dir: Path, top_n: int = 10) -> Path:
+def plot_endpoint_latency(report: ReportDict, out_dir: Path, top_n: int = 10) -> Path:
     data = _top_endpoints(report, top_n)
     if not data:
         return out_dir / "endpoint_latency.png"
 
     labels = [k for k, _ in data]
-    p50 = [v.get("latency_ms_success", {}).get("p50", 0) for _, v in data]
-    p90 = [v.get("latency_ms_success", {}).get("p90", 0) for _, v in data]
-    p99 = [v.get("latency_ms_success", {}).get("p99", 0) for _, v in data]
+    empty_latency: LatencyStats = {}
+    p50 = [v.get("latency_ms_success", empty_latency).get("p50", 0) for _, v in data]
+    p90 = [v.get("latency_ms_success", empty_latency).get("p90", 0) for _, v in data]
+    p99 = [v.get("latency_ms_success", empty_latency).get("p99", 0) for _, v in data]
 
     x = range(len(labels))
     width = 0.25
@@ -81,7 +106,7 @@ def plot_endpoint_latency(report: Dict[str, Any], out_dir: Path, top_n: int = 10
     return out_path
 
 
-def plot_endpoint_throughput(report: Dict[str, Any], out_dir: Path, top_n: int = 10) -> Path:
+def plot_endpoint_throughput(report: ReportDict, out_dir: Path, top_n: int = 10) -> Path:
     data = _top_endpoints(report, top_n)
     if not data:
         return out_dir / "endpoint_throughput.png"

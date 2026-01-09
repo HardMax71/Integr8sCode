@@ -1,32 +1,37 @@
 import asyncio
+import json
 import logging
 from datetime import datetime, timezone
-from typing import Any, Type
+from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 from pydantic import BaseModel
+
+from app.domain.enums.events import EventType
+from app.domain.execution import DomainExecution, ResourceUsageDomain
+from app.domain.sse import ShutdownStatus, SSEHealthDomain
+from app.repositories.sse_repository import SSERepository
+from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
+from app.services.sse.redis_bus import SSERedisBus, SSERedisSubscription
+from app.services.sse.shutdown_manager import SSEShutdownManager
+from app.services.sse.sse_service import SSEService
+from app.settings import Settings
 
 pytestmark = pytest.mark.unit
 
 _test_logger = logging.getLogger("test.services.sse.sse_service")
 
-from app.domain.enums.events import EventType
-from app.domain.execution import DomainExecution, ResourceUsageDomain
-from app.domain.sse import ShutdownStatus, SSEHealthDomain
-from app.schemas_pydantic.sse import RedisNotificationMessage, RedisSSEMessage
-from app.services.sse.sse_service import SSEService
 
-T = Any  # TypeVar for fake
-
-
-class _FakeSubscription:
+class _FakeSubscription(SSERedisSubscription):
     def __init__(self) -> None:
+        # Skip parent __init__ - no real Redis pubsub
         self._q: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
         self.closed = False
 
-    async def get(self, model: Type[BaseModel], timeout: float = 0.5) -> T | None:
+    async def get[T: BaseModel](self, model: type[T]) -> T | None:
         try:
-            raw = await asyncio.wait_for(self._q.get(), timeout=timeout)
+            raw = await asyncio.wait_for(self._q.get(), timeout=0.5)
             if raw is None:
                 return None
             return model.model_validate(raw)
@@ -35,26 +40,27 @@ class _FakeSubscription:
         except Exception:
             return None
 
-    async def push(self, msg: dict[str, Any]) -> None:
+    async def push(self, msg: dict[str, Any] | None) -> None:
         self._q.put_nowait(msg)
 
     async def close(self) -> None:
         self.closed = True
 
 
-class _FakeBus:
+class _FakeBus(SSERedisBus):
     def __init__(self) -> None:
+        # Skip parent __init__
         self.exec_sub = _FakeSubscription()
         self.notif_sub = _FakeSubscription()
 
-    async def open_subscription(self, execution_id: str) -> _FakeSubscription:  # noqa: ARG002
+    async def open_subscription(self, execution_id: str) -> SSERedisSubscription:  # noqa: ARG002
         return self.exec_sub
 
-    async def open_notification_subscription(self, user_id: str) -> _FakeSubscription:  # noqa: ARG002
+    async def open_notification_subscription(self, user_id: str) -> SSERedisSubscription:  # noqa: ARG002
         return self.notif_sub
 
 
-class _FakeRepo:
+class _FakeRepo(SSERepository):
     class _Status:
         def __init__(self, execution_id: str) -> None:
             self.execution_id = execution_id
@@ -62,27 +68,29 @@ class _FakeRepo:
             self.timestamp = datetime.now(timezone.utc).isoformat()
 
     def __init__(self) -> None:
+        # Skip parent __init__
         self.exec_for_result: DomainExecution | None = None
 
-    async def get_execution_status(self, execution_id: str) -> "_FakeRepo._Status":
+    async def get_execution_status(self, execution_id: str) -> "_FakeRepo._Status":  # type: ignore[override]
         return _FakeRepo._Status(execution_id)
 
     async def get_execution(self, execution_id: str) -> DomainExecution | None:  # noqa: ARG002
         return self.exec_for_result
 
 
-class _FakeShutdown:
+class _FakeShutdown(SSEShutdownManager):
     def __init__(self) -> None:
+        # Skip parent __init__
         self._evt = asyncio.Event()
         self._initiated = False
         self.registered: list[tuple[str, str]] = []
         self.unregistered: list[tuple[str, str]] = []
 
-    async def register_connection(self, execution_id: str, connection_id: str):
+    async def register_connection(self, execution_id: str, connection_id: str) -> asyncio.Event:
         self.registered.append((execution_id, connection_id))
         return self._evt
 
-    async def unregister_connection(self, execution_id: str, connection_id: str):
+    async def unregister_connection(self, execution_id: str, connection_id: str) -> None:
         self.unregistered.append((execution_id, connection_id))
 
     def is_shutting_down(self) -> bool:
@@ -102,19 +110,24 @@ class _FakeShutdown:
         self._evt.set()
 
 
-class _FakeSettings:
-    SSE_HEARTBEAT_INTERVAL = 0  # not used for execution; helpful for notification test
+class _FakeRouter(SSEKafkaRedisBridge):
+    def __init__(self) -> None:
+        # Skip parent __init__
+        pass
 
-
-class _FakeRouter:
-    def get_stats(self) -> dict[str, int | bool]:
+    def get_stats(self) -> dict[str, int | bool]:  # type: ignore[override]
         return {"num_consumers": 3, "active_executions": 2, "is_running": True, "total_buffers": 0}
 
 
-def _decode(evt: dict[str, Any]) -> dict[str, Any]:
-    import json
+def _make_fake_settings() -> Settings:
+    mock = MagicMock(spec=Settings)
+    mock.SSE_HEARTBEAT_INTERVAL = 0
+    return mock
 
-    return json.loads(evt["data"])  # type: ignore[index]
+
+def _decode(evt: dict[str, Any]) -> dict[str, Any]:
+    result: dict[str, Any] = json.loads(evt["data"])
+    return result
 
 
 @pytest.mark.asyncio
@@ -122,7 +135,7 @@ async def test_execution_stream_closes_on_failed_event() -> None:
     repo = _FakeRepo()
     bus = _FakeBus()
     sm = _FakeShutdown()
-    svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm, settings=_FakeSettings(), logger=_test_logger)
+    svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm, settings=_make_fake_settings(), logger=_test_logger)
 
     agen = svc.create_execution_stream("exec-1", user_id="u1")
     first = await agen.__anext__()
@@ -159,7 +172,7 @@ async def test_execution_stream_result_stored_includes_result_payload() -> None:
     )
     bus = _FakeBus()
     sm = _FakeShutdown()
-    svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm, settings=_FakeSettings(), logger=_test_logger)
+    svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm, settings=_make_fake_settings(), logger=_test_logger)
 
     agen = svc.create_execution_stream("exec-2", user_id="u1")
     await agen.__anext__()  # connected
@@ -180,7 +193,7 @@ async def test_notification_stream_connected_and_heartbeat_and_message() -> None
     repo = _FakeRepo()
     bus = _FakeBus()
     sm = _FakeShutdown()
-    settings = _FakeSettings()
+    settings = _make_fake_settings()
     settings.SSE_HEARTBEAT_INTERVAL = 0  # emit immediately
     svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm, settings=settings, logger=_test_logger)
 
@@ -209,7 +222,7 @@ async def test_notification_stream_connected_and_heartbeat_and_message() -> None
     # Stop the stream by initiating shutdown and advancing once more (loop checks flag)
     sm.initiate()
     # It may loop until it sees the flag; push a None to release get(timeout)
-    await bus.notif_sub.push(None)  # type: ignore[arg-type]
+    await bus.notif_sub.push(None)
     # Give the generator a chance to observe the flag and finish
     with pytest.raises(StopAsyncIteration):
         await asyncio.wait_for(agen.__anext__(), timeout=0.2)
@@ -217,7 +230,7 @@ async def test_notification_stream_connected_and_heartbeat_and_message() -> None
 
 @pytest.mark.asyncio
 async def test_health_status_shape() -> None:
-    svc = SSEService(repository=_FakeRepo(), router=_FakeRouter(), sse_bus=_FakeBus(), shutdown_manager=_FakeShutdown(), settings=_FakeSettings(), logger=_test_logger)
+    svc = SSEService(repository=_FakeRepo(), router=_FakeRouter(), sse_bus=_FakeBus(), shutdown_manager=_FakeShutdown(), settings=_make_fake_settings(), logger=_test_logger)
     h = await svc.get_health_status()
     assert isinstance(h, SSEHealthDomain)
     assert h.active_consumers == 3 and h.active_executions == 2

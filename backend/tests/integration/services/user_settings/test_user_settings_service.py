@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 import pytest
+from dishka import AsyncContainer
 
 from app.domain.enums import Theme
 from app.domain.user.settings_models import (
@@ -14,7 +15,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.mongodb]
 
 
 @pytest.mark.asyncio
-async def test_get_update_and_history(scope) -> None:  # type: ignore[valid-type]
+async def test_get_update_and_history(scope: AsyncContainer) -> None:
     svc: UserSettingsService = await scope.get(UserSettingsService)
     user_id = "u1"
 

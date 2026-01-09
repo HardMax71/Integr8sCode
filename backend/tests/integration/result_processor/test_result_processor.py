@@ -3,6 +3,8 @@ import logging
 import uuid
 
 import pytest
+from dishka import AsyncContainer
+
 from app.core.database_context import Database
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
@@ -16,6 +18,7 @@ from app.events.core.types import ConsumerConfig
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.infrastructure.kafka.events.execution import ExecutionCompletedEvent
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata
+from app.infrastructure.kafka.events.system import ResultStoredEvent
 from app.services.idempotency import IdempotencyManager
 from app.services.result_processor.processor import ResultProcessor
 from app.settings import Settings
@@ -35,7 +38,7 @@ _test_logger = logging.getLogger("test.result_processor.processor")
 
 
 @pytest.mark.asyncio
-async def test_result_processor_persists_and_emits(scope) -> None:  # type: ignore[valid-type]
+async def test_result_processor_persists_and_emits(scope: AsyncContainer) -> None:
     # Ensure schemas
     registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
     settings: Settings = await scope.get(Settings)
@@ -72,7 +75,7 @@ async def test_result_processor_persists_and_emits(scope) -> None:  # type: igno
     stored_received = asyncio.Event()
 
     @dispatcher.register(EventType.RESULT_STORED)
-    async def _stored(_event) -> None:  # noqa: ANN001
+    async def _stored(_event: ResultStoredEvent) -> None:
         stored_received.set()
 
     group_id = f"rp-test.{uuid.uuid4().hex[:6]}"
@@ -89,7 +92,7 @@ async def test_result_processor_persists_and_emits(scope) -> None:  # type: igno
         settings=settings,
         logger=_test_logger,
     )
-    await stored_consumer.start([str(KafkaTopic.EXECUTION_RESULTS)])
+    await stored_consumer.start([KafkaTopic.EXECUTION_RESULTS])
 
     try:
         async with processor:

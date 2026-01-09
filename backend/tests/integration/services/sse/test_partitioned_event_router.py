@@ -2,6 +2,8 @@ import logging
 from uuid import uuid4
 
 import pytest
+import redis.asyncio as redis
+
 from app.core.metrics.events import EventMetrics
 from app.events.core import EventDispatcher
 from app.events.schema.schema_registry import SchemaRegistryManager
@@ -9,7 +11,6 @@ from app.schemas_pydantic.sse import RedisSSEMessage
 from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
 from app.services.sse.redis_bus import SSERedisBus
 from app.settings import Settings
-
 from tests.helpers import make_execution_requested_event
 from tests.helpers.eventually import eventually
 
@@ -19,7 +20,7 @@ _test_logger = logging.getLogger("test.services.sse.partitioned_event_router_int
 
 
 @pytest.mark.asyncio
-async def test_router_bridges_to_redis(redis_client, test_settings: Settings) -> None:
+async def test_router_bridges_to_redis(redis_client: redis.Redis, test_settings: Settings) -> None:
     suffix = uuid4().hex[:6]
     bus = SSERedisBus(
         redis_client,
@@ -45,7 +46,7 @@ async def test_router_bridges_to_redis(redis_client, test_settings: Settings) ->
     handler = disp.get_handlers(ev.event_type)[0]
     await handler(ev)
 
-    async def _recv():
+    async def _recv() -> RedisSSEMessage:
         m = await subscription.get(RedisSSEMessage)
         assert m is not None
         return m
@@ -55,7 +56,7 @@ async def test_router_bridges_to_redis(redis_client, test_settings: Settings) ->
 
 
 @pytest.mark.asyncio
-async def test_router_start_and_stop(redis_client, test_settings: Settings) -> None:
+async def test_router_start_and_stop(redis_client: redis.Redis, test_settings: Settings) -> None:
     test_settings.SSE_CONSUMER_POOL_SIZE = 1
     suffix = uuid4().hex[:6]
     router = SSEKafkaRedisBridge(

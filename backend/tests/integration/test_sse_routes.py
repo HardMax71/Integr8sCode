@@ -1,17 +1,19 @@
 import asyncio
 import json
 from contextlib import aclosing
-from typing import Dict
+from typing import Any
 from uuid import uuid4
 
 import pytest
+from dishka import AsyncContainer
+from httpx import AsyncClient
+
 from app.domain.enums.notification import NotificationSeverity, NotificationStatus
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.infrastructure.kafka.events.pod import PodCreatedEvent
 from app.schemas_pydantic.sse import RedisNotificationMessage, SSEHealthResponse
 from app.services.sse.redis_bus import SSERedisBus
 from app.services.sse.sse_service import SSEService
-from httpx import AsyncClient
 
 
 @pytest.mark.integration
@@ -33,7 +35,7 @@ class TestSSERoutes:
         assert r.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_sse_health_status(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_sse_health_status(self, client: AsyncClient, test_user: dict[str, str]) -> None:
         r = await client.get("/api/v1/events/health")
         assert r.status_code == 200
         health = SSEHealthResponse(**r.json())
@@ -41,13 +43,13 @@ class TestSSERoutes:
         assert isinstance(health.active_connections, int) and health.active_connections >= 0
 
     @pytest.mark.asyncio
-    async def test_notification_stream_service(self, scope, test_user: Dict[str, str]) -> None:  # type: ignore[valid-type]
+    async def test_notification_stream_service(self, scope: AsyncContainer, test_user: dict[str, str]) -> None:
         """Test SSE notification stream directly through service (httpx doesn't support SSE streaming)."""
         sse_service: SSEService = await scope.get(SSEService)
         bus: SSERedisBus = await scope.get(SSERedisBus)
         user_id = f"user-{uuid4().hex[:8]}"
 
-        events: list[dict] = []
+        events: list[dict[str, Any]] = []
         notification_received = False
 
         async with aclosing(sse_service.create_notification_stream(user_id)) as stream:
@@ -85,7 +87,7 @@ class TestSSERoutes:
         assert notification_received, f"Expected notification, got events: {events}"
 
     @pytest.mark.asyncio
-    async def test_execution_event_stream_service(self, scope, test_user: Dict[str, str]) -> None:  # type: ignore[valid-type]
+    async def test_execution_event_stream_service(self, scope: AsyncContainer, test_user: dict[str, str]) -> None:
         """Test SSE execution stream directly through service (httpx doesn't support SSE streaming)."""
         exec_id = f"e-{uuid4().hex[:8]}"
         user_id = "test-user-id"
@@ -93,7 +95,7 @@ class TestSSERoutes:
         sse_service: SSEService = await scope.get(SSEService)
         bus: SSERedisBus = await scope.get(SSERedisBus)
 
-        events: list[dict] = []
+        events: list[dict[str, Any]] = []
         pod_event_received = False
 
         async with aclosing(sse_service.create_execution_stream(exec_id, user_id)) as stream:
@@ -137,14 +139,14 @@ class TestSSERoutes:
         assert r.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_sse_endpoint_returns_correct_headers(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_sse_endpoint_returns_correct_headers(self, client: AsyncClient, test_user: dict[str, str]) -> None:
         """Test SSE health endpoint works (streaming tests done via service)."""
         r = await client.get("/api/v1/events/health")
         assert r.status_code == 200
         assert isinstance(r.json(), dict)
 
     @pytest.mark.asyncio
-    async def test_multiple_concurrent_sse_service_connections(self, scope, test_user: Dict[str, str]) -> None:  # type: ignore[valid-type]
+    async def test_multiple_concurrent_sse_service_connections(self, scope: AsyncContainer, test_user: dict[str, str]) -> None:
         """Test multiple concurrent SSE connections through the service."""
         sse_service: SSEService = await scope.get(SSEService)
 

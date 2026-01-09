@@ -2,6 +2,8 @@ import logging
 import uuid
 
 import pytest
+from dishka import AsyncContainer
+
 from app.core.database_context import Database
 from app.domain.enums.auth import LoginMethod
 from app.domain.enums.kafka import KafkaTopic
@@ -26,7 +28,7 @@ _test_logger = logging.getLogger("test.events.event_store_consumer")
 
 
 @pytest.mark.asyncio
-async def test_event_store_consumer_stores_events(scope) -> None:  # type: ignore[valid-type]
+async def test_event_store_consumer_stores_events(scope: AsyncContainer) -> None:
     # Ensure schemas
     registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
     await initialize_event_schemas(registry)

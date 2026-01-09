@@ -19,7 +19,7 @@ from app.services.pod_monitor.monitor import (
     WatchEventType,
     create_pod_monitor,
 )
-from tests.helpers.k8s_fakes import FakeApi, FakeV1Api, FakeWatch, make_k8s_clients, make_pod, make_watch
+from tests.helpers.k8s_fakes import FakeApi, FakeV1Api, FakeWatch, FakeWatchStream, make_k8s_clients, make_pod, make_watch
 
 pytestmark = pytest.mark.unit
 
@@ -177,7 +177,7 @@ async def test_get_status() -> None:
 async def test_reconciliation_loop_and_state() -> None:
     cfg = PodMonitorConfig()
     cfg.enable_state_reconciliation = True
-    cfg.reconcile_interval_seconds = 0.01
+    cfg.reconcile_interval_seconds = 1  # Use 1 second for testing
 
     pm = make_pod_monitor(config=cfg)
     pm._state = MonitorState.RUNNING
@@ -670,14 +670,14 @@ async def test_watch_pod_events_with_field_selector() -> None:
     watch_kwargs: list[dict[str, Any]] = []
 
     class TrackingV1(FakeV1Api):
-        def list_namespaced_pod(self, **kwargs: Any) -> Any:
-            watch_kwargs.append(kwargs)
+        def list_namespaced_pod(self, namespace: str, label_selector: str) -> Any:
+            watch_kwargs.append({"namespace": namespace, "label_selector": label_selector})
             return None
 
     class TrackingWatch(FakeWatch):
-        def stream(self, func: Any, **kwargs: Any) -> list[dict[str, Any]]:
+        def stream(self, func: Any, **kwargs: Any) -> FakeWatchStream:
             watch_kwargs.append(kwargs)
-            return []
+            return FakeWatchStream([], "rv1")
 
     k8s_clients = K8sClients(
         api_client=MagicMock(),
@@ -699,7 +699,7 @@ async def test_watch_pod_events_with_field_selector() -> None:
 async def test_reconciliation_loop_exception() -> None:
     cfg = PodMonitorConfig()
     cfg.enable_state_reconciliation = True
-    cfg.reconcile_interval_seconds = 0.01
+    cfg.reconcile_interval_seconds = 1  # Use 1 second for testing
 
     pm = make_pod_monitor(config=cfg)
     pm._state = MonitorState.RUNNING

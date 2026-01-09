@@ -1,27 +1,31 @@
 import asyncio
-import json
 import logging
-from typing import Any
+from typing import Any, ClassVar, cast
 
 import pytest
-
-pytestmark = pytest.mark.integration
+import redis.asyncio as redis_async
 
 from app.domain.enums.events import EventType
+from app.domain.enums.kafka import KafkaTopic
+from app.domain.enums.notification import NotificationSeverity, NotificationStatus
+from app.infrastructure.kafka.events import BaseEvent
+from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.schemas_pydantic.sse import RedisNotificationMessage, RedisSSEMessage
 from app.services.sse.redis_bus import SSERedisBus
+
+pytestmark = pytest.mark.integration
 
 _test_logger = logging.getLogger("test.services.sse.redis_bus")
 
 
-class _DummyEvent:
-    def __init__(self, execution_id: str, event_type: EventType, extra: dict[str, Any] | None = None) -> None:
-        self.execution_id = execution_id
-        self.event_type = event_type
-        self._extra = extra or {}
+class _DummyEvent(BaseEvent):
+    """Dummy event for testing."""
+    execution_id: str = ""
+    status: str | None = None
+    topic: ClassVar[KafkaTopic] = KafkaTopic.EXECUTION_EVENTS
 
-    def model_dump(self, mode: str | None = None) -> dict[str, Any]:  # noqa: ARG002
-        return {"execution_id": self.execution_id, **self._extra}
+    def model_dump(self, **kwargs: object) -> dict[str, Any]:
+        return {"execution_id": self.execution_id, "status": self.status}
 
 
 class _FakePubSub:
@@ -33,7 +37,7 @@ class _FakePubSub:
     async def subscribe(self, channel: str) -> None:
         self.subscribed.add(channel)
 
-    async def get_message(self, ignore_subscribe_messages: bool = True, timeout: float = 0.5):  # noqa: ARG002
+    async def get_message(self, ignore_subscribe_messages: bool = True, timeout: float = 0.5) -> dict[str, Any] | None:
         try:
             msg = await asyncio.wait_for(self._queue.get(), timeout=timeout)
             return msg
@@ -51,21 +55,31 @@ class _FakePubSub:
 
 
 class _FakeRedis:
+    """Fake Redis for testing - used in place of real Redis.
+
+    Note: SSERedisBus uses duck-typing so this works without inheritance.
+    """
+
     def __init__(self) -> None:
         self.published: list[tuple[str, str]] = []
         self._pubsub = _FakePubSub()
 
-    async def publish(self, channel: str, payload: str) -> None:
+    async def publish(self, channel: str, payload: str) -> int:
         self.published.append((channel, payload))
+        return 1
 
     def pubsub(self) -> _FakePubSub:
         return self._pubsub
 
 
+def _make_metadata() -> AvroEventMetadata:
+    return AvroEventMetadata(service_name="test", service_version="1.0")
+
+
 @pytest.mark.asyncio
 async def test_publish_and_subscribe_round_trip() -> None:
     r = _FakeRedis()
-    bus = SSERedisBus(r, logger=_test_logger)
+    bus = SSERedisBus(cast(redis_async.Redis, r), logger=_test_logger)
 
     # Subscribe
     sub = await bus.open_subscription("exec-1")
@@ -73,7 +87,12 @@ async def test_publish_and_subscribe_round_trip() -> None:
     assert "sse:exec:exec-1" in r._pubsub.subscribed
 
     # Publish event
-    evt = _DummyEvent("exec-1", EventType.EXECUTION_COMPLETED, {"status": "completed"})
+    evt = _DummyEvent(
+        event_type=EventType.EXECUTION_COMPLETED,
+        metadata=_make_metadata(),
+        execution_id="exec-1",
+        status="completed"
+    )
     await bus.publish_event("exec-1", evt)
     assert r.published, "nothing published"
     ch, payload = r.published[-1]
@@ -96,14 +115,14 @@ async def test_publish_and_subscribe_round_trip() -> None:
 @pytest.mark.asyncio
 async def test_notifications_channels() -> None:
     r = _FakeRedis()
-    bus = SSERedisBus(r, logger=_test_logger)
+    bus = SSERedisBus(cast(redis_async.Redis, r), logger=_test_logger)
     nsub = await bus.open_notification_subscription("user-1")
     assert "sse:notif:user-1" in r._pubsub.subscribed
 
     notif = RedisNotificationMessage(
         notification_id="n1",
-        severity="low",
-        status="pending",
+        severity=NotificationSeverity.LOW,
+        status=NotificationStatus.PENDING,
         tags=[],
         subject="test",
         body="body",

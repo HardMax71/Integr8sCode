@@ -1,10 +1,13 @@
 import logging
 from datetime import datetime, timezone
+from typing import cast
 
 import pytest
+
 from app.db.docs import DLQMessageDocument
 from app.db.repositories.dlq_repository import DLQRepository
 from app.dlq import DLQMessageStatus
+from app.dlq.manager import DLQManager
 from app.domain.enums.events import EventType
 
 pytestmark = pytest.mark.integration
@@ -17,7 +20,7 @@ def repo() -> DLQRepository:
     return DLQRepository(_test_logger)
 
 
-async def insert_test_dlq_docs():
+async def insert_test_dlq_docs() -> None:
     """Insert test DLQ documents using Beanie."""
     now = datetime.now(timezone.utc)
 
@@ -96,10 +99,10 @@ async def test_stats_list_get_and_updates(repo: DLQRepository) -> None:
 
 @pytest.mark.asyncio
 async def test_retry_batch(repo: DLQRepository) -> None:
-    class Manager:
+    class _Manager:
         async def retry_message_manually(self, eid: str) -> bool:  # noqa: ARG002
             return True
 
-    result = await repo.retry_messages_batch(["missing"], Manager())
+    result = await repo.retry_messages_batch(["missing"], cast(DLQManager, _Manager()))
     # Missing messages cause failures
     assert result.total == 1 and result.failed >= 1

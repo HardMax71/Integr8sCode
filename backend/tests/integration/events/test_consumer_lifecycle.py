@@ -2,6 +2,8 @@ import logging
 from uuid import uuid4
 
 import pytest
+from dishka import AsyncContainer
+
 from app.domain.enums.kafka import KafkaTopic
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer
 from app.events.schema.schema_registry import SchemaRegistryManager
@@ -15,7 +17,7 @@ _test_logger = logging.getLogger("test.events.consumer_lifecycle")
 
 
 @pytest.mark.asyncio
-async def test_consumer_start_status_seek_and_stop(scope) -> None:  # type: ignore[valid-type]
+async def test_consumer_start_status_seek_and_stop(scope: AsyncContainer) -> None:
     registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
     settings: Settings = await scope.get(Settings)
     cfg = ConsumerConfig(

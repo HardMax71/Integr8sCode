@@ -3,9 +3,11 @@ import logging
 from uuid import uuid4
 
 import pytest
+from dishka import AsyncContainer
+
 from app.events.core import ProducerConfig, UnifiedProducer
 from app.events.schema.schema_registry import SchemaRegistryManager
-
+from app.settings import Settings
 from tests.helpers import make_execution_requested_event
 
 pytestmark = [pytest.mark.integration, pytest.mark.kafka]
@@ -14,8 +16,8 @@ _test_logger = logging.getLogger("test.events.producer_roundtrip")
 
 
 @pytest.mark.asyncio
-async def test_unified_producer_start_produce_send_to_dlq_stop(  # type: ignore[valid-type]
-    scope, test_settings
+async def test_unified_producer_start_produce_send_to_dlq_stop(
+    scope: AsyncContainer, test_settings: Settings
 ) -> None:
     schema: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
     prod = UnifiedProducer(
@@ -36,7 +38,7 @@ async def test_unified_producer_start_produce_send_to_dlq_stop(  # type: ignore[
         assert st["running"] is True and st["state"] == "running"
 
 
-def test_producer_handle_stats_path():
+def test_producer_handle_stats_path() -> None:
     # Directly run stats parsing to cover branch logic; avoid relying on timing
     from app.events.core.producer import ProducerMetrics
     from app.events.core.producer import UnifiedProducer as UP

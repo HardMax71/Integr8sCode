@@ -1,6 +1,8 @@
 import json
 from datetime import datetime, timedelta, timezone
+
 import pytest
+import redis.asyncio as redis
 from pymongo.errors import DuplicateKeyError
 
 from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus
@@ -16,41 +18,43 @@ pytestmark = [pytest.mark.integration, pytest.mark.redis]
 
 
 class TestHelperFunctions:
-    def test_iso_datetime(self):
+    def test_iso_datetime(self) -> None:
         dt = datetime(2025, 1, 15, 10, 30, 45, tzinfo=timezone.utc)
         result = _iso(dt)
         assert result == "2025-01-15T10:30:45+00:00"
 
-    def test_iso_datetime_with_timezone(self):
+    def test_iso_datetime_with_timezone(self) -> None:
         dt = datetime(2025, 1, 15, 10, 30, 45, tzinfo=timezone(timedelta(hours=5)))
         result = _iso(dt)
         assert result == "2025-01-15T05:30:45+00:00"
 
-    def test_json_default_datetime(self):
+    def test_json_default_datetime(self) -> None:
         dt = datetime(2025, 1, 15, 10, 30, 45, tzinfo=timezone.utc)
         result = _json_default(dt)
         assert result == "2025-01-15T10:30:45+00:00"
 
-    def test_json_default_other(self):
+    def test_json_default_other(self) -> None:
         obj = {"key": "value"}
         result = _json_default(obj)
         assert result == "{'key': 'value'}"
 
-    def test_parse_iso_datetime_variants(self):
-        assert _parse_iso_datetime("2025-01-15T10:30:45+00:00").year == 2025
-        assert _parse_iso_datetime("2025-01-15T10:30:45Z").tzinfo == timezone.utc
+    def test_parse_iso_datetime_variants(self) -> None:
+        result1 = _parse_iso_datetime("2025-01-15T10:30:45+00:00")
+        assert result1 is not None and result1.year == 2025
+        result2 = _parse_iso_datetime("2025-01-15T10:30:45Z")
+        assert result2 is not None and result2.tzinfo == timezone.utc
         assert _parse_iso_datetime(None) is None
         assert _parse_iso_datetime("") is None
         assert _parse_iso_datetime("not-a-date") is None
 
 
 @pytest.fixture
-def repository(redis_client):  # type: ignore[valid-type]
+def repository(redis_client: redis.Redis) -> RedisIdempotencyRepository:
     return RedisIdempotencyRepository(redis_client, key_prefix="idempotency")
 
 
 @pytest.fixture
-def sample_record():
+def sample_record() -> IdempotencyRecord:
     return IdempotencyRecord(
         key="test-key",
         status=IdempotencyStatus.PROCESSING,
@@ -65,12 +69,12 @@ def sample_record():
     )
 
 
-def test_full_key_helpers(repository):
+def test_full_key_helpers(repository: RedisIdempotencyRepository) -> None:
     assert repository._full_key("my") == "idempotency:my"
     assert repository._full_key("idempotency:my") == "idempotency:my"
 
 
-def test_doc_record_roundtrip(repository):
+def test_doc_record_roundtrip(repository: RedisIdempotencyRepository) -> None:
     rec = IdempotencyRecord(
         key="k",
         status=IdempotencyStatus.COMPLETED,
@@ -89,7 +93,11 @@ def test_doc_record_roundtrip(repository):
 
 
 @pytest.mark.asyncio
-async def test_insert_find_update_delete_flow(repository, redis_client, sample_record):  # type: ignore[valid-type]
+async def test_insert_find_update_delete_flow(
+    repository: RedisIdempotencyRepository,
+    redis_client: redis.Redis,
+    sample_record: IdempotencyRecord,
+) -> None:
     # Insert processing (NX)
     await repository.insert_processing(sample_record)
     key = repository._full_key(sample_record.key)
@@ -121,14 +129,18 @@ async def test_insert_find_update_delete_flow(repository, redis_client, sample_r
 
 
 @pytest.mark.asyncio
-async def test_update_record_when_missing(repository, sample_record):
+async def test_update_record_when_missing(
+    repository: RedisIdempotencyRepository, sample_record: IdempotencyRecord
+) -> None:
     # If key missing, update returns 0
     res = await repository.update_record(sample_record)
     assert res == 0
 
 
 @pytest.mark.asyncio
-async def test_aggregate_status_counts(repository, redis_client):  # type: ignore[valid-type]
+async def test_aggregate_status_counts(
+    repository: RedisIdempotencyRepository, redis_client: redis.Redis
+) -> None:
     # Seed few keys directly using repository
     for i, status in enumerate((IdempotencyStatus.PROCESSING, IdempotencyStatus.PROCESSING, IdempotencyStatus.COMPLETED)):
         rec = IdempotencyRecord(
@@ -146,5 +158,5 @@ async def test_aggregate_status_counts(repository, redis_client):  # type: ignor
 
 
 @pytest.mark.asyncio
-async def test_health_check(repository):
+async def test_health_check(repository: RedisIdempotencyRepository) -> None:
     await repository.health_check()  # should not raise

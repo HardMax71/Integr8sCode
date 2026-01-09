@@ -3,15 +3,17 @@ import logging
 import uuid
 
 import pytest
+from dishka import AsyncContainer
+
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
 from app.events.core.dispatcher import EventDispatcher as Disp
 from app.events.schema.schema_registry import SchemaRegistryManager
+from app.infrastructure.kafka.events.base import BaseEvent
 from app.services.idempotency.idempotency_manager import IdempotencyManager
 from app.services.idempotency.middleware import IdempotentConsumerWrapper
 from app.settings import Settings
-
 from tests.helpers import make_execution_requested_event
 from tests.helpers.eventually import eventually
 
@@ -28,7 +30,7 @@ _test_logger = logging.getLogger("test.idempotency.consumer_idempotent")
 
 
 @pytest.mark.asyncio
-async def test_consumer_idempotent_wrapper_blocks_duplicates(scope) -> None:  # type: ignore[valid-type]
+async def test_consumer_idempotent_wrapper_blocks_duplicates(scope: AsyncContainer) -> None:
     producer: UnifiedProducer = await scope.get(UnifiedProducer)
     idm: IdempotencyManager = await scope.get(IdempotencyManager)
     registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
@@ -39,7 +41,7 @@ async def test_consumer_idempotent_wrapper_blocks_duplicates(scope) -> None:  # 
     seen = {"n": 0}
 
     @disp.register(EventType.EXECUTION_REQUESTED)
-    async def handle(_ev):  # noqa: ANN001
+    async def handle(_ev: BaseEvent) -> None:
         seen["n"] += 1
 
     # Real consumer with idempotent wrapper
@@ -75,7 +77,7 @@ async def test_consumer_idempotent_wrapper_blocks_duplicates(scope) -> None:  # 
         await producer.produce(ev, key=execution_id)
         await producer.produce(ev, key=execution_id)
 
-        async def _one():
+        async def _one() -> None:
             assert seen["n"] >= 1
 
         await eventually(_one, timeout=10.0, interval=0.2)

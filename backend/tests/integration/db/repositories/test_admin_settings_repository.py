@@ -1,4 +1,7 @@
 import pytest
+from dishka import AsyncContainer
+
+from app.core.database_context import Database
 from app.db.repositories.admin.admin_settings_repository import AdminSettingsRepository
 from app.domain.admin import SystemSettings
 
@@ -6,7 +9,7 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.fixture()
-async def repo(scope) -> AdminSettingsRepository:  # type: ignore[valid-type]
+async def repo(scope: AsyncContainer) -> AdminSettingsRepository:
     return await scope.get(AdminSettingsRepository)
 
 
@@ -24,7 +27,7 @@ async def test_get_system_settings_existing(repo: AdminSettingsRepository) -> No
 
 
 @pytest.mark.asyncio
-async def test_update_and_reset_settings(repo: AdminSettingsRepository, db) -> None:  # type: ignore[valid-type]
+async def test_update_and_reset_settings(repo: AdminSettingsRepository, db: Database) -> None:
     s = SystemSettings()
     updated = await repo.update_system_settings(s, updated_by="admin", user_id="u1")
     assert isinstance(updated, SystemSettings)

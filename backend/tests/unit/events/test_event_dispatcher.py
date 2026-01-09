@@ -8,7 +8,7 @@ from tests.helpers import make_execution_requested_event
 _test_logger = logging.getLogger("test.events.event_dispatcher")
 
 
-def make_event():
+def make_event() -> BaseEvent:
     return make_execution_requested_event(execution_id="e1")
 
 

@@ -1,6 +1,5 @@
-import asyncio
 import logging
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.infrastructure.kafka.events.base import BaseEvent
@@ -11,8 +10,6 @@ from app.services.idempotency.middleware import (
     IdempotentConsumerWrapper,
 )
 from app.domain.idempotency import IdempotencyStatus
-from app.domain.enums.events import EventType
-from app.domain.enums.kafka import KafkaTopic
 
 _test_logger = logging.getLogger("test.services.idempotency.middleware")
 
@@ -22,24 +19,24 @@ pytestmark = pytest.mark.unit
 
 class TestIdempotentEventHandler:
     @pytest.fixture
-    def mock_idempotency_manager(self):
+    def mock_idempotency_manager(self) -> AsyncMock:
         return AsyncMock(spec=IdempotencyManager)
 
     @pytest.fixture
-    def mock_handler(self):
+    def mock_handler(self) -> AsyncMock:
         handler = AsyncMock()
         handler.__name__ = "test_handler"
         return handler
 
     @pytest.fixture
-    def event(self):
+    def event(self) -> MagicMock:
         event = MagicMock(spec=BaseEvent)
         event.event_type = "test.event"
         event.event_id = "event-123"
         return event
 
     @pytest.fixture
-    def idempotent_event_handler(self, mock_handler, mock_idempotency_manager):
+    def idempotent_event_handler(self, mock_handler: AsyncMock, mock_idempotency_manager: AsyncMock) -> IdempotentEventHandler:
         return IdempotentEventHandler(
             handler=mock_handler,
             idempotency_manager=mock_idempotency_manager,
@@ -50,7 +47,7 @@ class TestIdempotentEventHandler:
         )
 
     @pytest.mark.asyncio
-    async def test_call_with_fields(self, mock_handler, mock_idempotency_manager, event):
+    async def test_call_with_fields(self, mock_handler: AsyncMock, mock_idempotency_manager: AsyncMock, event: MagicMock) -> None:
         # Setup with specific fields
         fields = {"field1", "field2"}
 
@@ -83,7 +80,7 @@ class TestIdempotentEventHandler:
         )
 
     @pytest.mark.asyncio
-    async def test_call_handler_exception(self, idempotent_event_handler, mock_idempotency_manager, mock_handler, event):
+    async def test_call_handler_exception(self, idempotent_event_handler: IdempotentEventHandler, mock_idempotency_manager: AsyncMock, mock_handler: AsyncMock, event: MagicMock) -> None:
         # Setup: Handler raises exception
         idempotency_result = IdempotencyResult(
             is_duplicate=False,

@@ -1,4 +1,6 @@
 import pytest
+from dishka import AsyncContainer
+
 from app.db.repositories.saved_script_repository import SavedScriptRepository
 from app.domain.saved_script import DomainSavedScriptCreate, DomainSavedScriptUpdate
 
@@ -6,7 +8,7 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.fixture()
-async def repo(scope) -> SavedScriptRepository:  # type: ignore[valid-type]
+async def repo(scope: AsyncContainer) -> SavedScriptRepository:
     return await scope.get(SavedScriptRepository)
 
 

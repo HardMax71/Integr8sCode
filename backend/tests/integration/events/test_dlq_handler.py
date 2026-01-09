@@ -1,7 +1,10 @@
 import logging
 
 import pytest
+from dishka import AsyncContainer
+
 from app.events.core import UnifiedProducer, create_dlq_error_handler, create_immediate_dlq_handler
+from app.infrastructure.kafka.events.base import BaseEvent
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.infrastructure.kafka.events.saga import SagaStartedEvent
 
@@ -11,11 +14,11 @@ _test_logger = logging.getLogger("test.events.dlq_handler")
 
 
 @pytest.mark.asyncio
-async def test_dlq_handler_with_retries(scope, monkeypatch):  # type: ignore[valid-type]
+async def test_dlq_handler_with_retries(scope: AsyncContainer, monkeypatch: pytest.MonkeyPatch) -> None:
     p: UnifiedProducer = await scope.get(UnifiedProducer)
     calls: list[tuple[str | None, str, str, int]] = []
 
-    async def _record_send_to_dlq(original_event, original_topic, error, retry_count):  # noqa: ANN001
+    async def _record_send_to_dlq(original_event: BaseEvent, original_topic: str, error: Exception, retry_count: int) -> None:
         calls.append((original_event.event_id, original_topic, str(error), retry_count))
 
     monkeypatch.setattr(p, "send_to_dlq", _record_send_to_dlq)
@@ -38,11 +41,11 @@ async def test_dlq_handler_with_retries(scope, monkeypatch):  # type: ignore[val
 
 
 @pytest.mark.asyncio
-async def test_immediate_dlq_handler(scope, monkeypatch):  # type: ignore[valid-type]
+async def test_immediate_dlq_handler(scope: AsyncContainer, monkeypatch: pytest.MonkeyPatch) -> None:
     p: UnifiedProducer = await scope.get(UnifiedProducer)
     calls: list[tuple[str | None, str, str, int]] = []
 
-    async def _record_send_to_dlq(original_event, original_topic, error, retry_count):  # noqa: ANN001
+    async def _record_send_to_dlq(original_event: BaseEvent, original_topic: str, error: Exception, retry_count: int) -> None:
         calls.append((original_event.event_id, original_topic, str(error), retry_count))
 
     monkeypatch.setattr(p, "send_to_dlq", _record_send_to_dlq)

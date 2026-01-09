@@ -1,5 +1,4 @@
 from datetime import datetime, timezone, timedelta
-from typing import Dict
 from uuid import uuid4
 
 import pytest
@@ -32,7 +31,7 @@ class TestEventsRoutes:
                    for word in ["not authenticated", "unauthorized", "login"])
 
     @pytest.mark.asyncio
-    async def test_get_user_events(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_get_user_events(self, client: AsyncClient, test_user: dict[str, str]) -> None:
         """Test getting user's events."""
         # Already authenticated via test_user fixture
 
@@ -72,7 +71,7 @@ class TestEventsRoutes:
                     assert isinstance(event.correlation_id, str)
 
     @pytest.mark.asyncio
-    async def test_get_user_events_with_filters(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_get_user_events_with_filters(self, client: AsyncClient, test_user: dict[str, str]) -> None:
         """Test filtering user events."""
         # Already authenticated via test_user fixture
 
@@ -87,7 +86,7 @@ class TestEventsRoutes:
 
         # Filter by event types
         event_types = ["execution.requested", "execution.completed"]
-        params = {
+        params: dict[str, str | int | list[str]] = {
             "event_types": event_types,
             "limit": 20,
             "sort_order": "desc"
@@ -106,7 +105,7 @@ class TestEventsRoutes:
                         events_response.events) == 0
 
     @pytest.mark.asyncio
-    async def test_get_execution_events(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_get_execution_events(self, client: AsyncClient, test_user: dict[str, str]) -> None:
         """Test getting events for a specific execution."""
         # Create an execution
         execution_request = {
@@ -138,7 +137,7 @@ class TestEventsRoutes:
                 assert execution_id in event.aggregate_id or event.aggregate_id == execution_id
 
     @pytest.mark.asyncio
-    async def test_query_events_advanced(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_query_events_advanced(self, client: AsyncClient, test_user: dict[str, str]) -> None:
         """Test advanced event querying with filters."""
         # Query events with multiple filters
         query_request = {
@@ -174,7 +173,7 @@ class TestEventsRoutes:
                 assert t1 >= t2  # Descending order
 
     @pytest.mark.asyncio
-    async def test_get_events_by_correlation_id(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_get_events_by_correlation_id(self, client: AsyncClient, test_user: dict[str, str]) -> None:
         """Test getting events by correlation ID."""
         # Create an execution (which generates correlated events)
         execution_request = {
@@ -206,7 +205,7 @@ class TestEventsRoutes:
                     assert event.correlation_id == correlation_id
 
     @pytest.mark.asyncio
-    async def test_get_current_request_events(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_get_current_request_events(self, client: AsyncClient, test_user: dict[str, str]) -> None:
         """Test getting events for the current request."""
         # Get current request events (might be empty if no correlation context)
         response = await client.get("/api/v1/events/current-request?limit=10")
@@ -220,7 +219,7 @@ class TestEventsRoutes:
         assert events_response.total >= 0
 
     @pytest.mark.asyncio
-    async def test_get_event_statistics(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_get_event_statistics(self, client: AsyncClient, test_user: dict[str, str]) -> None:
         """Test getting event statistics."""
         # Get statistics for last 24 hours
         response = await client.get("/api/v1/events/statistics")
@@ -240,15 +239,13 @@ class TestEventsRoutes:
 
         # Events by hour should have proper structure
         for hourly_stat in stats.events_by_hour:
-            # Some implementations return {'_id': hour, 'count': n}
-            hour_key = "hour" if "hour" in hourly_stat else "_id"
-            assert hour_key in hourly_stat
-            assert "count" in hourly_stat
-            assert isinstance(hourly_stat["count"], int)
-            assert hourly_stat["count"] >= 0
+            # HourlyEventCountSchema has hour: str and count: int
+            assert isinstance(hourly_stat.hour, str)
+            assert isinstance(hourly_stat.count, int)
+            assert hourly_stat.count >= 0
 
     @pytest.mark.asyncio
-    async def test_get_single_event(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_get_single_event(self, client: AsyncClient, test_user: dict[str, str]) -> None:
         """Test getting a single event by ID."""
         # Get user events to find an event ID
         events_response = await client.get("/api/v1/events/user?limit=1")
@@ -271,7 +268,7 @@ class TestEventsRoutes:
             assert event.timestamp is not None
 
     @pytest.mark.asyncio
-    async def test_get_nonexistent_event(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_get_nonexistent_event(self, client: AsyncClient, test_user: dict[str, str]) -> None:
         """Test getting a non-existent event."""
         # Try to get non-existent event
         fake_event_id = str(uuid4())
@@ -283,7 +280,7 @@ class TestEventsRoutes:
         assert "not found" in error_data["detail"].lower()
 
     @pytest.mark.asyncio
-    async def test_list_event_types(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_list_event_types(self, client: AsyncClient, test_user: dict[str, str]) -> None:
         """Test listing available event types."""
         # List event types
         response = await client.get("/api/v1/events/types/list")
@@ -306,7 +303,7 @@ class TestEventsRoutes:
             assert len(event_type) > 0
 
     @pytest.mark.asyncio
-    async def test_publish_custom_event_requires_admin(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_publish_custom_event_requires_admin(self, client: AsyncClient, test_user: dict[str, str]) -> None:
         """Test that publishing custom events requires admin privileges."""
         # Try to publish custom event (logged in as regular user via fixture)
         publish_request = {
@@ -324,7 +321,7 @@ class TestEventsRoutes:
 
     @pytest.mark.asyncio
     @pytest.mark.kafka
-    async def test_publish_custom_event_as_admin(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
+    async def test_publish_custom_event_as_admin(self, client: AsyncClient, test_admin: dict[str, str]) -> None:
         """Test publishing custom events as admin."""
         # Publish custom event (requires Kafka); skip if not available
         aggregate_id = str(uuid4())
@@ -353,7 +350,7 @@ class TestEventsRoutes:
         assert publish_response.timestamp is not None
 
     @pytest.mark.asyncio
-    async def test_aggregate_events(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_aggregate_events(self, client: AsyncClient, test_user: dict[str, str]) -> None:
         """Test event aggregation."""
         # Create aggregation pipeline
         aggregation_request = {
@@ -380,7 +377,7 @@ class TestEventsRoutes:
             assert result["count"] >= 0
 
     @pytest.mark.asyncio
-    async def test_delete_event_requires_admin(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_delete_event_requires_admin(self, client: AsyncClient, test_user: dict[str, str]) -> None:
         """Test that deleting events requires admin privileges."""
         # Try to delete an event (logged in as regular user via fixture)
         fake_event_id = str(uuid4())
@@ -389,7 +386,7 @@ class TestEventsRoutes:
 
     @pytest.mark.asyncio
     async def test_replay_aggregate_events_requires_admin(self, client: AsyncClient,
-                                                          test_user: Dict[str, str]) -> None:
+                                                          test_user: dict[str, str]) -> None:
         """Test that replaying events requires admin privileges."""
         # Try to replay events (logged in as regular user via fixture)
         aggregate_id = str(uuid4())
@@ -397,7 +394,7 @@ class TestEventsRoutes:
         assert response.status_code == 403  # Forbidden for non-admin
 
     @pytest.mark.asyncio
-    async def test_replay_aggregate_events_dry_run(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
+    async def test_replay_aggregate_events_dry_run(self, client: AsyncClient, test_admin: dict[str, str]) -> None:
         """Test replaying events in dry-run mode."""
         # Get an existing aggregate ID from events
         events_response = await client.get("/api/v1/events/user?limit=1")
@@ -416,7 +413,7 @@ class TestEventsRoutes:
 
                 assert replay_response.dry_run is True
                 assert replay_response.aggregate_id == aggregate_id
-                assert replay_response.event_count >= 0
+                assert replay_response.event_count is not None and replay_response.event_count >= 0
 
                 if replay_response.event_types:
                     assert isinstance(replay_response.event_types, list)
@@ -430,7 +427,7 @@ class TestEventsRoutes:
                 assert "detail" in error_data
 
     @pytest.mark.asyncio
-    async def test_event_pagination(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_event_pagination(self, client: AsyncClient, test_user: dict[str, str]) -> None:
         """Test event pagination."""
         # Get first page
         page1_response = await client.get("/api/v1/events/user?limit=5&skip=0")
@@ -461,8 +458,8 @@ class TestEventsRoutes:
 
     @pytest.mark.asyncio
     async def test_events_isolation_between_users(self, client: AsyncClient,
-                                                  test_user: Dict[str, str],
-                                                  test_admin: Dict[str, str]) -> None:
+                                                  test_user: dict[str, str],
+                                                  test_admin: dict[str, str]) -> None:
         """Test that events are properly isolated between users."""
         # Get events as regular user
         user_login_data = {

@@ -51,7 +51,7 @@ async def test_dispatch_metrics_processed_and_skipped() -> None:
     # Dispatch event with no handlers (different type)
     # Reuse base event but fake type by replacing value
     e = make_event()
-    e.event_type = EventType.EXECUTION_FAILED  # type: ignore[attr-defined]
+    e.event_type = EventType.EXECUTION_FAILED
     await disp.dispatch(e)
 
     metrics = disp.get_metrics()

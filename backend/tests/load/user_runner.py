@@ -86,7 +86,7 @@ import time
 
 
 async def run_user_swarm(cfg: LoadConfig, stats: StatsCollector, clients: int) -> None:
-    tasks: list[asyncio.Task] = []
+    tasks: list[asyncio.Task[None]] = []
     sem = asyncio.Semaphore(cfg.concurrency)
     deadline = time.time() + max(1, cfg.duration_seconds)
 

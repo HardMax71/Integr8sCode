@@ -34,8 +34,8 @@ _WORKER_ID = os.environ.get("PYTEST_XDIST_WORKER", "gw0")
 @pytest.fixture(scope="session")
 def test_settings() -> Settings:
     """Provide test settings with a unique Kafka topic prefix for isolation."""
-    # _env_file is a pydantic-settings init kwarg, mypy doesn't recognize it
-    base = Settings(_env_file=".env.test", _env_file_encoding="utf-8")  # type: ignore[call-arg]
+    # _env_file is a pydantic-settings init kwarg
+    base = Settings(_env_file=".env.test", _env_file_encoding="utf-8")
     session_id = uuid.uuid4().hex[:8]
     base_prefix = f"{base.KAFKA_TOPIC_PREFIX.rstrip('.')}."
     worker_num = sum(_WORKER_ID.encode()) % 16
@@ -105,8 +105,8 @@ async def db(scope: AsyncContainer) -> AsyncGenerator[Database, None]:
 
 
 @pytest_asyncio.fixture
-async def redis_client(scope: AsyncContainer) -> AsyncGenerator[redis.Redis, None]:  # type: ignore[type-arg]
-    client: redis.Redis = await scope.get(redis.Redis)  # type: ignore[type-arg]
+async def redis_client(scope: AsyncContainer) -> AsyncGenerator[redis.Redis, None]:
+    client: redis.Redis = await scope.get(redis.Redis)
     yield client
 
 

@@ -11,10 +11,10 @@ from pydantic import BaseModel
 from app.domain.enums.events import EventType
 from app.domain.execution import DomainExecution, ResourceUsageDomain
 from app.domain.sse import ShutdownStatus, SSEHealthDomain
-from app.repositories.sse_repository import SSERepository
+from app.db.repositories.sse_repository import SSERepository
 from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
 from app.services.sse.redis_bus import SSERedisBus, SSERedisSubscription
-from app.services.sse.shutdown_manager import SSEShutdownManager
+from app.services.sse.sse_shutdown_manager import SSEShutdownManager
 from app.services.sse.sse_service import SSEService
 from app.settings import Settings
 

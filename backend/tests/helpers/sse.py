@@ -5,7 +5,7 @@ from typing import AsyncIterator, Iterable
 from httpx import AsyncClient
 
 
-async def stream_sse(client: AsyncClient, url: str, timeout: float = 20.0) -> AsyncIterator[dict]:
+async def stream_sse(client: AsyncClient, url: str, timeout: float = 20.0) -> AsyncIterator[dict[str, object]]:
     """Yield parsed SSE event dicts from the given URL within a timeout.
 
     Expects lines in the form "data: {...json...}" and ignores keepalives.
@@ -31,7 +31,7 @@ async def wait_for_event_type(
     url: str,
     wanted_types: Iterable[str],
     timeout: float = 20.0,
-) -> dict:
+) -> dict[str, object]:
     """Return first event whose type/event_type is in wanted_types, otherwise timeout."""
     wanted = {str(t).lower() for t in wanted_types}
     async for ev in stream_sse(client, url, timeout=timeout):
@@ -45,7 +45,7 @@ async def wait_for_execution_terminal(
     client: AsyncClient,
     execution_id: str,
     timeout: float = 30.0,
-) -> dict:
+) -> dict[str, object]:
     terminal = {"execution_completed", "result_stored", "execution_failed", "execution_timeout", "execution_cancelled"}
     url = f"/api/v1/events/executions/{execution_id}"
     return await wait_for_event_type(client, url, terminal, timeout=timeout)
@@ -55,7 +55,7 @@ async def wait_for_execution_running(
     client: AsyncClient,
     execution_id: str,
     timeout: float = 15.0,
-) -> dict:
+) -> dict[str, object]:
     running = {"execution_running", "execution_started", "execution_scheduled", "execution_queued"}
     url = f"/api/v1/events/executions/{execution_id}"
     return await wait_for_event_type(client, url, running, timeout=timeout)

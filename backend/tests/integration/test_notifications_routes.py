@@ -3,14 +3,13 @@ from typing import Dict
 import pytest
 from httpx import AsyncClient
 
+from app.domain.enums.notification import NotificationChannel, NotificationStatus
 from app.schemas_pydantic.notification import (
+    DeleteNotificationResponse,
     NotificationListResponse,
-    NotificationStatus,
-    NotificationChannel,
     NotificationSubscription,
     SubscriptionsResponse,
     UnreadCountResponse,
-    DeleteNotificationResponse
 )
 
 

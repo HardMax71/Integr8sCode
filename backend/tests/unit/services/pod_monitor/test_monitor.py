@@ -71,10 +71,10 @@ def make_k8s_clients_di(
     v1, watch = make_k8s_clients(events=events, resource_version=resource_version, pods=pods)
     return K8sClients(
         api_client=MagicMock(),
-        v1=v1,  # type: ignore[arg-type]
+        v1=v1,
         apps_v1=MagicMock(),
         networking_v1=MagicMock(),
-        watch=watch,  # type: ignore[arg-type]
+        watch=watch,
     )
 
 
@@ -87,7 +87,7 @@ def make_pod_monitor(
     """Create PodMonitor with sensible test defaults."""
     cfg = config or PodMonitorConfig()
     clients = k8s_clients or make_k8s_clients_di()
-    mapper = event_mapper or PodEventMapper(logger=_test_logger, k8s_api=FakeApi("{}"))  # type: ignore[arg-type]
+    mapper = event_mapper or PodEventMapper(logger=_test_logger, k8s_api=FakeApi("{}"))
     return PodMonitor(
         config=cfg,
         kafka_event_service=kafka_service or FakeKafkaEventService(),
@@ -118,7 +118,7 @@ async def test_start_and_stop_lifecycle() -> None:
     assert pm.state == MonitorState.RUNNING
 
     await pm.aclose()
-    assert pm.state == MonitorState.STOPPED
+    assert pm.state.value == MonitorState.STOPPED.value
     assert spy.cleared is True
 
 
@@ -142,7 +142,7 @@ async def test_process_raw_event_invalid_and_handle_watch_error() -> None:
     cfg = PodMonitorConfig()
     pm = make_pod_monitor(config=cfg)
 
-    await pm._process_raw_event({})  # type: ignore[arg-type]
+    await pm._process_raw_event({})
 
     pm.config.watch_reconnect_delay = 0
     pm._reconnect_attempts = 0
@@ -247,10 +247,10 @@ async def test_reconcile_state_exception() -> None:
     fail_v1 = FailV1()
     k8s_clients = K8sClients(
         api_client=MagicMock(),
-        v1=fail_v1,  # type: ignore[arg-type]
+        v1=fail_v1,
         apps_v1=MagicMock(),
         networking_v1=MagicMock(),
-        watch=make_watch([]),  # type: ignore[arg-type]
+        watch=make_watch([]),
     )
 
     pm = make_pod_monitor(config=cfg, k8s_clients=k8s_clients)
@@ -289,7 +289,7 @@ async def test_process_pod_event_full_flow() -> None:
 
     event = PodEvent(
         event_type=WatchEventType.ADDED,
-        pod=make_pod(name="test-pod", phase="Running"),  # type: ignore[arg-type]
+        pod=make_pod(name="test-pod", phase="Running"),
         resource_version="v1",
     )
 
@@ -300,7 +300,7 @@ async def test_process_pod_event_full_flow() -> None:
 
     event_del = PodEvent(
         event_type=WatchEventType.DELETED,
-        pod=make_pod(name="test-pod", phase="Succeeded"),  # type: ignore[arg-type]
+        pod=make_pod(name="test-pod", phase="Succeeded"),
         resource_version="v2",
     )
 
@@ -310,7 +310,7 @@ async def test_process_pod_event_full_flow() -> None:
 
     event_ignored = PodEvent(
         event_type=WatchEventType.ADDED,
-        pod=make_pod(name="ignored-pod", phase="Unknown"),  # type: ignore[arg-type]
+        pod=make_pod(name="ignored-pod", phase="Unknown"),
         resource_version="v3",
     )
 
@@ -491,10 +491,10 @@ async def test_create_pod_monitor_context_manager(monkeypatch: pytest.MonkeyPatc
     mock_watch = make_watch([])
     mock_clients = K8sClients(
         api_client=MagicMock(),
-        v1=mock_v1,  # type: ignore[arg-type]
+        v1=mock_v1,
         apps_v1=MagicMock(),
         networking_v1=MagicMock(),
-        watch=mock_watch,  # type: ignore[arg-type]
+        watch=mock_watch,
     )
 
     def mock_create_clients(
@@ -516,7 +516,7 @@ async def test_create_pod_monitor_context_manager(monkeypatch: pytest.MonkeyPatc
     async with create_pod_monitor(cfg, fake_service, _test_logger) as monitor:
         assert monitor.state == MonitorState.RUNNING
 
-    assert monitor.state == MonitorState.STOPPED
+    assert monitor.state.value == MonitorState.STOPPED.value
 
 
 @pytest.mark.asyncio
@@ -531,10 +531,10 @@ async def test_create_pod_monitor_with_injected_k8s_clients() -> None:
     mock_watch = make_watch([])
     mock_k8s_clients = K8sClients(
         api_client=MagicMock(),
-        v1=mock_v1,  # type: ignore[arg-type]
+        v1=mock_v1,
         apps_v1=MagicMock(),
         networking_v1=MagicMock(),
-        watch=mock_watch,  # type: ignore[arg-type]
+        watch=mock_watch,
     )
 
     async with create_pod_monitor(
@@ -544,7 +544,7 @@ async def test_create_pod_monitor_with_injected_k8s_clients() -> None:
         assert monitor._clients is mock_k8s_clients
         assert monitor._v1 is mock_v1
 
-    assert monitor.state == MonitorState.STOPPED
+    assert monitor.state.value == MonitorState.STOPPED.value
 
 
 @pytest.mark.asyncio
@@ -681,10 +681,10 @@ async def test_watch_pod_events_with_field_selector() -> None:
 
     k8s_clients = K8sClients(
         api_client=MagicMock(),
-        v1=TrackingV1(),  # type: ignore[arg-type]
+        v1=TrackingV1(),
         apps_v1=MagicMock(),
         networking_v1=MagicMock(),
-        watch=TrackingWatch([], "rv1"),  # type: ignore[arg-type]
+        watch=TrackingWatch([], "rv1"),
     )
 
     pm = make_pod_monitor(config=cfg, k8s_clients=k8s_clients)

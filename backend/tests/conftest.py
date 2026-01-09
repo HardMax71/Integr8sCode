@@ -1,7 +1,7 @@
 import os
 import uuid
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, TypedDict
+from typing import AsyncGenerator
 
 import httpx
 import pytest
@@ -14,17 +14,6 @@ from httpx import ASGITransport
 from app.core.database_context import Database
 from app.main import create_app
 from app.settings import Settings
-
-
-class UserCredentials(TypedDict):
-    """Type for test user/admin credentials returned by fixtures."""
-
-    username: str
-    email: str
-    password: str
-    role: str
-    csrf_token: str
-    headers: dict[str, str]
 
 # ===== Worker-specific isolation for pytest-xdist =====
 _WORKER_ID = os.environ.get("PYTEST_XDIST_WORKER", "gw0")
@@ -47,6 +36,7 @@ def test_settings() -> Settings:
             "KAFKA_GROUP_SUFFIX": f"{session_id}.{_WORKER_ID}",
             "SCHEMA_SUBJECT_PREFIX": f"test.{session_id}.{_WORKER_ID}.",
             "KAFKA_TOPIC_PREFIX": unique_prefix,
+            "OTEL_EXPORTER_OTLP_ENDPOINT": None,  # Disable OTel metrics export in tests
         }
     )
 
@@ -113,91 +103,80 @@ async def redis_client(scope: AsyncContainer) -> AsyncGenerator[redis.Redis, Non
         await client.aclose()
 
 
-# ===== HTTP helpers (auth) =====
-async def _http_login(client: httpx.AsyncClient, username: str, password: str) -> str:
-    data = {"username": username, "password": password}
-    resp = await client.post("/api/v1/auth/login", data=data)
-    resp.raise_for_status()
-    json_data: dict[str, str] = resp.json()
-    return json_data.get("csrf_token", "")
+# ===== Authenticated client fixtures =====
+# Return httpx.AsyncClient with CSRF header pre-set. Just use test_user.post(...) directly.
 
 
-@pytest_asyncio.fixture
-async def test_user(client: httpx.AsyncClient) -> UserCredentials:
-    """Function-scoped authenticated user."""
-    uid = uuid.uuid4().hex[:8]
-    username = f"test_user_{uid}"
-    email = f"test_user_{uid}@example.com"
-    password = "TestPass123!"
-    role = "user"
-    r = await client.post("/api/v1/auth/register", json={
-        "username": username,
-        "email": email,
-        "password": password,
-        "role": role,
-    })
-    if r.status_code not in (200, 201, 400):
-        pytest.fail(f"Cannot create test user (status {r.status_code}): {r.text}")
-    csrf = await _http_login(client, username, password)
-    return {
-        "username": username,
-        "email": email,
-        "password": password,
-        "role": role,
-        "csrf_token": csrf,
-        "headers": {"X-CSRF-Token": csrf},
-    }
-
-
-@pytest_asyncio.fixture
-async def test_admin(client: httpx.AsyncClient) -> UserCredentials:
-    """Function-scoped authenticated admin."""
-    uid = uuid.uuid4().hex[:8]
-    username = f"admin_user_{uid}"
-    email = f"admin_user_{uid}@example.com"
-    password = "AdminPass123!"
-    role = "admin"
-    r = await client.post("/api/v1/auth/register", json={
-        "username": username,
-        "email": email,
-        "password": password,
-        "role": role,
-    })
-    if r.status_code not in (200, 201, 400):
-        pytest.fail(f"Cannot create test admin (status {r.status_code}): {r.text}")
-    csrf = await _http_login(client, username, password)
-    return {
-        "username": username,
-        "email": email,
-        "password": password,
-        "role": role,
-        "csrf_token": csrf,
-        "headers": {"X-CSRF-Token": csrf},
-    }
-
-
-@pytest_asyncio.fixture
-async def another_user(client: httpx.AsyncClient) -> UserCredentials:
-    """Function-scoped another authenticated user."""
-    username = f"test_user_{uuid.uuid4().hex[:8]}"
-    email = f"{username}@example.com"
-    password = "TestPass123!"
-    role = "user"
-    await client.post(
-        "/api/v1/auth/register",
-        json={
-            "username": username,
-            "email": email,
-            "password": password,
-            "role": role,
-        },
+async def _create_authenticated_client(
+    app: FastAPI, username: str, email: str, password: str, role: str
+) -> httpx.AsyncClient:
+    """Create and return an authenticated client with CSRF header set."""
+    c = httpx.AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="https://test",
+        timeout=30.0,
+        follow_redirects=True,
     )
-    csrf = await _http_login(client, username, password)
-    return {
+    r = await c.post("/api/v1/auth/register", json={
         "username": username,
         "email": email,
         "password": password,
         "role": role,
-        "csrf_token": csrf,
-        "headers": {"X-CSRF-Token": csrf},
-    }
+    })
+    if r.status_code not in (200, 201, 400):
+        await c.aclose()
+        pytest.fail(f"Cannot create {role} (status {r.status_code}): {r.text}")
+
+    login_resp = await c.post("/api/v1/auth/login", data={
+        "username": username,
+        "password": password,
+    })
+    login_resp.raise_for_status()
+    csrf = login_resp.json().get("csrf_token", "")
+    c.headers["X-CSRF-Token"] = csrf
+    return c
+
+
+@pytest_asyncio.fixture
+async def test_user(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
+    """Authenticated user client. CSRF header is set automatically."""
+    uid = uuid.uuid4().hex[:8]
+    c = await _create_authenticated_client(
+        app,
+        username=f"test_user_{uid}",
+        email=f"test_user_{uid}@example.com",
+        password="TestPass123!",
+        role="user",
+    )
+    yield c
+    await c.aclose()
+
+
+@pytest_asyncio.fixture
+async def test_admin(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
+    """Authenticated admin client. CSRF header is set automatically."""
+    uid = uuid.uuid4().hex[:8]
+    c = await _create_authenticated_client(
+        app,
+        username=f"admin_user_{uid}",
+        email=f"admin_user_{uid}@example.com",
+        password="AdminPass123!",
+        role="admin",
+    )
+    yield c
+    await c.aclose()
+
+
+@pytest_asyncio.fixture
+async def another_user(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
+    """Another authenticated user client (for multi-user tests)."""
+    uid = uuid.uuid4().hex[:8]
+    c = await _create_authenticated_client(
+        app,
+        username=f"test_user_{uid}",
+        email=f"test_user_{uid}@example.com",
+        password="TestPass123!",
+        role="user",
+    )
+    yield c
+    await c.aclose()

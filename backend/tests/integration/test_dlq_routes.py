@@ -15,7 +15,6 @@ from app.schemas_pydantic.dlq import (
 )
 from app.schemas_pydantic.user import MessageResponse
 from app.settings import Settings
-from tests.conftest import UserCredentials
 
 
 class _RetryRequest(TypedDict):
@@ -39,10 +38,10 @@ class TestDLQRoutes:
                    for word in ["not authenticated", "unauthorized", "login"])
 
     @pytest.mark.asyncio
-    async def test_get_dlq_statistics(self, client: AsyncClient, test_user: dict[str, str]) -> None:
+    async def test_get_dlq_statistics(self, test_user: AsyncClient) -> None:
         """Test getting DLQ statistics."""
         # Get DLQ stats
-        response = await client.get("/api/v1/dlq/stats")
+        response = await test_user.get("/api/v1/dlq/stats")
         assert response.status_code == 200
 
         # Validate response structure
@@ -84,10 +83,10 @@ class TestDLQRoutes:
                     assert stats.age_stats[key] >= 0
 
     @pytest.mark.asyncio
-    async def test_list_dlq_messages(self, client: AsyncClient, test_user: dict[str, str]) -> None:
+    async def test_list_dlq_messages(self, test_user: AsyncClient) -> None:
         """Test listing DLQ messages with filters."""
         # List all DLQ messages
-        response = await client.get("/api/v1/dlq/messages?limit=10&offset=0")
+        response = await test_user.get("/api/v1/dlq/messages?limit=10&offset=0")
         assert response.status_code == 200
 
         # Validate response structure
@@ -116,11 +115,11 @@ class TestDLQRoutes:
                 assert message.age_seconds >= 0
 
     @pytest.mark.asyncio
-    async def test_filter_dlq_messages_by_status(self, client: AsyncClient, test_user: dict[str, str]) -> None:
+    async def test_filter_dlq_messages_by_status(self, test_user: AsyncClient) -> None:
         """Test filtering DLQ messages by status."""
         # Test different status filters
         for status in ["pending", "scheduled", "retried", "discarded"]:
-            response = await client.get(f"/api/v1/dlq/messages?status={status}&limit=5")
+            response = await test_user.get(f"/api/v1/dlq/messages?status={status}&limit=5")
             assert response.status_code == 200
 
             messages_data = response.json()
@@ -131,11 +130,11 @@ class TestDLQRoutes:
                 assert message.status == status
 
     @pytest.mark.asyncio
-    async def test_filter_dlq_messages_by_topic(self, client: AsyncClient, test_user: dict[str, str]) -> None:
+    async def test_filter_dlq_messages_by_topic(self, test_user: AsyncClient) -> None:
         """Test filtering DLQ messages by topic."""
         # Filter by a specific topic
         test_topic = "execution-events"
-        response = await client.get(f"/api/v1/dlq/messages?topic={test_topic}&limit=5")
+        response = await test_user.get(f"/api/v1/dlq/messages?topic={test_topic}&limit=5")
         assert response.status_code == 200
 
         messages_data = response.json()
@@ -146,10 +145,10 @@ class TestDLQRoutes:
             assert message.original_topic == test_topic
 
     @pytest.mark.asyncio
-    async def test_get_single_dlq_message_detail(self, client: AsyncClient, test_user: dict[str, str]) -> None:
+    async def test_get_single_dlq_message_detail(self, test_user: AsyncClient) -> None:
         """Test getting detailed information for a single DLQ message."""
         # First get list of messages to find an ID
-        list_response = await client.get("/api/v1/dlq/messages?limit=1")
+        list_response = await test_user.get("/api/v1/dlq/messages?limit=1")
         assert list_response.status_code == 200
 
         messages_data = list_response.json()
@@ -157,7 +156,7 @@ class TestDLQRoutes:
             # Get details for the first message
             event_id = messages_data["messages"][0]["event_id"]
 
-            detail_response = await client.get(f"/api/v1/dlq/messages/{event_id}")
+            detail_response = await test_user.get(f"/api/v1/dlq/messages/{event_id}")
             assert detail_response.status_code == 200
 
             # Validate detailed response
@@ -186,11 +185,11 @@ class TestDLQRoutes:
                 assert message_detail.dlq_partition >= 0
 
     @pytest.mark.asyncio
-    async def test_get_nonexistent_dlq_message(self, client: AsyncClient, test_user: dict[str, str]) -> None:
+    async def test_get_nonexistent_dlq_message(self, test_user: AsyncClient) -> None:
         """Test getting a non-existent DLQ message."""
         # Try to get non-existent message
         fake_event_id = "00000000-0000-0000-0000-000000000000"
-        response = await client.get(f"/api/v1/dlq/messages/{fake_event_id}")
+        response = await test_user.get(f"/api/v1/dlq/messages/{fake_event_id}")
         assert response.status_code == 404
 
         error_data = response.json()
@@ -199,7 +198,7 @@ class TestDLQRoutes:
 
     @pytest.mark.asyncio
     async def test_set_retry_policy(
-        self, client: AsyncClient, test_user: UserCredentials, test_settings: Settings
+        self, test_user: AsyncClient, test_settings: Settings
     ) -> None:
         """Test setting a retry policy for a topic."""
         # Set retry policy
@@ -213,7 +212,7 @@ class TestDLQRoutes:
             "retry_multiplier": 2.0
         }
 
-        response = await client.post("/api/v1/dlq/retry-policy", json=policy_data, headers=test_user["headers"])
+        response = await test_user.post("/api/v1/dlq/retry-policy", json=policy_data)
         assert response.status_code == 200
 
         # Validate response
@@ -223,10 +222,10 @@ class TestDLQRoutes:
         assert topic in result.message
 
     @pytest.mark.asyncio
-    async def test_retry_dlq_messages_batch(self, client: AsyncClient, test_user: UserCredentials) -> None:
+    async def test_retry_dlq_messages_batch(self, test_user: AsyncClient) -> None:
         """Test retrying a batch of DLQ messages."""
         # Get some failed messages to retry
-        list_response = await client.get("/api/v1/dlq/messages?status=discarded&limit=3")
+        list_response = await test_user.get("/api/v1/dlq/messages?status=discarded&limit=3")
         assert list_response.status_code == 200
 
         messages_data = list_response.json()
@@ -239,7 +238,7 @@ class TestDLQRoutes:
                 "event_ids": event_ids
             }
 
-            retry_response = await client.post("/api/v1/dlq/retry", json=retry_request, headers=test_user["headers"])
+            retry_response = await test_user.post("/api/v1/dlq/retry", json=retry_request)
             assert retry_response.status_code == 200
 
             # Validate retry response
@@ -260,10 +259,10 @@ class TestDLQRoutes:
                     assert "success" in detail
 
     @pytest.mark.asyncio
-    async def test_discard_dlq_message(self, client: AsyncClient, test_user: UserCredentials) -> None:
+    async def test_discard_dlq_message(self, test_user: AsyncClient) -> None:
         """Test discarding a DLQ message."""
         # Get a failed message to discard
-        list_response = await client.get("/api/v1/dlq/messages?status=discarded&limit=1")
+        list_response = await test_user.get("/api/v1/dlq/messages?status=discarded&limit=1")
         assert list_response.status_code == 200
 
         messages_data = list_response.json()
@@ -272,9 +271,8 @@ class TestDLQRoutes:
 
             # Discard the message
             discard_reason = "Test discard - message unrecoverable"
-            discard_response = await client.delete(
-                f"/api/v1/dlq/messages/{event_id}?reason={discard_reason}",
-                headers=test_user["headers"]
+            discard_response = await test_user.delete(
+                f"/api/v1/dlq/messages/{event_id}?reason={discard_reason}"
             )
             assert discard_response.status_code == 200
 
@@ -285,17 +283,17 @@ class TestDLQRoutes:
             assert event_id in result.message
 
             # Verify message is now discarded
-            detail_response = await client.get(f"/api/v1/dlq/messages/{event_id}")
+            detail_response = await test_user.get(f"/api/v1/dlq/messages/{event_id}")
             if detail_response.status_code == 200:
                 detail_data = detail_response.json()
                 # Status should be discarded
                 assert detail_data["status"] == "discarded"
 
     @pytest.mark.asyncio
-    async def test_get_dlq_topics_summary(self, client: AsyncClient, test_user: dict[str, str]) -> None:
+    async def test_get_dlq_topics_summary(self, test_user: AsyncClient) -> None:
         """Test getting DLQ topics summary."""
         # Get topics summary
-        response = await client.get("/api/v1/dlq/topics")
+        response = await test_user.get("/api/v1/dlq/topics")
         assert response.status_code == 200
 
         # Validate response
@@ -330,10 +328,10 @@ class TestDLQRoutes:
                 assert topic_summary.max_retry_count >= 0
 
     @pytest.mark.asyncio
-    async def test_dlq_message_pagination(self, client: AsyncClient, test_user: dict[str, str]) -> None:
+    async def test_dlq_message_pagination(self, test_user: AsyncClient) -> None:
         """Test DLQ message pagination."""
         # Get first page
-        page1_response = await client.get("/api/v1/dlq/messages?limit=5&offset=0")
+        page1_response = await test_user.get("/api/v1/dlq/messages?limit=5&offset=0")
         assert page1_response.status_code == 200
 
         page1_data = page1_response.json()
@@ -341,7 +339,7 @@ class TestDLQRoutes:
 
         # If there are more than 5 messages, get second page
         if page1.total > 5:
-            page2_response = await client.get("/api/v1/dlq/messages?limit=5&offset=5")
+            page2_response = await test_user.get("/api/v1/dlq/messages?limit=5&offset=5")
             assert page2_response.status_code == 200
 
             page2_data = page2_response.json()
@@ -360,31 +358,31 @@ class TestDLQRoutes:
                 assert len(page1_ids.intersection(page2_ids)) == 0
 
     @pytest.mark.asyncio
-    async def test_dlq_error_handling(self, client: AsyncClient, test_user: UserCredentials) -> None:
+    async def test_dlq_error_handling(self, test_user: AsyncClient) -> None:
         """Test DLQ error handling for invalid requests."""
         # Test invalid limit
-        response = await client.get("/api/v1/dlq/messages?limit=10000")  # Too high
+        response = await test_user.get("/api/v1/dlq/messages?limit=10000")  # Too high
         # Should either accept with max limit or reject
         assert response.status_code in [200, 400, 422]
 
         # Test negative offset
-        response = await client.get("/api/v1/dlq/messages?limit=10&offset=-1")
+        response = await test_user.get("/api/v1/dlq/messages?limit=10&offset=-1")
         assert response.status_code in [400, 422]
 
         # Test invalid status filter
-        response = await client.get("/api/v1/dlq/messages?status=invalid_status")
+        response = await test_user.get("/api/v1/dlq/messages?status=invalid_status")
         assert response.status_code in [400, 422]
 
         # Test retry with empty list
         retry_request: _RetryRequest = {
             "event_ids": []
         }
-        response = await client.post("/api/v1/dlq/retry", json=retry_request, headers=test_user["headers"])
+        response = await test_user.post("/api/v1/dlq/retry", json=retry_request)
         # Should handle gracefully or reject invalid input
         assert response.status_code in [200, 400, 404, 422]
 
         # Test discard without reason
         fake_event_id = "00000000-0000-0000-0000-000000000000"
-        response = await client.delete(f"/api/v1/dlq/messages/{fake_event_id}", headers=test_user["headers"])
+        response = await test_user.delete(f"/api/v1/dlq/messages/{fake_event_id}")
         # Should require reason parameter
         assert response.status_code in [400, 422, 404]

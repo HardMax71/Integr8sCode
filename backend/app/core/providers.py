@@ -22,6 +22,7 @@ from app.core.metrics import (
 from app.core.metrics.connections import ConnectionMetrics
 from app.core.metrics.events import EventMetrics
 from app.core.metrics.rate_limit import RateLimitMetrics
+from app.core.security import SecurityService
 from app.core.tracing import TracerManager
 from app.db.repositories import (
     EventRepository,
@@ -141,6 +142,10 @@ class DatabaseProvider(Provider):
 
 class CoreServicesProvider(Provider):
     scope = Scope.APP
+
+    @provide
+    def get_security_service(self, settings: Settings) -> SecurityService:
+        return SecurityService(settings)
 
     @provide
     def get_tracer_manager(self, settings: Settings) -> TracerManager:
@@ -334,8 +339,8 @@ class RepositoryProvider(Provider):
         return AdminSettingsRepository(logger)
 
     @provide
-    def get_admin_user_repository(self) -> AdminUserRepository:
-        return AdminUserRepository()
+    def get_admin_user_repository(self, security_service: SecurityService) -> AdminUserRepository:
+        return AdminUserRepository(security_service)
 
     @provide
     def get_notification_repository(self, logger: logging.Logger) -> NotificationRepository:
@@ -407,8 +412,10 @@ class AuthProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_auth_service(self, user_repository: UserRepository, logger: logging.Logger) -> AuthService:
-        return AuthService(user_repository, logger)
+    def get_auth_service(
+        self, user_repository: UserRepository, security_service: SecurityService, logger: logging.Logger
+    ) -> AuthService:
+        return AuthService(user_repository, security_service, logger)
 
 
 class KafkaServicesProvider(Provider):
@@ -622,6 +629,7 @@ class BusinessServicesProvider(Provider):
         event_service: EventService,
         execution_service: ExecutionService,
         rate_limit_service: RateLimitService,
+        security_service: SecurityService,
         logger: logging.Logger,
     ) -> AdminUserService:
         return AdminUserService(
@@ -629,6 +637,7 @@ class BusinessServicesProvider(Provider):
             event_service=event_service,
             execution_service=execution_service,
             rate_limit_service=rate_limit_service,
+            security_service=security_service,
             logger=logger,
         )
 

@@ -44,6 +44,9 @@ class Settings(BaseSettings):
 
     TESTING: bool = False
 
+    # Security: bcrypt rounds (lower in tests for speed, higher in production for security)
+    BCRYPT_ROUNDS: int = 12
+
     # Event-Driven Design Configuration
     KAFKA_BOOTSTRAP_SERVERS: str = "kafka:29092"
     KAFKA_GROUP_SUFFIX: str = "suff"  # Suffix to append to consumer group IDs for test/parallel isolation

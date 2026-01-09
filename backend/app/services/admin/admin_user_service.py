@@ -23,12 +23,14 @@ class AdminUserService:
         event_service: EventService,
         execution_service: ExecutionService,
         rate_limit_service: RateLimitService,
+        security_service: SecurityService,
         logger: logging.Logger,
     ) -> None:
         self._users = user_repository
         self._events = event_service
         self._executions = execution_service
         self._rate_limits = rate_limit_service
+        self._security = security_service
         self.logger = logger
 
     async def get_user_overview(self, user_id: str, hours: int = 24) -> AdminUserOverviewDomain:
@@ -126,8 +128,7 @@ class AdminUserService:
             if user.username == user_data.username:
                 raise ValueError("Username already exists")
 
-        security = SecurityService()
-        hashed_password = security.get_password_hash(user_data.password)
+        hashed_password = self._security.get_password_hash(user_data.password)
 
         create_data = DomainUserCreate(
             username=user_data.username,

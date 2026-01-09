@@ -62,8 +62,8 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
 
     async def _create_consumer(self, consumer_index: int) -> UnifiedConsumer:
         suffix = self.settings.KAFKA_GROUP_SUFFIX
-        group_id = f"sse-bridge-pool{suffix}"
-        client_id = f"sse-bridge-{consumer_index}{suffix}"
+        group_id = f"sse-bridge-pool-{suffix}"
+        client_id = f"sse-bridge-{consumer_index}-{suffix}"
 
         config = ConsumerConfig(
             bootstrap_servers=self.settings.KAFKA_BOOTSTRAP_SERVERS,

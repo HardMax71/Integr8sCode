@@ -14,9 +14,16 @@ _test_logger = logging.getLogger("test.events.producer_roundtrip")
 
 
 @pytest.mark.asyncio
-async def test_unified_producer_start_produce_send_to_dlq_stop(scope):  # type: ignore[valid-type]
+async def test_unified_producer_start_produce_send_to_dlq_stop(  # type: ignore[valid-type]
+    scope, test_settings
+) -> None:
     schema: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
-    prod = UnifiedProducer(ProducerConfig(bootstrap_servers="localhost:9092"), schema, logger=_test_logger)
+    prod = UnifiedProducer(
+        ProducerConfig(bootstrap_servers=test_settings.KAFKA_BOOTSTRAP_SERVERS),
+        schema,
+        logger=_test_logger,
+        settings=test_settings,
+    )
 
     async with prod:
         ev = make_execution_requested_event(execution_id=f"exec-{uuid4().hex[:8]}")

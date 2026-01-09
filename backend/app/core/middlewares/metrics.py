@@ -137,8 +137,7 @@ def setup_metrics(app: FastAPI, logger: logging.Logger) -> None:
 
     # Configure OTLP exporter (sends to OpenTelemetry Collector or compatible backend)
     # Default endpoint is localhost:4317 for gRPC
-    endpoint = settings.OTEL_EXPORTER_OTLP_ENDPOINT or "localhost:4317"
-    otlp_exporter = OTLPMetricExporter(endpoint=endpoint, insecure=True)
+    otlp_exporter = OTLPMetricExporter(endpoint=settings.OTEL_EXPORTER_OTLP_ENDPOINT, insecure=True)
 
     # Create metric reader with 60 second export interval
     metric_reader = PeriodicExportingMetricReader(

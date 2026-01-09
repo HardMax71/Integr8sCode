@@ -8,6 +8,7 @@ Creates:
 
 Environment Variables:
   MONGODB_URL: Connection string (default: mongodb://mongo:27017/integr8scode)
+  DATABASE_NAME: Database name for the application (default: integr8scode_db)
   DEFAULT_USER_PASSWORD: Default user password (default: user123)
   ADMIN_USER_PASSWORD: Admin user password (default: admin123)
 """

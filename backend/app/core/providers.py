@@ -155,7 +155,7 @@ class MessagingProvider(Provider):
         self, settings: Settings, schema_registry: SchemaRegistryManager, logger: logging.Logger
     ) -> AsyncIterator[UnifiedProducer]:
         config = ProducerConfig(bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS)
-        async with UnifiedProducer(config, schema_registry, logger) as producer:
+        async with UnifiedProducer(config, schema_registry, logger, settings=settings) as producer:
             yield producer
 
     @provide

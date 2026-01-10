@@ -1,3 +1,5 @@
+import os
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -156,7 +158,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = Field(default="DEBUG", description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=os.environ.get("DOTENV_PATH", ".env"),
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="forbid",  # Raise error on extra fields

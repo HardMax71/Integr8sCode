@@ -24,12 +24,12 @@ assert _WORKER_NUM < 16, f"xdist worker {_WORKER_NUM} >= 16 exceeds Redis DB lim
 
 
 # ===== Pytest hooks =====
+@pytest.hookimpl(trylast=True)
 def pytest_configure(config: pytest.Config) -> None:
     """Create Kafka topics once before any tests run.
 
+    Uses trylast=True to ensure pytest-env has set DOTENV_PATH first.
     Runs in master process before xdist workers spawn.
-    pytest-dotenv has already loaded .env.test into os.environ,
-    so Settings() picks up test configuration automatically.
 
     Silently skips if Kafka is unavailable (e.g., unit tests).
     """
@@ -47,9 +47,8 @@ def pytest_configure(config: pytest.Config) -> None:
 def test_settings() -> Settings:
     """Provide test settings with per-worker isolation where needed.
 
-    pytest-dotenv loads .env.test into os.environ before tests run (configured
-    in pyproject.toml). Settings() picks up those env vars automatically since
-    pydantic-settings prioritizes environment variables over dotenv files.
+    pytest-env sets DOTENV_PATH=.env.test (configured in pyproject.toml).
+    Settings class uses this to load the correct env file via pydantic-settings.
 
     What gets isolated per worker (to prevent interference):
       - DATABASE_NAME: Each worker gets its own MongoDB database
@@ -60,7 +59,7 @@ def test_settings() -> Settings:
       - KAFKA_TOPIC_PREFIX: Topics created once by CI/scripts
       - SCHEMA_SUBJECT_PREFIX: Schemas shared across workers
     """
-    base = Settings()  # Env vars from .env.test already in os.environ via pytest-dotenv
+    base = Settings()  # Uses DOTENV_PATH from pytest-env to load .env.test
     session_id = uuid.uuid4().hex[:8]
     return base.model_copy(
         update={

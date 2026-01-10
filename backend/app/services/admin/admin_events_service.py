@@ -1,7 +1,7 @@
 import csv
 import json
 import logging
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from io import StringIO
 from typing import Any, Dict, List
@@ -236,7 +236,7 @@ class AdminEventsService:
         )
         events_data: list[dict[str, Any]] = []
         for event in result.events:
-            event_dict = asdict(event)
+            event_dict = dict(vars(event))
             for fld in ["timestamp", "created_at", "updated_at", "stored_at", "ttl_expires_at"]:
                 if fld in event_dict and isinstance(event_dict[fld], datetime):
                     event_dict[fld] = event_dict[fld].isoformat()

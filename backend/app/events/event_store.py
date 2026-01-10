@@ -15,16 +15,6 @@ from app.domain.enums.events import EventType
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.events.base import BaseEvent
 
-# Base fields stored at document level (everything else goes into payload)
-_BASE_FIELDS = {"event_id", "event_type", "event_version", "timestamp", "aggregate_id", "metadata"}
-_EXCLUDE_FIELDS = {"id", "revision_id", "stored_at", "ttl_expires_at"}
-
-
-def _flatten_doc(doc: "EventDocument") -> dict[str, Any]:
-    """Flatten EventDocument payload to top level for schema registry deserialization."""
-    d = doc.model_dump(exclude=_EXCLUDE_FIELDS)
-    return {**{k: v for k, v in d.items() if k != "payload"}, **d.get("payload", {})}
-
 
 class EventStore:
     def __init__(
@@ -57,10 +47,8 @@ class EventStore:
         start = asyncio.get_running_loop().time()
         try:
             now = datetime.now(timezone.utc)
-            data = event.model_dump(exclude={"topic"})
-            payload = {k: data.pop(k) for k in list(data) if k not in _BASE_FIELDS}
             ttl = now + timedelta(days=self.ttl_days)
-            doc = EventDocument(**data, payload=payload, stored_at=now, ttl_expires_at=ttl)
+            doc = EventDocument(**event.model_dump(), stored_at=now, ttl_expires_at=ttl)
             await doc.insert()
 
             add_span_attributes(
@@ -92,11 +80,7 @@ class EventStore:
         now = datetime.now(timezone.utc)
         ttl = now + timedelta(days=self.ttl_days)
         try:
-            docs = []
-            for e in events:
-                data = e.model_dump(exclude={"topic"})
-                payload = {k: data.pop(k) for k in list(data) if k not in _BASE_FIELDS}
-                docs.append(EventDocument(**data, payload=payload, stored_at=now, ttl_expires_at=ttl))
+            docs = [EventDocument(**e.model_dump(), stored_at=now, ttl_expires_at=ttl) for e in events]
 
             try:
                 await EventDocument.insert_many(docs)
@@ -130,7 +114,7 @@ class EventStore:
         if not doc:
             return None
 
-        event = self.schema_registry.deserialize_json(_flatten_doc(doc))
+        event = self.schema_registry.deserialize_json(doc.model_dump())
 
         duration = asyncio.get_running_loop().time() - start
         self.metrics.record_event_query_duration(duration, "get_by_id", "event_store")
@@ -156,7 +140,7 @@ class EventStore:
             .limit(limit)
             .to_list()
         )
-        events = [self.schema_registry.deserialize_json(_flatten_doc(doc)) for doc in docs]
+        events = [self.schema_registry.deserialize_json(doc.model_dump()) for doc in docs]
 
         duration = asyncio.get_running_loop().time() - start
         self.metrics.record_event_query_duration(duration, "get_by_type", "event_store")
@@ -168,12 +152,12 @@ class EventStore:
         event_types: list[EventType] | None = None,
     ) -> list[BaseEvent]:
         start = asyncio.get_running_loop().time()
-        query: dict[str, Any] = {"$or": [{"payload.execution_id": execution_id}, {"aggregate_id": execution_id}]}
+        query: dict[str, Any] = {"$or": [{"execution_id": execution_id}, {"aggregate_id": execution_id}]}
         if event_types:
             query["event_type"] = {"$in": event_types}
 
         docs = await EventDocument.find(query).sort([("timestamp", SortDirection.ASCENDING)]).to_list()
-        events = [self.schema_registry.deserialize_json(_flatten_doc(doc)) for doc in docs]
+        events = [self.schema_registry.deserialize_json(doc.model_dump()) for doc in docs]
 
         duration = asyncio.get_running_loop().time() - start
         self.metrics.record_event_query_duration(duration, "get_execution_events", "event_store")
@@ -195,7 +179,7 @@ class EventStore:
             query["timestamp"] = tr
 
         docs = await EventDocument.find(query).sort([("timestamp", SortDirection.DESCENDING)]).limit(limit).to_list()
-        events = [self.schema_registry.deserialize_json(_flatten_doc(doc)) for doc in docs]
+        events = [self.schema_registry.deserialize_json(doc.model_dump()) for doc in docs]
 
         duration = asyncio.get_running_loop().time() - start
         self.metrics.record_event_query_duration(duration, "get_user_events", "event_store")
@@ -216,7 +200,7 @@ class EventStore:
             query["timestamp"] = tr
 
         docs = await EventDocument.find(query).sort([("timestamp", SortDirection.DESCENDING)]).limit(limit).to_list()
-        events = [self.schema_registry.deserialize_json(_flatten_doc(doc)) for doc in docs]
+        events = [self.schema_registry.deserialize_json(doc.model_dump()) for doc in docs]
 
         duration = asyncio.get_running_loop().time() - start
         self.metrics.record_event_query_duration(duration, "get_security_events", "event_store")
@@ -229,7 +213,7 @@ class EventStore:
             .sort([("timestamp", SortDirection.ASCENDING)])
             .to_list()
         )
-        events = [self.schema_registry.deserialize_json(_flatten_doc(doc)) for doc in docs]
+        events = [self.schema_registry.deserialize_json(doc.model_dump()) for doc in docs]
 
         duration = asyncio.get_running_loop().time() - start
         self.metrics.record_event_query_duration(duration, "get_correlation_chain", "event_store")
@@ -253,7 +237,7 @@ class EventStore:
                 query["event_type"] = {"$in": event_types}
 
             async for doc in EventDocument.find(query).sort([("timestamp", SortDirection.ASCENDING)]):
-                event = self.schema_registry.deserialize_json(_flatten_doc(doc))
+                event = self.schema_registry.deserialize_json(doc.model_dump())
                 if callback:
                     await callback(event)
                 count += 1

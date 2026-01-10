@@ -53,7 +53,7 @@ class ReplayFilter(BaseModel):
             query["event_id"] = {"$in": self.event_ids}
 
         if self.execution_id:
-            query["payload.execution_id"] = str(self.execution_id)
+            query["execution_id"] = str(self.execution_id)
 
         if self.correlation_id:
             query["metadata.correlation_id"] = self.correlation_id

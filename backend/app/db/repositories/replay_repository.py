@@ -91,9 +91,7 @@ class ReplayRepository:
 
         batch = []
         async for doc in cursor:
-            # Merge payload to top level for schema_registry deserialization
-            d = doc.model_dump(exclude={"id", "revision_id", "stored_at", "ttl_expires_at"})
-            batch.append({**{k: v for k, v in d.items() if k != "payload"}, **d.get("payload", {})})
+            batch.append(doc.model_dump(exclude={"id", "revision_id", "stored_at", "ttl_expires_at"}))
             if len(batch) >= batch_size:
                 yield batch
                 batch = []

@@ -324,9 +324,7 @@ class DLQManager(LifecycleEnabled):
             "dlq_retry_timestamp": datetime.now(timezone.utc).isoformat(),
         }
         hdrs = inject_trace_context(hdrs)
-        from typing import cast
-
-        kafka_headers = cast(list[tuple[str, str | bytes]], [(k, v.encode()) for k, v in hdrs.items()])
+        kafka_headers: list[tuple[str, str | bytes]] = [(k, v.encode()) for k, v in hdrs.items()]
 
         # Get the original event
         event = message.event
@@ -489,6 +487,30 @@ class DLQManager(LifecycleEnabled):
                 details.append(DLQRetryResult(event_id=event_id, status="failed", error=str(e)))
 
         return DLQBatchRetryResult(total=len(event_ids), successful=successful, failed=failed, details=details)
+
+    async def discard_message_manually(self, event_id: str, reason: str) -> bool:
+        """Manually discard a DLQ message with state validation.
+
+        Args:
+            event_id: The event ID to discard
+            reason: Reason for discarding
+
+        Returns:
+            True if discarded, False if not found or in terminal state
+        """
+        doc = await DLQMessageDocument.find_one({"event_id": event_id})
+        if not doc:
+            self.logger.error("Message not found in DLQ", extra={"event_id": event_id})
+            return False
+
+        # Guard against invalid states (terminal states)
+        if doc.status in {DLQMessageStatus.DISCARDED, DLQMessageStatus.RETRIED}:
+            self.logger.info("Skipping manual discard", extra={"event_id": event_id, "status": str(doc.status)})
+            return False
+
+        message = self._doc_to_message(doc)
+        await self._discard_message(message, reason)
+        return True
 
 
 def create_dlq_manager(

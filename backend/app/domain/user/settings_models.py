@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from dataclasses import field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any
 
+from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass
 
 from app.domain.enums.common import Theme
@@ -17,7 +18,7 @@ class DomainNotificationSettings:
     execution_failed: bool = True
     system_updates: bool = True
     security_alerts: bool = True
-    channels: List[NotificationChannel] = field(default_factory=list)
+    channels: list[NotificationChannel] = field(default_factory=list)
 
 
 @dataclass
@@ -39,7 +40,7 @@ class DomainUserSettings:
     time_format: str = "24h"
     notifications: DomainNotificationSettings = field(default_factory=DomainNotificationSettings)
     editor: DomainEditorSettings = field(default_factory=DomainEditorSettings)
-    custom_settings: Dict[str, Any] = field(default_factory=dict)
+    custom_settings: dict[str, Any] = field(default_factory=dict)
     version: int = 1
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
@@ -47,13 +48,13 @@ class DomainUserSettings:
 
 @dataclass
 class DomainUserSettingsUpdate:
-    theme: Optional[Theme] = None
-    timezone: Optional[str] = None
-    date_format: Optional[str] = None
-    time_format: Optional[str] = None
-    notifications: Optional[DomainNotificationSettings] = None
-    editor: Optional[DomainEditorSettings] = None
-    custom_settings: Optional[Dict[str, Any]] = None
+    theme: Theme | None = None
+    timezone: str | None = None
+    date_format: str | None = None
+    time_format: str | None = None
+    notifications: DomainNotificationSettings | None = None
+    editor: DomainEditorSettings | None = None
+    custom_settings: dict[str, Any] | None = None
 
 
 @dataclass
@@ -62,15 +63,26 @@ class DomainSettingChange:
     old_value: Any
     new_value: Any
     changed_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    change_reason: Optional[str] = None
+    change_reason: str | None = None
 
 
-@dataclass
-class DomainSettingsEvent:
+@dataclass(config=ConfigDict(extra="ignore"))
+class DomainUserSettingsChangedEvent:
+    """Well-typed domain event for user settings changes."""
+
+    event_id: str
     event_type: EventType
     timestamp: datetime
-    payload: Dict[str, Any]
-    correlation_id: Optional[str] = None
+    user_id: str
+    changed_fields: list[str]
+    theme: str | None = None
+    timezone: str | None = None
+    date_format: str | None = None
+    time_format: str | None = None
+    notifications: DomainNotificationSettings | None = None
+    editor: DomainEditorSettings | None = None
+    reason: str | None = None
+    correlation_id: str | None = None
 
 
 @dataclass
@@ -80,8 +92,8 @@ class DomainSettingsHistoryEntry:
     field: str
     old_value: Any
     new_value: Any
-    reason: Optional[str] = None
-    correlation_id: Optional[str] = None
+    reason: str | None = None
+    correlation_id: str | None = None
 
 
 @dataclass

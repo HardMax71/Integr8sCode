@@ -90,7 +90,7 @@ class KafkaEventService:
                 timestamp=timestamp,
                 aggregate_id=aggregate_id,
                 metadata=domain_metadata,
-                payload=payload,
+                **payload,
             )
             _ = await self.event_repository.store_event(event)
 
@@ -248,7 +248,7 @@ class KafkaEventService:
                 timestamp=event.timestamp,
                 aggregate_id=event.aggregate_id,
                 metadata=domain_metadata,
-                payload=payload,
+                **payload,
             )
             await self.event_repository.store_event(domain_event)
 

@@ -191,15 +191,7 @@ class AdminEventsRepository:
 
     async def archive_event(self, event: Event, deleted_by: str) -> bool:
         archive_doc = EventArchiveDocument(
-            event_id=event.event_id,
-            event_type=event.event_type,
-            event_version=event.event_version,
-            timestamp=event.timestamp,
-            aggregate_id=event.aggregate_id,
-            metadata=event.metadata,
-            payload=event.payload,
-            stored_at=event.stored_at,
-            ttl_expires_at=event.ttl_expires_at,
+            **vars(event),
             deleted_at=datetime.now(timezone.utc),
             deleted_by=deleted_by,
         )
@@ -278,7 +270,7 @@ class AdminEventsRepository:
 
             execution_ids = set()
             for event in original_events:
-                exec_id = event.payload.get("execution_id") or event.aggregate_id
+                exec_id = (event.model_extra or {}).get("execution_id") or event.aggregate_id
                 if exec_id:
                     execution_ids.add(exec_id)
 

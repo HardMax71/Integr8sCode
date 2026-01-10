@@ -30,8 +30,8 @@ class EventMetadata(BaseModel):
 class EventDocument(Document):
     """Event document for event browsing/admin system.
 
-    Uses payload dict for flexible event data storage.
-    This is separate from EventStoreDocument which uses flat structure for Kafka events.
+    Uses extra='allow' for flexible event data storage - event-specific fields
+    are stored directly at document level (no payload wrapper needed).
     """
 
     event_id: Indexed(str, unique=True) = Field(default_factory=lambda: str(uuid4()))  # type: ignore[valid-type]
@@ -40,7 +40,6 @@ class EventDocument(Document):
     timestamp: Indexed(datetime) = Field(default_factory=lambda: datetime.now(timezone.utc))  # type: ignore[valid-type]
     aggregate_id: Indexed(str) | None = None  # type: ignore[valid-type]
     metadata: EventMetadata
-    payload: dict[str, Any] = Field(default_factory=dict)
     stored_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     ttl_expires_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc) + timedelta(days=30))
 
@@ -56,9 +55,9 @@ class EventDocument(Document):
             IndexModel([("metadata.correlation_id", ASCENDING)], name="idx_meta_correlation"),
             IndexModel([("metadata.user_id", ASCENDING), ("timestamp", DESCENDING)], name="idx_meta_user_ts"),
             IndexModel([("metadata.service_name", ASCENDING), ("timestamp", DESCENDING)], name="idx_meta_service_ts"),
-            # Payload sparse indexes
-            IndexModel([("payload.execution_id", ASCENDING)], name="idx_payload_execution", sparse=True),
-            IndexModel([("payload.pod_name", ASCENDING)], name="idx_payload_pod", sparse=True),
+            # Event-specific field indexes (sparse - only exist on relevant event types)
+            IndexModel([("execution_id", ASCENDING)], name="idx_execution_id", sparse=True),
+            IndexModel([("pod_name", ASCENDING)], name="idx_pod_name", sparse=True),
             # TTL index (expireAfterSeconds=0 means use ttl_expires_at value directly)
             IndexModel([("ttl_expires_at", ASCENDING)], name="idx_ttl", expireAfterSeconds=0),
             # Additional compound indexes for query optimization
@@ -77,7 +76,7 @@ class EventDocument(Document):
                     ("event_type", pymongo.TEXT),
                     ("metadata.service_name", pymongo.TEXT),
                     ("metadata.user_id", pymongo.TEXT),
-                    ("payload", pymongo.TEXT),
+                    ("execution_id", pymongo.TEXT),
                 ],
                 name="idx_text_search",
                 language_override="none",
@@ -90,6 +89,7 @@ class EventArchiveDocument(Document):
     """Archived event with deletion metadata.
 
     Mirrors EventDocument structure with additional archive metadata.
+    Uses extra='allow' for event-specific fields.
     """
 
     event_id: Indexed(str, unique=True)  # type: ignore[valid-type]
@@ -98,7 +98,6 @@ class EventArchiveDocument(Document):
     timestamp: Indexed(datetime)  # type: ignore[valid-type]
     aggregate_id: str | None = None
     metadata: EventMetadata
-    payload: dict[str, Any] = Field(default_factory=dict)
     stored_at: datetime | None = None
     ttl_expires_at: datetime | None = None
 

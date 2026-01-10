@@ -347,7 +347,7 @@ async def replay_aggregate_events(
             )
             await kafka_event_service.publish_event(
                 event_type=event.event_type,
-                payload=event.payload,
+                payload=event.model_extra or {},
                 aggregate_id=aggregate_id,
                 correlation_id=replay_correlation_id,
                 metadata=meta,

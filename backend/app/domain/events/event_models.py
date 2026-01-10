@@ -2,6 +2,7 @@ from dataclasses import field
 from datetime import datetime
 from typing import Any
 
+from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass
 
 from app.core.utils import StringEnum
@@ -40,16 +41,15 @@ class CollectionNames(StringEnum):
     DLQ_MESSAGES = "dlq_messages"
 
 
-@dataclass
+@dataclass(config=ConfigDict(extra="allow"))
 class Event:
-    """Domain model for an event."""
+    """Domain model for an event. Uses extra='allow' to store event-specific fields flat."""
 
     event_id: str
     event_type: EventType
     event_version: str
     timestamp: datetime
     metadata: EventMetadata
-    payload: dict[str, Any]
     aggregate_id: str | None = None
     stored_at: datetime | None = None
     ttl_expires_at: datetime | None = None

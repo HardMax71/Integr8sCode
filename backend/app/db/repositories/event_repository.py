@@ -1,5 +1,4 @@
 import logging
-from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping
 
@@ -37,12 +36,8 @@ class EventRepository:
         return {key: value for key, value in {"$gte": start_time, "$lte": end_time}.items() if value is not None}
 
     async def store_event(self, event: Event) -> str:
-        data = asdict(event)
-        if not data.get("stored_at"):
-            data["stored_at"] = datetime.now(timezone.utc)
-        # Remove None values so EventDocument defaults can apply (e.g., ttl_expires_at)
-        data = {k: v for k, v in data.items() if v is not None}
-
+        data = {k: v for k, v in vars(event).items() if v is not None}
+        data.setdefault("stored_at", datetime.now(timezone.utc))
         doc = EventDocument(**data)
         add_span_attributes(
             **{
@@ -61,11 +56,8 @@ class EventRepository:
         now = datetime.now(timezone.utc)
         docs = []
         for event in events:
-            data = asdict(event)
-            if not data.get("stored_at"):
-                data["stored_at"] = now
-            # Remove None values so EventDocument defaults can apply
-            data = {k: v for k, v in data.items() if v is not None}
+            data = {k: v for k, v in vars(event).items() if v is not None}
+            data.setdefault("stored_at", now)
             docs.append(EventDocument(**data))
         await EventDocument.insert_many(docs)
         add_span_attributes(**{"events.batch.count": len(events)})
@@ -154,7 +146,7 @@ class EventRepository:
     ) -> EventListResult:
         conditions: list[Any] = [
             Or(
-                EventDocument.payload["execution_id"] == execution_id,
+                {"execution_id": execution_id},
                 EventDocument.aggregate_id == execution_id,
             ),
             Not(RegEx(EventDocument.metadata.service_name, "^system-")) if exclude_system_events else None,
@@ -338,15 +330,7 @@ class EventRepository:
 
         deleted_at = datetime.now(timezone.utc)
         archived_doc = EventArchiveDocument(
-            event_id=doc.event_id,
-            event_type=doc.event_type,
-            event_version=doc.event_version,
-            timestamp=doc.timestamp,
-            metadata=doc.metadata,
-            payload=doc.payload,
-            aggregate_id=doc.aggregate_id,
-            stored_at=doc.stored_at,
-            ttl_expires_at=doc.ttl_expires_at,
+            **doc.model_dump(exclude={"id", "revision_id"}),
             deleted_at=deleted_at,
             deleted_by=deleted_by,
             deletion_reason=deletion_reason,

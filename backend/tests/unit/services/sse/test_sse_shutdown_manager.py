@@ -2,9 +2,9 @@ import asyncio
 import logging
 
 import pytest
-
 from app.core.lifecycle import LifecycleEnabled
 from app.services.sse.sse_shutdown_manager import SSEShutdownManager
+from tests.helpers.eventually import eventually
 
 pytestmark = pytest.mark.unit
 
@@ -37,8 +37,6 @@ async def test_register_unregister_and_shutdown_flow() -> None:
     task = asyncio.create_task(mgr.initiate_shutdown())
 
     # Wait until manager enters NOTIFYING phase (event-driven)
-    from tests.helpers.eventually import eventually
-
     async def _is_notifying() -> bool:
         return mgr.get_shutdown_status().phase == "notifying"
 
@@ -56,14 +54,14 @@ async def test_register_unregister_and_shutdown_flow() -> None:
 
 @pytest.mark.asyncio
 async def test_reject_new_connection_during_shutdown() -> None:
-    mgr = SSEShutdownManager(drain_timeout=0.1, notification_timeout=0.01, force_close_timeout=0.01, logger=_test_logger)
+    mgr = SSEShutdownManager(drain_timeout=0.1, notification_timeout=0.01, force_close_timeout=0.01,
+                             logger=_test_logger)
     # Pre-register one active connection to reflect realistic state
     e = await mgr.register_connection("e", "c0")
     assert e is not None
 
     # Start shutdown and wait until initiated
     t = asyncio.create_task(mgr.initiate_shutdown())
-    from tests.helpers.eventually import eventually
 
     async def _initiated() -> None:
         assert mgr.is_shutting_down() is True

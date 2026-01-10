@@ -12,6 +12,7 @@ from app.core.middlewares import (
     RateLimitMiddleware,
     RequestSizeLimitMiddleware,
 )
+from app.settings import Settings
 
 pytestmark = pytest.mark.integration
 
@@ -35,7 +36,7 @@ def test_create_app_real_instance(app: FastAPI) -> None:
     assert "RateLimitMiddleware" in middleware_class_names, "Rate limit middleware not configured"
 
 
-def test_create_app_function_constructs(app: FastAPI) -> None:
+def test_create_app_function_constructs(test_settings: Settings) -> None:
     # Sanity: calling create_app returns a FastAPI instance (lazy import)
-    inst = import_module("app.main").create_app()
+    inst = import_module("app.main").create_app(settings=test_settings)
     assert isinstance(inst, FastAPI)

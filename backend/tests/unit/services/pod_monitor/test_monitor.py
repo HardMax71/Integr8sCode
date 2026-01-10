@@ -5,6 +5,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from app.core import k8s_clients as k8s_clients_module
 from app.core.k8s_clients import K8sClients
 from app.db.repositories.event_repository import EventRepository
 from app.domain.events import Event
@@ -25,7 +26,7 @@ from app.services.pod_monitor.monitor import (
     create_pod_monitor,
 )
 from app.settings import Settings
-
+from kubernetes.client.rest import ApiException
 from tests.helpers.k8s_fakes import (
     FakeApi,
     FakeV1Api,
@@ -65,7 +66,7 @@ class FakeUnifiedProducer(UnifiedProducer):
         self.logger = _test_logger
 
     async def produce(
-        self, event_to_produce: BaseEvent, key: str | None = None, headers: dict[str, str] | None = None
+            self, event_to_produce: BaseEvent, key: str | None = None, headers: dict[str, str] | None = None
     ) -> None:
         self.produced_events.append((event_to_produce, key))
 
@@ -105,9 +106,9 @@ class SpyMapper:
 
 
 def make_k8s_clients_di(
-    events: list[dict[str, Any]] | None = None,
-    resource_version: str = "rv1",
-    pods: list[Any] | None = None,
+        events: list[dict[str, Any]] | None = None,
+        resource_version: str = "rv1",
+        pods: list[Any] | None = None,
 ) -> K8sClients:
     """Create K8sClients for DI with fakes."""
     v1, watch = make_k8s_clients(events=events, resource_version=resource_version, pods=pods)
@@ -121,10 +122,10 @@ def make_k8s_clients_di(
 
 
 def make_pod_monitor(
-    config: PodMonitorConfig | None = None,
-    kafka_service: KafkaEventService | None = None,
-    k8s_clients: K8sClients | None = None,
-    event_mapper: PodEventMapper | None = None,
+        config: PodMonitorConfig | None = None,
+        kafka_service: KafkaEventService | None = None,
+        k8s_clients: K8sClients | None = None,
+        event_mapper: PodEventMapper | None = None,
 ) -> PodMonitor:
     """Create PodMonitor with sensible test defaults."""
     cfg = config or PodMonitorConfig()
@@ -412,7 +413,7 @@ async def test_publish_event_exception_handling() -> None:
 
     class FailingProducer(FakeUnifiedProducer):
         async def produce(
-            self, event_to_produce: BaseEvent, key: str | None = None, headers: dict[str, str] | None = None
+                self, event_to_produce: BaseEvent, key: str | None = None, headers: dict[str, str] | None = None
         ) -> None:
             raise RuntimeError("Publish failed")
 
@@ -481,8 +482,6 @@ async def test_watch_pods_main_loop() -> None:
 
 @pytest.mark.asyncio
 async def test_watch_pods_api_exception() -> None:
-    from kubernetes.client.rest import ApiException
-
     cfg = PodMonitorConfig()
     pm = make_pod_monitor(config=cfg)
     pm._state = MonitorState.RUNNING
@@ -530,8 +529,6 @@ async def test_watch_pods_generic_exception() -> None:
 @pytest.mark.asyncio
 async def test_create_pod_monitor_context_manager(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test create_pod_monitor factory with auto-created dependencies."""
-    from app.core import k8s_clients as k8s_clients_module
-
     # Mock create_k8s_clients to avoid real K8s connection
     mock_v1 = FakeV1Api()
     mock_watch = make_watch([])
@@ -544,9 +541,9 @@ async def test_create_pod_monitor_context_manager(monkeypatch: pytest.MonkeyPatc
     )
 
     def mock_create_clients(
-        logger: logging.Logger,  # noqa: ARG001
-        kubeconfig_path: str | None = None,  # noqa: ARG001
-        in_cluster: bool | None = None,  # noqa: ARG001
+            logger: logging.Logger,  # noqa: ARG001
+            kubeconfig_path: str | None = None,  # noqa: ARG001
+            in_cluster: bool | None = None,  # noqa: ARG001
     ) -> K8sClients:
         return mock_clients
 
@@ -584,7 +581,7 @@ async def test_create_pod_monitor_with_injected_k8s_clients() -> None:
     )
 
     async with create_pod_monitor(
-        cfg, service, _test_logger, k8s_clients=mock_k8s_clients
+            cfg, service, _test_logger, k8s_clients=mock_k8s_clients
     ) as monitor:
         assert monitor.state == MonitorState.RUNNING
         assert monitor._clients is mock_k8s_clients
@@ -685,8 +682,6 @@ async def test_process_raw_event_with_metadata() -> None:
 
 @pytest.mark.asyncio
 async def test_watch_pods_api_exception_other_status() -> None:
-    from kubernetes.client.rest import ApiException
-
     cfg = PodMonitorConfig()
     pm = make_pod_monitor(config=cfg)
     pm._state = MonitorState.RUNNING

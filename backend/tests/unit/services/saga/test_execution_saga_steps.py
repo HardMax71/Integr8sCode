@@ -6,17 +6,17 @@ from app.events.core import UnifiedProducer
 from app.infrastructure.kafka.events import BaseEvent
 from app.infrastructure.kafka.events.execution import ExecutionRequestedEvent
 from app.services.saga.execution_saga import (
-    ValidateExecutionStep,
     AllocateResourcesStep,
-    QueueExecutionStep,
     CreatePodStep,
-    MonitorExecutionStep,
-    ReleaseResourcesCompensation,
     DeletePodCompensation,
+    ExecutionSaga,
+    MonitorExecutionStep,
+    QueueExecutionStep,
+    ReleaseResourcesCompensation,
+    ValidateExecutionStep,
 )
 from app.services.saga.saga_step import SagaContext
 from tests.helpers import make_execution_requested_event
-
 
 pytestmark = pytest.mark.unit
 
@@ -104,6 +104,7 @@ async def test_queue_and_monitor_steps() -> None:
     class _BadCtx(SagaContext):
         def set(self, key: str, value: object) -> None:
             raise RuntimeError("boom")
+
     bad = _BadCtx("s", "e")
     assert await QueueExecutionStep().execute(bad, _req()) is False
     assert await MonitorExecutionStep().execute(bad, _req()) is False
@@ -115,7 +116,8 @@ class _FakeProducer(UnifiedProducer):
     def __init__(self) -> None:
         self.events: list[BaseEvent] = []
 
-    async def produce(self, event_to_produce: BaseEvent, key: str | None = None, headers: dict[str, str] | None = None) -> None:
+    async def produce(self, event_to_produce: BaseEvent, key: str | None = None,
+                      headers: dict[str, str] | None = None) -> None:
         self.events.append(event_to_produce)
 
 
@@ -197,7 +199,6 @@ def test_execution_saga_bind_and_get_steps_sets_flags_and_types() -> None:
         def __init__(self) -> None:
             pass  # Skip parent __init__
 
-    from app.services.saga.execution_saga import ExecutionSaga, CreatePodStep
     s = ExecutionSaga()
     s.bind_dependencies(producer=DummyProd(), alloc_repo=DummyAlloc(), publish_commands=True)
     steps = s.get_steps()

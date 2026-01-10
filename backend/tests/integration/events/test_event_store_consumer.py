@@ -2,8 +2,6 @@ import logging
 import uuid
 
 import pytest
-from dishka import AsyncContainer
-
 from app.core.database_context import Database
 from app.domain.enums.auth import LoginMethod
 from app.domain.enums.kafka import KafkaTopic
@@ -14,6 +12,8 @@ from app.events.schema.schema_registry import SchemaRegistryManager, initialize_
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.infrastructure.kafka.events.user import UserLoggedInEvent
 from app.settings import Settings
+from dishka import AsyncContainer
+from tests.helpers.eventually import eventually
 
 # xdist_group: Kafka consumer creation can crash librdkafka when multiple workers
 # instantiate Consumer() objects simultaneously. Serial execution prevents this.
@@ -64,7 +64,6 @@ async def test_event_store_consumer_stores_events(scope: AsyncContainer) -> None
 
         # Wait until the event is persisted in Mongo
         coll = db.get_collection("events")
-        from tests.helpers.eventually import eventually
 
         async def _exists() -> None:
             doc = await coll.find_one({"event_id": ev.event_id})

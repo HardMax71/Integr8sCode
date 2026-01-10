@@ -131,7 +131,16 @@ async def _create_authenticated_client(
             "password": password,
         })
         login_resp.raise_for_status()
-        csrf = login_resp.json().get("csrf_token", "")
+
+        login_data = login_resp.json()
+        csrf = login_data.get("csrf_token")
+        if not csrf:
+            await c.aclose()
+            pytest.fail(
+                f"Login succeeded but csrf_token missing or empty for {role} '{username}'. "
+                f"Response: {login_resp.text}"
+            )
+
         c.headers["X-CSRF-Token"] = csrf
         return c
     except Exception:

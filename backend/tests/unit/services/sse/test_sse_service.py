@@ -6,17 +6,17 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-from pydantic import BaseModel
-
-from app.domain.enums.events import EventType
-from app.domain.execution import DomainExecution, ResourceUsageDomain
-from app.domain.sse import ShutdownStatus, SSEHealthDomain
 from app.db.repositories.sse_repository import SSERepository
+from app.domain.enums.events import EventType
+from app.domain.enums.execution import ExecutionStatus
+from app.domain.execution import DomainExecution, ResourceUsageDomain
+from app.domain.sse import ShutdownStatus, SSEExecutionStatusDomain, SSEHealthDomain
 from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
 from app.services.sse.redis_bus import SSERedisBus, SSERedisSubscription
-from app.services.sse.sse_shutdown_manager import SSEShutdownManager
 from app.services.sse.sse_service import SSEService
+from app.services.sse.sse_shutdown_manager import SSEShutdownManager
 from app.settings import Settings
+from pydantic import BaseModel
 
 pytestmark = pytest.mark.unit
 
@@ -61,18 +61,16 @@ class _FakeBus(SSERedisBus):
 
 
 class _FakeRepo(SSERepository):
-    class _Status:
-        def __init__(self, execution_id: str) -> None:
-            self.execution_id = execution_id
-            self.status = "running"
-            self.timestamp = datetime.now(timezone.utc).isoformat()
-
     def __init__(self) -> None:
         # Skip parent __init__
         self.exec_for_result: DomainExecution | None = None
 
-    async def get_execution_status(self, execution_id: str) -> "_FakeRepo._Status":  # type: ignore[override]
-        return _FakeRepo._Status(execution_id)
+    async def get_execution_status(self, execution_id: str) -> SSEExecutionStatusDomain | None:
+        return SSEExecutionStatusDomain(
+            execution_id=execution_id,
+            status=ExecutionStatus.RUNNING,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+        )
 
     async def get_execution(self, execution_id: str) -> DomainExecution | None:  # noqa: ARG002
         return self.exec_for_result
@@ -135,7 +133,8 @@ async def test_execution_stream_closes_on_failed_event() -> None:
     repo = _FakeRepo()
     bus = _FakeBus()
     sm = _FakeShutdown()
-    svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm, settings=_make_fake_settings(), logger=_test_logger)
+    svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm,
+                     settings=_make_fake_settings(), logger=_test_logger)
 
     agen = svc.create_execution_stream("exec-1", user_id="u1")
     first = await agen.__anext__()
@@ -165,7 +164,7 @@ async def test_execution_stream_result_stored_includes_result_payload() -> None:
     repo.exec_for_result = DomainExecution(
         execution_id="exec-2",
         script="",
-        status="completed",  # type: ignore[arg-type]
+        status=ExecutionStatus.COMPLETED,
         stdout="out",
         stderr="",
         lang="python",
@@ -176,7 +175,8 @@ async def test_execution_stream_result_stored_includes_result_payload() -> None:
     )
     bus = _FakeBus()
     sm = _FakeShutdown()
-    svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm, settings=_make_fake_settings(), logger=_test_logger)
+    svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm,
+                     settings=_make_fake_settings(), logger=_test_logger)
 
     agen = svc.create_execution_stream("exec-2", user_id="u1")
     await agen.__anext__()  # connected
@@ -200,7 +200,8 @@ async def test_notification_stream_connected_and_heartbeat_and_message() -> None
     sm = _FakeShutdown()
     settings = _make_fake_settings()
     settings.SSE_HEARTBEAT_INTERVAL = 0  # emit immediately
-    svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm, settings=settings, logger=_test_logger)
+    svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm, settings=settings,
+                     logger=_test_logger)
 
     agen = svc.create_notification_stream("u1")
     connected = await agen.__anext__()
@@ -239,7 +240,8 @@ async def test_notification_stream_connected_and_heartbeat_and_message() -> None
 
 @pytest.mark.asyncio
 async def test_health_status_shape() -> None:
-    svc = SSEService(repository=_FakeRepo(), router=_FakeRouter(), sse_bus=_FakeBus(), shutdown_manager=_FakeShutdown(), settings=_make_fake_settings(), logger=_test_logger)
+    svc = SSEService(repository=_FakeRepo(), router=_FakeRouter(), sse_bus=_FakeBus(), shutdown_manager=_FakeShutdown(),
+                     settings=_make_fake_settings(), logger=_test_logger)
     h = await svc.get_health_status()
     assert isinstance(h, SSEHealthDomain)
     assert h.active_consumers == 3 and h.active_executions == 2

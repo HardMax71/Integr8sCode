@@ -1,20 +1,14 @@
-import asyncio
-from datetime import datetime, timezone, timedelta
-from typing import Dict
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
+from app.domain.enums.events import EventType
+from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
+from app.domain.replay.models import ReplayFilter
+from app.schemas_pydantic.replay import CleanupResponse, ReplayRequest, ReplayResponse, SessionSummary
+from app.schemas_pydantic.replay_models import ReplaySession
 from httpx import AsyncClient
 
-from app.domain.enums.events import EventType
-from app.domain.enums.replay import ReplayStatus, ReplayType, ReplayTarget
-from app.schemas_pydantic.replay import (
-    ReplayRequest,
-    ReplayResponse,
-    SessionSummary,
-    CleanupResponse
-)
-from app.schemas_pydantic.replay_models import ReplaySession
 from tests.helpers.eventually import eventually
 
 
@@ -23,12 +17,12 @@ class TestReplayRoutes:
     """Test replay endpoints against real backend."""
 
     @pytest.mark.asyncio
-    async def test_replay_requires_admin_authentication(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_replay_requires_admin_authentication(self, test_user: AsyncClient) -> None:
         """Test that replay endpoints require admin authentication."""
-        # Already authenticated via test_user fixture
+        # test_user is authenticated but not admin
 
         # Try to access replay endpoints as non-admin
-        response = await client.get("/api/v1/replay/sessions")
+        response = await test_user.get("/api/v1/replay/sessions")
         assert response.status_code == 403
 
         error_data = response.json()
@@ -37,22 +31,22 @@ class TestReplayRoutes:
                    for word in ["admin", "forbidden", "denied"])
 
     @pytest.mark.asyncio
-    async def test_create_replay_session(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
+    async def test_create_replay_session(self, test_admin: AsyncClient) -> None:
         """Test creating a replay session."""
-        # Already authenticated via test_admin fixture
-
         # Create replay session
         replay_request = ReplayRequest(
             replay_type=ReplayType.QUERY,
             target=ReplayTarget.KAFKA,
-            event_types=[EventType.EXECUTION_REQUESTED, EventType.EXECUTION_COMPLETED],
-            start_time=datetime.now(timezone.utc) - timedelta(days=7),
-            end_time=datetime.now(timezone.utc),
+            filter=ReplayFilter(
+                event_types=[EventType.EXECUTION_REQUESTED, EventType.EXECUTION_COMPLETED],
+                start_time=datetime.now(timezone.utc) - timedelta(days=7),
+                end_time=datetime.now(timezone.utc),
+            ),
             speed_multiplier=1.0,
             preserve_timestamps=True,
         ).model_dump(mode="json")
 
-        response = await client.post("/api/v1/replay/sessions", json=replay_request)
+        response = await test_admin.post("/api/v1/replay/sessions", json=replay_request)
         assert response.status_code in [200, 422]
         if response.status_code == 422:
             return
@@ -67,12 +61,10 @@ class TestReplayRoutes:
         assert replay_response.message is not None
 
     @pytest.mark.asyncio
-    async def test_list_replay_sessions(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
+    async def test_list_replay_sessions(self, test_admin: AsyncClient) -> None:
         """Test listing replay sessions."""
-        # Already authenticated via test_admin fixture
-
         # List replay sessions
-        response = await client.get("/api/v1/replay/sessions?limit=10")
+        response = await test_admin.get("/api/v1/replay/sessions?limit=10")
         assert response.status_code in [200, 404]
         if response.status_code != 200:
             return
@@ -88,27 +80,27 @@ class TestReplayRoutes:
             assert session_summary.created_at is not None
 
     @pytest.mark.asyncio
-    async def test_get_replay_session_details(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
+    async def test_get_replay_session_details(self, test_admin: AsyncClient) -> None:
         """Test getting detailed information about a replay session."""
-        # Already authenticated via test_admin fixture
-
         # Create a session first
         replay_request = ReplayRequest(
             replay_type=ReplayType.QUERY,
             target=ReplayTarget.KAFKA,
-            event_types=[EventType.USER_LOGGED_IN],
-            start_time=datetime.now(timezone.utc) - timedelta(hours=24),
-            end_time=datetime.now(timezone.utc),
+            filter=ReplayFilter(
+                event_types=[EventType.USER_LOGGED_IN],
+                start_time=datetime.now(timezone.utc) - timedelta(hours=24),
+                end_time=datetime.now(timezone.utc),
+            ),
             speed_multiplier=2.0,
         ).model_dump(mode="json")
 
-        create_response = await client.post("/api/v1/replay/sessions", json=replay_request)
+        create_response = await test_admin.post("/api/v1/replay/sessions", json=replay_request)
         assert create_response.status_code == 200
 
         session_id = create_response.json()["session_id"]
 
         # Get session details
-        detail_response = await client.get(f"/api/v1/replay/sessions/{session_id}")
+        detail_response = await test_admin.get(f"/api/v1/replay/sessions/{session_id}")
         assert detail_response.status_code in [200, 404]
         if detail_response.status_code != 200:
             return
@@ -121,33 +113,27 @@ class TestReplayRoutes:
         assert session.created_at is not None
 
     @pytest.mark.asyncio
-    async def test_start_replay_session(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
+    async def test_start_replay_session(self, test_admin: AsyncClient) -> None:
         """Test starting a replay session."""
-        # Login as admin
-        login_data = {
-            "username": test_admin["username"],
-            "password": test_admin["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Create a session
         replay_request = ReplayRequest(
             replay_type=ReplayType.QUERY,
             target=ReplayTarget.KAFKA,
-            event_types=[EventType.SYSTEM_ERROR],
-            start_time=datetime.now(timezone.utc) - timedelta(hours=1),
-            end_time=datetime.now(timezone.utc),
+            filter=ReplayFilter(
+                event_types=[EventType.SYSTEM_ERROR],
+                start_time=datetime.now(timezone.utc) - timedelta(hours=1),
+                end_time=datetime.now(timezone.utc),
+            ),
             speed_multiplier=1.0,
         ).model_dump(mode="json")
 
-        create_response = await client.post("/api/v1/replay/sessions", json=replay_request)
+        create_response = await test_admin.post("/api/v1/replay/sessions", json=replay_request)
         assert create_response.status_code == 200
 
         session_id = create_response.json()["session_id"]
 
         # Start the session
-        start_response = await client.post(f"/api/v1/replay/sessions/{session_id}/start")
+        start_response = await test_admin.post(f"/api/v1/replay/sessions/{session_id}/start")
         assert start_response.status_code in [200, 404]
         if start_response.status_code != 200:
             return
@@ -160,39 +146,33 @@ class TestReplayRoutes:
         assert start_result.message is not None
 
     @pytest.mark.asyncio
-    async def test_pause_and_resume_replay_session(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
+    async def test_pause_and_resume_replay_session(self, test_admin: AsyncClient) -> None:
         """Test pausing and resuming a replay session."""
-        # Login as admin
-        login_data = {
-            "username": test_admin["username"],
-            "password": test_admin["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Create and start a session
         replay_request = ReplayRequest(
             replay_type=ReplayType.QUERY,
             target=ReplayTarget.KAFKA,
-            event_types=[EventType.SYSTEM_ERROR],
-            start_time=datetime.now(timezone.utc) - timedelta(hours=2),
-            end_time=datetime.now(timezone.utc),
+            filter=ReplayFilter(
+                event_types=[EventType.SYSTEM_ERROR],
+                start_time=datetime.now(timezone.utc) - timedelta(hours=2),
+                end_time=datetime.now(timezone.utc),
+            ),
             speed_multiplier=0.5,
         ).model_dump(mode="json")
 
-        create_response = await client.post("/api/v1/replay/sessions", json=replay_request)
+        create_response = await test_admin.post("/api/v1/replay/sessions", json=replay_request)
         assert create_response.status_code == 200
 
         session_id = create_response.json()["session_id"]
 
         # Start the session
-        start_response = await client.post(f"/api/v1/replay/sessions/{session_id}/start")
+        start_response = await test_admin.post(f"/api/v1/replay/sessions/{session_id}/start")
         assert start_response.status_code in [200, 404]
         if start_response.status_code != 200:
             return
 
         # Pause the session
-        pause_response = await client.post(f"/api/v1/replay/sessions/{session_id}/pause")
+        pause_response = await test_admin.post(f"/api/v1/replay/sessions/{session_id}/pause")
         # Could succeed or fail if session already completed or not found
         assert pause_response.status_code in [200, 400, 404]
 
@@ -205,7 +185,9 @@ class TestReplayRoutes:
 
             # If paused, try to resume
             if pause_result.status == "paused":
-                resume_response = await client.post(f"/api/v1/replay/sessions/{session_id}/resume")
+                resume_response = await test_admin.post(
+                    f"/api/v1/replay/sessions/{session_id}/resume"
+                )
                 assert resume_response.status_code == 200
 
                 resume_data = resume_response.json()
@@ -215,33 +197,27 @@ class TestReplayRoutes:
                 assert resume_result.status in [ReplayStatus.RUNNING, ReplayStatus.COMPLETED]
 
     @pytest.mark.asyncio
-    async def test_cancel_replay_session(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
+    async def test_cancel_replay_session(self, test_admin: AsyncClient) -> None:
         """Test cancelling a replay session."""
-        # Login as admin
-        login_data = {
-            "username": test_admin["username"],
-            "password": test_admin["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Create a session
         replay_request = ReplayRequest(
             replay_type=ReplayType.QUERY,
             target=ReplayTarget.KAFKA,
-            event_types=[EventType.SYSTEM_ERROR],
-            start_time=datetime.now(timezone.utc) - timedelta(hours=1),
-            end_time=datetime.now(timezone.utc),
+            filter=ReplayFilter(
+                event_types=[EventType.SYSTEM_ERROR],
+                start_time=datetime.now(timezone.utc) - timedelta(hours=1),
+                end_time=datetime.now(timezone.utc),
+            ),
             speed_multiplier=1.0,
         ).model_dump(mode="json")
 
-        create_response = await client.post("/api/v1/replay/sessions", json=replay_request)
+        create_response = await test_admin.post("/api/v1/replay/sessions", json=replay_request)
         assert create_response.status_code == 200
 
         session_id = create_response.json()["session_id"]
 
         # Cancel the session
-        cancel_response = await client.post(f"/api/v1/replay/sessions/{session_id}/cancel")
+        cancel_response = await test_admin.post(f"/api/v1/replay/sessions/{session_id}/cancel")
         assert cancel_response.status_code in [200, 404]
         if cancel_response.status_code != 200:
             return
@@ -254,16 +230,8 @@ class TestReplayRoutes:
         assert cancel_result.message is not None
 
     @pytest.mark.asyncio
-    async def test_filter_sessions_by_status(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
+    async def test_filter_sessions_by_status(self, test_admin: AsyncClient) -> None:
         """Test filtering replay sessions by status."""
-        # Login as admin
-        login_data = {
-            "username": test_admin["username"],
-            "password": test_admin["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Test different status filters
         for status in [
             ReplayStatus.CREATED.value,
@@ -272,7 +240,7 @@ class TestReplayRoutes:
             ReplayStatus.FAILED.value,
             ReplayStatus.CANCELLED.value,
         ]:
-            response = await client.get(f"/api/v1/replay/sessions?status={status}&limit=5")
+            response = await test_admin.get(f"/api/v1/replay/sessions?status={status}&limit=5")
             assert response.status_code in [200, 404]
             if response.status_code != 200:
                 continue
@@ -286,18 +254,10 @@ class TestReplayRoutes:
                 assert session.status == status
 
     @pytest.mark.asyncio
-    async def test_cleanup_old_sessions(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
+    async def test_cleanup_old_sessions(self, test_admin: AsyncClient) -> None:
         """Test cleanup of old replay sessions."""
-        # Login as admin
-        login_data = {
-            "username": test_admin["username"],
-            "password": test_admin["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Cleanup sessions older than 24 hours
-        cleanup_response = await client.post("/api/v1/replay/cleanup?older_than_hours=24")
+        cleanup_response = await test_admin.post("/api/v1/replay/cleanup?older_than_hours=24")
         assert cleanup_response.status_code == 200
 
         cleanup_data = cleanup_response.json()
@@ -308,19 +268,11 @@ class TestReplayRoutes:
         assert cleanup_result.message is not None
 
     @pytest.mark.asyncio
-    async def test_get_nonexistent_session(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
+    async def test_get_nonexistent_session(self, test_admin: AsyncClient) -> None:
         """Test getting a non-existent replay session."""
-        # Login as admin
-        login_data = {
-            "username": test_admin["username"],
-            "password": test_admin["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Try to get non-existent session
         fake_session_id = str(uuid4())
-        response = await client.get(f"/api/v1/replay/sessions/{fake_session_id}")
+        response = await test_admin.get(f"/api/v1/replay/sessions/{fake_session_id}")
         # Could return 404 or empty result
         assert response.status_code in [200, 404]
 
@@ -329,33 +281,17 @@ class TestReplayRoutes:
             assert "detail" in error_data
 
     @pytest.mark.asyncio
-    async def test_start_nonexistent_session(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
+    async def test_start_nonexistent_session(self, test_admin: AsyncClient) -> None:
         """Test starting a non-existent replay session."""
-        # Login as admin
-        login_data = {
-            "username": test_admin["username"],
-            "password": test_admin["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Try to start non-existent session
         fake_session_id = str(uuid4())
-        response = await client.post(f"/api/v1/replay/sessions/{fake_session_id}/start")
+        response = await test_admin.post(f"/api/v1/replay/sessions/{fake_session_id}/start")
         # Should fail
         assert response.status_code in [400, 404]
 
     @pytest.mark.asyncio
-    async def test_replay_session_state_transitions(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
+    async def test_replay_session_state_transitions(self, test_admin: AsyncClient) -> None:
         """Test valid state transitions for replay sessions."""
-        # Login as admin
-        login_data = {
-            "username": test_admin["username"],
-            "password": test_admin["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Create a session
         replay_request = {
             "name": f"State Test Session {uuid4().hex[:8]}",
@@ -369,7 +305,7 @@ class TestReplayRoutes:
             "speed_multiplier": 1.0
         }
 
-        create_response = await client.post("/api/v1/replay/sessions", json=replay_request)
+        create_response = await test_admin.post("/api/v1/replay/sessions", json=replay_request)
         assert create_response.status_code in [200, 422]
         if create_response.status_code != 200:
             return
@@ -379,28 +315,20 @@ class TestReplayRoutes:
         assert initial_status == ReplayStatus.CREATED
 
         # Can't pause a session that hasn't started
-        pause_response = await client.post(f"/api/v1/replay/sessions/{session_id}/pause")
+        pause_response = await test_admin.post(f"/api/v1/replay/sessions/{session_id}/pause")
         assert pause_response.status_code in [400, 409]  # Invalid state transition
 
         # Can start from pending
-        start_response = await client.post(f"/api/v1/replay/sessions/{session_id}/start")
+        start_response = await test_admin.post(f"/api/v1/replay/sessions/{session_id}/start")
         assert start_response.status_code == 200
 
         # Can't start again if already running
-        start_again_response = await client.post(f"/api/v1/replay/sessions/{session_id}/start")
+        start_again_response = await test_admin.post(f"/api/v1/replay/sessions/{session_id}/start")
         assert start_again_response.status_code in [200, 400, 409]  # Might be idempotent or error
 
     @pytest.mark.asyncio
-    async def test_replay_with_complex_filters(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
+    async def test_replay_with_complex_filters(self, test_admin: AsyncClient) -> None:
         """Test creating replay session with complex filters."""
-        # Login as admin
-        login_data = {
-            "username": test_admin["username"],
-            "password": test_admin["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Create session with complex filters
         replay_request = {
             "name": f"Complex Filter Session {uuid4().hex[:8]}",
@@ -416,7 +344,6 @@ class TestReplayRoutes:
                 "end_time": datetime.now(timezone.utc).isoformat(),
                 "aggregate_id": str(uuid4()),
                 "correlation_id": str(uuid4()),
-                "user_id": test_admin.get("user_id"),
                 "service_name": "execution-service"
             },
             "target_topic": "complex-filter-topic",
@@ -425,7 +352,7 @@ class TestReplayRoutes:
             "batch_size": 100
         }
 
-        response = await client.post("/api/v1/replay/sessions", json=replay_request)
+        response = await test_admin.post("/api/v1/replay/sessions", json=replay_request)
         assert response.status_code in [200, 422]
         if response.status_code != 200:
             return
@@ -437,16 +364,8 @@ class TestReplayRoutes:
         assert replay_response.status in ["created", "pending"]
 
     @pytest.mark.asyncio
-    async def test_replay_session_progress_tracking(self, client: AsyncClient, test_admin: Dict[str, str]) -> None:
+    async def test_replay_session_progress_tracking(self, test_admin: AsyncClient) -> None:
         """Test tracking progress of replay sessions."""
-        # Login as admin
-        login_data = {
-            "username": test_admin["username"],
-            "password": test_admin["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
         # Create and start a session
         replay_request = {
             "name": f"Progress Test Session {uuid4().hex[:8]}",
@@ -460,7 +379,7 @@ class TestReplayRoutes:
             "speed_multiplier": 10.0  # Fast replay
         }
 
-        create_response = await client.post("/api/v1/replay/sessions", json=replay_request)
+        create_response = await test_admin.post("/api/v1/replay/sessions", json=replay_request)
         assert create_response.status_code in [200, 422]
         if create_response.status_code != 200:
             return
@@ -468,18 +387,18 @@ class TestReplayRoutes:
         session_id = create_response.json()["session_id"]
 
         # Start the session
-        await client.post(f"/api/v1/replay/sessions/{session_id}/start")
+        await test_admin.post(f"/api/v1/replay/sessions/{session_id}/start")
 
         # Poll progress without fixed sleeps
         async def _check_progress_once() -> None:
-            detail_response = await client.get(f"/api/v1/replay/sessions/{session_id}")
+            detail_response = await test_admin.get(f"/api/v1/replay/sessions/{session_id}")
             assert detail_response.status_code == 200
             session_data = detail_response.json()
             session = ReplaySession(**session_data)
-            if session.events_replayed is not None and session.events_total is not None:
-                assert 0 <= session.events_replayed <= session.events_total
-                if session.events_total > 0:
-                    progress = (session.events_replayed / session.events_total) * 100
+            if session.replayed_events is not None and session.total_events is not None:
+                assert 0 <= session.replayed_events <= session.total_events
+                if session.total_events > 0:
+                    progress = (session.replayed_events / session.total_events) * 100
                     assert 0.0 <= progress <= 100.0
 
         await eventually(_check_progress_once, timeout=5.0, interval=0.5)

@@ -45,21 +45,20 @@ class MetricsContextVar(Generic[T]):
 
     def get(self) -> T:
         """
-        Get the metric from context, creating it if necessary.
-
-        This method implements lazy initialization - if no metric exists
-        in the current context, it creates one. This is useful for testing
-        and standalone scripts where the context might not be initialized.
+        Get the metric from context.
 
         Returns:
             The metric instance for the current context
+
+        Raises:
+            RuntimeError: If metrics not initialized via DI
         """
         metric = self._context_var.get()
         if metric is None:
-            # Lazy initialization with logging
-            self.logger.debug(f"Lazy initializing {self._name} metrics in context")
-            metric = self._metric_class()
-            self._context_var.set(metric)
+            raise RuntimeError(
+                f"{self._name} metrics not initialized. "
+                "Ensure MetricsContext.initialize_all() is called during app startup."
+            )
         return metric
 
     def set(self, metric: T) -> contextvars.Token[Optional[T]]:

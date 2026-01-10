@@ -14,7 +14,7 @@ from app.db.docs import ALL_DOCUMENTS
 from app.events.event_store_consumer import EventStoreConsumer
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
-from app.settings import get_settings
+from app.settings import Settings
 
 
 @asynccontextmanager
@@ -27,10 +27,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     - No manual service management
     - Dishka handles all lifecycle automatically
     """
-    settings = get_settings()
-
-    # Get logger from DI container
+    # Get settings and logger from DI container (uses test settings in tests)
     container: AsyncContainer = app.state.dishka_container
+    settings = await container.get(Settings)
     logger = await container.get(logging.Logger)
 
     logger.info(
@@ -44,25 +43,32 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Metrics setup moved to app creation to allow middleware registration
     logger.info("Lifespan start: tracing and services initialization")
 
-    # Initialize tracing
-    instrumentation_report = init_tracing(
-        service_name=settings.TRACING_SERVICE_NAME,
-        logger=logger,
-        service_version=settings.TRACING_SERVICE_VERSION,
-        sampling_rate=settings.TRACING_SAMPLING_RATE,
-        enable_console_exporter=settings.TESTING,
-        adaptive_sampling=settings.TRACING_ADAPTIVE_SAMPLING,
-    )
-
-    if instrumentation_report.has_failures():
-        logger.warning(
-            "Some instrumentation libraries failed to initialize",
-            extra={"instrumentation_summary": instrumentation_report.get_summary()},
+    # Initialize tracing only when enabled (avoid exporter retries in tests)
+    if settings.ENABLE_TRACING and not settings.TESTING:
+        instrumentation_report = init_tracing(
+            service_name=settings.TRACING_SERVICE_NAME,
+            settings=settings,
+            logger=logger,
+            service_version=settings.TRACING_SERVICE_VERSION,
+            sampling_rate=settings.TRACING_SAMPLING_RATE,
+            enable_console_exporter=settings.TESTING,
+            adaptive_sampling=settings.TRACING_ADAPTIVE_SAMPLING,
         )
+
+        if instrumentation_report.has_failures():
+            logger.warning(
+                "Some instrumentation libraries failed to initialize",
+                extra={"instrumentation_summary": instrumentation_report.get_summary()},
+            )
+        else:
+            logger.info(
+                "Distributed tracing initialized successfully",
+                extra={"instrumentation_summary": instrumentation_report.get_summary()},
+            )
     else:
         logger.info(
-            "Distributed tracing initialized successfully",
-            extra={"instrumentation_summary": instrumentation_report.get_summary()},
+            "Distributed tracing disabled",
+            extra={"testing": settings.TESTING, "enable_tracing": settings.ENABLE_TRACING},
         )
 
     # Initialize schema registry once at startup

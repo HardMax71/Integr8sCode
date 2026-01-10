@@ -2,19 +2,24 @@ import asyncio
 import logging
 
 import pytest
+from app.core.lifecycle import LifecycleEnabled
+from app.services.sse.sse_shutdown_manager import SSEShutdownManager
+from tests.helpers.eventually import eventually
 
 pytestmark = pytest.mark.unit
-
-from app.services.sse.sse_shutdown_manager import SSEShutdownManager
 
 _test_logger = logging.getLogger("test.services.sse.sse_shutdown_manager")
 
 
-class _FakeRouter:
-    def __init__(self) -> None:
-        self.stopped = False
+class _FakeRouter(LifecycleEnabled):
+    """Fake router that tracks whether aclose was called."""
 
-    async def stop(self) -> None:
+    def __init__(self) -> None:
+        super().__init__()
+        self.stopped = False
+        self._lifecycle_started = True  # Simulate already-started router
+
+    async def _on_stop(self) -> None:
         self.stopped = True
 
 
@@ -32,9 +37,7 @@ async def test_register_unregister_and_shutdown_flow() -> None:
     task = asyncio.create_task(mgr.initiate_shutdown())
 
     # Wait until manager enters NOTIFYING phase (event-driven)
-    from tests.helpers.eventually import eventually
-
-    async def _is_notifying():
+    async def _is_notifying() -> bool:
         return mgr.get_shutdown_status().phase == "notifying"
 
     await eventually(_is_notifying, timeout=1.0, interval=0.02)
@@ -51,16 +54,16 @@ async def test_register_unregister_and_shutdown_flow() -> None:
 
 @pytest.mark.asyncio
 async def test_reject_new_connection_during_shutdown() -> None:
-    mgr = SSEShutdownManager(drain_timeout=0.1, notification_timeout=0.01, force_close_timeout=0.01, logger=_test_logger)
+    mgr = SSEShutdownManager(drain_timeout=0.1, notification_timeout=0.01, force_close_timeout=0.01,
+                             logger=_test_logger)
     # Pre-register one active connection to reflect realistic state
     e = await mgr.register_connection("e", "c0")
     assert e is not None
 
     # Start shutdown and wait until initiated
     t = asyncio.create_task(mgr.initiate_shutdown())
-    from tests.helpers.eventually import eventually
 
-    async def _initiated():
+    async def _initiated() -> None:
         assert mgr.is_shutting_down() is True
 
     await eventually(_initiated, timeout=1.0, interval=0.02)

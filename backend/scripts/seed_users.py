@@ -6,8 +6,7 @@ Creates:
   1. Default user (role=user) for testing/demo
   2. Admin user (role=admin, is_superuser=True) for administration
 
-Environment Variables:
-  MONGODB_URL: Connection string (default: mongodb://mongo:27017/integr8scode)
+Uses main Settings for MongoDB connection. Password env vars are script-specific:
   DEFAULT_USER_PASSWORD: Default user password (default: user123)
   ADMIN_USER_PASSWORD: Admin user password (default: admin123)
 """
@@ -17,6 +16,7 @@ import os
 from datetime import datetime, timezone
 from typing import Any
 
+from app.settings import Settings
 from bson import ObjectId
 from passlib.context import CryptContext
 from pymongo.asynchronous.database import AsyncDatabase
@@ -68,21 +68,22 @@ async def upsert_user(
         )
 
 
-async def seed_users() -> None:
-    mongodb_url = os.getenv("MONGODB_URL", "mongodb://mongo:27017/integr8scode")
-    db_name = os.getenv("DATABASE_NAME", "integr8scode_db")
+async def seed_users(settings: Settings) -> None:
+    """Seed default users using provided settings for MongoDB connection."""
+    default_password = os.environ.get("DEFAULT_USER_PASSWORD", "user123")
+    admin_password = os.environ.get("ADMIN_USER_PASSWORD", "admin123")
 
-    print(f"Connecting to MongoDB (database: {db_name})...")
+    print(f"Connecting to MongoDB (database: {settings.DATABASE_NAME})...")
 
-    client: AsyncMongoClient[dict[str, Any]] = AsyncMongoClient(mongodb_url)
-    db = client[db_name]
+    client: AsyncMongoClient[dict[str, Any]] = AsyncMongoClient(settings.MONGODB_URL)
+    db = client[settings.DATABASE_NAME]
 
     # Default user
     await upsert_user(
         db,
         username="user",
         email="user@integr8scode.com",
-        password=os.getenv("DEFAULT_USER_PASSWORD", "user123"),
+        password=default_password,
         role="user",
         is_superuser=False,
     )
@@ -92,7 +93,7 @@ async def seed_users() -> None:
         db,
         username="admin",
         email="admin@integr8scode.com",
-        password=os.getenv("ADMIN_USER_PASSWORD", "admin123"),
+        password=admin_password,
         role="admin",
         is_superuser=True,
     )
@@ -108,4 +109,4 @@ async def seed_users() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(seed_users())
+    asyncio.run(seed_users(Settings()))

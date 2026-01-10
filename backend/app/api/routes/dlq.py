@@ -95,9 +95,9 @@ async def get_dlq_message(event_id: str, repository: FromDishka[DLQRepository]) 
 
 @router.post("/retry", response_model=DLQBatchRetryResponse)
 async def retry_dlq_messages(
-    retry_request: ManualRetryRequest, repository: FromDishka[DLQRepository], dlq_manager: FromDishka[DLQManager]
+    retry_request: ManualRetryRequest, dlq_manager: FromDishka[DLQManager]
 ) -> DLQBatchRetryResponse:
-    result = await repository.retry_messages_batch(retry_request.event_ids, dlq_manager)
+    result = await dlq_manager.retry_messages_batch(retry_request.event_ids)
     return DLQBatchRetryResponse(
         total=result.total,
         successful=result.successful,

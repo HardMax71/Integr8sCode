@@ -2,16 +2,20 @@ import asyncio
 import json
 import logging
 import uuid
+from collections.abc import AsyncGenerator
 from datetime import datetime, timedelta, timezone
-import pytest
+from typing import Any
 
-from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus, IdempotencyStats
+import pytest
+import redis.asyncio as redis
+
+from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus
 from app.infrastructure.kafka.events.base import BaseEvent
-from tests.helpers import make_execution_requested_event
+from app.infrastructure.kafka.events.execution import ExecutionRequestedEvent
 from app.services.idempotency.idempotency_manager import IdempotencyConfig, IdempotencyManager
 from app.services.idempotency.middleware import IdempotentEventHandler, idempotent_handler
 from app.services.idempotency.redis_repository import RedisIdempotencyRepository
-
+from tests.helpers import make_execution_requested_event
 
 pytestmark = [pytest.mark.integration, pytest.mark.redis]
 
@@ -23,7 +27,7 @@ class TestIdempotencyManager:
     """IdempotencyManager backed by real Redis repository (DI-provided client)."""
 
     @pytest.fixture
-    async def manager(self, redis_client):  # type: ignore[valid-type]
+    async def manager(self, redis_client: redis.Redis) -> AsyncGenerator[IdempotencyManager, None]:
         prefix = f"idemp_ut:{uuid.uuid4().hex[:6]}"
         cfg = IdempotencyConfig(
             key_prefix=prefix,
@@ -42,7 +46,7 @@ class TestIdempotencyManager:
             await m.close()
 
     @pytest.mark.asyncio
-    async def test_complete_flow_new_event(self, manager):
+    async def test_complete_flow_new_event(self, manager: IdempotencyManager) -> None:
         """Test the complete flow for a new event"""
         real_event = make_execution_requested_event(execution_id="exec-123")
         # Check and reserve
@@ -54,7 +58,7 @@ class TestIdempotencyManager:
         assert result.key.startswith(f"{manager.config.key_prefix}:")
 
         # Verify it's in the repository
-        record = await manager._repo.find_by_key(result.key)  # type: ignore[attr-defined]
+        record = await manager._repo.find_by_key(result.key)
         assert record is not None
         assert record.status == IdempotencyStatus.PROCESSING
 
@@ -63,13 +67,14 @@ class TestIdempotencyManager:
         assert success is True
 
         # Verify status updated
-        record = await manager._repo.find_by_key(result.key)  # type: ignore[attr-defined]
+        record = await manager._repo.find_by_key(result.key)
+        assert record is not None
         assert record.status == IdempotencyStatus.COMPLETED
         assert record.completed_at is not None
         assert record.processing_duration_ms is not None
 
     @pytest.mark.asyncio
-    async def test_duplicate_detection(self, manager):
+    async def test_duplicate_detection(self, manager: IdempotencyManager) -> None:
         """Test that duplicates are properly detected"""
         real_event = make_execution_requested_event(execution_id="exec-dupe-1")
         # First request
@@ -85,7 +90,7 @@ class TestIdempotencyManager:
         assert result2.status == IdempotencyStatus.COMPLETED
 
     @pytest.mark.asyncio
-    async def test_concurrent_requests_race_condition(self, manager):
+    async def test_concurrent_requests_race_condition(self, manager: IdempotencyManager) -> None:
         """Test handling of concurrent requests for the same event"""
         real_event = make_execution_requested_event(execution_id="exec-race-1")
         # Simulate concurrent requests
@@ -105,7 +110,7 @@ class TestIdempotencyManager:
         assert duplicate_count == 4
 
     @pytest.mark.asyncio
-    async def test_processing_timeout_allows_retry(self, manager):
+    async def test_processing_timeout_allows_retry(self, manager: IdempotencyManager) -> None:
         """Test that stuck processing allows retry after timeout"""
         real_event = make_execution_requested_event(execution_id="exec-timeout-1")
         # First request
@@ -113,9 +118,10 @@ class TestIdempotencyManager:
         assert result1.is_duplicate is False
 
         # Manually update the created_at to simulate old processing
-        record = await manager._repo.find_by_key(result1.key)  # type: ignore[attr-defined]
+        record = await manager._repo.find_by_key(result1.key)
+        assert record is not None
         record.created_at = datetime.now(timezone.utc) - timedelta(seconds=10)
-        await manager._repo.update_record(record)  # type: ignore[attr-defined]
+        await manager._repo.update_record(record)
 
         # Second request should be allowed due to timeout
         result2 = await manager.check_and_reserve(real_event, key_strategy="event_based")
@@ -123,7 +129,7 @@ class TestIdempotencyManager:
         assert result2.status == IdempotencyStatus.PROCESSING
 
     @pytest.mark.asyncio
-    async def test_content_hash_strategy(self, manager):
+    async def test_content_hash_strategy(self, manager: IdempotencyManager) -> None:
         """Test content-based deduplication"""
         # Two events with same content and same execution_id
         event1 = make_execution_requested_event(
@@ -147,7 +153,7 @@ class TestIdempotencyManager:
         assert result2.is_duplicate is True
 
     @pytest.mark.asyncio
-    async def test_failed_event_handling(self, manager):
+    async def test_failed_event_handling(self, manager: IdempotencyManager) -> None:
         """Test marking events as failed"""
         real_event = make_execution_requested_event(execution_id="exec-failed-1")
         # Reserve
@@ -160,13 +166,14 @@ class TestIdempotencyManager:
         assert success is True
 
         # Verify status and error
-        record = await manager._repo.find_by_key(result.key)  # type: ignore[attr-defined]
+        record = await manager._repo.find_by_key(result.key)
+        assert record is not None
         assert record.status == IdempotencyStatus.FAILED
         assert record.error == error_msg
         assert record.completed_at is not None
 
     @pytest.mark.asyncio
-    async def test_result_caching(self, manager):
+    async def test_result_caching(self, manager: IdempotencyManager) -> None:
         """Test caching of results"""
         real_event = make_execution_requested_event(execution_id="exec-cache-1")
         # Reserve
@@ -192,7 +199,7 @@ class TestIdempotencyManager:
         assert duplicate_result.has_cached_result is True
 
     @pytest.mark.asyncio
-    async def test_stats_aggregation(self, manager):
+    async def test_stats_aggregation(self, manager: IdempotencyManager) -> None:
         """Test statistics aggregation"""
         # Create various events with different statuses
         events = []
@@ -224,7 +231,7 @@ class TestIdempotencyManager:
         assert stats.prefix == manager.config.key_prefix
 
     @pytest.mark.asyncio
-    async def test_remove_key(self, manager):
+    async def test_remove_key(self, manager: IdempotencyManager) -> None:
         """Test removing idempotency keys"""
         real_event = make_execution_requested_event(execution_id="exec-remove-1")
         # Add a key
@@ -236,7 +243,7 @@ class TestIdempotencyManager:
         assert removed is True
 
         # Verify it's gone
-        record = await manager._repo.find_by_key(result.key)  # type: ignore[attr-defined]
+        record = await manager._repo.find_by_key(result.key)
         assert record is None
 
         # Can process again
@@ -248,7 +255,7 @@ class TestIdempotentEventHandlerIntegration:
     """Test IdempotentEventHandler with real components"""
 
     @pytest.fixture
-    async def manager(self, redis_client):  # type: ignore[valid-type]
+    async def manager(self, redis_client: redis.Redis) -> AsyncGenerator[IdempotencyManager, None]:
         prefix = f"handler_test:{uuid.uuid4().hex[:6]}"
         config = IdempotencyConfig(key_prefix=prefix, enable_metrics=False)
         repo = RedisIdempotencyRepository(redis_client, key_prefix=prefix)
@@ -260,11 +267,11 @@ class TestIdempotentEventHandlerIntegration:
             await m.close()
 
     @pytest.mark.asyncio
-    async def test_handler_processes_new_event(self, manager):
+    async def test_handler_processes_new_event(self, manager: IdempotencyManager) -> None:
         """Test that handler processes new events"""
-        processed_events = []
+        processed_events: list[BaseEvent] = []
 
-        async def actual_handler(event: BaseEvent):
+        async def actual_handler(event: BaseEvent) -> None:
             processed_events.append(event)
 
         # Create idempotent handler
@@ -284,11 +291,11 @@ class TestIdempotentEventHandlerIntegration:
         assert processed_events[0] == real_event
 
     @pytest.mark.asyncio
-    async def test_handler_blocks_duplicate(self, manager):
+    async def test_handler_blocks_duplicate(self, manager: IdempotencyManager) -> None:
         """Test that handler blocks duplicate events"""
-        processed_events = []
+        processed_events: list[BaseEvent] = []
 
-        async def actual_handler(event: BaseEvent):
+        async def actual_handler(event: BaseEvent) -> None:
             processed_events.append(event)
 
         # Create idempotent handler
@@ -308,10 +315,10 @@ class TestIdempotentEventHandlerIntegration:
         assert len(processed_events) == 1
 
     @pytest.mark.asyncio
-    async def test_handler_with_failure(self, manager):
+    async def test_handler_with_failure(self, manager: IdempotencyManager) -> None:
         """Test handler marks failure on exception"""
 
-        async def failing_handler(event: BaseEvent):
+        async def failing_handler(event: BaseEvent) -> None:  # noqa: ARG001
             raise ValueError("Processing failed")
 
         handler = IdempotentEventHandler(
@@ -328,19 +335,21 @@ class TestIdempotentEventHandlerIntegration:
 
         # Verify marked as failed
         key = f"{manager.config.key_prefix}:{real_event.event_type}:{real_event.event_id}"
-        record = await manager._repo.find_by_key(key)  # type: ignore[attr-defined]
+        record = await manager._repo.find_by_key(key)
+        assert record is not None
         assert record.status == IdempotencyStatus.FAILED
+        assert record.error is not None
         assert "Processing failed" in record.error
 
     @pytest.mark.asyncio
-    async def test_handler_duplicate_callback(self, manager):
+    async def test_handler_duplicate_callback(self, manager: IdempotencyManager) -> None:
         """Test duplicate callback is invoked"""
-        duplicate_events = []
+        duplicate_events: list[tuple[BaseEvent, Any]] = []
 
-        async def actual_handler(event: BaseEvent):
+        async def actual_handler(event: BaseEvent) -> None:  # noqa: ARG001
             pass  # Do nothing
 
-        async def on_duplicate(event: BaseEvent, result):
+        async def on_duplicate(event: BaseEvent, result: Any) -> None:
             duplicate_events.append((event, result))
 
         handler = IdempotentEventHandler(
@@ -362,9 +371,9 @@ class TestIdempotentEventHandlerIntegration:
         assert duplicate_events[0][1].is_duplicate is True
 
     @pytest.mark.asyncio
-    async def test_decorator_integration(self, manager):
+    async def test_decorator_integration(self, manager: IdempotencyManager) -> None:
         """Test the @idempotent_handler decorator"""
-        processed_events = []
+        processed_events: list[BaseEvent] = []
 
         @idempotent_handler(
             idempotency_manager=manager,
@@ -372,7 +381,7 @@ class TestIdempotentEventHandlerIntegration:
             ttl_seconds=300,
             logger=_test_logger,
         )
-        async def my_handler(event: BaseEvent):
+        async def my_handler(event: BaseEvent) -> None:
             processed_events.append(event)
 
         # Process same event twice
@@ -394,18 +403,18 @@ class TestIdempotentEventHandlerIntegration:
         assert len(processed_events) == 1  # Still only one
 
     @pytest.mark.asyncio
-    async def test_custom_key_function(self, manager):
+    async def test_custom_key_function(self, manager: IdempotencyManager) -> None:
         """Test handler with custom key function"""
-        processed_scripts = []
+        processed_scripts: list[str] = []
 
         async def process_script(event: BaseEvent) -> None:
-            processed_scripts.append(event.script)
+            script: str = getattr(event, "script", "")
+            processed_scripts.append(script)
 
         def extract_script_key(event: BaseEvent) -> str:
             # Custom key based on script content only
-            if hasattr(event, 'script'):
-                return f"script:{hash(event.script)}"
-            return str(event.event_id)
+            script: str = getattr(event, "script", "")
+            return f"script:{hash(script)}"
 
         handler = IdempotentEventHandler(
             handler=process_script,
@@ -445,25 +454,25 @@ class TestIdempotentEventHandlerIntegration:
         assert processed_scripts[0] == "print('hello')"
 
     @pytest.mark.asyncio
-    async def test_invalid_key_strategy(self, manager):
+    async def test_invalid_key_strategy(self, manager: IdempotencyManager) -> None:
         """Test that invalid key strategy raises error"""
         real_event = make_execution_requested_event(execution_id="invalid-strategy-1")
         with pytest.raises(ValueError, match="Invalid key strategy"):
             await manager.check_and_reserve(real_event, key_strategy="invalid_strategy")
 
     @pytest.mark.asyncio
-    async def test_custom_key_without_custom_key_param(self, manager):
+    async def test_custom_key_without_custom_key_param(self, manager: IdempotencyManager) -> None:
         """Test that custom strategy without custom_key raises error"""
         real_event = make_execution_requested_event(execution_id="custom-key-missing-1")
         with pytest.raises(ValueError, match="Invalid key strategy"):
             await manager.check_and_reserve(real_event, key_strategy="custom")
 
     @pytest.mark.asyncio
-    async def test_get_cached_json_existing(self, manager):
+    async def test_get_cached_json_existing(self, manager: IdempotencyManager) -> None:
         """Test retrieving cached JSON result"""
         # First complete with cached result
         real_event = make_execution_requested_event(execution_id="cache-exist-1")
-        result = await manager.check_and_reserve(real_event, key_strategy="event_based")
+        await manager.check_and_reserve(real_event, key_strategy="event_based")
         cached_data = json.dumps({"output": "test", "code": 0})
         await manager.mark_completed_with_json(real_event, cached_data, "event_based")
 
@@ -472,7 +481,7 @@ class TestIdempotentEventHandlerIntegration:
         assert retrieved == cached_data
 
     @pytest.mark.asyncio
-    async def test_get_cached_json_non_existing(self, manager):
+    async def test_get_cached_json_non_existing(self, manager: IdempotencyManager) -> None:
         """Test retrieving non-existing cached result raises assertion"""
         real_event = make_execution_requested_event(execution_id="cache-miss-1")
         # Trying to get cached result for non-existent key should raise
@@ -480,7 +489,7 @@ class TestIdempotentEventHandlerIntegration:
             await manager.get_cached_json(real_event, "event_based", None)
 
     @pytest.mark.asyncio
-    async def test_cleanup_expired_keys(self, manager):
+    async def test_cleanup_expired_keys(self, manager: IdempotencyManager) -> None:
         """Test cleanup of expired keys"""
         # Create expired record
         expired_key = f"{manager.config.key_prefix}:expired"
@@ -493,15 +502,15 @@ class TestIdempotentEventHandlerIntegration:
             ttl_seconds=3600,  # 1 hour TTL
             completed_at=datetime.now(timezone.utc) - timedelta(hours=2)
         )
-        await manager._repo.insert_processing(expired_record)  # type: ignore[attr-defined]
+        await manager._repo.insert_processing(expired_record)
 
         # Cleanup should detect it as expired
         # Note: actual cleanup implementation depends on repository
-        record = await manager._repo.find_by_key(expired_key)  # type: ignore[attr-defined]
+        record = await manager._repo.find_by_key(expired_key)
         assert record is not None  # Still exists until explicit cleanup
 
     @pytest.mark.asyncio
-    async def test_metrics_enabled(self, redis_client):  # type: ignore[valid-type]
+    async def test_metrics_enabled(self, redis_client: redis.Redis) -> None:
         """Test manager with metrics enabled"""
         config = IdempotencyConfig(key_prefix=f"metrics:{uuid.uuid4().hex[:6]}", enable_metrics=True)
         repository = RedisIdempotencyRepository(redis_client, key_prefix=config.key_prefix)
@@ -515,7 +524,7 @@ class TestIdempotentEventHandlerIntegration:
         await manager.close()
 
     @pytest.mark.asyncio
-    async def test_content_hash_with_fields(self, manager):
+    async def test_content_hash_with_fields(self, manager: IdempotencyManager) -> None:
         """Test content hash with specific fields"""
         event1 = make_execution_requested_event(
             execution_id="exec-1",

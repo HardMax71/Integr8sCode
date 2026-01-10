@@ -1,10 +1,11 @@
 import pytest
+from app.core.security import SecurityService
+from app.settings import Settings
 from starlette.requests import Request
 
-from app.core.security import validate_csrf_token, security_service
 
-
-def make_request(method: str, path: str, headers: dict[str, str] | None = None, cookies: dict[str, str] | None = None) -> Request:
+def make_request(method: str, path: str, headers: dict[str, str] | None = None,
+                 cookies: dict[str, str] | None = None) -> Request:
     headers = headers or {}
     if cookies:
         cookie_header = "; ".join(f"{k}={v}" for k, v in cookies.items())
@@ -18,18 +19,21 @@ def make_request(method: str, path: str, headers: dict[str, str] | None = None, 
     return Request(scope)
 
 
-def test_csrf_skips_on_get() -> None:
+def test_csrf_skips_on_get(test_settings: Settings) -> None:
+    security_service = SecurityService(test_settings)
     req = make_request("GET", "/api/v1/anything")
-    assert validate_csrf_token(req) == "skip"
+    assert security_service.validate_csrf_from_request(req) == "skip"
 
 
-def test_csrf_missing_header_raises_when_authenticated() -> None:
+def test_csrf_missing_header_raises_when_authenticated(test_settings: Settings) -> None:
+    security_service = SecurityService(test_settings)
     req = make_request("POST", "/api/v1/items", cookies={"access_token": "tok", "csrf_token": "abc"})
     with pytest.raises(Exception):
-        validate_csrf_token(req)
+        security_service.validate_csrf_from_request(req)
 
 
-def test_csrf_valid_tokens() -> None:
+def test_csrf_valid_tokens(test_settings: Settings) -> None:
+    security_service = SecurityService(test_settings)
     token = security_service.generate_csrf_token()
     req = make_request(
         "POST",
@@ -37,4 +41,4 @@ def test_csrf_valid_tokens() -> None:
         headers={"X-CSRF-Token": token},
         cookies={"access_token": "tok", "csrf_token": token},
     )
-    assert validate_csrf_token(req) == token
+    assert security_service.validate_csrf_from_request(req) == token

@@ -8,7 +8,7 @@ from passlib.context import CryptContext
 
 from app.domain.user import AuthenticationRequiredError, CSRFValidationError, InvalidCredentialsError
 from app.domain.user import User as DomainAdminUser
-from app.settings import get_settings
+from app.settings import Settings
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/login")
 
@@ -21,9 +21,13 @@ def get_token_from_cookie(request: Request) -> str:
 
 
 class SecurityService:
-    def __init__(self) -> None:
-        self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-        self.settings = get_settings()
+    def __init__(self, settings: Settings) -> None:
+        self.settings = settings
+        self.pwd_context = CryptContext(
+            schemes=["bcrypt"],
+            deprecated="auto",
+            bcrypt__rounds=self.settings.BCRYPT_ROUNDS,
+        )
 
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         return self.pwd_context.verify(plain_password, hashed_password)  # type: ignore
@@ -70,38 +74,49 @@ class SecurityService:
 
         return hmac.compare_digest(header_token, cookie_token)
 
+    # Paths exempt from CSRF validation (auth handles its own security)
+    CSRF_EXEMPT_PATHS: frozenset[str] = frozenset({
+        "/api/v1/auth/login",
+        "/api/v1/auth/register",
+        "/api/v1/auth/logout",
+    })
 
-security_service = SecurityService()
+    def validate_csrf_from_request(self, request: Request) -> str:
+        """Validate CSRF token from HTTP request using double-submit cookie pattern.
 
+        Returns:
+            "skip" if validation was skipped (safe method, exempt path, or unauthenticated)
+            The validated token string if validation passed
 
-def validate_csrf_token(request: Request) -> str:
-    """FastAPI dependency to validate CSRF token using double-submit cookie pattern"""
-    # Skip CSRF validation for safe methods
-    if request.method in ["GET", "HEAD", "OPTIONS"]:
-        return "skip"
+        Raises:
+            CSRFValidationError: If token is missing or invalid
+        """
+        # Skip CSRF validation for safe methods
+        if request.method in ("GET", "HEAD", "OPTIONS"):
+            return "skip"
 
-    # Skip CSRF validation for auth endpoints
-    if request.url.path in ["/api/v1/login", "/api/v1/register", "/api/v1/logout"]:
-        return "skip"
+        # Skip CSRF validation for auth endpoints
+        if request.url.path in self.CSRF_EXEMPT_PATHS:
+            return "skip"
 
-    # Skip CSRF validation for non-API endpoints
-    if not request.url.path.startswith("/api/"):
-        return "skip"
+        # Skip CSRF validation for non-API endpoints (health, metrics, etc.)
+        if not request.url.path.startswith("/api/"):
+            return "skip"
 
-    # Check if user is authenticated first (has access_token cookie)
-    access_token = request.cookies.get("access_token")
-    if not access_token:
-        # If not authenticated, skip CSRF validation (auth will be handled by other dependencies)
-        return "skip"
+        # Check if user is authenticated first (has access_token cookie)
+        access_token = request.cookies.get("access_token")
+        if not access_token:
+            # If not authenticated, skip CSRF validation (auth will be handled by other dependencies)
+            return "skip"
 
-    # Get CSRF token from header and cookie
-    header_token = request.headers.get("X-CSRF-Token")
-    cookie_token = request.cookies.get("csrf_token", "")
+        # Get CSRF token from header and cookie
+        header_token = request.headers.get("X-CSRF-Token")
+        cookie_token = request.cookies.get("csrf_token", "")
 
-    if not header_token:
-        raise CSRFValidationError("CSRF token missing")
+        if not header_token:
+            raise CSRFValidationError("CSRF token missing from X-CSRF-Token header")
 
-    if not security_service.validate_csrf_token(header_token, cookie_token):
-        raise CSRFValidationError("CSRF token invalid")
+        if not self.validate_csrf_token(header_token, cookie_token):
+            raise CSRFValidationError("CSRF token invalid or does not match cookie")
 
-    return header_token
+        return header_token

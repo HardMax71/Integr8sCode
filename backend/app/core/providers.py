@@ -22,6 +22,7 @@ from app.core.metrics import (
 from app.core.metrics.connections import ConnectionMetrics
 from app.core.metrics.events import EventMetrics
 from app.core.metrics.rate_limit import RateLimitMetrics
+from app.core.security import SecurityService
 from app.core.tracing import TracerManager
 from app.db.repositories import (
     EventRepository,
@@ -63,6 +64,7 @@ from app.services.k8s_worker.worker import KubernetesWorker
 from app.services.kafka_event_service import KafkaEventService
 from app.services.notification_service import NotificationService
 from app.services.pod_monitor.config import PodMonitorConfig
+from app.services.pod_monitor.event_mapper import PodEventMapper
 from app.services.pod_monitor.monitor import PodMonitor
 from app.services.rate_limit_service import RateLimitService
 from app.services.replay_service import ReplayService
@@ -143,6 +145,10 @@ class CoreServicesProvider(Provider):
     scope = Scope.APP
 
     @provide
+    def get_security_service(self, settings: Settings) -> SecurityService:
+        return SecurityService(settings)
+
+    @provide
     def get_tracer_manager(self, settings: Settings) -> TracerManager:
         return TracerManager(tracer_name=settings.TRACING_SERVICE_NAME)
 
@@ -155,7 +161,7 @@ class MessagingProvider(Provider):
         self, settings: Settings, schema_registry: SchemaRegistryManager, logger: logging.Logger
     ) -> AsyncIterator[UnifiedProducer]:
         config = ProducerConfig(bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS)
-        async with UnifiedProducer(config, schema_registry, logger) as producer:
+        async with UnifiedProducer(config, schema_registry, logger, settings=settings) as producer:
             yield producer
 
     @provide
@@ -214,8 +220,8 @@ class EventProvider(Provider):
             yield consumer
 
     @provide
-    async def get_event_bus_manager(self, logger: logging.Logger) -> AsyncIterator[EventBusManager]:
-        manager = EventBusManager(logger)
+    async def get_event_bus_manager(self, settings: Settings, logger: logging.Logger) -> AsyncIterator[EventBusManager]:
+        manager = EventBusManager(settings, logger)
         try:
             yield manager
         finally:
@@ -240,52 +246,52 @@ class MetricsProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_event_metrics(self) -> EventMetrics:
-        return EventMetrics()
+    def get_event_metrics(self, settings: Settings) -> EventMetrics:
+        return EventMetrics(settings)
 
     @provide
-    def get_connection_metrics(self) -> ConnectionMetrics:
-        return ConnectionMetrics()
+    def get_connection_metrics(self, settings: Settings) -> ConnectionMetrics:
+        return ConnectionMetrics(settings)
 
     @provide
-    def get_rate_limit_metrics(self) -> RateLimitMetrics:
-        return RateLimitMetrics()
+    def get_rate_limit_metrics(self, settings: Settings) -> RateLimitMetrics:
+        return RateLimitMetrics(settings)
 
     @provide
-    def get_execution_metrics(self) -> ExecutionMetrics:
-        return ExecutionMetrics()
+    def get_execution_metrics(self, settings: Settings) -> ExecutionMetrics:
+        return ExecutionMetrics(settings)
 
     @provide
-    def get_database_metrics(self) -> DatabaseMetrics:
-        return DatabaseMetrics()
+    def get_database_metrics(self, settings: Settings) -> DatabaseMetrics:
+        return DatabaseMetrics(settings)
 
     @provide
-    def get_health_metrics(self) -> HealthMetrics:
-        return HealthMetrics()
+    def get_health_metrics(self, settings: Settings) -> HealthMetrics:
+        return HealthMetrics(settings)
 
     @provide
-    def get_kubernetes_metrics(self) -> KubernetesMetrics:
-        return KubernetesMetrics()
+    def get_kubernetes_metrics(self, settings: Settings) -> KubernetesMetrics:
+        return KubernetesMetrics(settings)
 
     @provide
-    def get_coordinator_metrics(self) -> CoordinatorMetrics:
-        return CoordinatorMetrics()
+    def get_coordinator_metrics(self, settings: Settings) -> CoordinatorMetrics:
+        return CoordinatorMetrics(settings)
 
     @provide
-    def get_dlq_metrics(self) -> DLQMetrics:
-        return DLQMetrics()
+    def get_dlq_metrics(self, settings: Settings) -> DLQMetrics:
+        return DLQMetrics(settings)
 
     @provide
-    def get_notification_metrics(self) -> NotificationMetrics:
-        return NotificationMetrics()
+    def get_notification_metrics(self, settings: Settings) -> NotificationMetrics:
+        return NotificationMetrics(settings)
 
     @provide
-    def get_replay_metrics(self) -> ReplayMetrics:
-        return ReplayMetrics()
+    def get_replay_metrics(self, settings: Settings) -> ReplayMetrics:
+        return ReplayMetrics(settings)
 
     @provide
-    def get_security_metrics(self) -> SecurityMetrics:
-        return SecurityMetrics()
+    def get_security_metrics(self, settings: Settings) -> SecurityMetrics:
+        return SecurityMetrics(settings)
 
 
 class RepositoryProvider(Provider):
@@ -334,8 +340,8 @@ class RepositoryProvider(Provider):
         return AdminSettingsRepository(logger)
 
     @provide
-    def get_admin_user_repository(self) -> AdminUserRepository:
-        return AdminUserRepository()
+    def get_admin_user_repository(self, security_service: SecurityService) -> AdminUserRepository:
+        return AdminUserRepository(security_service)
 
     @provide
     def get_notification_repository(self, logger: logging.Logger) -> NotificationRepository:
@@ -407,8 +413,10 @@ class AuthProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_auth_service(self, user_repository: UserRepository, logger: logging.Logger) -> AuthService:
-        return AuthService(user_repository, logger)
+    def get_auth_service(
+        self, user_repository: UserRepository, security_service: SecurityService, logger: logging.Logger
+    ) -> AuthService:
+        return AuthService(user_repository, security_service, logger)
 
 
 class KafkaServicesProvider(Provider):
@@ -422,9 +430,18 @@ class KafkaServicesProvider(Provider):
 
     @provide
     def get_kafka_event_service(
-        self, event_repository: EventRepository, kafka_producer: UnifiedProducer, logger: logging.Logger
+        self,
+        event_repository: EventRepository,
+        kafka_producer: UnifiedProducer,
+        settings: Settings,
+        logger: logging.Logger,
     ) -> KafkaEventService:
-        return KafkaEventService(event_repository=event_repository, kafka_producer=kafka_producer, logger=logger)
+        return KafkaEventService(
+            event_repository=event_repository,
+            kafka_producer=kafka_producer,
+            settings=settings,
+            logger=logger,
+        )
 
 
 class UserServicesProvider(Provider):
@@ -562,7 +579,6 @@ class BusinessServicesProvider(Provider):
     def __init__(self) -> None:
         super().__init__()
         # Register shared factory functions on instance (avoids warning about missing self)
-        self.provide(_provide_saga_orchestrator)
         self.provide(_provide_execution_coordinator)
 
     @provide
@@ -609,10 +625,15 @@ class BusinessServicesProvider(Provider):
         replay_repository: ReplayRepository,
         kafka_producer: UnifiedProducer,
         event_store: EventStore,
+        settings: Settings,
         logger: logging.Logger,
     ) -> ReplayService:
         event_replay_service = EventReplayService(
-            repository=replay_repository, producer=kafka_producer, event_store=event_store, logger=logger
+            repository=replay_repository,
+            producer=kafka_producer,
+            event_store=event_store,
+            settings=settings,
+            logger=logger,
         )
         return ReplayService(replay_repository, event_replay_service, logger)
 
@@ -623,6 +644,7 @@ class BusinessServicesProvider(Provider):
         event_service: EventService,
         execution_service: ExecutionService,
         rate_limit_service: RateLimitService,
+        security_service: SecurityService,
         logger: logging.Logger,
     ) -> AdminUserService:
         return AdminUserService(
@@ -630,6 +652,7 @@ class BusinessServicesProvider(Provider):
             event_service=event_service,
             execution_service=execution_service,
             rate_limit_service=rate_limit_service,
+            security_service=security_service,
             logger=logger,
         )
 
@@ -672,11 +695,20 @@ class PodMonitorProvider(Provider):
     scope = Scope.APP
 
     @provide
+    def get_event_mapper(
+        self,
+        logger: logging.Logger,
+        k8s_clients: K8sClients,
+    ) -> PodEventMapper:
+        return PodEventMapper(logger=logger, k8s_api=k8s_clients.v1)
+
+    @provide
     async def get_pod_monitor(
         self,
         kafka_event_service: KafkaEventService,
         k8s_clients: K8sClients,
         logger: logging.Logger,
+        event_mapper: PodEventMapper,
     ) -> AsyncIterator[PodMonitor]:
         config = PodMonitorConfig()
         async with PodMonitor(
@@ -684,6 +716,7 @@ class PodMonitorProvider(Provider):
             kafka_event_service=kafka_event_service,
             logger=logger,
             k8s_clients=k8s_clients,
+            event_mapper=event_mapper,
         ) as monitor:
             yield monitor
 
@@ -705,12 +738,14 @@ class EventReplayProvider(Provider):
         replay_repository: ReplayRepository,
         kafka_producer: UnifiedProducer,
         event_store: EventStore,
+        settings: Settings,
         logger: logging.Logger,
     ) -> EventReplayService:
         return EventReplayService(
             repository=replay_repository,
             producer=kafka_producer,
             event_store=event_store,
+            settings=settings,
             logger=logger,
         )
 

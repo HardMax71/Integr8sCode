@@ -7,6 +7,7 @@ from typing import Any, Dict
 from app.core.metrics.context import get_connection_metrics
 from app.db.repositories.sse_repository import SSERepository
 from app.domain.enums.events import EventType
+from app.domain.enums.sse import SSEControlEvent, SSENotificationEvent
 from app.domain.sse import SSEHealthDomain
 from app.schemas_pydantic.execution import ExecutionResult
 from app.schemas_pydantic.sse import (
@@ -55,7 +56,7 @@ class SSEService:
         if shutdown_event is None:
             yield self._format_sse_event(
                 SSEExecutionEventData(
-                    event_type="error",
+                    event_type=SSEControlEvent.ERROR,
                     execution_id=execution_id,
                     timestamp=datetime.now(timezone.utc).isoformat(),
                     error="Server is shutting down",
@@ -69,7 +70,7 @@ class SSEService:
             sub_task = asyncio.create_task(self.sse_bus.open_subscription(execution_id))
             yield self._format_sse_event(
                 SSEExecutionEventData(
-                    event_type="connected",
+                    event_type=SSEControlEvent.CONNECTED,
                     execution_id=execution_id,
                     timestamp=datetime.now(timezone.utc).isoformat(),
                     connection_id=connection_id,
@@ -81,11 +82,21 @@ class SSEService:
             subscription = await sub_task
             self.logger.info("Redis subscription opened for execution", extra={"execution_id": execution_id})
 
+            # Signal that subscription is ready - safe to publish events now
+            yield self._format_sse_event(
+                SSEExecutionEventData(
+                    event_type=SSEControlEvent.SUBSCRIBED,
+                    execution_id=execution_id,
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    message="Redis subscription established",
+                )
+            )
+
             initial_status = await self.repository.get_execution_status(execution_id)
             if initial_status:
                 yield self._format_sse_event(
                     SSEExecutionEventData(
-                        event_type="status",
+                        event_type=SSEControlEvent.STATUS,
                         execution_id=initial_status.execution_id,
                         timestamp=initial_status.timestamp,
                         status=initial_status.status,
@@ -119,7 +130,7 @@ class SSEService:
             if shutdown_event.is_set():
                 yield self._format_sse_event(
                     SSEExecutionEventData(
-                        event_type="shutdown",
+                        event_type=SSEControlEvent.SHUTDOWN,
                         execution_id=execution_id,
                         timestamp=datetime.now(timezone.utc).isoformat(),
                         message="Server is shutting down",
@@ -132,7 +143,7 @@ class SSEService:
             if include_heartbeat and (now - last_heartbeat).total_seconds() >= self.heartbeat_interval:
                 yield self._format_sse_event(
                     SSEExecutionEventData(
-                        event_type="heartbeat",
+                        event_type=SSEControlEvent.HEARTBEAT,
                         execution_id=execution_id,
                         timestamp=now.isoformat(),
                         message="SSE connection active",
@@ -179,7 +190,6 @@ class SSEService:
                 **msg.data,
                 "event_type": msg.event_type,
                 "execution_id": execution_id,
-                "type": msg.event_type,
                 "result": result,
             }
         )
@@ -192,7 +202,7 @@ class SSEService:
             sub_task = asyncio.create_task(self.sse_bus.open_notification_subscription(user_id))
             yield self._format_notification_event(
                 SSENotificationEventData(
-                    event_type="connected",
+                    event_type=SSENotificationEvent.CONNECTED,
                     user_id=user_id,
                     timestamp=datetime.now(timezone.utc).isoformat(),
                     message="Connected to notification stream",
@@ -202,6 +212,16 @@ class SSEService:
             # Complete Redis subscription after handshake
             subscription = await sub_task
 
+            # Signal that subscription is ready - safe to publish notifications now
+            yield self._format_notification_event(
+                SSENotificationEventData(
+                    event_type=SSENotificationEvent.SUBSCRIBED,
+                    user_id=user_id,
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    message="Redis subscription established",
+                )
+            )
+
             last_heartbeat = datetime.now(timezone.utc)
             while not self.shutdown_manager.is_shutting_down():
                 # Heartbeat
@@ -209,7 +229,7 @@ class SSEService:
                 if (now - last_heartbeat).total_seconds() >= self.heartbeat_interval:
                     yield self._format_notification_event(
                         SSENotificationEventData(
-                            event_type="heartbeat",
+                            event_type=SSENotificationEvent.HEARTBEAT,
                             user_id=user_id,
                             timestamp=now.isoformat(),
                             message="Notification stream active",
@@ -222,7 +242,7 @@ class SSEService:
                 if redis_msg:
                     yield self._format_notification_event(
                         SSENotificationEventData(
-                            event_type="notification",
+                            event_type=SSENotificationEvent.NOTIFICATION,
                             notification_id=redis_msg.notification_id,
                             severity=redis_msg.severity,
                             status=redis_msg.status,

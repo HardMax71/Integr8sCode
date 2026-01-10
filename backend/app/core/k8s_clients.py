@@ -3,14 +3,18 @@ from dataclasses import dataclass
 
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
+from kubernetes import watch as k8s_watch
 
 
 @dataclass(frozen=True)
 class K8sClients:
+    """Kubernetes API clients bundle for dependency injection."""
+
     api_client: k8s_client.ApiClient
     v1: k8s_client.CoreV1Api
     apps_v1: k8s_client.AppsV1Api
     networking_v1: k8s_client.NetworkingV1Api
+    watch: k8s_watch.Watch
 
 
 def create_k8s_clients(
@@ -33,6 +37,7 @@ def create_k8s_clients(
         v1=k8s_client.CoreV1Api(api_client),
         apps_v1=k8s_client.AppsV1Api(api_client),
         networking_v1=k8s_client.NetworkingV1Api(api_client),
+        watch=k8s_watch.Watch(),
     )
 
 

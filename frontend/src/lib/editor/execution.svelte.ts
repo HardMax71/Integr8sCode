@@ -65,7 +65,7 @@ export function createExecutionState() {
                         const eventData = JSON.parse(event.data);
                         const eventType = eventData?.event_type || eventData?.type;
 
-                        if (eventType === 'heartbeat' || eventType === 'connected') return;
+                        if (eventType === 'heartbeat' || eventType === 'connected' || eventType === 'subscribed') return;
 
                         if (eventData.status) {
                             phase = toExecutionPhase(eventData.status, phase);

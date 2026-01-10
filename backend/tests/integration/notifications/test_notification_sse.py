@@ -1,7 +1,9 @@
 import asyncio
 import json
 from uuid import uuid4
+
 import pytest
+from dishka import AsyncContainer
 
 from app.domain.enums.notification import NotificationChannel, NotificationSeverity
 from app.schemas_pydantic.sse import RedisNotificationMessage
@@ -13,7 +15,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.redis]
 
 
 @pytest.mark.asyncio
-async def test_in_app_notification_published_to_sse(scope) -> None:  # type: ignore[valid-type]
+async def test_in_app_notification_published_to_sse(scope: AsyncContainer) -> None:
     svc: NotificationService = await scope.get(NotificationService)
     bus: SSERedisBus = await scope.get(SSERedisBus)
 

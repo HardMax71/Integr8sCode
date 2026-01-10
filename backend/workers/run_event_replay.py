@@ -9,7 +9,7 @@ from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
 from app.events.core import UnifiedProducer
 from app.services.event_replay.replay_service import EventReplayService
-from app.settings import Settings, get_settings
+from app.settings import Settings
 from beanie import init_beanie
 
 
@@ -24,10 +24,8 @@ async def cleanup_task(replay_service: EventReplayService, logger: logging.Logge
             logger.error(f"Error during cleanup: {e}")
 
 
-async def run_replay_service(settings: Settings | None = None) -> None:
+async def run_replay_service(settings: Settings) -> None:
     """Run the event replay service with cleanup task."""
-    if settings is None:
-        settings = get_settings()
 
     container = create_event_replay_container(settings)
     logger = await container.get(logging.Logger)
@@ -61,7 +59,7 @@ async def run_replay_service(settings: Settings | None = None) -> None:
 
 def main() -> None:
     """Main entry point for event replay service"""
-    settings = get_settings()
+    settings = Settings()
 
     logger = setup_logger(settings.LOG_LEVEL)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -71,6 +69,7 @@ def main() -> None:
     if settings.ENABLE_TRACING:
         init_tracing(
             service_name="event-replay",
+            settings=settings,
             logger=logger,
             service_version=settings.TRACING_SERVICE_VERSION,
             enable_console_exporter=False,

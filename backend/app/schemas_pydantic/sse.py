@@ -1,15 +1,13 @@
 from datetime import datetime
-from typing import Any, Dict, Literal, TypeVar
+from typing import Any, Dict, TypeVar
 
 from pydantic import BaseModel, Field
 
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.notification import NotificationSeverity, NotificationStatus
+from app.domain.enums.sse import SSEControlEvent, SSENotificationEvent
 from app.schemas_pydantic.execution import ExecutionResult, ResourceUsage
-
-# Control event types sent by SSE (not from Kafka)
-SSEControlEventType = Literal["connected", "heartbeat", "shutdown", "status", "error"]
 
 # Type variable for generic Redis message parsing
 T = TypeVar("T", bound=BaseModel)
@@ -24,7 +22,7 @@ class SSEExecutionEventData(BaseModel):
     """
 
     # Always present - identifies the event
-    event_type: EventType | SSEControlEventType = Field(
+    event_type: EventType | SSEControlEvent = Field(
         description="Event type identifier (business event or control event)"
     )
     execution_id: str = Field(description="Execution ID this event relates to")
@@ -34,9 +32,6 @@ class SSEExecutionEventData(BaseModel):
 
     # Present in business events from Kafka
     event_id: str | None = Field(default=None, description="Unique event identifier")
-    type: EventType | SSEControlEventType | None = Field(
-        default=None, description="Event type (legacy field, same as event_type)"
-    )
 
     # Control event specific fields
     connection_id: str | None = Field(default=None, description="SSE connection ID (connected event)")
@@ -68,10 +63,6 @@ class RedisSSEMessage(BaseModel):
     data: Dict[str, Any] = Field(description="Full event data from BaseEvent.model_dump()")
 
 
-# Control event types for notification SSE stream
-SSENotificationControlEventType = Literal["connected", "heartbeat", "notification"]
-
-
 class SSENotificationEventData(BaseModel):
     """Typed model for SSE notification stream event payload.
 
@@ -79,9 +70,7 @@ class SSENotificationEventData(BaseModel):
     """
 
     # Always present - identifies the event type
-    event_type: SSENotificationControlEventType = Field(
-        description="Event type identifier (connected, heartbeat, or notification)"
-    )
+    event_type: SSENotificationEvent = Field(description="SSE notification event type")
 
     # Present in control events (connected, heartbeat)
     user_id: str | None = Field(default=None, description="User ID for the notification stream")

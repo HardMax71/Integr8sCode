@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.storage import ExecutionErrorType
-from app.settings import get_settings
+from app.runtime_registry import SUPPORTED_RUNTIMES
 
 
 class ExecutionBase(BaseModel):
@@ -74,9 +74,8 @@ class ExecutionRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_runtime_supported(self) -> "ExecutionRequest":  # noqa: D401
-        runtimes = get_settings().SUPPORTED_RUNTIMES
-        if not (lang_info := runtimes.get(self.lang)):
-            raise ValueError(f"Language '{self.lang}' not supported. Supported: {list(runtimes.keys())}")
+        if not (lang_info := SUPPORTED_RUNTIMES.get(self.lang)):
+            raise ValueError(f"Language '{self.lang}' not supported. Supported: {list(SUPPORTED_RUNTIMES.keys())}")
         if self.lang_version not in lang_info.versions:
             raise ValueError(
                 f"Version '{self.lang_version}' not supported for {self.lang}. Supported: {lang_info.versions}"

@@ -21,7 +21,7 @@ from app.core.tracing.models import (
     InstrumentationStatus,
     LibraryInstrumentation,
 )
-from app.settings import get_settings
+from app.settings import Settings
 
 
 class TracingConfiguration:
@@ -30,6 +30,7 @@ class TracingConfiguration:
     def __init__(
         self,
         service_name: str,
+        settings: Settings,
         service_version: str = "1.0.0",
         otlp_endpoint: str | None = None,
         enable_console_exporter: bool = False,
@@ -42,7 +43,7 @@ class TracingConfiguration:
         self.enable_console_exporter = enable_console_exporter
         self.sampling_rate = sampling_rate
         self.adaptive_sampling = adaptive_sampling
-        self._settings = get_settings()
+        self._settings = settings
 
     def create_resource(self) -> Resource:
         """Create OpenTelemetry resource with service metadata."""
@@ -59,7 +60,7 @@ class TracingConfiguration:
     def create_sampler(self) -> Sampler:
         """Create appropriate sampler based on configuration."""
         if self.adaptive_sampling:
-            return create_adaptive_sampler()
+            return create_adaptive_sampler(self._settings)
 
         if self.sampling_rate <= 0:
             return ALWAYS_OFF
@@ -176,6 +177,7 @@ class TracingInitializer:
 
 def init_tracing(
     service_name: str,
+    settings: Settings,
     logger: logging.Logger,
     service_version: str = "1.0.0",
     otlp_endpoint: str | None = None,
@@ -186,6 +188,7 @@ def init_tracing(
     """Initialize OpenTelemetry tracing with the given configuration."""
     config = TracingConfiguration(
         service_name=service_name,
+        settings=settings,
         service_version=service_version,
         otlp_endpoint=otlp_endpoint,
         enable_console_exporter=enable_console_exporter,

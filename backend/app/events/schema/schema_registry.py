@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 import struct
 from functools import lru_cache
 from typing import Any, Dict, Type, TypeVar
@@ -60,7 +59,7 @@ class SchemaRegistryManager:
         self.namespace = "com.integr8scode.events"
         # Optional per-session/worker subject prefix for tests/local isolation
         # e.g., "test.<session>.<worker>." -> subjects become "test.x.y.ExecutionRequestedEvent-value"
-        self.subject_prefix = os.getenv("SCHEMA_SUBJECT_PREFIX", "")
+        self.subject_prefix = settings.SCHEMA_SUBJECT_PREFIX
 
         config = {"url": self.url}
         if settings.SCHEMA_REGISTRY_AUTH:

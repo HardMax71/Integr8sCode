@@ -154,10 +154,12 @@ class NotificationRepository:
     # Subscriptions
     async def get_subscription(
         self, user_id: str, channel: NotificationChannel
-    ) -> DomainNotificationSubscription | None:
+    ) -> DomainNotificationSubscription:
+        """Get subscription for user/channel, returning default enabled subscription if none exists."""
         doc = await NotificationSubscriptionDocument.find_one({"user_id": user_id, "channel": channel})
         if not doc:
-            return None
+            # Default: enabled=True for new users (consistent with get_all_subscriptions)
+            return DomainNotificationSubscription(user_id=user_id, channel=channel, enabled=True)
         return DomainNotificationSubscription(**doc.model_dump(exclude={"id"}))
 
     async def upsert_subscription(

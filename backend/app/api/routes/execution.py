@@ -34,7 +34,7 @@ from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
 from app.services.idempotency import IdempotencyManager
 from app.services.kafka_event_service import KafkaEventService
-from app.settings import get_settings
+from app.settings import Settings
 
 router = APIRouter(route_class=DishkaRoute)
 
@@ -162,6 +162,7 @@ async def cancel_execution(
     current_user: Annotated[UserResponse, Depends(current_user)],
     cancel_request: CancelExecutionRequest,
     event_service: FromDishka[KafkaEventService],
+    settings: FromDishka[Settings],
 ) -> CancelResponse:
     # Handle terminal states
     terminal_states = [ExecutionStatus.COMPLETED, ExecutionStatus.FAILED, ExecutionStatus.TIMEOUT]
@@ -178,7 +179,6 @@ async def cancel_execution(
             event_id="-1",  # exact event_id unknown
         )
 
-    settings = get_settings()
     payload = {
         "execution_id": execution.execution_id,
         "status": str(ExecutionStatus.CANCELLED),

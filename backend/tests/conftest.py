@@ -1,3 +1,4 @@
+import asyncio
 import os
 import uuid
 from contextlib import asynccontextmanager
@@ -11,199 +12,216 @@ from app.core.database_context import Database
 from app.main import create_app
 from app.settings import Settings
 from dishka import AsyncContainer
+from fastapi import FastAPI
 from httpx import ASGITransport
-from pydantic_settings import SettingsConfigDict
-
-
-class TestSettings(Settings):
-    """Test configuration - loads from .env.test instead of .env"""
-
-    model_config = SettingsConfigDict(
-        env_file=".env.test",
-        env_file_encoding="utf-8",
-        case_sensitive=True,
-        extra="ignore",
-    )
-
+from scripts.create_topics import create_topics
 
 # ===== Worker-specific isolation for pytest-xdist =====
-def _compute_worker_id() -> str:
-    return os.environ.get("PYTEST_XDIST_WORKER", "gw0")
+# Redis has 16 DBs (0-15); each xdist worker gets one, limiting parallel workers to 16.
+_WORKER_ID = os.environ.get("PYTEST_XDIST_WORKER", "gw0")
+_WORKER_NUM = int(_WORKER_ID.removeprefix("gw") or "0")
+assert _WORKER_NUM < 16, f"xdist worker {_WORKER_NUM} >= 16 exceeds Redis DB limit; use -n 16 or fewer"
 
 
-def _setup_worker_env() -> None:
-    """Set worker-specific environment variables for pytest-xdist isolation.
+# ===== Pytest hooks =====
+@pytest.hookimpl(trylast=True)
+def pytest_configure(config: pytest.Config) -> None:
+    """Create Kafka topics once before any tests run.
 
-    Must be called BEFORE TestSettings is instantiated so env vars are picked up.
+    Uses trylast=True to ensure pytest-env has set DOTENV_PATH first.
+    Runs in master process before xdist workers spawn.
+
+    Silently skips if Kafka is unavailable (e.g., unit tests).
     """
-    session_id = os.environ.get("PYTEST_SESSION_ID") or uuid.uuid4().hex[:8]
-    worker_id = _compute_worker_id()
-    os.environ["PYTEST_SESSION_ID"] = session_id
-
-    # Unique database name per worker
-    os.environ["DATABASE_NAME"] = f"integr8scode_test_{session_id}_{worker_id}"
-
-    # Distribute Redis DBs across workers (0-15)
-    try:
-        worker_num = int(worker_id[2:]) if worker_id.startswith("gw") else 0
-        os.environ["REDIS_DB"] = str(worker_num % 16)
-    except Exception:
-        os.environ.setdefault("REDIS_DB", "0")
-
-    # Unique Kafka consumer group per worker
-    os.environ["KAFKA_GROUP_SUFFIX"] = f"{session_id}.{worker_id}"
-
-    # Unique Schema Registry prefix per worker
-    os.environ["SCHEMA_SUBJECT_PREFIX"] = f"test.{session_id}.{worker_id}."
-
-    # Disable OpenTelemetry exporters to prevent "otel-collector:4317" retry noise
-    os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = ""
-    os.environ["OTEL_METRICS_EXPORTER"] = "none"
-    os.environ["OTEL_TRACES_EXPORTER"] = "none"
-    os.environ["OTEL_LOGS_EXPORTER"] = "none"
-
-
-# Set up worker env at module load time (before any Settings instantiation)
-_setup_worker_env()
+    # Only run in master process (not in xdist workers)
+    if not hasattr(config, "workerinput"):
+        try:
+            asyncio.run(create_topics(Settings()))
+        except Exception:
+            # Kafka not available (unit tests) - silently skip
+            pass
 
 
 # ===== Settings fixture =====
 @pytest.fixture(scope="session")
 def test_settings() -> Settings:
-    """Provide TestSettings for tests that need to create their own components."""
-    return TestSettings()
+    """Provide test settings with per-worker isolation where needed.
+
+    pytest-env sets DOTENV_PATH=.env.test (configured in pyproject.toml).
+    Settings class uses this to load the correct env file via pydantic-settings.
+
+    What gets isolated per worker (to prevent interference):
+      - DATABASE_NAME: Each worker gets its own MongoDB database
+      - REDIS_DB: Each worker gets its own Redis database (0-15)
+      - KAFKA_GROUP_SUFFIX: Each worker gets unique consumer groups
+
+    What's SHARED (from env, no per-worker suffix):
+      - KAFKA_TOPIC_PREFIX: Topics created once by CI/scripts
+      - SCHEMA_SUBJECT_PREFIX: Schemas shared across workers
+    """
+    base = Settings()  # Uses DOTENV_PATH from pytest-env to load .env.test
+    session_id = uuid.uuid4().hex[:8]
+    return base.model_copy(
+        update={
+            # Per-worker isolation
+            "DATABASE_NAME": f"integr8scode_test_{session_id}_{_WORKER_ID}",
+            "REDIS_DB": _WORKER_NUM,
+            "KAFKA_GROUP_SUFFIX": f"{session_id}.{_WORKER_ID}",
+            # Disable telemetry in tests
+            "OTEL_EXPORTER_OTLP_ENDPOINT": None,
+            "ENABLE_TRACING": False,
+        }
+    )
 
 
 # ===== App fixture =====
 @pytest_asyncio.fixture(scope="session")
-async def app():
-    """Create FastAPI app with TestSettings.
+async def app(test_settings: Settings) -> AsyncGenerator[FastAPI, None]:
+    """Create FastAPI app with test settings and run lifespan.
 
     Session-scoped to avoid Pydantic schema validator memory issues when
     FastAPI recreates OpenAPI schemas hundreds of times with pytest-xdist.
+
+    Uses lifespan_context to trigger startup/shutdown events, which initializes
+    Beanie, metrics, and other services through the normal DI flow.
     """
-    application = create_app(settings=TestSettings())
+    application = create_app(settings=test_settings)
 
-    yield application
-
-    if hasattr(application.state, "dishka_container"):
-        await application.state.dishka_container.close()
+    async with application.router.lifespan_context(application):
+        yield application
 
 
 @pytest_asyncio.fixture(scope="session")
-async def app_container(app):
+async def app_container(app: FastAPI) -> AsyncContainer:
     """Expose the Dishka container attached to the app."""
     container: AsyncContainer = app.state.dishka_container
     return container
 
 
 @pytest_asyncio.fixture
-async def client(app) -> AsyncGenerator[httpx.AsyncClient, None]:
+async def client(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
     """HTTP client for testing API endpoints."""
     async with httpx.AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="https://test",
-        timeout=30.0,
-        follow_redirects=True,
+            transport=ASGITransport(app=app),
+            base_url="https://test",
+            timeout=30.0,
+            follow_redirects=True,
     ) as c:
         yield c
 
 
 @asynccontextmanager
-async def _container_scope(container: AsyncContainer):
+async def _container_scope(container: AsyncContainer) -> AsyncGenerator[AsyncContainer, None]:
     async with container() as scope:
         yield scope
 
 
 @pytest_asyncio.fixture
-async def scope(app_container: AsyncContainer):
+async def scope(app_container: AsyncContainer) -> AsyncGenerator[AsyncContainer, None]:
     async with _container_scope(app_container) as s:
         yield s
 
 
 @pytest_asyncio.fixture
-async def db(scope) -> AsyncGenerator[Database, None]:
+async def db(scope: AsyncContainer) -> AsyncGenerator[Database, None]:
     database: Database = await scope.get(Database)
     yield database
 
 
 @pytest_asyncio.fixture
-async def redis_client(scope) -> AsyncGenerator[redis.Redis, None]:
+async def redis_client(scope: AsyncContainer) -> AsyncGenerator[redis.Redis, None]:
+    # Don't close here - Dishka's RedisProvider handles cleanup when scope exits
     client: redis.Redis = await scope.get(redis.Redis)
     yield client
 
 
-# ===== HTTP helpers (auth) =====
-async def _http_login(client: httpx.AsyncClient, username: str, password: str) -> str:
-    data = {"username": username, "password": password}
-    resp = await client.post("/api/v1/auth/login", data=data)
-    resp.raise_for_status()
-    return resp.json().get("csrf_token", "")
+# ===== Authenticated client fixtures =====
+# Return httpx.AsyncClient with CSRF header pre-set. Just use test_user.post(...) directly.
 
 
-@pytest.fixture
-def test_user_credentials():
-    uid = uuid.uuid4().hex[:8]
-    return {
-        "username": f"test_user_{uid}",
-        "email": f"test_user_{uid}@example.com",
-        "password": "TestPass123!",
-        "role": "user",
-    }
-
-
-@pytest.fixture
-def test_admin_credentials():
-    uid = uuid.uuid4().hex[:8]
-    return {
-        "username": f"admin_user_{uid}",
-        "email": f"admin_user_{uid}@example.com",
-        "password": "AdminPass123!",
-        "role": "admin",
-    }
-
-
-@pytest_asyncio.fixture
-async def test_user(client: httpx.AsyncClient, test_user_credentials):
-    """Function-scoped authenticated user."""
-    creds = test_user_credentials
-    r = await client.post("/api/v1/auth/register", json=creds)
-    if r.status_code not in (200, 201, 400):
-        pytest.fail(f"Cannot create test user (status {r.status_code}): {r.text}")
-    csrf = await _http_login(client, creds["username"], creds["password"])
-    return {**creds, "csrf_token": csrf, "headers": {"X-CSRF-Token": csrf}}
-
-
-@pytest_asyncio.fixture
-async def test_admin(client: httpx.AsyncClient, test_admin_credentials):
-    """Function-scoped authenticated admin."""
-    creds = test_admin_credentials
-    r = await client.post("/api/v1/auth/register", json=creds)
-    if r.status_code not in (200, 201, 400):
-        pytest.fail(f"Cannot create test admin (status {r.status_code}): {r.text}")
-    csrf = await _http_login(client, creds["username"], creds["password"])
-    return {**creds, "csrf_token": csrf, "headers": {"X-CSRF-Token": csrf}}
-
-
-@pytest_asyncio.fixture
-async def another_user(client: httpx.AsyncClient):
-    username = f"test_user_{uuid.uuid4().hex[:8]}"
-    email = f"{username}@example.com"
-    password = "TestPass123!"
-    await client.post(
-        "/api/v1/auth/register",
-        json={
+async def _create_authenticated_client(
+    app: FastAPI, username: str, email: str, password: str, role: str
+) -> httpx.AsyncClient:
+    """Create and return an authenticated client with CSRF header set."""
+    c = httpx.AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="https://test",
+        timeout=30.0,
+        follow_redirects=True,
+    )
+    try:
+        r = await c.post("/api/v1/auth/register", json={
             "username": username,
             "email": email,
             "password": password,
-            "role": "user",
-        },
+            "role": role,
+        })
+        # 200: created, 400: username exists, 409: email exists - all OK to proceed to login
+        if r.status_code not in (200, 400, 409):
+            pytest.fail(f"Cannot create {role} (status {r.status_code}): {r.text}")
+
+        login_resp = await c.post("/api/v1/auth/login", data={
+            "username": username,
+            "password": password,
+        })
+        login_resp.raise_for_status()
+
+        login_data = login_resp.json()
+        csrf = login_data.get("csrf_token")
+        if not csrf:
+            await c.aclose()
+            pytest.fail(
+                f"Login succeeded but csrf_token missing or empty for {role} '{username}'. "
+                f"Response: {login_resp.text}"
+            )
+
+        c.headers["X-CSRF-Token"] = csrf
+        return c
+    except Exception:
+        await c.aclose()
+        raise
+
+
+@pytest_asyncio.fixture
+async def test_user(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
+    """Authenticated user client. CSRF header is set automatically."""
+    uid = uuid.uuid4().hex[:8]
+    c = await _create_authenticated_client(
+        app,
+        username=f"test_user_{uid}",
+        email=f"test_user_{uid}@example.com",
+        password="TestPass123!",
+        role="user",
     )
-    csrf = await _http_login(client, username, password)
-    return {
-        "username": username,
-        "email": email,
-        "password": password,
-        "csrf_token": csrf,
-        "headers": {"X-CSRF-Token": csrf},
-    }
+    yield c
+    await c.aclose()
+
+
+@pytest_asyncio.fixture
+async def test_admin(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
+    """Authenticated admin client. CSRF header is set automatically."""
+    uid = uuid.uuid4().hex[:8]
+    c = await _create_authenticated_client(
+        app,
+        username=f"admin_user_{uid}",
+        email=f"admin_user_{uid}@example.com",
+        password="AdminPass123!",
+        role="admin",
+    )
+    yield c
+    await c.aclose()
+
+
+@pytest_asyncio.fixture
+async def another_user(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
+    """Another authenticated user client (for multi-user tests)."""
+    uid = uuid.uuid4().hex[:8]
+    c = await _create_authenticated_client(
+        app,
+        username=f"test_user_{uid}",
+        email=f"test_user_{uid}@example.com",
+        password="TestPass123!",
+        role="user",
+    )
+    yield c
+    await c.aclose()

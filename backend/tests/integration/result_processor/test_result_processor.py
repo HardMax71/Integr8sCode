@@ -1,16 +1,16 @@
 import asyncio
 import logging
 import uuid
-from tests.helpers.eventually import eventually
+
 import pytest
+from dishka import AsyncContainer
 
 from app.core.database_context import Database
-
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
-from app.domain.execution import DomainExecutionCreate
 from app.domain.enums.kafka import KafkaTopic
+from app.domain.execution import DomainExecutionCreate
 from app.domain.execution.models import ResourceUsageDomain
 from app.events.core import UnifiedConsumer, UnifiedProducer
 from app.events.core.dispatcher import EventDispatcher
@@ -18,17 +18,27 @@ from app.events.core.types import ConsumerConfig
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.infrastructure.kafka.events.execution import ExecutionCompletedEvent
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata
+from app.infrastructure.kafka.events.system import ResultStoredEvent
 from app.services.idempotency import IdempotencyManager
 from app.services.result_processor.processor import ResultProcessor
 from app.settings import Settings
 
-pytestmark = [pytest.mark.integration, pytest.mark.kafka, pytest.mark.mongodb]
+from tests.helpers.eventually import eventually
+
+# xdist_group: Kafka consumer creation can crash librdkafka when multiple workers
+# instantiate Consumer() objects simultaneously. Serial execution prevents this.
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.kafka,
+    pytest.mark.mongodb,
+    pytest.mark.xdist_group("kafka_consumers"),
+]
 
 _test_logger = logging.getLogger("test.result_processor.processor")
 
 
 @pytest.mark.asyncio
-async def test_result_processor_persists_and_emits(scope) -> None:  # type: ignore[valid-type]
+async def test_result_processor_persists_and_emits(scope: AsyncContainer) -> None:
     # Ensure schemas
     registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
     settings: Settings = await scope.get(Settings)
@@ -65,7 +75,7 @@ async def test_result_processor_persists_and_emits(scope) -> None:  # type: igno
     stored_received = asyncio.Event()
 
     @dispatcher.register(EventType.RESULT_STORED)
-    async def _stored(_event) -> None:  # noqa: ANN001
+    async def _stored(_event: ResultStoredEvent) -> None:
         stored_received.set()
 
     group_id = f"rp-test.{uuid.uuid4().hex[:6]}"
@@ -82,7 +92,7 @@ async def test_result_processor_persists_and_emits(scope) -> None:  # type: igno
         settings=settings,
         logger=_test_logger,
     )
-    await stored_consumer.start([str(KafkaTopic.EXECUTION_RESULTS)])
+    await stored_consumer.start([KafkaTopic.EXECUTION_RESULTS])
 
     try:
         async with processor:

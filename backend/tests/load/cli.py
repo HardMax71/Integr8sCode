@@ -75,7 +75,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.base_url:
         cfg.base_url = args.base_url
     if args.mode:
-        cfg.mode = args.mode  # type: ignore[assignment]
+        cfg.mode = args.mode
     if args.clients is not None:
         cfg.clients = args.clients
     if args.concurrency is not None:

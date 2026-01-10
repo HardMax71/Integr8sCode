@@ -8,7 +8,7 @@ from tests.helpers import make_execution_requested_event
 _test_logger = logging.getLogger("test.events.event_dispatcher")
 
 
-def make_event():
+def make_event() -> BaseEvent:
     return make_execution_requested_event(execution_id="e1")
 
 
@@ -51,7 +51,7 @@ async def test_dispatch_metrics_processed_and_skipped() -> None:
     # Dispatch event with no handlers (different type)
     # Reuse base event but fake type by replacing value
     e = make_event()
-    e.event_type = EventType.EXECUTION_FAILED  # type: ignore[attr-defined]
+    e.event_type = EventType.EXECUTION_FAILED
     await disp.dispatch(e)
 
     metrics = disp.get_metrics()

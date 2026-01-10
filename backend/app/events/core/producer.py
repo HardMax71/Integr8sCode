@@ -15,7 +15,7 @@ from app.dlq.models import DLQMessage, DLQMessageStatus
 from app.domain.enums.kafka import KafkaTopic
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.events import BaseEvent
-from app.settings import get_settings
+from app.settings import Settings
 
 from .types import ProducerConfig, ProducerMetrics, ProducerState
 
@@ -29,11 +29,12 @@ StatsCallback: TypeAlias = Callable[[dict[str, Any]], None]
 
 class UnifiedProducer(LifecycleEnabled):
     def __init__(
-        self,
-        config: ProducerConfig,
-        schema_registry_manager: SchemaRegistryManager,
-        logger: logging.Logger,
-        stats_callback: StatsCallback | None = None,
+            self,
+            config: ProducerConfig,
+            schema_registry_manager: SchemaRegistryManager,
+            logger: logging.Logger,
+            settings: Settings,
+            stats_callback: StatsCallback | None = None,
     ):
         super().__init__()
         self._config = config
@@ -45,8 +46,7 @@ class UnifiedProducer(LifecycleEnabled):
         self._metrics = ProducerMetrics()
         self._event_metrics = get_event_metrics()  # Singleton for Kafka metrics
         self._poll_task: asyncio.Task[None] | None = None
-        # Topic prefix (for tests/local isolation); cached on init
-        self._topic_prefix = get_settings().KAFKA_TOPIC_PREFIX
+        self._topic_prefix = settings.KAFKA_TOPIC_PREFIX
 
     @property
     def is_running(self) -> bool:
@@ -173,7 +173,7 @@ class UnifiedProducer(LifecycleEnabled):
         self.logger.info("Producer poll loop ended")
 
     async def produce(
-        self, event_to_produce: BaseEvent, key: str | None = None, headers: dict[str, str] | None = None
+            self, event_to_produce: BaseEvent, key: str | None = None, headers: dict[str, str] | None = None
     ) -> None:
         """
         Produce a message to Kafka.
@@ -206,7 +206,7 @@ class UnifiedProducer(LifecycleEnabled):
         self.logger.debug(f"Message [{event_to_produce}] queued for topic: {topic}")
 
     async def send_to_dlq(
-        self, original_event: BaseEvent, original_topic: str, error: Exception, retry_count: int = 0
+            self, original_event: BaseEvent, original_topic: str, error: Exception, retry_count: int = 0
     ) -> None:
         """
         Send a failed event to the Dead Letter Queue.

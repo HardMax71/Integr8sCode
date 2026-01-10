@@ -8,16 +8,16 @@ from jwt.exceptions import InvalidTokenError
 
 from app.core.security import SecurityService
 from app.domain.enums.user import UserRole
- 
+from app.settings import Settings
 
 
 class TestPasswordHashing:
     """Test password hashing functionality."""
 
     @pytest.fixture
-    def security_svc(self) -> SecurityService:
+    def security_svc(self, test_settings: Settings) -> SecurityService:
         """Create SecurityService instance."""
-        return SecurityService()
+        return SecurityService(test_settings)
 
     def test_password_hash_creates_different_hash(self, security_svc: SecurityService) -> None:
         """Test that password hashing creates unique hashes."""
@@ -72,9 +72,9 @@ class TestSecurityService:
     """Test SecurityService functionality."""
 
     @pytest.fixture
-    def security_service(self) -> SecurityService:
-        """Create SecurityService instance using real settings from env."""
-        return SecurityService()
+    def security_service(self, test_settings: Settings) -> SecurityService:
+        """Create SecurityService instance using test settings."""
+        return SecurityService(test_settings)
 
     def test_create_access_token_basic(
             self,
@@ -222,11 +222,11 @@ class TestSecurityService:
     ) -> None:
         """Test decoding token without username."""
         # Create token without 'sub' field
-        data = {"user_id": str(uuid4())}
+        data: dict[str, str | datetime] = {"user_id": str(uuid4())}
 
         expire = datetime.now(timezone.utc) + timedelta(minutes=15)
         to_encode = data.copy()
-        to_encode.update({"exp": expire})
+        to_encode["exp"] = expire
 
         token = jwt.encode(
             to_encode,
@@ -283,9 +283,9 @@ class TestSecurityService:
         assert decoded["role"] == UserRole.USER.value
         assert "extra_field" in decoded  # Claims are carried as provided
 
-    def test_password_context_configuration(self) -> None:
+    def test_password_context_configuration(self, test_settings: Settings) -> None:
         """Test password context is properly configured."""
-        svc = SecurityService()
+        svc = SecurityService(test_settings)
         password = "test_password"
         hashed = svc.get_password_hash(password)
         assert svc.verify_password(password, hashed)

@@ -3,21 +3,26 @@ import logging
 
 import pytest
 
+from app.core.lifecycle import LifecycleEnabled
 from app.services.sse.sse_shutdown_manager import SSEShutdownManager
 
 _test_logger = logging.getLogger("test.services.sse.shutdown_manager")
 
 
-class DummyRouter:
-    def __init__(self) -> None:
-        self.stopped = False
+class _FakeRouter(LifecycleEnabled):
+    """Fake router that tracks whether aclose was called."""
 
-    async def aclose(self) -> None:
+    def __init__(self) -> None:
+        super().__init__()
+        self.stopped = False
+        self._lifecycle_started = True  # Simulate already-started router
+
+    async def _on_stop(self) -> None:
         self.stopped = True
 
 
 @pytest.mark.asyncio
-async def test_shutdown_graceful_notify_and_drain():
+async def test_shutdown_graceful_notify_and_drain() -> None:
     mgr = SSEShutdownManager(drain_timeout=1.0, notification_timeout=0.01, force_close_timeout=0.1, logger=_test_logger)
 
     # Register two connections and arrange that they unregister when notified
@@ -25,7 +30,7 @@ async def test_shutdown_graceful_notify_and_drain():
     ev2 = await mgr.register_connection("e1", "c2")
     assert ev1 is not None and ev2 is not None
 
-    async def on_shutdown(event, cid):  # noqa: ANN001
+    async def on_shutdown(event: asyncio.Event, cid: str) -> None:
         await asyncio.wait_for(event.wait(), timeout=0.5)
         await mgr.unregister_connection("e1", cid)
 
@@ -41,9 +46,9 @@ async def test_shutdown_graceful_notify_and_drain():
 
 
 @pytest.mark.asyncio
-async def test_shutdown_force_close_calls_router_stop_and_rejects_new():
+async def test_shutdown_force_close_calls_router_stop_and_rejects_new() -> None:
     mgr = SSEShutdownManager(drain_timeout=0.01, notification_timeout=0.01, force_close_timeout=0.01, logger=_test_logger)
-    router = DummyRouter()
+    router = _FakeRouter()
     mgr.set_router(router)
 
     # Register a connection but never unregister -> force close path
@@ -63,7 +68,7 @@ async def test_shutdown_force_close_calls_router_stop_and_rejects_new():
 
 
 @pytest.mark.asyncio
-async def test_get_shutdown_status_transitions():
+async def test_get_shutdown_status_transitions() -> None:
     m = SSEShutdownManager(drain_timeout=0.01, notification_timeout=0.0, force_close_timeout=0.0, logger=_test_logger)
     st0 = m.get_shutdown_status()
     assert st0.phase == "ready"

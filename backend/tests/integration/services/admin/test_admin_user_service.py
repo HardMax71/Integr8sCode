@@ -1,8 +1,9 @@
 from datetime import datetime, timezone
 
 import pytest
-from app.core.database_context import Database
+from dishka import AsyncContainer
 
+from app.core.database_context import Database
 from app.domain.enums.user import UserRole
 from app.services.admin import AdminUserService
 
@@ -10,7 +11,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.mongodb]
 
 
 @pytest.mark.asyncio
-async def test_get_user_overview_basic(scope) -> None:  # type: ignore[valid-type]
+async def test_get_user_overview_basic(scope: AsyncContainer) -> None:
     svc: AdminUserService = await scope.get(AdminUserService)
     db: Database = await scope.get(Database)
     await db.get_collection("users").insert_one({
@@ -30,7 +31,7 @@ async def test_get_user_overview_basic(scope) -> None:  # type: ignore[valid-typ
 
 
 @pytest.mark.asyncio
-async def test_get_user_overview_user_not_found(scope) -> None:  # type: ignore[valid-type]
+async def test_get_user_overview_user_not_found(scope: AsyncContainer) -> None:
     svc: AdminUserService = await scope.get(AdminUserService)
     with pytest.raises(ValueError):
         await svc.get_user_overview("missing")

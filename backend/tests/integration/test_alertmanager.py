@@ -1,3 +1,4 @@
+import httpx
 import pytest
 from datetime import datetime, timezone
 
@@ -6,7 +7,7 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.mark.asyncio
-async def test_grafana_alert_endpoints(client):
+async def test_grafana_alert_endpoints(client: httpx.AsyncClient) -> None:
     # Test endpoint
     r_test = await client.get("/api/v1/alerts/grafana/test")
     assert r_test.status_code == 200

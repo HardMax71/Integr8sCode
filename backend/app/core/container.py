@@ -45,6 +45,7 @@ def create_app_container(settings: Settings) -> AsyncContainer:
         RepositoryProvider(),
         MessagingProvider(),
         EventProvider(),
+        SagaOrchestratorProvider(),
         KafkaServicesProvider(),
         SSEProvider(),
         AuthProvider(),

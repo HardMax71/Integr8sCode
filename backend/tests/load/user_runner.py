@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import random
+from collections.abc import Awaitable
 from dataclasses import dataclass
 from typing import Callable
 
@@ -14,7 +15,7 @@ from .stats import StatsCollector
 class UserTask:
     name: str
     weight: int
-    fn: Callable[[APIClient], asyncio.Future]
+    fn: Callable[[APIClient], Awaitable[None]]
 
 
 async def _flow_execute_and_get_result(c: APIClient) -> None:
@@ -85,7 +86,7 @@ import time
 
 
 async def run_user_swarm(cfg: LoadConfig, stats: StatsCollector, clients: int) -> None:
-    tasks: list[asyncio.Task] = []
+    tasks: list[asyncio.Task[None]] = []
     sem = asyncio.Semaphore(cfg.concurrency)
     deadline = time.time() + max(1, cfg.duration_seconds)
 

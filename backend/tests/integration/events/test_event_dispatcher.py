@@ -3,23 +3,28 @@ import logging
 import uuid
 
 import pytest
+from dishka import AsyncContainer
+
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.events.core import UnifiedConsumer, UnifiedProducer
 from app.events.core.dispatcher import EventDispatcher
 from app.events.core.types import ConsumerConfig
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
+from app.infrastructure.kafka.events.base import BaseEvent
 from app.settings import Settings
 
 from tests.helpers import make_execution_requested_event
 
-pytestmark = [pytest.mark.integration, pytest.mark.kafka]
+# xdist_group: Kafka consumer creation can crash librdkafka when multiple workers
+# instantiate Consumer() objects simultaneously. Serial execution prevents this.
+pytestmark = [pytest.mark.integration, pytest.mark.kafka, pytest.mark.xdist_group("kafka_consumers")]
 
 _test_logger = logging.getLogger("test.events.event_dispatcher")
 
 
 @pytest.mark.asyncio
-async def test_dispatcher_with_multiple_handlers(scope) -> None:  # type: ignore[valid-type]
+async def test_dispatcher_with_multiple_handlers(scope: AsyncContainer) -> None:
     # Ensure schema registry is ready
     registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
     settings: Settings = await scope.get(Settings)
@@ -31,11 +36,11 @@ async def test_dispatcher_with_multiple_handlers(scope) -> None:  # type: ignore
     h2_called = asyncio.Event()
 
     @dispatcher.register(EventType.EXECUTION_REQUESTED)
-    async def h1(_e) -> None:  # noqa: ANN001
+    async def h1(_e: BaseEvent) -> None:
         h1_called.set()
 
     @dispatcher.register(EventType.EXECUTION_REQUESTED)
-    async def h2(_e) -> None:  # noqa: ANN001
+    async def h2(_e: BaseEvent) -> None:
         h2_called.set()
 
     # Real consumer against execution-events
@@ -52,7 +57,7 @@ async def test_dispatcher_with_multiple_handlers(scope) -> None:  # type: ignore
         settings=settings,
         logger=_test_logger,
     )
-    await consumer.start([str(KafkaTopic.EXECUTION_EVENTS)])
+    await consumer.start([KafkaTopic.EXECUTION_EVENTS])
 
     # Produce a request event via DI
     producer: UnifiedProducer = await scope.get(UnifiedProducer)

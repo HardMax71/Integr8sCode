@@ -8,11 +8,9 @@ from enum import auto
 from typing import Any
 
 from kubernetes import client as k8s_client
-from kubernetes import config as k8s_config
-from kubernetes import watch
 from kubernetes.client.rest import ApiException
 
-from app.core.k8s_clients import K8sClients
+from app.core.k8s_clients import K8sClients, close_k8s_clients, create_k8s_clients
 from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics.context import get_kubernetes_metrics
 from app.core.utils import StringEnum
@@ -104,20 +102,25 @@ class PodMonitor(LifecycleEnabled):
         config: PodMonitorConfig,
         kafka_event_service: KafkaEventService,
         logger: logging.Logger,
-        k8s_clients: K8sClients | None = None,
+        k8s_clients: K8sClients,
+        event_mapper: PodEventMapper,
     ) -> None:
-        """Initialize the pod monitor."""
+        """Initialize the pod monitor with all required dependencies.
+
+        All dependencies must be provided - use create_pod_monitor() factory
+        for automatic dependency creation in production.
+        """
         super().__init__()
         self.logger = logger
-        self.config = config or PodMonitorConfig()
+        self.config = config
 
-        # Kubernetes clients (initialized on start)
-        self._v1: k8s_client.CoreV1Api | None = None
-        self._watch: watch.Watch | None = None
-        self._clients: K8sClients | None = k8s_clients
+        # Kubernetes clients (required, no nullability)
+        self._clients = k8s_clients
+        self._v1 = k8s_clients.v1
+        self._watch = k8s_clients.watch
 
-        # Components
-        self._event_mapper = PodEventMapper(logger=self.logger)
+        # Components (required, no nullability)
+        self._event_mapper = event_mapper
         self._kafka_event_service = kafka_event_service
 
         # State
@@ -142,8 +145,9 @@ class PodMonitor(LifecycleEnabled):
         """Start the pod monitor."""
         self.logger.info("Starting PodMonitor service...")
 
-        # Initialize components
-        self._initialize_kubernetes_client()
+        # Verify K8s connectivity (all clients already injected via __init__)
+        await asyncio.to_thread(self._v1.get_api_resources)
+        self.logger.info("Successfully connected to Kubernetes API")
 
         # Start monitoring
         self._state = MonitorState.RUNNING
@@ -179,34 +183,6 @@ class PodMonitor(LifecycleEnabled):
 
         self._state = MonitorState.STOPPED
         self.logger.info("PodMonitor service stopped")
-
-    def _initialize_kubernetes_client(self) -> None:
-        """Initialize Kubernetes API clients."""
-        if self._clients is None:
-            match (self.config.in_cluster, self.config.kubeconfig_path):
-                case (True, _):
-                    self.logger.info("Using in-cluster Kubernetes configuration")
-                    k8s_config.load_incluster_config()
-                case (False, path) if path:
-                    self.logger.info(f"Using kubeconfig from {path}")
-                    k8s_config.load_kube_config(config_file=path)
-                case _:
-                    self.logger.info("Using default kubeconfig")
-                    k8s_config.load_kube_config()
-
-            configuration = k8s_client.Configuration.get_default_copy()
-            self.logger.info(f"Kubernetes API host: {configuration.host}")
-            self.logger.info(f"SSL CA cert configured: {configuration.ssl_ca_cert is not None}")
-
-            api_client = k8s_client.ApiClient(configuration)
-            self._v1 = k8s_client.CoreV1Api(api_client)
-        else:
-            self._v1 = self._clients.v1
-
-        self._watch = watch.Watch()
-        self._v1.get_api_resources()
-        self.logger.info("Successfully connected to Kubernetes API")
-        self._event_mapper = PodEventMapper(logger=self.logger, k8s_api=self._v1)
 
     async def _watch_pods(self) -> None:
         """Main watch loop for pods."""
@@ -259,10 +235,7 @@ class PodMonitor(LifecycleEnabled):
         if context.resource_version:
             kwargs["resource_version"] = context.resource_version
 
-        # Watch stream
-        if not self._watch or not self._v1:
-            raise RuntimeError("Watch or API not initialized")
-
+        # Watch stream (clients guaranteed by __init__)
         stream = self._watch.stream(self._v1.list_namespaced_pod, **kwargs)
 
         try:
@@ -405,24 +378,12 @@ class PodMonitor(LifecycleEnabled):
 
     async def _reconcile_state(self) -> ReconciliationResult:
         """Reconcile tracked pods with actual state."""
-        # self._v1 is guaranteed initialized by start()
-
         start_time = time.time()
 
         try:
             self.logger.info("Starting pod state reconciliation")
 
-            # List all pods matching selector
-            if not self._v1:
-                self.logger.warning("K8s API not initialized, skipping reconciliation")
-                return ReconciliationResult(
-                    missing_pods=set(),
-                    extra_pods=set(),
-                    duration_seconds=time.time() - start_time,
-                    success=False,
-                    error="K8s API not initialized",
-                )
-
+            # List all pods matching selector (clients guaranteed by __init__)
             pods = await asyncio.to_thread(
                 self._v1.list_namespaced_pod, namespace=self.config.namespace, label_selector=self.config.label_selector
             )
@@ -502,14 +463,39 @@ async def create_pod_monitor(
     kafka_event_service: KafkaEventService,
     logger: logging.Logger,
     k8s_clients: K8sClients | None = None,
+    event_mapper: PodEventMapper | None = None,
 ) -> AsyncIterator[PodMonitor]:
-    """Create and manage a pod monitor instance."""
+    """Create and manage a pod monitor instance.
+
+    This factory handles production dependency creation:
+    - Creates K8sClients if not provided (using config settings)
+    - Creates PodEventMapper if not provided
+    - Cleans up created K8sClients on exit
+    """
+    # Track whether we created clients (so we know to close them)
+    owns_clients = k8s_clients is None
+
+    if k8s_clients is None:
+        k8s_clients = create_k8s_clients(
+            logger=logger,
+            kubeconfig_path=config.kubeconfig_path,
+            in_cluster=config.in_cluster,
+        )
+
+    if event_mapper is None:
+        event_mapper = PodEventMapper(logger=logger, k8s_api=k8s_clients.v1)
+
     monitor = PodMonitor(
         config=config,
         kafka_event_service=kafka_event_service,
         logger=logger,
         k8s_clients=k8s_clients,
+        event_mapper=event_mapper,
     )
 
-    async with monitor:
-        yield monitor
+    try:
+        async with monitor:
+            yield monitor
+    finally:
+        if owns_clients:
+            close_k8s_clients(k8s_clients)

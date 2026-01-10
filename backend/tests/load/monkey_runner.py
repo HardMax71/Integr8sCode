@@ -8,7 +8,7 @@ import secrets
 from typing import Any
 
 from .config import LoadConfig
-from .http_client import APIClient
+from .http_client import APIClient, APIUser
 from .stats import StatsCollector
 from .strategies import json_value
 
@@ -77,11 +77,12 @@ async def run_monkey_swarm(cfg: LoadConfig, stats: StatsCollector, clients: int)
             # Half of clients attempt to login/register first
             if random.random() < 0.5:
                 uname = f"monkey_{_rand(6)}"
-                await c.register(user := type("U", (), {
-                    "username": uname,
-                    "email": f"{uname}@{cfg.user_domain}",
-                    "password": cfg.user_password
-                }))
+                user = APIUser(
+                    username=uname,
+                    email=f"{uname}@{cfg.user_domain}",
+                    password=cfg.user_password
+                )
+                await c.register(user)
                 await c.login(uname, cfg.user_password)
 
             # Run until deadline

@@ -2,7 +2,7 @@ import logging
 
 from fastapi import Request
 
-from app.core.security import security_service
+from app.core.security import SecurityService
 from app.db.repositories.user_repository import UserRepository
 from app.domain.enums.user import UserRole
 from app.domain.user import AdminAccessRequiredError, AuthenticationRequiredError
@@ -10,8 +10,9 @@ from app.schemas_pydantic.user import UserResponse
 
 
 class AuthService:
-    def __init__(self, user_repo: UserRepository, logger: logging.Logger):
+    def __init__(self, user_repo: UserRepository, security_service: SecurityService, logger: logging.Logger):
         self.user_repo = user_repo
+        self.security_service = security_service
         self.logger = logger
 
     async def get_current_user(self, request: Request) -> UserResponse:
@@ -19,7 +20,7 @@ class AuthService:
         if not token:
             raise AuthenticationRequiredError()
 
-        user = await security_service.get_current_user(token, self.user_repo)
+        user = await self.security_service.get_current_user(token, self.user_repo)
 
         return UserResponse(
             user_id=user.user_id,

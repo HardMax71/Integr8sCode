@@ -1,13 +1,15 @@
 import logging
 
 import pytest
+
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.events.execution import ExecutionRequestedEvent
+from app.settings import Settings
 
 _test_logger = logging.getLogger("test.events.schema_registry_manager")
 
 
-def test_deserialize_json_execution_requested(test_settings) -> None:  # type: ignore[valid-type]
+def test_deserialize_json_execution_requested(test_settings: Settings) -> None:
     m = SchemaRegistryManager(test_settings, logger=_test_logger)
     data = {
         "event_type": "execution_requested",
@@ -32,7 +34,7 @@ def test_deserialize_json_execution_requested(test_settings) -> None:  # type: i
     assert ev.language == "python"
 
 
-def test_deserialize_json_missing_type_raises(test_settings) -> None:  # type: ignore[valid-type]
+def test_deserialize_json_missing_type_raises(test_settings: Settings) -> None:
     m = SchemaRegistryManager(test_settings, logger=_test_logger)
     with pytest.raises(ValueError):
         m.deserialize_json({})

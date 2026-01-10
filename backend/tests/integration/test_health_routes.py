@@ -1,6 +1,5 @@
 import asyncio
 import time
-from typing import Dict
 
 import pytest
 from httpx import AsyncClient
@@ -48,26 +47,18 @@ class TestHealthRoutes:
         assert all(r.status_code == 200 for r in responses)
 
     @pytest.mark.asyncio
-    async def test_app_responds_during_load(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
-        # Login first for creating load
-        login_data = {
-            "username": test_user["username"],
-            "password": test_user["password"]
-        }
-        login_response = await client.post("/api/v1/auth/login", data=login_data)
-        assert login_response.status_code == 200
-
+    async def test_app_responds_during_load(self, client: AsyncClient, test_user: AsyncClient) -> None:
         # Create some load with execution requests
-        async def create_load():
+        async def create_load() -> int | None:
             execution_request = {
                 "script": "print('Load test')",
                 "lang": "python",
                 "lang_version": "3.11"
             }
             try:
-                response = await client.post("/api/v1/execute", json=execution_request)
+                response = await test_user.post("/api/v1/execute", json=execution_request)
                 return response.status_code
-            except:
+            except Exception:
                 return None
 
         # Start load generation

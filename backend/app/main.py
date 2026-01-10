@@ -31,14 +31,30 @@ from app.core.correlation import CorrelationMiddleware
 from app.core.dishka_lifespan import lifespan
 from app.core.exceptions import configure_exception_handlers
 from app.core.logging import setup_logger
+from app.core.metrics import (
+    ConnectionMetrics,
+    CoordinatorMetrics,
+    DatabaseMetrics,
+    DLQMetrics,
+    EventMetrics,
+    ExecutionMetrics,
+    HealthMetrics,
+    KubernetesMetrics,
+    NotificationMetrics,
+    RateLimitMetrics,
+    ReplayMetrics,
+    SecurityMetrics,
+)
+from app.core.metrics.context import MetricsContext
 from app.core.middlewares import (
     CacheControlMiddleware,
+    CSRFMiddleware,
     MetricsMiddleware,
     RateLimitMiddleware,
     RequestSizeLimitMiddleware,
     setup_metrics,
 )
-from app.settings import Settings, get_settings
+from app.settings import Settings
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -47,10 +63,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     Args:
         settings: Optional pre-configured settings (e.g., TestSettings for testing).
-                 If None, uses get_settings() which reads from .env.
+                 If None, creates Settings() which reads from env vars then .env file.
     """
-    settings = settings or get_settings()
+    settings = settings or Settings()
     logger = setup_logger(settings.LOG_LEVEL)
+
+    # Initialize metrics context for all services
+    MetricsContext.initialize_all(
+        logger,
+        connection=ConnectionMetrics(settings),
+        coordinator=CoordinatorMetrics(settings),
+        database=DatabaseMetrics(settings),
+        dlq=DLQMetrics(settings),
+        event=EventMetrics(settings),
+        execution=ExecutionMetrics(settings),
+        health=HealthMetrics(settings),
+        kubernetes=KubernetesMetrics(settings),
+        notification=NotificationMetrics(settings),
+        rate_limit=RateLimitMetrics(settings),
+        replay=ReplayMetrics(settings),
+        security=SecurityMetrics(settings),
+    )
+
     # Disable OpenAPI/Docs in production for security; health endpoints provide readiness
     app = FastAPI(
         title=settings.PROJECT_NAME,
@@ -63,11 +97,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     container = create_app_container(settings)
     setup_dishka(container, app)
 
-    setup_metrics(app, logger)
+    setup_metrics(app, settings, logger)
     app.add_middleware(MetricsMiddleware)
     if settings.RATE_LIMIT_ENABLED:
         app.add_middleware(RateLimitMiddleware)
 
+    app.add_middleware(CSRFMiddleware, container=container)
     app.add_middleware(CorrelationMiddleware)
     app.add_middleware(RequestSizeLimitMiddleware)
     app.add_middleware(CacheControlMiddleware)
@@ -127,10 +162,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     return app
 
 
-app = create_app()
-
 if __name__ == "__main__":
-    settings = get_settings()
+    settings = Settings()
     logger = setup_logger(settings.LOG_LEVEL)
     logger.info(
         "Starting uvicorn server",
@@ -144,7 +177,8 @@ if __name__ == "__main__":
         },
     )
     uvicorn.run(
-        app,
+        "app.main:create_app",
+        factory=True,
         host=settings.SERVER_HOST,
         port=settings.SERVER_PORT,
         ssl_keyfile=settings.SSL_KEYFILE,

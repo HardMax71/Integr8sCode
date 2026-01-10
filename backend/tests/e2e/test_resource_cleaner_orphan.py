@@ -13,7 +13,7 @@ pytestmark = [pytest.mark.e2e, pytest.mark.k8s]
 _test_logger = logging.getLogger("test.k8s.resource_cleaner_orphan")
 
 
-def _ensure_kubeconfig():
+def _ensure_kubeconfig() -> None:
     try:
         k8s_config.load_incluster_config()
     except Exception:
@@ -21,7 +21,7 @@ def _ensure_kubeconfig():
 
 
 @pytest.mark.asyncio
-async def test_cleanup_orphaned_configmaps_dry_run():
+async def test_cleanup_orphaned_configmaps_dry_run() -> None:
     _ensure_kubeconfig()
     v1 = k8s_client.CoreV1Api()
     ns = "default"
@@ -41,7 +41,7 @@ async def test_cleanup_orphaned_configmaps_dry_run():
         cleaned = await cleaner.cleanup_orphaned_resources(namespace=ns, max_age_hours=0, dry_run=True)
 
         # We expect our configmap to be a candidate; poll the response
-        async def _has_cm():
+        async def _has_cm() -> None:
             # If cleaner is non-deterministic across runs, re-invoke to reflect current state
             res = await cleaner.cleanup_orphaned_resources(namespace=ns, max_age_hours=0, dry_run=True)
             assert any(name == cm for cm in res.get("configmaps", []))

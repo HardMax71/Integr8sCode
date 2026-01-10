@@ -1,23 +1,27 @@
 import pytest
 
-from app.domain.saga import DomainResourceAllocation
+from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
+from app.domain.saga import DomainResourceAllocation, DomainResourceAllocationCreate
+from app.events.core import UnifiedProducer
+from app.infrastructure.kafka.events import BaseEvent
+from app.infrastructure.kafka.events.execution import ExecutionRequestedEvent
 from app.services.saga.execution_saga import (
-    ValidateExecutionStep,
     AllocateResourcesStep,
-    QueueExecutionStep,
     CreatePodStep,
-    MonitorExecutionStep,
-    ReleaseResourcesCompensation,
     DeletePodCompensation,
+    ExecutionSaga,
+    MonitorExecutionStep,
+    QueueExecutionStep,
+    ReleaseResourcesCompensation,
+    ValidateExecutionStep,
 )
 from app.services.saga.saga_step import SagaContext
 from tests.helpers import make_execution_requested_event
 
-
 pytestmark = pytest.mark.unit
 
 
-def _req(timeout: int = 30, script: str = "print('x')"):
+def _req(timeout: int = 30, script: str = "print('x')") -> ExecutionRequestedEvent:
     return make_execution_requested_event(execution_id="e1", script=script, timeout_seconds=timeout)
 
 
@@ -39,16 +43,18 @@ async def test_validate_execution_step_success_and_failures() -> None:
     assert ok3 is False and ctx3.error is not None
 
 
-class _FakeAllocRepo:
+class _FakeAllocRepo(ResourceAllocationRepository):
+    """Fake ResourceAllocationRepository for testing."""
+
     def __init__(self, active: int = 0, alloc_id: str = "alloc-1") -> None:
         self.active = active
         self.alloc_id = alloc_id
         self.released: list[str] = []
 
-    async def count_active(self, language: str) -> int:  # noqa: ARG002
+    async def count_active(self, language: str) -> int:
         return self.active
 
-    async def create_allocation(self, create_data) -> DomainResourceAllocation:  # noqa: ARG002
+    async def create_allocation(self, create_data: DomainResourceAllocationCreate) -> DomainResourceAllocation:
         return DomainResourceAllocation(
             allocation_id=self.alloc_id,
             execution_id=create_data.execution_id,
@@ -59,8 +65,9 @@ class _FakeAllocRepo:
             memory_limit=create_data.memory_limit,
         )
 
-    async def release_allocation(self, allocation_id: str) -> None:
+    async def release_allocation(self, allocation_id: str) -> bool:
         self.released.append(allocation_id)
+        return True
 
 
 @pytest.mark.asyncio
@@ -94,19 +101,23 @@ async def test_queue_and_monitor_steps() -> None:
     assert ctx.get("monitoring_active") is True
 
     # Force exceptions to exercise except paths
-    class _Ctx(SagaContext):
-        def set(self, key, value):  # type: ignore[override]
+    class _BadCtx(SagaContext):
+        def set(self, key: str, value: object) -> None:
             raise RuntimeError("boom")
-    bad = _Ctx("s", "e")
+
+    bad = _BadCtx("s", "e")
     assert await QueueExecutionStep().execute(bad, _req()) is False
     assert await MonitorExecutionStep().execute(bad, _req()) is False
 
 
-class _FakeProducer:
-    def __init__(self) -> None:
-        self.events: list[object] = []
+class _FakeProducer(UnifiedProducer):
+    """Fake UnifiedProducer for testing."""
 
-    async def produce(self, event_to_produce, key: str | None = None):  # noqa: ARG002
+    def __init__(self) -> None:
+        self.events: list[BaseEvent] = []
+
+    async def produce(self, event_to_produce: BaseEvent, key: str | None = None,
+                      headers: dict[str, str] | None = None) -> None:
         self.events.append(event_to_produce)
 
 
@@ -180,16 +191,14 @@ async def test_delete_pod_compensation_variants() -> None:
 
 def test_execution_saga_bind_and_get_steps_sets_flags_and_types() -> None:
     # Dummy subclasses to satisfy isinstance checks without real deps
-    from app.events.core import UnifiedProducer
-    from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
-
     class DummyProd(UnifiedProducer):
-        def __init__(self): pass  # type: ignore[no-untyped-def]
+        def __init__(self) -> None:
+            pass  # Skip parent __init__
 
     class DummyAlloc(ResourceAllocationRepository):
-        def __init__(self): pass  # type: ignore[no-untyped-def]
+        def __init__(self) -> None:
+            pass  # Skip parent __init__
 
-    from app.services.saga.execution_saga import ExecutionSaga, CreatePodStep
     s = ExecutionSaga()
     s.bind_dependencies(producer=DummyProd(), alloc_repo=DummyAlloc(), publish_commands=True)
     steps = s.get_steps()

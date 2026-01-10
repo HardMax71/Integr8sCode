@@ -1,9 +1,10 @@
 import time
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from app.core.adaptive_sampling import AdaptiveSampler, create_adaptive_sampler
+from app.settings import Settings
 
 
 def test_is_error_variants() -> None:
@@ -67,11 +68,11 @@ def test_get_description_and_factory(monkeypatch: pytest.MonkeyPatch) -> None:
         assert "AdaptiveSampler(" in desc
         s._running = False
 
-        class S:
-            TRACING_SAMPLING_RATE = 0.2
+        mock_settings = MagicMock(spec=Settings)
+        mock_settings.TRACING_SAMPLING_RATE = 0.2
 
         monkeypatch.setenv("TRACING_SAMPLING_RATE", "0.2")
         # create_adaptive_sampler pulls settings via get_settings; just ensure it constructs
-        sampler = create_adaptive_sampler(S())
+        sampler = create_adaptive_sampler(mock_settings)
         sampler._running = False
 

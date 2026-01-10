@@ -12,7 +12,7 @@ _test_logger = logging.getLogger("test.services.result_processor.processor")
 
 
 class TestResultProcessorConfig:
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         config = ResultProcessorConfig()
         assert config.consumer_group == GroupId.RESULT_PROCESSOR
         assert KafkaTopic.EXECUTION_COMPLETED in config.topics
@@ -22,13 +22,13 @@ class TestResultProcessorConfig:
         assert config.batch_size == 10
         assert config.processing_timeout == 300
 
-    def test_custom_values(self):
+    def test_custom_values(self) -> None:
         config = ResultProcessorConfig(batch_size=20, processing_timeout=600)
         assert config.batch_size == 20
         assert config.processing_timeout == 600
 
 
-def test_create_dispatcher_registers_handlers():
+def test_create_dispatcher_registers_handlers() -> None:
     rp = ResultProcessor(
         execution_repo=MagicMock(),
         producer=MagicMock(),

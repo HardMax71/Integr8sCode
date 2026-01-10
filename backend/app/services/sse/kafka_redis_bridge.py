@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
 
 from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics.events import EventMetrics
@@ -62,13 +61,9 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
         self.logger.info("SSE Kafka→Redis bridge stopped")
 
     async def _create_consumer(self, consumer_index: int) -> UnifiedConsumer:
-        suffix = os.environ.get("KAFKA_GROUP_SUFFIX", "")
-        group_id = "sse-bridge-pool"
-        if suffix:
-            group_id = f"{group_id}.{suffix}"
-        client_id = f"sse-bridge-{consumer_index}"
-        if suffix:
-            client_id = f"{client_id}-{suffix}"
+        suffix = self.settings.KAFKA_GROUP_SUFFIX
+        group_id = f"sse-bridge-pool.{suffix}"
+        client_id = f"sse-bridge-{consumer_index}.{suffix}"
 
         config = ConsumerConfig(
             bootstrap_servers=self.settings.KAFKA_BOOTSTRAP_SERVERS,

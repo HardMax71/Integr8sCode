@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from pymongo.errors import DuplicateKeyError
 
-from app.core.security import security_service
+from app.core.security import SecurityService
 from app.core.utils import get_client_ip
 from app.db.repositories import UserRepository
 from app.domain.user import DomainUserCreate
@@ -19,7 +19,7 @@ from app.schemas_pydantic.user import (
     UserResponse,
 )
 from app.services.auth_service import AuthService
-from app.settings import get_settings
+from app.settings import Settings
 
 router = APIRouter(prefix="/auth", tags=["authentication"], route_class=DishkaRoute)
 
@@ -29,6 +29,8 @@ async def login(
     request: Request,
     response: Response,
     user_repo: FromDishka[UserRepository],
+    security_service: FromDishka[SecurityService],
+    settings: FromDishka[Settings],
     logger: FromDishka[logging.Logger],
     form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> LoginResponse:
@@ -73,8 +75,6 @@ async def login(
             detail="Invalid credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
-    settings = get_settings()
 
     logger.info(
         "Login successful",
@@ -127,6 +127,7 @@ async def register(
     request: Request,
     user: UserCreate,
     user_repo: FromDishka[UserRepository],
+    security_service: FromDishka[SecurityService],
     logger: FromDishka[logging.Logger],
 ) -> UserResponse:
     logger.info(

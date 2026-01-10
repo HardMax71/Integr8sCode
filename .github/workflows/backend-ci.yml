@@ -47,6 +47,7 @@ jobs:
         run: |
           cd backend
           uv run pytest tests/unit -v -rs \
+            --durations=0 \
             --cov=app \
             --cov-report=xml --cov-report=term
 
@@ -90,32 +91,12 @@ jobs:
           docker compose -f docker-compose.ci.yaml up -d --wait --wait-timeout 120
           docker compose -f docker-compose.ci.yaml ps
 
-      - name: Create Kafka topics
-        timeout-minutes: 2
-        env:
-          KAFKA_BOOTSTRAP_SERVERS: localhost:9092
-          KAFKA_TOPIC_PREFIX: "ci.${{ github.run_id }}."
-        run: |
-          cd backend
-          uv run python -m scripts.create_topics
-
       - name: Run integration tests
         timeout-minutes: 10
-        env:
-          MONGO_ROOT_USER: root
-          MONGO_ROOT_PASSWORD: rootpassword
-          MONGODB_HOST: 127.0.0.1
-          MONGODB_PORT: 27017
-          MONGODB_URL: mongodb://root:rootpassword@127.0.0.1:27017/?authSource=admin
-          KAFKA_BOOTSTRAP_SERVERS: localhost:9092
-          KAFKA_TOPIC_PREFIX: "ci.${{ github.run_id }}."
-          SCHEMA_REGISTRY_URL: http://localhost:8081
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
-          SCHEMA_SUBJECT_PREFIX: "ci.${{ github.run_id }}."
         run: |
           cd backend
           uv run pytest tests/integration -v -rs \
+            --durations=0 \
             --cov=app \
             --cov-report=xml --cov-report=term
 
@@ -184,32 +165,15 @@ jobs:
           timeout 90 bash -c 'until sudo k3s kubectl cluster-info; do sleep 5; done'
           kubectl create namespace integr8scode --dry-run=client -o yaml | kubectl apply -f -
 
-      - name: Create Kafka topics
-        timeout-minutes: 2
-        env:
-          KAFKA_BOOTSTRAP_SERVERS: localhost:9092
-          KAFKA_TOPIC_PREFIX: "ci.${{ github.run_id }}."
-        run: |
-          cd backend
-          uv run python -m scripts.create_topics
-
       - name: Run E2E tests
         timeout-minutes: 10
         env:
-          MONGO_ROOT_USER: root
-          MONGO_ROOT_PASSWORD: rootpassword
-          MONGODB_URL: mongodb://root:rootpassword@127.0.0.1:27017/?authSource=admin
-          KAFKA_BOOTSTRAP_SERVERS: localhost:9092
-          KAFKA_TOPIC_PREFIX: "ci.${{ github.run_id }}."
-          SCHEMA_REGISTRY_URL: http://localhost:8081
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
-          SCHEMA_SUBJECT_PREFIX: "ci.${{ github.run_id }}."
           KUBECONFIG: /home/runner/.kube/config
           K8S_NAMESPACE: integr8scode
         run: |
           cd backend
           uv run pytest tests/e2e -v -rs \
+            --durations=0 \
             --cov=app \
             --cov-report=xml --cov-report=term
 

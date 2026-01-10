@@ -17,6 +17,7 @@ from app.domain.replay import ReplayConfig, ReplaySessionState
 from app.events.core import UnifiedProducer
 from app.events.event_store import EventStore
 from app.infrastructure.kafka.events.base import BaseEvent
+from app.settings import Settings
 
 
 class EventReplayService:
@@ -25,6 +26,7 @@ class EventReplayService:
         repository: ReplayRepository,
         producer: UnifiedProducer,
         event_store: EventStore,
+        settings: Settings,
         logger: logging.Logger,
     ) -> None:
         self._sessions: Dict[str, ReplaySessionState] = {}
@@ -35,7 +37,7 @@ class EventReplayService:
         self.logger = logger
         self._callbacks: Dict[ReplayTarget, Callable[..., Any]] = {}
         self._file_locks: Dict[str, asyncio.Lock] = {}
-        self._metrics = ReplayMetrics()
+        self._metrics = ReplayMetrics(settings)
         self.logger.info("Event replay service initialized")
 
     async def create_replay_session(self, config: ReplayConfig) -> str:

@@ -2,14 +2,14 @@ import pytest
 
 from app.core.metrics.connections import ConnectionMetrics
 from app.core.metrics.coordinator import CoordinatorMetrics
+from app.settings import Settings
 
 pytestmark = pytest.mark.unit
 
 
-def test_connection_metrics_methods() -> None:
+def test_connection_metrics_methods(test_settings: Settings) -> None:
     """Test ConnectionMetrics methods with no-op metrics."""
-    # Create ConnectionMetrics instance - will use NoOpMeterProvider automatically
-    m = ConnectionMetrics()
+    m = ConnectionMetrics(test_settings)
     m.increment_sse_connections("/events")
     m.decrement_sse_connections("/events")
     m.record_sse_message_sent("/events", "etype")
@@ -22,10 +22,9 @@ def test_connection_metrics_methods() -> None:
     m.update_event_bus_subscribers(3, "*")
 
 
-def test_coordinator_metrics_methods() -> None:
+def test_coordinator_metrics_methods(test_settings: Settings) -> None:
     """Test CoordinatorMetrics methods with no-op metrics."""
-    # Create CoordinatorMetrics instance - will use NoOpMeterProvider automatically
-    m = CoordinatorMetrics()
+    m = CoordinatorMetrics(test_settings)
     m.record_coordinator_processing_time(0.1)
     m.record_scheduling_duration(0.2)
     m.update_active_executions_gauge(2)

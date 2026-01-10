@@ -17,7 +17,7 @@ def repo() -> DLQRepository:
     return DLQRepository(_test_logger)
 
 
-async def insert_test_dlq_docs():
+async def insert_test_dlq_docs() -> None:
     """Insert test DLQ documents using Beanie."""
     now = datetime.now(timezone.utc)
 
@@ -92,14 +92,3 @@ async def test_stats_list_get_and_updates(repo: DLQRepository) -> None:
 
     topics = await repo.get_topics_summary()
     assert any(t.topic == "t1" for t in topics)
-
-
-@pytest.mark.asyncio
-async def test_retry_batch(repo: DLQRepository) -> None:
-    class Manager:
-        async def retry_message_manually(self, eid: str) -> bool:  # noqa: ARG002
-            return True
-
-    result = await repo.retry_messages_batch(["missing"], Manager())
-    # Missing messages cause failures
-    assert result.total == 1 and result.failed >= 1

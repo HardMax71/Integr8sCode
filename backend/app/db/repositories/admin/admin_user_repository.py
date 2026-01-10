@@ -20,8 +20,8 @@ from app.domain.user import DomainUserCreate, PasswordReset, User, UserListResul
 
 
 class AdminUserRepository:
-    def __init__(self) -> None:
-        self.security_service = SecurityService()
+    def __init__(self, security_service: SecurityService) -> None:
+        self.security_service = security_service
 
     async def create_user(self, create_data: DomainUserCreate) -> User:
         doc = UserDocument(**asdict(create_data))
@@ -29,7 +29,7 @@ class AdminUserRepository:
         return User(**doc.model_dump(exclude={"id", "revision_id"}))
 
     async def list_users(
-        self, limit: int = 100, offset: int = 0, search: str | None = None, role: UserRole | None = None
+            self, limit: int = 100, offset: int = 0, search: str | None = None, role: UserRole | None = None
     ) -> UserListResult:
         conditions: list[BaseFindOperator] = []
 

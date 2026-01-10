@@ -1,4 +1,5 @@
 import pytest
+from dishka import AsyncContainer
 
 from app.db.repositories import EventRepository
 from app.domain.enums.events import EventType
@@ -9,7 +10,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.kafka, pytest.mark.mongodb]
 
 
 @pytest.mark.asyncio
-async def test_publish_user_registered_event(scope) -> None:  # type: ignore[valid-type]
+async def test_publish_user_registered_event(scope: AsyncContainer) -> None:
     svc: KafkaEventService = await scope.get(KafkaEventService)
     repo: EventRepository = await scope.get(EventRepository)
 
@@ -24,7 +25,7 @@ async def test_publish_user_registered_event(scope) -> None:  # type: ignore[val
 
 
 @pytest.mark.asyncio
-async def test_publish_execution_event(scope) -> None:  # type: ignore[valid-type]
+async def test_publish_execution_event(scope: AsyncContainer) -> None:
     svc: KafkaEventService = await scope.get(KafkaEventService)
     repo: EventRepository = await scope.get(EventRepository)
 
@@ -40,7 +41,7 @@ async def test_publish_execution_event(scope) -> None:  # type: ignore[valid-typ
 
 
 @pytest.mark.asyncio
-async def test_publish_pod_event_and_without_metadata(scope) -> None:  # type: ignore[valid-type]
+async def test_publish_pod_event_and_without_metadata(scope: AsyncContainer) -> None:
     svc: KafkaEventService = await scope.get(KafkaEventService)
     repo: EventRepository = await scope.get(EventRepository)
 

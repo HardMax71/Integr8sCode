@@ -2,14 +2,14 @@ import pytest
 
 from app.core.metrics.database import DatabaseMetrics
 from app.core.metrics.dlq import DLQMetrics
+from app.settings import Settings
 
 pytestmark = pytest.mark.unit
 
 
-def test_database_metrics_methods() -> None:
+def test_database_metrics_methods(test_settings: Settings) -> None:
     """Test DatabaseMetrics methods with no-op metrics."""
-    # Create DatabaseMetrics instance - will use NoOpMeterProvider automatically
-    m = DatabaseMetrics()
+    m = DatabaseMetrics(test_settings)
     m.record_mongodb_operation("insert", "ok")
     m.record_mongodb_query_duration(0.1, "find")
     m.record_event_store_duration(0.2, "insert", "events")
@@ -28,10 +28,9 @@ def test_database_metrics_methods() -> None:
     m.record_database_connection_error("timeout")
 
 
-def test_dlq_metrics_methods() -> None:
+def test_dlq_metrics_methods(test_settings: Settings) -> None:
     """Test DLQMetrics methods with no-op metrics."""
-    # Create DLQMetrics instance - will use NoOpMeterProvider automatically
-    m = DLQMetrics()
+    m = DLQMetrics(test_settings)
     m.record_dlq_message_received("topic", "etype")
     m.record_dlq_message_retried("topic", "etype", "success")
     m.record_dlq_message_discarded("topic", "etype", "bad")

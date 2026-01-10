@@ -27,7 +27,7 @@ done
 echo "Starting application..."
 [ -f /app/kubeconfig.yaml ] && export KUBECONFIG=/app/kubeconfig.yaml
 
-exec gunicorn app.main:app \
+exec gunicorn 'app.main:create_app()' \
   -k uvicorn.workers.UvicornWorker \
   --bind 0.0.0.0:443 \
   --workers ${WEB_CONCURRENCY:-4} \

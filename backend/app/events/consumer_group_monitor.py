@@ -9,7 +9,7 @@ from confluent_kafka.admin import ConsumerGroupDescription
 
 from app.core.utils import StringEnum
 from app.events.admin_utils import AdminUtils
-from app.settings import get_settings
+from app.settings import Settings
 
 
 class ConsumerGroupHealth(StringEnum):
@@ -75,8 +75,8 @@ class NativeConsumerGroupMonitor:
 
     def __init__(
         self,
+        settings: Settings,
         logger: logging.Logger,
-        bootstrap_servers: str | None = None,
         client_id: str = "integr8scode-consumer-group-monitor",
         request_timeout_ms: int = 30000,
         # Health thresholds
@@ -86,10 +86,9 @@ class NativeConsumerGroupMonitor:
         min_members_threshold: int = 1,
     ):
         self.logger = logger
-        settings = get_settings()
-        self.bootstrap_servers = bootstrap_servers or settings.KAFKA_BOOTSTRAP_SERVERS
+        self.bootstrap_servers = settings.KAFKA_BOOTSTRAP_SERVERS
 
-        self.admin_client = AdminUtils(logger=logger, bootstrap_servers=self.bootstrap_servers)
+        self.admin_client = AdminUtils(settings=settings, logger=logger)
 
         # Health thresholds
         self.max_rebalance_time = max_rebalance_time_seconds
@@ -434,6 +433,6 @@ class NativeConsumerGroupMonitor:
 
 
 def create_consumer_group_monitor(
-    logger: logging.Logger, bootstrap_servers: str | None = None, **kwargs: Any
+    settings: Settings, logger: logging.Logger, **kwargs: Any
 ) -> NativeConsumerGroupMonitor:
-    return NativeConsumerGroupMonitor(logger=logger, bootstrap_servers=bootstrap_servers, **kwargs)
+    return NativeConsumerGroupMonitor(settings=settings, logger=logger, **kwargs)

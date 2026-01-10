@@ -1,4 +1,7 @@
+import pytest
+
 from app.core.metrics.connections import ConnectionMetrics
+from app.domain.enums.execution import ExecutionStatus
 from app.core.metrics.coordinator import CoordinatorMetrics
 from app.core.metrics.database import DatabaseMetrics
 from app.core.metrics.dlq import DLQMetrics
@@ -10,12 +13,14 @@ from app.core.metrics.notifications import NotificationMetrics
 from app.core.metrics.rate_limit import RateLimitMetrics
 from app.core.metrics.replay import ReplayMetrics
 from app.core.metrics.security import SecurityMetrics
+from app.settings import Settings
+
+pytestmark = pytest.mark.unit
 
 
-def test_connection_metrics_smoke():
+def test_connection_metrics_smoke(test_settings: Settings) -> None:
     """Test ConnectionMetrics smoke test with no-op metrics."""
-    # Create ConnectionMetrics instance - will use NoOpMeterProvider automatically
-    m = ConnectionMetrics()
+    m = ConnectionMetrics(test_settings)
     m.increment_sse_connections("exec")
     m.decrement_sse_connections("exec")
     m.record_sse_message_sent("exec", "evt")
@@ -25,10 +30,9 @@ def test_connection_metrics_smoke():
     m.update_event_bus_subscribers(3, "*")
 
 
-def test_event_metrics_smoke():
+def test_event_metrics_smoke(test_settings: Settings) -> None:
     """Test EventMetrics smoke test with no-op metrics."""
-    # Create EventMetrics instance - will use NoOpMeterProvider automatically
-    m = EventMetrics()
+    m = EventMetrics(test_settings)
     m.record_event_published("execution.requested")
     m.record_event_processing_duration(0.01, "execution.requested")
     m.record_pod_event_published("pod.created")
@@ -54,16 +58,15 @@ def test_event_metrics_smoke():
     m.set_event_bus_queue_size(5)
 
 
-def test_other_metrics_classes_smoke():
+def test_other_metrics_classes_smoke(test_settings: Settings) -> None:
     """Test other metrics classes smoke test with no-op metrics."""
-    # Create metrics instances - will use NoOpMeterProvider automatically
-    CoordinatorMetrics().record_coordinator_processing_time(0.01)
-    DatabaseMetrics().record_mongodb_operation("read", "ok")
-    DLQMetrics().record_dlq_message_received("topic", "type")
-    ExecutionMetrics().record_script_execution("QUEUED", "python")
-    HealthMetrics().record_health_check_duration(0.001, "liveness", "basic")
-    KubernetesMetrics().record_k8s_pod_created("success", "python")
-    NotificationMetrics().record_notification_sent("welcome", channel="email")
-    RateLimitMetrics().requests_total.add(1)
-    ReplayMetrics().record_session_created("by_id", "kafka")
-    SecurityMetrics().record_security_event("scan", severity="low")
+    CoordinatorMetrics(test_settings).record_coordinator_processing_time(0.01)
+    DatabaseMetrics(test_settings).record_mongodb_operation("read", "ok")
+    DLQMetrics(test_settings).record_dlq_message_received("topic", "type")
+    ExecutionMetrics(test_settings).record_script_execution(ExecutionStatus.QUEUED, "python")
+    HealthMetrics(test_settings).record_health_check_duration(0.001, "liveness", "basic")
+    KubernetesMetrics(test_settings).record_k8s_pod_created("success", "python")
+    NotificationMetrics(test_settings).record_notification_sent("welcome", channel="email")
+    RateLimitMetrics(test_settings).requests_total.add(1)
+    ReplayMetrics(test_settings).record_session_created("by_id", "kafka")
+    SecurityMetrics(test_settings).record_security_event("scan", severity="low")

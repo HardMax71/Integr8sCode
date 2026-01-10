@@ -9,7 +9,7 @@ from app.core.database_context import Database
 from app.db.docs import ALL_DOCUMENTS
 from app.dlq import DLQMessage, RetryPolicy, RetryStrategy
 from app.dlq.manager import DLQManager
-from app.settings import Settings, get_settings
+from app.settings import Settings
 from beanie import init_beanie
 
 
@@ -100,10 +100,8 @@ def _configure_callbacks(manager: DLQManager, testing: bool, logger: logging.Log
     manager.add_callback("on_discard", alert_on_discard)
 
 
-async def main(settings: Settings | None = None) -> None:
+async def main(settings: Settings) -> None:
     """Run the DLQ processor."""
-    if settings is None:
-        settings = get_settings()
 
     container = create_dlq_processor_container(settings)
     logger = await container.get(logging.Logger)
@@ -134,4 +132,4 @@ async def main(settings: Settings | None = None) -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(main(Settings()))

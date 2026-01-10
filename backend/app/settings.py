@@ -1,4 +1,4 @@
-from functools import lru_cache
+import os
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -44,6 +44,9 @@ class Settings(BaseSettings):
 
     TESTING: bool = False
 
+    # Security: bcrypt rounds (lower in tests for speed, higher in production for security)
+    BCRYPT_ROUNDS: int = 12
+
     # Event-Driven Design Configuration
     KAFKA_BOOTSTRAP_SERVERS: str = "kafka:29092"
     KAFKA_GROUP_SUFFIX: str = "suff"  # Suffix to append to consumer group IDs for test/parallel isolation
@@ -73,6 +76,7 @@ class Settings(BaseSettings):
     SCHEMA_BASE_PATH: str = "app/schemas_avro"
     SCHEMA_AVRO_PATH: str = "app/schemas_avro"
     SCHEMA_CONFIG_PATH: str | None = None
+    SCHEMA_SUBJECT_PREFIX: str = ""
 
     # OpenTelemetry / Jaeger Configuration
     ENABLE_TRACING: bool = True
@@ -126,6 +130,7 @@ class Settings(BaseSettings):
     # Service metadata
     SERVICE_NAME: str = "integr8scode-backend"
     SERVICE_VERSION: str = "1.0.0"
+    ENVIRONMENT: str = "production"  # deployment environment (production, staging, development)
 
     # OpenTelemetry Configuration
     OTEL_EXPORTER_OTLP_ENDPOINT: str | None = None
@@ -153,13 +158,8 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = Field(default="DEBUG", description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=os.environ.get("DOTENV_PATH", ".env"),
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="forbid",  # Raise error on extra fields
     )
-
-
-@lru_cache(maxsize=1)
-def get_settings() -> Settings:
-    return Settings()  # type: ignore[call-arg]

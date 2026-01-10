@@ -1,4 +1,5 @@
 import pytest
+from dishka import AsyncContainer
 
 from app.domain.saved_script import DomainSavedScriptCreate, DomainSavedScriptUpdate, SavedScriptNotFoundError
 from app.services.saved_script_service import SavedScriptService
@@ -11,7 +12,7 @@ def _create_payload() -> DomainSavedScriptCreate:
 
 
 @pytest.mark.asyncio
-async def test_crud_saved_script(scope) -> None:  # type: ignore[valid-type]
+async def test_crud_saved_script(scope: AsyncContainer) -> None:
     service: SavedScriptService = await scope.get(SavedScriptService)
     created = await service.create_saved_script(_create_payload(), user_id="u1")
     assert created.user_id == "u1"

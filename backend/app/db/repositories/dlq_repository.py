@@ -7,17 +7,14 @@ from beanie.odm.enums import SortDirection
 from app.db.docs import DLQMessageDocument
 from app.dlq import (
     AgeStatistics,
-    DLQBatchRetryResult,
     DLQMessage,
     DLQMessageListResult,
     DLQMessageStatus,
-    DLQRetryResult,
     DLQStatistics,
     DLQTopicSummary,
     EventTypeStatistic,
     TopicStatistic,
 )
-from app.dlq.manager import DLQManager
 from app.domain.enums.events import EventType
 from app.infrastructure.kafka.mappings import get_event_class_for_type
 
@@ -186,32 +183,3 @@ class DLQRepository:
         doc.last_updated = now
         await doc.save()
         return True
-
-    async def retry_messages_batch(self, event_ids: list[str], dlq_manager: DLQManager) -> DLQBatchRetryResult:
-        details = []
-        successful = 0
-        failed = 0
-
-        for event_id in event_ids:
-            try:
-                doc = await DLQMessageDocument.find_one({"event_id": event_id})
-                if not doc:
-                    failed += 1
-                    details.append(DLQRetryResult(event_id=event_id, status="failed", error="Message not found"))
-                    continue
-
-                success = await dlq_manager.retry_message_manually(event_id)
-                if success:
-                    await self.mark_message_retried(event_id)
-                    successful += 1
-                    details.append(DLQRetryResult(event_id=event_id, status="success"))
-                else:
-                    failed += 1
-                    details.append(DLQRetryResult(event_id=event_id, status="failed", error="Retry failed"))
-
-            except Exception as e:
-                self.logger.error(f"Error retrying message {event_id}: {e}")
-                failed += 1
-                details.append(DLQRetryResult(event_id=event_id, status="failed", error=str(e)))
-
-        return DLQBatchRetryResult(total=len(event_ids), successful=successful, failed=failed, details=details)

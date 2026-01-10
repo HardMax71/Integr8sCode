@@ -10,16 +10,15 @@ from typing import List
 
 from app.core.logging import setup_logger
 from app.infrastructure.kafka.topics import get_all_topics, get_topic_configs
-from app.settings import get_settings
+from app.settings import Settings
 from confluent_kafka import KafkaException
 from confluent_kafka.admin import AdminClient, NewTopic
 
 logger = setup_logger(os.environ.get("LOG_LEVEL", "INFO"))
 
 
-async def create_topics() -> None:
-    """Create all required Kafka topics"""
-    settings = get_settings()
+async def create_topics(settings: Settings) -> None:
+    """Create all required Kafka topics using provided settings."""
 
     # Create admin client
     admin_client = AdminClient(
@@ -103,11 +102,11 @@ async def create_topics() -> None:
 
 
 async def main() -> None:
-    """Main entry point"""
+    """Main entry point - creates Settings() which reads from env vars then .env file."""
     logger.info("Starting Kafka topic creation...")
 
     try:
-        await create_topics()
+        await create_topics(Settings())
         logger.info("Topic creation completed successfully")
     except Exception as e:
         logger.error(f"Topic creation failed: {e}")

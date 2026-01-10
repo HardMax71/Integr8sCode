@@ -805,13 +805,13 @@ class NotificationService:
         await self.sse_bus.publish_notification(notification.user_id, message)
 
     async def _should_skip_notification(
-        self, notification: DomainNotification, subscription: DomainNotificationSubscription | None
+        self, notification: DomainNotification, subscription: DomainNotificationSubscription
     ) -> str | None:
         """Check if notification should be skipped based on subscription filters.
 
         Returns skip reason if should skip, None otherwise.
         """
-        if not subscription or not subscription.enabled:
+        if not subscription.enabled:
             return f"User {notification.user_id} has {notification.channel} disabled; skipping delivery."
 
         if subscription.severities and notification.severity not in subscription.severities:
@@ -859,9 +859,6 @@ class NotificationService:
                 DomainNotificationUpdate(status=NotificationStatus.SKIPPED, error_message=skip_reason),
             )
             return
-
-        # At this point, subscription is guaranteed to be non-None (checked in _should_skip_notification)
-        assert subscription is not None
 
         # Send through channel
         start_time = asyncio.get_running_loop().time()

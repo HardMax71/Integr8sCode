@@ -11,7 +11,6 @@ class PodMonitorConfig:
     """Configuration for PodMonitor service"""
 
     # Kafka settings
-    kafka_bootstrap_servers: str | None = None
     pod_events_topic: str = str(get_topic_for_event(EventType.POD_CREATED))
     execution_events_topic: str = str(get_topic_for_event(EventType.EXECUTION_REQUESTED))
     execution_completed_topic: str = str(get_topic_for_event(EventType.EXECUTION_COMPLETED))

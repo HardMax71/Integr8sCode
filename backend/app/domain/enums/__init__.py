@@ -7,6 +7,7 @@ from app.domain.enums.notification import (
     NotificationStatus,
 )
 from app.domain.enums.saga import SagaState
+from app.domain.enums.sse import SSEControlEvent, SSENotificationEvent
 from app.domain.enums.user import UserRole
 
 __all__ = [
@@ -26,6 +27,9 @@ __all__ = [
     "NotificationStatus",
     # Saga
     "SagaState",
+    # SSE
+    "SSEControlEvent",
+    "SSENotificationEvent",
     # User
     "UserRole",
 ]

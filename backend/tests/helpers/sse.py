@@ -32,10 +32,10 @@ async def wait_for_event_type(
     wanted_types: Iterable[str],
     timeout: float = 20.0,
 ) -> dict[str, object]:
-    """Return first event whose type/event_type is in wanted_types, otherwise timeout."""
+    """Return first event whose event_type is in wanted_types, otherwise timeout."""
     wanted = {str(t).lower() for t in wanted_types}
     async for ev in stream_sse(client, url, timeout=timeout):
-        et = str(ev.get("type") or ev.get("event_type") or "").lower()
+        et = str(ev.get("event_type") or "").lower()
         if et in wanted:
             return ev
     raise TimeoutError(f"No event of types {wanted} seen on {url} within {timeout}s")

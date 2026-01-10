@@ -23,9 +23,9 @@ class _FakeBus(SSERedisBus):
     """Fake SSERedisBus for testing."""
 
     def __init__(self) -> None:
-        self.published: list[tuple[str, object]] = []
+        self.published: list[tuple[str, BaseEvent]] = []
 
-    async def publish_event(self, execution_id: str, event: object) -> None:
+    async def publish_event(self, execution_id: str, event: BaseEvent) -> None:
         self.published.append((execution_id, event))
 
 

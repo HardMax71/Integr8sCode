@@ -34,7 +34,7 @@ class TestSSERoutes:
         assert r.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_sse_health_status(self, client: AsyncClient, test_user: dict[str, str]) -> None:
+    async def test_sse_health_status(self, client: AsyncClient, test_user: AsyncClient) -> None:
         r = await client.get("/api/v1/events/health")
         assert r.status_code == 200
         health = SSEHealthResponse(**r.json())
@@ -42,7 +42,7 @@ class TestSSERoutes:
         assert isinstance(health.active_connections, int) and health.active_connections >= 0
 
     @pytest.mark.asyncio
-    async def test_notification_stream_service(self, scope: AsyncContainer, test_user: dict[str, str]) -> None:
+    async def test_notification_stream_service(self, scope: AsyncContainer, test_user: AsyncClient) -> None:
         """Test SSE notification stream directly through service (httpx doesn't support SSE streaming)."""
         sse_service: SSEService = await scope.get(SSEService)
         bus: SSERedisBus = await scope.get(SSERedisBus)
@@ -84,7 +84,7 @@ class TestSSERoutes:
         assert notification_received, f"Expected notification, got events: {events}"
 
     @pytest.mark.asyncio
-    async def test_execution_event_stream_service(self, scope: AsyncContainer, test_user: dict[str, str]) -> None:
+    async def test_execution_event_stream_service(self, scope: AsyncContainer, test_user: AsyncClient) -> None:
         """Test SSE execution stream directly through service (httpx doesn't support SSE streaming)."""
         exec_id = f"e-{uuid4().hex[:8]}"
         user_id = f"user-{uuid4().hex[:8]}"
@@ -115,7 +115,7 @@ class TestSSERoutes:
                             await bus.publish_event(exec_id, ev)
 
                         # Stop when we receive the pod event
-                        if data.get("event_type") == "pod_created" or data.get("type") == "pod_created":
+                        if data.get("event_type") == "pod_created":
                             pod_event_received = True
                             break
             except TimeoutError:
@@ -134,7 +134,7 @@ class TestSSERoutes:
         assert r.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_sse_endpoint_returns_correct_headers(self, client: AsyncClient, test_user: dict[str, str]) -> None:
+    async def test_sse_endpoint_returns_correct_headers(self, client: AsyncClient, test_user: AsyncClient) -> None:
         """Test SSE health endpoint works (streaming tests done via service)."""
         r = await client.get("/api/v1/events/health")
         assert r.status_code == 200
@@ -142,7 +142,7 @@ class TestSSERoutes:
 
     @pytest.mark.asyncio
     async def test_multiple_concurrent_sse_service_connections(
-        self, scope: AsyncContainer, test_user: dict[str, str]
+        self, scope: AsyncContainer, test_user: AsyncClient
     ) -> None:
         """Test multiple concurrent SSE connections through the service."""
         sse_service: SSEService = await scope.get(SSEService)

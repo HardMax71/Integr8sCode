@@ -1,5 +1,9 @@
 import pytest
-from app.domain.enums.notification import NotificationChannel, NotificationStatus
+from app.domain.enums.notification import (
+    NotificationChannel,
+    NotificationSeverity,
+    NotificationStatus,
+)
 from app.schemas_pydantic.notification import (
     DeleteNotificationResponse,
     NotificationListResponse,
@@ -7,6 +11,8 @@ from app.schemas_pydantic.notification import (
     SubscriptionsResponse,
     UnreadCountResponse,
 )
+from app.services.notification_service import NotificationService
+from dishka import AsyncContainer
 from httpx import AsyncClient
 
 
@@ -132,9 +138,26 @@ class TestNotificationRoutes:
         assert "not found" in error_data["detail"].lower()
 
     @pytest.mark.asyncio
-    async def test_mark_all_notifications_as_read(self, test_user: AsyncClient) -> None:
+    async def test_mark_all_notifications_as_read(
+        self, test_user: AsyncClient, scope: AsyncContainer
+    ) -> None:
         """Test marking all notifications as read."""
-        # Capture initial unread count before marking all as read
+        # Get user_id and create a test notification to ensure we have something to mark
+        me_response = await test_user.get("/api/v1/auth/me")
+        assert me_response.status_code == 200
+        user_id = me_response.json()["user_id"]
+
+        notification_service = await scope.get(NotificationService)
+        await notification_service.create_notification(
+            user_id=user_id,
+            subject="Test notification",
+            body="Created for mark-all-read test",
+            tags=["test"],
+            severity=NotificationSeverity.LOW,
+            channel=NotificationChannel.IN_APP,
+        )
+
+        # Get initial unread count (guaranteed >= 1 now)
         initial_response = await test_user.get("/api/v1/notifications/unread-count")
         assert initial_response.status_code == 200
         initial_count = initial_response.json()["unread_count"]
@@ -143,15 +166,13 @@ class TestNotificationRoutes:
         mark_all_response = await test_user.post("/api/v1/notifications/mark-all-read")
         assert mark_all_response.status_code == 204
 
-        # Verify unread count decreased (monotonic non-increasing)
-        # This avoids flakiness from background notification creation
+        # Verify strict decrease - no branching needed
         final_response = await test_user.get("/api/v1/notifications/unread-count")
         assert final_response.status_code == 200
         final_count = final_response.json()["unread_count"]
 
-        assert final_count <= initial_count, (
-            f"Unread count should not increase after mark-all-read: "
-            f"was {initial_count}, now {final_count}"
+        assert final_count < initial_count, (
+            f"mark-all-read must decrease unread count: was {initial_count}, now {final_count}"
         )
 
     @pytest.mark.asyncio

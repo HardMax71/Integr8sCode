@@ -20,31 +20,27 @@ class CSRFMiddleware:
     - User is not authenticated (no access_token cookie)
     """
 
-    def __init__(
-        self,
-        app: ASGIApp,
-        security_service: SecurityService | None = None,
-    ) -> None:
+    def __init__(self, app: ASGIApp) -> None:
         self.app = app
-        self.security_service = security_service
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
 
-        # Lazily get service from Dishka container on first request
-        if self.security_service is None:
-            container = scope["app"].state.dishka_container
-            async with container() as container_scope:
-                self.security_service = await container_scope.get(SecurityService)
+        # Get SecurityService from DI container per-request
+        # Container is guaranteed to exist (set up before middlewares in create_app)
+        # SecurityService is APP-scoped so same instance is returned each time
+        container = scope["app"].state.dishka_container
+        async with container() as request_scope:
+            security_service: SecurityService = await request_scope.get(SecurityService)
 
         request = Request(scope, receive=receive)
 
         try:
             # validate_csrf_from_request returns "skip" or the token if valid
             # raises CSRFValidationError if invalid
-            self.security_service.validate_csrf_from_request(request)
+            security_service.validate_csrf_from_request(request)
             await self.app(scope, receive, send)
 
         except CSRFValidationError as e:

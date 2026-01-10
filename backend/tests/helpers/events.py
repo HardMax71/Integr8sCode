@@ -34,6 +34,7 @@ def make_execution_requested_event(
     metadata = AvroEventMetadata(service_name=service_name, service_version=service_version, user_id=user_id)
     return ExecutionRequestedEvent(
         execution_id=execution_id,
+        aggregate_id=execution_id,  # Match production: aggregate_id == execution_id for execution events
         script=script,
         language=language,
         language_version=language_version,

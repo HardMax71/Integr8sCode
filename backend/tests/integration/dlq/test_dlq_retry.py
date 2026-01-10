@@ -135,3 +135,91 @@ async def test_dlq_stats_reflect_retried_messages(scope: AsyncContainer) -> None
     stats_after = await repository.get_dlq_stats()
     count_after = stats_after.by_status.get(DLQMessageStatus.RETRIED.value, 0)
     assert count_after == count_before + 1
+
+
+@pytest.mark.asyncio
+async def test_dlq_retry_already_retried_message(scope: AsyncContainer) -> None:
+    """Test that retrying an already RETRIED message still succeeds at repository level.
+
+    Note: The DLQManager.retry_message_manually guards against this, but the
+    repository method doesn't - it's a low-level operation that always succeeds.
+    """
+    repository: DLQRepository = await scope.get(DLQRepository)
+
+    # Create an already RETRIED document
+    event_id = f"dlq-already-retried-{uuid.uuid4().hex[:8]}"
+    await _create_dlq_document(event_id=event_id, status=DLQMessageStatus.RETRIED)
+
+    # Repository method still succeeds (no guard at this level)
+    result = await repository.mark_message_retried(event_id)
+    assert result is True
+
+    # Status remains RETRIED
+    doc = await DLQMessageDocument.find_one({"event_id": event_id})
+    assert doc is not None
+    assert doc.status == DLQMessageStatus.RETRIED
+
+
+@pytest.mark.asyncio
+async def test_dlq_retry_discarded_message(scope: AsyncContainer) -> None:
+    """Test that retrying a DISCARDED message still succeeds at repository level.
+
+    Note: The DLQManager.retry_message_manually guards against this and returns False,
+    but the repository method is a low-level operation that doesn't validate transitions.
+    """
+    repository: DLQRepository = await scope.get(DLQRepository)
+
+    # Create a DISCARDED document
+    event_id = f"dlq-discarded-retry-{uuid.uuid4().hex[:8]}"
+    await _create_dlq_document(event_id=event_id, status=DLQMessageStatus.DISCARDED)
+
+    # Repository method succeeds (transitions status back to RETRIED)
+    result = await repository.mark_message_retried(event_id)
+    assert result is True
+
+    # Status is now RETRIED (repository doesn't guard transitions)
+    doc = await DLQMessageDocument.find_one({"event_id": event_id})
+    assert doc is not None
+    assert doc.status == DLQMessageStatus.RETRIED
+
+
+@pytest.mark.asyncio
+async def test_dlq_discard_already_discarded_message(scope: AsyncContainer) -> None:
+    """Test that discarding an already DISCARDED message updates the reason."""
+    repository: DLQRepository = await scope.get(DLQRepository)
+
+    # Create an already DISCARDED document
+    event_id = f"dlq-already-discarded-{uuid.uuid4().hex[:8]}"
+    await _create_dlq_document(event_id=event_id, status=DLQMessageStatus.DISCARDED)
+
+    # Discard again with a new reason
+    new_reason = "updated_discard_reason"
+    result = await repository.mark_message_discarded(event_id, new_reason)
+    assert result is True
+
+    # Reason is updated
+    doc = await DLQMessageDocument.find_one({"event_id": event_id})
+    assert doc is not None
+    assert doc.status == DLQMessageStatus.DISCARDED
+    assert doc.discard_reason == new_reason
+
+
+@pytest.mark.asyncio
+async def test_dlq_discard_retried_message(scope: AsyncContainer) -> None:
+    """Test that discarding a RETRIED message transitions to DISCARDED."""
+    repository: DLQRepository = await scope.get(DLQRepository)
+
+    # Create a RETRIED document
+    event_id = f"dlq-retried-discard-{uuid.uuid4().hex[:8]}"
+    await _create_dlq_document(event_id=event_id, status=DLQMessageStatus.RETRIED)
+
+    # Discard it
+    reason = "manual_cleanup"
+    result = await repository.mark_message_discarded(event_id, reason)
+    assert result is True
+
+    # Status is now DISCARDED
+    doc = await DLQMessageDocument.find_one({"event_id": event_id})
+    assert doc is not None
+    assert doc.status == DLQMessageStatus.DISCARDED
+    assert doc.discard_reason == reason

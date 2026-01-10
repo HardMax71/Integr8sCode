@@ -2,9 +2,8 @@ from datetime import datetime, timezone
 from typing import TypedDict
 
 import pytest
-from httpx import AsyncClient
-
 from app.schemas_pydantic.user_settings import SettingsHistoryResponse, UserSettings
+from httpx import AsyncClient
 from tests.helpers.eventually import eventually
 
 
@@ -33,6 +32,7 @@ class _UpdateSettingsData(TypedDict, total=False):
     notifications: _NotificationSettings
     editor: _EditorSettings
     custom_settings: dict[str, str]
+
 
 # Force these tests to run sequentially on a single worker to avoid state conflicts
 pytestmark = pytest.mark.xdist_group(name="user_settings")
@@ -82,11 +82,12 @@ class TestUserSettingsRoutes:
         assert isinstance(settings.notifications.system_updates, bool)
         assert isinstance(settings.notifications.security_alerts, bool)
 
-        # Verify editor settings  
+        # Verify editor settings
         assert settings.editor is not None
         assert isinstance(settings.editor.font_size, int)
         assert 8 <= settings.editor.font_size <= 32
-        assert settings.editor.theme in ["auto", "one-dark", "monokai", "github", "dracula", "solarized", "vs", "vscode"]
+        assert settings.editor.theme in ["auto", "one-dark", "monokai", "github", "dracula", "solarized", "vs",
+                                         "vscode"]
         assert isinstance(settings.editor.tab_size, int)
         assert settings.editor.tab_size in [2, 4, 8]
         assert isinstance(settings.editor.word_wrap, bool)
@@ -364,7 +365,7 @@ class TestUserSettingsRoutes:
         assert response.status_code in [400, 422]
 
     @pytest.mark.asyncio
-    async def test_settings_isolation_between_users(self, client: AsyncClient,
+    async def test_settings_isolation_between_users(self,
                                                     test_user: AsyncClient,
                                                     another_user: AsyncClient) -> None:
         """Test that settings are isolated between users."""

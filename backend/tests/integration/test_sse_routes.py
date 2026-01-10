@@ -34,8 +34,8 @@ class TestSSERoutes:
         assert r.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_sse_health_status(self, client: AsyncClient, test_user: AsyncClient) -> None:
-        r = await client.get("/api/v1/events/health")
+    async def test_sse_health_status(self, test_user: AsyncClient) -> None:
+        r = await test_user.get("/api/v1/events/health")
         assert r.status_code == 200
         health = SSEHealthResponse(**r.json())
         assert health.status in ("healthy", "degraded", "unhealthy", "draining")
@@ -134,15 +134,15 @@ class TestSSERoutes:
         assert r.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_sse_endpoint_returns_correct_headers(self, client: AsyncClient, test_user: AsyncClient) -> None:
+    async def test_sse_endpoint_returns_correct_headers(self, test_user: AsyncClient) -> None:
         """Test SSE health endpoint works (streaming tests done via service)."""
-        r = await client.get("/api/v1/events/health")
+        r = await test_user.get("/api/v1/events/health")
         assert r.status_code == 200
         assert isinstance(r.json(), dict)
 
     @pytest.mark.asyncio
     async def test_multiple_concurrent_sse_service_connections(
-        self, scope: AsyncContainer, test_user: AsyncClient
+            self, scope: AsyncContainer, test_user: AsyncClient
     ) -> None:
         """Test multiple concurrent SSE connections through the service."""
         sse_service: SSEService = await scope.get(SSEService)

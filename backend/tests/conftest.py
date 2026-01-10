@@ -15,26 +15,33 @@ from fastapi import FastAPI
 from httpx import ASGITransport
 
 # ===== Worker-specific isolation for pytest-xdist =====
+# Redis has 16 DBs (0-15); each xdist worker gets one, limiting parallel workers to 16.
 _WORKER_ID = os.environ.get("PYTEST_XDIST_WORKER", "gw0")
+_WORKER_NUM = int(_WORKER_ID.removeprefix("gw") or "0")
+assert _WORKER_NUM < 16, f"xdist worker {_WORKER_NUM} >= 16 exceeds Redis DB limit; use -n 16 or fewer"
 
 
 # ===== Settings fixture =====
 @pytest.fixture(scope="session")
 def test_settings() -> Settings:
-    """Provide test settings with a unique Kafka topic prefix for isolation."""
+    """Provide test settings with worker isolation via consumer groups (not topics).
+
+    Topic prefix comes from environment (KAFKA_TOPIC_PREFIX) and is used AS-IS.
+    Worker isolation happens via KAFKA_GROUP_SUFFIX - each worker gets unique consumer groups.
+    This ensures topics created by CI/scripts match what tests expect.
+    """
     # _env_file is a pydantic-settings init kwarg
     base = Settings(_env_file=".env.test", _env_file_encoding="utf-8")
     session_id = uuid.uuid4().hex[:8]
-    base_prefix = f"{base.KAFKA_TOPIC_PREFIX.rstrip('.')}."
-    worker_num = sum(_WORKER_ID.encode()) % 16
-    unique_prefix = f"{base_prefix}{session_id}.{_WORKER_ID}."
+    # Topic prefix from env/settings used as-is; worker isolation via consumer groups only
+    topic_prefix = f"{base.KAFKA_TOPIC_PREFIX.rstrip('.')}."
     return base.model_copy(
         update={
             "DATABASE_NAME": f"integr8scode_test_{session_id}_{_WORKER_ID}",
-            "REDIS_DB": worker_num % 16,
+            "REDIS_DB": _WORKER_NUM,
             "KAFKA_GROUP_SUFFIX": f"{session_id}.{_WORKER_ID}",
-            "SCHEMA_SUBJECT_PREFIX": f"test.{session_id}.{_WORKER_ID}.",
-            "KAFKA_TOPIC_PREFIX": unique_prefix,
+            "SCHEMA_SUBJECT_PREFIX": f"{base.SCHEMA_SUBJECT_PREFIX.rstrip('.')}.{session_id}.{_WORKER_ID}.",
+            "KAFKA_TOPIC_PREFIX": topic_prefix,
             "OTEL_EXPORTER_OTLP_ENDPOINT": None,  # Disable OTel metrics export in tests
             "ENABLE_TRACING": False,  # Fully disable tracing/metrics in tests
         }

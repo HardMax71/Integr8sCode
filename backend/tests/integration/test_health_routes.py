@@ -1,6 +1,5 @@
 import asyncio
 import time
-from typing import Dict
 
 import pytest
 from httpx import AsyncClient
@@ -48,7 +47,7 @@ class TestHealthRoutes:
         assert all(r.status_code == 200 for r in responses)
 
     @pytest.mark.asyncio
-    async def test_app_responds_during_load(self, client: AsyncClient, test_user: Dict[str, str]) -> None:
+    async def test_app_responds_during_load(self, client: AsyncClient, test_user: AsyncClient) -> None:
         # Create some load with execution requests
         async def create_load() -> int | None:
             execution_request = {
@@ -57,7 +56,7 @@ class TestHealthRoutes:
                 "lang_version": "3.11"
             }
             try:
-                response = await client.post("/api/v1/execute", json=execution_request)
+                response = await test_user.post("/api/v1/execute", json=execution_request)
                 return response.status_code
             except Exception:
                 return None

@@ -44,17 +44,18 @@ def test_settings() -> Settings:
 # ===== App fixture =====
 @pytest_asyncio.fixture(scope="session")
 async def app(test_settings: Settings) -> AsyncGenerator[FastAPI, None]:
-    """Create FastAPI app with test settings.
+    """Create FastAPI app with test settings and run lifespan.
 
     Session-scoped to avoid Pydantic schema validator memory issues when
     FastAPI recreates OpenAPI schemas hundreds of times with pytest-xdist.
+
+    Uses lifespan_context to trigger startup/shutdown events, which initializes
+    Beanie, metrics, and other services through the normal DI flow.
     """
     application = create_app(settings=test_settings)
 
-    yield application
-
-    if hasattr(application.state, "dishka_container"):
-        await application.state.dishka_container.close()
+    async with application.router.lifespan_context(application):
+        yield application
 
 
 @pytest_asyncio.fixture(scope="session")

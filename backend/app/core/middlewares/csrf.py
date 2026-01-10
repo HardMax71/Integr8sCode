@@ -1,9 +1,14 @@
+import logging
+
+from dishka import AsyncContainer
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.core.security import SecurityService
 from app.domain.user import CSRFValidationError
+
+logger = logging.getLogger(__name__)
 
 
 class CSRFMiddleware:
@@ -20,20 +25,16 @@ class CSRFMiddleware:
     - User is not authenticated (no access_token cookie)
     """
 
-    def __init__(self, app: ASGIApp) -> None:
+    def __init__(self, app: ASGIApp, container: AsyncContainer) -> None:
         self.app = app
+        self.container = container
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
 
-        # Get SecurityService from DI container per-request
-        # Container is guaranteed to exist (set up before middlewares in create_app)
-        # SecurityService is APP-scoped so same instance is returned each time
-        container = scope["app"].state.dishka_container
-        async with container() as request_scope:
-            security_service: SecurityService = await request_scope.get(SecurityService)
+        security_service: SecurityService = await self.container.get(SecurityService)
 
         request = Request(scope, receive=receive)
 
@@ -44,8 +45,12 @@ class CSRFMiddleware:
             await self.app(scope, receive, send)
 
         except CSRFValidationError as e:
+            logger.warning(
+                "CSRF validation failed",
+                extra={"path": request.url.path, "method": request.method, "reason": str(e)},
+            )
             response = JSONResponse(
                 status_code=403,
-                content={"detail": str(e)},
+                content={"detail": "CSRF validation failed"},
             )
             await response(scope, receive, send)

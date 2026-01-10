@@ -146,15 +146,16 @@ async def test_dlq_stats_reflect_discarded_messages(scope: AsyncContainer) -> No
     """Test that DLQ statistics correctly count discarded messages."""
     repository: DLQRepository = await scope.get(DLQRepository)
 
+    # Capture count before to ensure our discard is what increments the stat
+    stats_before = await repository.get_dlq_stats()
+    count_before = stats_before.by_status.get(DLQMessageStatus.DISCARDED.value, 0)
+
     # Create and discard a message
     event_id = f"dlq-stats-{uuid.uuid4().hex[:8]}"
     await _create_dlq_document(event_id=event_id, status=DLQMessageStatus.PENDING)
     await repository.mark_message_discarded(event_id, "test")
 
-    # Get stats
-    stats = await repository.get_dlq_stats()
-
-    # Stats should include discarded count
-    assert stats is not None
-    # The stats structure contains status counts
-    assert stats.by_status.get(DLQMessageStatus.DISCARDED, 0) >= 1
+    # Get stats after - verify the count incremented by exactly 1
+    stats_after = await repository.get_dlq_stats()
+    count_after = stats_after.by_status.get(DLQMessageStatus.DISCARDED.value, 0)
+    assert count_after == count_before + 1

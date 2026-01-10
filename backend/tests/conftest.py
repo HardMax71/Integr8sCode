@@ -156,7 +156,8 @@ async def _create_authenticated_client(
             "password": password,
             "role": role,
         })
-        if r.status_code not in (200, 201, 400):
+        # 200: created, 400: username exists, 409: email exists - all OK to proceed to login
+        if r.status_code not in (200, 400, 409):
             pytest.fail(f"Cannot create {role} (status {r.status_code}): {r.text}")
 
         login_resp = await c.post("/api/v1/auth/login", data={

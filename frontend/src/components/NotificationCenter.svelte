@@ -91,8 +91,8 @@
             try {
                 const data = JSON.parse(event.data);
                 
-                // Ignore heartbeat and connection messages
-                if (data.event === 'heartbeat' || data.event === 'connected') {
+                // Ignore heartbeat, connection, and subscription confirmation messages
+                if (data.event_type === 'heartbeat' || data.event_type === 'connected' || data.event_type === 'subscribed') {
                     return;
                 }
                 

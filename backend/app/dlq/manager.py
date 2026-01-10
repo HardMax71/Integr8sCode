@@ -13,9 +13,11 @@ from app.core.tracing import EventAttributes
 from app.core.tracing.utils import extract_trace_context, get_tracer, inject_trace_context
 from app.db.docs import DLQMessageDocument
 from app.dlq.models import (
+    DLQBatchRetryResult,
     DLQMessage,
     DLQMessageStatus,
     DLQMessageUpdate,
+    DLQRetryResult,
     RetryPolicy,
     RetryStrategy,
 )
@@ -458,6 +460,35 @@ class DLQManager(LifecycleEnabled):
         message = self._doc_to_message(doc)
         await self._retry_message(message)
         return True
+
+    async def retry_messages_batch(self, event_ids: list[str]) -> DLQBatchRetryResult:
+        """Retry multiple DLQ messages in batch.
+
+        Args:
+            event_ids: List of event IDs to retry
+
+        Returns:
+            Batch result with success/failure counts and details
+        """
+        details: list[DLQRetryResult] = []
+        successful = 0
+        failed = 0
+
+        for event_id in event_ids:
+            try:
+                success = await self.retry_message_manually(event_id)
+                if success:
+                    successful += 1
+                    details.append(DLQRetryResult(event_id=event_id, status="success"))
+                else:
+                    failed += 1
+                    details.append(DLQRetryResult(event_id=event_id, status="failed", error="Retry failed"))
+            except Exception as e:
+                self.logger.error(f"Error retrying message {event_id}: {e}")
+                failed += 1
+                details.append(DLQRetryResult(event_id=event_id, status="failed", error=str(e)))
+
+        return DLQBatchRetryResult(total=len(event_ids), successful=successful, failed=failed, details=details)
 
 
 def create_dlq_manager(

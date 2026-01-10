@@ -1,18 +1,15 @@
-import asyncio
 import logging
-from collections.abc import Callable
-from typing import Awaitable, ClassVar
+from typing import ClassVar
 from unittest.mock import MagicMock
 
 import pytest
-
 from app.core.metrics.events import EventMetrics
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.events.core import EventDispatcher
+from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.events import BaseEvent
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata
-from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
 from app.services.sse.redis_bus import SSERedisBus
 from app.settings import Settings
@@ -30,16 +27,6 @@ class _FakeBus(SSERedisBus):
 
     async def publish_event(self, execution_id: str, event: object) -> None:
         self.published.append((execution_id, event))
-
-
-class _StubDispatcher(EventDispatcher):
-    """Stub EventDispatcher for testing."""
-
-    def __init__(self) -> None:
-        self.handlers: dict[EventType, Callable[[BaseEvent], Awaitable[None]]] = {}
-
-    def register_handler(self, et: EventType, fn: Callable[[BaseEvent], Awaitable[None]]) -> None:
-        self.handlers[et] = fn
 
 
 def _make_metadata() -> AvroEventMetadata:
@@ -71,12 +58,13 @@ async def test_register_and_route_events_without_kafka() -> None:
         logger=_test_logger,
     )
 
-    disp = _StubDispatcher()
+    disp = EventDispatcher(_test_logger)
     bridge._register_routing_handlers(disp)
-    assert EventType.EXECUTION_STARTED in disp.handlers
+    handlers = disp.get_handlers(EventType.EXECUTION_STARTED)
+    assert len(handlers) > 0
 
     # Event without execution_id is ignored
-    h = disp.handlers[EventType.EXECUTION_STARTED]
+    h = handlers[0]
     await h(_DummyEvent(event_type=EventType.EXECUTION_STARTED, metadata=_make_metadata(), execution_id=None))
     assert fake_bus.published == []
 

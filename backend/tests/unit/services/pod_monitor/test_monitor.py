@@ -5,9 +5,14 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-
 from app.core.k8s_clients import K8sClients
+from app.db.repositories.event_repository import EventRepository
+from app.domain.events import Event
+from app.domain.execution.models import ResourceUsageDomain
+from app.events.core import UnifiedProducer
 from app.infrastructure.kafka.events.base import BaseEvent
+from app.infrastructure.kafka.events.execution import ExecutionCompletedEvent, ExecutionStartedEvent
+from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.services.kafka_event_service import KafkaEventService
 from app.services.pod_monitor.config import PodMonitorConfig
 from app.services.pod_monitor.event_mapper import PodEventMapper
@@ -19,31 +24,68 @@ from app.services.pod_monitor.monitor import (
     WatchEventType,
     create_pod_monitor,
 )
-from tests.helpers.k8s_fakes import FakeApi, FakeV1Api, FakeWatch, FakeWatchStream, make_k8s_clients, make_pod, make_watch
+from app.settings import Settings
+
+from tests.helpers.k8s_fakes import (
+    FakeApi,
+    FakeV1Api,
+    FakeWatch,
+    FakeWatchStream,
+    make_k8s_clients,
+    make_pod,
+    make_watch,
+)
 
 pytestmark = pytest.mark.unit
 
-# Test logger for all tests
 _test_logger = logging.getLogger("test.pod_monitor")
 
 
-# ===== Fake KafkaEventService for tests =====
+# ===== Test doubles for KafkaEventService dependencies =====
 
 
-class FakeKafkaEventService(KafkaEventService):
-    """Fake KafkaEventService for testing - inherits from real class for type safety."""
+class FakeEventRepository(EventRepository):
+    """In-memory event repository for testing."""
 
     def __init__(self) -> None:
-        # Skip parent __init__ - use MagicMocks for required attributes
-        self._event_repository = MagicMock()
-        self._kafka_producer = MagicMock()
-        self._settings = MagicMock()
-        self._logger = MagicMock()
-        self.published_events: list[tuple[BaseEvent, str | None]] = []
+        super().__init__(_test_logger)
+        self.stored_events: list[Event] = []
 
-    async def publish_base_event(self, event: BaseEvent, key: str | None = None) -> str:
-        self.published_events.append((event, key))
+    async def store_event(self, event: Event) -> str:
+        self.stored_events.append(event)
         return event.event_id
+
+
+class FakeUnifiedProducer(UnifiedProducer):
+    """Fake producer that captures events without Kafka."""
+
+    def __init__(self) -> None:
+        # Don't call super().__init__ - we don't need real Kafka
+        self.produced_events: list[tuple[BaseEvent, str | None]] = []
+        self.logger = _test_logger
+
+    async def produce(
+        self, event_to_produce: BaseEvent, key: str | None = None, headers: dict[str, str] | None = None
+    ) -> None:
+        self.produced_events.append((event_to_produce, key))
+
+    async def aclose(self) -> None:
+        pass
+
+
+def create_test_kafka_event_service() -> tuple[KafkaEventService, FakeUnifiedProducer]:
+    """Create real KafkaEventService with fake dependencies for testing."""
+    fake_producer = FakeUnifiedProducer()
+    fake_repo = FakeEventRepository()
+    settings = Settings()  # Uses defaults/env vars
+
+    service = KafkaEventService(
+        event_repository=fake_repo,
+        kafka_producer=fake_producer,
+        settings=settings,
+        logger=_test_logger,
+    )
+    return service, fake_producer
 
 
 # ===== Helpers to create test instances with pure DI =====
@@ -88,9 +130,10 @@ def make_pod_monitor(
     cfg = config or PodMonitorConfig()
     clients = k8s_clients or make_k8s_clients_di()
     mapper = event_mapper or PodEventMapper(logger=_test_logger, k8s_api=FakeApi("{}"))
+    service = kafka_service or create_test_kafka_event_service()[0]
     return PodMonitor(
         config=cfg,
-        kafka_event_service=kafka_service or FakeKafkaEventService(),
+        kafka_event_service=service,
         logger=_test_logger,
         k8s_clients=clients,
         event_mapper=mapper,
@@ -344,56 +387,59 @@ async def test_process_pod_event_exception_handling() -> None:
 
 @pytest.mark.asyncio
 async def test_publish_event_full_flow() -> None:
-    from app.domain.enums.events import EventType
-
     cfg = PodMonitorConfig()
-    fake_service = FakeKafkaEventService()
-    pm = make_pod_monitor(config=cfg, kafka_service=fake_service)
+    service, fake_producer = create_test_kafka_event_service()
+    pm = make_pod_monitor(config=cfg, kafka_service=service)
 
-    class Event:
-        event_type = EventType.EXECUTION_COMPLETED
-        metadata = types.SimpleNamespace(correlation_id=None)
-        aggregate_id = "exec1"
-        execution_id = "exec1"
-        event_id = "evt-123"
+    event = ExecutionCompletedEvent(
+        execution_id="exec1",
+        aggregate_id="exec1",
+        exit_code=0,
+        resource_usage=ResourceUsageDomain(),
+        metadata=AvroEventMetadata(service_name="test", service_version="1.0"),
+    )
 
     pod = make_pod(name="test-pod", phase="Succeeded", labels={"execution-id": "exec1"})
-    await pm._publish_event(Event(), pod)  # type: ignore[arg-type]
+    await pm._publish_event(event, pod)
 
-    assert len(fake_service.published_events) == 1
-    assert fake_service.published_events[0][1] == "exec1"
+    assert len(fake_producer.produced_events) == 1
+    assert fake_producer.produced_events[0][1] == "exec1"
 
 
 @pytest.mark.asyncio
 async def test_publish_event_exception_handling() -> None:
-    from app.domain.enums.events import EventType
-
     cfg = PodMonitorConfig()
 
-    class FailingKafkaEventService(KafkaEventService):
-        def __init__(self) -> None:
-            self._event_repository = MagicMock()
-            self._kafka_producer = MagicMock()
-            self._settings = MagicMock()
-            self._logger = MagicMock()
-
-        async def publish_base_event(self, event: BaseEvent, key: str | None = None) -> str:  # noqa: ARG002
+    class FailingProducer(FakeUnifiedProducer):
+        async def produce(
+            self, event_to_produce: BaseEvent, key: str | None = None, headers: dict[str, str] | None = None
+        ) -> None:
             raise RuntimeError("Publish failed")
 
-    pm = make_pod_monitor(config=cfg, kafka_service=FailingKafkaEventService())
+    # Create service with failing producer
+    failing_producer = FailingProducer()
+    fake_repo = FakeEventRepository()
+    failing_service = KafkaEventService(
+        event_repository=fake_repo,
+        kafka_producer=failing_producer,
+        settings=Settings(),
+        logger=_test_logger,
+    )
 
-    class Event:
-        event_type = EventType.EXECUTION_STARTED
-        metadata = types.SimpleNamespace(correlation_id=None)
-        aggregate_id = None
-        execution_id = None
+    pm = make_pod_monitor(config=cfg, kafka_service=failing_service)
 
-    class Pod:
-        metadata = None
-        status = None
+    event = ExecutionStartedEvent(
+        execution_id="exec1",
+        pod_name="test-pod",
+        metadata=AvroEventMetadata(service_name="test", service_version="1.0"),
+    )
+
+    # Use pod with no metadata to exercise edge case
+    pod = make_pod(name="no-meta-pod", phase="Pending")
+    pod.metadata = None  # type: ignore[assignment]
 
     # Should not raise - errors are caught and logged
-    await pm._publish_event(Event(), Pod())  # type: ignore[arg-type]
+    await pm._publish_event(event, pod)
 
 
 @pytest.mark.asyncio
@@ -510,10 +556,10 @@ async def test_create_pod_monitor_context_manager(monkeypatch: pytest.MonkeyPatc
     cfg = PodMonitorConfig()
     cfg.enable_state_reconciliation = False
 
-    fake_service = FakeKafkaEventService()
+    service, _ = create_test_kafka_event_service()
 
     # Use the actual create_pod_monitor which will use our mocked create_k8s_clients
-    async with create_pod_monitor(cfg, fake_service, _test_logger) as monitor:
+    async with create_pod_monitor(cfg, service, _test_logger) as monitor:
         assert monitor.state == MonitorState.RUNNING
 
     assert monitor.state.value == MonitorState.STOPPED.value
@@ -525,7 +571,7 @@ async def test_create_pod_monitor_with_injected_k8s_clients() -> None:
     cfg = PodMonitorConfig()
     cfg.enable_state_reconciliation = False
 
-    fake_service = FakeKafkaEventService()
+    service, _ = create_test_kafka_event_service()
 
     mock_v1 = FakeV1Api()
     mock_watch = make_watch([])
@@ -538,7 +584,7 @@ async def test_create_pod_monitor_with_injected_k8s_clients() -> None:
     )
 
     async with create_pod_monitor(
-        cfg, fake_service, _test_logger, k8s_clients=mock_k8s_clients
+        cfg, service, _test_logger, k8s_clients=mock_k8s_clients
     ) as monitor:
         assert monitor.state == MonitorState.RUNNING
         assert monitor._clients is mock_k8s_clients

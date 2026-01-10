@@ -4,9 +4,9 @@ import time
 from enum import Enum
 from typing import Dict, Set
 
+from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics.context import get_connection_metrics
 from app.domain.sse import ShutdownStatus
-from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
 
 
 class ShutdownPhase(Enum):
@@ -57,7 +57,7 @@ class SSEShutdownManager:
         self._draining_connections: Set[str] = set()
 
         # Router reference (set during initialization)
-        self._router: SSEKafkaRedisBridge | None = None
+        self._router: LifecycleEnabled | None = None
 
         # Synchronization
         self._lock = asyncio.Lock()
@@ -69,7 +69,7 @@ class SSEShutdownManager:
             extra={"drain_timeout": drain_timeout, "notification_timeout": notification_timeout},
         )
 
-    def set_router(self, router: "SSEKafkaRedisBridge") -> None:
+    def set_router(self, router: LifecycleEnabled) -> None:
         """Set the router reference for shutdown coordination."""
         self._router = router
 

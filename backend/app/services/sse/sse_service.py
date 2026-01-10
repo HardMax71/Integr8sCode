@@ -81,6 +81,16 @@ class SSEService:
             subscription = await sub_task
             self.logger.info("Redis subscription opened for execution", extra={"execution_id": execution_id})
 
+            # Signal that subscription is ready - safe to publish events now
+            yield self._format_sse_event(
+                SSEExecutionEventData(
+                    event_type="subscribed",
+                    execution_id=execution_id,
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    message="Redis subscription established",
+                )
+            )
+
             initial_status = await self.repository.get_execution_status(execution_id)
             if initial_status:
                 yield self._format_sse_event(
@@ -201,6 +211,16 @@ class SSEService:
 
             # Complete Redis subscription after handshake
             subscription = await sub_task
+
+            # Signal that subscription is ready - safe to publish notifications now
+            yield self._format_notification_event(
+                SSENotificationEventData(
+                    event_type="subscribed",
+                    user_id=user_id,
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    message="Redis subscription established",
+                )
+            )
 
             last_heartbeat = datetime.now(timezone.utc)
             while not self.shutdown_manager.is_shutting_down():

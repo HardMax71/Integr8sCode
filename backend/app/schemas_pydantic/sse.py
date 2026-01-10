@@ -9,7 +9,7 @@ from app.domain.enums.notification import NotificationSeverity, NotificationStat
 from app.schemas_pydantic.execution import ExecutionResult, ResourceUsage
 
 # Control event types sent by SSE (not from Kafka)
-SSEControlEventType = Literal["connected", "heartbeat", "shutdown", "status", "error"]
+SSEControlEventType = Literal["connected", "subscribed", "heartbeat", "shutdown", "status", "error"]
 
 # Type variable for generic Redis message parsing
 T = TypeVar("T", bound=BaseModel)
@@ -69,7 +69,7 @@ class RedisSSEMessage(BaseModel):
 
 
 # Control event types for notification SSE stream
-SSENotificationControlEventType = Literal["connected", "heartbeat", "notification"]
+SSENotificationControlEventType = Literal["connected", "subscribed", "heartbeat", "notification"]
 
 
 class SSENotificationEventData(BaseModel):

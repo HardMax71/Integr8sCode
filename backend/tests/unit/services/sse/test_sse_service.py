@@ -141,6 +141,10 @@ async def test_execution_stream_closes_on_failed_event() -> None:
     first = await agen.__anext__()
     assert _decode(first)["event_type"] == "connected"
 
+    # Should emit subscribed after Redis subscription is ready
+    subscribed = await agen.__anext__()
+    assert _decode(subscribed)["event_type"] == "subscribed"
+
     # Should emit initial status
     stat = await agen.__anext__()
     assert _decode(stat)["event_type"] == "status"
@@ -176,6 +180,7 @@ async def test_execution_stream_result_stored_includes_result_payload() -> None:
 
     agen = svc.create_execution_stream("exec-2", user_id="u1")
     await agen.__anext__()  # connected
+    await agen.__anext__()  # subscribed
     await agen.__anext__()  # status
 
     await bus.exec_sub.push({"event_type": EventType.RESULT_STORED, "execution_id": "exec-2", "data": {}})
@@ -200,6 +205,10 @@ async def test_notification_stream_connected_and_heartbeat_and_message() -> None
     agen = svc.create_notification_stream("u1")
     connected = await agen.__anext__()
     assert _decode(connected)["event_type"] == "connected"
+
+    # Should emit subscribed after Redis subscription is ready
+    subscribed = await agen.__anext__()
+    assert _decode(subscribed)["event_type"] == "subscribed"
 
     # With 0 interval, next yield should be heartbeat
     hb = await agen.__anext__()

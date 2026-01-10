@@ -33,21 +33,12 @@ class CSRFMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # Try to get service from Dishka container if not initialized
+        # Lazily get service from Dishka container on first request
         if self.security_service is None:
-            asgi_app = scope.get("app")
-            if asgi_app:
-                container = asgi_app.state.dishka_container
-                async with container() as container_scope:
-                    self.security_service = await container_scope.get(SecurityService)
+            container = scope["app"].state.dishka_container
+            async with container() as container_scope:
+                self.security_service = await container_scope.get(SecurityService)
 
-            if self.security_service is None:
-                # If we can't get the service, allow the request through
-                # (other auth mechanisms will handle protection)
-                await self.app(scope, receive, send)
-                return
-
-        # Build request object for validation
         request = Request(scope, receive=receive)
 
         try:

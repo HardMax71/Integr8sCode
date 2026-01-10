@@ -288,15 +288,7 @@ class TestEventsRoutes:
         event_types = response.json()
         assert isinstance(event_types, list)
 
-        # Should contain common event types
-        common_types = [
-            "execution.requested",
-            "execution.completed",
-            "user.logged_in",
-            "user.registered"
-        ]
-
-        # At least some common types should be present
+        # Event types should be non-empty strings
         for event_type in event_types:
             assert isinstance(event_type, str)
             assert len(event_type) > 0
@@ -460,34 +452,48 @@ class TestEventsRoutes:
     async def test_events_isolation_between_users(self, test_user: AsyncClient,
                                                   test_admin: AsyncClient) -> None:
         """Test that events are properly isolated between users."""
+        # Get each user's user_id from /me endpoint
+        user_me_response = await test_user.get("/api/v1/auth/me")
+        assert user_me_response.status_code == 200
+        user_id = user_me_response.json()["user_id"]
+
+        admin_me_response = await test_admin.get("/api/v1/auth/me")
+        assert admin_me_response.status_code == 200
+        admin_id = admin_me_response.json()["user_id"]
+
+        # Verify the two users are different
+        assert user_id != admin_id, "Test requires two different users"
+
         # Get events as regular user
         user_events_response = await test_user.get("/api/v1/events/user?limit=10")
         assert user_events_response.status_code == 200
 
         user_events = user_events_response.json()
-        user_event_ids = [e["event_id"] for e in user_events["events"]]
+        user_event_ids = {e["event_id"] for e in user_events["events"]}
 
         # Get events as admin (without include_all_users flag)
         admin_events_response = await test_admin.get("/api/v1/events/user?limit=10")
         assert admin_events_response.status_code == 200
 
         admin_events = admin_events_response.json()
-        admin_event_ids = [e["event_id"] for e in admin_events["events"]]
+        admin_event_ids = {e["event_id"] for e in admin_events["events"]}
 
-        # Events should be different (unless users share some events)
-        # Each user should only see their own events
-        # We verify this by checking that if events exist, they have user_id in metadata
+        # Verify user events belong to the user
         for event in user_events["events"]:
             meta = event.get("metadata") or {}
             if meta.get("user_id"):
-                # User events should belong to the user
-                # We can't access the user_id directly from the fixture anymore
-                # but we can verify events are returned (isolation is enforced server-side)
-                assert meta["user_id"] is not None
+                assert meta["user_id"] == user_id, (
+                    f"User event has wrong user_id: expected {user_id}, got {meta['user_id']}"
+                )
 
+        # Verify admin events belong to the admin
         for event in admin_events["events"]:
             meta = event.get("metadata") or {}
             if meta.get("user_id"):
-                # Admin events should belong to the admin
-                # We verify events are returned (isolation is enforced server-side)
-                assert meta["user_id"] is not None
+                assert meta["user_id"] == admin_id, (
+                    f"Admin event has wrong user_id: expected {admin_id}, got {meta['user_id']}"
+                )
+
+        # Verify no overlap in event IDs between users (proper isolation)
+        overlap = user_event_ids & admin_event_ids
+        assert not overlap, f"Events leaked between users: {overlap}"

@@ -5,15 +5,14 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
-from dishka import AsyncContainer
-from httpx import AsyncClient
-
 from app.domain.enums.notification import NotificationSeverity, NotificationStatus
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.infrastructure.kafka.events.pod import PodCreatedEvent
 from app.schemas_pydantic.sse import RedisNotificationMessage, SSEHealthResponse
 from app.services.sse.redis_bus import SSERedisBus
 from app.services.sse.sse_service import SSEService
+from dishka import AsyncContainer
+from httpx import AsyncClient
 
 
 @pytest.mark.integration
@@ -61,10 +60,8 @@ class TestSSERoutes:
                         data = json.loads(event["data"])
                         events.append(data)
 
-                        # After connected, publish the notification
-                        if data.get("event_type") == "connected":
-                            # Small delay to let Redis pubsub subscription fully establish
-                            await asyncio.sleep(0.1)
+                        # Wait for "subscribed" event - Redis subscription is now ready
+                        if data.get("event_type") == "subscribed":
                             notification = RedisNotificationMessage(
                                 notification_id=f"notif-{uuid4().hex[:8]}",
                                 severity=NotificationSeverity.MEDIUM,
@@ -90,7 +87,7 @@ class TestSSERoutes:
     async def test_execution_event_stream_service(self, scope: AsyncContainer, test_user: dict[str, str]) -> None:
         """Test SSE execution stream directly through service (httpx doesn't support SSE streaming)."""
         exec_id = f"e-{uuid4().hex[:8]}"
-        user_id = "test-user-id"
+        user_id = f"user-{uuid4().hex[:8]}"
 
         sse_service: SSEService = await scope.get(SSEService)
         bus: SSERedisBus = await scope.get(SSERedisBus)
@@ -107,10 +104,8 @@ class TestSSERoutes:
                         data = json.loads(event["data"])
                         events.append(data)
 
-                        # After connected, publish the pod event
-                        if data.get("event_type") == "connected":
-                            # Small delay to let Redis pubsub subscription fully establish
-                            await asyncio.sleep(0.1)
+                        # Wait for "subscribed" event - Redis subscription is now ready
+                        if data.get("event_type") == "subscribed":
                             ev = PodCreatedEvent(
                                 execution_id=exec_id,
                                 pod_name=f"executor-{exec_id}",
@@ -146,7 +141,9 @@ class TestSSERoutes:
         assert isinstance(r.json(), dict)
 
     @pytest.mark.asyncio
-    async def test_multiple_concurrent_sse_service_connections(self, scope: AsyncContainer, test_user: dict[str, str]) -> None:
+    async def test_multiple_concurrent_sse_service_connections(
+        self, scope: AsyncContainer, test_user: dict[str, str]
+    ) -> None:
         """Test multiple concurrent SSE connections through the service."""
         sse_service: SSEService = await scope.get(SSEService)
 

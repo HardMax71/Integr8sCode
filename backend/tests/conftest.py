@@ -7,13 +7,12 @@ import httpx
 import pytest
 import pytest_asyncio
 import redis.asyncio as redis
-from dishka import AsyncContainer
-from fastapi import FastAPI
-from httpx import ASGITransport
-
 from app.core.database_context import Database
 from app.main import create_app
 from app.settings import Settings
+from dishka import AsyncContainer
+from fastapi import FastAPI
+from httpx import ASGITransport
 
 # ===== Worker-specific isolation for pytest-xdist =====
 _WORKER_ID = os.environ.get("PYTEST_XDIST_WORKER", "gw0")
@@ -97,11 +96,9 @@ async def db(scope: AsyncContainer) -> AsyncGenerator[Database, None]:
 
 @pytest_asyncio.fixture
 async def redis_client(scope: AsyncContainer) -> AsyncGenerator[redis.Redis, None]:
+    # Don't close here - Dishka's RedisProvider handles cleanup when scope exits
     client: redis.Redis = await scope.get(redis.Redis)
-    try:
-        yield client
-    finally:
-        await client.aclose()
+    yield client
 
 
 # ===== Authenticated client fixtures =====
@@ -118,24 +115,27 @@ async def _create_authenticated_client(
         timeout=30.0,
         follow_redirects=True,
     )
-    r = await c.post("/api/v1/auth/register", json={
-        "username": username,
-        "email": email,
-        "password": password,
-        "role": role,
-    })
-    if r.status_code not in (200, 201, 400):
-        await c.aclose()
-        pytest.fail(f"Cannot create {role} (status {r.status_code}): {r.text}")
+    try:
+        r = await c.post("/api/v1/auth/register", json={
+            "username": username,
+            "email": email,
+            "password": password,
+            "role": role,
+        })
+        if r.status_code not in (200, 201, 400):
+            pytest.fail(f"Cannot create {role} (status {r.status_code}): {r.text}")
 
-    login_resp = await c.post("/api/v1/auth/login", data={
-        "username": username,
-        "password": password,
-    })
-    login_resp.raise_for_status()
-    csrf = login_resp.json().get("csrf_token", "")
-    c.headers["X-CSRF-Token"] = csrf
-    return c
+        login_resp = await c.post("/api/v1/auth/login", data={
+            "username": username,
+            "password": password,
+        })
+        login_resp.raise_for_status()
+        csrf = login_resp.json().get("csrf_token", "")
+        c.headers["X-CSRF-Token"] = csrf
+        return c
+    except Exception:
+        await c.aclose()
+        raise
 
 
 @pytest_asyncio.fixture

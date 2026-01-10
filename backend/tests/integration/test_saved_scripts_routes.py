@@ -2,9 +2,8 @@ from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
 import pytest
-from httpx import AsyncClient
-
 from app.schemas_pydantic.saved_script import SavedScriptResponse
+from httpx import AsyncClient
 
 
 @pytest.mark.integration
@@ -397,11 +396,27 @@ class TestSavedScripts:
 
         script_id = create_response.json()["script_id"]
 
-        # Logout
+        # Get username before logout so we can re-login
+        me_response = await test_user.get("/api/v1/auth/me")
+        assert me_response.status_code == 200
+        username = me_response.json()["username"]
+
+        # Logout - this clears cookies via Set-Cookie response
         logout_response = await test_user.post("/api/v1/auth/logout")
         assert logout_response.status_code == 200
 
-        # Script should still exist after logout/login (test_user fixture handles re-authentication)
+        # Re-login to get fresh authentication
+        login_response = await test_user.post(
+            "/api/v1/auth/login",
+            data={"username": username, "password": "TestPass123!"},
+        )
+        assert login_response.status_code == 200
+
+        # Update CSRF header from new session
+        csrf_token = login_response.json().get("csrf_token", "")
+        test_user.headers["X-CSRF-Token"] = csrf_token
+
+        # Script should still exist after logout/login cycle
         get_response = await test_user.get(f"/api/v1/scripts/{script_id}")
         assert get_response.status_code == 200
 

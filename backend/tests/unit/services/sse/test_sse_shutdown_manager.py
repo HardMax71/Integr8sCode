@@ -1,29 +1,32 @@
 import asyncio
 import logging
-from typing import cast
 
 import pytest
 
-pytestmark = pytest.mark.unit
-
-from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
+from app.core.lifecycle import LifecycleEnabled
 from app.services.sse.sse_shutdown_manager import SSEShutdownManager
+
+pytestmark = pytest.mark.unit
 
 _test_logger = logging.getLogger("test.services.sse.sse_shutdown_manager")
 
 
-class _FakeRouter:
-    def __init__(self) -> None:
-        self.stopped = False
+class _FakeRouter(LifecycleEnabled):
+    """Fake router that tracks whether aclose was called."""
 
-    async def stop(self) -> None:
+    def __init__(self) -> None:
+        super().__init__()
+        self.stopped = False
+        self._lifecycle_started = True  # Simulate already-started router
+
+    async def _on_stop(self) -> None:
         self.stopped = True
 
 
 @pytest.mark.asyncio
 async def test_register_unregister_and_shutdown_flow() -> None:
     mgr = SSEShutdownManager(drain_timeout=0.5, notification_timeout=0.1, force_close_timeout=0.1, logger=_test_logger)
-    mgr.set_router(cast(SSEKafkaRedisBridge, _FakeRouter()))
+    mgr.set_router(_FakeRouter())
 
     # Register two connections
     e1 = await mgr.register_connection("exec-1", "c1")

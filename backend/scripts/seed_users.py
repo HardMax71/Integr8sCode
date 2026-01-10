@@ -6,33 +6,23 @@ Creates:
   1. Default user (role=user) for testing/demo
   2. Admin user (role=admin, is_superuser=True) for administration
 
-Environment Variables:
-  MONGODB_URL: Connection string (default: mongodb://mongo:27017/integr8scode)
-  DATABASE_NAME: Database name for the application (default: integr8scode_db)
+Uses main Settings for MongoDB connection. Password env vars are script-specific:
   DEFAULT_USER_PASSWORD: Default user password (default: user123)
   ADMIN_USER_PASSWORD: Admin user password (default: admin123)
 """
 
 import asyncio
+import os
 from datetime import datetime, timezone
 from typing import Any
 
+from app.settings import Settings
 from bson import ObjectId
 from passlib.context import CryptContext
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-
-class SeedSettings(BaseSettings):
-    model_config = SettingsConfigDict(case_sensitive=False)
-
-    mongodb_url: str = "mongodb://mongo:27017/integr8scode"
-    database_name: str = "integr8scode_db"
-    default_user_password: str = "user123"
-    admin_user_password: str = "admin123"
 
 
 async def upsert_user(
@@ -78,22 +68,22 @@ async def upsert_user(
         )
 
 
-async def seed_users() -> None:
-    settings = SeedSettings()
-    mongodb_url = settings.mongodb_url
-    db_name = settings.database_name
+async def seed_users(settings: Settings) -> None:
+    """Seed default users using provided settings for MongoDB connection."""
+    default_password = os.environ.get("DEFAULT_USER_PASSWORD", "user123")
+    admin_password = os.environ.get("ADMIN_USER_PASSWORD", "admin123")
 
-    print(f"Connecting to MongoDB (database: {db_name})...")
+    print(f"Connecting to MongoDB (database: {settings.DATABASE_NAME})...")
 
-    client: AsyncMongoClient[dict[str, Any]] = AsyncMongoClient(mongodb_url)
-    db = client[db_name]
+    client: AsyncMongoClient[dict[str, Any]] = AsyncMongoClient(settings.MONGODB_URL)
+    db = client[settings.DATABASE_NAME]
 
     # Default user
     await upsert_user(
         db,
         username="user",
         email="user@integr8scode.com",
-        password=settings.default_user_password,
+        password=default_password,
         role="user",
         is_superuser=False,
     )
@@ -103,7 +93,7 @@ async def seed_users() -> None:
         db,
         username="admin",
         email="admin@integr8scode.com",
-        password=settings.admin_user_password,
+        password=admin_password,
         role="admin",
         is_superuser=True,
     )
@@ -119,4 +109,4 @@ async def seed_users() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(seed_users())
+    asyncio.run(seed_users(Settings()))

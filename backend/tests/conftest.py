@@ -1,3 +1,4 @@
+import asyncio
 import os
 import uuid
 from contextlib import asynccontextmanager
@@ -13,6 +14,7 @@ from app.settings import Settings
 from dishka import AsyncContainer
 from fastapi import FastAPI
 from httpx import ASGITransport
+from scripts.create_topics import create_topics
 
 # ===== Worker-specific isolation for pytest-xdist =====
 # Redis has 16 DBs (0-15); each xdist worker gets one, limiting parallel workers to 16.
@@ -21,29 +23,54 @@ _WORKER_NUM = int(_WORKER_ID.removeprefix("gw") or "0")
 assert _WORKER_NUM < 16, f"xdist worker {_WORKER_NUM} >= 16 exceeds Redis DB limit; use -n 16 or fewer"
 
 
+# ===== Pytest hooks =====
+def pytest_configure(config: pytest.Config) -> None:
+    """Create Kafka topics once before any tests run.
+
+    Runs in master process before xdist workers spawn.
+    pytest-dotenv has already loaded .env.test into os.environ,
+    so Settings() picks up test configuration automatically.
+
+    Silently skips if Kafka is unavailable (e.g., unit tests).
+    """
+    # Only run in master process (not in xdist workers)
+    if not hasattr(config, "workerinput"):
+        try:
+            asyncio.run(create_topics(Settings()))
+        except Exception:
+            # Kafka not available (unit tests) - silently skip
+            pass
+
+
 # ===== Settings fixture =====
 @pytest.fixture(scope="session")
 def test_settings() -> Settings:
-    """Provide test settings with worker isolation via consumer groups (not topics).
+    """Provide test settings with per-worker isolation where needed.
 
-    Topic prefix comes from environment (KAFKA_TOPIC_PREFIX) and is used AS-IS.
-    Worker isolation happens via KAFKA_GROUP_SUFFIX - each worker gets unique consumer groups.
-    This ensures topics created by CI/scripts match what tests expect.
+    pytest-dotenv loads .env.test into os.environ before tests run (configured
+    in pyproject.toml). Settings() picks up those env vars automatically since
+    pydantic-settings prioritizes environment variables over dotenv files.
+
+    What gets isolated per worker (to prevent interference):
+      - DATABASE_NAME: Each worker gets its own MongoDB database
+      - REDIS_DB: Each worker gets its own Redis database (0-15)
+      - KAFKA_GROUP_SUFFIX: Each worker gets unique consumer groups
+
+    What's SHARED (from env, no per-worker suffix):
+      - KAFKA_TOPIC_PREFIX: Topics created once by CI/scripts
+      - SCHEMA_SUBJECT_PREFIX: Schemas shared across workers
     """
-    # _env_file is a pydantic-settings init kwarg
-    base = Settings(_env_file=".env.test", _env_file_encoding="utf-8")
+    base = Settings()  # Env vars from .env.test already in os.environ via pytest-dotenv
     session_id = uuid.uuid4().hex[:8]
-    # Topic prefix from env/settings used as-is; worker isolation via consumer groups only
-    topic_prefix = f"{base.KAFKA_TOPIC_PREFIX.rstrip('.')}."
     return base.model_copy(
         update={
+            # Per-worker isolation
             "DATABASE_NAME": f"integr8scode_test_{session_id}_{_WORKER_ID}",
             "REDIS_DB": _WORKER_NUM,
             "KAFKA_GROUP_SUFFIX": f"{session_id}.{_WORKER_ID}",
-            "SCHEMA_SUBJECT_PREFIX": f"{base.SCHEMA_SUBJECT_PREFIX.rstrip('.')}.{session_id}.{_WORKER_ID}.",
-            "KAFKA_TOPIC_PREFIX": topic_prefix,
-            "OTEL_EXPORTER_OTLP_ENDPOINT": None,  # Disable OTel metrics export in tests
-            "ENABLE_TRACING": False,  # Fully disable tracing/metrics in tests
+            # Disable telemetry in tests
+            "OTEL_EXPORTER_OTLP_ENDPOINT": None,
+            "ENABLE_TRACING": False,
         }
     )
 

@@ -15,6 +15,8 @@ from app.services.notification_service import NotificationService
 from dishka import AsyncContainer
 from httpx import AsyncClient
 
+from tests.helpers.eventually import eventually
+
 
 @pytest.mark.integration
 class TestNotificationRoutes:
@@ -156,6 +158,14 @@ class TestNotificationRoutes:
             severity=NotificationSeverity.LOW,
             channel=NotificationChannel.IN_APP,
         )
+
+        # Wait for async delivery to complete (create_notification uses asyncio.create_task)
+        async def _has_unread() -> None:
+            resp = await test_user.get("/api/v1/notifications/unread-count")
+            assert resp.status_code == 200
+            assert resp.json()["unread_count"] >= 1
+
+        await eventually(_has_unread, timeout=5.0, interval=0.1)
 
         # Get initial unread count (guaranteed >= 1 now)
         initial_response = await test_user.get("/api/v1/notifications/unread-count")

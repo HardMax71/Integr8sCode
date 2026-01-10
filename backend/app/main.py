@@ -54,7 +54,7 @@ from app.core.middlewares import (
     RequestSizeLimitMiddleware,
     setup_metrics,
 )
-from app.settings import Settings, get_settings
+from app.settings import Settings
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -63,9 +63,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     Args:
         settings: Optional pre-configured settings (e.g., TestSettings for testing).
-                 If None, uses get_settings() which reads from .env.
+                 If None, creates Settings() which reads from env vars then .env file.
     """
-    settings = settings or get_settings()
+    settings = settings or Settings()
     logger = setup_logger(settings.LOG_LEVEL)
 
     # Initialize metrics context for all services
@@ -163,7 +163,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
 
 if __name__ == "__main__":
-    settings = get_settings()
+    settings = Settings()
     logger = setup_logger(settings.LOG_LEVEL)
     logger.info(
         "Starting uvicorn server",

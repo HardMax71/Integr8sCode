@@ -10,16 +10,14 @@ from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.kafka import GroupId
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.services.pod_monitor.monitor import MonitorState, PodMonitor
-from app.settings import Settings, get_settings
+from app.settings import Settings
 from beanie import init_beanie
 
 RECONCILIATION_LOG_INTERVAL: int = 60
 
 
-async def run_pod_monitor(settings: Settings | None = None) -> None:
+async def run_pod_monitor(settings: Settings) -> None:
     """Run the pod monitor service."""
-    if settings is None:
-        settings = get_settings()
 
     container = create_pod_monitor_container(settings)
     logger = await container.get(logging.Logger)
@@ -56,7 +54,7 @@ async def run_pod_monitor(settings: Settings | None = None) -> None:
 
 def main() -> None:
     """Main entry point for pod monitor worker"""
-    settings = get_settings()
+    settings = Settings()
 
     logger = setup_logger(settings.LOG_LEVEL)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")

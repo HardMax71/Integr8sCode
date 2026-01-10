@@ -13,14 +13,12 @@ from app.events.core import UnifiedProducer
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.idempotency import IdempotencyManager
 from app.services.result_processor.processor import ProcessingState, ResultProcessor
-from app.settings import Settings, get_settings
+from app.settings import Settings
 from beanie import init_beanie
 from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 
-async def run_result_processor(settings: Settings | None = None) -> None:
-    if settings is None:
-        settings = get_settings()
+async def run_result_processor(settings: Settings) -> None:
 
     db_client: AsyncMongoClient[dict[str, object]] = AsyncMongoClient(
         settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000
@@ -70,7 +68,7 @@ async def run_result_processor(settings: Settings | None = None) -> None:
 
 def main() -> None:
     """Main entry point for result processor worker"""
-    settings = get_settings()
+    settings = Settings()
 
     logger = setup_logger(settings.LOG_LEVEL)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")

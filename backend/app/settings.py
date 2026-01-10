@@ -1,5 +1,3 @@
-from functools import lru_cache
-
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -163,8 +161,3 @@ class Settings(BaseSettings):
         case_sensitive=True,
         extra="forbid",  # Raise error on extra fields
     )
-
-
-@lru_cache(maxsize=1)
-def get_settings() -> Settings:
-    return Settings()

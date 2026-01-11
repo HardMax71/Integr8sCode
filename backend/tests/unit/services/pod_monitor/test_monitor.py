@@ -27,6 +27,7 @@ from app.services.pod_monitor.monitor import (
 )
 from app.settings import Settings
 from kubernetes.client.rest import ApiException
+
 from tests.helpers.k8s_fakes import (
     FakeApi,
     FakeV1Api,

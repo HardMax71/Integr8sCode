@@ -1,7 +1,5 @@
 import pytest
-
 from app.core.metrics.connections import ConnectionMetrics
-from app.domain.enums.execution import ExecutionStatus
 from app.core.metrics.coordinator import CoordinatorMetrics
 from app.core.metrics.database import DatabaseMetrics
 from app.core.metrics.dlq import DLQMetrics
@@ -13,6 +11,7 @@ from app.core.metrics.notifications import NotificationMetrics
 from app.core.metrics.rate_limit import RateLimitMetrics
 from app.core.metrics.replay import ReplayMetrics
 from app.core.metrics.security import SecurityMetrics
+from app.domain.enums.execution import ExecutionStatus
 from app.settings import Settings
 
 pytestmark = pytest.mark.unit

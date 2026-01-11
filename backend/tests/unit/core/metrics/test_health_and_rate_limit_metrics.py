@@ -1,5 +1,4 @@
 import pytest
-
 from app.core.metrics.health import HealthMetrics
 from app.settings import Settings
 

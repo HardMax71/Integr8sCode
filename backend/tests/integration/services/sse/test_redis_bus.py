@@ -4,7 +4,6 @@ from typing import Any, ClassVar, cast
 
 import pytest
 import redis.asyncio as redis_async
-
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.domain.enums.notification import NotificationSeverity, NotificationStatus

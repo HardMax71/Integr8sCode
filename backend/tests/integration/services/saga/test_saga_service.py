@@ -1,11 +1,10 @@
 from datetime import datetime, timezone
 
 import pytest
-from dishka import AsyncContainer
-
 from app.domain.enums.user import UserRole
 from app.schemas_pydantic.user import User
 from app.services.saga.saga_service import SagaService
+from dishka import AsyncContainer
 
 pytestmark = [pytest.mark.integration, pytest.mark.mongodb]
 

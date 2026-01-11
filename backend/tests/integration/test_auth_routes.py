@@ -1,10 +1,9 @@
 from uuid import uuid4
 
 import pytest
-from httpx import AsyncClient
-
 from app.domain.enums.user import UserRole as UserRoleEnum
 from app.schemas_pydantic.user import UserResponse
+from httpx import AsyncClient
 
 
 @pytest.mark.integration
@@ -122,7 +121,7 @@ class TestAuthentication:
 
         duplicate_response = await client.post("/api/v1/auth/register", json=duplicate_data)
         # Backend might allow duplicate emails but not duplicate usernames
-        # If it allows the registration, that's also valid behavior  
+        # If it allows the registration, that's also valid behavior
         assert duplicate_response.status_code in [200, 201, 400, 409]
 
     @pytest.mark.asyncio

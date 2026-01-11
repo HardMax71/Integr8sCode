@@ -4,11 +4,10 @@ from uuid import uuid4
 
 import jwt
 import pytest
-from jwt.exceptions import InvalidTokenError
-
 from app.core.security import SecurityService
 from app.domain.enums.user import UserRole
 from app.settings import Settings
+from jwt.exceptions import InvalidTokenError
 
 
 class TestPasswordHashing:

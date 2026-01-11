@@ -1,4 +1,3 @@
-from dataclasses import asdict
 from datetime import datetime
 from typing import Annotated
 
@@ -206,7 +205,7 @@ async def get_replay_status(session_id: str, service: FromDishka[AdminEventsServ
         execution_results = status.execution_results
         return EventReplayStatusResponse(
             **{
-                **asdict(session),
+                **session.model_dump(),
                 "status": session.status,
                 "estimated_completion": estimated_completion,
                 "execution_results": execution_results,

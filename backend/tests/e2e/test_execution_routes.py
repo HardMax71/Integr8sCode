@@ -2,14 +2,13 @@ import asyncio
 from uuid import UUID
 
 import pytest
-from httpx import AsyncClient
-
 from app.domain.enums.execution import ExecutionStatus as ExecutionStatusEnum
 from app.schemas_pydantic.execution import (
     ExecutionResponse,
     ExecutionResult,
     ResourceUsage,
 )
+from httpx import AsyncClient
 
 pytestmark = [pytest.mark.e2e, pytest.mark.k8s]
 
@@ -114,7 +113,7 @@ class TestExecution:
         exec_response = await test_user.post("/api/v1/execute", json=execution_request)
         assert exec_response.status_code == 200
 
-        execution_id = exec_response.json()["execution_id"]
+        exec_response.json()["execution_id"]
 
         # No waiting - execution was accepted, error will be processed asynchronously
 
@@ -270,7 +269,7 @@ while True:
         exec_response = await test_user.post("/api/v1/execute", json=execution_request)
         assert exec_response.status_code == 200
 
-        execution_id = exec_response.json()["execution_id"]
+        exec_response.json()["execution_id"]
 
         # Just verify the execution was created - it will run forever until timeout
         # No need to wait or observe states

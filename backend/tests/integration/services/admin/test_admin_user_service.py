@@ -1,11 +1,10 @@
 from datetime import datetime, timezone
 
 import pytest
-from dishka import AsyncContainer
-
 from app.core.database_context import Database
 from app.domain.enums.user import UserRole
 from app.services.admin import AdminUserService
+from dishka import AsyncContainer
 
 pytestmark = [pytest.mark.integration, pytest.mark.mongodb]
 

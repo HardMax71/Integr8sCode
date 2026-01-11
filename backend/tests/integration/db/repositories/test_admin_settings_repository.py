@@ -1,9 +1,8 @@
 import pytest
-from dishka import AsyncContainer
-
 from app.core.database_context import Database
 from app.db.repositories.admin.admin_settings_repository import AdminSettingsRepository
 from app.domain.admin import SystemSettings
+from dishka import AsyncContainer
 
 pytestmark = pytest.mark.integration
 

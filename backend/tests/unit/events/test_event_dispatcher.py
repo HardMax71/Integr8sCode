@@ -3,6 +3,7 @@ import logging
 from app.domain.enums.events import EventType
 from app.events.core import EventDispatcher
 from app.infrastructure.kafka.events.base import BaseEvent
+
 from tests.helpers import make_execution_requested_event
 
 _test_logger = logging.getLogger("test.events.event_dispatcher")

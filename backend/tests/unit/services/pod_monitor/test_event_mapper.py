@@ -2,7 +2,6 @@ import json
 import logging
 
 import pytest
-
 from app.domain.enums.events import EventType
 from app.domain.enums.storage import ExecutionErrorType
 from app.infrastructure.kafka.events.execution import (
@@ -13,18 +12,15 @@ from app.infrastructure.kafka.events.execution import (
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.infrastructure.kafka.events.pod import PodRunningEvent
 from app.services.pod_monitor.event_mapper import PodContext, PodEventMapper
+
 from tests.helpers.k8s_fakes import (
     ContainerStatus,
     FakeApi,
-    Meta,
     Pod,
-    Spec,
     State,
-    Status,
     Terminated,
     Waiting,
 )
-
 
 pytestmark = pytest.mark.unit
 
@@ -32,11 +28,28 @@ _test_logger = logging.getLogger("test.services.pod_monitor.event_mapper")
 
 
 def _ctx(pod: Pod, event_type: str = "ADDED") -> PodContext:
-    return PodContext(pod=pod, execution_id="e1", metadata=AvroEventMetadata(service_name="t", service_version="1"), phase=pod.status.phase or "", event_type=event_type)
+    return PodContext(
+        pod=pod,
+        execution_id="e1",
+        metadata=AvroEventMetadata(service_name="t", service_version="1"),
+        phase=pod.status.phase or "",
+        event_type=event_type,
+    )
 
 
 def test_pending_running_and_succeeded_mapping() -> None:
-    pem = PodEventMapper(k8s_api=FakeApi(json.dumps({"stdout": "ok", "stderr": "", "exit_code": 0, "resource_usage": {"execution_time_wall_seconds": 0, "cpu_time_jiffies": 0, "clk_tck_hertz": 0, "peak_memory_kb": 0}})), logger=_test_logger)
+    logs_json = json.dumps({
+        "stdout": "ok",
+        "stderr": "",
+        "exit_code": 0,
+        "resource_usage": {
+            "execution_time_wall_seconds": 0,
+            "cpu_time_jiffies": 0,
+            "clk_tck_hertz": 0,
+            "peak_memory_kb": 0,
+        },
+    })
+    pem = PodEventMapper(k8s_api=FakeApi(logs_json), logger=_test_logger)
 
     # Pending -> scheduled (set execution-id label and PodScheduled condition)
     pend = Pod("p", "Pending")
@@ -81,7 +94,10 @@ def test_failed_timeout_and_deleted() -> None:
     pem = PodEventMapper(k8s_api=FakeApi(valid_logs), logger=_test_logger)
 
     # Timeout via DeadlineExceeded
-    pod_to = Pod("p", "Failed", cs=[ContainerStatus(State(terminated=Terminated(137)))], reason="DeadlineExceeded", adl=5)
+    pod_to = Pod(
+        "p", "Failed", cs=[ContainerStatus(State(terminated=Terminated(137)))],
+        reason="DeadlineExceeded", adl=5,
+    )
     pod_to.metadata.labels = {"execution-id": "e1"}
     ev = pem.map_pod_event(pod_to, "MODIFIED")[0]
     assert isinstance(ev, ExecutionTimeoutEvent)
@@ -112,7 +128,7 @@ def test_extract_id_and_metadata_priority_and_duplicates() -> None:
     # From label
     p = Pod("any", "Pending")
     p.metadata.labels = {"execution-id": "L1", "user-id": "u", "correlation-id": "corrL"}
-    ctx = _ctx(p)
+    _ctx(p)
     md = pem._create_metadata(p)
     assert pem._extract_execution_id(p) == "L1" and md.user_id == "u" and md.correlation_id == "corrL"
 

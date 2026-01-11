@@ -3,8 +3,6 @@ import logging
 import uuid
 
 import pytest
-from dishka import AsyncContainer
-
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.events.core import UnifiedConsumer, UnifiedProducer
@@ -13,6 +11,8 @@ from app.events.core.types import ConsumerConfig
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.infrastructure.kafka.events.base import BaseEvent
 from app.settings import Settings
+from dishka import AsyncContainer
+
 from tests.helpers import make_execution_requested_event
 
 # xdist_group: Kafka consumer creation can crash librdkafka when multiple workers

@@ -1,9 +1,7 @@
 import pytest
-
 from app.core.metrics.kubernetes import KubernetesMetrics
 from app.core.metrics.notifications import NotificationMetrics
 from app.settings import Settings
-
 
 pytestmark = pytest.mark.unit
 
@@ -46,14 +44,21 @@ def test_notification_metrics_methods(test_settings: Settings) -> None:
     m.record_notification_status_change("n1", "pending", "queued")
     m.record_notification_read("welcome", 2.0)
     m.record_notification_clicked("welcome")
-    m.update_unread_count("u1", 5); m.update_unread_count("u1", 2)
-    m.record_notification_throttled("welcome", "u1"); m.record_throttle_window_hit("u1")
-    m.record_notification_retry("welcome", 1, False); m.record_notification_retry("welcome", 2, True)
+    m.update_unread_count("u1", 5)
+    m.update_unread_count("u1", 2)
+    m.record_notification_throttled("welcome", "u1")
+    m.record_throttle_window_hit("u1")
+    m.record_notification_retry("welcome", 1, False)
+    m.record_notification_retry("welcome", 2, True)
     m.record_batch_processed(10, 1.2, notification_type="welcome")
-    m.record_template_render(0.2, "tmpl", success=True); m.record_template_render(0.1, "tmpl", success=False)
+    m.record_template_render(0.2, "tmpl", success=True)
+    m.record_template_render(0.1, "tmpl", success=False)
     m.record_webhook_delivery(0.3, 200, "/hooks/*")
     m.record_slack_delivery(0.4, "#general", False, error_type="rate_limited")
-    m.update_active_subscriptions("u1", 3); m.update_active_subscriptions("u1", 1)
+    m.update_active_subscriptions("u1", 3)
+    m.update_active_subscriptions("u1", 1)
     m.record_subscription_change("u1", "welcome", "subscribe")
-    m.increment_pending_notifications(); m.decrement_pending_notifications()
-    m.increment_queued_notifications(); m.decrement_queued_notifications()
+    m.increment_pending_notifications()
+    m.decrement_pending_notifications()
+    m.increment_queued_notifications()
+    m.decrement_queued_notifications()

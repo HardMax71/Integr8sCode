@@ -1,7 +1,5 @@
-from datetime import datetime, timezone
 
 import pytest
-
 from app.schemas_pydantic.execution import ExecutionRequest
 
 

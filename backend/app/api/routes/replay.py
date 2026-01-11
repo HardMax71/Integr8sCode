@@ -1,5 +1,3 @@
-from dataclasses import asdict
-
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, Query
@@ -65,7 +63,7 @@ async def list_replay_sessions(
     limit: int = Query(100, ge=1, le=1000),
 ) -> list[SessionSummary]:
     return [
-        SessionSummary.model_validate({**asdict(s), **asdict(s)["config"]})
+        SessionSummary.model_validate({**s.model_dump(), **s.model_dump()["config"]})
         for s in service.list_sessions(status=status, limit=limit)
     ]
 

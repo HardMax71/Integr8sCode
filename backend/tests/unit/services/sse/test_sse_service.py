@@ -169,7 +169,9 @@ async def test_execution_stream_result_stored_includes_result_payload() -> None:
         stderr="",
         lang="python",
         lang_version="3.11",
-        resource_usage=ResourceUsageDomain(execution_time_wall_seconds=0.1, cpu_time_jiffies=1, clk_tck_hertz=100, peak_memory_kb=64),
+        resource_usage=ResourceUsageDomain(
+            execution_time_wall_seconds=0.1, cpu_time_jiffies=1, clk_tck_hertz=100, peak_memory_kb=64
+        ),
         user_id="u1",
         exit_code=0,
     )

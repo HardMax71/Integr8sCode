@@ -6,7 +6,6 @@ by integration tests under tests/integration/saga/.
 """
 
 import pytest
-
 from app.domain.enums.events import EventType
 from app.domain.enums.saga import SagaState
 from app.domain.saga.models import Saga
@@ -14,8 +13,8 @@ from app.infrastructure.kafka.events.base import BaseEvent
 from app.infrastructure.kafka.events.execution import ExecutionRequestedEvent
 from app.services.saga.execution_saga import ExecutionSaga
 from app.services.saga.saga_step import CompensationStep, SagaContext, SagaStep
-from tests.helpers import make_execution_requested_event
 
+from tests.helpers import make_execution_requested_event
 
 pytestmark = pytest.mark.unit
 

@@ -1,10 +1,9 @@
-"""Integration tests conftest - with infrastructure cleanup."""
 from collections.abc import AsyncGenerator
 
 import pytest_asyncio
 import redis.asyncio as redis
-
 from app.core.database_context import Database
+
 from tests.helpers.cleanup import cleanup_db_and_redis
 
 

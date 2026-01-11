@@ -1,9 +1,7 @@
 import pytest
-
 from app.core.metrics.replay import ReplayMetrics
 from app.core.metrics.security import SecurityMetrics
 from app.settings import Settings
-
 
 pytestmark = pytest.mark.unit
 
@@ -40,17 +38,26 @@ def test_security_metrics_methods(test_settings: Settings) -> None:
     m.record_security_event("scan_started", severity="high", source="scanner")
     m.record_security_violation("csrf", user_id="u1", ip_address="127.0.0.1")
     m.record_authentication_attempt("password", False, user_id="u1", duration_seconds=0.2)
-    m.update_active_sessions(2); m.increment_active_sessions(); m.decrement_active_sessions()
-    m.record_token_generated("access", 3600); m.record_token_refreshed("access"); m.record_token_revoked("access", "logout")
+    m.update_active_sessions(2)
+    m.increment_active_sessions()
+    m.decrement_active_sessions()
+    m.record_token_generated("access", 3600)
+    m.record_token_refreshed("access")
+    m.record_token_revoked("access", "logout")
     m.record_token_validation_failure("access", "expired")
     m.record_authorization_check("/admin", "GET", False, user_role="user")
     m.record_permission_check("write", True, user_id="u1")
-    m.record_csrf_token_generated(); m.record_csrf_validation_failure("missing")
+    m.record_csrf_token_generated()
+    m.record_csrf_validation_failure("missing")
     m.record_network_policy_violation("np1", "pod1", violation_type="egress")
     m.record_privilege_escalation_attempt("u1", "admin", True)
-    m.record_rate_limit_hit("/api"); m.record_rate_limit_violation("/api", limit=100)
-    m.record_api_key_created("kid"); m.record_api_key_revoked("kid", "compromised"); m.record_api_key_usage("kid", "/api")
-    m.record_audit_event("config_change", "u1", resource="system"); m.record_password_change("u1", True)
+    m.record_rate_limit_hit("/api")
+    m.record_rate_limit_violation("/api", limit=100)
+    m.record_api_key_created("kid")
+    m.record_api_key_revoked("kid", "compromised")
+    m.record_api_key_usage("kid", "/api")
+    m.record_audit_event("config_change", "u1", resource="system")
+    m.record_password_change("u1", True)
     m.record_password_reset_request("u1", method="email")
     m.record_weak_password_attempt("u1", "common_password")
     m.record_brute_force_attempt("1.2.3.4", target_user="u1", action_taken="blocked")

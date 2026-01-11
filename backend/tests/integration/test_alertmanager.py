@@ -1,7 +1,7 @@
-import httpx
-import pytest
 from datetime import datetime, timezone
 
+import httpx
+import pytest
 
 pytestmark = pytest.mark.integration
 

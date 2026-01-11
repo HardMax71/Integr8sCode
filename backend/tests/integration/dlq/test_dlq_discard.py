@@ -3,13 +3,13 @@ import uuid
 from datetime import datetime, timezone
 
 import pytest
-from dishka import AsyncContainer
-
 from app.db.docs import DLQMessageDocument
 from app.db.repositories.dlq_repository import DLQRepository
 from app.dlq.models import DLQMessageStatus
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
+from dishka import AsyncContainer
+
 from tests.helpers import make_execution_requested_event
 
 pytestmark = [pytest.mark.integration, pytest.mark.mongodb]
@@ -51,7 +51,7 @@ async def test_dlq_repository_marks_message_discarded(scope: AsyncContainer) -> 
 
     # Create a DLQ document
     event_id = f"dlq-discard-{uuid.uuid4().hex[:8]}"
-    doc = await _create_dlq_document(event_id=event_id, status=DLQMessageStatus.PENDING)
+    await _create_dlq_document(event_id=event_id, status=DLQMessageStatus.PENDING)
 
     # Discard the message
     reason = "max_retries_exceeded"

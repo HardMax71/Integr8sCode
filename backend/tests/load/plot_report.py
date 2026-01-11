@@ -114,7 +114,7 @@ def plot_endpoint_throughput(report: ReportDict, out_dir: Path, top_n: int = 10)
     labels = [k for k, _ in data]
     total = [v.get("count", 0) for _, v in data]
     errors = [v.get("errors", 0) for _, v in data]
-    successes = [t - e for t, e in zip(total, errors)]
+    successes = [t - e for t, e in zip(total, errors, strict=False)]
 
     x = range(len(labels))
     width = 0.45

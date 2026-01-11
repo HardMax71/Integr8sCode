@@ -1,14 +1,13 @@
 import logging
 from unittest.mock import MagicMock
-import pytest
 
+import pytest
 from app.infrastructure.kafka.events.base import BaseEvent
 from app.services.idempotency.idempotency_manager import (
     IdempotencyConfig,
-    IdempotencyManager,
     IdempotencyKeyStrategy,
+    IdempotencyManager,
 )
-
 
 pytestmark = pytest.mark.unit
 

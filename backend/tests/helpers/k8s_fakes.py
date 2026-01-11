@@ -45,7 +45,12 @@ class Waiting:
 
 
 class State:
-    def __init__(self, terminated: Terminated | None = None, waiting: Waiting | None = None, running: Any | None = None) -> None:
+    def __init__(
+        self,
+        terminated: Terminated | None = None,
+        waiting: Waiting | None = None,
+        running: Any | None = None,
+    ) -> None:
         self.terminated = terminated
         self.waiting = waiting
         self.running = running
@@ -89,7 +94,13 @@ class Pod:
         annotations: dict[str, str] | None = None,
         resource_version: str | None = None,
     ) -> None:
-        self.metadata = Meta(name, namespace=namespace, labels=labels, annotations=annotations, resource_version=resource_version)
+        self.metadata = Meta(
+            name,
+            namespace=namespace,
+            labels=labels,
+            annotations=annotations,
+            resource_version=resource_version,
+        )
         self.status = Status(phase, reason, msg, cs)
         self.spec = Spec(adl)
 

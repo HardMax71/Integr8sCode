@@ -1,7 +1,6 @@
 import logging
 
 import pytest
-
 from app.services.coordinator.resource_manager import ResourceManager
 
 _test_logger = logging.getLogger("test.services.coordinator.resource_manager")

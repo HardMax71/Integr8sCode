@@ -1,8 +1,7 @@
 import pytest
-from dishka import AsyncContainer
-
 from app.core.database_context import Database
 from app.services.event_service import EventService
+from dishka import AsyncContainer
 
 pytestmark = [pytest.mark.integration, pytest.mark.mongodb]
 

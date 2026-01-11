@@ -3,8 +3,9 @@ from __future__ import annotations
 import asyncio
 import json
 import random
-import string
 import secrets
+import string
+import time
 from typing import Any
 
 from .config import LoadConfig
@@ -61,9 +62,6 @@ def build_monkey_catalog(cfg: LoadConfig) -> list[tuple[str, str]]:
         else:
             out.append((m, cfg.api(p)))
     return out
-
-
-import time
 
 
 async def run_monkey_swarm(cfg: LoadConfig, stats: StatsCollector, clients: int) -> None:

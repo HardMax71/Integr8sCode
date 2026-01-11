@@ -50,9 +50,10 @@ class EventSummary:
     aggregate_id: str | None = None
 
 
-@dataclass
-class EventFilter:
+class EventFilter(BaseModel):
     """Filter criteria for querying events."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     event_types: list[str] | None = None
     aggregate_id: str | None = None

@@ -4,6 +4,7 @@ import logging
 import pytest
 from app.core.lifecycle import LifecycleEnabled
 from app.services.sse.sse_shutdown_manager import SSEShutdownManager
+
 from tests.helpers.eventually import eventually
 
 pytestmark = pytest.mark.unit

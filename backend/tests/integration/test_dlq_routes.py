@@ -2,8 +2,6 @@ from datetime import datetime
 from typing import TypedDict
 
 import pytest
-from httpx import AsyncClient
-
 from app.dlq import DLQMessageStatus
 from app.schemas_pydantic.dlq import (
     DLQBatchRetryResponse,
@@ -15,6 +13,7 @@ from app.schemas_pydantic.dlq import (
 )
 from app.schemas_pydantic.user import MessageResponse
 from app.settings import Settings
+from httpx import AsyncClient
 
 
 class _RetryRequest(TypedDict):
@@ -68,7 +67,7 @@ class TestDLQRoutes:
             assert isinstance(topic_stat["count"], int)
             assert topic_stat["count"] >= 0
 
-        # Check event type stats  
+        # Check event type stats
         for event_type_stat in stats.by_event_type:
             assert "event_type" in event_type_stat
             assert "count" in event_type_stat

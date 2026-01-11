@@ -1,8 +1,7 @@
 import pytest
-from dishka import AsyncContainer
-
 from app.domain.saved_script import DomainSavedScriptCreate, DomainSavedScriptUpdate, SavedScriptNotFoundError
 from app.services.saved_script_service import SavedScriptService
+from dishka import AsyncContainer
 
 pytestmark = [pytest.mark.integration, pytest.mark.mongodb]
 
@@ -20,7 +19,9 @@ async def test_crud_saved_script(scope: AsyncContainer) -> None:
     got = await service.get_saved_script(str(created.script_id), "u1")
     assert got and got.script_id == created.script_id
 
-    out = await service.update_saved_script(str(created.script_id), "u1", DomainSavedScriptUpdate(name="new", script="p"))
+    out = await service.update_saved_script(
+        str(created.script_id), "u1", DomainSavedScriptUpdate(name="new", script="p")
+    )
     assert out and out.name == "new"
 
     lst = await service.list_saved_scripts("u1")

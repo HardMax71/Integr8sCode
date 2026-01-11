@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
+from pydantic import BaseModel, ConfigDict
+
 from app.core.utils import StringEnum
 
 
@@ -144,22 +146,24 @@ class ConsumerMetrics:
         self.last_updated = self.last_updated or datetime.now(timezone.utc)
 
 
-@dataclass(slots=True)
-class ConsumerMetricsSnapshot:
+class ConsumerMetricsSnapshot(BaseModel):
     """Snapshot of consumer metrics for status reporting."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     messages_consumed: int
     bytes_consumed: int
     consumer_lag: int
     commit_failures: int
     processing_errors: int
-    last_message_time: str | None
-    last_updated: str | None
+    last_message_time: datetime | None
+    last_updated: datetime | None
 
 
-@dataclass(slots=True)
-class ConsumerStatus:
+class ConsumerStatus(BaseModel):
     """Consumer status information."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     state: str
     is_running: bool

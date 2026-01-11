@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, List
+from typing import Any
 
 from cachetools import TTLCache
 from pydantic import TypeAdapter
@@ -11,15 +11,14 @@ from app.domain.enums.events import EventType
 from app.domain.user import (
     DomainEditorSettings,
     DomainNotificationSettings,
-    DomainSettingsEvent,
     DomainSettingsHistoryEntry,
     DomainUserSettings,
+    DomainUserSettingsChangedEvent,
     DomainUserSettingsUpdate,
 )
 from app.services.event_bus import EventBusEvent, EventBusManager
 from app.services.kafka_event_service import KafkaEventService
 
-# TypeAdapters for dict-based settings updates
 _settings_adapter = TypeAdapter(DomainUserSettings)
 _update_adapter = TypeAdapter(DomainUserSettingsUpdate)
 
@@ -31,7 +30,6 @@ class UserSettingsService:
         self.repository = repository
         self.event_service = event_service
         self.logger = logger
-        # TTL+LRU cache for settings
         self._cache_ttl = timedelta(minutes=5)
         self._max_cache_size = 1000
         self._cache: TTLCache[str, DomainUserSettings] = TTLCache(
@@ -72,12 +70,13 @@ class UserSettingsService:
         snapshot = await self.repository.get_snapshot(user_id)
 
         settings: DomainUserSettings
+        event_types = [EventType.USER_SETTINGS_UPDATED]
         if snapshot:
             settings = snapshot
-            events = await self._get_settings_events(user_id, since=snapshot.updated_at)
+            events = await self.repository.get_settings_events(user_id, event_types, since=snapshot.updated_at)
         else:
             settings = DomainUserSettings(user_id=user_id)
-            events = await self._get_settings_events(user_id)
+            events = await self.repository.get_settings_events(user_id, event_types)
 
         for event in events:
             settings = self._apply_event(settings, event)
@@ -91,25 +90,20 @@ class UserSettingsService:
         """Upsert provided fields into current settings, publish minimal event, and cache."""
         current = await self.get_user_settings(user_id)
 
-        # Get only fields that were explicitly set (non-None)
         changes = _update_adapter.dump_python(updates, exclude_none=True)
         if not changes:
             return current
 
-        # Merge current settings with changes and update metadata
         current_dict = _settings_adapter.dump_python(current)
         merged = {**current_dict, **changes}
         merged["version"] = (current.version or 0) + 1
         merged["updated_at"] = datetime.now(timezone.utc)
 
-        # Reconstruct settings object (TypeAdapter handles nested dict → dataclass)
         new_settings = _settings_adapter.validate_python(merged)
 
-        # Publish event with JSON-serializable payload (enums → strings)
         changes_json = _update_adapter.dump_python(updates, exclude_none=True, mode="json")
         await self._publish_settings_event(user_id, changes_json, reason)
 
-        # Notify event bus for cache invalidation
         if self._event_bus_manager is not None:
             bus = await self._event_bus_manager.get_event_bus()
             await bus.publish("user.settings.updated", {"user_id": user_id})
@@ -166,21 +160,20 @@ class UserSettingsService:
             reason=f"Custom setting '{key}' updated",
         )
 
-    async def get_settings_history(self, user_id: str, limit: int = 50) -> List[DomainSettingsHistoryEntry]:
+    async def get_settings_history(self, user_id: str, limit: int = 50) -> list[DomainSettingsHistoryEntry]:
         """Get history from changed fields recorded in events."""
-        events = await self._get_settings_events(user_id, limit=limit)
+        events = await self.repository.get_settings_events(user_id, [EventType.USER_SETTINGS_UPDATED], limit=limit)
         history: list[DomainSettingsHistoryEntry] = []
         for event in events:
-            changed_fields = event.payload.get("changed_fields", [])
-            for field in changed_fields:
+            for fld in event.changed_fields:
                 history.append(
                     DomainSettingsHistoryEntry(
                         timestamp=event.timestamp,
                         event_type=event.event_type,
-                        field=f"/{field}",
+                        field=f"/{fld}",
                         old_value=None,
-                        new_value=event.payload.get(field),
-                        reason=event.payload.get("reason"),
+                        new_value=event.model_dump().get(fld),
+                        reason=event.reason,
                         correlation_id=event.correlation_id,
                     )
                 )
@@ -188,19 +181,15 @@ class UserSettingsService:
 
     async def restore_settings_to_point(self, user_id: str, timestamp: datetime) -> DomainUserSettings:
         """Restore settings to a specific point in time"""
-        # Get all events up to the timestamp
-        events = await self._get_settings_events(user_id, until=timestamp)
+        events = await self.repository.get_settings_events(user_id, [EventType.USER_SETTINGS_UPDATED], until=timestamp)
 
-        # Rebuild settings from events
         settings = DomainUserSettings(user_id=user_id)
         for event in events:
             settings = self._apply_event(settings, event)
 
-        # Save as current settings
         await self.repository.create_snapshot(settings)
         self._add_to_cache(user_id, settings)
 
-        # Publish restoration event (marker only, no field changes)
         await self.event_service.publish_event(
             event_type=EventType.USER_SETTINGS_UPDATED,
             aggregate_id=f"user_settings_{user_id}",
@@ -214,34 +203,12 @@ class UserSettingsService:
 
         return settings
 
-    async def _get_settings_events(
-        self, user_id: str, since: datetime | None = None, until: datetime | None = None, limit: int | None = None
-    ) -> List[DomainSettingsEvent]:
-        """Get settings-related events for a user."""
-        raw = await self.repository.get_settings_events(
-            user_id=user_id,
-            event_types=[EventType.USER_SETTINGS_UPDATED],
-            since=since,
-            until=until,
-            limit=limit,
-        )
-        return [
-            DomainSettingsEvent(
-                event_type=EventType.USER_SETTINGS_UPDATED,
-                timestamp=e.timestamp,
-                payload=e.payload,
-                correlation_id=e.metadata.correlation_id if e.metadata else None,
-            )
-            for e in raw
-        ]
-
-    # Fields that are stored directly in event payload (not in nested 'changes')
     _settings_fields = {"theme", "timezone", "date_format", "time_format", "notifications", "editor"}
 
-    def _apply_event(self, settings: DomainUserSettings, event: DomainSettingsEvent) -> DomainUserSettings:
+    def _apply_event(self, settings: DomainUserSettings, event: DomainUserSettingsChangedEvent) -> DomainUserSettings:
         """Apply a settings update event using TypeAdapter merge."""
-        # Extract changes from typed fields in payload
-        changes = {k: v for k, v in event.payload.items() if k in self._settings_fields and v is not None}
+        event_dict = event.model_dump()
+        changes = {k: v for k, v in event_dict.items() if k in self._settings_fields and v is not None}
         if not changes:
             return settings
 
@@ -273,8 +240,5 @@ class UserSettingsService:
     async def reset_user_settings(self, user_id: str) -> None:
         """Reset user settings by deleting all data and cache."""
         await self.invalidate_cache(user_id)
-
-        # Delete from database
         await self.repository.delete_user_settings(user_id)
-
         self.logger.info(f"Reset settings for user {user_id}")

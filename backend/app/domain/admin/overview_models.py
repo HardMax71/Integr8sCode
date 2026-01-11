@@ -5,7 +5,7 @@ from typing import List
 
 from pydantic.dataclasses import dataclass
 
-from app.domain.events import Event, EventStatistics
+from app.domain.events import DomainEvent, EventStatistics
 from app.domain.user import User as DomainAdminUser
 
 
@@ -31,4 +31,4 @@ class AdminUserOverviewDomain:
     stats: EventStatistics
     derived_counts: DerivedCountsDomain
     rate_limit_summary: RateLimitSummaryDomain
-    recent_events: List[Event] = field(default_factory=list)
+    recent_events: List[DomainEvent] = field(default_factory=list)

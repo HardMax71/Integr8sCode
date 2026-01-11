@@ -1,35 +1,36 @@
-from dataclasses import field
 from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-from pydantic.dataclasses import dataclass
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from app.domain.enums.saga import SagaState
 
 
-@dataclass
-class Saga:
+class Saga(BaseModel):
     """Domain model for saga."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     saga_id: str
     saga_name: str
     execution_id: str
     state: SagaState
     current_step: str | None = None
-    completed_steps: list[str] = field(default_factory=list)
-    compensated_steps: list[str] = field(default_factory=list)
-    context_data: dict[str, Any] = field(default_factory=dict)
+    completed_steps: list[str] = Field(default_factory=list)
+    compensated_steps: list[str] = Field(default_factory=list)
+    context_data: dict[str, Any] = Field(default_factory=dict)
     error_message: str | None = None
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     completed_at: datetime | None = None
     retry_count: int = 0
 
 
-@dataclass
-class SagaFilter:
+class SagaFilter(BaseModel):
     """Filter criteria for saga queries."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     state: SagaState | None = None
     execution_ids: list[str] | None = None
@@ -40,9 +41,10 @@ class SagaFilter:
     error_status: bool | None = None
 
 
-@dataclass
-class SagaQuery:
+class SagaQuery(BaseModel):
     """Query parameters for saga search."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     filter: SagaFilter
     sort_by: str = "created_at"
@@ -51,46 +53,50 @@ class SagaQuery:
     skip: int = 0
 
 
-@dataclass
-class SagaListResult:
+class SagaListResult(BaseModel):
     """Result of saga list query."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     sagas: list[Saga]
     total: int
     skip: int
     limit: int
-    has_more: bool = field(init=False)
 
-    def __post_init__(self) -> None:
-        """Calculate has_more after initialization."""
-        self.has_more = (self.skip + len(self.sagas)) < self.total
+    @property
+    def has_more(self) -> bool:
+        """Calculate has_more."""
+        return (self.skip + len(self.sagas)) < self.total
 
 
-@dataclass
-class SagaDetail:
+class SagaDetail(BaseModel):
     """Detailed saga information."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     saga: Saga
     execution_details: dict[str, Any] | None = None
-    step_details: list[dict[str, Any]] = field(default_factory=list)
+    step_details: list[dict[str, Any]] = Field(default_factory=list)
 
 
-@dataclass
-class SagaStatistics:
+class SagaStatistics(BaseModel):
     """Saga statistics."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     total_sagas: int
-    sagas_by_state: dict[str, int] = field(default_factory=dict)
-    sagas_by_name: dict[str, int] = field(default_factory=dict)
+    sagas_by_state: dict[str, int] = Field(default_factory=dict)
+    sagas_by_name: dict[str, int] = Field(default_factory=dict)
     average_duration_seconds: float = 0.0
     success_rate: float = 0.0
     failure_rate: float = 0.0
     compensation_rate: float = 0.0
 
 
-@dataclass
-class SagaConfig:
+class SagaConfig(BaseModel):
     """Configuration for saga orchestration (domain)."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     name: str
     timeout_seconds: int = 300
@@ -104,28 +110,30 @@ class SagaConfig:
     publish_commands: bool = False
 
 
-@dataclass
-class SagaInstance:
+class SagaInstance(BaseModel):
     """Runtime instance of a saga execution (domain)."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     saga_name: str
     execution_id: str
     state: SagaState = SagaState.CREATED
-    saga_id: str = field(default_factory=lambda: str(uuid4()))
+    saga_id: str = Field(default_factory=lambda: str(uuid4()))
     current_step: str | None = None
-    completed_steps: list[str] = field(default_factory=list)
-    compensated_steps: list[str] = field(default_factory=list)
-    context_data: dict[str, Any] = field(default_factory=dict)
+    completed_steps: list[str] = Field(default_factory=list)
+    compensated_steps: list[str] = Field(default_factory=list)
+    context_data: dict[str, Any] = Field(default_factory=dict)
     error_message: str | None = None
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     completed_at: datetime | None = None
     retry_count: int = 0
 
 
-@dataclass
-class DomainResourceAllocation:
+class DomainResourceAllocation(BaseModel):
     """Domain model for resource allocation."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     allocation_id: str
     execution_id: str
@@ -135,13 +143,14 @@ class DomainResourceAllocation:
     cpu_limit: str
     memory_limit: str
     status: str = "active"
-    allocated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    allocated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     released_at: datetime | None = None
 
 
-@dataclass
-class DomainResourceAllocationCreate:
+class DomainResourceAllocationCreate(BaseModel):
     """Data for creating a resource allocation."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     execution_id: str
     language: str

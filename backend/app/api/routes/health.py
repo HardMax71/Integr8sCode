@@ -15,7 +15,7 @@ class LivenessResponse(BaseModel):
 
     status: str = Field(description="Health status")
     uptime_seconds: int = Field(description="Server uptime in seconds")
-    timestamp: str = Field(description="ISO timestamp of health check")
+    timestamp: datetime = Field(description="Timestamp of health check")
 
 
 class ReadinessResponse(BaseModel):
@@ -31,7 +31,7 @@ async def liveness() -> LivenessResponse:
     return LivenessResponse(
         status="ok",
         uptime_seconds=int(time.time() - _START_TIME),
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        timestamp=datetime.now(timezone.utc),
     )
 
 

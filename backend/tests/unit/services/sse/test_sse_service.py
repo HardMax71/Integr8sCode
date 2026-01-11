@@ -69,7 +69,7 @@ class _FakeRepo(SSERepository):
         return SSEExecutionStatusDomain(
             execution_id=execution_id,
             status=ExecutionStatus.RUNNING,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(timezone.utc),
         )
 
     async def get_execution(self, execution_id: str) -> DomainExecution | None:  # noqa: ARG002
@@ -169,7 +169,7 @@ async def test_execution_stream_result_stored_includes_result_payload() -> None:
         stderr="",
         lang="python",
         lang_version="3.11",
-        resource_usage=ResourceUsageDomain(0.1, 1, 100, 64),
+        resource_usage=ResourceUsageDomain(execution_time_wall_seconds=0.1, cpu_time_jiffies=1, clk_tck_hertz=100, peak_memory_kb=64),
         user_id="u1",
         exit_code=0,
     )

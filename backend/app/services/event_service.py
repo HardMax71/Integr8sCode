@@ -5,7 +5,8 @@ from app.db.repositories.event_repository import EventRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.user import UserRole
 from app.domain.events import (
-    Event,
+    ArchivedEvent,
+    DomainEvent,
     EventAggregationResult,
     EventFilter,
     EventListResult,
@@ -180,11 +181,11 @@ class EventService:
         event_id: str,
         user_id: str,
         user_role: UserRole,
-    ) -> Event | None:
+    ) -> DomainEvent | None:
         event = await self.repository.get_event(event_id)
         if not event:
             return None
-        event_user_id = event.metadata.user_id
+        event_user_id = event.metadata.user_id if event.metadata else None
         if event_user_id != user_id and user_role != UserRole.ADMIN:
             return None
         return event
@@ -218,7 +219,7 @@ class EventService:
         event_id: str,
         deleted_by: str,
         deletion_reason: str = "Admin deletion via API",
-    ) -> Event | None:
+    ) -> ArchivedEvent | None:
         return await self.repository.delete_event_with_archival(
             event_id=event_id,
             deleted_by=deleted_by,
@@ -233,7 +234,7 @@ class EventService:
         aggregate_id: str,
         event_types: list[EventType] | None = None,
         limit: int = 100,
-    ) -> list[Event]:
+    ) -> list[DomainEvent]:
         return await self.repository.get_events_by_aggregate(
             aggregate_id=aggregate_id,
             event_types=event_types,

@@ -1,14 +1,12 @@
 import logging
-from dataclasses import asdict
 from datetime import datetime
-from typing import List
 
 from beanie.odm.enums import SortDirection
 from beanie.operators import GT, LTE, In
 
 from app.db.docs import EventDocument, UserSettingsDocument, UserSettingsSnapshotDocument
 from app.domain.enums.events import EventType
-from app.domain.user.settings_models import DomainUserSettings
+from app.domain.user.settings_models import DomainUserSettings, DomainUserSettingsChangedEvent
 
 
 class UserSettingsRepository:
@@ -19,11 +17,11 @@ class UserSettingsRepository:
         doc = await UserSettingsDocument.find_one({"user_id": user_id})
         if not doc:
             return None
-        return DomainUserSettings(**doc.model_dump(exclude={"id", "revision_id"}))
+        return DomainUserSettings.model_validate(doc, from_attributes=True)
 
     async def create_snapshot(self, settings: DomainUserSettings) -> None:
         existing = await UserSettingsDocument.find_one({"user_id": settings.user_id})
-        doc = UserSettingsDocument(**asdict(settings))
+        doc = UserSettingsDocument(**settings.model_dump())
         if existing:
             doc.id = existing.id
         await doc.save()
@@ -32,11 +30,11 @@ class UserSettingsRepository:
     async def get_settings_events(
         self,
         user_id: str,
-        event_types: List[EventType],
+        event_types: list[EventType],
         since: datetime | None = None,
         until: datetime | None = None,
         limit: int | None = None,
-    ) -> List[EventDocument]:
+    ) -> list[DomainUserSettingsChangedEvent]:
         aggregate_id = f"user_settings_{user_id}"
         conditions = [
             EventDocument.aggregate_id == aggregate_id,
@@ -50,7 +48,13 @@ class UserSettingsRepository:
         if limit:
             find_query = find_query.limit(limit)
 
-        return await find_query.to_list()
+        docs = await find_query.to_list()
+        return [
+            DomainUserSettingsChangedEvent.model_validate(e, from_attributes=True).model_copy(
+                update={"correlation_id": e.metadata.correlation_id}
+            )
+            for e in docs
+        ]
 
     async def count_events_since_snapshot(self, user_id: str) -> int:
         aggregate_id = f"user_settings_{user_id}"

@@ -48,7 +48,7 @@ class EventStore:
         try:
             now = datetime.now(timezone.utc)
             ttl = now + timedelta(days=self.ttl_days)
-            doc = EventDocument(**event.model_dump(), stored_at=now, ttl_expires_at=ttl)
+            doc = EventDocument(**event.model_dump(exclude_none=True), stored_at=now, ttl_expires_at=ttl)
             await doc.insert()
 
             add_span_attributes(
@@ -80,7 +80,7 @@ class EventStore:
         now = datetime.now(timezone.utc)
         ttl = now + timedelta(days=self.ttl_days)
         try:
-            docs = [EventDocument(**e.model_dump(), stored_at=now, ttl_expires_at=ttl) for e in events]
+            docs = [EventDocument(**e.model_dump(exclude_none=True), stored_at=now, ttl_expires_at=ttl) for e in events]
 
             try:
                 await EventDocument.insert_many(docs)

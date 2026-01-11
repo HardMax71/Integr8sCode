@@ -26,6 +26,9 @@ class EventDocument(Document):
     stored_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     ttl_expires_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc) + timedelta(days=30))
 
+    # Most event types have execution_id (sparse-indexed)
+    execution_id: str | None = None
+
     model_config = ConfigDict(from_attributes=True, extra="allow")
 
     class Settings:

@@ -248,11 +248,7 @@ class AdminEventsRepository:
             original_query = doc.config.filter.custom_query
             original_events = await EventDocument.find(original_query).limit(10).to_list()
 
-            execution_ids = set()
-            for event in original_events:
-                exec_id = (event.model_extra or {}).get("execution_id") or event.aggregate_id
-                if exec_id:
-                    execution_ids.add(exec_id)
+            execution_ids = {event.execution_id for event in original_events if event.execution_id}
 
             for exec_id in list(execution_ids)[:10]:
                 exec_doc = await ExecutionDocument.find_one({"execution_id": exec_id})

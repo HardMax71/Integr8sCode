@@ -16,10 +16,18 @@ from app.domain.events.event_models import (
     UserEventCount,
 )
 from app.domain.events.typed import (
+    # Saga Command Events
+    AllocateResourcesCommandEvent,
+    # Base types
     ArchivedEvent,
+    # Security Events
+    AuthFailedEvent,
     BaseEvent,
+    CreatePodCommandEvent,
+    DeletePodCommandEvent,
     DomainEvent,
     EventMetadata,
+    # Execution Events
     ExecutionAcceptedEvent,
     ExecutionCancelledEvent,
     ExecutionCompletedEvent,
@@ -29,6 +37,15 @@ from app.domain.events.typed import (
     ExecutionRunningEvent,
     ExecutionStartedEvent,
     ExecutionTimeoutEvent,
+    # Notification Events
+    NotificationClickedEvent,
+    NotificationCreatedEvent,
+    NotificationDeliveredEvent,
+    NotificationFailedEvent,
+    NotificationPreferencesUpdatedEvent,
+    NotificationReadEvent,
+    NotificationSentEvent,
+    # Pod Events
     PodCreatedEvent,
     PodDeletedEvent,
     PodFailedEvent,
@@ -36,9 +53,38 @@ from app.domain.events.typed import (
     PodScheduledEvent,
     PodSucceededEvent,
     PodTerminatedEvent,
+    # Resource Events
+    QuotaExceededEvent,
+    RateLimitExceededEvent,
+    ReleaseResourcesCommandEvent,
+    ResourceLimitExceededEvent,
+    # Result Events
     ResultFailedEvent,
     ResultStoredEvent,
+    # Saga Events
+    SagaCancelledEvent,
+    SagaCompensatedEvent,
+    SagaCompensatingEvent,
+    SagaCompletedEvent,
+    SagaFailedEvent,
+    SagaStartedEvent,
+    # Script Events
+    ScriptDeletedEvent,
+    ScriptSavedEvent,
+    ScriptSharedEvent,
+    SecurityViolationEvent,
+    # System Events
+    ServiceRecoveredEvent,
+    ServiceUnhealthyEvent,
+    SystemErrorEvent,
+    # User Events
+    UserDeletedEvent,
+    UserLoggedInEvent,
+    UserLoggedOutEvent,
+    UserLoginEvent,
+    UserRegisteredEvent,
     UserSettingsUpdatedEvent,
+    UserUpdatedEvent,
     domain_event_adapter,
 )
 
@@ -59,12 +105,13 @@ __all__ = [
     "ExecutionEventsResult",
     "HourlyEventCount",
     "UserEventCount",
-    # Typed events
+    # Base types
     "ArchivedEvent",
     "BaseEvent",
     "DomainEvent",
     "EventMetadata",
     "domain_event_adapter",
+    # Execution Events
     "ExecutionRequestedEvent",
     "ExecutionAcceptedEvent",
     "ExecutionQueuedEvent",
@@ -74,6 +121,7 @@ __all__ = [
     "ExecutionFailedEvent",
     "ExecutionTimeoutEvent",
     "ExecutionCancelledEvent",
+    # Pod Events
     "PodCreatedEvent",
     "PodScheduledEvent",
     "PodRunningEvent",
@@ -81,7 +129,50 @@ __all__ = [
     "PodFailedEvent",
     "PodTerminatedEvent",
     "PodDeletedEvent",
+    # Result Events
     "ResultStoredEvent",
     "ResultFailedEvent",
+    # User Events
     "UserSettingsUpdatedEvent",
+    "UserRegisteredEvent",
+    "UserLoginEvent",
+    "UserLoggedInEvent",
+    "UserLoggedOutEvent",
+    "UserUpdatedEvent",
+    "UserDeletedEvent",
+    # Notification Events
+    "NotificationCreatedEvent",
+    "NotificationSentEvent",
+    "NotificationDeliveredEvent",
+    "NotificationFailedEvent",
+    "NotificationReadEvent",
+    "NotificationClickedEvent",
+    "NotificationPreferencesUpdatedEvent",
+    # Saga Events
+    "SagaStartedEvent",
+    "SagaCompletedEvent",
+    "SagaFailedEvent",
+    "SagaCancelledEvent",
+    "SagaCompensatingEvent",
+    "SagaCompensatedEvent",
+    # Saga Command Events
+    "CreatePodCommandEvent",
+    "DeletePodCommandEvent",
+    "AllocateResourcesCommandEvent",
+    "ReleaseResourcesCommandEvent",
+    # Script Events
+    "ScriptSavedEvent",
+    "ScriptDeletedEvent",
+    "ScriptSharedEvent",
+    # Security Events
+    "SecurityViolationEvent",
+    "RateLimitExceededEvent",
+    "AuthFailedEvent",
+    # Resource Events
+    "ResourceLimitExceededEvent",
+    "QuotaExceededEvent",
+    # System Events
+    "SystemErrorEvent",
+    "ServiceUnhealthyEvent",
+    "ServiceRecoveredEvent",
 ]

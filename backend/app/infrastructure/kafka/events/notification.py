@@ -61,3 +61,10 @@ class NotificationClickedEvent(BaseEvent):
     user_id: str
     clicked_at: str
     action: str | None = None
+
+
+class NotificationPreferencesUpdatedEvent(BaseEvent):
+    event_type: Literal[EventType.NOTIFICATION_PREFERENCES_UPDATED] = EventType.NOTIFICATION_PREFERENCES_UPDATED
+    topic: ClassVar[KafkaTopic] = KafkaTopic.NOTIFICATION_EVENTS
+    user_id: str
+    changed_fields: list[str]

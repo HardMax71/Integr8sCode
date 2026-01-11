@@ -4,8 +4,10 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Discriminator, Field, TypeAdapter
 
+from app.domain.enums.auth import LoginMethod
 from app.domain.enums.common import Environment
 from app.domain.enums.events import EventType
+from app.domain.enums.notification import NotificationChannel, NotificationSeverity
 from app.domain.enums.storage import ExecutionErrorType, StorageType
 from app.domain.execution import ResourceUsageDomain
 
@@ -213,6 +215,305 @@ class UserSettingsUpdatedEvent(BaseEvent):
     reason: str | None = None
 
 
+class UserRegisteredEvent(BaseEvent):
+    event_type: Literal[EventType.USER_REGISTERED] = EventType.USER_REGISTERED
+    user_id: str
+    username: str
+    email: str
+
+
+class UserLoginEvent(BaseEvent):
+    event_type: Literal[EventType.USER_LOGIN] = EventType.USER_LOGIN
+    user_id: str
+    login_method: LoginMethod
+    ip_address: str | None = None
+    user_agent: str | None = None
+
+
+class UserLoggedInEvent(BaseEvent):
+    event_type: Literal[EventType.USER_LOGGED_IN] = EventType.USER_LOGGED_IN
+    user_id: str
+    login_method: LoginMethod
+    ip_address: str | None = None
+    user_agent: str | None = None
+
+
+class UserLoggedOutEvent(BaseEvent):
+    event_type: Literal[EventType.USER_LOGGED_OUT] = EventType.USER_LOGGED_OUT
+    user_id: str
+    logout_reason: str | None = None
+
+
+class UserUpdatedEvent(BaseEvent):
+    event_type: Literal[EventType.USER_UPDATED] = EventType.USER_UPDATED
+    user_id: str
+    updated_fields: list[str] = Field(default_factory=list)
+    updated_by: str | None = None
+
+
+class UserDeletedEvent(BaseEvent):
+    event_type: Literal[EventType.USER_DELETED] = EventType.USER_DELETED
+    user_id: str
+    deleted_by: str | None = None
+    reason: str | None = None
+
+
+# --- Notification Events ---
+
+
+class NotificationCreatedEvent(BaseEvent):
+    event_type: Literal[EventType.NOTIFICATION_CREATED] = EventType.NOTIFICATION_CREATED
+    notification_id: str
+    user_id: str
+    subject: str
+    body: str
+    severity: NotificationSeverity
+    tags: list[str] = Field(default_factory=list)
+    channels: list[NotificationChannel] = Field(default_factory=list)
+
+
+class NotificationSentEvent(BaseEvent):
+    event_type: Literal[EventType.NOTIFICATION_SENT] = EventType.NOTIFICATION_SENT
+    notification_id: str
+    user_id: str
+    channel: NotificationChannel
+    sent_at: str
+
+
+class NotificationDeliveredEvent(BaseEvent):
+    event_type: Literal[EventType.NOTIFICATION_DELIVERED] = EventType.NOTIFICATION_DELIVERED
+    notification_id: str
+    user_id: str
+    channel: NotificationChannel
+    delivered_at: str
+
+
+class NotificationFailedEvent(BaseEvent):
+    event_type: Literal[EventType.NOTIFICATION_FAILED] = EventType.NOTIFICATION_FAILED
+    notification_id: str
+    user_id: str
+    channel: NotificationChannel
+    error: str
+    retry_count: int = 0
+
+
+class NotificationReadEvent(BaseEvent):
+    event_type: Literal[EventType.NOTIFICATION_READ] = EventType.NOTIFICATION_READ
+    notification_id: str
+    user_id: str
+    read_at: str
+
+
+class NotificationClickedEvent(BaseEvent):
+    event_type: Literal[EventType.NOTIFICATION_CLICKED] = EventType.NOTIFICATION_CLICKED
+    notification_id: str
+    user_id: str
+    clicked_at: str
+    action: str | None = None
+
+
+class NotificationPreferencesUpdatedEvent(BaseEvent):
+    event_type: Literal[EventType.NOTIFICATION_PREFERENCES_UPDATED] = EventType.NOTIFICATION_PREFERENCES_UPDATED
+    user_id: str
+    changed_fields: list[str] = Field(default_factory=list)
+
+
+# --- Saga Events ---
+
+
+class SagaStartedEvent(BaseEvent):
+    event_type: Literal[EventType.SAGA_STARTED] = EventType.SAGA_STARTED
+    saga_id: str
+    saga_name: str
+    execution_id: str
+    initial_event_id: str
+
+
+class SagaCompletedEvent(BaseEvent):
+    event_type: Literal[EventType.SAGA_COMPLETED] = EventType.SAGA_COMPLETED
+    saga_id: str
+    saga_name: str
+    execution_id: str
+    completed_steps: list[str] = Field(default_factory=list)
+
+
+class SagaFailedEvent(BaseEvent):
+    event_type: Literal[EventType.SAGA_FAILED] = EventType.SAGA_FAILED
+    saga_id: str
+    saga_name: str
+    execution_id: str
+    failed_step: str
+    error: str
+
+
+class SagaCancelledEvent(BaseEvent):
+    event_type: Literal[EventType.SAGA_CANCELLED] = EventType.SAGA_CANCELLED
+    saga_id: str
+    saga_name: str
+    execution_id: str
+    reason: str
+    completed_steps: list[str] = Field(default_factory=list)
+    compensated_steps: list[str] = Field(default_factory=list)
+    cancelled_at: datetime | None = None
+    cancelled_by: str | None = None
+
+
+class SagaCompensatingEvent(BaseEvent):
+    event_type: Literal[EventType.SAGA_COMPENSATING] = EventType.SAGA_COMPENSATING
+    saga_id: str
+    saga_name: str
+    execution_id: str
+    compensating_step: str
+
+
+class SagaCompensatedEvent(BaseEvent):
+    event_type: Literal[EventType.SAGA_COMPENSATED] = EventType.SAGA_COMPENSATED
+    saga_id: str
+    saga_name: str
+    execution_id: str
+    compensated_steps: list[str] = Field(default_factory=list)
+
+
+# --- Saga Command Events ---
+
+
+class CreatePodCommandEvent(BaseEvent):
+    event_type: Literal[EventType.CREATE_POD_COMMAND] = EventType.CREATE_POD_COMMAND
+    saga_id: str
+    execution_id: str
+    script: str
+    language: str
+    language_version: str
+    runtime_image: str
+    runtime_command: list[str] = Field(default_factory=list)
+    runtime_filename: str
+    timeout_seconds: int
+    cpu_limit: str
+    memory_limit: str
+    cpu_request: str
+    memory_request: str
+    priority: int = 5
+
+
+class DeletePodCommandEvent(BaseEvent):
+    event_type: Literal[EventType.DELETE_POD_COMMAND] = EventType.DELETE_POD_COMMAND
+    saga_id: str
+    execution_id: str
+    reason: str
+    pod_name: str | None = None
+    namespace: str | None = None
+
+
+class AllocateResourcesCommandEvent(BaseEvent):
+    event_type: Literal[EventType.ALLOCATE_RESOURCES_COMMAND] = EventType.ALLOCATE_RESOURCES_COMMAND
+    execution_id: str
+    cpu_request: str
+    memory_request: str
+
+
+class ReleaseResourcesCommandEvent(BaseEvent):
+    event_type: Literal[EventType.RELEASE_RESOURCES_COMMAND] = EventType.RELEASE_RESOURCES_COMMAND
+    execution_id: str
+    cpu_request: str
+    memory_request: str
+
+
+# --- Script Events ---
+
+
+class ScriptSavedEvent(BaseEvent):
+    event_type: Literal[EventType.SCRIPT_SAVED] = EventType.SCRIPT_SAVED
+    script_id: str
+    user_id: str
+    title: str
+    language: str
+
+
+class ScriptDeletedEvent(BaseEvent):
+    event_type: Literal[EventType.SCRIPT_DELETED] = EventType.SCRIPT_DELETED
+    script_id: str
+    user_id: str
+    deleted_by: str | None = None
+
+
+class ScriptSharedEvent(BaseEvent):
+    event_type: Literal[EventType.SCRIPT_SHARED] = EventType.SCRIPT_SHARED
+    script_id: str
+    shared_by: str
+    shared_with: list[str] = Field(default_factory=list)
+    permissions: str
+
+
+# --- Security Events ---
+
+
+class SecurityViolationEvent(BaseEvent):
+    event_type: Literal[EventType.SECURITY_VIOLATION] = EventType.SECURITY_VIOLATION
+    user_id: str | None = None
+    violation_type: str
+    details: str
+    ip_address: str | None = None
+
+
+class RateLimitExceededEvent(BaseEvent):
+    event_type: Literal[EventType.RATE_LIMIT_EXCEEDED] = EventType.RATE_LIMIT_EXCEEDED
+    user_id: str | None = None
+    endpoint: str
+    limit: int
+    window_seconds: int
+
+
+class AuthFailedEvent(BaseEvent):
+    event_type: Literal[EventType.AUTH_FAILED] = EventType.AUTH_FAILED
+    username: str | None = None
+    reason: str
+    ip_address: str | None = None
+
+
+# --- Resource Events ---
+
+
+class ResourceLimitExceededEvent(BaseEvent):
+    event_type: Literal[EventType.RESOURCE_LIMIT_EXCEEDED] = EventType.RESOURCE_LIMIT_EXCEEDED
+    resource_type: str
+    limit: int
+    requested: int
+    user_id: str | None = None
+
+
+class QuotaExceededEvent(BaseEvent):
+    event_type: Literal[EventType.QUOTA_EXCEEDED] = EventType.QUOTA_EXCEEDED
+    quota_type: str
+    limit: int
+    current_usage: int
+    user_id: str
+
+
+# --- System Events ---
+
+
+class SystemErrorEvent(BaseEvent):
+    event_type: Literal[EventType.SYSTEM_ERROR] = EventType.SYSTEM_ERROR
+    error_type: str
+    message: str
+    service_name: str
+    stack_trace: str | None = None
+
+
+class ServiceUnhealthyEvent(BaseEvent):
+    event_type: Literal[EventType.SERVICE_UNHEALTHY] = EventType.SERVICE_UNHEALTHY
+    service_name: str
+    health_check: str
+    reason: str
+
+
+class ServiceRecoveredEvent(BaseEvent):
+    event_type: Literal[EventType.SERVICE_RECOVERED] = EventType.SERVICE_RECOVERED
+    service_name: str
+    health_check: str
+    downtime_seconds: int
+
+
 # --- Archived Event (for deleted events) ---
 
 
@@ -238,6 +539,7 @@ class ArchivedEvent(BaseModel):
 # --- Discriminated Union: TYPE SYSTEM handles dispatch ---
 
 DomainEvent = Annotated[
+    # Execution Events
     ExecutionRequestedEvent
     | ExecutionAcceptedEvent
     | ExecutionQueuedEvent
@@ -247,6 +549,7 @@ DomainEvent = Annotated[
     | ExecutionFailedEvent
     | ExecutionTimeoutEvent
     | ExecutionCancelledEvent
+    # Pod Events
     | PodCreatedEvent
     | PodScheduledEvent
     | PodRunningEvent
@@ -254,9 +557,52 @@ DomainEvent = Annotated[
     | PodFailedEvent
     | PodTerminatedEvent
     | PodDeletedEvent
+    # Result Events
     | ResultStoredEvent
     | ResultFailedEvent
-    | UserSettingsUpdatedEvent,
+    # User Events
+    | UserSettingsUpdatedEvent
+    | UserRegisteredEvent
+    | UserLoginEvent
+    | UserLoggedInEvent
+    | UserLoggedOutEvent
+    | UserUpdatedEvent
+    | UserDeletedEvent
+    # Notification Events
+    | NotificationCreatedEvent
+    | NotificationSentEvent
+    | NotificationDeliveredEvent
+    | NotificationFailedEvent
+    | NotificationReadEvent
+    | NotificationClickedEvent
+    | NotificationPreferencesUpdatedEvent
+    # Saga Events
+    | SagaStartedEvent
+    | SagaCompletedEvent
+    | SagaFailedEvent
+    | SagaCancelledEvent
+    | SagaCompensatingEvent
+    | SagaCompensatedEvent
+    # Saga Command Events
+    | CreatePodCommandEvent
+    | DeletePodCommandEvent
+    | AllocateResourcesCommandEvent
+    | ReleaseResourcesCommandEvent
+    # Script Events
+    | ScriptSavedEvent
+    | ScriptDeletedEvent
+    | ScriptSharedEvent
+    # Security Events
+    | SecurityViolationEvent
+    | RateLimitExceededEvent
+    | AuthFailedEvent
+    # Resource Events
+    | ResourceLimitExceededEvent
+    | QuotaExceededEvent
+    # System Events
+    | SystemErrorEvent
+    | ServiceUnhealthyEvent
+    | ServiceRecoveredEvent,
     Discriminator("event_type"),
 ]
 

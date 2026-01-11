@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from uuid import uuid4
 
 from cachetools import TTLCache
 from pydantic import TypeAdapter
@@ -38,6 +39,7 @@ class UserSettingsService:
         )
         self._event_bus_manager: EventBusManager | None = None
         self._subscription_id: str | None = None
+        self._instance_id: str = str(uuid4())
 
         self.logger.info(
             "UserSettingsService initialized",
@@ -54,11 +56,14 @@ class UserSettingsService:
         return await self.get_user_settings_fresh(user_id)
 
     async def initialize(self, event_bus_manager: EventBusManager) -> None:
-        """Subscribe to settings update events for cache invalidation."""
+        """Subscribe to settings update events for cross-instance cache invalidation."""
         self._event_bus_manager = event_bus_manager
         bus = await event_bus_manager.get_event_bus()
 
         async def _handle(evt: EventBusEvent) -> None:
+            # Skip events from this instance - we already updated our cache
+            if evt.payload.get("source_instance") == self._instance_id:
+                return
             uid = evt.payload.get("user_id")
             if uid:
                 await self.invalidate_cache(str(uid))
@@ -106,7 +111,7 @@ class UserSettingsService:
 
         if self._event_bus_manager is not None:
             bus = await self._event_bus_manager.get_event_bus()
-            await bus.publish("user.settings.updated", {"user_id": user_id})
+            await bus.publish("user.settings.updated", {"user_id": user_id, "source_instance": self._instance_id})
 
         self._add_to_cache(user_id, new_settings)
         if (await self.repository.count_events_since_snapshot(user_id)) >= 10:

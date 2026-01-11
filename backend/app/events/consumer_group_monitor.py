@@ -1,14 +1,16 @@
 import asyncio
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, cast
+from typing import Any
 
-from confluent_kafka import Consumer, ConsumerGroupState, KafkaError, TopicPartition
-from confluent_kafka.admin import ConsumerGroupDescription
+from aiokafka import AIOKafkaConsumer, TopicPartition
+from aiokafka.admin import AIOKafkaAdminClient
+from aiokafka.protocol.api import Response
+from aiokafka.protocol.group import MemberAssignment
+from aiokafka.structs import OffsetAndMetadata
 
 from app.core.utils import StringEnum
-from app.events.admin_utils import AdminUtils
 from app.settings import Settings
 
 
@@ -21,6 +23,18 @@ class ConsumerGroupHealth(StringEnum):
     UNKNOWN = "unknown"
 
 
+# Known consumer group states from Kafka protocol
+class ConsumerGroupState(StringEnum):
+    """Consumer group states from Kafka protocol."""
+
+    STABLE = "Stable"
+    PREPARING_REBALANCE = "PreparingRebalance"
+    COMPLETING_REBALANCE = "CompletingRebalance"
+    EMPTY = "Empty"
+    DEAD = "Dead"
+    UNKNOWN = "Unknown"
+
+
 @dataclass(slots=True)
 class ConsumerGroupMember:
     """Information about a consumer group member."""
@@ -28,7 +42,7 @@ class ConsumerGroupMember:
     member_id: str
     client_id: str
     host: str
-    assigned_partitions: List[str]  # topic:partition format
+    assigned_partitions: list[str]  # topic:partition format
 
 
 @dataclass(slots=True)
@@ -36,41 +50,86 @@ class ConsumerGroupStatus:
     """Comprehensive consumer group status information."""
 
     group_id: str
-    state: str
+    state: ConsumerGroupState
     protocol: str
     protocol_type: str
     coordinator: str
-    members: List[ConsumerGroupMember]
+    members: list[ConsumerGroupMember]
 
     # Health metrics
     member_count: int
     assigned_partitions: int
-    partition_distribution: Dict[str, int]  # member_id -> partition count
+    partition_distribution: dict[str, int]  # member_id -> partition count
 
     # Lag information (if available)
     total_lag: int = 0
-    partition_lags: Dict[str, int] | None = None  # topic:partition -> lag
+    partition_lags: dict[str, int] = field(default_factory=dict)  # topic:partition -> lag
 
     # Health assessment
     health: ConsumerGroupHealth = ConsumerGroupHealth.UNKNOWN
     health_message: str = ""
 
-    timestamp: datetime | None = None
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
-    def __post_init__(self) -> None:
-        if self.timestamp is None:
-            self.timestamp = datetime.now(timezone.utc)
 
-        if self.partition_lags is None:
-            self.partition_lags = {}
+@dataclass(slots=True)
+class DescribedGroup:
+    """Parsed group from DescribeGroupsResponse."""
+
+    error_code: int
+    group_id: str
+    state: str
+    protocol_type: str
+    protocol: str
+    members: list[dict[str, Any]]
+
+
+def _parse_describe_groups_response(response: Response) -> list[DescribedGroup]:
+    """Parse DescribeGroupsResponse into typed DescribedGroup objects."""
+    obj = response.to_object()
+    groups_data: list[dict[str, Any]] = obj["groups"]
+
+    result: list[DescribedGroup] = []
+    for g in groups_data:
+        result.append(
+            DescribedGroup(
+                error_code=g["error_code"],
+                group_id=g["group"],
+                state=g["state"],
+                protocol_type=g["protocol_type"],
+                protocol=g["protocol"],
+                members=g["members"],
+            )
+        )
+    return result
+
+
+def _parse_member_assignment(assignment_bytes: bytes) -> list[tuple[str, list[int]]]:
+    """Parse member_assignment bytes to list of (topic, partitions)."""
+    if not assignment_bytes:
+        return []
+
+    try:
+        assignment = MemberAssignment.decode(assignment_bytes)
+        return [(topic, list(partitions)) for topic, partitions in assignment.assignment]
+    except Exception:
+        return []
+
+
+def _state_from_string(state_str: str) -> ConsumerGroupState:
+    """Convert state string to ConsumerGroupState enum."""
+    try:
+        return ConsumerGroupState(state_str)
+    except ValueError:
+        return ConsumerGroupState.UNKNOWN
 
 
 class NativeConsumerGroupMonitor:
     """
-    Enhanced consumer group monitoring using confluent-kafka native operations.
+    Enhanced consumer group monitoring using aiokafka.
 
     Provides detailed consumer group health monitoring, lag tracking, and
-    rebalancing detection using AdminClient's native capabilities.
+    rebalancing detection using AIOKafkaAdminClient's native capabilities.
     """
 
     def __init__(
@@ -78,88 +137,112 @@ class NativeConsumerGroupMonitor:
         settings: Settings,
         logger: logging.Logger,
         client_id: str = "integr8scode-consumer-group-monitor",
-        request_timeout_ms: int = 30000,
         # Health thresholds
-        max_rebalance_time_seconds: int = 300,  # 5 minutes
         critical_lag_threshold: int = 10000,
         warning_lag_threshold: int = 1000,
         min_members_threshold: int = 1,
     ):
         self.logger = logger
-        self.bootstrap_servers = settings.KAFKA_BOOTSTRAP_SERVERS
+        self._bootstrap_servers = settings.KAFKA_BOOTSTRAP_SERVERS
+        self._client_id = client_id
 
-        self.admin_client = AdminUtils(settings=settings, logger=logger)
+        self._admin: AIOKafkaAdminClient | None = None
 
         # Health thresholds
-        self.max_rebalance_time = max_rebalance_time_seconds
         self.critical_lag_threshold = critical_lag_threshold
         self.warning_lag_threshold = warning_lag_threshold
         self.min_members_threshold = min_members_threshold
 
         # Monitoring state
-        self._group_status_cache: Dict[str, ConsumerGroupStatus] = {}
+        self._group_status_cache: dict[str, ConsumerGroupStatus] = {}
         self._cache_ttl_seconds = 30
 
+    async def _get_admin(self) -> AIOKafkaAdminClient:
+        """Get or create the admin client."""
+        if self._admin is None:
+            self._admin = AIOKafkaAdminClient(
+                bootstrap_servers=self._bootstrap_servers,
+                client_id=self._client_id,
+            )
+            await self._admin.start()
+        return self._admin
+
+    async def close(self) -> None:
+        """Close the admin client."""
+        if self._admin is not None:
+            await self._admin.close()
+            self._admin = None
+
     async def get_consumer_group_status(
-        self, group_id: str, timeout: float = 30.0, include_lag: bool = True
+        self, group_id: str, include_lag: bool = True
     ) -> ConsumerGroupStatus:
         """Get comprehensive status for a consumer group."""
         try:
             # Check cache first
-            if group_id in self._group_status_cache:
-                cached = self._group_status_cache[group_id]
-                if cached.timestamp is not None:
-                    cache_age = (datetime.now(timezone.utc) - cached.timestamp).total_seconds()
-                    if cache_age < self._cache_ttl_seconds:
-                        return cached
+            cached = self._group_status_cache.get(group_id)
+            if cached is not None:
+                cache_age = (datetime.now(timezone.utc) - cached.timestamp).total_seconds()
+                if cache_age < self._cache_ttl_seconds:
+                    return cached
 
             # Get group description from AdminClient
-            group_desc = await self._describe_consumer_group(group_id, timeout)
+            described_group = await self._describe_consumer_group(group_id)
 
             # Build member information
-            members = []
-            partition_distribution = {}
+            members: list[ConsumerGroupMember] = []
+            partition_distribution: dict[str, int] = {}
             total_assigned_partitions = 0
 
-            for member in group_desc.members:
-                # Parse assigned partitions
-                assigned_partitions = []
-                if member.assignment and hasattr(member.assignment, "topic_partitions"):
-                    for tp in member.assignment.topic_partitions:
-                        assigned_partitions.append(f"{tp.topic}:{tp.partition}")
+            for member_data in described_group.members:
+                member_id: str = member_data["member_id"]
+                client_id: str = member_data["client_id"]
+                client_host: str = member_data["client_host"]
+                assignment_bytes: bytes = member_data["member_assignment"]
+
+                # Parse assigned partitions from assignment bytes
+                assigned_partitions: list[str] = []
+                topic_partitions = _parse_member_assignment(assignment_bytes)
+                for topic, partitions in topic_partitions:
+                    for partition in partitions:
+                        assigned_partitions.append(f"{topic}:{partition}")
 
                 members.append(
                     ConsumerGroupMember(
-                        member_id=member.member_id,
-                        client_id=member.client_id,
-                        host=member.host,
+                        member_id=member_id,
+                        client_id=client_id,
+                        host=client_host,
                         assigned_partitions=assigned_partitions,
                     )
                 )
 
-                partition_distribution[member.member_id] = len(assigned_partitions)
+                partition_distribution[member_id] = len(assigned_partitions)
                 total_assigned_partitions += len(assigned_partitions)
 
             # Get coordinator information
-            coordinator = f"{group_desc.coordinator.host}:{group_desc.coordinator.port}"
+            admin = await self._get_admin()
+            coordinator_id = await admin.find_coordinator(group_id)
+            coordinator = f"node:{coordinator_id}"
+
+            # Parse state
+            state = _state_from_string(described_group.state)
 
             # Get lag information if requested
             total_lag = 0
-            partition_lags = {}
-            if include_lag and group_desc.state == ConsumerGroupState.STABLE:
+            partition_lags: dict[str, int] = {}
+            if include_lag and state == ConsumerGroupState.STABLE:
                 try:
-                    lag_info = await self._get_consumer_group_lag(group_id, timeout)
-                    total_lag = lag_info.get("total_lag", 0)
-                    partition_lags = lag_info.get("partition_lags", {})
+                    lag_info = await self._get_consumer_group_lag(group_id)
+                    total_lag = lag_info["total_lag"]
+                    partition_lags = lag_info["partition_lags"]
                 except Exception as e:
                     self.logger.warning(f"Failed to get lag info for group {group_id}: {e}")
 
             # Create status object
             status = ConsumerGroupStatus(
                 group_id=group_id,
-                state=group_desc.state.name if group_desc.state else "UNKNOWN",
-                protocol=getattr(group_desc, "protocol", "unknown"),
-                protocol_type=getattr(group_desc, "protocol_type", "unknown"),
+                state=state,
+                protocol=described_group.protocol,
+                protocol_type=described_group.protocol_type,
                 coordinator=coordinator,
                 members=members,
                 member_count=len(members),
@@ -183,7 +266,7 @@ class NativeConsumerGroupMonitor:
             # Return minimal status with error
             return ConsumerGroupStatus(
                 group_id=group_id,
-                state="ERROR",
+                state=ConsumerGroupState.UNKNOWN,
                 protocol="unknown",
                 protocol_type="unknown",
                 coordinator="unknown",
@@ -196,23 +279,26 @@ class NativeConsumerGroupMonitor:
             )
 
     async def get_multiple_group_status(
-        self, group_ids: List[str], timeout: float = 30.0, include_lag: bool = True
-    ) -> Dict[str, ConsumerGroupStatus]:
+        self, group_ids: list[str], include_lag: bool = True
+    ) -> dict[str, ConsumerGroupStatus]:
         """Get status for multiple consumer groups efficiently."""
-        results = {}
+        results: dict[str, ConsumerGroupStatus] = {}
 
         # Process groups concurrently
-        tasks = [self.get_consumer_group_status(group_id, timeout, include_lag) for group_id in group_ids]
+        tasks = [self.get_consumer_group_status(group_id, include_lag) for group_id in group_ids]
 
         try:
             statuses = await asyncio.gather(*tasks, return_exceptions=True)
 
             for group_id, status in zip(group_ids, statuses, strict=False):
-                if isinstance(status, Exception):
+                if isinstance(status, ConsumerGroupStatus):
+                    results[group_id] = status
+                else:
+                    # status is BaseException
                     self.logger.error(f"Failed to get status for group {group_id}: {status}")
                     results[group_id] = ConsumerGroupStatus(
                         group_id=group_id,
-                        state="ERROR",
+                        state=ConsumerGroupState.UNKNOWN,
                         protocol="unknown",
                         protocol_type="unknown",
                         coordinator="unknown",
@@ -223,152 +309,102 @@ class NativeConsumerGroupMonitor:
                         health=ConsumerGroupHealth.UNHEALTHY,
                         health_message=str(status),
                     )
-                elif isinstance(status, ConsumerGroupStatus):
-                    results[group_id] = status
 
         except Exception as e:
             self.logger.error(f"Failed to get multiple group status: {e}")
             # Return error status for all groups
             for group_id in group_ids:
-                results[group_id] = ConsumerGroupStatus(
-                    group_id=group_id,
-                    state="ERROR",
-                    protocol="unknown",
-                    protocol_type="unknown",
-                    coordinator="unknown",
-                    members=[],
-                    member_count=0,
-                    assigned_partitions=0,
-                    partition_distribution={},
-                    health=ConsumerGroupHealth.UNHEALTHY,
-                    health_message=str(e),
-                )
+                if group_id not in results:
+                    results[group_id] = ConsumerGroupStatus(
+                        group_id=group_id,
+                        state=ConsumerGroupState.UNKNOWN,
+                        protocol="unknown",
+                        protocol_type="unknown",
+                        coordinator="unknown",
+                        members=[],
+                        member_count=0,
+                        assigned_partitions=0,
+                        partition_distribution={},
+                        health=ConsumerGroupHealth.UNHEALTHY,
+                        health_message=str(e),
+                    )
 
         return results
 
-    async def list_consumer_groups(self, timeout: float = 10.0) -> List[str]:
+    async def list_consumer_groups(self) -> list[str]:
         """List all consumer groups in the cluster."""
         try:
-            # Use native AdminClient to list consumer groups
-            admin = self.admin_client.admin_client
-
-            # List consumer groups (sync operation)
-            result = await asyncio.to_thread(admin.list_consumer_groups, request_timeout=timeout)
-
-            # Extract group IDs from result
-            # ListConsumerGroupsResult has .valid and .errors attributes
-            group_ids = []
-            if hasattr(result, "valid"):
-                # result.valid contains a list of ConsumerGroupListing objects
-                group_ids = [group_listing.group_id for group_listing in result.valid]
-
-            # Log any errors that occurred
-            if hasattr(result, "errors") and result.errors:
-                for error in result.errors:
-                    self.logger.warning(f"Error listing some consumer groups: {error}")
-
-            return group_ids
-
+            admin = await self._get_admin()
+            # Returns list of tuples: (group_id, protocol_type)
+            groups: list[tuple[Any, ...]] = await admin.list_consumer_groups()
+            return [str(g[0]) for g in groups]
         except Exception as e:
             self.logger.error(f"Failed to list consumer groups: {e}")
             return []
 
-    async def _describe_consumer_group(self, group_id: str, timeout: float) -> ConsumerGroupDescription:
+    async def _describe_consumer_group(self, group_id: str) -> DescribedGroup:
         """Describe a single consumer group using native AdminClient."""
-        try:
-            admin = self.admin_client.admin_client
+        admin = await self._get_admin()
+        responses: list[Response] = await admin.describe_consumer_groups([group_id])
 
-            # Describe consumer group (sync operation)
-            future_map = admin.describe_consumer_groups([group_id], request_timeout=timeout)
+        if not responses:
+            raise ValueError(f"No response for group {group_id}")
 
-            if group_id not in future_map:
-                raise ValueError(f"Group {group_id} not found in describe result")
+        # Parse the response
+        groups = _parse_describe_groups_response(responses[0])
 
-            future = future_map[group_id]
-            # Cast future.result to proper type to help mypy
-            result_func = cast(Any, future.result)
-            group_desc: ConsumerGroupDescription = await asyncio.to_thread(result_func, timeout=timeout)
+        # Find our group in the response
+        for group in groups:
+            if group.group_id == group_id:
+                if group.error_code != 0:
+                    raise ValueError(f"Error describing group {group_id}: error_code={group.error_code}")
+                return group
 
-            return group_desc
+        raise ValueError(f"Group {group_id} not found in response")
 
-        except Exception as e:
-            if hasattr(e, "args") and e.args and isinstance(e.args[0], KafkaError):
-                kafka_err = e.args[0]
-                self.logger.error(
-                    f"Kafka error describing group {group_id}: "
-                    f"code={kafka_err.code()}, "
-                    f"name={kafka_err.name()}, "
-                    f"message={kafka_err}"
-                )
-                raise ValueError(f"Failed to describe group {group_id}: {kafka_err}")
-            raise ValueError(f"Failed to describe group {group_id}: {e}")
-
-    async def _get_consumer_group_lag(self, group_id: str, timeout: float) -> Dict[str, Any]:
+    async def _get_consumer_group_lag(self, group_id: str) -> dict[str, Any]:
         """Get consumer group lag information."""
         try:
-            # Create a temporary consumer to get lag info
-            consumer_config = {
-                "bootstrap.servers": self.bootstrap_servers,
-                "group.id": f"{group_id}-lag-monitor-{datetime.now().timestamp()}",
-                "enable.auto.commit": False,
-                "auto.offset.reset": "earliest",
-            }
+            admin = await self._get_admin()
 
-            consumer = Consumer(consumer_config)
+            # Get committed offsets for the group
+            offsets: dict[TopicPartition, OffsetAndMetadata] = await admin.list_consumer_group_offsets(group_id)
+
+            if not offsets:
+                return {"total_lag": 0, "partition_lags": {}}
+
+            # Create a temporary consumer to get high watermarks
+            consumer = AIOKafkaConsumer(
+                bootstrap_servers=self._bootstrap_servers,
+                group_id=f"{group_id}-lag-monitor-{datetime.now().timestamp()}",
+                enable_auto_commit=False,
+                auto_offset_reset="earliest",
+            )
 
             try:
-                # Get group metadata to find assigned topics
-                group_desc = await self._describe_consumer_group(group_id, timeout)
-
-                # Extract topics from member assignments
-                topics = set()
-                for member in group_desc.members:
-                    if member.assignment and hasattr(member.assignment, "topic_partitions"):
-                        for tp in member.assignment.topic_partitions:
-                            topics.add(tp.topic)
-
-                if not topics:
-                    return {"total_lag": 0, "partition_lags": {}}
-
-                # Get topic metadata to find all partitions
-                metadata = await asyncio.to_thread(consumer.list_topics, timeout=timeout)
+                await consumer.start()
 
                 total_lag = 0
-                partition_lags = {}
+                partition_lags: dict[str, int] = {}
 
-                for topic in topics:
-                    if topic not in metadata.topics:
-                        continue
+                # Get end offsets for all partitions
+                tps = list(offsets.keys())
+                if tps:
+                    end_offsets: dict[TopicPartition, int] = await consumer.end_offsets(tps)
 
-                    topic_metadata = metadata.topics[topic]
+                    for tp, offset_meta in offsets.items():
+                        committed_offset = offset_meta.offset
+                        high = end_offsets.get(tp, 0)
 
-                    for partition_id in topic_metadata.partitions.keys():
-                        try:
-                            # Get high water mark
-                            low, high = await asyncio.to_thread(
-                                consumer.get_watermark_offsets, TopicPartition(topic, partition_id), timeout=timeout
-                            )
-
-                            # Get committed offset for the group
-                            committed = await asyncio.to_thread(
-                                consumer.committed, [TopicPartition(topic, partition_id)], timeout=timeout
-                            )
-
-                            if committed and len(committed) > 0:
-                                committed_offset = committed[0].offset
-                                if committed_offset >= 0:  # Valid offset
-                                    lag = max(0, high - committed_offset)
-                                    partition_lags[f"{topic}:{partition_id}"] = lag
-                                    total_lag += lag
-
-                        except Exception as e:
-                            self.logger.debug(f"Failed to get lag for {topic}:{partition_id}: {e}")
-                            continue
+                        if committed_offset >= 0:
+                            lag = max(0, high - committed_offset)
+                            partition_lags[f"{tp.topic}:{tp.partition}"] = lag
+                            total_lag += lag
 
                 return {"total_lag": total_lag, "partition_lags": partition_lags}
 
             finally:
-                consumer.close()
+                await consumer.stop()
 
         except Exception as e:
             self.logger.warning(f"Failed to get consumer group lag for {group_id}: {e}")
@@ -377,17 +413,23 @@ class NativeConsumerGroupMonitor:
     def _assess_group_health(self, status: ConsumerGroupStatus) -> tuple[ConsumerGroupHealth, str]:
         """Assess the health of a consumer group based on its status."""
 
-        # Check for critical issues
-        if status.state == "ERROR":
-            return ConsumerGroupHealth.UNHEALTHY, "Group is in error state"
+        # Check for error/unknown state
+        if status.state == ConsumerGroupState.UNKNOWN:
+            return ConsumerGroupHealth.UNHEALTHY, "Group is in unknown state"
+
+        if status.state == ConsumerGroupState.DEAD:
+            return ConsumerGroupHealth.UNHEALTHY, "Group is dead"
 
         if status.member_count < self.min_members_threshold:
             return ConsumerGroupHealth.UNHEALTHY, f"Insufficient members: {status.member_count}"
 
         # Check for rebalancing issues
-        if status.state in ("REBALANCING", "COMPLETING_REBALANCE"):
-            # This could be normal, but we'll mark as degraded
-            return ConsumerGroupHealth.DEGRADED, f"Group is rebalancing: {status.state}"
+        if status.state in (ConsumerGroupState.PREPARING_REBALANCE, ConsumerGroupState.COMPLETING_REBALANCE):
+            return ConsumerGroupHealth.DEGRADED, f"Group is rebalancing: {status.state.value}"
+
+        # Check for empty group
+        if status.state == ConsumerGroupState.EMPTY:
+            return ConsumerGroupHealth.DEGRADED, "Group is empty (no active members)"
 
         # Check lag if available
         if status.total_lag >= self.critical_lag_threshold:
@@ -398,32 +440,33 @@ class NativeConsumerGroupMonitor:
 
         # Check partition distribution
         if status.partition_distribution:
-            max_partitions = max(status.partition_distribution.values())
-            min_partitions = min(status.partition_distribution.values())
+            values = list(status.partition_distribution.values())
+            max_partitions = max(values)
+            min_partitions = min(values)
 
             # Warn if partition distribution is very uneven
             if max_partitions > 0 and (max_partitions - min_partitions) > max_partitions * 0.5:
                 return ConsumerGroupHealth.DEGRADED, "Uneven partition distribution"
 
         # Check if group is stable and consuming
-        if status.state == "STABLE" and status.assigned_partitions > 0:
+        if status.state == ConsumerGroupState.STABLE and status.assigned_partitions > 0:
             return ConsumerGroupHealth.HEALTHY, f"Group is stable with {status.member_count} members"
 
         # Default case
-        return ConsumerGroupHealth.UNKNOWN, f"Group state: {status.state}"
+        return ConsumerGroupHealth.UNKNOWN, f"Group state: {status.state.value}"
 
-    def get_health_summary(self, status: ConsumerGroupStatus) -> Dict[str, Any]:
+    def get_health_summary(self, status: ConsumerGroupStatus) -> dict[str, Any]:
         """Get a health summary for a consumer group."""
         return {
             "group_id": status.group_id,
-            "health": status.health,
+            "health": status.health.value,
             "health_message": status.health_message,
-            "state": status.state,
+            "state": status.state.value,
             "members": status.member_count,
             "assigned_partitions": status.assigned_partitions,
             "total_lag": status.total_lag,
             "coordinator": status.coordinator,
-            "timestamp": status.timestamp.isoformat() if status.timestamp else None,
+            "timestamp": status.timestamp.isoformat(),
             "partition_distribution": status.partition_distribution,
         }
 

@@ -23,7 +23,8 @@ dependencies = [
     "charset-normalizer==3.4.0",
     "click==8.1.7",
     "ConfigArgParse==1.7.1",
-    "confluent-kafka==2.6.1",
+    "aiokafka==0.13.0",
+    "python-schema-registry-client==2.6.1",
     "contourpy==1.3.3",
     "cycler==0.12.1",
     "Deprecated==1.2.14",
@@ -148,7 +149,6 @@ dev = [
     "pytest-xdist==3.6.1",
     "ruff==0.14.10",
     "types-cachetools==6.2.0.20250827",
-    "types-confluent-kafka==1.3.6",
 ]
 
 # Ruff configuration

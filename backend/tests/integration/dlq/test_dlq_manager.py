@@ -4,13 +4,13 @@ import uuid
 from datetime import datetime, timezone
 
 import pytest
+from aiokafka import AIOKafkaProducer
 from app.core.database_context import Database
 from app.db.docs import DLQMessageDocument
 from app.dlq.manager import create_dlq_manager
 from app.domain.enums.kafka import KafkaTopic
 from app.events.schema.schema_registry import create_schema_registry_manager
 from app.settings import Settings
-from confluent_kafka import Producer
 
 from tests.helpers import make_execution_requested_event
 from tests.helpers.eventually import eventually
@@ -42,14 +42,17 @@ async def test_dlq_manager_persists_in_mongo(db: Database, test_settings: Settin
         "producer_id": "tests",
     }
 
-    # Produce to DLQ topic
-    producer = Producer({"bootstrap.servers": "localhost:9092"})
-    producer.produce(
-        topic=f"{prefix}{str(KafkaTopic.DEAD_LETTER_QUEUE)}",
-        key=ev.event_id.encode(),
-        value=json.dumps(payload).encode(),
-    )
-    producer.flush(5)
+    # Produce to DLQ topic using aiokafka
+    producer = AIOKafkaProducer(bootstrap_servers="localhost:9092")
+    await producer.start()
+    try:
+        await producer.send_and_wait(
+            topic=f"{prefix}{str(KafkaTopic.DEAD_LETTER_QUEUE)}",
+            key=ev.event_id.encode(),
+            value=json.dumps(payload).encode(),
+        )
+    finally:
+        await producer.stop()
 
     # Run the manager briefly to consume and persist
     async with manager:

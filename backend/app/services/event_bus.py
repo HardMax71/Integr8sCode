@@ -7,7 +7,8 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 from uuid import uuid4
 
-from confluent_kafka import Consumer, KafkaError, Producer
+from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
+from aiokafka.errors import KafkaError
 from fastapi import Request
 from pydantic import BaseModel, ConfigDict
 
@@ -52,14 +53,13 @@ class EventBus(LifecycleEnabled):
         self.logger = logger
         self.settings = settings
         self.metrics = get_connection_metrics()
-        self.producer: Optional[Producer] = None
-        self.consumer: Optional[Consumer] = None
+        self.producer: Optional[AIOKafkaProducer] = None
+        self.consumer: Optional[AIOKafkaConsumer] = None
         self._subscriptions: dict[str, Subscription] = {}  # id -> Subscription
         self._pattern_index: dict[str, set[str]] = {}  # pattern -> set of subscription ids
         self._consumer_task: Optional[asyncio.Task[None]] = None
         self._lock = asyncio.Lock()
         self._topic = f"{self.settings.KAFKA_TOPIC_PREFIX}{KafkaTopic.EVENT_BUS_STREAM}"
-        self._executor: Optional[Callable[..., Any]] = None  # Will store the executor function
 
     async def _on_start(self) -> None:
         """Start the event bus with Kafka backing."""
@@ -70,30 +70,24 @@ class EventBus(LifecycleEnabled):
     async def _initialize_kafka(self) -> None:
         """Initialize Kafka producer and consumer."""
         # Producer setup
-        self.producer = Producer(
-            {
-                "bootstrap.servers": self.settings.KAFKA_BOOTSTRAP_SERVERS,
-                "client.id": f"event-bus-producer-{uuid4()}",
-                "linger.ms": 10,
-                "batch.size": 16384,
-            }
+        self.producer = AIOKafkaProducer(
+            bootstrap_servers=self.settings.KAFKA_BOOTSTRAP_SERVERS,
+            client_id=f"event-bus-producer-{uuid4()}",
+            linger_ms=10,
+            max_batch_size=16384,
         )
+        await self.producer.start()
 
         # Consumer setup
-        self.consumer = Consumer(
-            {
-                "bootstrap.servers": self.settings.KAFKA_BOOTSTRAP_SERVERS,
-                "group.id": f"event-bus-{uuid4()}",
-                "auto.offset.reset": "latest",
-                "enable.auto.commit": True,
-                "client.id": f"event-bus-consumer-{uuid4()}",
-            }
+        self.consumer = AIOKafkaConsumer(
+            self._topic,
+            bootstrap_servers=self.settings.KAFKA_BOOTSTRAP_SERVERS,
+            group_id=f"event-bus-{uuid4()}",
+            auto_offset_reset="latest",
+            enable_auto_commit=True,
+            client_id=f"event-bus-consumer-{uuid4()}",
         )
-        self.consumer.subscribe([self._topic])
-
-        # Store the executor function for sync operations
-        loop = asyncio.get_running_loop()
-        self._executor = loop.run_in_executor
+        await self.consumer.start()
 
     async def _on_stop(self) -> None:
         """Stop the event bus and clean up resources."""
@@ -107,12 +101,11 @@ class EventBus(LifecycleEnabled):
 
         # Stop Kafka components
         if self.consumer:
-            self.consumer.close()
+            await self.consumer.stop()
             self.consumer = None
 
         if self.producer:
-            # Flush any pending messages
-            self.producer.flush(timeout=5)
+            await self.producer.stop()
             self.producer = None
 
         # Clear subscriptions
@@ -139,15 +132,11 @@ class EventBus(LifecycleEnabled):
                 value = event.model_dump_json().encode("utf-8")
                 key = event_type.encode("utf-8") if event_type else None
 
-                # Use executor to avoid blocking
-                if self._executor:
-                    await self._executor(None, self.producer.produce, self._topic, value, key)
-                    # Poll to handle delivery callbacks
-                    await self._executor(None, self.producer.poll, 0)
-                else:
-                    # Fallback to sync operation if executor not available
-                    self.producer.produce(self._topic, value=value, key=key)
-                    self.producer.poll(0)
+                await self.producer.send_and_wait(
+                    topic=self._topic,
+                    value=value,
+                    key=key,
+                )
             except Exception as e:
                 self.logger.error(f"Failed to publish to Kafka: {e}")
 
@@ -270,29 +259,24 @@ class EventBus(LifecycleEnabled):
 
         try:
             while self.is_running:
-                # Poll for messages with small timeout
-                if self._executor:
-                    msg = await self._executor(None, self.consumer.poll, 0.1)
-                else:
-                    # Fallback to sync operation if executor not available
-                    await asyncio.sleep(0.1)
-                    continue
-
-                if msg is None:
-                    continue
-
-                if msg.error():
-                    if msg.error().code() != KafkaError._PARTITION_EOF:
-                        self.logger.error(f"Consumer error: {msg.error()}")
-                    continue
-
                 try:
-                    # Deserialize message - Pydantic parses timestamp string to datetime
-                    event_dict = json.loads(msg.value().decode("utf-8"))
-                    event = EventBusEvent.model_validate(event_dict)
-                    await self._distribute_event(event.event_type, event)
-                except Exception as e:
-                    self.logger.error(f"Error processing Kafka message: {e}")
+                    # Use getone() with timeout
+                    msg = await asyncio.wait_for(self.consumer.getone(), timeout=0.1)
+
+                    try:
+                        # Deserialize message - Pydantic parses timestamp string to datetime
+                        event_dict = json.loads(msg.value.decode("utf-8"))
+                        event = EventBusEvent.model_validate(event_dict)
+                        await self._distribute_event(event.event_type, event)
+                    except Exception as e:
+                        self.logger.error(f"Error processing Kafka message: {e}")
+
+                except asyncio.TimeoutError:
+                    # No message available, continue polling
+                    continue
+                except KafkaError as e:
+                    self.logger.error(f"Consumer error: {e}")
+                    continue
 
         except asyncio.CancelledError:
             self.logger.info("Kafka listener cancelled")

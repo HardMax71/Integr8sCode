@@ -109,6 +109,9 @@ class TestEventSchemaCoverage:
         orphans: list[str] = []
 
         for cls in DomainBaseEvent.__subclasses__():
+            # Skip test fixtures/mocks (private classes starting with _)
+            if cls.__name__.startswith("_"):
+                continue
             if not hasattr(cls, "model_fields"):
                 continue
             field = cls.model_fields.get("event_type")
@@ -126,6 +129,9 @@ class TestEventSchemaCoverage:
         orphans: list[str] = []
 
         for cls in KafkaBaseEvent.__subclasses__():
+            # Skip test fixtures/mocks (private classes starting with _)
+            if cls.__name__.startswith("_"):
+                continue
             if not hasattr(cls, "model_fields"):
                 continue
             field = cls.model_fields.get("event_type")

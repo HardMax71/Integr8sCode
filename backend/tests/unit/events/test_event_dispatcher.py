@@ -56,5 +56,5 @@ async def test_dispatch_metrics_processed_and_skipped() -> None:
 
     metrics = disp.get_metrics()
     assert called["n"] == 1
-    assert metrics[EventType.EXECUTION_REQUESTED.value]["processed"] >= 1
-    assert metrics[EventType.EXECUTION_FAILED.value]["skipped"] >= 1
+    assert metrics[EventType.EXECUTION_REQUESTED]["processed"] >= 1
+    assert metrics[EventType.EXECUTION_FAILED]["skipped"] >= 1

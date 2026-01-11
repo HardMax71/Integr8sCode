@@ -151,7 +151,7 @@ async def test_execution_stream_closes_on_failed_event() -> None:
     # Push a failed event and ensure stream ends after yielding it
     await bus.exec_sub.push({"event_type": EventType.EXECUTION_FAILED, "execution_id": "exec-1", "data": {}})
     failed = await agen.__anext__()
-    assert _decode(failed)["event_type"] == str(EventType.EXECUTION_FAILED)
+    assert _decode(failed)["event_type"] == EventType.EXECUTION_FAILED
 
     with pytest.raises(StopAsyncIteration):
         await agen.__anext__()
@@ -186,7 +186,7 @@ async def test_execution_stream_result_stored_includes_result_payload() -> None:
     await bus.exec_sub.push({"event_type": EventType.RESULT_STORED, "execution_id": "exec-2", "data": {}})
     evt = await agen.__anext__()
     data = _decode(evt)
-    assert data["event_type"] == str(EventType.RESULT_STORED)
+    assert data["event_type"] == EventType.RESULT_STORED
     assert "result" in data and data["result"]["execution_id"] == "exec-2"
 
     with pytest.raises(StopAsyncIteration):

@@ -141,8 +141,8 @@ class TestEventsRoutes:
         # Query events with multiple filters
         query_request = {
             "event_types": [
-                EventType.EXECUTION_REQUESTED.value,
-                EventType.EXECUTION_COMPLETED.value
+                EventType.EXECUTION_REQUESTED,
+                EventType.EXECUTION_COMPLETED
             ],
             "start_time": (datetime.now(timezone.utc) - timedelta(days=7)).isoformat(),
             "end_time": datetime.now(timezone.utc).isoformat(),
@@ -298,7 +298,7 @@ class TestEventsRoutes:
         """Test that publishing custom events requires admin privileges."""
         # Try to publish custom event (logged in as regular user via fixture)
         publish_request = {
-            "event_type": EventType.SYSTEM_ERROR.value,
+            "event_type": EventType.SYSTEM_ERROR,
             "payload": {
                 "test": "data",
                 "value": 123
@@ -317,7 +317,7 @@ class TestEventsRoutes:
         # Publish custom event (requires Kafka); skip if not available
         aggregate_id = str(uuid4())
         publish_request = {
-            "event_type": EventType.SYSTEM_ERROR.value,
+            "event_type": EventType.SYSTEM_ERROR,
             "payload": {
                 "error_type": "test_error",
                 "message": "Admin test system error",

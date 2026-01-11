@@ -47,7 +47,7 @@ async def create_topics(settings: Settings) -> None:
 
         for topic in all_topics:
             # Apply topic prefix for consistency with consumers/producers
-            topic_name = f"{topic_prefix}{topic.value}"
+            topic_name = f"{topic_prefix}{topic}"
             if topic_name not in existing_topics:
                 # Get config from topic_configs
                 config = topic_configs.get(

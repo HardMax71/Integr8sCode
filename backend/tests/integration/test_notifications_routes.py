@@ -53,10 +53,10 @@ class TestNotificationRoutes:
         # If there are notifications, validate their structure per schema
         for n in notifications_response.notifications:
             assert n.notification_id
-            assert n.channel in [c.value for c in NotificationChannel]
+            assert n.channel in list(NotificationChannel)
             assert n.severity in ["low","medium","high","urgent"]
             assert isinstance(n.tags, list)
-            assert n.status in [s.value for s in NotificationStatus]
+            assert n.status in list(NotificationStatus)
             assert n.subject is not None
             assert n.body is not None
             assert n.created_at is not None
@@ -66,9 +66,9 @@ class TestNotificationRoutes:
         """Test filtering notifications by status."""
         # Test different status filters
         statuses = [
-            NotificationStatus.READ.value,
-            NotificationStatus.DELIVERED.value,
-            NotificationStatus.SKIPPED.value,
+            NotificationStatus.READ,
+            NotificationStatus.DELIVERED,
+            NotificationStatus.SKIPPED,
         ]
         for status in statuses:
             response = await test_user.get(f"/api/v1/notifications?status={status}&limit=5")
@@ -102,7 +102,7 @@ class TestNotificationRoutes:
         """Test marking a notification as read."""
         # Get an unread notification
         notifications_response = await test_user.get(
-            f"/api/v1/notifications?status={NotificationStatus.DELIVERED.value}&limit=1")
+            f"/api/v1/notifications?status={NotificationStatus.DELIVERED}&limit=1")
         assert notifications_response.status_code == 200
 
         notifications_data = notifications_response.json()
@@ -201,7 +201,7 @@ class TestNotificationRoutes:
         # Check each subscription
         for subscription in subscriptions_response.subscriptions:
             assert isinstance(subscription, NotificationSubscription)
-            assert subscription.channel in [c.value for c in NotificationChannel]
+            assert subscription.channel in list(NotificationChannel)
             assert isinstance(subscription.enabled, bool)
             assert subscription.user_id is not None
 

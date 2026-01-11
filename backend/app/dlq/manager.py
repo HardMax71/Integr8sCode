@@ -148,7 +148,7 @@ class DLQManager(LifecycleEnabled):
 
     async def _on_start(self) -> None:
         """Start DLQ manager."""
-        topic_name = f"{self.settings.KAFKA_TOPIC_PREFIX}{str(self.dlq_topic)}"
+        topic_name = f"{self.settings.KAFKA_TOPIC_PREFIX}{self.dlq_topic}"
         self.consumer.subscribe([topic_name])
 
         # Start processing tasks
@@ -219,7 +219,7 @@ class DLQManager(LifecycleEnabled):
 
     async def _record_message_metrics(self, dlq_message: DLQMessage) -> None:
         """Record metrics for received DLQ message."""
-        self.metrics.record_dlq_message_received(dlq_message.original_topic, str(dlq_message.event_type))
+        self.metrics.record_dlq_message_received(dlq_message.original_topic, dlq_message.event_type)
         self.metrics.record_dlq_message_age(dlq_message.age_seconds)
 
     async def _process_message_with_tracing(self, msg: Message, dlq_message: DLQMessage) -> None:
@@ -233,9 +233,9 @@ class DLQManager(LifecycleEnabled):
             context=ctx,
             kind=SpanKind.CONSUMER,
             attributes={
-                str(EventAttributes.KAFKA_TOPIC): str(self.dlq_topic),
-                str(EventAttributes.EVENT_TYPE): str(dlq_message.event_type),
-                str(EventAttributes.EVENT_ID): dlq_message.event_id or "",
+                EventAttributes.KAFKA_TOPIC: self.dlq_topic,
+                EventAttributes.EVENT_TYPE: dlq_message.event_type,
+                EventAttributes.EVENT_ID: dlq_message.event_id or "",
             },
         ):
             await self._process_dlq_message(dlq_message)
@@ -350,7 +350,7 @@ class DLQManager(LifecycleEnabled):
         await asyncio.to_thread(self.producer.flush, timeout=5)
 
         # Update metrics
-        self.metrics.record_dlq_message_retried(message.original_topic, str(message.event_type), "success")
+        self.metrics.record_dlq_message_retried(message.original_topic, message.event_type, "success")
 
         # Update status
         await self._update_message_status(
@@ -369,7 +369,7 @@ class DLQManager(LifecycleEnabled):
 
     async def _discard_message(self, message: DLQMessage, reason: str) -> None:
         # Update metrics
-        self.metrics.record_dlq_message_discarded(message.original_topic, str(message.event_type), reason)
+        self.metrics.record_dlq_message_discarded(message.original_topic, message.event_type, reason)
 
         # Update status
         await self._update_message_status(
@@ -452,7 +452,7 @@ class DLQManager(LifecycleEnabled):
 
         # Guard against invalid states
         if doc.status in {DLQMessageStatus.DISCARDED, DLQMessageStatus.RETRIED}:
-            self.logger.info("Skipping manual retry", extra={"event_id": event_id, "status": str(doc.status)})
+            self.logger.info("Skipping manual retry", extra={"event_id": event_id, "status": doc.status})
             return False
 
         message = self._doc_to_message(doc)
@@ -505,7 +505,7 @@ class DLQManager(LifecycleEnabled):
 
         # Guard against invalid states (terminal states)
         if doc.status in {DLQMessageStatus.DISCARDED, DLQMessageStatus.RETRIED}:
-            self.logger.info("Skipping manual discard", extra={"event_id": event_id, "status": str(doc.status)})
+            self.logger.info("Skipping manual discard", extra={"event_id": event_id, "status": doc.status})
             return False
 
         message = self._doc_to_message(doc)

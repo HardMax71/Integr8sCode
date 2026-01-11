@@ -197,7 +197,7 @@ class NotificationRepository:
             UserDocument.is_active == True,  # noqa: E712
         ).to_list()
         user_ids = [doc.user_id for doc in docs if doc.user_id]
-        self.logger.info(f"Found {len(user_ids)} users with roles {[r.value for r in roles]}")
+        self.logger.info(f"Found {len(user_ids)} users with roles {list(roles)}")
         return user_ids
 
     async def get_active_users(self, days: int = 30) -> list[str]:

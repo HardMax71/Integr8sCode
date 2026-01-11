@@ -234,11 +234,11 @@ class TestReplayRoutes:
         """Test filtering replay sessions by status."""
         # Test different status filters
         for status in [
-            ReplayStatus.CREATED.value,
-            ReplayStatus.RUNNING.value,
-            ReplayStatus.COMPLETED.value,
-            ReplayStatus.FAILED.value,
-            ReplayStatus.CANCELLED.value,
+            ReplayStatus.CREATED,
+            ReplayStatus.RUNNING,
+            ReplayStatus.COMPLETED,
+            ReplayStatus.FAILED,
+            ReplayStatus.CANCELLED,
         ]:
             response = await test_admin.get(f"/api/v1/replay/sessions?status={status}&limit=5")
             assert response.status_code in [200, 404]

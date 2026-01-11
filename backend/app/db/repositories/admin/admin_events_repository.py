@@ -260,7 +260,7 @@ class AdminEventsRepository:
                     execution_results.append(
                         {
                             "execution_id": exec_doc.execution_id,
-                            "status": exec_doc.status.value if exec_doc.status else None,
+                            "status": exec_doc.status if exec_doc.status else None,
                             "stdout": exec_doc.stdout,
                             "stderr": exec_doc.stderr,
                             "exit_code": exec_doc.exit_code,

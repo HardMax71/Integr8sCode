@@ -371,7 +371,7 @@ class NotificationService:
         self.logger.info(
             "System notification completed",
             extra={
-                "severity": str(cfg.severity),
+                "severity": cfg.severity,
                 "title": title,
                 "total_users": len(users),
                 "created": created,
@@ -840,8 +840,8 @@ class NotificationService:
             extra={
                 "notification_id": str(notification.notification_id),
                 "user_id": notification.user_id,
-                "channel": str(notification.channel),
-                "severity": str(notification.severity),
+                "channel": notification.channel,
+                "severity": notification.severity,
                 "tags": list(notification.tags or []),
             },
         )
@@ -885,21 +885,21 @@ class NotificationService:
                 f"Successfully delivered notification {notification.notification_id}",
                 extra={
                     "notification_id": str(notification.notification_id),
-                    "channel": str(notification.channel),
+                    "channel": notification.channel,
                     "delivery_time_ms": int(delivery_time * 1000),
                 },
             )
 
             # Metrics (use tag string or severity)
             self.metrics.record_notification_sent(
-                str(notification.severity), channel=str(notification.channel), severity=str(notification.severity)
+                notification.severity, channel=notification.channel, severity=notification.severity
             )
-            self.metrics.record_notification_delivery_time(delivery_time, str(notification.severity))
+            self.metrics.record_notification_delivery_time(delivery_time, notification.severity)
 
         except Exception as e:
             error_details = {
                 "notification_id": str(notification.notification_id),
-                "channel": str(notification.channel),
+                "channel": notification.channel,
                 "error_type": type(e).__name__,
                 "error_message": str(e),
                 "retry_count": notification.retry_count,

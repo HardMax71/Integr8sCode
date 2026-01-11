@@ -60,7 +60,7 @@ class EventDispatcher:
         """
 
         def decorator(handler: Callable[[T], Awaitable[None]]) -> Callable[[T], Awaitable[None]]:
-            self.logger.info(f"Registering handler '{handler.__name__}' for event type '{event_type.value}'")
+            self.logger.info(f"Registering handler '{handler.__name__}' for event type '{event_type}'")
             # Safe: dispatch() routes by event_type, guaranteeing correct types at runtime
             self._handlers[event_type].append(handler)  # type: ignore[arg-type]
             return handler
@@ -75,7 +75,7 @@ class EventDispatcher:
             event_type: The event type this handler processes
             handler: The async handler function
         """
-        self.logger.info(f"Registering handler '{handler.__name__}' for event type '{event_type.value}'")
+        self.logger.info(f"Registering handler '{handler.__name__}' for event type '{event_type}'")
         self._handlers[event_type].append(handler)
 
     def remove_handler(self, event_type: EventType, handler: EventHandler) -> bool:
@@ -91,7 +91,7 @@ class EventDispatcher:
         """
         if event_type in self._handlers and handler in self._handlers[event_type]:
             self._handlers[event_type].remove(handler)
-            self.logger.info(f"Removed handler '{handler.__name__}' for event type '{event_type.value}'")
+            self.logger.info(f"Removed handler '{handler.__name__}' for event type '{event_type}'")
             # Clean up empty lists
             if not self._handlers[event_type]:
                 del self._handlers[event_type]
@@ -114,10 +114,10 @@ class EventDispatcher:
 
         if not handlers:
             self._event_metrics[event_type]["skipped"] += 1
-            self.logger.debug(f"No handlers registered for event type {event_type.value}")
+            self.logger.debug(f"No handlers registered for event type {event_type}")
             return
 
-        self.logger.debug(f"Dispatching {event_type.value} to {len(handlers)} handler(s)")
+        self.logger.debug(f"Dispatching {event_type} to {len(handlers)} handler(s)")
 
         # Run handlers concurrently for better performance
         tasks = []
@@ -168,7 +168,7 @@ class EventDispatcher:
 
     def get_metrics(self) -> dict[str, dict[str, int]]:
         """Get processing metrics for all event types."""
-        return {event_type.value: metrics for event_type, metrics in self._event_metrics.items()}
+        return {event_type: metrics for event_type, metrics in self._event_metrics.items()}
 
     def clear_handlers(self) -> None:
         """Clear all registered handlers (useful for testing)."""

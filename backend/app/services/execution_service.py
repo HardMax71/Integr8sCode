@@ -409,7 +409,7 @@ class ExecutionService:
         query: ExecutionQuery = {"user_id": str(user_id)}
 
         if status:
-            query["status"] = status.value
+            query["status"] = status
 
         if lang:
             query["lang"] = lang

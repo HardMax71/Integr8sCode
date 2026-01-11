@@ -18,7 +18,7 @@ async def test_get_user_overview_basic(scope: AsyncContainer) -> None:
         "user_id": "u1",
         "username": "bob",
         "email": "b@b.com",
-        "role": UserRole.USER.value,
+        "role": UserRole.USER,
         "is_active": True,
         "is_superuser": False,
         "hashed_password": "h",

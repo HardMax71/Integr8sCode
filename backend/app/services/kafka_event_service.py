@@ -229,7 +229,7 @@ class KafkaEventService:
             Event ID of published event
         """
         with tracer.start_as_current_span("publish_base_event") as span:
-            span.set_attribute("event.type", str(event.event_type))
+            span.set_attribute("event.type", event.event_type)
             if event.aggregate_id:
                 span.set_attribute("aggregate.id", event.aggregate_id)
 
@@ -257,7 +257,7 @@ class KafkaEventService:
 
             # Prepare headers
             headers: Dict[str, str] = {
-                "event_type": str(event.event_type),
+                "event_type": event.event_type,
                 "correlation_id": event.metadata.correlation_id or "",
                 "service": event.metadata.service_name,
             }
@@ -285,7 +285,7 @@ class KafkaEventService:
             self.logger.info(
                 "Base event published",
                 extra={
-                    "event_type": str(event.event_type),
+                    "event_type": event.event_type,
                     "event_id": event.event_id,
                     "aggregate_id": event.aggregate_id,
                 },

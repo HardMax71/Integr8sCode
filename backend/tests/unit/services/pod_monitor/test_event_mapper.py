@@ -3,6 +3,7 @@ import logging
 
 import pytest
 
+from app.domain.enums.events import EventType
 from app.domain.enums.storage import ExecutionErrorType
 from app.infrastructure.kafka.events.execution import (
     ExecutionCompletedEvent,
@@ -49,7 +50,7 @@ def test_pending_running_and_succeeded_mapping() -> None:
     pend.status.conditions = [Cond("PodScheduled", "True")]
     pend.spec.node_name = "n"
     evts = pem.map_pod_event(pend, "ADDED")
-    assert any(e.event_type.value == "pod_scheduled" for e in evts)
+    assert any(e.event_type == EventType.POD_SCHEDULED for e in evts)
 
     # Running -> running, includes container statuses JSON
     cs = [ContainerStatus(State(waiting=Waiting("Init"))), ContainerStatus(State(terminated=Terminated(2)))]
@@ -57,10 +58,10 @@ def test_pending_running_and_succeeded_mapping() -> None:
     run.metadata.labels = {"execution-id": "e1"}
     evts = pem.map_pod_event(run, "MODIFIED")
     # Print for debugging if test fails
-    if not any(e.event_type.value == "pod_running" for e in evts):
-        print(f"Events returned: {[e.event_type.value for e in evts]}")
-    assert any(e.event_type.value == "pod_running" for e in evts)
-    pr = [e for e in evts if e.event_type.value == "pod_running"][0]
+    if not any(e.event_type == EventType.POD_RUNNING for e in evts):
+        print(f"Events returned: {[e.event_type for e in evts]}")
+    assert any(e.event_type == EventType.POD_RUNNING for e in evts)
+    pr = [e for e in evts if e.event_type == EventType.POD_RUNNING][0]
     assert isinstance(pr, PodRunningEvent)
     statuses = json.loads(pr.container_statuses)
     assert any("waiting" in s["state"] for s in statuses) and any("terminated" in s["state"] for s in statuses)
@@ -70,7 +71,7 @@ def test_pending_running_and_succeeded_mapping() -> None:
     suc = Pod("p", "Succeeded", cs=[term])
     suc.metadata.labels = {"execution-id": "e1"}
     evts = pem.map_pod_event(suc, "MODIFIED")
-    comp = [e for e in evts if e.event_type.value == "execution_completed"][0]
+    comp = [e for e in evts if e.event_type == EventType.EXECUTION_COMPLETED][0]
     assert isinstance(comp, ExecutionCompletedEvent)
     assert comp.exit_code == 0 and comp.stdout == "ok"
 
@@ -84,7 +85,7 @@ def test_failed_timeout_and_deleted() -> None:
     pod_to.metadata.labels = {"execution-id": "e1"}
     ev = pem.map_pod_event(pod_to, "MODIFIED")[0]
     assert isinstance(ev, ExecutionTimeoutEvent)
-    assert ev.event_type.value == "execution_timeout" and ev.timeout_seconds == 5
+    assert ev.event_type == EventType.EXECUTION_TIMEOUT and ev.timeout_seconds == 5
 
     # Failed: terminated exit_code nonzero, message used as stderr, error type defaults to SCRIPT_ERROR
     # Note: ExecutionFailedEvent can have None resource_usage when logs extraction fails
@@ -93,7 +94,7 @@ def test_failed_timeout_and_deleted() -> None:
     pod_fail.metadata.labels = {"execution-id": "e2"}
     evf = pem_no_logs.map_pod_event(pod_fail, "MODIFIED")[0]
     assert isinstance(evf, ExecutionFailedEvent)
-    assert evf.event_type.value == "execution_failed" and evf.error_type in {ExecutionErrorType.SCRIPT_ERROR}
+    assert evf.event_type == EventType.EXECUTION_FAILED and evf.error_type in {ExecutionErrorType.SCRIPT_ERROR}
 
     # Deleted -> terminated when container terminated present (exit code 0 returns completed for DELETED)
     valid_logs_0 = json.dumps({"stdout": "", "stderr": "", "exit_code": 0, "resource_usage": {}})
@@ -102,7 +103,7 @@ def test_failed_timeout_and_deleted() -> None:
     pod_del.metadata.labels = {"execution-id": "e3"}
     evd = pem_completed.map_pod_event(pod_del, "DELETED")[0]
     # For DELETED event with exit code 0, it returns execution_completed, not pod_terminated
-    assert evd.event_type.value == "execution_completed"
+    assert evd.event_type == EventType.EXECUTION_COMPLETED
 
 
 def test_extract_id_and_metadata_priority_and_duplicates() -> None:
@@ -212,7 +213,7 @@ def test_all_containers_succeeded_and_cache_behavior() -> None:
     pod.metadata.labels = {"execution-id": "e1"}
     # When all succeeded, failed mapping returns completed instead of failed
     ev = pem.map_pod_event(pod, "MODIFIED")[0]
-    assert ev.event_type.value == "execution_completed"
+    assert ev.event_type == EventType.EXECUTION_COMPLETED
 
     # Cache prevents duplicate for same phase unless event type changes
     p2 = Pod("p2", "Running")

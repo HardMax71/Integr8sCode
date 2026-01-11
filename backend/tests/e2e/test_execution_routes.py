@@ -91,7 +91,7 @@ class TestExecution:
         result_data = result_response.json()
         execution_result = ExecutionResult(**result_data)
         assert execution_result.execution_id == execution_id
-        assert execution_result.status in [e.value for e in ExecutionStatusEnum]
+        assert execution_result.status in list(ExecutionStatusEnum)
         assert execution_result.lang == "python"
 
         # Execution might be in any state - that's fine

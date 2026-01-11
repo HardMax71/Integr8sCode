@@ -417,7 +417,7 @@ class SagaOrchestrator(LifecycleEnabled):
             if saga_instance.state not in [SagaState.RUNNING, SagaState.CREATED]:
                 self.logger.warning(
                     "Cannot cancel saga in current state. Only RUNNING or CREATED sagas can be cancelled.",
-                    extra={"saga_id": saga_id, "state": saga_instance.state.value},
+                    extra={"saga_id": saga_id, "state": saga_instance.state},
                 )
                 return False
 

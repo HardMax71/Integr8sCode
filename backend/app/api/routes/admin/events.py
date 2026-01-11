@@ -207,7 +207,7 @@ async def get_replay_status(session_id: str, service: FromDishka[AdminEventsServ
         return EventReplayStatusResponse(
             **{
                 **asdict(session),
-                "status": session.status.value,
+                "status": session.status,
                 "estimated_completion": estimated_completion,
                 "execution_results": execution_results,
             }

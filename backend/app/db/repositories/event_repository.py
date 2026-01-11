@@ -97,7 +97,7 @@ class EventRepository:
     ) -> list[DomainEvent]:
         conditions = [
             EventDocument.aggregate_id == aggregate_id,
-            In(EventDocument.event_type, [t.value for t in event_types]) if event_types else None,
+            In(EventDocument.event_type, list(event_types)) if event_types else None,
         ]
         conditions = [c for c in conditions if c is not None]
         docs = (

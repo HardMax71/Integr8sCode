@@ -131,7 +131,7 @@ class TestSecurityService:
         data = {
             "sub": "admin_user",
             "user_id": user_id,
-            "role": UserRole.ADMIN.value
+            "role": UserRole.ADMIN
         }
 
         expires_delta = timedelta(minutes=security_service.settings.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -143,11 +143,11 @@ class TestSecurityService:
             algorithms=[security_service.settings.ALGORITHM]
         )
 
-        assert decoded["role"] == UserRole.ADMIN.value
+        assert decoded["role"] == UserRole.ADMIN
         assert decoded["user_id"] == user_id
 
     def test_token_contains_expected_claims(self, security_service: SecurityService) -> None:
-        data = {"sub": "testuser", "user_id": str(uuid4()), "role": UserRole.USER.value}
+        data = {"sub": "testuser", "user_id": str(uuid4()), "role": UserRole.USER}
         token = security_service.create_access_token(
             data, expires_delta=timedelta(minutes=security_service.settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         )
@@ -156,7 +156,7 @@ class TestSecurityService:
         )
         assert decoded["sub"] == "testuser"
         assert decoded["user_id"] == data["user_id"]
-        assert decoded["role"] == UserRole.USER.value
+        assert decoded["role"] == UserRole.USER
 
     def test_decode_token_expired(
             self,
@@ -271,7 +271,7 @@ class TestSecurityService:
 
     def test_token_has_only_expected_claims(self, security_service: SecurityService) -> None:
         user_id = str(uuid4())
-        data = {"sub": "testuser", "user_id": user_id, "role": UserRole.USER.value, "extra_field": "x"}
+        data = {"sub": "testuser", "user_id": user_id, "role": UserRole.USER, "extra_field": "x"}
         token = security_service.create_access_token(
             data, expires_delta=timedelta(minutes=security_service.settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         )
@@ -280,7 +280,7 @@ class TestSecurityService:
         )
         assert decoded["sub"] == "testuser"
         assert decoded["user_id"] == user_id
-        assert decoded["role"] == UserRole.USER.value
+        assert decoded["role"] == UserRole.USER
         assert "extra_field" in decoded  # Claims are carried as provided
 
     def test_password_context_configuration(self, test_settings: Settings) -> None:

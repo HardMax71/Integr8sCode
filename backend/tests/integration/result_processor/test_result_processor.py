@@ -117,7 +117,7 @@ async def test_result_processor_persists_and_emits(scope: AsyncContainer) -> Non
             async def _persisted() -> None:
                 doc = await db.get_collection("executions").find_one({"execution_id": execution_id})
                 assert doc is not None
-                assert doc.get("status") == ExecutionStatus.COMPLETED.value
+                assert doc.get("status") == ExecutionStatus.COMPLETED
 
             await eventually(_persisted, timeout=12.0, interval=0.2)
 

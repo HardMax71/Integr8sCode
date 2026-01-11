@@ -268,7 +268,7 @@ class AdminEventsService:
         await self._repo.archive_event(detail.event, deleted_by)
         deleted = await self._repo.delete_event(event_id)
         if deleted:
-            correlation_id = detail.event.metadata.correlation_id if detail.event.metadata else None
+            correlation_id = detail.event.metadata.correlation_id
             self.logger.info(
                 "Event deleted",
                 extra={

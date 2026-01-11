@@ -179,7 +179,7 @@ class CreatePodStep(SagaStep[ExecutionRequestedEvent]):
                 metadata=EventMetadata(
                     service_name="saga-orchestrator",
                     service_version="1.0.0",
-                    user_id=event.metadata.user_id if event.metadata else "system",
+                    user_id=event.metadata.user_id or "system",
                 ),
             )
 

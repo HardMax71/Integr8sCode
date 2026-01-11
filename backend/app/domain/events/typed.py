@@ -35,7 +35,7 @@ class BaseEvent(BaseModel):
     event_version: str = "1.0"
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     aggregate_id: str | None = None
-    metadata: EventMetadata | None = None
+    metadata: EventMetadata
     stored_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     ttl_expires_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc) + timedelta(days=30))
 
@@ -277,7 +277,7 @@ class NotificationSentEvent(BaseEvent):
     notification_id: str
     user_id: str
     channel: NotificationChannel
-    sent_at: str
+    sent_at: datetime
 
 
 class NotificationDeliveredEvent(BaseEvent):
@@ -285,7 +285,7 @@ class NotificationDeliveredEvent(BaseEvent):
     notification_id: str
     user_id: str
     channel: NotificationChannel
-    delivered_at: str
+    delivered_at: datetime
 
 
 class NotificationFailedEvent(BaseEvent):
@@ -301,14 +301,14 @@ class NotificationReadEvent(BaseEvent):
     event_type: Literal[EventType.NOTIFICATION_READ] = EventType.NOTIFICATION_READ
     notification_id: str
     user_id: str
-    read_at: str
+    read_at: datetime
 
 
 class NotificationClickedEvent(BaseEvent):
     event_type: Literal[EventType.NOTIFICATION_CLICKED] = EventType.NOTIFICATION_CLICKED
     notification_id: str
     user_id: str
-    clicked_at: str
+    clicked_at: datetime
     action: str | None = None
 
 
@@ -527,7 +527,7 @@ class ArchivedEvent(BaseModel):
     event_version: str = "1.0"
     timestamp: datetime
     aggregate_id: str | None = None
-    metadata: EventMetadata | None = None
+    metadata: EventMetadata
     stored_at: datetime | None = None
     ttl_expires_at: datetime | None = None
     # Archive-specific fields

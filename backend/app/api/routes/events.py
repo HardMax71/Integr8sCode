@@ -297,7 +297,7 @@ async def delete_event(
             "admin_email": admin.email,
             "event_type": result.event_type,
             "aggregate_id": result.aggregate_id,
-            "correlation_id": result.metadata.correlation_id if result.metadata else None,
+            "correlation_id": result.metadata.correlation_id,
         },
     )
 

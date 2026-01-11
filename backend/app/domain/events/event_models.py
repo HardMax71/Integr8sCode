@@ -176,7 +176,7 @@ class ExecutionEventsResult:
 
         events = self.events
         if not self.include_system_events:
-            events = [e for e in events if e.metadata and not e.metadata.service_name.startswith("system-")]
+            events = [e for e in events if not e.metadata.service_name.startswith("system-")]
 
         return events
 

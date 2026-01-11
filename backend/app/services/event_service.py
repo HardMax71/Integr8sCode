@@ -77,7 +77,7 @@ class EventService:
 
         owner = None
         for e in result.events:
-            if e.metadata and e.metadata.user_id:
+            if e.metadata.user_id:
                 owner = e.metadata.user_id
                 break
 
@@ -151,7 +151,7 @@ class EventService:
     ) -> EventListResult:
         result = await self.repository.get_events_by_correlation(correlation_id=correlation_id, limit=limit, skip=skip)
         if not include_all_users or user_role != UserRole.ADMIN:
-            filtered = [e for e in result.events if (e.metadata and e.metadata.user_id == user_id)]
+            filtered = [e for e in result.events if e.metadata.user_id == user_id]
             return EventListResult(
                 events=filtered,
                 total=result.total,
@@ -185,7 +185,7 @@ class EventService:
         event = await self.repository.get_event(event_id)
         if not event:
             return None
-        event_user_id = event.metadata.user_id if event.metadata else None
+        event_user_id = event.metadata.user_id
         if event_user_id != user_id and user_role != UserRole.ADMIN:
             return None
         return event

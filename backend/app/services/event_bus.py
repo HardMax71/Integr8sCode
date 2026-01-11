@@ -136,7 +136,7 @@ class EventBus(LifecycleEnabled):
         if self.producer:
             try:
                 # Serialize and send message asynchronously
-                value = json.dumps(vars(event)).encode("utf-8")
+                value = event.model_dump_json().encode("utf-8")
                 key = event_type.encode("utf-8") if event_type else None
 
                 # Use executor to avoid blocking

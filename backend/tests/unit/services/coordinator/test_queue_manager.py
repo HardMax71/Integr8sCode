@@ -1,9 +1,9 @@
 import logging
 
 import pytest
-
 from app.infrastructure.kafka.events.execution import ExecutionRequestedEvent
 from app.services.coordinator.queue_manager import QueueManager, QueuePriority
+
 from tests.helpers import make_execution_requested_event
 
 _test_logger = logging.getLogger("test.services.coordinator.queue_manager")

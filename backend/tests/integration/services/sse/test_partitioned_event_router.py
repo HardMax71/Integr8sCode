@@ -3,7 +3,6 @@ from uuid import uuid4
 
 import pytest
 import redis.asyncio as redis
-
 from app.core.metrics.events import EventMetrics
 from app.events.core import EventDispatcher
 from app.events.schema.schema_registry import SchemaRegistryManager
@@ -11,6 +10,7 @@ from app.schemas_pydantic.sse import RedisSSEMessage
 from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
 from app.services.sse.redis_bus import SSERedisBus
 from app.settings import Settings
+
 from tests.helpers import make_execution_requested_event
 from tests.helpers.eventually import eventually
 

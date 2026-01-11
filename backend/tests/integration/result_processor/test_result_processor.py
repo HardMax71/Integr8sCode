@@ -3,8 +3,6 @@ import logging
 import uuid
 
 import pytest
-from dishka import AsyncContainer
-
 from app.core.database_context import Database
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
@@ -22,6 +20,7 @@ from app.infrastructure.kafka.events.system import ResultStoredEvent
 from app.services.idempotency import IdempotencyManager
 from app.services.result_processor.processor import ResultProcessor
 from app.settings import Settings
+from dishka import AsyncContainer
 
 from tests.helpers.eventually import eventually
 
@@ -117,7 +116,7 @@ async def test_result_processor_persists_and_emits(scope: AsyncContainer) -> Non
             async def _persisted() -> None:
                 doc = await db.get_collection("executions").find_one({"execution_id": execution_id})
                 assert doc is not None
-                assert doc.get("status") == ExecutionStatus.COMPLETED.value
+                assert doc.get("status") == ExecutionStatus.COMPLETED
 
             await eventually(_persisted, timeout=12.0, interval=0.2)
 

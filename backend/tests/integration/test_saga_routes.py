@@ -55,7 +55,7 @@ class TestSagaRoutes:
         execution_id = str(uuid.uuid4())
         response = await test_user.get(
             f"/api/v1/sagas/execution/{execution_id}",
-            params={"state": SagaState.RUNNING.value}
+            params={"state": SagaState.RUNNING}
         )
         # Access denied for non-owned execution is valid
         assert response.status_code in [200, 403]
@@ -91,7 +91,7 @@ class TestSagaRoutes:
         # List completed sagas
         response = await test_user.get(
             "/api/v1/sagas/",
-            params={"state": SagaState.COMPLETED.value, "limit": 5}
+            params={"state": SagaState.COMPLETED, "limit": 5}
         )
         assert response.status_code == 200
 
@@ -182,7 +182,7 @@ class TestSagaRoutes:
             if response.status_code == 200:
                 saga_status = SagaStatusResponse(**response.json())
                 assert saga_status.saga_id == saga_id
-                assert saga_status.state in [s.value for s in SagaState]
+                assert saga_status.state in list(SagaState)
 
     @pytest.mark.asyncio
     async def test_list_sagas_with_offset(self, test_user: AsyncClient) -> None:
@@ -216,7 +216,7 @@ class TestSagaRoutes:
         # Try to find a completed saga to cancel
         response = await test_user.get(
             "/api/v1/sagas/",
-            params={"state": SagaState.COMPLETED.value, "limit": 1}
+            params={"state": SagaState.COMPLETED, "limit": 1}
         )
         assert response.status_code == 200
         saga_list = SagaListResponse(**response.json())
@@ -238,7 +238,7 @@ class TestSagaRoutes:
                       SagaState.FAILED, SagaState.CANCELLED]:
             response = await test_user.get(
                 f"/api/v1/sagas/execution/{execution_id}",
-                params={"state": state.value}
+                params={"state": state}
             )
             assert response.status_code in [200, 403]
             if response.status_code == 403:

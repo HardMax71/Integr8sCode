@@ -18,7 +18,8 @@ async def _run(cfg: LoadConfig) -> int:
     # Brief run configuration summary to stdout for easier troubleshooting
     print(
         f"Load config: base_url={cfg.base_url} api_prefix={cfg.api_prefix} "
-        f"mode={cfg.mode} clients={cfg.clients} concurrency={cfg.concurrency} duration={cfg.duration_seconds}s verify_tls={cfg.verify_tls}"
+        f"mode={cfg.mode} clients={cfg.clients} concurrency={cfg.concurrency} "
+        f"duration={cfg.duration_seconds}s verify_tls={cfg.verify_tls}"
     )
     # Quick preflight to catch prefix/port mistakes early
     pre_stats = StatsCollector()
@@ -46,7 +47,10 @@ async def _run(cfg: LoadConfig) -> int:
     stats.save(stats_path)
     # Print concise summary
     summary = stats.finalize()
-    print(f"Load run complete: mode={cfg.mode} requests={summary['total_requests']} errors={summary['total_errors']} runtime={summary['runtime_seconds']}s")
+    print(
+        f"Load run complete: mode={cfg.mode} requests={summary['total_requests']} "
+        f"errors={summary['total_errors']} runtime={summary['runtime_seconds']}s"
+    )
     print(f"Report saved to: {stats_path}")
     # Optional plots
     if getattr(cfg, "generate_plots", False):
@@ -86,7 +90,7 @@ def main(argv: list[str] | None = None) -> int:
         cfg.duration_seconds = args.duration
 
     # Pass plots flag through cfg (without changing dataclass fields)
-    setattr(cfg, "generate_plots", bool(args.plots))
+    cfg.generate_plots = bool(args.plots)
     return asyncio.run(_run(cfg))
 
 

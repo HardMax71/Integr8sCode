@@ -25,7 +25,7 @@ async def test_consumer_group_status_error_path_and_summary(test_settings: Setti
     assert status.state in ("ERROR", "DEAD", "UNKNOWN")
     assert status.health is ConsumerGroupHealth.UNHEALTHY
     summary = monitor.get_health_summary(status)
-    assert summary["group_id"] == gid and summary["health"] == ConsumerGroupHealth.UNHEALTHY.value
+    assert summary["group_id"] == gid and summary["health"] == ConsumerGroupHealth.UNHEALTHY
 
 
 def test_assess_group_health_branches(test_settings: Settings) -> None:

@@ -12,6 +12,7 @@ from app.core.correlation import CorrelationContext
 from app.core.utils import get_client_ip
 from app.domain.enums.common import SortOrder
 from app.domain.events.event_models import EventFilter
+from app.domain.events.typed import BaseEvent
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata as EventMetadata
 from app.schemas_pydantic.events import (
     DeleteEventResponse,
@@ -296,7 +297,7 @@ async def delete_event(
             "admin_email": admin.email,
             "event_type": result.event_type,
             "aggregate_id": result.aggregate_id,
-            "correlation_id": result.correlation_id,
+            "correlation_id": result.metadata.correlation_id,
         },
     )
 
@@ -345,9 +346,12 @@ async def replay_aggregate_events(
                 service_version=settings.SERVICE_VERSION,
                 user_id=admin.user_id,
             )
+            # Extract payload fields (exclude base event fields + event_type discriminator)
+            base_fields = set(BaseEvent.model_fields.keys()) | {"event_type"}
+            extra_fields = {k: v for k, v in event.model_dump().items() if k not in base_fields}
             await kafka_event_service.publish_event(
                 event_type=event.event_type,
-                payload=event.payload,
+                payload=extra_fields,
                 aggregate_id=aggregate_id,
                 correlation_id=replay_correlation_id,
                 metadata=meta,

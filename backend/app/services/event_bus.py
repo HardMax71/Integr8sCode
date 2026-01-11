@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from confluent_kafka import Consumer, KafkaError, Producer
 from fastapi import Request
+from pydantic import BaseModel, ConfigDict
 
 from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics.context import get_connection_metrics
@@ -16,13 +17,14 @@ from app.domain.enums.kafka import KafkaTopic
 from app.settings import Settings
 
 
-@dataclass
-class EventBusEvent:
+class EventBusEvent(BaseModel):
     """Represents an event on the event bus."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     id: str
     event_type: str
-    timestamp: str
+    timestamp: datetime
     payload: dict[str, Any]
 
 
@@ -134,7 +136,7 @@ class EventBus(LifecycleEnabled):
         if self.producer:
             try:
                 # Serialize and send message asynchronously
-                value = json.dumps(vars(event)).encode("utf-8")
+                value = event.model_dump_json().encode("utf-8")
                 key = event_type.encode("utf-8") if event_type else None
 
                 # Use executor to avoid blocking
@@ -157,7 +159,7 @@ class EventBus(LifecycleEnabled):
         return EventBusEvent(
             id=str(uuid4()),
             event_type=event_type,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(timezone.utc),
             payload=data,
         )
 
@@ -285,14 +287,9 @@ class EventBus(LifecycleEnabled):
                     continue
 
                 try:
-                    # Deserialize message
+                    # Deserialize message - Pydantic parses timestamp string to datetime
                     event_dict = json.loads(msg.value().decode("utf-8"))
-                    event = EventBusEvent(
-                        id=event_dict.get("id", ""),
-                        event_type=event_dict.get("event_type", ""),
-                        timestamp=event_dict.get("timestamp", ""),
-                        payload=event_dict.get("payload", {}),
-                    )
+                    event = EventBusEvent.model_validate(event_dict)
                     await self._distribute_event(event.event_type, event)
                 except Exception as e:
                     self.logger.error(f"Error processing Kafka message: {e}")

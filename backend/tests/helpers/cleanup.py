@@ -1,6 +1,4 @@
-"""Shared cleanup utilities for integration and E2E tests."""
 import redis.asyncio as redis
-
 from app.core.database_context import Database
 
 

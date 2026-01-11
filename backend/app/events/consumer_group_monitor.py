@@ -416,7 +416,7 @@ class NativeConsumerGroupMonitor:
         """Get a health summary for a consumer group."""
         return {
             "group_id": status.group_id,
-            "health": status.health.value,
+            "health": status.health,
             "health_message": status.health_message,
             "state": status.state,
             "members": status.member_count,

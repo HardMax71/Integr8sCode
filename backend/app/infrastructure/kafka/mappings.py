@@ -5,6 +5,7 @@ from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.infrastructure.kafka.events.base import BaseEvent
 from app.infrastructure.kafka.events.execution import (
+    ExecutionAcceptedEvent,
     ExecutionCancelledEvent,
     ExecutionCompletedEvent,
     ExecutionFailedEvent,
@@ -19,6 +20,7 @@ from app.infrastructure.kafka.events.notification import (
     NotificationCreatedEvent,
     NotificationDeliveredEvent,
     NotificationFailedEvent,
+    NotificationPreferencesUpdatedEvent,
     NotificationReadEvent,
     NotificationSentEvent,
 )
@@ -62,6 +64,7 @@ from app.infrastructure.kafka.events.user import (
     UserDeletedEvent,
     UserLoggedInEvent,
     UserLoggedOutEvent,
+    UserLoginEvent,
     UserRegisteredEvent,
     UserSettingsUpdatedEvent,
     UserUpdatedEvent,
@@ -74,6 +77,7 @@ def get_event_class_for_type(event_type: EventType) -> Type[BaseEvent] | None:
     event_map: dict[EventType, Type[BaseEvent]] = {
         # Execution events
         EventType.EXECUTION_REQUESTED: ExecutionRequestedEvent,
+        EventType.EXECUTION_ACCEPTED: ExecutionAcceptedEvent,
         EventType.EXECUTION_QUEUED: ExecutionQueuedEvent,
         EventType.EXECUTION_STARTED: ExecutionStartedEvent,
         EventType.EXECUTION_RUNNING: ExecutionRunningEvent,
@@ -91,6 +95,7 @@ def get_event_class_for_type(event_type: EventType) -> Type[BaseEvent] | None:
         EventType.POD_DELETED: PodDeletedEvent,
         # User events
         EventType.USER_REGISTERED: UserRegisteredEvent,
+        EventType.USER_LOGIN: UserLoginEvent,
         EventType.USER_LOGGED_IN: UserLoggedInEvent,
         EventType.USER_LOGGED_OUT: UserLoggedOutEvent,
         EventType.USER_UPDATED: UserUpdatedEvent,
@@ -103,6 +108,7 @@ def get_event_class_for_type(event_type: EventType) -> Type[BaseEvent] | None:
         EventType.NOTIFICATION_FAILED: NotificationFailedEvent,
         EventType.NOTIFICATION_READ: NotificationReadEvent,
         EventType.NOTIFICATION_CLICKED: NotificationClickedEvent,
+        EventType.NOTIFICATION_PREFERENCES_UPDATED: NotificationPreferencesUpdatedEvent,
         # Script events
         EventType.SCRIPT_SAVED: ScriptSavedEvent,
         EventType.SCRIPT_DELETED: ScriptDeletedEvent,

@@ -1,5 +1,4 @@
 import pytest
-
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.domain.saga import DomainResourceAllocation, DomainResourceAllocationCreate
 from app.events.core import UnifiedProducer
@@ -16,6 +15,7 @@ from app.services.saga.execution_saga import (
     ValidateExecutionStep,
 )
 from app.services.saga.saga_step import SagaContext
+
 from tests.helpers import make_execution_requested_event
 
 pytestmark = pytest.mark.unit
@@ -204,4 +204,4 @@ def test_execution_saga_bind_and_get_steps_sets_flags_and_types() -> None:
     steps = s.get_steps()
     # CreatePod step should be configured and present
     cps = [st for st in steps if isinstance(st, CreatePodStep)][0]
-    assert getattr(cps, "publish_commands") is True
+    assert cps.publish_commands is True

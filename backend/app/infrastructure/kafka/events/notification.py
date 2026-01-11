@@ -1,4 +1,7 @@
+from datetime import datetime
 from typing import ClassVar, Literal
+
+from pydantic import Field
 
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
@@ -24,7 +27,7 @@ class NotificationSentEvent(BaseEvent):
     notification_id: str
     user_id: str
     channel: NotificationChannel
-    sent_at: str
+    sent_at: datetime
 
 
 class NotificationDeliveredEvent(BaseEvent):
@@ -33,7 +36,7 @@ class NotificationDeliveredEvent(BaseEvent):
     notification_id: str
     user_id: str
     channel: NotificationChannel
-    delivered_at: str
+    delivered_at: datetime
 
 
 class NotificationFailedEvent(BaseEvent):
@@ -51,7 +54,7 @@ class NotificationReadEvent(BaseEvent):
     topic: ClassVar[KafkaTopic] = KafkaTopic.NOTIFICATION_EVENTS
     notification_id: str
     user_id: str
-    read_at: str
+    read_at: datetime
 
 
 class NotificationClickedEvent(BaseEvent):
@@ -59,5 +62,12 @@ class NotificationClickedEvent(BaseEvent):
     topic: ClassVar[KafkaTopic] = KafkaTopic.NOTIFICATION_EVENTS
     notification_id: str
     user_id: str
-    clicked_at: str
+    clicked_at: datetime
     action: str | None = None
+
+
+class NotificationPreferencesUpdatedEvent(BaseEvent):
+    event_type: Literal[EventType.NOTIFICATION_PREFERENCES_UPDATED] = EventType.NOTIFICATION_PREFERENCES_UPDATED
+    topic: ClassVar[KafkaTopic] = KafkaTopic.NOTIFICATION_EVENTS
+    user_id: str
+    changed_fields: list[str] = Field(default_factory=list)

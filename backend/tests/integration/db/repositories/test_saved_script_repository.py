@@ -1,8 +1,7 @@
 import pytest
-from dishka import AsyncContainer
-
 from app.db.repositories.saved_script_repository import SavedScriptRepository
 from app.domain.saved_script import DomainSavedScriptCreate, DomainSavedScriptUpdate
+from dishka import AsyncContainer
 
 pytestmark = pytest.mark.integration
 

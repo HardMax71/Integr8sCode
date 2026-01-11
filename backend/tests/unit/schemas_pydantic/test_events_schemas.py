@@ -1,7 +1,6 @@
 import pytest
-
-from app.schemas_pydantic.events import EventFilterRequest
 from app.domain.enums.common import SortOrder
+from app.schemas_pydantic.events import EventFilterRequest
 
 
 def test_event_filter_request_sort_validator_accepts_allowed_fields() -> None:

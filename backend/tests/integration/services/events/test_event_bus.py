@@ -1,7 +1,6 @@
 import pytest
-from dishka import AsyncContainer
-
 from app.services.event_bus import EventBusEvent, EventBusManager
+from dishka import AsyncContainer
 from tests.helpers.eventually import eventually
 
 pytestmark = pytest.mark.integration

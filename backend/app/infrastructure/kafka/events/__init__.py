@@ -16,6 +16,7 @@ from app.infrastructure.kafka.events.notification import (
     NotificationCreatedEvent,
     NotificationDeliveredEvent,
     NotificationFailedEvent,
+    NotificationPreferencesUpdatedEvent,
     NotificationReadEvent,
     NotificationSentEvent,
 )
@@ -59,6 +60,7 @@ from app.infrastructure.kafka.events.user import (
     UserDeletedEvent,
     UserLoggedInEvent,
     UserLoggedOutEvent,
+    UserLoginEvent,
     UserRegisteredEvent,
     UserSettingsUpdatedEvent,
     UserUpdatedEvent,
@@ -88,6 +90,7 @@ __all__ = [
     "PodDeletedEvent",
     # User
     "UserRegisteredEvent",
+    "UserLoginEvent",
     "UserLoggedInEvent",
     "UserLoggedOutEvent",
     "UserUpdatedEvent",
@@ -100,6 +103,7 @@ __all__ = [
     "NotificationFailedEvent",
     "NotificationReadEvent",
     "NotificationClickedEvent",
+    "NotificationPreferencesUpdatedEvent",
     # Script
     "ScriptSavedEvent",
     "ScriptDeletedEvent",

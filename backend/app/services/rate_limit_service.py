@@ -26,11 +26,11 @@ from app.settings import Settings
 def _rule_to_dict(rule: RateLimitRule) -> Dict[str, Any]:
     return {
         "endpoint_pattern": rule.endpoint_pattern,
-        "group": rule.group.value,
+        "group": rule.group,
         "requests": rule.requests,
         "window_seconds": rule.window_seconds,
         "burst_multiplier": rule.burst_multiplier,
-        "algorithm": rule.algorithm.value,
+        "algorithm": rule.algorithm,
         "priority": rule.priority,
         "enabled": rule.enabled,
     }
@@ -156,11 +156,11 @@ class RateLimitService:
         labels = {
             "authenticated": str(ctx.authenticated).lower(),
             "endpoint": ctx.normalized_endpoint,
-            "algorithm": ctx.algorithm.value,
+            "algorithm": ctx.algorithm,
         }
         if ctx.rule is not None:
             labels.update(
-                {"group": ctx.rule.group.value, "priority": str(ctx.rule.priority), "multiplier": str(ctx.multiplier)}
+                {"group": ctx.rule.group, "priority": str(ctx.rule.priority), "multiplier": str(ctx.multiplier)}
             )
         return labels
 
@@ -261,18 +261,18 @@ class RateLimitService:
                 {
                     "authenticated": str(ctx.authenticated).lower(),
                     "endpoint": ctx.normalized_endpoint,
-                    "algorithm": rule.algorithm.value,
+                    "algorithm": rule.algorithm,
                 },
             )
 
             # Record window size
             self.metrics.window_size.record(
-                rule.window_seconds, {"endpoint": ctx.normalized_endpoint, "algorithm": rule.algorithm.value}
+                rule.window_seconds, {"endpoint": ctx.normalized_endpoint, "algorithm": rule.algorithm}
             )
 
             # Check rate limit based on algorithm (avoid duplicate branches)
             timer_attrs = {
-                "algorithm": rule.algorithm.value,
+                "algorithm": rule.algorithm,
                 "endpoint": ctx.normalized_endpoint,
                 "authenticated": str(ctx.authenticated).lower(),
             }
@@ -302,7 +302,7 @@ class RateLimitService:
                     "rate_limit.allowed": status.allowed,
                     "rate_limit.limit": status.limit,
                     "rate_limit.remaining": status.remaining,
-                    "rate_limit.algorithm": status.algorithm.value,
+                    "rate_limit.algorithm": status.algorithm,
                 }
             )
             return status

@@ -3,13 +3,13 @@ import uuid
 from datetime import datetime, timezone
 
 import pytest
-from dishka import AsyncContainer
-
 from app.db.docs import DLQMessageDocument
 from app.db.repositories.dlq_repository import DLQRepository
 from app.dlq.models import DLQMessageStatus
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
+from dishka import AsyncContainer
+
 from tests.helpers import make_execution_requested_event
 
 pytestmark = [pytest.mark.integration, pytest.mark.mongodb]
@@ -51,7 +51,7 @@ async def test_dlq_repository_marks_message_discarded(scope: AsyncContainer) -> 
 
     # Create a DLQ document
     event_id = f"dlq-discard-{uuid.uuid4().hex[:8]}"
-    doc = await _create_dlq_document(event_id=event_id, status=DLQMessageStatus.PENDING)
+    await _create_dlq_document(event_id=event_id, status=DLQMessageStatus.PENDING)
 
     # Discard the message
     reason = "max_retries_exceeded"
@@ -148,7 +148,7 @@ async def test_dlq_stats_reflect_discarded_messages(scope: AsyncContainer) -> No
 
     # Capture count before to ensure our discard is what increments the stat
     stats_before = await repository.get_dlq_stats()
-    count_before = stats_before.by_status.get(DLQMessageStatus.DISCARDED.value, 0)
+    count_before = stats_before.by_status.get(DLQMessageStatus.DISCARDED, 0)
 
     # Create and discard a message
     event_id = f"dlq-stats-{uuid.uuid4().hex[:8]}"
@@ -157,5 +157,5 @@ async def test_dlq_stats_reflect_discarded_messages(scope: AsyncContainer) -> No
 
     # Get stats after - verify the count incremented by exactly 1
     stats_after = await repository.get_dlq_stats()
-    count_after = stats_after.by_status.get(DLQMessageStatus.DISCARDED.value, 0)
+    count_after = stats_after.by_status.get(DLQMessageStatus.DISCARDED, 0)
     assert count_after == count_before + 1

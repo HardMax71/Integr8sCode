@@ -1,8 +1,7 @@
 import pytest
-from dishka import AsyncContainer
-
 from app.domain.execution import ResourceLimitsDomain
 from app.services.execution_service import ExecutionService
+from dishka import AsyncContainer
 
 pytestmark = pytest.mark.integration
 

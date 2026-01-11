@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import random
+import time
 from collections.abc import Awaitable
 from dataclasses import dataclass
 from typing import Callable
@@ -80,9 +81,6 @@ async def _flow_settings_and_notifications(c: APIClient) -> None:
     await c.list_notifications()
     if random.random() < 0.5:
         await c.mark_all_read()
-
-
-import time
 
 
 async def run_user_swarm(cfg: LoadConfig, stats: StatsCollector, clients: int) -> None:

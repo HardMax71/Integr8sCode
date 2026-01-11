@@ -1,14 +1,12 @@
-import asyncio
-import json
 from uuid import uuid4
 
 import pytest
-from dishka import AsyncContainer
-
 from app.domain.enums.notification import NotificationChannel, NotificationSeverity
 from app.schemas_pydantic.sse import RedisNotificationMessage
 from app.services.notification_service import NotificationService
 from app.services.sse.redis_bus import SSERedisBus
+from dishka import AsyncContainer
+
 from tests.helpers.eventually import eventually
 
 pytestmark = [pytest.mark.integration, pytest.mark.redis]
@@ -27,7 +25,7 @@ async def test_in_app_notification_published_to_sse(scope: AsyncContainer) -> No
     await svc.update_subscription(user_id, NotificationChannel.IN_APP, True)
 
     # Create notification via service (IN_APP channel triggers SSE publish)
-    n = await svc.create_notification(
+    await svc.create_notification(
         user_id=user_id,
         subject="Hello",
         body="World",

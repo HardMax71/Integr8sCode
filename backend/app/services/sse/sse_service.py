@@ -58,7 +58,7 @@ class SSEService:
                 SSEExecutionEventData(
                     event_type=SSEControlEvent.ERROR,
                     execution_id=execution_id,
-                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    timestamp=datetime.now(timezone.utc),
                     error="Server is shutting down",
                 )
             )
@@ -72,7 +72,7 @@ class SSEService:
                 SSEExecutionEventData(
                     event_type=SSEControlEvent.CONNECTED,
                     execution_id=execution_id,
-                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    timestamp=datetime.now(timezone.utc),
                     connection_id=connection_id,
                 )
             )
@@ -87,7 +87,7 @@ class SSEService:
                 SSEExecutionEventData(
                     event_type=SSEControlEvent.SUBSCRIBED,
                     execution_id=execution_id,
-                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    timestamp=datetime.now(timezone.utc),
                     message="Redis subscription established",
                 )
             )
@@ -132,7 +132,7 @@ class SSEService:
                     SSEExecutionEventData(
                         event_type=SSEControlEvent.SHUTDOWN,
                         execution_id=execution_id,
-                        timestamp=datetime.now(timezone.utc).isoformat(),
+                        timestamp=datetime.now(timezone.utc),
                         message="Server is shutting down",
                         grace_period=30,
                     )
@@ -145,7 +145,7 @@ class SSEService:
                     SSEExecutionEventData(
                         event_type=SSEControlEvent.HEARTBEAT,
                         execution_id=execution_id,
-                        timestamp=now.isoformat(),
+                        timestamp=now,
                         message="SSE connection active",
                     )
                 )
@@ -204,7 +204,7 @@ class SSEService:
                 SSENotificationEventData(
                     event_type=SSENotificationEvent.CONNECTED,
                     user_id=user_id,
-                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    timestamp=datetime.now(timezone.utc),
                     message="Connected to notification stream",
                 )
             )
@@ -217,7 +217,7 @@ class SSEService:
                 SSENotificationEventData(
                     event_type=SSENotificationEvent.SUBSCRIBED,
                     user_id=user_id,
-                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    timestamp=datetime.now(timezone.utc),
                     message="Redis subscription established",
                 )
             )
@@ -231,7 +231,7 @@ class SSEService:
                         SSENotificationEventData(
                             event_type=SSENotificationEvent.HEARTBEAT,
                             user_id=user_id,
-                            timestamp=now.isoformat(),
+                            timestamp=now,
                             message="Notification stream active",
                         )
                     )

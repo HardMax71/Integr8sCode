@@ -303,6 +303,6 @@ class ResultProcessor(LifecycleEnabled):
     async def get_status(self) -> dict[str, Any]:
         """Get processor status."""
         return {
-            "state": self._state.value,
+            "state": self._state,
             "consumer_active": self._consumer is not None,
         }

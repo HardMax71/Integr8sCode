@@ -1,5 +1,4 @@
 import pytest
-
 from app.core.metrics.connections import ConnectionMetrics
 from app.core.metrics.coordinator import CoordinatorMetrics
 from app.settings import Settings

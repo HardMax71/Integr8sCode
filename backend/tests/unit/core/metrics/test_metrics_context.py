@@ -1,7 +1,6 @@
 import logging
 
 import pytest
-
 from app.core.metrics.context import (
     get_connection_metrics,
     get_coordinator_metrics,

@@ -1,10 +1,10 @@
 import asyncio
 import logging
+from datetime import datetime, timezone
 from typing import Any, ClassVar, cast
 
 import pytest
 import redis.asyncio as redis_async
-
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.domain.enums.notification import NotificationSeverity, NotificationStatus
@@ -127,7 +127,7 @@ async def test_notifications_channels() -> None:
         subject="test",
         body="body",
         action_url="",
-        created_at="2025-01-01T00:00:00Z",
+        created_at=datetime(2025, 1, 1, tzinfo=timezone.utc),
     )
     await bus.publish_notification("user-1", notif)
     ch, payload = r.published[-1]

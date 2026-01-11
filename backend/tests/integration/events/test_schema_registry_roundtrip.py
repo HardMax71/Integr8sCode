@@ -1,10 +1,10 @@
 import logging
 
 import pytest
-from dishka import AsyncContainer
-
 from app.events.schema.schema_registry import MAGIC_BYTE, SchemaRegistryManager
 from app.settings import Settings
+from dishka import AsyncContainer
+
 from tests.helpers import make_execution_requested_event
 
 pytestmark = [pytest.mark.integration]

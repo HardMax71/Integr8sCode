@@ -1,11 +1,10 @@
 from datetime import datetime, timezone
 
 import pytest
-from dishka import AsyncContainer
-
 from app.core.database_context import Database
 from app.domain.enums.user import UserRole
 from app.services.admin import AdminUserService
+from dishka import AsyncContainer
 
 pytestmark = [pytest.mark.integration, pytest.mark.mongodb]
 
@@ -18,7 +17,7 @@ async def test_get_user_overview_basic(scope: AsyncContainer) -> None:
         "user_id": "u1",
         "username": "bob",
         "email": "b@b.com",
-        "role": UserRole.USER.value,
+        "role": UserRole.USER,
         "is_active": True,
         "is_superuser": False,
         "hashed_password": "h",

@@ -37,6 +37,15 @@ class UserRegisteredEvent(BaseEvent):
     email: str
 
 
+class UserLoginEvent(BaseEvent):
+    event_type: Literal[EventType.USER_LOGIN] = EventType.USER_LOGIN
+    topic: ClassVar[KafkaTopic] = KafkaTopic.USER_EVENTS
+    user_id: str
+    login_method: LoginMethod
+    ip_address: str | None = None
+    user_agent: str | None = None
+
+
 class UserLoggedInEvent(BaseEvent):
     event_type: Literal[EventType.USER_LOGGED_IN] = EventType.USER_LOGGED_IN
     topic: ClassVar[KafkaTopic] = KafkaTopic.USER_EVENTS

@@ -5,7 +5,6 @@ from typing import Literal
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
 Mode = Literal["monkey", "user", "both"]
 
 

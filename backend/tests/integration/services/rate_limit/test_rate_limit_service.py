@@ -5,8 +5,6 @@ from typing import Any, cast
 from uuid import uuid4
 
 import pytest
-from dishka import AsyncContainer
-
 from app.domain.rate_limit import (
     EndpointGroup,
     RateLimitAlgorithm,
@@ -15,6 +13,7 @@ from app.domain.rate_limit import (
     UserRateLimit,
 )
 from app.services.rate_limit_service import RateLimitService
+from dishka import AsyncContainer
 
 pytestmark = [pytest.mark.integration, pytest.mark.redis]
 
@@ -155,7 +154,11 @@ async def test_ip_based_rate_limiting(scope: AsyncContainer) -> None:
 async def test_get_config_roundtrip(scope: AsyncContainer) -> None:
     svc: RateLimitService = await scope.get(RateLimitService)
     svc.prefix = f"{svc.prefix}{uuid4().hex[:6]}:"
-    cfg = RateLimitConfig(default_rules=[RateLimitRule(endpoint_pattern=r"^/z", group=EndpointGroup.API, requests=1, window_seconds=1)])
+    cfg = RateLimitConfig(
+        default_rules=[
+            RateLimitRule(endpoint_pattern=r"^/z", group=EndpointGroup.API, requests=1, window_seconds=1)
+        ]
+    )
     await svc.update_config(cfg)
     got = await svc._get_config()
     assert isinstance(got, RateLimitConfig)
@@ -167,7 +170,17 @@ async def test_sliding_window_edge(scope: AsyncContainer) -> None:
     svc.prefix = f"{svc.prefix}{uuid4().hex[:6]}:"
     svc.settings.RATE_LIMIT_ENABLED = True  # Enable rate limiting for this test
     # Configure a tight window and ensure behavior is consistent
-    cfg = RateLimitConfig(default_rules=[RateLimitRule(endpoint_pattern=r"^/edge", group=EndpointGroup.API, requests=1, window_seconds=1, algorithm=RateLimitAlgorithm.SLIDING_WINDOW)])
+    cfg = RateLimitConfig(
+        default_rules=[
+            RateLimitRule(
+                endpoint_pattern=r"^/edge",
+                group=EndpointGroup.API,
+                requests=1,
+                window_seconds=1,
+                algorithm=RateLimitAlgorithm.SLIDING_WINDOW,
+            )
+        ]
+    )
     await svc.update_config(cfg)
     ok = await svc.check_rate_limit("u", "/edge")
     assert ok.allowed is True

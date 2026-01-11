@@ -1,4 +1,3 @@
-from dataclasses import asdict
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -13,10 +12,10 @@ class ResourceAllocationRepository:
     async def create_allocation(self, create_data: DomainResourceAllocationCreate) -> DomainResourceAllocation:
         doc = ResourceAllocationDocument(
             allocation_id=str(uuid4()),
-            **asdict(create_data),
+            **create_data.model_dump(),
         )
         await doc.insert()
-        return DomainResourceAllocation(**doc.model_dump(exclude={"id"}))
+        return DomainResourceAllocation.model_validate(doc, from_attributes=True)
 
     async def release_allocation(self, allocation_id: str) -> bool:
         doc = await ResourceAllocationDocument.find_one({"allocation_id": allocation_id})

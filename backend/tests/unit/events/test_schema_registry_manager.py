@@ -1,7 +1,6 @@
 import logging
 
 import pytest
-
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.events.execution import ExecutionRequestedEvent
 from app.settings import Settings

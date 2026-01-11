@@ -3,8 +3,6 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 import redis.asyncio as redis
-from pymongo.errors import DuplicateKeyError
-
 from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus
 from app.services.idempotency.redis_repository import (
     RedisIdempotencyRepository,
@@ -12,7 +10,7 @@ from app.services.idempotency.redis_repository import (
     _json_default,
     _parse_iso_datetime,
 )
-
+from pymongo.errors import DuplicateKeyError
 
 pytestmark = [pytest.mark.integration, pytest.mark.redis]
 
@@ -142,9 +140,15 @@ async def test_aggregate_status_counts(
     repository: RedisIdempotencyRepository, redis_client: redis.Redis
 ) -> None:
     # Seed few keys directly using repository
-    for i, status in enumerate((IdempotencyStatus.PROCESSING, IdempotencyStatus.PROCESSING, IdempotencyStatus.COMPLETED)):
+    statuses = (IdempotencyStatus.PROCESSING, IdempotencyStatus.PROCESSING, IdempotencyStatus.COMPLETED)
+    for i, status in enumerate(statuses):
         rec = IdempotencyRecord(
-            key=f"k{i}", status=status, event_type="t", event_id=f"e{i}", created_at=datetime.now(timezone.utc), ttl_seconds=60
+            key=f"k{i}",
+            status=status,
+            event_type="t",
+            event_id=f"e{i}",
+            created_at=datetime.now(timezone.utc),
+            ttl_seconds=60,
         )
         await repository.insert_processing(rec)
         if status != IdempotencyStatus.PROCESSING:

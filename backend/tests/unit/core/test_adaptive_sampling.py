@@ -2,7 +2,6 @@ import time
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from app.core.adaptive_sampling import AdaptiveSampler, create_adaptive_sampler
 from app.settings import Settings
 

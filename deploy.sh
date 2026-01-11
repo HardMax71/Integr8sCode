@@ -348,7 +348,8 @@ cmd_openapi() {
 
     uv run python -c "
 import json
-from app.main import app
+from app.main import create_app
+app = create_app()
 schema = app.openapi()
 print(json.dumps(schema, indent=2))
 " > "../$OUTPUT"

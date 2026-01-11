@@ -216,7 +216,7 @@ class UnifiedConsumer:
 
     def get_status(self) -> ConsumerStatus:
         return ConsumerStatus(
-            state=self._state.value,
+            state=self._state,
             is_running=self.is_running,
             group_id=self._config.group_id,
             client_id=self._config.client_id,
@@ -226,10 +226,8 @@ class UnifiedConsumer:
                 consumer_lag=self._metrics.consumer_lag,
                 commit_failures=self._metrics.commit_failures,
                 processing_errors=self._metrics.processing_errors,
-                last_message_time=(
-                    self._metrics.last_message_time.isoformat() if self._metrics.last_message_time else None
-                ),
-                last_updated=self._metrics.last_updated.isoformat() if self._metrics.last_updated else None,
+                last_message_time=self._metrics.last_message_time,
+                last_updated=self._metrics.last_updated,
             ),
         )
 

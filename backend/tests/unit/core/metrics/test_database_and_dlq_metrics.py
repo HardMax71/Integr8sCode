@@ -1,5 +1,4 @@
 import pytest
-
 from app.core.metrics.database import DatabaseMetrics
 from app.core.metrics.dlq import DLQMetrics
 from app.settings import Settings

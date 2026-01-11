@@ -4,14 +4,14 @@ import uuid
 from datetime import datetime, timezone
 
 import pytest
-from confluent_kafka import Producer
-
 from app.core.database_context import Database
 from app.db.docs import DLQMessageDocument
 from app.dlq.manager import create_dlq_manager
 from app.domain.enums.kafka import KafkaTopic
 from app.events.schema.schema_registry import create_schema_registry_manager
 from app.settings import Settings
+from confluent_kafka import Producer
+
 from tests.helpers import make_execution_requested_event
 from tests.helpers.eventually import eventually
 

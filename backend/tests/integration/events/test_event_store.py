@@ -3,12 +3,12 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from dishka import AsyncContainer
-
 from app.db.docs import EventDocument
 from app.domain.enums.events import EventType
 from app.events.event_store import EventStore
 from app.infrastructure.kafka.events.base import BaseEvent
+from dishka import AsyncContainer
+
 from tests.helpers import make_execution_requested_event
 
 pytestmark = [pytest.mark.integration, pytest.mark.mongodb]

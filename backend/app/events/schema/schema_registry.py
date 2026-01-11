@@ -192,7 +192,7 @@ class SchemaRegistryManager:
 
         return event_class.model_validate(data)
 
-    def set_compatibility(self, subject: str, mode: str) -> None:
+    async def set_compatibility(self, subject: str, mode: str) -> None:
         """
         Set compatibility for a subject via REST API.
         Valid: BACKWARD, FORWARD, FULL, NONE, BACKWARD_TRANSITIVE, FORWARD_TRANSITIVE, FULL_TRANSITIVE
@@ -210,7 +210,8 @@ class SchemaRegistryManager:
             raise ValueError(f"Invalid compatibility mode: {mode}")
 
         url = f"{self.url}/config/{subject}"
-        response = httpx.put(url, json={"compatibility": mode})
+        async with httpx.AsyncClient() as client:
+            response = await client.put(url, json={"compatibility": mode})
         response.raise_for_status()
         self.logger.info(f"Set {subject} compatibility to {mode}")
 
@@ -222,7 +223,7 @@ class SchemaRegistryManager:
         for event_class in _get_all_event_classes():
             # Use event class name with optional prefix for per-run isolation in tests
             subject = f"{self.subject_prefix}{event_class.__name__}-value"
-            self.set_compatibility(subject, "FORWARD")
+            await self.set_compatibility(subject, "FORWARD")
             self.register_schema(subject, event_class)
 
         self._initialized = True

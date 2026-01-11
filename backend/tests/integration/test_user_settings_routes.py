@@ -4,6 +4,7 @@ from typing import TypedDict
 import pytest
 from app.schemas_pydantic.user_settings import SettingsHistoryResponse, UserSettings
 from httpx import AsyncClient
+
 from tests.helpers.eventually import eventually
 
 

@@ -1,4 +1,3 @@
-import pytest
 
 from app.events.core.types import ConsumerConfig, ProducerConfig
 

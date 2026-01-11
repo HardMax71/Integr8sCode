@@ -1,14 +1,8 @@
-"""Unit test configuration.
-
-Unit tests should NOT access real infrastructure (DB, Redis, HTTP).
-These fixtures raise errors to catch accidental usage.
-"""
 import logging
 from collections.abc import Generator
 from typing import NoReturn
 
 import pytest
-
 from app.core.metrics.connections import ConnectionMetrics
 from app.core.metrics.context import MetricsContext
 from app.core.metrics.coordinator import CoordinatorMetrics

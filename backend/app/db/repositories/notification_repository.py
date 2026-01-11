@@ -1,5 +1,4 @@
 import logging
-from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -23,9 +22,9 @@ class NotificationRepository:
         self.logger = logger
 
     async def create_notification(self, create_data: DomainNotificationCreate) -> DomainNotification:
-        doc = NotificationDocument(**asdict(create_data))
+        doc = NotificationDocument(**create_data.model_dump())
         await doc.insert()
-        return DomainNotification(**doc.model_dump(exclude={"id"}))
+        return DomainNotification.model_validate(doc, from_attributes=True)
 
     async def update_notification(
         self, notification_id: str, user_id: str, update_data: DomainNotificationUpdate
@@ -33,7 +32,7 @@ class NotificationRepository:
         doc = await NotificationDocument.find_one({"notification_id": notification_id, "user_id": user_id})
         if not doc:
             return False
-        update_dict = {k: v for k, v in asdict(update_data).items() if v is not None}
+        update_dict = update_data.model_dump(exclude_none=True)
         if update_dict:
             await doc.set(update_dict)
         return True
@@ -42,7 +41,7 @@ class NotificationRepository:
         doc = await NotificationDocument.find_one({"notification_id": notification_id, "user_id": user_id})
         if not doc:
             return None
-        return DomainNotification(**doc.model_dump(exclude={"id"}))
+        return DomainNotification.model_validate(doc, from_attributes=True)
 
     async def mark_as_read(self, notification_id: str, user_id: str) -> bool:
         doc = await NotificationDocument.find_one({"notification_id": notification_id, "user_id": user_id})
@@ -89,7 +88,7 @@ class NotificationRepository:
             .limit(limit)
             .to_list()
         )
-        return [DomainNotification(**doc.model_dump(exclude={"id"})) for doc in docs]
+        return [DomainNotification.model_validate(doc, from_attributes=True) for doc in docs]
 
     async def count_notifications(self, user_id: str, *additional_conditions: Any) -> int:
         conditions = [NotificationDocument.user_id == user_id, *additional_conditions]
@@ -129,7 +128,7 @@ class NotificationRepository:
             .limit(batch_size)
             .to_list()
         )
-        return [DomainNotification(**doc.model_dump(exclude={"id"})) for doc in docs]
+        return [DomainNotification.model_validate(doc, from_attributes=True) for doc in docs]
 
     async def find_scheduled_notifications(self, batch_size: int = 10) -> list[DomainNotification]:
         now = datetime.now(UTC)
@@ -142,7 +141,7 @@ class NotificationRepository:
             .limit(batch_size)
             .to_list()
         )
-        return [DomainNotification(**doc.model_dump(exclude={"id"})) for doc in docs]
+        return [DomainNotification.model_validate(doc, from_attributes=True) for doc in docs]
 
     async def cleanup_old_notifications(self, days: int = 30) -> int:
         cutoff = datetime.now(UTC) - timedelta(days=days)
@@ -160,18 +159,18 @@ class NotificationRepository:
         if not doc:
             # Default: enabled=True for new users (consistent with get_all_subscriptions)
             return DomainNotificationSubscription(user_id=user_id, channel=channel, enabled=True)
-        return DomainNotificationSubscription(**doc.model_dump(exclude={"id"}))
+        return DomainNotificationSubscription.model_validate(doc, from_attributes=True)
 
     async def upsert_subscription(
         self, user_id: str, channel: NotificationChannel, update_data: DomainSubscriptionUpdate
     ) -> DomainNotificationSubscription:
         existing = await NotificationSubscriptionDocument.find_one({"user_id": user_id, "channel": channel})
-        update_dict = {k: v for k, v in asdict(update_data).items() if v is not None}
+        update_dict = update_data.model_dump(exclude_none=True)
         update_dict["updated_at"] = datetime.now(UTC)
 
         if existing:
             await existing.set(update_dict)
-            return DomainNotificationSubscription(**existing.model_dump(exclude={"id"}))
+            return DomainNotificationSubscription.model_validate(existing, from_attributes=True)
         else:
             doc = NotificationSubscriptionDocument(
                 user_id=user_id,
@@ -179,14 +178,14 @@ class NotificationRepository:
                 **update_dict,
             )
             await doc.insert()
-            return DomainNotificationSubscription(**doc.model_dump(exclude={"id"}))
+            return DomainNotificationSubscription.model_validate(doc, from_attributes=True)
 
     async def get_all_subscriptions(self, user_id: str) -> dict[NotificationChannel, DomainNotificationSubscription]:
         subs: dict[NotificationChannel, DomainNotificationSubscription] = {}
         for channel in NotificationChannel:
             doc = await NotificationSubscriptionDocument.find_one({"user_id": user_id, "channel": channel})
             if doc:
-                subs[channel] = DomainNotificationSubscription(**doc.model_dump(exclude={"id"}))
+                subs[channel] = DomainNotificationSubscription.model_validate(doc, from_attributes=True)
             else:
                 subs[channel] = DomainNotificationSubscription(user_id=user_id, channel=channel, enabled=True)
         return subs
@@ -198,7 +197,7 @@ class NotificationRepository:
             UserDocument.is_active == True,  # noqa: E712
         ).to_list()
         user_ids = [doc.user_id for doc in docs if doc.user_id]
-        self.logger.info(f"Found {len(user_ids)} users with roles {[r.value for r in roles]}")
+        self.logger.info(f"Found {len(user_ids)} users with roles {list(roles)}")
         return user_ids
 
     async def get_active_users(self, days: int = 30) -> list[str]:

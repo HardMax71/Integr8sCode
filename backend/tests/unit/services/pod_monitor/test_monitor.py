@@ -8,7 +8,7 @@ import pytest
 from app.core import k8s_clients as k8s_clients_module
 from app.core.k8s_clients import K8sClients
 from app.db.repositories.event_repository import EventRepository
-from app.domain.events import Event
+from app.domain.events import DomainEvent
 from app.domain.execution.models import ResourceUsageDomain
 from app.events.core import UnifiedProducer
 from app.infrastructure.kafka.events.base import BaseEvent
@@ -27,6 +27,7 @@ from app.services.pod_monitor.monitor import (
 )
 from app.settings import Settings
 from kubernetes.client.rest import ApiException
+
 from tests.helpers.k8s_fakes import (
     FakeApi,
     FakeV1Api,
@@ -50,9 +51,9 @@ class FakeEventRepository(EventRepository):
 
     def __init__(self) -> None:
         super().__init__(_test_logger)
-        self.stored_events: list[Event] = []
+        self.stored_events: list[DomainEvent] = []
 
-    async def store_event(self, event: Event) -> str:
+    async def store_event(self, event: DomainEvent) -> str:
         self.stored_events.append(event)
         return event.event_id
 
@@ -162,7 +163,8 @@ async def test_start_and_stop_lifecycle() -> None:
     assert pm.state == MonitorState.RUNNING
 
     await pm.aclose()
-    assert pm.state.value == MonitorState.STOPPED.value
+    final_state: MonitorState = pm.state
+    assert final_state == MonitorState.STOPPED
     assert spy.cleared is True
 
 
@@ -559,7 +561,8 @@ async def test_create_pod_monitor_context_manager(monkeypatch: pytest.MonkeyPatc
     async with create_pod_monitor(cfg, service, _test_logger) as monitor:
         assert monitor.state == MonitorState.RUNNING
 
-    assert monitor.state.value == MonitorState.STOPPED.value
+    final_state: MonitorState = monitor.state
+    assert final_state == MonitorState.STOPPED
 
 
 @pytest.mark.asyncio
@@ -587,7 +590,8 @@ async def test_create_pod_monitor_with_injected_k8s_clients() -> None:
         assert monitor._clients is mock_k8s_clients
         assert monitor._v1 is mock_v1
 
-    assert monitor.state.value == MonitorState.STOPPED.value
+    final_state: MonitorState = monitor.state
+    assert final_state == MonitorState.STOPPED
 
 
 @pytest.mark.asyncio

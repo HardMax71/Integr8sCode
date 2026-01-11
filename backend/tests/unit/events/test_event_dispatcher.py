@@ -3,6 +3,7 @@ import logging
 from app.domain.enums.events import EventType
 from app.events.core import EventDispatcher
 from app.infrastructure.kafka.events.base import BaseEvent
+
 from tests.helpers import make_execution_requested_event
 
 _test_logger = logging.getLogger("test.events.event_dispatcher")
@@ -56,5 +57,5 @@ async def test_dispatch_metrics_processed_and_skipped() -> None:
 
     metrics = disp.get_metrics()
     assert called["n"] == 1
-    assert metrics[EventType.EXECUTION_REQUESTED.value]["processed"] >= 1
-    assert metrics[EventType.EXECUTION_FAILED.value]["skipped"] >= 1
+    assert metrics[EventType.EXECUTION_REQUESTED]["processed"] >= 1
+    assert metrics[EventType.EXECUTION_FAILED]["skipped"] >= 1

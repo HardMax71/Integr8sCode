@@ -1,11 +1,11 @@
-import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 
 import pytest
-from kubernetes import client as k8s_client, config as k8s_config
-
 from app.services.result_processor.resource_cleaner import ResourceCleaner
+from kubernetes import client as k8s_client
+from kubernetes import config as k8s_config
+
 from tests.helpers.eventually import eventually
 
 pytestmark = [pytest.mark.e2e, pytest.mark.k8s]
@@ -38,7 +38,7 @@ async def test_cleanup_orphaned_configmaps_dry_run() -> None:
     try:
         cleaner = ResourceCleaner(logger=_test_logger)
         # Force as orphaned by using a large cutoff
-        cleaned = await cleaner.cleanup_orphaned_resources(namespace=ns, max_age_hours=0, dry_run=True)
+        await cleaner.cleanup_orphaned_resources(namespace=ns, max_age_hours=0, dry_run=True)
 
         # We expect our configmap to be a candidate; poll the response
         async def _has_cm() -> None:

@@ -2,7 +2,6 @@ import asyncio
 import logging
 
 import pytest
-
 from app.core.lifecycle import LifecycleEnabled
 from app.services.sse.sse_shutdown_manager import SSEShutdownManager
 
@@ -47,7 +46,9 @@ async def test_shutdown_graceful_notify_and_drain() -> None:
 
 @pytest.mark.asyncio
 async def test_shutdown_force_close_calls_router_stop_and_rejects_new() -> None:
-    mgr = SSEShutdownManager(drain_timeout=0.01, notification_timeout=0.01, force_close_timeout=0.01, logger=_test_logger)
+    mgr = SSEShutdownManager(
+        drain_timeout=0.01, notification_timeout=0.01, force_close_timeout=0.01, logger=_test_logger
+    )
     router = _FakeRouter()
     mgr.set_router(router)
 

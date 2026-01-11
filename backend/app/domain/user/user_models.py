@@ -2,7 +2,7 @@ import re
 from datetime import datetime
 from typing import List
 
-from pydantic.dataclasses import dataclass
+from pydantic import BaseModel, ConfigDict
 
 from app.core.utils import StringEnum
 from app.domain.enums.user import UserRole
@@ -32,17 +32,19 @@ class UserFilterType(StringEnum):
     ROLE = "role"
 
 
-@dataclass
-class UserSearchFilter:
+class UserSearchFilter(BaseModel):
     """User search filter criteria."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     search_text: str | None = None
     role: UserRole | None = None
 
 
-@dataclass
-class User:
+class User(BaseModel):
     """User domain model."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     user_id: str
     username: str
@@ -55,9 +57,10 @@ class User:
     updated_at: datetime
 
 
-@dataclass
-class UserUpdate:
+class UserUpdate(BaseModel):
     """User update domain model."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     username: str | None = None
     email: str | None = None
@@ -77,9 +80,10 @@ class UserUpdate:
         )
 
 
-@dataclass
-class UserListResult:
+class UserListResult(BaseModel):
     """Result of listing users."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     users: List[User]
     total: int
@@ -87,9 +91,10 @@ class UserListResult:
     limit: int
 
 
-@dataclass
-class PasswordReset:
+class PasswordReset(BaseModel):
     """Password reset domain model."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     user_id: str
     new_password: str
@@ -98,9 +103,10 @@ class PasswordReset:
         return bool(self.user_id and self.new_password and len(self.new_password) >= 8)
 
 
-@dataclass
-class UserCreation:
+class UserCreation(BaseModel):
     """User creation domain model (API-facing, with plain password)."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     username: str
     email: str
@@ -120,9 +126,10 @@ class UserCreation:
         )
 
 
-@dataclass
-class DomainUserCreate:
+class DomainUserCreate(BaseModel):
     """User creation data for repository (with hashed password)."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     username: str
     email: str
@@ -132,9 +139,10 @@ class DomainUserCreate:
     is_superuser: bool = False
 
 
-@dataclass
-class DomainUserUpdate:
+class DomainUserUpdate(BaseModel):
     """User update data for repository (with hashed password)."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     username: str | None = None
     email: str | None = None

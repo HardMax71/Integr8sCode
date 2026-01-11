@@ -8,13 +8,12 @@ from typing import Any
 
 import pytest
 import redis.asyncio as redis
-
 from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus
 from app.infrastructure.kafka.events.base import BaseEvent
-from app.infrastructure.kafka.events.execution import ExecutionRequestedEvent
 from app.services.idempotency.idempotency_manager import IdempotencyConfig, IdempotencyManager
 from app.services.idempotency.middleware import IdempotentEventHandler, idempotent_handler
 from app.services.idempotency.redis_repository import RedisIdempotencyRepository
+
 from tests.helpers import make_execution_requested_event
 
 pytestmark = [pytest.mark.integration, pytest.mark.redis]

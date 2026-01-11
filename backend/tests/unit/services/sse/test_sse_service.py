@@ -69,7 +69,7 @@ class _FakeRepo(SSERepository):
         return SSEExecutionStatusDomain(
             execution_id=execution_id,
             status=ExecutionStatus.RUNNING,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(timezone.utc),
         )
 
     async def get_execution(self, execution_id: str) -> DomainExecution | None:  # noqa: ARG002
@@ -151,7 +151,7 @@ async def test_execution_stream_closes_on_failed_event() -> None:
     # Push a failed event and ensure stream ends after yielding it
     await bus.exec_sub.push({"event_type": EventType.EXECUTION_FAILED, "execution_id": "exec-1", "data": {}})
     failed = await agen.__anext__()
-    assert _decode(failed)["event_type"] == str(EventType.EXECUTION_FAILED)
+    assert _decode(failed)["event_type"] == EventType.EXECUTION_FAILED
 
     with pytest.raises(StopAsyncIteration):
         await agen.__anext__()
@@ -169,7 +169,9 @@ async def test_execution_stream_result_stored_includes_result_payload() -> None:
         stderr="",
         lang="python",
         lang_version="3.11",
-        resource_usage=ResourceUsageDomain(0.1, 1, 100, 64),
+        resource_usage=ResourceUsageDomain(
+            execution_time_wall_seconds=0.1, cpu_time_jiffies=1, clk_tck_hertz=100, peak_memory_kb=64
+        ),
         user_id="u1",
         exit_code=0,
     )
@@ -186,7 +188,7 @@ async def test_execution_stream_result_stored_includes_result_payload() -> None:
     await bus.exec_sub.push({"event_type": EventType.RESULT_STORED, "execution_id": "exec-2", "data": {}})
     evt = await agen.__anext__()
     data = _decode(evt)
-    assert data["event_type"] == str(EventType.RESULT_STORED)
+    assert data["event_type"] == EventType.RESULT_STORED
     assert "result" in data and data["result"]["execution_id"] == "exec-2"
 
     with pytest.raises(StopAsyncIteration):

@@ -1,15 +1,13 @@
 import logging
 from unittest.mock import AsyncMock, MagicMock
-import pytest
 
+import pytest
+from app.domain.idempotency import IdempotencyStatus
 from app.infrastructure.kafka.events.base import BaseEvent
 from app.services.idempotency.idempotency_manager import IdempotencyManager, IdempotencyResult
 from app.services.idempotency.middleware import (
     IdempotentEventHandler,
-    idempotent_handler,
-    IdempotentConsumerWrapper,
 )
-from app.domain.idempotency import IdempotencyStatus
 
 _test_logger = logging.getLogger("test.services.idempotency.middleware")
 
@@ -36,7 +34,9 @@ class TestIdempotentEventHandler:
         return event
 
     @pytest.fixture
-    def idempotent_event_handler(self, mock_handler: AsyncMock, mock_idempotency_manager: AsyncMock) -> IdempotentEventHandler:
+    def idempotent_event_handler(
+        self, mock_handler: AsyncMock, mock_idempotency_manager: AsyncMock
+    ) -> IdempotentEventHandler:
         return IdempotentEventHandler(
             handler=mock_handler,
             idempotency_manager=mock_idempotency_manager,
@@ -47,7 +47,9 @@ class TestIdempotentEventHandler:
         )
 
     @pytest.mark.asyncio
-    async def test_call_with_fields(self, mock_handler: AsyncMock, mock_idempotency_manager: AsyncMock, event: MagicMock) -> None:
+    async def test_call_with_fields(
+        self, mock_handler: AsyncMock, mock_idempotency_manager: AsyncMock, event: MagicMock
+    ) -> None:
         # Setup with specific fields
         fields = {"field1", "field2"}
 
@@ -80,7 +82,13 @@ class TestIdempotentEventHandler:
         )
 
     @pytest.mark.asyncio
-    async def test_call_handler_exception(self, idempotent_event_handler: IdempotentEventHandler, mock_idempotency_manager: AsyncMock, mock_handler: AsyncMock, event: MagicMock) -> None:
+    async def test_call_handler_exception(
+        self,
+        idempotent_event_handler: IdempotentEventHandler,
+        mock_idempotency_manager: AsyncMock,
+        mock_handler: AsyncMock,
+        event: MagicMock,
+    ) -> None:
         # Setup: Handler raises exception
         idempotency_result = IdempotencyResult(
             is_duplicate=False,

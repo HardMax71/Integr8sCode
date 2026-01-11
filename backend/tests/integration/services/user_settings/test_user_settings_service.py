@@ -1,8 +1,6 @@
 from datetime import datetime, timezone
 
 import pytest
-from dishka import AsyncContainer
-
 from app.domain.enums import Theme
 from app.domain.user.settings_models import (
     DomainEditorSettings,
@@ -10,6 +8,7 @@ from app.domain.user.settings_models import (
     DomainUserSettingsUpdate,
 )
 from app.services.user_settings_service import UserSettingsService
+from dishka import AsyncContainer
 
 pytestmark = [pytest.mark.integration, pytest.mark.mongodb]
 

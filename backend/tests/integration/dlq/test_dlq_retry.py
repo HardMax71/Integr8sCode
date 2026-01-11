@@ -124,7 +124,7 @@ async def test_dlq_stats_reflect_retried_messages(scope: AsyncContainer) -> None
 
     # Capture count before to ensure our retry is what increments the stat
     stats_before = await repository.get_dlq_stats()
-    count_before = stats_before.by_status.get(DLQMessageStatus.RETRIED.value, 0)
+    count_before = stats_before.by_status.get(DLQMessageStatus.RETRIED, 0)
 
     # Create and retry a message
     event_id = f"dlq-stats-retry-{uuid.uuid4().hex[:8]}"
@@ -133,7 +133,7 @@ async def test_dlq_stats_reflect_retried_messages(scope: AsyncContainer) -> None
 
     # Get stats after - verify the count incremented by exactly 1
     stats_after = await repository.get_dlq_stats()
-    count_after = stats_after.by_status.get(DLQMessageStatus.RETRIED.value, 0)
+    count_after = stats_after.by_status.get(DLQMessageStatus.RETRIED, 0)
     assert count_after == count_before + 1
 
 

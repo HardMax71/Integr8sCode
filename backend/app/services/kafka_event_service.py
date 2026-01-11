@@ -11,8 +11,8 @@ from app.core.metrics.context import get_event_metrics
 from app.core.tracing.utils import inject_trace_context
 from app.db.repositories.event_repository import EventRepository
 from app.domain.enums.events import EventType
-from app.domain.events import Event
 from app.domain.events import EventMetadata as DomainEventMetadata
+from app.domain.events import domain_event_adapter
 from app.events.core import UnifiedProducer
 from app.infrastructure.kafka.events.base import BaseEvent
 from app.infrastructure.kafka.events.metadata import AvroEventMetadata
@@ -78,30 +78,32 @@ class KafkaEventService:
             event_id = str(uuid4())
             timestamp = datetime.now(timezone.utc)
 
-            # Convert to domain metadata for storage (only include defined fields)
+            # Convert to domain metadata for storage
             domain_metadata = DomainEventMetadata(
-                **avro_metadata.model_dump(include=set(DomainEventMetadata.__dataclass_fields__))
+                **avro_metadata.model_dump(include=set(DomainEventMetadata.model_fields.keys()))
             )
 
-            event = Event(
-                event_id=event_id,
-                event_type=event_type,
-                event_version="1.0",
-                timestamp=timestamp,
-                aggregate_id=aggregate_id,
-                metadata=domain_metadata,
-                payload=payload,
-            )
-            _ = await self.event_repository.store_event(event)
+            # Create typed domain event via discriminated union adapter
+            event_data = {
+                "event_id": event_id,
+                "event_type": event_type,
+                "event_version": "1.0",
+                "timestamp": timestamp,
+                "aggregate_id": aggregate_id,
+                "metadata": domain_metadata,
+                **payload,
+            }
+            domain_event = domain_event_adapter.validate_python(event_data)
+            _ = await self.event_repository.store_event(domain_event)
 
             # Get event class and create proper event instance
             event_class = get_event_class_for_type(event_type)
             if not event_class:
                 raise ValueError(f"No event class found for event type: {event_type}")
 
-            # Create proper event instance with all required fields
-            event_data = {
-                "event_id": event.event_id,
+            # Create proper Kafka event instance with all required fields
+            kafka_event_data = {
+                "event_id": domain_event.event_id,
                 "event_type": event_type,
                 "event_version": "1.0",
                 "timestamp": timestamp,
@@ -110,13 +112,13 @@ class KafkaEventService:
                 **payload,  # Include event-specific payload fields
             }
 
-            # Create the typed event instance
-            kafka_event = event_class(**event_data)
+            # Create the typed Kafka event instance
+            kafka_event = event_class(**kafka_event_data)
 
             # Prepare headers (all values must be strings for UnifiedProducer)
             headers: Dict[str, str] = {
                 "event_type": event_type,
-                "correlation_id": event.correlation_id or "",
+                "correlation_id": domain_metadata.correlation_id or "",
                 "service": avro_metadata.service_name,
             }
 
@@ -227,7 +229,7 @@ class KafkaEventService:
             Event ID of published event
         """
         with tracer.start_as_current_span("publish_base_event") as span:
-            span.set_attribute("event.type", str(event.event_type))
+            span.set_attribute("event.type", event.event_type)
             if event.aggregate_id:
                 span.set_attribute("aggregate.id", event.aggregate_id)
 
@@ -238,23 +240,24 @@ class KafkaEventService:
 
             # Build payload from event attributes (exclude base fields)
             base_fields = {"event_id", "event_type", "event_version", "timestamp", "aggregate_id", "metadata", "topic"}
-            payload = {k: v for k, v in vars(event).items() if k not in base_fields and not k.startswith("_")}
+            payload = {k: v for k, v in event.model_dump().items() if k not in base_fields}
 
-            # Create domain event for storage
-            domain_event = Event(
-                event_id=event.event_id,
-                event_type=event.event_type,
-                event_version=event.event_version,
-                timestamp=event.timestamp,
-                aggregate_id=event.aggregate_id,
-                metadata=domain_metadata,
-                payload=payload,
-            )
+            # Create typed domain event via discriminated union adapter
+            event_data = {
+                "event_id": event.event_id,
+                "event_type": event.event_type,
+                "event_version": event.event_version,
+                "timestamp": event.timestamp,
+                "aggregate_id": event.aggregate_id,
+                "metadata": domain_metadata,
+                **payload,
+            }
+            domain_event = domain_event_adapter.validate_python(event_data)
             await self.event_repository.store_event(domain_event)
 
             # Prepare headers
             headers: Dict[str, str] = {
-                "event_type": str(event.event_type),
+                "event_type": event.event_type,
                 "correlation_id": event.metadata.correlation_id or "",
                 "service": event.metadata.service_name,
             }
@@ -282,7 +285,7 @@ class KafkaEventService:
             self.logger.info(
                 "Base event published",
                 extra={
-                    "event_type": str(event.event_type),
+                    "event_type": event.event_type,
                     "event_id": event.event_id,
                     "aggregate_id": event.aggregate_id,
                 },

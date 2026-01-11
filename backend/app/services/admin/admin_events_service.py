@@ -1,7 +1,7 @@
 import csv
 import json
 import logging
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from io import StringIO
 from typing import Any, Dict, List
@@ -25,16 +25,18 @@ from app.services.replay_service import ReplayService
 
 def _export_row_to_dict(row: EventExportRow) -> dict[str, str]:
     """Convert EventExportRow to dict with display names."""
+    # Use mode="json" to auto-convert datetime to ISO string
+    data = row.model_dump(mode="json")
     return {
-        "Event ID": row.event_id,
-        "Event Type": row.event_type,
-        "Timestamp": row.timestamp,
-        "Correlation ID": row.correlation_id,
-        "Aggregate ID": row.aggregate_id,
-        "User ID": row.user_id,
-        "Service": row.service,
-        "Status": row.status,
-        "Error": row.error,
+        "Event ID": data["event_id"],
+        "Event Type": data["event_type"],
+        "Timestamp": data["timestamp"],
+        "Correlation ID": data["correlation_id"],
+        "Aggregate ID": data["aggregate_id"],
+        "User ID": data["user_id"],
+        "Service": data["service"],
+        "Status": data["status"],
+        "Error": data["error"],
     }
 
 
@@ -234,32 +236,19 @@ class AdminEventsService:
         result = await self._repo.browse_events(
             event_filter=event_filter, skip=0, limit=limit, sort_by="timestamp", sort_order=SortDirection.DESCENDING
         )
-        events_data: list[dict[str, Any]] = []
-        for event in result.events:
-            event_dict = asdict(event)
-            for fld in ["timestamp", "created_at", "updated_at", "stored_at", "ttl_expires_at"]:
-                if fld in event_dict and isinstance(event_dict[fld], datetime):
-                    event_dict[fld] = event_dict[fld].isoformat()
-            events_data.append(event_dict)
+        # mode="json" auto-converts datetime fields to ISO strings
+        events_data = [event.model_dump(mode="json") for event in result.events]
 
         export_data: dict[str, Any] = {
             "export_metadata": {
                 "exported_at": datetime.now(timezone.utc).isoformat(),
                 "total_events": len(events_data),
-                "filters_applied": {
-                    "event_types": event_filter.event_types,
-                    "aggregate_id": event_filter.aggregate_id,
-                    "correlation_id": event_filter.correlation_id,
-                    "user_id": event_filter.user_id,
-                    "service_name": event_filter.service_name,
-                    "start_time": event_filter.start_time.isoformat() if event_filter.start_time else None,
-                    "end_time": event_filter.end_time.isoformat() if event_filter.end_time else None,
-                },
+                "filters_applied": event_filter.model_dump(mode="json"),
                 "export_limit": limit,
             },
             "events": events_data,
         }
-        json_content = json.dumps(export_data, indent=2, default=str)
+        json_content = json.dumps(export_data, indent=2)
         filename = f"events_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"
         self.logger.info(
             "Exported events JSON",
@@ -279,12 +268,13 @@ class AdminEventsService:
         await self._repo.archive_event(detail.event, deleted_by)
         deleted = await self._repo.delete_event(event_id)
         if deleted:
+            correlation_id = detail.event.metadata.correlation_id
             self.logger.info(
                 "Event deleted",
                 extra={
                     "event_id": event_id,
                     "event_type": detail.event.event_type,
-                    "correlation_id": detail.event.correlation_id,
+                    "correlation_id": correlation_id,
                     "deleted_by": deleted_by,
                 },
             )

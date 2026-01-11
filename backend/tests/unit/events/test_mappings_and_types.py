@@ -9,7 +9,18 @@ from app.infrastructure.kafka.mappings import (
 
 
 def test_producer_config_mapping() -> None:
-    cfg = ProducerConfig(bootstrap_servers="kafka:29092", client_id="cid", batch_size=123, linger_ms=7, compression_type="gzip", request_timeout_ms=1111, retries=2, enable_idempotence=True, acks="all", max_in_flight_requests_per_connection=3)
+    cfg = ProducerConfig(
+        bootstrap_servers="kafka:29092",
+        client_id="cid",
+        batch_size=123,
+        linger_ms=7,
+        compression_type="gzip",
+        request_timeout_ms=1111,
+        retries=2,
+        enable_idempotence=True,
+        acks="all",
+        max_in_flight_requests_per_connection=3,
+    )
     conf = cfg.to_producer_config()
     assert conf["bootstrap.servers"] == "kafka:29092"
     assert conf["client.id"] == "cid"
@@ -20,7 +31,19 @@ def test_producer_config_mapping() -> None:
 
 
 def test_consumer_config_mapping() -> None:
-    cfg = ConsumerConfig(bootstrap_servers="kafka:29092", group_id="g", client_id="c", auto_offset_reset="latest", enable_auto_commit=False, session_timeout_ms=12345, heartbeat_interval_ms=999, max_poll_interval_ms=555000, fetch_min_bytes=10, fetch_max_wait_ms=777, statistics_interval_ms=60000)
+    cfg = ConsumerConfig(
+        bootstrap_servers="kafka:29092",
+        group_id="g",
+        client_id="c",
+        auto_offset_reset="latest",
+        enable_auto_commit=False,
+        session_timeout_ms=12345,
+        heartbeat_interval_ms=999,
+        max_poll_interval_ms=555000,
+        fetch_min_bytes=10,
+        fetch_max_wait_ms=777,
+        statistics_interval_ms=60000,
+    )
     conf = cfg.to_consumer_config()
     assert conf["bootstrap.servers"] == "kafka:29092"
     assert conf["group.id"] == "g"

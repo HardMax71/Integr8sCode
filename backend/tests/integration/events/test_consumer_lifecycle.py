@@ -2,12 +2,11 @@ import logging
 from uuid import uuid4
 
 import pytest
-from dishka import AsyncContainer
-
 from app.domain.enums.kafka import KafkaTopic
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.settings import Settings
+from dishka import AsyncContainer
 
 # xdist_group: Kafka consumer creation can crash librdkafka when multiple workers
 # instantiate Consumer() objects simultaneously. Serial execution prevents this.

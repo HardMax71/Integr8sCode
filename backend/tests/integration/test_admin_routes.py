@@ -64,7 +64,6 @@ class TestAdminSettings:
         # Get original settings
         original_response = await test_admin.get("/api/v1/admin/settings/")
         assert original_response.status_code == 200
-        original_settings = original_response.json()
 
         # Update settings
         updated_settings = {

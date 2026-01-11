@@ -1,10 +1,9 @@
 from collections.abc import Awaitable, Callable
 
 import pytest
-from dishka import AsyncContainer
-
 from app.events.core import UnifiedProducer
 from app.infrastructure.kafka.events.base import BaseEvent
+from dishka import AsyncContainer
 
 
 @pytest.fixture(scope="function")

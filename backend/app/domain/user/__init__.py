@@ -12,9 +12,9 @@ from .settings_models import (
     CachedSettings,
     DomainEditorSettings,
     DomainNotificationSettings,
-    DomainSettingsEvent,
     DomainSettingsHistoryEntry,
     DomainUserSettings,
+    DomainUserSettingsChangedEvent,
     DomainUserSettingsUpdate,
 )
 from .user_models import (
@@ -37,7 +37,7 @@ __all__ = [
     "CSRFValidationError",
     "DomainEditorSettings",
     "DomainNotificationSettings",
-    "DomainSettingsEvent",
+    "DomainUserSettingsChangedEvent",
     "DomainSettingsHistoryEntry",
     "DomainUserCreate",
     "DomainUserSettings",

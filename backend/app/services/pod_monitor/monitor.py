@@ -196,16 +196,16 @@ class PodMonitor(LifecycleEnabled):
                     case 410:  # Gone - resource version too old
                         self.logger.warning("Resource version expired, resetting watch")
                         self._last_resource_version = None
-                        self._metrics.record_pod_monitor_watch_error(str(ErrorType.RESOURCE_VERSION_EXPIRED.value))
+                        self._metrics.record_pod_monitor_watch_error(ErrorType.RESOURCE_VERSION_EXPIRED)
                     case _:
                         self.logger.error(f"API error in watch: {e}")
-                        self._metrics.record_pod_monitor_watch_error(str(ErrorType.API_ERROR.value))
+                        self._metrics.record_pod_monitor_watch_error(ErrorType.API_ERROR)
 
                 await self._handle_watch_error()
 
             except Exception as e:
                 self.logger.error(f"Unexpected error in watch: {e}", exc_info=True)
-                self._metrics.record_pod_monitor_watch_error(str(ErrorType.UNEXPECTED.value))
+                self._metrics.record_pod_monitor_watch_error(ErrorType.UNEXPECTED)
                 await self._handle_watch_error()
 
     async def _watch_pod_events(self) -> None:
@@ -273,7 +273,7 @@ class PodMonitor(LifecycleEnabled):
 
         except (KeyError, ValueError) as e:
             self.logger.error(f"Invalid event format: {e}")
-            self._metrics.record_pod_monitor_watch_error(str(ErrorType.PROCESSING_ERROR.value))
+            self._metrics.record_pod_monitor_watch_error(ErrorType.PROCESSING_ERROR)
 
     async def _process_pod_event(self, event: PodEvent) -> None:
         """Process a pod event."""
@@ -310,18 +310,18 @@ class PodMonitor(LifecycleEnabled):
             # Log event
             if app_events:
                 self.logger.info(
-                    f"Processed {event.event_type.value} event for pod {pod_name} "
+                    f"Processed {event.event_type} event for pod {pod_name} "
                     f"(phase: {pod_phase or 'Unknown'}), "
                     f"published {len(app_events)} events"
                 )
 
             # Update metrics
             duration = time.time() - start_time
-            self._metrics.record_pod_monitor_event_processing_duration(duration, str(event.event_type.value))
+            self._metrics.record_pod_monitor_event_processing_duration(duration, event.event_type)
 
         except Exception as e:
             self.logger.error(f"Error processing pod event: {e}", exc_info=True)
-            self._metrics.record_pod_monitor_watch_error(str(ErrorType.PROCESSING_ERROR.value))
+            self._metrics.record_pod_monitor_watch_error(ErrorType.PROCESSING_ERROR)
 
     async def _publish_event(self, event: BaseEvent, pod: k8s_client.V1Pod) -> None:
         """Publish event to Kafka and store in events collection."""
@@ -336,7 +336,7 @@ class PodMonitor(LifecycleEnabled):
             await self._kafka_event_service.publish_base_event(event=event, key=key)
 
             phase = pod.status.phase if pod.status else "Unknown"
-            self._metrics.record_pod_monitor_event_published(str(event.event_type), phase)
+            self._metrics.record_pod_monitor_event_published(event.event_type, phase)
 
         except Exception as e:
             self.logger.error(f"Error publishing event: {e}", exc_info=True)
@@ -445,7 +445,7 @@ class PodMonitor(LifecycleEnabled):
     async def get_status(self) -> StatusDict:
         """Get monitor status."""
         return {
-            "state": self._state.value,
+            "state": self._state,
             "tracked_pods": len(self._tracked_pods),
             "reconnect_attempts": self._reconnect_attempts,
             "last_resource_version": self._last_resource_version,

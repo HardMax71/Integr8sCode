@@ -127,7 +127,7 @@ class UnifiedProducer(LifecycleEnabled):
 
     def get_status(self) -> dict[str, Any]:
         return {
-            "state": self._state.value,
+            "state": self._state,
             "running": self.is_running,
             "config": {
                 "bootstrap_servers": self._config.bootstrap_servers,

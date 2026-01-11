@@ -1,18 +1,9 @@
 from importlib import import_module
 
 import pytest
-from fastapi import FastAPI
-from starlette.middleware.cors import CORSMiddleware
-from starlette.routing import Route
-
-from app.core.correlation import CorrelationMiddleware
-from app.core.middlewares import (
-    CacheControlMiddleware,
-    MetricsMiddleware,
-    RateLimitMiddleware,
-    RequestSizeLimitMiddleware,
-)
 from app.settings import Settings
+from fastapi import FastAPI
+from starlette.routing import Route
 
 pytestmark = pytest.mark.integration
 

@@ -1,9 +1,8 @@
 import pytest
-from dishka import AsyncContainer
-
 from app.domain.enums.replay import ReplayTarget, ReplayType
 from app.services.event_replay import ReplayConfig, ReplayFilter
 from app.services.replay_service import ReplayService
+from dishka import AsyncContainer
 
 pytestmark = pytest.mark.integration
 

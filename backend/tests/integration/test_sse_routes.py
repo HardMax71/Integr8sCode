@@ -255,7 +255,7 @@ class TestSSEStreamEvents:
                     if "data" in raw:
                         data = json.loads(raw["data"])
                         if data.get("event_type") == SSEControlEvent.CONNECTED:
-                            return data["connection_id"]
+                            return str(data["connection_id"])
             return ""
 
         conn_ids = await asyncio.gather(

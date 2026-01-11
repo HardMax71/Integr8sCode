@@ -74,6 +74,7 @@ class SSERedisBus:
         pubsub = self._redis.pubsub()
         channel = self._exec_channel(execution_id)
         await pubsub.subscribe(channel)
+        await pubsub.get_message(timeout=1.0)
         return SSERedisSubscription(pubsub, channel, self.logger)
 
     async def publish_notification(self, user_id: str, notification: RedisNotificationMessage) -> None:
@@ -84,4 +85,5 @@ class SSERedisBus:
         pubsub = self._redis.pubsub()
         channel = self._notif_channel(user_id)
         await pubsub.subscribe(channel)
+        await pubsub.get_message(timeout=1.0)
         return SSERedisSubscription(pubsub, channel, self.logger)

@@ -27,7 +27,8 @@ class AdminUtils:
     async def check_topic_exists(self, topic: str) -> bool:
         """Check if topic exists."""
         try:
-            metadata = self._admin.list_topics(timeout=5.0)
+            loop = asyncio.get_running_loop()
+            metadata = await loop.run_in_executor(None, lambda: self._admin.list_topics(timeout=5.0))
             return topic in metadata.topics
         except Exception as e:
             self.logger.error(f"Failed to check topic {topic}: {e}")
@@ -37,10 +38,11 @@ class AdminUtils:
         """Create a single topic."""
         try:
             new_topic = NewTopic(topic, num_partitions=num_partitions, replication_factor=replication_factor)
-            futures = self._admin.create_topics([new_topic], operation_timeout=30.0)
-
-            # Wait for result - result() returns None on success, raises exception on failure
-            await asyncio.get_running_loop().run_in_executor(None, lambda: futures[topic].result(timeout=30.0))
+            loop = asyncio.get_running_loop()
+            futures = await loop.run_in_executor(
+                None, lambda: self._admin.create_topics([new_topic], operation_timeout=30.0)
+            )
+            await loop.run_in_executor(None, lambda: futures[topic].result(timeout=30.0))
             self.logger.info(f"Topic {topic} created successfully")
             return True
         except Exception as e:

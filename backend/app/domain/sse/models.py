@@ -2,14 +2,15 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic.dataclasses import dataclass
+from pydantic import BaseModel, ConfigDict
 
 from app.domain.enums.execution import ExecutionStatus
 
 
-@dataclass
-class ShutdownStatus:
+class ShutdownStatus(BaseModel):
     """Status of SSE shutdown process."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     phase: str
     initiated: bool
@@ -19,8 +20,9 @@ class ShutdownStatus:
     duration: float | None = None
 
 
-@dataclass
-class SSEHealthDomain:
+class SSEHealthDomain(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     status: str
     kafka_enabled: bool
     active_connections: int
@@ -31,14 +33,16 @@ class SSEHealthDomain:
     timestamp: datetime
 
 
-@dataclass
-class SSEExecutionStatusDomain:
+class SSEExecutionStatusDomain(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     execution_id: str
     status: ExecutionStatus
-    timestamp: str
+    timestamp: datetime
 
 
-@dataclass
-class SSEEventDomain:
+class SSEEventDomain(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     aggregate_id: str
     timestamp: datetime

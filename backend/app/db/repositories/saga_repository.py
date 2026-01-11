@@ -1,4 +1,3 @@
-from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Any
 
@@ -30,7 +29,7 @@ class SagaRepository:
 
     async def upsert_saga(self, saga: Saga) -> bool:
         existing = await SagaDocument.find_one({"saga_id": saga.saga_id})
-        doc = SagaDocument(**asdict(saga))
+        doc = SagaDocument(**saga.model_dump())
         if existing:
             doc.id = existing.id
         await doc.save()
@@ -41,11 +40,11 @@ class SagaRepository:
             SagaDocument.execution_id == execution_id,
             SagaDocument.saga_name == saga_name,
         )
-        return Saga(**doc.model_dump(exclude={"id"})) if doc else None
+        return Saga.model_validate(doc, from_attributes=True) if doc else None
 
     async def get_saga(self, saga_id: str) -> Saga | None:
         doc = await SagaDocument.find_one({"saga_id": saga_id})
-        return Saga(**doc.model_dump(exclude={"id"})) if doc else None
+        return Saga.model_validate(doc, from_attributes=True) if doc else None
 
     async def get_sagas_by_execution(
         self, execution_id: str, state: SagaState | None = None, limit: int = 100, skip: int = 0
@@ -60,7 +59,7 @@ class SagaRepository:
         total = await query.count()
         docs = await query.sort([("created_at", SortDirection.DESCENDING)]).skip(skip).limit(limit).to_list()
         return SagaListResult(
-            sagas=[Saga(**d.model_dump(exclude={"id"})) for d in docs],
+            sagas=[Saga.model_validate(d, from_attributes=True) for d in docs],
             total=total,
             skip=skip,
             limit=limit,
@@ -72,7 +71,7 @@ class SagaRepository:
         total = await query.count()
         docs = await query.sort([("created_at", SortDirection.DESCENDING)]).skip(skip).limit(limit).to_list()
         return SagaListResult(
-            sagas=[Saga(**d.model_dump(exclude={"id"})) for d in docs],
+            sagas=[Saga.model_validate(d, from_attributes=True) for d in docs],
             total=total,
             skip=skip,
             limit=limit,
@@ -116,7 +115,7 @@ class SagaRepository:
             .limit(limit)
             .to_list()
         )
-        return [Saga(**d.model_dump(exclude={"id"})) for d in docs]
+        return [Saga.model_validate(d, from_attributes=True) for d in docs]
 
     async def get_saga_statistics(self, saga_filter: SagaFilter | None = None) -> dict[str, Any]:
         conditions = self._filter_conditions(saga_filter) if saga_filter else []

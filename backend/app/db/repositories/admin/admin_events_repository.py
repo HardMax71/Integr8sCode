@@ -1,4 +1,3 @@
-from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -14,9 +13,8 @@ from app.db.docs import (
 from app.domain.admin import ReplaySessionData, ReplaySessionStatusDetail
 from app.domain.admin.replay_updates import ReplaySessionUpdate
 from app.domain.enums.replay import ReplayStatus
-from app.domain.events import EventMetadata as DomainEventMetadata
-from app.domain.events.event_models import (
-    Event,
+from app.domain.events import (
+    DomainEvent,
     EventBrowseResult,
     EventDetail,
     EventExportRow,
@@ -25,9 +23,10 @@ from app.domain.events.event_models import (
     EventSummary,
     HourlyEventCount,
     UserEventCount,
+    domain_event_adapter,
 )
 from app.domain.events.query_builders import EventStatsAggregation
-from app.domain.replay.models import ReplayConfig, ReplayFilter, ReplaySessionState
+from app.domain.replay.models import ReplayFilter, ReplaySessionState
 
 
 class AdminEventsRepository:
@@ -58,15 +57,7 @@ class AdminEventsRepository:
         total = await query.count()
 
         docs = await query.sort([(sort_by, sort_order)]).skip(skip).limit(limit).to_list()
-        events = [
-            Event(
-                **{
-                    **d.model_dump(exclude={"id", "revision_id"}),
-                    "metadata": DomainEventMetadata(**d.metadata.model_dump()),
-                }
-            )
-            for d in docs
-        ]
+        events = [domain_event_adapter.validate_python(d, from_attributes=True) for d in docs]
 
         return EventBrowseResult(events=events, total=total, skip=skip, limit=limit)
 
@@ -75,12 +66,7 @@ class AdminEventsRepository:
         if not doc:
             return None
 
-        event = Event(
-            **{
-                **doc.model_dump(exclude={"id", "revision_id"}),
-                "metadata": DomainEventMetadata(**doc.metadata.model_dump()),
-            }
-        )
+        event = domain_event_adapter.validate_python(doc, from_attributes=True)
 
         related_query = {"metadata.correlation_id": doc.metadata.correlation_id, "event_id": {"$ne": event_id}}
         related_docs = await (
@@ -178,7 +164,7 @@ class AdminEventsRepository:
             EventExportRow(
                 event_id=doc.event_id,
                 event_type=str(doc.event_type),
-                timestamp=doc.timestamp.isoformat(),
+                timestamp=doc.timestamp,
                 correlation_id=doc.metadata.correlation_id or "",
                 aggregate_id=doc.aggregate_id or "",
                 user_id=doc.metadata.user_id or "",
@@ -189,9 +175,9 @@ class AdminEventsRepository:
             for doc in docs
         ]
 
-    async def archive_event(self, event: Event, deleted_by: str) -> bool:
+    async def archive_event(self, event: DomainEvent, deleted_by: str) -> bool:
         archive_doc = EventArchiveDocument(
-            **vars(event),
+            **event.model_dump(),
             deleted_at=datetime.now(timezone.utc),
             deleted_by=deleted_by,
         )
@@ -199,9 +185,7 @@ class AdminEventsRepository:
         return True
 
     async def create_replay_session(self, session: ReplaySessionState) -> str:
-        data = asdict(session)
-        data["config"] = session.config.model_dump()
-        doc = ReplaySessionDocument(**data)
+        doc = ReplaySessionDocument(**session.model_dump())
         await doc.insert()
         return session.session_id
 
@@ -209,19 +193,15 @@ class AdminEventsRepository:
         doc = await ReplaySessionDocument.find_one({"session_id": session_id})
         if not doc:
             return None
-        data = doc.model_dump(exclude={"id", "revision_id"})
-        data["config"] = ReplayConfig.model_validate(data["config"])
-        return ReplaySessionState(**data)
+        return ReplaySessionState.model_validate(doc, from_attributes=True)
 
     async def update_replay_session(self, session_id: str, updates: ReplaySessionUpdate) -> bool:
-        update_dict = {k: (v.value if hasattr(v, "value") else v) for k, v in asdict(updates).items() if v is not None}
+        update_dict = updates.model_dump(exclude_none=True)
         if not update_dict:
             return False
-
         doc = await ReplaySessionDocument.find_one({"session_id": session_id})
         if not doc:
             return False
-
         await doc.set(update_dict)
         return True
 
@@ -292,9 +272,7 @@ class AdminEventsRepository:
                     )
 
         # Convert document to domain
-        data = doc.model_dump(exclude={"id", "revision_id"})
-        data["config"] = ReplayConfig.model_validate(data["config"])
-        session = ReplaySessionState(**data)
+        session = ReplaySessionState.model_validate(doc, from_attributes=True)
 
         return ReplaySessionStatusDetail(
             session=session,

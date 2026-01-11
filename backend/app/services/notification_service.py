@@ -800,7 +800,7 @@ class NotificationService:
             subject=notification.subject,
             body=notification.body,
             action_url=notification.action_url or "",
-            created_at=notification.created_at.isoformat(),
+            created_at=notification.created_at,
         )
         await self.sse_bus.publish_notification(notification.user_id, message)
 

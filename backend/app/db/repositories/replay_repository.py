@@ -1,5 +1,4 @@
 import logging
-from dataclasses import asdict
 from datetime import datetime
 from typing import Any, AsyncIterator
 
@@ -18,7 +17,7 @@ class ReplayRepository:
 
     async def save_session(self, session: ReplaySessionState) -> None:
         existing = await ReplaySessionDocument.find_one({"session_id": session.session_id})
-        doc = ReplaySessionDocument(**asdict(session))
+        doc = ReplaySessionDocument(**session.model_dump())
         if existing:
             doc.id = existing.id
         await doc.save()
@@ -27,7 +26,7 @@ class ReplayRepository:
         doc = await ReplaySessionDocument.find_one({"session_id": session_id})
         if not doc:
             return None
-        return ReplaySessionState(**doc.model_dump(exclude={"id", "revision_id"}))
+        return ReplaySessionState.model_validate(doc, from_attributes=True)
 
     async def list_sessions(
         self, status: ReplayStatus | None = None, user_id: str | None = None, limit: int = 100, skip: int = 0
@@ -44,7 +43,7 @@ class ReplayRepository:
             .limit(limit)
             .to_list()
         )
-        return [ReplaySessionState(**doc.model_dump(exclude={"id", "revision_id"})) for doc in docs]
+        return [ReplaySessionState.model_validate(doc, from_attributes=True) for doc in docs]
 
     async def update_session_status(self, session_id: str, status: ReplayStatus) -> bool:
         doc = await ReplaySessionDocument.find_one({"session_id": session_id})
@@ -70,7 +69,7 @@ class ReplayRepository:
         return await ReplaySessionDocument.find(*conditions).count()
 
     async def update_replay_session(self, session_id: str, updates: ReplaySessionUpdate) -> bool:
-        update_dict = {k: (v.value if hasattr(v, "value") else v) for k, v in asdict(updates).items() if v is not None}
+        update_dict = updates.model_dump(exclude_none=True)
         if not update_dict:
             return False
         doc = await ReplaySessionDocument.find_one({"session_id": session_id})

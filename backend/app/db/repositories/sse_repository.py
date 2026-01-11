@@ -13,11 +13,11 @@ class SSERepository:
         return SSEExecutionStatusDomain(
             execution_id=execution_id,
             status=doc.status,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(timezone.utc),
         )
 
     async def get_execution(self, execution_id: str) -> DomainExecution | None:
         doc = await ExecutionDocument.find_one({"execution_id": execution_id})
         if not doc:
             return None
-        return DomainExecution(**doc.model_dump(exclude={"id", "revision_id"}))
+        return DomainExecution.model_validate(doc, from_attributes=True)

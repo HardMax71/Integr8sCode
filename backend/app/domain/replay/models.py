@@ -1,10 +1,8 @@
-from dataclasses import field
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, PrivateAttr
-from pydantic.dataclasses import dataclass
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from app.domain.enums.events import EventType
 from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
@@ -118,9 +116,10 @@ class ReplayConfig(BaseModel):
         return self._progress_callback
 
 
-@dataclass
-class ReplaySessionState:
+class ReplaySessionState(BaseModel):
     """Domain replay session model used by services and repository."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     session_id: str
     config: ReplayConfig
@@ -131,30 +130,32 @@ class ReplaySessionState:
     failed_events: int = 0
     skipped_events: int = 0
 
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     started_at: datetime | None = None
     completed_at: datetime | None = None
     last_event_at: datetime | None = None
 
-    errors: list[dict[str, Any]] = field(default_factory=list)
+    errors: list[dict[str, Any]] = Field(default_factory=list)
 
     # Tracking and admin fields
-    correlation_id: str = field(default_factory=lambda: str(uuid4()))
+    correlation_id: str = Field(default_factory=lambda: str(uuid4()))
     created_by: str | None = None
     target_service: str | None = None
     dry_run: bool = False
-    triggered_executions: list[str] = field(default_factory=list)
+    triggered_executions: list[str] = Field(default_factory=list)
     error: str | None = None
 
 
-@dataclass
-class ReplayOperationResult:
+class ReplayOperationResult(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     session_id: str
     status: ReplayStatus
     message: str
 
 
-@dataclass
-class CleanupResult:
+class CleanupResult(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     removed_sessions: int
     message: str

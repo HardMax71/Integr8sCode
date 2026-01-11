@@ -1,5 +1,4 @@
 import logging
-from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -173,7 +172,7 @@ class UserSettingsService:
                         event_type=event.event_type,
                         field=f"/{fld}",
                         old_value=None,
-                        new_value=asdict(event).get(fld),
+                        new_value=event.model_dump().get(fld),
                         reason=event.reason,
                         correlation_id=event.correlation_id,
                     )
@@ -208,7 +207,7 @@ class UserSettingsService:
 
     def _apply_event(self, settings: DomainUserSettings, event: DomainUserSettingsChangedEvent) -> DomainUserSettings:
         """Apply a settings update event using TypeAdapter merge."""
-        event_dict = asdict(event)
+        event_dict = event.model_dump()
         changes = {k: v for k, v in event_dict.items() if k in self._settings_fields and v is not None}
         if not changes:
             return settings

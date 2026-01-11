@@ -28,7 +28,7 @@ class SSEExecutionEventData(BaseModel):
     execution_id: str = Field(description="Execution ID this event relates to")
 
     # Present in most events
-    timestamp: str | None = Field(default=None, description="ISO 8601 timestamp")
+    timestamp: datetime | None = Field(default=None, description="Event timestamp")
 
     # Present in business events from Kafka
     event_id: str | None = Field(default=None, description="Unique event identifier")
@@ -74,7 +74,7 @@ class SSENotificationEventData(BaseModel):
 
     # Present in control events (connected, heartbeat)
     user_id: str | None = Field(default=None, description="User ID for the notification stream")
-    timestamp: str | None = Field(default=None, description="ISO 8601 timestamp")
+    timestamp: datetime | None = Field(default=None, description="Event timestamp")
     message: str | None = Field(default=None, description="Human-readable message")
 
     # Present only in notification events
@@ -85,7 +85,7 @@ class SSENotificationEventData(BaseModel):
     subject: str | None = Field(default=None, description="Notification subject/title")
     body: str | None = Field(default=None, description="Notification body content")
     action_url: str | None = Field(default=None, description="Optional action URL")
-    created_at: str | None = Field(default=None, description="ISO 8601 creation timestamp")
+    created_at: datetime | None = Field(default=None, description="Creation timestamp")
 
 
 class RedisNotificationMessage(BaseModel):
@@ -98,7 +98,7 @@ class RedisNotificationMessage(BaseModel):
     subject: str = Field(description="Notification subject/title")
     body: str = Field(description="Notification body content")
     action_url: str = Field(default="", description="Optional action URL")
-    created_at: str = Field(description="ISO 8601 creation timestamp")
+    created_at: datetime = Field(description="Creation timestamp")
 
 
 class ShutdownStatusResponse(BaseModel):

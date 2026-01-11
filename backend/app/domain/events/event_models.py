@@ -2,12 +2,11 @@ from dataclasses import field
 from datetime import datetime
 from typing import Any
 
-from pydantic import ConfigDict
+from pydantic import BaseModel, ConfigDict
 from pydantic.dataclasses import dataclass
 
 from app.core.utils import StringEnum
-from app.domain.enums.events import EventType
-from app.domain.events.event_metadata import EventMetadata
+from app.domain.events.typed import DomainEvent
 
 MongoQueryValue = str | dict[str, str | list[str] | float | datetime]
 MongoQuery = dict[str, MongoQueryValue]
@@ -39,26 +38,6 @@ class CollectionNames(StringEnum):
     USER_SETTINGS_SNAPSHOTS = "user_settings_snapshots"
     SAGAS = "sagas"
     DLQ_MESSAGES = "dlq_messages"
-
-
-@dataclass(config=ConfigDict(extra="allow"))
-class Event:
-    """Domain model for an event. Uses extra='allow' to store event-specific fields flat."""
-
-    event_id: str
-    event_type: EventType
-    event_version: str
-    timestamp: datetime
-    metadata: EventMetadata
-    aggregate_id: str | None = None
-    stored_at: datetime | None = None
-    ttl_expires_at: datetime | None = None
-    status: str | None = None
-    error: str | None = None
-
-    @property
-    def correlation_id(self) -> str | None:
-        return self.metadata.correlation_id
 
 
 @dataclass
@@ -104,7 +83,7 @@ class EventQuery:
 class EventListResult:
     """Result of event list query."""
 
-    events: list[Event]
+    events: list[DomainEvent]
     total: int
     skip: int
     limit: int
@@ -115,7 +94,7 @@ class EventListResult:
 class EventBrowseResult:
     """Result for event browsing."""
 
-    events: list[Event]
+    events: list[DomainEvent]
     total: int
     skip: int
     limit: int
@@ -125,7 +104,7 @@ class EventBrowseResult:
 class EventDetail:
     """Detailed event information with related events."""
 
-    event: Event
+    event: DomainEvent
     related_events: list[EventSummary] = field(default_factory=list)
     timeline: list[EventSummary] = field(default_factory=list)
 
@@ -171,19 +150,10 @@ class EventProjection:
 
 
 @dataclass
-class ArchivedEvent(Event):
-    """Archived event with deletion metadata."""
-
-    deleted_at: datetime | None = None
-    deleted_by: str | None = None
-    deletion_reason: str | None = None
-
-
-@dataclass
 class EventReplayInfo:
     """Information for event replay."""
 
-    events: list[Event]
+    events: list[DomainEvent]
     event_count: int
     event_types: list[str]
     start_time: datetime
@@ -194,29 +164,30 @@ class EventReplayInfo:
 class ExecutionEventsResult:
     """Result of execution events query."""
 
-    events: list[Event]
+    events: list[DomainEvent]
     access_allowed: bool
     include_system_events: bool
 
-    def get_filtered_events(self) -> list[Event]:
+    def get_filtered_events(self) -> list[DomainEvent]:
         """Get events filtered based on access and system event settings."""
         if not self.access_allowed:
             return []
 
         events = self.events
         if not self.include_system_events:
-            events = [e for e in events if not e.metadata.service_name.startswith("system-")]
+            events = [e for e in events if e.metadata and not e.metadata.service_name.startswith("system-")]
 
         return events
 
 
-@dataclass
-class EventExportRow:
+class EventExportRow(BaseModel):
     """Event export row for CSV."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     event_id: str
     event_type: str
-    timestamp: str
+    timestamp: datetime
     correlation_id: str
     aggregate_id: str
     user_id: str

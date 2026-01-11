@@ -1,5 +1,4 @@
 import re
-from dataclasses import asdict
 from datetime import datetime, timezone
 
 from beanie.odm.operators.find import BaseFindOperator
@@ -13,16 +12,16 @@ from app.domain.user import DomainUserCreate, DomainUserUpdate, User, UserListRe
 class UserRepository:
     async def get_user(self, username: str) -> User | None:
         doc = await UserDocument.find_one({"username": username})
-        return User(**doc.model_dump(exclude={"id", "revision_id"})) if doc else None
+        return User.model_validate(doc, from_attributes=True) if doc else None
 
     async def create_user(self, create_data: DomainUserCreate) -> User:
-        doc = UserDocument(**asdict(create_data))
+        doc = UserDocument(**create_data.model_dump())
         await doc.insert()
-        return User(**doc.model_dump(exclude={"id", "revision_id"}))
+        return User.model_validate(doc, from_attributes=True)
 
     async def get_user_by_id(self, user_id: str) -> User | None:
         doc = await UserDocument.find_one({"user_id": user_id})
-        return User(**doc.model_dump(exclude={"id", "revision_id"})) if doc else None
+        return User.model_validate(doc, from_attributes=True) if doc else None
 
     async def list_users(
         self, limit: int = 100, offset: int = 0, search: str | None = None, role: UserRole | None = None
@@ -45,7 +44,7 @@ class UserRepository:
         total = await query.count()
         docs = await query.skip(offset).limit(limit).to_list()
         return UserListResult(
-            users=[User(**d.model_dump(exclude={"id", "revision_id"})) for d in docs],
+            users=[User.model_validate(d, from_attributes=True) for d in docs],
             total=total,
             offset=offset,
             limit=limit,
@@ -56,11 +55,11 @@ class UserRepository:
         if not doc:
             return None
 
-        update_dict = {k: v for k, v in asdict(update_data).items() if v is not None}
+        update_dict = update_data.model_dump(exclude_none=True)
         if update_dict:
             update_dict["updated_at"] = datetime.now(timezone.utc)
             await doc.set(update_dict)
-        return User(**doc.model_dump(exclude={"id", "revision_id"}))
+        return User.model_validate(doc, from_attributes=True)
 
     async def delete_user(self, user_id: str) -> bool:
         doc = await UserDocument.find_one({"user_id": user_id})

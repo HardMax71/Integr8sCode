@@ -8,7 +8,7 @@ import pytest
 from app.core import k8s_clients as k8s_clients_module
 from app.core.k8s_clients import K8sClients
 from app.db.repositories.event_repository import EventRepository
-from app.domain.events import Event
+from app.domain.events import DomainEvent
 from app.domain.execution.models import ResourceUsageDomain
 from app.events.core import UnifiedProducer
 from app.infrastructure.kafka.events.base import BaseEvent
@@ -50,9 +50,9 @@ class FakeEventRepository(EventRepository):
 
     def __init__(self) -> None:
         super().__init__(_test_logger)
-        self.stored_events: list[Event] = []
+        self.stored_events: list[DomainEvent] = []
 
-    async def store_event(self, event: Event) -> str:
+    async def store_event(self, event: DomainEvent) -> str:
         self.stored_events.append(event)
         return event.event_id
 

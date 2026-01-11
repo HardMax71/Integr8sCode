@@ -1,5 +1,4 @@
 import logging
-from dataclasses import asdict
 from datetime import datetime
 
 from beanie.odm.enums import SortDirection
@@ -18,11 +17,11 @@ class UserSettingsRepository:
         doc = await UserSettingsDocument.find_one({"user_id": user_id})
         if not doc:
             return None
-        return DomainUserSettings(**doc.model_dump(exclude={"id", "revision_id"}))
+        return DomainUserSettings.model_validate(doc, from_attributes=True)
 
     async def create_snapshot(self, settings: DomainUserSettings) -> None:
         existing = await UserSettingsDocument.find_one({"user_id": settings.user_id})
-        doc = UserSettingsDocument(**asdict(settings))
+        doc = UserSettingsDocument(**settings.model_dump())
         if existing:
             doc.id = existing.id
         await doc.save()
@@ -51,10 +50,9 @@ class UserSettingsRepository:
 
         docs = await find_query.to_list()
         return [
-            DomainUserSettingsChangedEvent(**{
-                **e.model_dump(exclude={"id", "revision_id", "metadata"}),
-                "correlation_id": e.metadata.correlation_id,
-            })
+            DomainUserSettingsChangedEvent.model_validate(e, from_attributes=True).model_copy(
+                update={"correlation_id": e.metadata.correlation_id}
+            )
             for e in docs
         ]
 

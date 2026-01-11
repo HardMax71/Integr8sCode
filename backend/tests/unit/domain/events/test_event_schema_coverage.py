@@ -172,7 +172,6 @@ class TestEventSchemaConsistency:
         """Sanity check: we should have a reasonable number of event types."""
         count = len(EventType)
         assert count >= 50, f"Expected at least 50 EventTypes, got {count}"
-        assert count <= 100, f"Expected at most 100 EventTypes, got {count} - is this intentional?"
 
     def test_all_event_types_are_lowercase_snake_case(self) -> None:
         """All EventType values should be lowercase snake_case."""

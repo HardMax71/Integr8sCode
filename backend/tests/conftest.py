@@ -130,12 +130,8 @@ async def db(scope: AsyncContainer) -> AsyncGenerator[Database, None]:
 
 @pytest_asyncio.fixture
 async def redis_client(scope: AsyncContainer) -> AsyncGenerator[redis.Redis, None]:
-    # Don't close here - Dishka's RedisProvider handles cleanup when scope exits
-    client: redis.Redis = await scope.get(redis.Redis)
-    try:
-        yield client
-    finally:
-        await client.aclose()
+    # Dishka's RedisProvider handles cleanup when scope exits
+    yield await scope.get(redis.Redis)
 
 
 # ===== Authenticated client fixtures =====

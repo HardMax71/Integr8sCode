@@ -128,7 +128,6 @@ def test_extract_id_and_metadata_priority_and_duplicates() -> None:
     # From label
     p = Pod("any", "Pending")
     p.metadata.labels = {"execution-id": "L1", "user-id": "u", "correlation-id": "corrL"}
-    _ctx(p)
     md = pem._create_metadata(p)
     assert pem._extract_execution_id(p) == "L1" and md.user_id == "u" and md.correlation_id == "corrL"
 

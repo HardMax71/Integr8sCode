@@ -1,6 +1,7 @@
 import asyncio
 import json
 from contextlib import aclosing
+from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
@@ -70,7 +71,7 @@ class TestSSERoutes:
                                 subject="Hello",
                                 body="World",
                                 action_url="",
-                                created_at="2024-01-01T00:00:00Z",
+                                created_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
                             )
                             await bus.publish_notification(user_id, notification)
 

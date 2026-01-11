@@ -163,7 +163,8 @@ async def test_start_and_stop_lifecycle() -> None:
     assert pm.state == MonitorState.RUNNING
 
     await pm.aclose()
-    assert pm.state == MonitorState.STOPPED
+    final_state: MonitorState = pm.state
+    assert final_state == MonitorState.STOPPED
     assert spy.cleared is True
 
 
@@ -560,7 +561,8 @@ async def test_create_pod_monitor_context_manager(monkeypatch: pytest.MonkeyPatc
     async with create_pod_monitor(cfg, service, _test_logger) as monitor:
         assert monitor.state == MonitorState.RUNNING
 
-    assert monitor.state == MonitorState.STOPPED
+    final_state: MonitorState = monitor.state
+    assert final_state == MonitorState.STOPPED
 
 
 @pytest.mark.asyncio
@@ -588,7 +590,8 @@ async def test_create_pod_monitor_with_injected_k8s_clients() -> None:
         assert monitor._clients is mock_k8s_clients
         assert monitor._v1 is mock_v1
 
-    assert monitor.state == MonitorState.STOPPED
+    final_state: MonitorState = monitor.state
+    assert final_state == MonitorState.STOPPED
 
 
 @pytest.mark.asyncio

@@ -24,9 +24,10 @@ class DLQRepository:
         self.logger = logger
 
     def _doc_to_message(self, doc: DLQMessageDocument) -> DLQMessage:
-        event_class = get_event_class_for_type(doc.event_type)
+        event_type = doc.event.event_type
+        event_class = get_event_class_for_type(event_type)
         if not event_class:
-            raise ValueError(f"Unknown event type: {doc.event_type}")
+            raise ValueError(f"Unknown event type: {event_type}")
         data = doc.model_dump(exclude={"id", "revision_id"})
         return DLQMessage(**{**data, "event": event_class(**data["event"])})
 

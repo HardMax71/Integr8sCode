@@ -41,7 +41,7 @@ class IdempotencyKeyStrategy:
 
     @staticmethod
     def content_hash(event: BaseEvent, fields: set[str] | None = None) -> str:
-        event_dict = event.model_dump()
+        event_dict = event.model_dump(mode="json")
         event_dict.pop("event_id", None)
         event_dict.pop("timestamp", None)
         event_dict.pop("metadata", None)

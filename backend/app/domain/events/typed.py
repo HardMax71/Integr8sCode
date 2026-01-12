@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Annotated, Literal
 from uuid import uuid4
 
@@ -38,8 +38,6 @@ class BaseEvent(AvroBase):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     aggregate_id: str | None = None
     metadata: EventMetadata
-    stored_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    ttl_expires_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc) + timedelta(days=30))
 
 
 # --- Execution Events ---

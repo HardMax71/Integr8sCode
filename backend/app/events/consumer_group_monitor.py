@@ -104,6 +104,9 @@ def _parse_describe_groups_response(response: Response) -> list[DescribedGroup]:
     return result
 
 
+_logger = logging.getLogger(__name__)
+
+
 def _parse_member_assignment(assignment_bytes: bytes) -> list[tuple[str, list[int]]]:
     """Parse member_assignment bytes to list of (topic, partitions)."""
     if not assignment_bytes:
@@ -112,7 +115,8 @@ def _parse_member_assignment(assignment_bytes: bytes) -> list[tuple[str, list[in
     try:
         assignment = MemberAssignment.decode(assignment_bytes)
         return [(topic, list(partitions)) for topic, partitions in assignment.assignment]
-    except Exception:
+    except Exception as e:
+        _logger.debug(f"Failed to parse member assignment: {e}")
         return []
 
 

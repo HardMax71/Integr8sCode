@@ -43,7 +43,7 @@ async def test_dlq_manager_persists_in_mongo(db: Database, test_settings: Settin
     }
 
     # Produce to DLQ topic using aiokafka
-    producer = AIOKafkaProducer(bootstrap_servers="localhost:9092")
+    producer = AIOKafkaProducer(bootstrap_servers=test_settings.KAFKA_BOOTSTRAP_SERVERS)
     await producer.start()
     try:
         await producer.send_and_wait(

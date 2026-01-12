@@ -218,7 +218,7 @@ class IdempotentConsumerWrapper:
                 f"has topic: {hasattr(message, 'topic')}"
             )
 
-            raw_value = message.value()
+            raw_value = message.value
 
             # Debug the raw value
             self.logger.info(f"Raw value extracted: {raw_value[:100] if raw_value else 'None or empty'}")

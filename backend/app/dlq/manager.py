@@ -528,6 +528,7 @@ def create_dlq_manager(
         compression_type="gzip",
         max_batch_size=16384,
         linger_ms=10,
+        enable_idempotence=True,
     )
     if default_retry_policy is None:
         default_retry_policy = RetryPolicy(topic="default", strategy=RetryStrategy.EXPONENTIAL_BACKOFF)

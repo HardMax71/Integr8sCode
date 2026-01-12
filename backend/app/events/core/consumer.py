@@ -28,13 +28,11 @@ class UnifiedConsumer:
         schema_registry: SchemaRegistryManager,
         settings: Settings,
         logger: logging.Logger,
-        stats_callback: Callable[[dict[str, Any]], None] | None = None,
     ):
         self._config = config
         self.logger = logger
         self._schema_registry = schema_registry
         self._dispatcher = event_dispatcher
-        self._stats_callback = stats_callback
         self._consumer: AIOKafkaConsumer | None = None
         self._state = ConsumerState.STOPPED
         self._running = False

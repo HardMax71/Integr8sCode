@@ -81,6 +81,7 @@ class EventBus(LifecycleEnabled):
             client_id=f"event-bus-producer-{uuid4()}",
             linger_ms=10,
             max_batch_size=16384,
+            enable_idempotence=True,
         )
         await self.producer.start()
 

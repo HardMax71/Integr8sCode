@@ -3,7 +3,7 @@ import json
 import logging
 import socket
 from datetime import datetime, timezone
-from typing import Any, Callable, TypeAlias
+from typing import Any
 
 from aiokafka import AIOKafkaProducer
 from aiokafka.errors import KafkaError
@@ -18,8 +18,6 @@ from app.settings import Settings
 
 from .types import ProducerConfig, ProducerMetrics, ProducerState
 
-StatsCallback: TypeAlias = Callable[[dict[str, Any]], None]
-
 
 class UnifiedProducer(LifecycleEnabled):
     """Fully async Kafka producer using aiokafka."""
@@ -30,14 +28,12 @@ class UnifiedProducer(LifecycleEnabled):
         schema_registry_manager: SchemaRegistryManager,
         logger: logging.Logger,
         settings: Settings,
-        stats_callback: StatsCallback | None = None,
     ):
         super().__init__()
         self._config = config
         self._schema_registry = schema_registry_manager
         self.logger = logger
         self._producer: AIOKafkaProducer | None = None
-        self._stats_callback = stats_callback
         self._state = ProducerState.STOPPED
         self._metrics = ProducerMetrics()
         self._event_metrics = get_event_metrics()
@@ -71,6 +67,7 @@ class UnifiedProducer(LifecycleEnabled):
             compression_type=self._config.compression_type,
             max_batch_size=self._config.batch_size,
             linger_ms=self._config.linger_ms,
+            enable_idempotence=self._config.enable_idempotence,
         )
 
         await self._producer.start()

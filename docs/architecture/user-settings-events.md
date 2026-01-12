@@ -20,7 +20,7 @@ contain the new values in Avro-compatible form.
 The service uses Pydantic's `TypeAdapter` for dict-based operations without reflection or branching:
 
 ```python
---8<-- "backend/app/services/user_settings_service.py:22:24"
+--8<-- "backend/app/services/user_settings_service.py:22:23"
 ```
 
 ### Updating settings
@@ -28,7 +28,7 @@ The service uses Pydantic's `TypeAdapter` for dict-based operations without refl
 The `update_user_settings` method merges changes into current settings, publishes an event, and manages snapshots:
 
 ```python
---8<-- "backend/app/services/user_settings_service.py:88:120"
+--8<-- "backend/app/services/user_settings_service.py:91:118"
 ```
 
 ### Applying events
@@ -36,7 +36,7 @@ The `update_user_settings` method merges changes into current settings, publishe
 When reconstructing settings from events, `_apply_event` merges each event's changes:
 
 ```python
---8<-- "backend/app/services/user_settings_service.py:243:254"
+--8<-- "backend/app/services/user_settings_service.py:212:223"
 ```
 
 The `validate_python` call handles nested dict-to-dataclass conversion, enum parsing, and type coercion automatically.
@@ -63,23 +63,25 @@ while preserving full event history for auditing.
 Settings are cached with TTL to avoid repeated reconstruction:
 
 ```python
---8<-- "backend/app/services/user_settings_service.py:34:40"
+--8<-- "backend/app/services/user_settings_service.py:33:40"
 ```
 
-Cache invalidation happens via event bus subscription:
+Cache invalidation happens via [EventBus](event-bus.md) subscription. The EventBus filters out self-published messages,
+so the handler only runs for events from other instances:
 
 ```python
---8<-- "backend/app/services/user_settings_service.py:58:68"
+--8<-- "backend/app/services/user_settings_service.py:56:70"
 ```
 
-After each update, the service publishes to the event bus, triggering cache invalidation across instances.
+After each update, the service updates its local cache directly, then publishes to the event bus to trigger cache
+invalidation on other instances.
 
 ## Settings history
 
 The `get_settings_history` method returns a list of changes extracted from events:
 
 ```python
---8<-- "backend/app/services/user_settings_service.py:171:189"
+--8<-- "backend/app/services/user_settings_service.py:167:184"
 ```
 
 ## Key files
@@ -87,6 +89,12 @@ The `get_settings_history` method returns a list of changes extracted from event
 | File                                                                                                                                                         | Purpose                                                      |
 |--------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------|
 | [`services/user_settings_service.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/user_settings_service.py)                     | Settings service with caching and event sourcing             |
+| [`services/event_bus.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/event_bus.py)                                             | Cross-instance event distribution                            |
 | [`domain/user/settings_models.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/domain/user/settings_models.py)                           | `DomainUserSettings`, `DomainUserSettingsUpdate` dataclasses |
 | [`infrastructure/kafka/events/user.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/infrastructure/kafka/events/user.py)                 | `UserSettingsUpdatedEvent` definition                        |
 | [`db/repositories/user_settings_repository.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/db/repositories/user_settings_repository.py) | Snapshot and event queries                                   |
+
+## Related docs
+
+- [Event Bus](event-bus.md) — cross-instance communication with self-filtering
+- [Pydantic Dataclasses](pydantic-dataclasses.md) — TypeAdapter and dict-to-model conversion

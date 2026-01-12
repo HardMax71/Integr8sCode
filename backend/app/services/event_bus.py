@@ -40,7 +40,12 @@ class Subscription:
 
 class EventBus(LifecycleEnabled):
     """
-    Hybrid event bus with Kafka backing and local in-memory distribution.
+    Distributed event bus for cross-instance communication via Kafka.
+
+    Publishers send events to Kafka. Subscribers receive events from OTHER instances
+    only - self-published messages are filtered out. This design means:
+    - Publishers should update their own state directly before calling publish()
+    - Handlers only run for events from other instances (cache invalidation, etc.)
 
     Supports pattern-based subscriptions using wildcards:
     - execution.* - matches all execution events
@@ -60,6 +65,7 @@ class EventBus(LifecycleEnabled):
         self._consumer_task: Optional[asyncio.Task[None]] = None
         self._lock = asyncio.Lock()
         self._topic = f"{self.settings.KAFKA_TOPIC_PREFIX}{KafkaTopic.EVENT_BUS_STREAM}"
+        self._instance_id = str(uuid4())  # Unique ID for filtering self-published messages
 
     async def _on_start(self) -> None:
         """Start the event bus with Kafka backing."""
@@ -117,7 +123,10 @@ class EventBus(LifecycleEnabled):
 
     async def publish(self, event_type: str, data: dict[str, Any]) -> None:
         """
-        Publish an event to Kafka and local subscribers.
+        Publish an event to Kafka for cross-instance distribution.
+
+        Local handlers receive events only from OTHER instances via the Kafka listener.
+        Publishers should update their own state directly before calling publish().
 
         Args:
             event_type: Event type (e.g., "execution.123.started")
@@ -125,23 +134,20 @@ class EventBus(LifecycleEnabled):
         """
         event = self._create_event(event_type, data)
 
-        # Publish to Kafka for distributed handling
         if self.producer:
             try:
-                # Serialize and send message asynchronously
                 value = event.model_dump_json().encode("utf-8")
                 key = event_type.encode("utf-8") if event_type else None
+                headers = [("source_instance", self._instance_id.encode("utf-8"))]
 
                 await self.producer.send_and_wait(
                     topic=self._topic,
                     value=value,
                     key=key,
+                    headers=headers,
                 )
             except Exception as e:
                 self.logger.error(f"Failed to publish to Kafka: {e}")
-
-        # Publish to local subscribers for immediate handling
-        await self._distribute_event(event_type, event)
 
     def _create_event(self, event_type: str, data: dict[str, Any]) -> EventBusEvent:
         """Create a standardized event object."""
@@ -251,7 +257,7 @@ class EventBus(LifecycleEnabled):
             await asyncio.to_thread(handler, event)
 
     async def _kafka_listener(self) -> None:
-        """Listen for Kafka messages and distribute to local subscribers."""
+        """Listen for Kafka messages from OTHER instances and distribute to local subscribers."""
         if not self.consumer:
             return
 
@@ -260,11 +266,15 @@ class EventBus(LifecycleEnabled):
         try:
             while self.is_running:
                 try:
-                    # Use getone() with timeout
                     msg = await asyncio.wait_for(self.consumer.getone(), timeout=0.1)
 
+                    # Skip messages from this instance - publisher handles its own state
+                    headers = dict(msg.headers) if msg.headers else {}
+                    source = headers.get("source_instance", b"").decode("utf-8")
+                    if source == self._instance_id:
+                        continue
+
                     try:
-                        # Deserialize message - Pydantic parses timestamp string to datetime
                         event_dict = json.loads(msg.value.decode("utf-8"))
                         event = EventBusEvent.model_validate(event_dict)
                         await self._distribute_event(event.event_type, event)
@@ -272,7 +282,6 @@ class EventBus(LifecycleEnabled):
                         self.logger.error(f"Error processing Kafka message: {e}")
 
                 except asyncio.TimeoutError:
-                    # No message available, continue polling
                     continue
                 except KafkaError as e:
                     self.logger.error(f"Consumer error: {e}")

@@ -10,7 +10,7 @@ from app.dlq.manager import create_dlq_manager
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.infrastructure.kafka.events import DLQMessageReceivedEvent
+from app.domain.events.typed import DLQMessageReceivedEvent
 from app.settings import Settings
 
 from tests.helpers import make_execution_requested_event

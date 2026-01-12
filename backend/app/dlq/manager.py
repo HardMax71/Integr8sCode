@@ -23,7 +23,7 @@ from app.dlq.models import (
 )
 from app.domain.enums.kafka import GroupId, KafkaTopic
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.infrastructure.kafka.events import (
+from app.domain.events.typed import (
     DLQMessageDiscardedEvent,
     DLQMessageReceivedEvent,
     DLQMessageRetriedEvent,

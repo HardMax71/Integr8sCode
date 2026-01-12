@@ -9,7 +9,7 @@ from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.domain.enums.notification import NotificationSeverity, NotificationStatus
 from app.domain.events.typed import EventMetadata
-from app.infrastructure.kafka.events import BaseEvent
+from app.domain.events.typed import BaseEvent
 from app.schemas_pydantic.sse import RedisNotificationMessage, RedisSSEMessage
 from app.services.sse.redis_bus import SSERedisBus
 

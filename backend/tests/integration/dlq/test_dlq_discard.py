@@ -6,7 +6,6 @@ import pytest
 from app.db.docs import DLQMessageDocument
 from app.db.repositories.dlq_repository import DLQRepository
 from app.dlq.models import DLQMessageStatus
-from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from dishka import AsyncContainer
 
@@ -26,12 +25,13 @@ async def _create_dlq_document(
         event_id = str(uuid.uuid4())
 
     event = make_execution_requested_event(execution_id=f"exec-{uuid.uuid4().hex[:8]}")
+    # Override event_id for test predictability
+    event_dict = event.model_dump()
+    event_dict["event_id"] = event_id
     now = datetime.now(timezone.utc)
 
     doc = DLQMessageDocument(
-        event=event.model_dump(),
-        event_id=event_id,
-        event_type=EventType.EXECUTION_REQUESTED,
+        event=event_dict,
         original_topic=str(KafkaTopic.EXECUTION_EVENTS),
         error="Test error",
         retry_count=0,
@@ -60,7 +60,7 @@ async def test_dlq_repository_marks_message_discarded(scope: AsyncContainer) -> 
     assert result is True
 
     # Verify the status changed
-    updated_doc = await DLQMessageDocument.find_one({"event_id": event_id})
+    updated_doc = await DLQMessageDocument.find_one({"event.event_id": event_id})
     assert updated_doc is not None
     assert updated_doc.status == DLQMessageStatus.DISCARDED
     assert updated_doc.discard_reason == reason
@@ -96,7 +96,7 @@ async def test_dlq_discard_sets_timestamp(scope: AsyncContainer) -> None:
     after_discard = datetime.now(timezone.utc)
 
     # Verify timestamp is set correctly
-    doc = await DLQMessageDocument.find_one({"event_id": event_id})
+    doc = await DLQMessageDocument.find_one({"event.event_id": event_id})
     assert doc is not None
     assert doc.discarded_at is not None
     assert before_discard <= doc.discarded_at <= after_discard
@@ -116,7 +116,7 @@ async def test_dlq_discard_with_custom_reason(scope: AsyncContainer) -> None:
     await repository.mark_message_discarded(event_id, custom_reason)
 
     # Verify the reason is stored
-    doc = await DLQMessageDocument.find_one({"event_id": event_id})
+    doc = await DLQMessageDocument.find_one({"event.event_id": event_id})
     assert doc is not None
     assert doc.discard_reason == custom_reason
 
@@ -136,7 +136,7 @@ async def test_dlq_discard_from_scheduled_status(scope: AsyncContainer) -> None:
     assert result is True
 
     # Verify status transition
-    doc = await DLQMessageDocument.find_one({"event_id": event_id})
+    doc = await DLQMessageDocument.find_one({"event.event_id": event_id})
     assert doc is not None
     assert doc.status == DLQMessageStatus.DISCARDED
 

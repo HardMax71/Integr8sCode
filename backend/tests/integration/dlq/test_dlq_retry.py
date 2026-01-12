@@ -6,7 +6,6 @@ import pytest
 from app.db.docs import DLQMessageDocument
 from app.db.repositories.dlq_repository import DLQRepository
 from app.dlq.models import DLQMessageStatus
-from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from dishka import AsyncContainer
 
@@ -26,12 +25,13 @@ async def _create_dlq_document(
         event_id = str(uuid.uuid4())
 
     event = make_execution_requested_event(execution_id=f"exec-{uuid.uuid4().hex[:8]}")
+    # Override event_id for test predictability
+    event_dict = event.model_dump()
+    event_dict["event_id"] = event_id
     now = datetime.now(timezone.utc)
 
     doc = DLQMessageDocument(
-        event=event.model_dump(),
-        event_id=event_id,
-        event_type=EventType.EXECUTION_REQUESTED,
+        event=event_dict,
         original_topic=str(KafkaTopic.EXECUTION_EVENTS),
         error="Test error",
         retry_count=0,
@@ -59,7 +59,7 @@ async def test_dlq_repository_marks_message_retried(scope: AsyncContainer) -> No
     assert result is True
 
     # Verify the status changed
-    updated_doc = await DLQMessageDocument.find_one({"event_id": event_id})
+    updated_doc = await DLQMessageDocument.find_one({"event.event_id": event_id})
     assert updated_doc is not None
     assert updated_doc.status == DLQMessageStatus.RETRIED
     assert updated_doc.retried_at is not None
@@ -91,7 +91,7 @@ async def test_dlq_retry_sets_timestamp(scope: AsyncContainer) -> None:
     after_retry = datetime.now(timezone.utc)
 
     # Verify timestamp is set correctly
-    doc = await DLQMessageDocument.find_one({"event_id": event_id})
+    doc = await DLQMessageDocument.find_one({"event.event_id": event_id})
     assert doc is not None
     assert doc.retried_at is not None
     assert before_retry <= doc.retried_at <= after_retry
@@ -112,7 +112,7 @@ async def test_dlq_retry_from_pending_status(scope: AsyncContainer) -> None:
     assert result is True
 
     # Verify status transition
-    doc = await DLQMessageDocument.find_one({"event_id": event_id})
+    doc = await DLQMessageDocument.find_one({"event.event_id": event_id})
     assert doc is not None
     assert doc.status == DLQMessageStatus.RETRIED
 
@@ -155,7 +155,7 @@ async def test_dlq_retry_already_retried_message(scope: AsyncContainer) -> None:
     assert result is True
 
     # Status remains RETRIED
-    doc = await DLQMessageDocument.find_one({"event_id": event_id})
+    doc = await DLQMessageDocument.find_one({"event.event_id": event_id})
     assert doc is not None
     assert doc.status == DLQMessageStatus.RETRIED
 
@@ -178,7 +178,7 @@ async def test_dlq_retry_discarded_message(scope: AsyncContainer) -> None:
     assert result is True
 
     # Status is now RETRIED (repository doesn't guard transitions)
-    doc = await DLQMessageDocument.find_one({"event_id": event_id})
+    doc = await DLQMessageDocument.find_one({"event.event_id": event_id})
     assert doc is not None
     assert doc.status == DLQMessageStatus.RETRIED
 
@@ -198,7 +198,7 @@ async def test_dlq_discard_already_discarded_message(scope: AsyncContainer) -> N
     assert result is True
 
     # Reason is updated
-    doc = await DLQMessageDocument.find_one({"event_id": event_id})
+    doc = await DLQMessageDocument.find_one({"event.event_id": event_id})
     assert doc is not None
     assert doc.status == DLQMessageStatus.DISCARDED
     assert doc.discard_reason == new_reason
@@ -219,7 +219,7 @@ async def test_dlq_discard_retried_message(scope: AsyncContainer) -> None:
     assert result is True
 
     # Status is now DISCARDED
-    doc = await DLQMessageDocument.find_one({"event_id": event_id})
+    doc = await DLQMessageDocument.find_one({"event.event_id": event_id})
     assert doc is not None
     assert doc.status == DLQMessageStatus.DISCARDED
     assert doc.discard_reason == reason

@@ -123,7 +123,7 @@ class DLQRepository:
         )
 
     async def get_message_by_id(self, event_id: str) -> DLQMessage | None:
-        doc = await DLQMessageDocument.find_one({"event_id": event_id})
+        doc = await DLQMessageDocument.find_one({"event.event_id": event_id})
         return self._doc_to_message(doc) if doc else None
 
     async def get_topics_summary(self) -> list[DLQTopicSummary]:
@@ -163,7 +163,7 @@ class DLQRepository:
         return topics
 
     async def mark_message_retried(self, event_id: str) -> bool:
-        doc = await DLQMessageDocument.find_one({"event_id": event_id})
+        doc = await DLQMessageDocument.find_one({"event.event_id": event_id})
         if not doc:
             return False
         now = datetime.now(timezone.utc)
@@ -174,7 +174,7 @@ class DLQRepository:
         return True
 
     async def mark_message_discarded(self, event_id: str, reason: str) -> bool:
-        doc = await DLQMessageDocument.find_one({"event_id": event_id})
+        doc = await DLQMessageDocument.find_one({"event.event_id": event_id})
         if not doc:
             return False
         now = datetime.now(timezone.utc)

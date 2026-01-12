@@ -23,9 +23,8 @@ async def insert_test_dlq_docs() -> None:
 
     docs = [
         DLQMessageDocument(
-            event_id="id1",
-            event_type=str(EventType.USER_LOGGED_IN),
             event={
+                "event_id": "id1",
                 "event_type": str(EventType.USER_LOGGED_IN),
                 "metadata": {"service_name": "svc", "service_version": "1"},
                 "user_id": "u1",
@@ -39,9 +38,8 @@ async def insert_test_dlq_docs() -> None:
             producer_id="p1",
         ),
         DLQMessageDocument(
-            event_id="id2",
-            event_type=str(EventType.USER_LOGGED_IN),
             event={
+                "event_id": "id2",
                 "event_type": str(EventType.USER_LOGGED_IN),
                 "metadata": {"service_name": "svc", "service_version": "1"},
                 "user_id": "u1",
@@ -55,9 +53,8 @@ async def insert_test_dlq_docs() -> None:
             producer_id="p1",
         ),
         DLQMessageDocument(
-            event_id="id3",
-            event_type=str(EventType.EXECUTION_STARTED),
             event={
+                "event_id": "id3",
                 "event_type": str(EventType.EXECUTION_STARTED),
                 "metadata": {"service_name": "svc", "service_version": "1"},
                 "execution_id": "x1",

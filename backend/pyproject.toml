@@ -36,7 +36,7 @@ dependencies = [
     "fastavro==1.12.1",
     "fonttools==4.61.1",
     "frozenlist==1.7.0",
-    "google-auth==2.45.0",
+    "google-auth==2.47.0",
     "googleapis-common-protos==1.70.0",
     "greenlet==3.3.0",
     "grpcio==1.76.0",

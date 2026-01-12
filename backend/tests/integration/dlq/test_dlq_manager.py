@@ -9,8 +9,8 @@ from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from app.dlq.manager import create_dlq_manager
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
-from app.events.schema.schema_registry import SchemaRegistryManager
 from app.domain.events.typed import DLQMessageReceivedEvent
+from app.events.schema.schema_registry import SchemaRegistryManager
 from app.settings import Settings
 
 from tests.helpers import make_execution_requested_event
@@ -61,7 +61,7 @@ async def test_dlq_manager_persists_and_emits_event(test_settings: Settings) -> 
                 _test_logger.debug(f"Error deserializing DLQ event: {e}")
 
     payload = {
-        "event": ev.to_dict(),
+        "event": ev.model_dump(mode="json"),
         "original_topic": f"{prefix}{str(KafkaTopic.EXECUTION_EVENTS)}",
         "error": "handler failed",
         "retry_count": 0,

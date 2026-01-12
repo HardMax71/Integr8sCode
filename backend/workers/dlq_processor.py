@@ -2,6 +2,7 @@ import asyncio
 import logging
 import signal
 from contextlib import AsyncExitStack
+from datetime import datetime, timezone
 
 from app.core.container import create_dlq_processor_container
 from app.core.database_context import Database
@@ -66,7 +67,8 @@ def _configure_filters(manager: DLQManager, testing: bool, logger: logging.Logge
 
     def filter_old_messages(message: DLQMessage) -> bool:
         max_age_days = 7
-        return message.age_seconds < (max_age_days * 24 * 3600)
+        age_seconds = (datetime.now(timezone.utc) - message.failed_at).total_seconds()
+        return age_seconds < (max_age_days * 24 * 3600)
 
     manager.add_filter(filter_old_messages)
 

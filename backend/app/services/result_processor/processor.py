@@ -175,20 +175,21 @@ class ResultProcessor(LifecycleEnabled):
 
         # Record metrics for successful completion
         self._metrics.record_script_execution(ExecutionStatus.COMPLETED, lang_and_version)
-        runtime_seconds = event.resource_usage.execution_time_wall_seconds
-        self._metrics.record_execution_duration(runtime_seconds, lang_and_version)
+        if event.resource_usage:
+            runtime_seconds = event.resource_usage.execution_time_wall_seconds
+            self._metrics.record_execution_duration(runtime_seconds, lang_and_version)
 
-        # Record memory utilization
-        memory_mib = event.resource_usage.peak_memory_kb / 1024
-        self._metrics.record_memory_usage(memory_mib, lang_and_version)
+            # Record memory utilization
+            memory_mib = event.resource_usage.peak_memory_kb / 1024
+            self._metrics.record_memory_usage(memory_mib, lang_and_version)
 
-        # Calculate and record memory utilization percentage
-        settings_limit = self._settings.K8S_POD_MEMORY_LIMIT
-        memory_limit_mib = int(settings_limit.rstrip("Mi"))  # TODO: Less brittle acquisition of limit
-        memory_percent = (memory_mib / memory_limit_mib) * 100
-        self._metrics.memory_utilization_percent.record(
-            memory_percent, attributes={"lang_and_version": lang_and_version}
-        )
+            # Calculate and record memory utilization percentage
+            settings_limit = self._settings.K8S_POD_MEMORY_LIMIT
+            memory_limit_mib = int(settings_limit.rstrip("Mi"))  # TODO: Less brittle acquisition of limit
+            memory_percent = (memory_mib / memory_limit_mib) * 100
+            self._metrics.memory_utilization_percent.record(
+                memory_percent, attributes={"lang_and_version": lang_and_version}
+            )
 
         result = ExecutionResultDomain(
             execution_id=event.execution_id,
@@ -215,7 +216,7 @@ class ResultProcessor(LifecycleEnabled):
         if exec_obj is None:
             raise ExecutionNotFoundError(event.execution_id)
 
-        self._metrics.record_error(event.error_type)
+        self._metrics.record_error(str(event.error_type) if event.error_type else "unknown")
         lang_and_version = f"{exec_obj.lang}-{exec_obj.lang_version}"
 
         self._metrics.record_script_execution(ExecutionStatus.FAILED, lang_and_version)

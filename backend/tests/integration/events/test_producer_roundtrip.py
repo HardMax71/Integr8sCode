@@ -4,6 +4,7 @@ from uuid import uuid4
 import pytest
 from app.events.core import ProducerConfig, UnifiedProducer
 from app.events.schema.schema_registry import SchemaRegistryManager
+from app.infrastructure.kafka.mappings import get_topic_for_event
 from app.settings import Settings
 from dishka import AsyncContainer
 
@@ -31,7 +32,8 @@ async def test_unified_producer_start_produce_send_to_dlq_stop(
         await prod.produce(ev)
 
         # Exercise send_to_dlq path
-        await prod.send_to_dlq(ev, original_topic=str(ev.topic), error=RuntimeError("forced"), retry_count=1)
+        topic = str(get_topic_for_event(ev.event_type))
+        await prod.send_to_dlq(ev, original_topic=topic, error=RuntimeError("forced"), retry_count=1)
 
         st = prod.get_status()
         assert st["running"] is True and st["state"] == "running"

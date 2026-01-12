@@ -3,6 +3,7 @@ import logging
 import pytest
 from app.domain.events.typed import EventMetadata, PodCreatedEvent
 from app.events.schema.schema_registry import SchemaRegistryManager
+from app.infrastructure.kafka.mappings import get_topic_for_event
 from app.settings import Settings
 
 pytestmark = [pytest.mark.integration, pytest.mark.kafka]
@@ -21,6 +22,7 @@ async def test_serialize_and_deserialize_event_real_registry(test_settings: Sett
         metadata=EventMetadata(service_name="s", service_version="1"),
     )
     data = await m.serialize_event(ev)
-    obj = await m.deserialize_event(data, topic=str(ev.topic))
+    topic = str(get_topic_for_event(ev.event_type))
+    obj = await m.deserialize_event(data, topic=topic)
     assert isinstance(obj, PodCreatedEvent)
     assert obj.namespace == "n"

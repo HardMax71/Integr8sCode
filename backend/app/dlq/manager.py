@@ -22,13 +22,13 @@ from app.dlq.models import (
     RetryStrategy,
 )
 from app.domain.enums.kafka import GroupId, KafkaTopic
-from app.events.schema.schema_registry import SchemaRegistryManager
 from app.domain.events.typed import (
     DLQMessageDiscardedEvent,
     DLQMessageReceivedEvent,
     DLQMessageRetriedEvent,
     EventMetadata,
 )
+from app.events.schema.schema_registry import SchemaRegistryManager
 from app.settings import Settings
 
 

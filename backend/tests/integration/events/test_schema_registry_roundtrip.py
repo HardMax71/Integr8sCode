@@ -2,6 +2,7 @@ import logging
 
 import pytest
 from app.events.schema.schema_registry import MAGIC_BYTE, SchemaRegistryManager
+from app.infrastructure.kafka.mappings import get_topic_for_event
 from app.settings import Settings
 from dishka import AsyncContainer
 
@@ -19,7 +20,8 @@ async def test_schema_registry_serialize_deserialize_roundtrip(scope: AsyncConta
     ev = make_execution_requested_event(execution_id="e-rt")
     data = await reg.serialize_event(ev)
     assert data.startswith(MAGIC_BYTE)
-    back = await reg.deserialize_event(data, topic=str(ev.topic))
+    topic = str(get_topic_for_event(ev.event_type))
+    back = await reg.deserialize_event(data, topic=topic)
     assert back.event_id == ev.event_id and getattr(back, "execution_id", None) == ev.execution_id
 
     # initialize_schemas should be a no-op if already initialized; call to exercise path

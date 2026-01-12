@@ -628,9 +628,8 @@ class NotificationService:
             return
 
         title = f"Execution Completed: {event.execution_id}"
-        body = (
-            f"Your execution completed successfully. Duration: {event.resource_usage.execution_time_wall_seconds:.2f}s."
-        )
+        duration = event.resource_usage.execution_time_wall_seconds if event.resource_usage else 0.0
+        body = f"Your execution completed successfully. Duration: {duration:.2f}s."
         await self.create_notification(
             user_id=user_id,
             subject=title,

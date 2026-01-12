@@ -119,6 +119,7 @@ nav:
     - Model Conversion: architecture/model-conversion.md
     - Event Storage: architecture/event-storage.md
     - Event System Design: architecture/event-system-design.md
+    - Event Bus: architecture/event-bus.md
     - User Settings Events: architecture/user-settings-events.md
     - Frontend Build: architecture/frontend-build.md
     - Svelte 5 Migration: architecture/svelte5-migration.md

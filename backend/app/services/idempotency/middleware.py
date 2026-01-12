@@ -218,7 +218,7 @@ class IdempotentConsumerWrapper:
                 f"has topic: {hasattr(message, 'topic')}"
             )
 
-            raw_value = message.value()
+            raw_value = message.value
 
             # Debug the raw value
             self.logger.info(f"Raw value extracted: {raw_value[:100] if raw_value else 'None or empty'}")
@@ -235,7 +235,7 @@ class IdempotentConsumerWrapper:
 
             try:
                 # Deserialize using schema registry if available
-                event = self.consumer._schema_registry.deserialize_event(raw_value, message.topic())
+                event = await self.consumer._schema_registry.deserialize_event(raw_value, message.topic)
                 if not event:
                     self.logger.error(f"Failed to deserialize event for {event_type}")
                     return None

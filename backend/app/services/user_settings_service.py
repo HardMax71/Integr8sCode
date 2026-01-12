@@ -54,7 +54,11 @@ class UserSettingsService:
         return await self.get_user_settings_fresh(user_id)
 
     async def initialize(self, event_bus_manager: EventBusManager) -> None:
-        """Subscribe to settings update events for cache invalidation."""
+        """Subscribe to settings update events for cross-instance cache invalidation.
+
+        Note: EventBus filters out self-published messages, so this handler only
+        runs for events from OTHER instances.
+        """
         self._event_bus_manager = event_bus_manager
         bus = await event_bus_manager.get_event_bus()
 

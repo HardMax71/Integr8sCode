@@ -2,6 +2,7 @@ import pytest
 from app.services.coordinator.coordinator import ExecutionCoordinator
 from dishka import AsyncContainer
 from tests.helpers import make_execution_requested_event
+from tests.helpers.eventually import eventually
 
 pytestmark = pytest.mark.integration
 
@@ -11,15 +12,10 @@ async def test_handle_requested_and_schedule(scope: AsyncContainer) -> None:
     coord: ExecutionCoordinator = await scope.get(ExecutionCoordinator)
     ev = make_execution_requested_event(execution_id="e-real-1")
 
-    # Directly route requested event (no Kafka consumer)
     await coord._handle_execution_requested(ev)  # noqa: SLF001
 
-    pos = await coord.queue_manager.get_queue_position("e-real-1")
-    assert pos is not None
+    # Coordinator's background loop schedules executions automatically
+    async def is_active() -> None:
+        assert "e-real-1" in coord._active_executions  # noqa: SLF001
 
-    # Schedule one execution from queue
-    next_ev = await coord.queue_manager.get_next_execution()
-    assert next_ev is not None and next_ev.execution_id == "e-real-1"
-    await coord._schedule_execution(next_ev)  # noqa: SLF001
-    # Should be tracked as active
-    assert "e-real-1" in coord._active_executions  # noqa: SLF001
+    await eventually(is_active, timeout=2.0, interval=0.05)

@@ -16,17 +16,17 @@ Repositories don't create their own indexes — they only read and write. This s
 
 ## Kafka schema registry
 
-The `SchemaRegistryManager` class in `app/events/schema/schema_registry.py` handles Avro serialization for Kafka events. It connects to a Confluent Schema Registry and registers schemas for all event types at startup.
+The `SchemaRegistryManager` class in `app/events/schema/schema_registry.py` handles Avro serialization for Kafka events. All registry operations are async and must be awaited. The manager connects to a Confluent Schema Registry and registers schemas for all event types at startup via `await initialize_schemas()`.
 
 Each event class (subclass of `BaseEvent`) generates its own Avro schema from Pydantic model definitions. The manager registers these schemas with subjects named after the class (like `ExecutionRequestedEvent-value`) and sets FORWARD compatibility, meaning new schemas can add fields but not remove required ones. This allows producers to be upgraded before consumers without breaking deserialization.
 
-Serialization uses the Confluent wire format: a magic byte, four-byte schema id, then the Avro binary payload. The manager caches serializers per subject and maintains a bidirectional cache between schema ids and Python classes. When deserializing, it reads the schema id from the message header, looks up the corresponding event class, deserializes the Avro payload to a dict, and hydrates the Pydantic model.
+Serialization and deserialization are async — `await serialize_event(event)` and `await deserialize_event(data, topic)` must be awaited. The wire format follows Confluent conventions: a magic byte, four-byte schema id, then the Avro binary payload. The underlying `python-schema-registry-client` library handles schema registration caching internally. The manager maintains a bidirectional cache between schema ids and Python event classes for deserialization. When deserializing, it reads the schema id from the message header, looks up the corresponding event class, deserializes the Avro payload to a dict, and hydrates the Pydantic model.
 
 For test isolation, the manager supports an optional `SCHEMA_SUBJECT_PREFIX` environment variable. Setting this to something like `test.session123.` prefixes all subject names, preventing test runs from polluting production schemas or interfering with each other.
 
 ## Startup sequence
 
-During API startup, the `lifespan` function in `dishka_lifespan.py` gets the database from the DI container, creates a `SchemaManager`, and calls `apply_all()`. It does the same for `SchemaRegistryManager`, calling `initialize_schemas()` to register all event types. Workers like the saga orchestrator and event replay service follow the same pattern — they connect to MongoDB, run schema migrations, and initialize the schema registry before starting their main loops.
+During API startup, the `lifespan` function in `dishka_lifespan.py` gets the database from the DI container, creates a `SchemaManager`, and calls `await apply_all()`. It does the same for `SchemaRegistryManager`, calling `await initialize_schemas()` to register all event types (async — must be awaited). Workers like the saga orchestrator and event replay service follow the same pattern — they connect to MongoDB, run schema migrations, and await schema registry initialization before starting their main loops.
 
 ## Local development
 

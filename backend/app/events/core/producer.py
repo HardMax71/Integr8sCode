@@ -2,12 +2,11 @@ import asyncio
 import json
 import logging
 import socket
-import threading
 from datetime import datetime, timezone
-from typing import Any, Callable, TypeAlias
+from typing import Any
 
-from confluent_kafka import Message, Producer
-from confluent_kafka.error import KafkaError
+from aiokafka import AIOKafkaProducer
+from aiokafka.errors import KafkaError
 
 from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics.context import get_event_metrics
@@ -19,33 +18,25 @@ from app.settings import Settings
 
 from .types import ProducerConfig, ProducerMetrics, ProducerState
 
-# Global lock to serialize Producer initialization (workaround for librdkafka race condition)
-# See: https://github.com/confluentinc/confluent-kafka-python/issues/1797
-_producer_init_lock = threading.Lock()
-
-DeliveryCallback: TypeAlias = Callable[[KafkaError | None, Message], None]
-StatsCallback: TypeAlias = Callable[[dict[str, Any]], None]
-
 
 class UnifiedProducer(LifecycleEnabled):
+    """Fully async Kafka producer using aiokafka."""
+
     def __init__(
-            self,
-            config: ProducerConfig,
-            schema_registry_manager: SchemaRegistryManager,
-            logger: logging.Logger,
-            settings: Settings,
-            stats_callback: StatsCallback | None = None,
+        self,
+        config: ProducerConfig,
+        schema_registry_manager: SchemaRegistryManager,
+        logger: logging.Logger,
+        settings: Settings,
     ):
         super().__init__()
         self._config = config
         self._schema_registry = schema_registry_manager
         self.logger = logger
-        self._producer: Producer | None = None
-        self._stats_callback = stats_callback
+        self._producer: AIOKafkaProducer | None = None
         self._state = ProducerState.STOPPED
         self._metrics = ProducerMetrics()
-        self._event_metrics = get_event_metrics()  # Singleton for Kafka metrics
-        self._poll_task: asyncio.Task[None] | None = None
+        self._event_metrics = get_event_metrics()
         self._topic_prefix = settings.KAFKA_TOPIC_PREFIX
 
     @property
@@ -61,68 +52,26 @@ class UnifiedProducer(LifecycleEnabled):
         return self._metrics
 
     @property
-    def producer(self) -> Producer | None:
+    def producer(self) -> AIOKafkaProducer | None:
         return self._producer
-
-    def _handle_delivery(self, error: KafkaError | None, message: Message) -> None:
-        if error:
-            self._metrics.messages_failed += 1
-            self._metrics.last_error = str(error)
-            self._metrics.last_error_time = datetime.now(timezone.utc)
-            # Record Kafka production error
-            topic = message.topic() if message else None
-            self._event_metrics.record_kafka_production_error(
-                topic=topic if topic is not None else "unknown", error_type=str(error.code())
-            )
-            self.logger.error(f"Message delivery failed: {error}")
-        else:
-            self._metrics.messages_sent += 1
-            message_value = message.value()
-            if message_value:
-                self._metrics.bytes_sent += len(message_value)
-            self.logger.debug(f"Message delivered to {message.topic()}[{message.partition()}]@{message.offset()}")
-
-    def _handle_stats(self, stats_json: str) -> None:
-        try:
-            stats = json.loads(stats_json)
-            self._metrics.queue_size = stats.get("msg_cnt", 0)
-
-            topics = stats.get("topics", {})
-            total_messages = 0
-            total_latency = 0
-
-            for topic_stats in topics.values():
-                partitions = topic_stats.get("partitions", {})
-                for partition_stats in partitions.values():
-                    msg_cnt = partition_stats.get("msgq_cnt", 0)
-                    total_messages += msg_cnt
-                    latency = partition_stats.get("rtt", {}).get("avg", 0)
-                    if latency > 0 and msg_cnt > 0:
-                        total_latency += latency * msg_cnt
-
-            if total_messages > 0:
-                self._metrics.avg_latency_ms = total_latency / total_messages
-
-            if self._stats_callback:
-                self._stats_callback(stats)
-        except Exception as e:
-            self.logger.error(f"Error parsing producer stats: {e}")
 
     async def _on_start(self) -> None:
         """Start the Kafka producer."""
         self._state = ProducerState.STARTING
         self.logger.info("Starting producer...")
 
-        producer_config = self._config.to_producer_config()
-        producer_config["stats_cb"] = self._handle_stats
-        producer_config["statistics.interval.ms"] = 30000
+        self._producer = AIOKafkaProducer(
+            bootstrap_servers=self._config.bootstrap_servers,
+            client_id=self._config.client_id,
+            acks=self._config.acks,
+            compression_type=self._config.compression_type,
+            max_batch_size=self._config.batch_size,
+            linger_ms=self._config.linger_ms,
+            enable_idempotence=self._config.enable_idempotence,
+        )
 
-        # Serialize Producer initialization to prevent librdkafka race condition
-        with _producer_init_lock:
-            self._producer = Producer(producer_config)
-        self._poll_task = asyncio.create_task(self._poll_loop())
+        await self._producer.start()
         self._state = ProducerState.RUNNING
-
         self.logger.info(f"Producer started: {self._config.bootstrap_servers}")
 
     def get_status(self) -> dict[str, Any]:
@@ -151,36 +100,21 @@ class UnifiedProducer(LifecycleEnabled):
         self._state = ProducerState.STOPPING
         self.logger.info("Stopping producer...")
 
-        if self._poll_task:
-            self._poll_task.cancel()
-            await asyncio.gather(self._poll_task, return_exceptions=True)
-            self._poll_task = None
-
         if self._producer:
-            self._producer.flush(timeout=10.0)
+            await self._producer.stop()
             self._producer = None
 
         self._state = ProducerState.STOPPED
         self.logger.info("Producer stopped")
 
-    async def _poll_loop(self) -> None:
-        self.logger.info("Started producer poll loop")
-
-        while self.is_running and self._producer:
-            self._producer.poll(timeout=0.1)
-            await asyncio.sleep(0.01)
-
-        self.logger.info("Producer poll loop ended")
-
     async def produce(
-            self, event_to_produce: BaseEvent, key: str | None = None, headers: dict[str, str] | None = None
+        self, event_to_produce: BaseEvent, key: str | None = None, headers: dict[str, str] | None = None
     ) -> None:
         """
         Produce a message to Kafka.
 
         Args:
             event_to_produce: Message value (BaseEvent)
-            N.B. each instance of BaseEvent has .topic classvar, returning type of KafkaTopic
             key: Message key
             headers: Message headers
         """
@@ -188,25 +122,43 @@ class UnifiedProducer(LifecycleEnabled):
             self.logger.error("Producer not running")
             return
 
-        # Serialize value
-        serialized_value = self._schema_registry.serialize_event(event_to_produce)
+        try:
+            # Serialize value using async schema registry
+            serialized_value = await self._schema_registry.serialize_event(event_to_produce)
 
-        topic = f"{self._topic_prefix}{str(event_to_produce.topic)}"
-        self._producer.produce(
-            topic=topic,
-            value=serialized_value,
-            key=key.encode() if isinstance(key, str) else key,
-            headers=[(k, v.encode()) for k, v in headers.items()] if headers else None,
-            callback=self._handle_delivery,
-        )
+            topic = f"{self._topic_prefix}{str(event_to_produce.topic)}"
 
-        # Record Kafka metrics
-        self._event_metrics.record_kafka_message_produced(topic)
+            # Convert headers to list of tuples format
+            header_list = [(k, v.encode()) for k, v in headers.items()] if headers else None
 
-        self.logger.debug(f"Message [{event_to_produce}] queued for topic: {topic}")
+            await self._producer.send_and_wait(
+                topic=topic,
+                value=serialized_value,
+                key=key.encode() if isinstance(key, str) else key,
+                headers=header_list,
+            )
+
+            # Update metrics on success
+            self._metrics.messages_sent += 1
+            self._metrics.bytes_sent += len(serialized_value)
+
+            # Record Kafka metrics
+            self._event_metrics.record_kafka_message_produced(topic)
+
+            self.logger.debug(f"Message [{event_to_produce}] sent to topic: {topic}")
+
+        except KafkaError as e:
+            self._metrics.messages_failed += 1
+            self._metrics.last_error = str(e)
+            self._metrics.last_error_time = datetime.now(timezone.utc)
+            self._event_metrics.record_kafka_production_error(
+                topic=f"{self._topic_prefix}{str(event_to_produce.topic)}", error_type=type(e).__name__
+            )
+            self.logger.error(f"Failed to produce message: {e}")
+            raise
 
     async def send_to_dlq(
-            self, original_event: BaseEvent, original_topic: str, error: Exception, retry_count: int = 0
+        self, original_event: BaseEvent, original_topic: str, error: Exception, retry_count: int = 0
     ) -> None:
         """
         Send a failed event to the Dead Letter Queue.
@@ -256,9 +208,11 @@ class UnifiedProducer(LifecycleEnabled):
             # Serialize as JSON (DLQ uses JSON format for flexibility)
             serialized_value = json.dumps(dlq_event_data).encode("utf-8")
 
+            dlq_topic = f"{self._topic_prefix}{str(KafkaTopic.DEAD_LETTER_QUEUE)}"
+
             # Send to DLQ topic
-            self._producer.produce(
-                topic=f"{self._topic_prefix}{str(KafkaTopic.DEAD_LETTER_QUEUE)}",
+            await self._producer.send_and_wait(
+                topic=dlq_topic,
                 value=serialized_value,
                 key=original_event.event_id.encode() if original_event.event_id else None,
                 headers=[
@@ -266,13 +220,10 @@ class UnifiedProducer(LifecycleEnabled):
                     ("error_type", type(error).__name__.encode()),
                     ("retry_count", str(retry_count).encode()),
                 ],
-                callback=self._handle_delivery,
             )
 
             # Record metrics
-            self._event_metrics.record_kafka_message_produced(
-                f"{self._topic_prefix}{str(KafkaTopic.DEAD_LETTER_QUEUE)}"
-            )
+            self._event_metrics.record_kafka_message_produced(dlq_topic)
             self._metrics.messages_sent += 1
 
             self.logger.warning(

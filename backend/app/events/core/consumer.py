@@ -1,12 +1,11 @@
 import asyncio
-import json
 import logging
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from typing import Any
 
-from confluent_kafka import OFFSET_BEGINNING, OFFSET_END, Consumer, Message, TopicPartition
-from confluent_kafka.error import KafkaError
+from aiokafka import AIOKafkaConsumer, TopicPartition
+from aiokafka.errors import KafkaError
 from opentelemetry.trace import SpanKind
 
 from app.core.metrics.context import get_event_metrics
@@ -29,14 +28,12 @@ class UnifiedConsumer:
         schema_registry: SchemaRegistryManager,
         settings: Settings,
         logger: logging.Logger,
-        stats_callback: Callable[[dict[str, Any]], None] | None = None,
     ):
         self._config = config
         self.logger = logger
         self._schema_registry = schema_registry
         self._dispatcher = event_dispatcher
-        self._stats_callback = stats_callback
-        self._consumer: Consumer | None = None
+        self._consumer: AIOKafkaConsumer | None = None
         self._state = ConsumerState.STOPPED
         self._running = False
         self._metrics = ConsumerMetrics()
@@ -48,13 +45,23 @@ class UnifiedConsumer:
     async def start(self, topics: list[KafkaTopic]) -> None:
         self._state = self._state if self._state != ConsumerState.STOPPED else ConsumerState.STARTING
 
-        consumer_config = self._config.to_consumer_config()
-        if self._stats_callback:
-            consumer_config["stats_cb"] = self._handle_stats
-
-        self._consumer = Consumer(consumer_config)
         topic_strings = [f"{self._topic_prefix}{str(topic)}" for topic in topics]
-        self._consumer.subscribe(topic_strings)
+
+        self._consumer = AIOKafkaConsumer(
+            *topic_strings,
+            bootstrap_servers=self._config.bootstrap_servers,
+            group_id=self._config.group_id,
+            client_id=self._config.client_id,
+            auto_offset_reset=self._config.auto_offset_reset,
+            enable_auto_commit=self._config.enable_auto_commit,
+            session_timeout_ms=self._config.session_timeout_ms,
+            heartbeat_interval_ms=self._config.heartbeat_interval_ms,
+            max_poll_interval_ms=self._config.max_poll_interval_ms,
+            fetch_min_bytes=self._config.fetch_min_bytes,
+            fetch_max_wait_ms=self._config.fetch_max_wait_ms,
+        )
+
+        await self._consumer.start()
         self._running = True
         self._consume_task = asyncio.create_task(self._consume_loop())
 
@@ -81,7 +88,7 @@ class UnifiedConsumer:
 
     async def _cleanup(self) -> None:
         if self._consumer:
-            self._consumer.close()
+            await self._consumer.stop()
             self._consumer = None
 
     async def _consume_loop(self) -> None:
@@ -94,47 +101,52 @@ class UnifiedConsumer:
             if poll_count % 100 == 0:  # Log every 100 polls
                 self.logger.debug(f"Consumer loop active: polls={poll_count}, messages={message_count}")
 
-            msg = await asyncio.to_thread(self._consumer.poll, timeout=0.1)
+            try:
+                # Use getone() with timeout for single message consumption
+                msg = await asyncio.wait_for(
+                    self._consumer.getone(),
+                    timeout=0.1
+                )
 
-            if msg is not None:
-                error = msg.error()
-                if error:
-                    if error.code() != KafkaError._PARTITION_EOF:
-                        self.logger.error(f"Consumer error: {error}")
-                        self._metrics.processing_errors += 1
-                else:
-                    message_count += 1
-                    self.logger.debug(
-                        f"Message received from topic {msg.topic()}, partition {msg.partition()}, offset {msg.offset()}"
-                    )
-                    await self._process_message(msg)
-                    if not self._config.enable_auto_commit:
-                        await asyncio.to_thread(self._consumer.commit, msg)
-            else:
+                message_count += 1
+                self.logger.debug(
+                    f"Message received from topic {msg.topic}, partition {msg.partition}, offset {msg.offset}"
+                )
+                await self._process_message(msg)
+                if not self._config.enable_auto_commit:
+                    await self._consumer.commit()
+
+            except asyncio.TimeoutError:
+                # No message available within timeout, continue polling
                 await asyncio.sleep(0.01)
+            except KafkaError as e:
+                self.logger.error(f"Consumer error: {e}")
+                self._metrics.processing_errors += 1
 
         self.logger.warning(
             f"Consumer loop ended for group {self._config.group_id}: "
             f"running={self._running}, consumer={self._consumer is not None}"
         )
 
-    async def _process_message(self, message: Message) -> None:
-        topic = message.topic()
+    async def _process_message(self, message: Any) -> None:
+        """Process a ConsumerRecord from aiokafka."""
+        topic = message.topic
         if not topic:
             self.logger.warning("Message with no topic received")
             return
 
-        raw_value = message.value()
+        raw_value = message.value
         if not raw_value:
             self.logger.warning(f"Empty message from topic {topic}")
             return
 
         self.logger.debug(f"Deserializing message from topic {topic}, size={len(raw_value)} bytes")
-        event = self._schema_registry.deserialize_event(raw_value, topic)
+        event = await self._schema_registry.deserialize_event(raw_value, topic)
         self.logger.info(f"Deserialized event: type={event.event_type}, id={event.event_id}")
 
         # Extract trace context from Kafka headers and start a consumer span
-        header_list = message.headers() or []
+        # aiokafka headers are list of tuples: [(key, value), ...]
+        header_list = message.headers or []
         headers: dict[str, str] = {}
         for k, v in header_list:
             headers[str(k)] = v.decode("utf-8") if isinstance(v, (bytes, bytearray)) else (v or "")
@@ -144,8 +156,8 @@ class UnifiedConsumer:
         # Dispatch event through EventDispatcher
         try:
             self.logger.debug(f"Dispatching {event.event_type} to handlers")
-            partition_val = message.partition()
-            offset_val = message.offset()
+            partition_val = message.partition
+            offset_val = message.offset
             part_attr = partition_val if partition_val is not None else -1
             off_attr = offset_val if offset_val is not None else -1
             with tracer.start_as_current_span(
@@ -181,23 +193,6 @@ class UnifiedConsumer:
     def register_error_callback(self, callback: Callable[[Exception, BaseEvent], Awaitable[None]]) -> None:
         self._error_callback = callback
 
-    def _handle_stats(self, stats_json: str) -> None:
-        stats = json.loads(stats_json)
-
-        self._metrics.messages_consumed = stats.get("rxmsgs", 0)
-        self._metrics.bytes_consumed = stats.get("rxmsg_bytes", 0)
-
-        topics = stats.get("topics", {})
-        self._metrics.consumer_lag = sum(
-            partition_stats.get("consumer_lag", 0)
-            for topic_stats in topics.values()
-            for partition_stats in topic_stats.get("partitions", {}).values()
-            if partition_stats.get("consumer_lag", 0) >= 0
-        )
-
-        self._metrics.last_updated = datetime.now(timezone.utc)
-        self._stats_callback and self._stats_callback(stats)
-
     @property
     def state(self) -> ConsumerState:
         return self._state
@@ -211,7 +206,7 @@ class UnifiedConsumer:
         return self._state == ConsumerState.RUNNING
 
     @property
-    def consumer(self) -> Consumer | None:
+    def consumer(self) -> AIOKafkaConsumer | None:
         return self._consumer
 
     def get_status(self) -> ConsumerStatus:
@@ -232,24 +227,30 @@ class UnifiedConsumer:
         )
 
     async def seek_to_beginning(self) -> None:
-        self._seek_all_partitions(OFFSET_BEGINNING)
-
-    async def seek_to_end(self) -> None:
-        self._seek_all_partitions(OFFSET_END)
-
-    def _seek_all_partitions(self, offset_type: int) -> None:
+        """Seek all assigned partitions to the beginning."""
         if not self._consumer:
             self.logger.warning("Cannot seek: consumer not initialized")
             return
 
         assignment = self._consumer.assignment()
-        for partition in assignment:
-            new_partition = TopicPartition(partition.topic, partition.partition, offset_type)
-            self._consumer.seek(new_partition)
+        if assignment:
+            await self._consumer.seek_to_beginning(*assignment)
+
+    async def seek_to_end(self) -> None:
+        """Seek all assigned partitions to the end."""
+        if not self._consumer:
+            self.logger.warning("Cannot seek: consumer not initialized")
+            return
+
+        assignment = self._consumer.assignment()
+        if assignment:
+            await self._consumer.seek_to_end(*assignment)
 
     async def seek_to_offset(self, topic: str, partition: int, offset: int) -> None:
+        """Seek a specific partition to a specific offset."""
         if not self._consumer:
             self.logger.warning("Cannot seek to offset: consumer not initialized")
             return
 
-        self._consumer.seek(TopicPartition(topic, partition, offset))
+        tp = TopicPartition(topic, partition)
+        self._consumer.seek(tp, offset)

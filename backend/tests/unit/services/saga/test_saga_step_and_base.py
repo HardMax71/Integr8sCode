@@ -3,8 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from app.domain.enums.events import EventType
-from app.infrastructure.kafka.events import BaseEvent
-from app.infrastructure.kafka.events.metadata import AvroEventMetadata
+from app.domain.events.typed import BaseEvent, EventMetadata
 from app.services.saga.base_saga import BaseSaga
 from app.services.saga.saga_step import CompensationStep, SagaContext, SagaStep
 
@@ -43,12 +42,11 @@ class _DummyComp(CompensationStep):
 
 @pytest.mark.asyncio
 async def test_context_adders() -> None:
-    class E(BaseEvent):
-        event_type: EventType = EventType.SYSTEM_ERROR
-        topic = None  # type: ignore[assignment]
-
     ctx = SagaContext("s1", "e1")
-    evt = E(metadata=AvroEventMetadata(service_name="t", service_version="1"))
+    evt = BaseEvent(
+        event_type=EventType.SYSTEM_ERROR,
+        metadata=EventMetadata(service_name="t", service_version="1"),
+    )
     ctx.add_event(evt)
     assert len(ctx.events) == 1
     comp = _DummyComp()

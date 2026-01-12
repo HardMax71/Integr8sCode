@@ -1,164 +1,104 @@
 from functools import lru_cache
-from typing import Type
+from typing import Dict, get_args, get_origin
 
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
-from app.infrastructure.kafka.events.base import BaseEvent
-from app.infrastructure.kafka.events.execution import (
-    ExecutionAcceptedEvent,
-    ExecutionCancelledEvent,
-    ExecutionCompletedEvent,
-    ExecutionFailedEvent,
-    ExecutionQueuedEvent,
-    ExecutionRequestedEvent,
-    ExecutionRunningEvent,
-    ExecutionStartedEvent,
-    ExecutionTimeoutEvent,
-)
-from app.infrastructure.kafka.events.notification import (
-    NotificationClickedEvent,
-    NotificationCreatedEvent,
-    NotificationDeliveredEvent,
-    NotificationFailedEvent,
-    NotificationPreferencesUpdatedEvent,
-    NotificationReadEvent,
-    NotificationSentEvent,
-)
-from app.infrastructure.kafka.events.pod import (
-    PodCreatedEvent,
-    PodDeletedEvent,
-    PodFailedEvent,
-    PodRunningEvent,
-    PodScheduledEvent,
-    PodSucceededEvent,
-    PodTerminatedEvent,
-)
-from app.infrastructure.kafka.events.saga import (
-    AllocateResourcesCommandEvent,
-    CreatePodCommandEvent,
-    DeletePodCommandEvent,
-    ReleaseResourcesCommandEvent,
-    SagaCancelledEvent,
-    SagaCompensatedEvent,
-    SagaCompensatingEvent,
-    SagaCompletedEvent,
-    SagaFailedEvent,
-    SagaStartedEvent,
-)
-from app.infrastructure.kafka.events.system import (
-    AuthFailedEvent,
-    QuotaExceededEvent,
-    RateLimitExceededEvent,
-    ResourceLimitExceededEvent,
-    ResultFailedEvent,
-    ResultStoredEvent,
-    ScriptDeletedEvent,
-    ScriptSavedEvent,
-    ScriptSharedEvent,
-    SecurityViolationEvent,
-    ServiceRecoveredEvent,
-    ServiceUnhealthyEvent,
-    SystemErrorEvent,
-)
-from app.infrastructure.kafka.events.user import (
-    UserDeletedEvent,
-    UserLoggedInEvent,
-    UserLoggedOutEvent,
-    UserLoginEvent,
-    UserRegisteredEvent,
-    UserSettingsUpdatedEvent,
-    UserUpdatedEvent,
-)
+
+# EventType -> KafkaTopic routing
+EVENT_TYPE_TO_TOPIC: Dict[EventType, KafkaTopic] = {
+    # Execution events
+    EventType.EXECUTION_REQUESTED: KafkaTopic.EXECUTION_EVENTS,
+    EventType.EXECUTION_ACCEPTED: KafkaTopic.EXECUTION_EVENTS,
+    EventType.EXECUTION_QUEUED: KafkaTopic.EXECUTION_EVENTS,
+    EventType.EXECUTION_STARTED: KafkaTopic.EXECUTION_EVENTS,
+    EventType.EXECUTION_RUNNING: KafkaTopic.EXECUTION_EVENTS,
+    EventType.EXECUTION_COMPLETED: KafkaTopic.EXECUTION_EVENTS,
+    EventType.EXECUTION_FAILED: KafkaTopic.EXECUTION_EVENTS,
+    EventType.EXECUTION_TIMEOUT: KafkaTopic.EXECUTION_EVENTS,
+    EventType.EXECUTION_CANCELLED: KafkaTopic.EXECUTION_EVENTS,
+    # Pod events
+    EventType.POD_CREATED: KafkaTopic.POD_EVENTS,
+    EventType.POD_SCHEDULED: KafkaTopic.POD_EVENTS,
+    EventType.POD_RUNNING: KafkaTopic.POD_EVENTS,
+    EventType.POD_SUCCEEDED: KafkaTopic.POD_EVENTS,
+    EventType.POD_FAILED: KafkaTopic.POD_EVENTS,
+    EventType.POD_TERMINATED: KafkaTopic.POD_EVENTS,
+    EventType.POD_DELETED: KafkaTopic.POD_EVENTS,
+    # Result events
+    EventType.RESULT_STORED: KafkaTopic.EXECUTION_RESULTS,
+    EventType.RESULT_FAILED: KafkaTopic.EXECUTION_RESULTS,
+    # User events
+    EventType.USER_REGISTERED: KafkaTopic.USER_EVENTS,
+    EventType.USER_LOGIN: KafkaTopic.USER_EVENTS,
+    EventType.USER_LOGGED_IN: KafkaTopic.USER_EVENTS,
+    EventType.USER_LOGGED_OUT: KafkaTopic.USER_EVENTS,
+    EventType.USER_UPDATED: KafkaTopic.USER_EVENTS,
+    EventType.USER_DELETED: KafkaTopic.USER_EVENTS,
+    EventType.USER_SETTINGS_UPDATED: KafkaTopic.USER_SETTINGS_EVENTS,
+    # Notification events
+    EventType.NOTIFICATION_CREATED: KafkaTopic.NOTIFICATION_EVENTS,
+    EventType.NOTIFICATION_SENT: KafkaTopic.NOTIFICATION_EVENTS,
+    EventType.NOTIFICATION_DELIVERED: KafkaTopic.NOTIFICATION_EVENTS,
+    EventType.NOTIFICATION_FAILED: KafkaTopic.NOTIFICATION_EVENTS,
+    EventType.NOTIFICATION_READ: KafkaTopic.NOTIFICATION_EVENTS,
+    EventType.NOTIFICATION_CLICKED: KafkaTopic.NOTIFICATION_EVENTS,
+    EventType.NOTIFICATION_PREFERENCES_UPDATED: KafkaTopic.NOTIFICATION_EVENTS,
+    # Script events
+    EventType.SCRIPT_SAVED: KafkaTopic.SCRIPT_EVENTS,
+    EventType.SCRIPT_DELETED: KafkaTopic.SCRIPT_EVENTS,
+    EventType.SCRIPT_SHARED: KafkaTopic.SCRIPT_EVENTS,
+    # Security events
+    EventType.SECURITY_VIOLATION: KafkaTopic.SECURITY_EVENTS,
+    EventType.RATE_LIMIT_EXCEEDED: KafkaTopic.SECURITY_EVENTS,
+    EventType.AUTH_FAILED: KafkaTopic.SECURITY_EVENTS,
+    # Resource events
+    EventType.RESOURCE_LIMIT_EXCEEDED: KafkaTopic.RESOURCE_EVENTS,
+    EventType.QUOTA_EXCEEDED: KafkaTopic.RESOURCE_EVENTS,
+    # System events
+    EventType.SYSTEM_ERROR: KafkaTopic.SYSTEM_EVENTS,
+    EventType.SERVICE_UNHEALTHY: KafkaTopic.SYSTEM_EVENTS,
+    EventType.SERVICE_RECOVERED: KafkaTopic.SYSTEM_EVENTS,
+    # Saga events
+    EventType.SAGA_STARTED: KafkaTopic.SAGA_EVENTS,
+    EventType.SAGA_COMPLETED: KafkaTopic.SAGA_EVENTS,
+    EventType.SAGA_FAILED: KafkaTopic.SAGA_EVENTS,
+    EventType.SAGA_CANCELLED: KafkaTopic.SAGA_EVENTS,
+    EventType.SAGA_COMPENSATING: KafkaTopic.SAGA_EVENTS,
+    EventType.SAGA_COMPENSATED: KafkaTopic.SAGA_EVENTS,
+    # Saga command events
+    EventType.CREATE_POD_COMMAND: KafkaTopic.SAGA_COMMANDS,
+    EventType.DELETE_POD_COMMAND: KafkaTopic.SAGA_COMMANDS,
+    EventType.ALLOCATE_RESOURCES_COMMAND: KafkaTopic.SAGA_COMMANDS,
+    EventType.RELEASE_RESOURCES_COMMAND: KafkaTopic.SAGA_COMMANDS,
+    # DLQ events
+    EventType.DLQ_MESSAGE_RECEIVED: KafkaTopic.DLQ_EVENTS,
+    EventType.DLQ_MESSAGE_RETRIED: KafkaTopic.DLQ_EVENTS,
+    EventType.DLQ_MESSAGE_DISCARDED: KafkaTopic.DLQ_EVENTS,
+}
+
+
+@lru_cache(maxsize=1)
+def _get_event_type_to_class() -> Dict[EventType, type]:
+    """Build mapping from EventType to event class using DomainEvent union."""
+    from app.domain.events.typed import DomainEvent
+
+    union_type = get_args(DomainEvent)[0]
+    classes = list(get_args(union_type)) if get_origin(union_type) is not None else [union_type]
+    return {cls.model_fields["event_type"].default: cls for cls in classes}
 
 
 @lru_cache(maxsize=128)
-def get_event_class_for_type(event_type: EventType) -> Type[BaseEvent] | None:
+def get_event_class_for_type(event_type: EventType) -> type | None:
     """Get the event class for a given event type."""
-    event_map: dict[EventType, Type[BaseEvent]] = {
-        # Execution events
-        EventType.EXECUTION_REQUESTED: ExecutionRequestedEvent,
-        EventType.EXECUTION_ACCEPTED: ExecutionAcceptedEvent,
-        EventType.EXECUTION_QUEUED: ExecutionQueuedEvent,
-        EventType.EXECUTION_STARTED: ExecutionStartedEvent,
-        EventType.EXECUTION_RUNNING: ExecutionRunningEvent,
-        EventType.EXECUTION_COMPLETED: ExecutionCompletedEvent,
-        EventType.EXECUTION_FAILED: ExecutionFailedEvent,
-        EventType.EXECUTION_TIMEOUT: ExecutionTimeoutEvent,
-        EventType.EXECUTION_CANCELLED: ExecutionCancelledEvent,
-        # Pod events
-        EventType.POD_CREATED: PodCreatedEvent,
-        EventType.POD_SCHEDULED: PodScheduledEvent,
-        EventType.POD_RUNNING: PodRunningEvent,
-        EventType.POD_SUCCEEDED: PodSucceededEvent,
-        EventType.POD_FAILED: PodFailedEvent,
-        EventType.POD_TERMINATED: PodTerminatedEvent,
-        EventType.POD_DELETED: PodDeletedEvent,
-        # User events
-        EventType.USER_REGISTERED: UserRegisteredEvent,
-        EventType.USER_LOGIN: UserLoginEvent,
-        EventType.USER_LOGGED_IN: UserLoggedInEvent,
-        EventType.USER_LOGGED_OUT: UserLoggedOutEvent,
-        EventType.USER_UPDATED: UserUpdatedEvent,
-        EventType.USER_DELETED: UserDeletedEvent,
-        EventType.USER_SETTINGS_UPDATED: UserSettingsUpdatedEvent,
-        # Notification events
-        EventType.NOTIFICATION_CREATED: NotificationCreatedEvent,
-        EventType.NOTIFICATION_SENT: NotificationSentEvent,
-        EventType.NOTIFICATION_DELIVERED: NotificationDeliveredEvent,
-        EventType.NOTIFICATION_FAILED: NotificationFailedEvent,
-        EventType.NOTIFICATION_READ: NotificationReadEvent,
-        EventType.NOTIFICATION_CLICKED: NotificationClickedEvent,
-        EventType.NOTIFICATION_PREFERENCES_UPDATED: NotificationPreferencesUpdatedEvent,
-        # Script events
-        EventType.SCRIPT_SAVED: ScriptSavedEvent,
-        EventType.SCRIPT_DELETED: ScriptDeletedEvent,
-        EventType.SCRIPT_SHARED: ScriptSharedEvent,
-        # Security events
-        EventType.SECURITY_VIOLATION: SecurityViolationEvent,
-        EventType.RATE_LIMIT_EXCEEDED: RateLimitExceededEvent,
-        EventType.AUTH_FAILED: AuthFailedEvent,
-        # Resource events
-        EventType.RESOURCE_LIMIT_EXCEEDED: ResourceLimitExceededEvent,
-        EventType.QUOTA_EXCEEDED: QuotaExceededEvent,
-        # System events
-        EventType.SYSTEM_ERROR: SystemErrorEvent,
-        EventType.SERVICE_UNHEALTHY: ServiceUnhealthyEvent,
-        EventType.SERVICE_RECOVERED: ServiceRecoveredEvent,
-        # Result events
-        EventType.RESULT_STORED: ResultStoredEvent,
-        EventType.RESULT_FAILED: ResultFailedEvent,
-        # Saga events
-        EventType.SAGA_STARTED: SagaStartedEvent,
-        EventType.SAGA_COMPLETED: SagaCompletedEvent,
-        EventType.SAGA_FAILED: SagaFailedEvent,
-        EventType.SAGA_CANCELLED: SagaCancelledEvent,
-        EventType.SAGA_COMPENSATING: SagaCompensatingEvent,
-        EventType.SAGA_COMPENSATED: SagaCompensatedEvent,
-        # Saga command events
-        EventType.CREATE_POD_COMMAND: CreatePodCommandEvent,
-        EventType.DELETE_POD_COMMAND: DeletePodCommandEvent,
-        EventType.ALLOCATE_RESOURCES_COMMAND: AllocateResourcesCommandEvent,
-        EventType.RELEASE_RESOURCES_COMMAND: ReleaseResourcesCommandEvent,
-    }
-
-    return event_map.get(event_type)
+    return _get_event_type_to_class().get(event_type)
 
 
 @lru_cache(maxsize=128)
 def get_topic_for_event(event_type: EventType) -> KafkaTopic:
     """Get the Kafka topic for a given event type."""
-    event_class = get_event_class_for_type(event_type)
-    if event_class:
-        return event_class.topic
-
-    # Default fallback
-    return KafkaTopic.SYSTEM_EVENTS
+    return EVENT_TYPE_TO_TOPIC.get(event_type, KafkaTopic.SYSTEM_EVENTS)
 
 
 def get_event_types_for_topic(topic: KafkaTopic) -> list[EventType]:
     """Get all event types that publish to a given topic."""
-    event_types = []
-    for event_type in EventType:
-        if get_topic_for_event(event_type) == topic:
-            event_types.append(event_type)
-    return event_types
+    return [et for et, t in EVENT_TYPE_TO_TOPIC.items() if t == topic]

@@ -1,9 +1,9 @@
 import pytest
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
+from app.domain.events.typed import ExecutionRequestedEvent
 from app.domain.saga import DomainResourceAllocation, DomainResourceAllocationCreate
 from app.events.core import UnifiedProducer
 from app.infrastructure.kafka.events import BaseEvent
-from app.infrastructure.kafka.events.execution import ExecutionRequestedEvent
 from app.services.saga.execution_saga import (
     AllocateResourcesStep,
     CreatePodStep,

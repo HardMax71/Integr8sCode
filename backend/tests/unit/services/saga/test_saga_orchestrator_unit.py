@@ -9,12 +9,12 @@ from app.db.repositories.saga_repository import SagaRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.domain.enums.saga import SagaState
+from app.domain.events.typed import EventMetadata
 from app.domain.saga.models import Saga, SagaConfig
 from app.events.core import UnifiedProducer
 from app.events.event_store import EventStore
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.events import BaseEvent
-from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.services.idempotency.idempotency_manager import IdempotencyManager
 from app.services.saga.base_saga import BaseSaga
 from app.services.saga.saga_orchestrator import SagaOrchestrator
@@ -37,7 +37,7 @@ class _FakeEvent(BaseEvent):
     event_type: EventType  # No default - set explicitly in _make_event()
     execution_id: str = ""
     topic: ClassVar[KafkaTopic] = KafkaTopic.EXECUTION_EVENTS
-    metadata: AvroEventMetadata = Field(default_factory=lambda: AvroEventMetadata(
+    metadata: EventMetadata = Field(default_factory=lambda: EventMetadata(
         service_name="test", service_version="1.0", correlation_id="test-corr-id"
     ))
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

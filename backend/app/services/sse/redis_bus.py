@@ -6,7 +6,7 @@ from typing import Type, TypeVar
 import redis.asyncio as redis
 from pydantic import BaseModel
 
-from app.infrastructure.kafka.events.base import BaseEvent
+from app.domain.events.typed import DomainEvent
 from app.schemas_pydantic.sse import RedisNotificationMessage, RedisSSEMessage
 
 T = TypeVar("T", bound=BaseModel)
@@ -62,7 +62,7 @@ class SSERedisBus:
     def _notif_channel(self, user_id: str) -> str:
         return f"{self._notif_prefix}{user_id}"
 
-    async def publish_event(self, execution_id: str, event: BaseEvent) -> None:
+    async def publish_event(self, execution_id: str, event: DomainEvent) -> None:
         message = RedisSSEMessage(
             event_type=event.event_type,
             execution_id=execution_id,

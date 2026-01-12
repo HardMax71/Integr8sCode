@@ -5,8 +5,8 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from app.db.docs import EventDocument
 from app.domain.enums.events import EventType
+from app.domain.events.typed import DomainEvent
 from app.events.event_store import EventStore
-from app.infrastructure.kafka.events.base import BaseEvent
 from dishka import AsyncContainer
 
 from tests.helpers import make_execution_requested_event
@@ -47,7 +47,7 @@ async def test_event_store_stores_batch(scope: AsyncContainer) -> None:
     store: EventStore = await scope.get(EventStore)
 
     # Create multiple unique events
-    events: list[BaseEvent] = [
+    events: list[DomainEvent] = [
         make_execution_requested_event(execution_id=f"exec-batch-{uuid.uuid4().hex[:8]}")
         for _ in range(5)
     ]
@@ -99,7 +99,7 @@ async def test_event_store_batch_handles_duplicates(scope: AsyncContainer) -> No
 
     # Create a batch with one new event and one duplicate
     new_event = make_execution_requested_event(execution_id=f"exec-batch-new-{uuid.uuid4().hex[:8]}")
-    batch: list[BaseEvent] = [new_event, event]  # event is already stored
+    batch: list[DomainEvent] = [new_event, event]  # event is already stored
 
     results = await store.store_batch(batch)
 
@@ -133,7 +133,7 @@ async def test_event_store_retrieves_by_type(scope: AsyncContainer) -> None:
 
     # Store a few events
     unique_prefix = uuid.uuid4().hex[:8]
-    events: list[BaseEvent] = [
+    events: list[DomainEvent] = [
         make_execution_requested_event(execution_id=f"exec-type-{unique_prefix}-{i}")
         for i in range(3)
     ]

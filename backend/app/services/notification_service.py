@@ -19,6 +19,12 @@ from app.domain.enums.notification import (
     NotificationStatus,
 )
 from app.domain.enums.user import UserRole
+from app.domain.events.typed import (
+    DomainEvent,
+    ExecutionCompletedEvent,
+    ExecutionFailedEvent,
+    ExecutionTimeoutEvent,
+)
 from app.domain.notification import (
     DomainNotification,
     DomainNotificationCreate,
@@ -32,12 +38,6 @@ from app.domain.notification import (
 )
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.infrastructure.kafka.events.base import BaseEvent
-from app.infrastructure.kafka.events.execution import (
-    ExecutionCompletedEvent,
-    ExecutionFailedEvent,
-    ExecutionTimeoutEvent,
-)
 from app.infrastructure.kafka.mappings import get_topic_for_event
 from app.schemas_pydantic.sse import RedisNotificationMessage
 from app.services.event_bus import EventBusManager
@@ -327,7 +327,7 @@ class NotificationService:
             },
         )
 
-        asyncio.create_task(self._deliver_notification(notification))
+        await self._deliver_notification(notification)
 
         return notification
 
@@ -642,7 +642,7 @@ class NotificationService:
             ),
         )
 
-    async def _handle_execution_event(self, event: BaseEvent) -> None:
+    async def _handle_execution_event(self, event: DomainEvent) -> None:
         """Unified handler for execution result events."""
         try:
             if isinstance(event, ExecutionCompletedEvent):

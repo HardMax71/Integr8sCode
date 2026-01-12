@@ -2,9 +2,11 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from pydantic import BaseModel, ConfigDict, Field
+
 from app.core.utils import StringEnum
 from app.domain.enums.events import EventType
-from app.infrastructure.kafka.events import BaseEvent
+from app.domain.events.typed import DomainEvent
 
 
 class DLQMessageStatus(StringEnum):
@@ -26,20 +28,19 @@ class RetryStrategy(StringEnum):
     MANUAL = "manual"
 
 
-@dataclass
-class DLQMessage:
-    """Unified DLQ message model for the entire system."""
+class DLQMessage(BaseModel):
+    """Unified DLQ message model. Access event_id/event_type via event.event_id, event.event_type."""
 
-    event_id: str
-    event: BaseEvent
-    event_type: EventType
-    original_topic: str
-    error: str
-    retry_count: int
-    failed_at: datetime
-    status: DLQMessageStatus
-    producer_id: str
-    created_at: datetime | None = None
+    model_config = ConfigDict(from_attributes=True)
+
+    event: DomainEvent  # Discriminated union - auto-validates from dict
+    original_topic: str = ""
+    error: str = "Unknown error"
+    retry_count: int = 0
+    failed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    status: DLQMessageStatus = DLQMessageStatus.PENDING
+    producer_id: str = "unknown"
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     last_updated: datetime | None = None
     next_retry_at: datetime | None = None
     retried_at: datetime | None = None
@@ -48,11 +49,7 @@ class DLQMessage:
     dlq_offset: int | None = None
     dlq_partition: int | None = None
     last_error: str | None = None
-    headers: dict[str, str] = field(default_factory=dict)
-
-    @property
-    def age_seconds(self) -> float:
-        return (datetime.now(timezone.utc) - self.failed_at).total_seconds()
+    headers: dict[str, str] = Field(default_factory=dict)
 
 
 @dataclass

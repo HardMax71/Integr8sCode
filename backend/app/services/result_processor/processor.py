@@ -12,20 +12,18 @@ from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.kafka import GroupId, KafkaTopic
 from app.domain.enums.storage import ExecutionErrorType, StorageType
-from app.domain.execution import ExecutionNotFoundError, ExecutionResultDomain
-from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
-from app.events.schema.schema_registry import SchemaRegistryManager
-from app.infrastructure.kafka import BaseEvent
-from app.infrastructure.kafka.events.execution import (
+from app.domain.events.typed import (
+    DomainEvent,
+    EventMetadata,
     ExecutionCompletedEvent,
     ExecutionFailedEvent,
     ExecutionTimeoutEvent,
-)
-from app.infrastructure.kafka.events.metadata import AvroEventMetadata as EventMetadata
-from app.infrastructure.kafka.events.system import (
     ResultFailedEvent,
     ResultStoredEvent,
 )
+from app.domain.execution import ExecutionNotFoundError, ExecutionResultDomain
+from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
+from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.idempotency import IdempotencyManager
 from app.services.idempotency.middleware import IdempotentConsumerWrapper
 from app.settings import Settings
@@ -152,17 +150,17 @@ class ResultProcessor(LifecycleEnabled):
         await wrapper.start(self.config.topics)
         return wrapper
 
-    # Wrappers accepting BaseEvent to satisfy dispatcher typing
+    # Wrappers accepting DomainEvent to satisfy dispatcher typing
 
-    async def _handle_completed_wrapper(self, event: BaseEvent) -> None:
+    async def _handle_completed_wrapper(self, event: DomainEvent) -> None:
         assert isinstance(event, ExecutionCompletedEvent)
         await self._handle_completed(event)
 
-    async def _handle_failed_wrapper(self, event: BaseEvent) -> None:
+    async def _handle_failed_wrapper(self, event: DomainEvent) -> None:
         assert isinstance(event, ExecutionFailedEvent)
         await self._handle_failed(event)
 
-    async def _handle_timeout_wrapper(self, event: BaseEvent) -> None:
+    async def _handle_timeout_wrapper(self, event: DomainEvent) -> None:
         assert isinstance(event, ExecutionTimeoutEvent)
         await self._handle_timeout(event)
 

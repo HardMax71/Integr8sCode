@@ -6,9 +6,9 @@ from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics.events import EventMetrics
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
+from app.domain.events.typed import DomainEvent
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.infrastructure.kafka.events.base import BaseEvent
 from app.services.sse.redis_bus import SSERedisBus
 from app.settings import Settings
 
@@ -122,7 +122,7 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
             EventType.POD_DELETED,
         ]
 
-        async def route_event(event: BaseEvent) -> None:
+        async def route_event(event: DomainEvent) -> None:
             data = event.model_dump()
             execution_id = data.get("execution_id")
             if not execution_id:

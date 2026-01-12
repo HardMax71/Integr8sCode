@@ -11,20 +11,20 @@ from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.domain.enums.storage import ExecutionErrorType
-from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
-from app.events.event_store import EventStore
-from app.events.schema.schema_registry import (
-    SchemaRegistryManager,
-)
-from app.infrastructure.kafka.events.execution import (
+from app.domain.events.typed import (
+    CreatePodCommandEvent,
+    EventMetadata,
     ExecutionAcceptedEvent,
     ExecutionCancelledEvent,
     ExecutionCompletedEvent,
     ExecutionFailedEvent,
     ExecutionRequestedEvent,
 )
-from app.infrastructure.kafka.events.metadata import AvroEventMetadata as EventMetadata
-from app.infrastructure.kafka.events.saga import CreatePodCommandEvent
+from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
+from app.events.event_store import EventStore
+from app.events.schema.schema_registry import (
+    SchemaRegistryManager,
+)
 from app.services.coordinator.queue_manager import QueueManager, QueuePriority
 from app.services.coordinator.resource_manager import ResourceAllocation, ResourceManager
 from app.services.idempotency import IdempotencyManager
@@ -242,6 +242,10 @@ class ExecutionCoordinator(LifecycleEnabled):
 
             self.logger.info(f"Execution {event.execution_id} added to queue at position {position}")
 
+            # Schedule immediately if at front of queue (position 0)
+            if position == 0:
+                await self._schedule_execution(event)
+
         except Exception as e:
             self.logger.error(f"Failed to handle execution request {event.execution_id}: {e}", exc_info=True)
             self.metrics.record_coordinator_execution_scheduled("error")
@@ -383,7 +387,6 @@ class ExecutionCoordinator(LifecycleEnabled):
 
     async def _build_command_metadata(self, request: ExecutionRequestedEvent) -> EventMetadata:
         """Build metadata for CreatePodCommandEvent with guaranteed user_id."""
-        # Prefer execution record user_id to avoid missing attribution
         # Prefer execution record user_id to avoid missing attribution
         exec_rec = await self.execution_repository.get_execution(request.execution_id)
         user_id: str = exec_rec.user_id if exec_rec and exec_rec.user_id else "system"

@@ -6,10 +6,10 @@ import pytest
 from app.core.metrics.events import EventMetrics
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
+from app.domain.events.typed import EventMetadata
 from app.events.core import EventDispatcher
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.events import BaseEvent
-from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
 from app.services.sse.redis_bus import SSERedisBus
 from app.settings import Settings
@@ -29,8 +29,8 @@ class _FakeBus(SSERedisBus):
         self.published.append((execution_id, event))
 
 
-def _make_metadata() -> AvroEventMetadata:
-    return AvroEventMetadata(service_name="test", service_version="1.0")
+def _make_metadata() -> EventMetadata:
+    return EventMetadata(service_name="test", service_version="1.0")
 
 
 class _DummyEvent(BaseEvent):

@@ -8,8 +8,8 @@ import redis.asyncio as redis_async
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.domain.enums.notification import NotificationSeverity, NotificationStatus
+from app.domain.events.typed import EventMetadata
 from app.infrastructure.kafka.events import BaseEvent
-from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.schemas_pydantic.sse import RedisNotificationMessage, RedisSSEMessage
 from app.services.sse.redis_bus import SSERedisBus
 
@@ -72,8 +72,8 @@ class _FakeRedis:
         return self._pubsub
 
 
-def _make_metadata() -> AvroEventMetadata:
-    return AvroEventMetadata(service_name="test", service_version="1.0")
+def _make_metadata() -> EventMetadata:
+    return EventMetadata(service_name="test", service_version="1.0")
 
 
 @pytest.mark.asyncio

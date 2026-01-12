@@ -12,8 +12,7 @@ from app.core.correlation import CorrelationContext
 from app.core.utils import get_client_ip
 from app.domain.enums.common import SortOrder
 from app.domain.events.event_models import EventFilter
-from app.domain.events.typed import BaseEvent
-from app.infrastructure.kafka.events.metadata import AvroEventMetadata as EventMetadata
+from app.domain.events.typed import BaseEvent, EventMetadata
 from app.schemas_pydantic.events import (
     DeleteEventResponse,
     EventAggregationRequest,

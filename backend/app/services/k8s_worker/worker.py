@@ -14,18 +14,19 @@ from app.core.metrics import ExecutionMetrics, KubernetesMetrics
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.domain.enums.storage import ExecutionErrorType
+from app.domain.events.typed import (
+    CreatePodCommandEvent,
+    DeletePodCommandEvent,
+    DomainEvent,
+    ExecutionFailedEvent,
+    ExecutionStartedEvent,
+    PodCreatedEvent,
+)
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
 from app.events.event_store import EventStore
 from app.events.schema.schema_registry import (
     SchemaRegistryManager,
 )
-from app.infrastructure.kafka.events.base import BaseEvent
-from app.infrastructure.kafka.events.execution import (
-    ExecutionFailedEvent,
-    ExecutionStartedEvent,
-)
-from app.infrastructure.kafka.events.pod import PodCreatedEvent
-from app.infrastructure.kafka.events.saga import CreatePodCommandEvent, DeletePodCommandEvent
 from app.runtime_registry import RUNTIME_REGISTRY
 from app.services.idempotency import IdempotencyManager
 from app.services.idempotency.middleware import IdempotentConsumerWrapper
@@ -211,13 +212,13 @@ class KubernetesWorker(LifecycleEnabled):
             self.logger.error(f"Failed to initialize Kubernetes client: {e}")
             raise
 
-    async def _handle_create_pod_command_wrapper(self, event: BaseEvent) -> None:
+    async def _handle_create_pod_command_wrapper(self, event: DomainEvent) -> None:
         """Wrapper for handling CreatePodCommandEvent with type safety."""
         assert isinstance(event, CreatePodCommandEvent)
         self.logger.info(f"Processing create_pod_command for execution {event.execution_id} from saga {event.saga_id}")
         await self._handle_create_pod_command(event)
 
-    async def _handle_delete_pod_command_wrapper(self, event: BaseEvent) -> None:
+    async def _handle_delete_pod_command_wrapper(self, event: DomainEvent) -> None:
         """Wrapper for handling DeletePodCommandEvent."""
         assert isinstance(event, DeletePodCommandEvent)
         self.logger.info(f"Processing delete_pod_command for execution {event.execution_id} from saga {event.saga_id}")

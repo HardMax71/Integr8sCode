@@ -1,10 +1,10 @@
 # Event system design
 
-This document explains how events flow through the system, why there are multiple event representations, and how they work together. If you've looked at the codebase and wondered why we have both domain events and Kafka events that look almost identical, this is where that question gets answered.
+This document explains how events flow through the system and how domain events are both stored and serialized for Kafka transport.
 
-## The three layers
+## The unified event model
 
-Events in Integr8sCode exist in three forms:
+Events in Integr8sCode use a unified design where domain events are directly Avro-serializable:
 
 ```mermaid
 graph LR
@@ -13,50 +13,40 @@ graph LR
     end
 
     subgraph "Domain Layer"
-        DE[Domain Events<br/>typed.py]
+        DE[Domain Events<br/>typed.py<br/>extends AvroBase]
     end
 
-    subgraph "Infrastructure Layer"
-        KE[Kafka Events<br/>kafka/events/]
+    subgraph "Infrastructure"
+        M[Mappings<br/>kafka/mappings.py]
     end
 
     ET --> DE
-    ET --> KE
-    DE -.->|"same event_type"| KE
+    DE --> M
+    M --> Kafka[(Kafka Topics)]
+    DE --> MongoDB[(MongoDB)]
 ```
 
-The `EventType` enum defines all possible event types as strings. Domain events are Pydantic models used for storage in MongoDB and deserialization from the event store. Kafka events are Avro-compatible models used for serialization to Kafka topics. Both reference the same `EventType` values, ensuring consistency.
+The `EventType` enum defines all possible event types as strings. Domain events are Pydantic models that extend `AvroBase` (from `pydantic-avro`), making them both usable for MongoDB storage and Avro-serializable for Kafka. The mappings module routes events to the correct Kafka topics.
 
-This might look like unnecessary duplication, but it's actually a deliberate architectural choice rooted in Domain-Driven Design.
+This design eliminates duplication between "domain events" and "Kafka events" by making the domain event the single source of truth.
 
-## Why two event classes?
+## Why a unified model?
 
-In DDD terminology, what we call "domain events" and "Kafka events" map to two different concepts: domain events and integration events.
+Earlier designs maintained separate domain and Kafka event classes, arguing that domain events shouldn't know about infrastructure concerns. In practice, this created:
 
-Domain events are internal to the bounded context. They carry whatever information the domain needs, including storage-related fields like `stored_at` and `ttl_expires_at`. These events get stored in MongoDB and replayed during event sourcing operations.
+- Duplicate class definitions for every event type
+- Transformation logic between layers
+- Risk of drift when fields changed
+- Extra maintenance burden
 
-Integration events cross bounded context boundaries. They flow through Kafka to other services or workers. They need to be serializable to Avro, which means they can't contain arbitrary Python objects. They carry routing information like the `topic` ClassVar.
+The unified approach addresses these issues:
 
-```mermaid
-graph TB
-    subgraph "Bounded Context: Backend"
-        API[API Handler] --> DS[Domain Service]
-        DS --> DomainEvent[Domain Event]
-        DomainEvent --> MongoDB[(MongoDB)]
-        DomainEvent --> Transform[Transform]
-        Transform --> KafkaEvent[Kafka Event]
-    end
+- **Single definition**: Each event is defined once in `domain/events/typed.py`
+- **Avro-compatible**: `BaseEvent` extends `AvroBase`, enabling automatic schema generation
+- **Storage-ready**: Events include storage fields (`stored_at`, `ttl_expires_at`) that MongoDB uses
+- **Topic routing**: The `EVENT_TYPE_TO_TOPIC` mapping in `infrastructure/kafka/mappings.py` handles routing
 
-    KafkaEvent --> Kafka[(Kafka)]
-
-    subgraph "Other Contexts"
-        Kafka --> Worker1[Saga Orchestrator]
-        Kafka --> Worker2[Pod Monitor]
-        Kafka --> Worker3[Result Processor]
-    end
-```
-
-The transformation between domain and Kafka events happens in `KafkaEventService`. When you call `publish_event()`, the service stores the domain event in MongoDB and publishes the corresponding Kafka event to the appropriate topic.
+Infrastructure concerns (Kafka topics) are kept separate through the mappings module rather than embedded in event classes.
 
 ## How discriminated unions work
 
@@ -102,59 +92,107 @@ sequenceDiagram
 
 This approach is more performant than trying each union member until one validates. The discriminator tells Pydantic exactly which class to use.
 
-## Keeping things in sync
+## BaseEvent and AvroBase
 
-With three representations of each event, there's a risk of drift. You might add a new `EventType` value but forget to create the corresponding domain or Kafka event class. Or you might create a Kafka event but forget to add it to the `DomainEvent` union.
-
-The `test_event_schema_coverage.py` test suite catches these problems:
+The `BaseEvent` class provides common fields for all events and inherits from `AvroBase` for Avro schema generation:
 
 ```python
---8<-- "backend/tests/unit/domain/events/test_event_schema_coverage.py:59:72"
+class BaseEvent(AvroBase):
+    """Base fields for all domain events."""
+    model_config = ConfigDict(from_attributes=True)
+
+    event_id: str = Field(default_factory=lambda: str(uuid4()))
+    event_type: EventType
+    event_version: str = "1.0"
+    timestamp: datetime = Field(default_factory=...)
+    aggregate_id: str | None = None
+    metadata: EventMetadata
+    stored_at: datetime = Field(default_factory=...)
+    ttl_expires_at: datetime = Field(default_factory=...)
 ```
 
-The test runs in CI and fails if any `EventType` value lacks a corresponding event class. It also checks the reverse: that no orphan event classes exist without matching enum values.
+The `AvroBase` inheritance enables:
+- Automatic Avro schema generation via `BaseEvent.avro_schema()`
+- Serialization through the Schema Registry
+- Forward compatibility checking
 
-When adding a new event type, the workflow is:
+## Topic routing
+
+Events are routed to Kafka topics through the `EVENT_TYPE_TO_TOPIC` mapping:
+
+```python
+# infrastructure/kafka/mappings.py
+EVENT_TYPE_TO_TOPIC: Dict[EventType, KafkaTopic] = {
+    EventType.EXECUTION_REQUESTED: KafkaTopic.EXECUTION_EVENTS,
+    EventType.EXECUTION_COMPLETED: KafkaTopic.EXECUTION_EVENTS,
+    EventType.POD_CREATED: KafkaTopic.EXECUTION_EVENTS,
+    EventType.SAGA_STARTED: KafkaTopic.SAGA_EVENTS,
+    # ... all event types
+}
+```
+
+Helper functions provide type-safe access:
+
+```python
+def get_topic_for_event(event_type: EventType) -> KafkaTopic:
+    return EVENT_TYPE_TO_TOPIC.get(event_type, KafkaTopic.SYSTEM_EVENTS)
+
+def get_event_class_for_type(event_type: EventType) -> type | None:
+    return _get_event_type_to_class().get(event_type)
+```
+
+## Keeping things in sync
+
+With the unified model, there's less risk of drift since each event is defined once. The `test_event_schema_coverage.py` test suite validates:
+
+1. Every `EventType` has a corresponding domain event class
+2. Every event class has a valid `event_type` default
+3. The `DomainEvent` union includes all event types
+4. No orphan classes exist without matching enum values
+
+When adding a new event type:
 
 1. Add the value to `EventType` enum
-2. Create the domain event class in `typed.py`
+2. Create the event class in `typed.py` with the correct `event_type` default
 3. Add it to the `DomainEvent` union
-4. Create the Kafka event class in `kafka/events/`
-5. Export it from `kafka/events/__init__.py`
+4. Add the topic mapping in `infrastructure/kafka/mappings.py`
 
 If you miss a step, the test tells you exactly what's missing.
 
-## The Avro connection
+## Event flow
 
-Kafka events inherit from `AvroBase` (via `pydantic-avro`), which enables automatic Avro schema generation. The schema registry stores these schemas and validates that producers and consumers agree on the format.
+```mermaid
+graph TB
+    subgraph "Bounded Context: Backend"
+        API[API Handler] --> DS[Domain Service]
+        DS --> DomainEvent[Domain Event]
+        DomainEvent --> MongoDB[(MongoDB)]
+        DomainEvent --> Producer[UnifiedProducer]
+    end
 
-```python
---8<-- "backend/app/infrastructure/kafka/events/base.py:13:27"
+    Producer --> Kafka[(Kafka)]
+
+    subgraph "Consumers"
+        Kafka --> Worker1[Saga Orchestrator]
+        Kafka --> Worker2[Pod Monitor]
+        Kafka --> Worker3[Result Processor]
+    end
 ```
 
-Each Kafka event class also declares its target topic as a class variable. The producer uses this to route events to the correct topic without external mapping tables.
+When publishing events, the `UnifiedProducer`:
+1. Looks up the topic via `EVENT_TYPE_TO_TOPIC`
+2. Serializes the event using the Schema Registry
+3. Publishes to Kafka
 
-## Why not just one event class?
-
-You could theoretically use the same class for both domain and Kafka purposes. The domain-specific fields (`stored_at`, `ttl_expires_at`) could be excluded from Avro serialization with `exclude=True`. The `topic` ClassVar wouldn't serialize anyway.
-
-This is a valid simplification if your domain and integration events have identical payloads. But there are reasons to keep them separate:
-
-The domain layer shouldn't know about Kafka topics. Adding `topic: ClassVar[KafkaTopic]` to a domain event couples it to infrastructure concerns. DDD purists would argue this violates the dependency rule.
-
-Avro has constraints that don't apply to MongoDB. Avro schemas don't support arbitrary nested dicts, certain datetime formats, or MongoDB-specific types like ObjectId. Keeping Kafka events separate means you can optimize them for wire format without affecting domain logic.
-
-The two layers can evolve independently. If you need to change how events are stored in MongoDB, you don't have to worry about breaking Kafka consumers. If you need to add a field to Kafka events for a new consumer, you can do so without touching the domain layer.
-
-That said, if your events are simple and you want less code to maintain, unifying them is a reasonable choice. The current architecture prioritizes separation of concerns over minimizing duplication.
+The producer handles both storage in MongoDB and publishing to Kafka in a single flow.
 
 ## Key files
 
 | File | Purpose |
 |------|---------|
 | [`domain/enums/events.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/domain/enums/events.py) | `EventType` enum with all event type values |
-| [`domain/events/typed.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/domain/events/typed.py) | Domain event classes and `DomainEvent` union |
-| [`infrastructure/kafka/events/`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/infrastructure/kafka/events/) | Kafka event classes organized by domain |
+| [`domain/events/typed.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/domain/events/typed.py) | All domain event classes and `DomainEvent` union |
+| [`infrastructure/kafka/mappings.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/infrastructure/kafka/mappings.py) | Event-to-topic routing and helper functions |
 | [`services/kafka_event_service.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/kafka_event_service.py) | Publishes events to both MongoDB and Kafka |
 | [`tests/unit/domain/events/test_event_schema_coverage.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/tests/unit/domain/events/test_event_schema_coverage.py) | Validates correspondence between enum and event classes |
 

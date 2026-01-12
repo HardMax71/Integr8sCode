@@ -9,7 +9,7 @@ All user settings changes emit a single `USER_SETTINGS_UPDATED` event type. Ther
 notifications, or editor settings. This eliminates branching in both publishing and consuming code.
 
 ```python
---8<-- "backend/app/infrastructure/kafka/events/user.py:72:86"
+--8<-- "backend/app/domain/events/typed.py:UserSettingsUpdatedEvent"
 ```
 
 The `changed_fields` list identifies which settings changed. Typed fields (`theme`, `notifications`, `editor`, etc.)
@@ -91,7 +91,7 @@ The `get_settings_history` method returns a list of changes extracted from event
 | [`services/user_settings_service.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/user_settings_service.py)                     | Settings service with caching and event sourcing             |
 | [`services/event_bus.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/event_bus.py)                                             | Cross-instance event distribution                            |
 | [`domain/user/settings_models.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/domain/user/settings_models.py)                           | `DomainUserSettings`, `DomainUserSettingsUpdate` dataclasses |
-| [`infrastructure/kafka/events/user.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/infrastructure/kafka/events/user.py)                 | `UserSettingsUpdatedEvent` definition                        |
+| [`domain/events/typed.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/domain/events/typed.py)                                           | `UserSettingsUpdatedEvent` definition                        |
 | [`db/repositories/user_settings_repository.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/db/repositories/user_settings_repository.py) | Snapshot and event queries                                   |
 
 ## Related docs

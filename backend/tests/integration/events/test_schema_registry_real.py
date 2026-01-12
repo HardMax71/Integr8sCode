@@ -1,9 +1,8 @@
 import logging
 
 import pytest
+from app.domain.events.typed import EventMetadata, PodCreatedEvent
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.infrastructure.kafka.events.metadata import AvroEventMetadata
-from app.infrastructure.kafka.events.pod import PodCreatedEvent
 from app.settings import Settings
 
 pytestmark = [pytest.mark.integration, pytest.mark.kafka]
@@ -19,7 +18,7 @@ async def test_serialize_and_deserialize_event_real_registry(test_settings: Sett
         execution_id="e1",
         pod_name="p",
         namespace="n",
-        metadata=AvroEventMetadata(service_name="s", service_version="1"),
+        metadata=EventMetadata(service_name="s", service_version="1"),
     )
     data = await m.serialize_event(ev)
     obj = await m.deserialize_event(data, topic=str(ev.topic))

@@ -1,19 +1,19 @@
 import logging
 
 from app.domain.enums.events import EventType
+from app.domain.events.typed import DomainEvent
 from app.events.core import EventDispatcher
-from app.infrastructure.kafka.events.base import BaseEvent
 
 from tests.helpers import make_execution_requested_event
 
 _test_logger = logging.getLogger("test.events.event_dispatcher")
 
 
-def make_event() -> BaseEvent:
+def make_event() -> DomainEvent:
     return make_execution_requested_event(execution_id="e1")
 
 
-async def _async_noop(_: BaseEvent) -> None:
+async def _async_noop(_: DomainEvent) -> None:
     return None
 
 
@@ -34,7 +34,7 @@ def test_decorator_registration() -> None:
     disp = EventDispatcher(logger=_test_logger)
 
     @disp.register(EventType.EXECUTION_REQUESTED)
-    async def handler(ev: BaseEvent) -> None:  # noqa: ARG001
+    async def handler(ev: DomainEvent) -> None:  # noqa: ARG001
         return None
 
     assert len(disp.get_handlers(EventType.EXECUTION_REQUESTED)) == 1
@@ -45,7 +45,7 @@ async def test_dispatch_metrics_processed_and_skipped() -> None:
     called = {"n": 0}
 
     @disp.register(EventType.EXECUTION_REQUESTED)
-    async def handler(_: BaseEvent) -> None:
+    async def handler(_: DomainEvent) -> None:
         called["n"] += 1
 
     await disp.dispatch(make_event())

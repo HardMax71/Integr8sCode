@@ -6,8 +6,6 @@ from app.services.result_processor.resource_cleaner import ResourceCleaner
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
 
-from tests.helpers.eventually import eventually
-
 pytestmark = [pytest.mark.e2e, pytest.mark.k8s]
 
 _test_logger = logging.getLogger("test.k8s.resource_cleaner_orphan")
@@ -37,16 +35,12 @@ async def test_cleanup_orphaned_configmaps_dry_run() -> None:
 
     try:
         cleaner = ResourceCleaner(logger=_test_logger)
-        # Force as orphaned by using a large cutoff
-        await cleaner.cleanup_orphaned_resources(namespace=ns, max_age_hours=0, dry_run=True)
-
-        # We expect our configmap to be a candidate; poll the response
-        async def _has_cm() -> None:
-            # If cleaner is non-deterministic across runs, re-invoke to reflect current state
-            res = await cleaner.cleanup_orphaned_resources(namespace=ns, max_age_hours=0, dry_run=True)
-            assert any(name == cm for cm in res.get("configmaps", []))
-
-        await eventually(_has_cm, timeout=2.0, interval=0.1)
+        # Force as orphaned by using a large cutoff - ConfigMap created synchronously, available now
+        res = await cleaner.cleanup_orphaned_resources(namespace=ns, max_age_hours=0, dry_run=True)
+        # ConfigMap should be detected immediately
+        assert any(name == cm for cm in res.get("configmaps", [])), (
+            f"Expected ConfigMap '{name}' to be detected as orphan candidate"
+        )
     finally:
         # Cleanup resource
         try:

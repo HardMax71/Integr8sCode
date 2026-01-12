@@ -2,7 +2,6 @@ import asyncio
 import logging
 import signal
 from contextlib import AsyncExitStack
-from typing import Optional
 
 from app.core.container import create_dlq_processor_container
 from app.core.database_context import Database
@@ -72,37 +71,13 @@ def _configure_filters(manager: DLQManager, testing: bool, logger: logging.Logge
     manager.add_filter(filter_old_messages)
 
 
-def _configure_callbacks(manager: DLQManager, testing: bool, logger: logging.Logger) -> None:
-    async def log_before_retry(message: DLQMessage) -> None:
-        logger.info(
-            f"Retrying message {message.event_id} (type: {message.event_type}, "
-            f"topic: {message.original_topic}, retry: {message.retry_count + 1})"
-        )
-
-    manager.add_callback("before_retry", log_before_retry)
-
-    async def log_after_retry(message: DLQMessage, success: bool, error: Optional[Exception] = None) -> None:
-        if success:
-            logger.info(f"Successfully retried message {message.event_id} to topic {message.original_topic}")
-        else:
-            logger.error(f"Failed to retry message {message.event_id}: {error}")
-
-    manager.add_callback("after_retry", log_after_retry)
-
-    async def alert_on_discard(message: DLQMessage, reason: str) -> None:
-        logger.warning(
-            f"Message {message.event_id} discarded! Type: {message.event_type}, Topic: {message.original_topic}, "
-            f"Reason: {reason}, Original error: {message.error}"
-        )
-        if not testing:
-            pass
-
-    manager.add_callback("on_discard", alert_on_discard)
-
-
 async def main(settings: Settings) -> None:
-    """Run the DLQ processor."""
+    """Run the DLQ processor.
 
+    DLQ lifecycle events (received, retried, discarded) are emitted to the
+    dlq_events Kafka topic for external observability. Logging is handled
+    internally by the DLQ manager.
+    """
     container = create_dlq_processor_container(settings)
     logger = await container.get(logging.Logger)
     logger.info("Starting DLQ Processor with DI container...")
@@ -114,7 +89,6 @@ async def main(settings: Settings) -> None:
 
     _configure_retry_policies(manager, logger)
     _configure_filters(manager, testing=settings.TESTING, logger=logger)
-    _configure_callbacks(manager, testing=settings.TESTING, logger=logger)
 
     stop_event = asyncio.Event()
     loop = asyncio.get_running_loop()

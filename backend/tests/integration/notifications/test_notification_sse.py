@@ -1,3 +1,4 @@
+import asyncio
 from uuid import uuid4
 
 import pytest
@@ -6,8 +7,6 @@ from app.schemas_pydantic.sse import RedisNotificationMessage
 from app.services.notification_service import NotificationService
 from app.services.sse.redis_bus import SSERedisBus
 from dishka import AsyncContainer
-
-from tests.helpers.eventually import eventually
 
 pytestmark = [pytest.mark.integration, pytest.mark.redis]
 
@@ -25,6 +24,7 @@ async def test_in_app_notification_published_to_sse(scope: AsyncContainer) -> No
     await svc.update_subscription(user_id, NotificationChannel.IN_APP, True)
 
     # Create notification via service (IN_APP channel triggers SSE publish)
+    # Delivery is now awaited synchronously - message in Redis immediately
     await svc.create_notification(
         user_id=user_id,
         subject="Hello",
@@ -34,14 +34,10 @@ async def test_in_app_notification_published_to_sse(scope: AsyncContainer) -> No
         channel=NotificationChannel.IN_APP,
     )
 
-    # Receive published SSE payload
-    async def _recv() -> RedisNotificationMessage:
-        m = await sub.get(RedisNotificationMessage)
-        assert m is not None
-        return m
-
-    msg = await eventually(_recv, timeout=5.0, interval=0.1)
+    # Await the subscription directly - true async, no polling
+    msg = await asyncio.wait_for(sub.get(RedisNotificationMessage), timeout=5.0)
     # Basic shape assertions
+    assert msg is not None
     assert msg.subject == "Hello"
     assert msg.body == "World"
     assert msg.notification_id

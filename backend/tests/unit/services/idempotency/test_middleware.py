@@ -2,8 +2,8 @@ import logging
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from app.domain.events.typed import DomainEvent
 from app.domain.idempotency import IdempotencyStatus
-from app.infrastructure.kafka.events.base import BaseEvent
 from app.services.idempotency.idempotency_manager import IdempotencyManager, IdempotencyResult
 from app.services.idempotency.middleware import (
     IdempotentEventHandler,
@@ -28,7 +28,7 @@ class TestIdempotentEventHandler:
 
     @pytest.fixture
     def event(self) -> MagicMock:
-        event = MagicMock(spec=BaseEvent)
+        event = MagicMock(spec=DomainEvent)
         event.event_type = "test.event"
         event.event_id = "event-123"
         return event

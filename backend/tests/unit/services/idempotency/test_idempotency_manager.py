@@ -2,7 +2,7 @@ import logging
 from unittest.mock import MagicMock
 
 import pytest
-from app.infrastructure.kafka.events.base import BaseEvent
+from app.domain.events.typed import BaseEvent
 from app.services.idempotency.idempotency_manager import (
     IdempotencyConfig,
     IdempotencyKeyStrategy,

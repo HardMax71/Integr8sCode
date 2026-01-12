@@ -4,11 +4,11 @@ from typing import Any, Generic, Optional, TypeVar
 
 from fastapi.encoders import jsonable_encoder
 
-from app.infrastructure.kafka.events import BaseEvent
+from app.domain.events.typed import DomainEvent
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar("T", bound=BaseEvent)
+T = TypeVar("T", bound=DomainEvent)
 
 
 class SagaContext:
@@ -18,7 +18,7 @@ class SagaContext:
         self.saga_id = saga_id
         self.execution_id = execution_id
         self.data: dict[str, Any] = {}
-        self.events: list[BaseEvent] = []
+        self.events: list[DomainEvent] = []
         self.compensations: list[CompensationStep] = []
         self.current_step: Optional[str] = None
         self.error: Optional[Exception] = None
@@ -31,7 +31,7 @@ class SagaContext:
         """Get context data"""
         return self.data.get(key, default)
 
-    def add_event(self, event: BaseEvent) -> None:
+    def add_event(self, event: DomainEvent) -> None:
         """Add event to context"""
         self.events.append(event)
 

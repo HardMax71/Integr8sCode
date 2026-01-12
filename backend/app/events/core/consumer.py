@@ -12,8 +12,8 @@ from app.core.metrics.context import get_event_metrics
 from app.core.tracing import EventAttributes
 from app.core.tracing.utils import extract_trace_context, get_tracer
 from app.domain.enums.kafka import KafkaTopic
+from app.domain.events.typed import DomainEvent
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.infrastructure.kafka.events.base import BaseEvent
 from app.settings import Settings
 
 from .dispatcher import EventDispatcher
@@ -38,7 +38,7 @@ class UnifiedConsumer:
         self._running = False
         self._metrics = ConsumerMetrics()
         self._event_metrics = get_event_metrics()  # Singleton for Kafka metrics
-        self._error_callback: "Callable[[Exception, BaseEvent], Awaitable[None]] | None" = None
+        self._error_callback: "Callable[[Exception, DomainEvent], Awaitable[None]] | None" = None
         self._consume_task: asyncio.Task[None] | None = None
         self._topic_prefix = settings.KAFKA_TOPIC_PREFIX
 
@@ -190,7 +190,7 @@ class UnifiedConsumer:
             if self._error_callback:
                 await self._error_callback(e, event)
 
-    def register_error_callback(self, callback: Callable[[Exception, BaseEvent], Awaitable[None]]) -> None:
+    def register_error_callback(self, callback: Callable[[Exception, DomainEvent], Awaitable[None]]) -> None:
         self._error_callback = callback
 
     @property

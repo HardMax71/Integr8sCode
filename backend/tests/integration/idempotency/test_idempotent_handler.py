@@ -1,7 +1,7 @@
 import logging
 
 import pytest
-from app.infrastructure.kafka.events.base import BaseEvent
+from app.domain.events.typed import DomainEvent
 from app.services.idempotency.idempotency_manager import IdempotencyManager
 from app.services.idempotency.middleware import IdempotentEventHandler
 from dishka import AsyncContainer
@@ -19,7 +19,7 @@ async def test_idempotent_handler_blocks_duplicates(scope: AsyncContainer) -> No
 
     processed: list[str | None] = []
 
-    async def _handler(ev: BaseEvent) -> None:
+    async def _handler(ev: DomainEvent) -> None:
         processed.append(ev.event_id)
 
     handler = IdempotentEventHandler(
@@ -43,7 +43,7 @@ async def test_idempotent_handler_content_hash_blocks_same_content(scope: AsyncC
 
     processed: list[str] = []
 
-    async def _handler(ev: BaseEvent) -> None:
+    async def _handler(ev: DomainEvent) -> None:
         processed.append(getattr(ev, "execution_id", ""))
 
     handler = IdempotentEventHandler(

@@ -3,11 +3,10 @@ import os
 import uuid
 
 import pytest
+from app.domain.events.typed import CreatePodCommandEvent, EventMetadata
 from app.events.core import UnifiedProducer
 from app.events.event_store import EventStore
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.infrastructure.kafka.events.metadata import AvroEventMetadata
-from app.infrastructure.kafka.events.saga import CreatePodCommandEvent
 from app.services.idempotency import IdempotencyManager
 from app.services.k8s_worker.config import K8sWorkerConfig
 from app.services.k8s_worker.worker import KubernetesWorker
@@ -67,7 +66,7 @@ async def test_worker_creates_configmap_and_pod(
         cpu_request="50m",
         memory_request="64Mi",
         priority=5,
-        metadata=AvroEventMetadata(service_name="tests", service_version="1", user_id="u1"),
+        metadata=EventMetadata(service_name="tests", service_version="1", user_id="u1"),
     )
 
     # Build and create ConfigMap + Pod

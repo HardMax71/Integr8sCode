@@ -49,6 +49,7 @@ class KafkaTopic(StringEnum):
 
     # Infrastructure topics
     DEAD_LETTER_QUEUE = "dead_letter_queue"
+    DLQ_EVENTS = "dlq_events"
     EVENT_BUS_STREAM = "event_bus_stream"
     WEBSOCKET_EVENTS = "websocket_events"
 

@@ -6,8 +6,8 @@ from typing import Any, Awaitable, Callable, Dict, Set
 
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
+from app.domain.events.typed import DomainEvent
 from app.events.core import EventDispatcher, UnifiedConsumer
-from app.infrastructure.kafka.events.base import BaseEvent
 from app.services.idempotency.idempotency_manager import IdempotencyManager
 
 
@@ -16,15 +16,15 @@ class IdempotentEventHandler:
 
     def __init__(
         self,
-        handler: Callable[[BaseEvent], Awaitable[None]],
+        handler: Callable[[DomainEvent], Awaitable[None]],
         idempotency_manager: IdempotencyManager,
         logger: logging.Logger,
         key_strategy: str = "event_based",
-        custom_key_func: Callable[[BaseEvent], str] | None = None,
+        custom_key_func: Callable[[DomainEvent], str] | None = None,
         fields: Set[str] | None = None,
         ttl_seconds: int | None = None,
         cache_result: bool = True,
-        on_duplicate: Callable[[BaseEvent, Any], Any] | None = None,
+        on_duplicate: Callable[[DomainEvent, Any], Any] | None = None,
     ):
         self.handler = handler
         self.idempotency_manager = idempotency_manager
@@ -36,7 +36,7 @@ class IdempotentEventHandler:
         self.cache_result = cache_result
         self.on_duplicate = on_duplicate
 
-    async def __call__(self, event: BaseEvent) -> None:
+    async def __call__(self, event: DomainEvent) -> None:
         """Process event with idempotency check"""
         self.logger.info(
             f"IdempotentEventHandler called for event {event.event_type}, "
@@ -94,15 +94,15 @@ def idempotent_handler(
     idempotency_manager: IdempotencyManager,
     logger: logging.Logger,
     key_strategy: str = "event_based",
-    custom_key_func: Callable[[BaseEvent], str] | None = None,
+    custom_key_func: Callable[[DomainEvent], str] | None = None,
     fields: Set[str] | None = None,
     ttl_seconds: int | None = None,
     cache_result: bool = True,
-    on_duplicate: Callable[[BaseEvent, Any], Any] | None = None,
-) -> Callable[[Callable[[BaseEvent], Awaitable[None]]], Callable[[BaseEvent], Awaitable[None]]]:
+    on_duplicate: Callable[[DomainEvent, Any], Any] | None = None,
+) -> Callable[[Callable[[DomainEvent], Awaitable[None]]], Callable[[DomainEvent], Awaitable[None]]]:
     """Decorator for making event handlers idempotent"""
 
-    def decorator(func: Callable[[BaseEvent], Awaitable[None]]) -> Callable[[BaseEvent], Awaitable[None]]:
+    def decorator(func: Callable[[DomainEvent], Awaitable[None]]) -> Callable[[DomainEvent], Awaitable[None]]:
         handler = IdempotentEventHandler(
             handler=func,
             idempotency_manager=idempotency_manager,
@@ -139,7 +139,7 @@ class IdempotentConsumerWrapper:
         self.default_key_strategy = default_key_strategy
         self.default_ttl_seconds = default_ttl_seconds
         self.enable_for_all_handlers = enable_for_all_handlers
-        self._original_handlers: Dict[EventType, list[Callable[[BaseEvent], Awaitable[None]]]] = {}
+        self._original_handlers: Dict[EventType, list[Callable[[DomainEvent], Awaitable[None]]]] = {}
 
     def make_handlers_idempotent(self) -> None:
         """Wrap all registered handlers with idempotency"""
@@ -157,7 +157,7 @@ class IdempotentConsumerWrapper:
 
         # Wrap each handler
         for event_type, handlers in self._original_handlers.items():
-            wrapped_handlers: list[Callable[[BaseEvent], Awaitable[None]]] = []
+            wrapped_handlers: list[Callable[[DomainEvent], Awaitable[None]]] = []
             for handler in handlers:
                 # Wrap with idempotency - IdempotentEventHandler is callable with the right signature
                 wrapped = IdempotentEventHandler(
@@ -180,13 +180,13 @@ class IdempotentConsumerWrapper:
     def subscribe_idempotent_handler(
         self,
         event_type: str,
-        handler: Callable[[BaseEvent], Awaitable[None]],
+        handler: Callable[[DomainEvent], Awaitable[None]],
         key_strategy: str | None = None,
-        custom_key_func: Callable[[BaseEvent], str] | None = None,
+        custom_key_func: Callable[[DomainEvent], str] | None = None,
         fields: Set[str] | None = None,
         ttl_seconds: int | None = None,
         cache_result: bool = True,
-        on_duplicate: Callable[[BaseEvent, Any], Any] | None = None,
+        on_duplicate: Callable[[DomainEvent, Any], Any] | None = None,
     ) -> None:
         """Subscribe an idempotent handler for specific event type"""
         # Create the idempotent handler wrapper
@@ -252,7 +252,7 @@ class IdempotentConsumerWrapper:
         # Register with the dispatcher if available
         if self.dispatcher:
             # Create wrapper for EventDispatcher
-            async def dispatch_handler(event: BaseEvent) -> None:
+            async def dispatch_handler(event: DomainEvent) -> None:
                 await idempotent_wrapper(event)
 
             self.dispatcher.register(EventType(event_type))(dispatch_handler)

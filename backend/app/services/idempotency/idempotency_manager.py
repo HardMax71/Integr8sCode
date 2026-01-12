@@ -9,8 +9,8 @@ from pydantic import BaseModel
 from pymongo.errors import DuplicateKeyError
 
 from app.core.metrics.context import get_database_metrics
+from app.domain.events.typed import BaseEvent
 from app.domain.idempotency import IdempotencyRecord, IdempotencyStats, IdempotencyStatus
-from app.infrastructure.kafka.events import BaseEvent
 
 
 class IdempotencyResult(BaseModel):

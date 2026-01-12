@@ -20,7 +20,7 @@ The `SchemaRegistryManager` class in `app/events/schema/schema_registry.py` hand
 
 Each event class (subclass of `BaseEvent`) generates its own Avro schema from Pydantic model definitions. The manager registers these schemas with subjects named after the class (like `ExecutionRequestedEvent-value`) and sets FORWARD compatibility, meaning new schemas can add fields but not remove required ones. This allows producers to be upgraded before consumers without breaking deserialization.
 
-Serialization uses the Confluent wire format: a magic byte, four-byte schema id, then the Avro binary payload. The manager caches serializers per subject and maintains a bidirectional cache between schema ids and Python classes. When deserializing, it reads the schema id from the message header, looks up the corresponding event class, deserializes the Avro payload to a dict, and hydrates the Pydantic model.
+Serialization uses the Confluent wire format: a magic byte, four-byte schema id, then the Avro binary payload. The underlying `python-schema-registry-client` library handles schema registration caching internally. The manager maintains a bidirectional cache between schema ids and Python event classes for deserialization. When deserializing, it reads the schema id from the message header, looks up the corresponding event class, deserializes the Avro payload to a dict, and hydrates the Pydantic model.
 
 For test isolation, the manager supports an optional `SCHEMA_SUBJECT_PREFIX` environment variable. Setting this to something like `test.session123.` prefixes all subject names, preventing test runs from polluting production schemas or interfering with each other.
 

@@ -47,7 +47,7 @@ Complete reference of all environment variables used by the Integr8sCode backend
 |----------------------------|-------------------------------|-------------------------------------|
 | `KAFKA_BOOTSTRAP_SERVERS`  | `kafka:29092`                 | Kafka broker addresses              |
 | `SCHEMA_REGISTRY_URL`      | `http://schema-registry:8081` | Schema Registry URL                 |
-| `SCHEMA_REGISTRY_AUTH`     | *none*                        | Registry auth (`username:password`) |
+| `SCHEMA_REGISTRY_AUTH`     | `""`                          | Registry auth (`username:password`) |
 | `ENABLE_EVENT_STREAMING`   | `false`                       | Enable Kafka event streaming        |
 | `EVENT_RETENTION_DAYS`     | `30`                          | Event retention period              |
 | `KAFKA_TOPIC_PREFIX`       | `pref`                        | Topic name prefix                   |

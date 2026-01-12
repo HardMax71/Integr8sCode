@@ -235,7 +235,7 @@ class IdempotentConsumerWrapper:
 
             try:
                 # Deserialize using schema registry if available
-                event = await self.consumer._schema_registry.deserialize_event(raw_value, message.topic())
+                event = await self.consumer._schema_registry.deserialize_event(raw_value, message.topic)
                 if not event:
                     self.logger.error(f"Failed to deserialize event for {event_type}")
                     return None

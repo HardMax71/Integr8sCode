@@ -9,7 +9,7 @@ from app.core.database_context import Database
 from app.db.docs import DLQMessageDocument
 from app.dlq.manager import create_dlq_manager
 from app.domain.enums.kafka import KafkaTopic
-from app.events.schema.schema_registry import create_schema_registry_manager
+from app.events.schema.schema_registry import SchemaRegistryManager
 from app.settings import Settings
 
 from tests.helpers import make_execution_requested_event
@@ -25,7 +25,7 @@ _test_logger = logging.getLogger("test.dlq.manager")
 
 @pytest.mark.asyncio
 async def test_dlq_manager_persists_in_mongo(db: Database, test_settings: Settings) -> None:
-    schema_registry = create_schema_registry_manager(test_settings, _test_logger)
+    schema_registry = SchemaRegistryManager(test_settings, _test_logger)
     manager = create_dlq_manager(settings=test_settings, schema_registry=schema_registry, logger=_test_logger)
 
     # Use prefix from test_settings to match what the manager uses

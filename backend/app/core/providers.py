@@ -46,7 +46,7 @@ from app.domain.saga.models import SagaConfig
 from app.events.core import ProducerConfig, UnifiedProducer
 from app.events.event_store import EventStore, create_event_store
 from app.events.event_store_consumer import EventStoreConsumer, create_event_store_consumer
-from app.events.schema.schema_registry import SchemaRegistryManager, create_schema_registry_manager
+from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.topics import get_all_topics
 from app.services.admin import AdminEventsService, AdminSettingsService, AdminUserService
 from app.services.auth_service import AuthService
@@ -192,7 +192,7 @@ class EventProvider(Provider):
 
     @provide
     def get_schema_registry(self, settings: Settings, logger: logging.Logger) -> SchemaRegistryManager:
-        return create_schema_registry_manager(settings, logger)
+        return SchemaRegistryManager(settings, logger)
 
     @provide
     async def get_event_store(self, schema_registry: SchemaRegistryManager, logger: logging.Logger) -> EventStore:

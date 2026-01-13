@@ -25,21 +25,15 @@ assert _WORKER_NUM < 16, f"xdist worker {_WORKER_NUM} >= 16 exceeds Redis DB lim
 
 # ===== Pytest hooks =====
 @pytest.hookimpl(trylast=True)
-def pytest_configure(config: pytest.Config) -> None:
-    """Create Kafka topics once before any tests run.
-
-    Uses trylast=True to ensure pytest-env has set DOTENV_PATH first.
-    Runs in master process before xdist workers spawn.
-
-    Silently skips if Kafka is unavailable (e.g., unit tests).
-    """
-    # Only run in master process (not in xdist workers)
-    if not hasattr(config, "workerinput"):
-        try:
-            asyncio.run(create_topics(Settings()))
-        except Exception:
-            # Kafka not available (unit tests) - silently skip
-            pass
+def pytest_configure() -> None:
+    """Create Kafka topics once in master process before xdist workers spawn."""
+    # PYTEST_XDIST_WORKER is only set in workers, not master
+    if os.environ.get("PYTEST_XDIST_WORKER"):
+        return
+    try:
+        asyncio.run(create_topics(Settings(_env_file=".env.test")))
+    except Exception:
+        pass  # Kafka unavailable (unit tests)
 
 
 # ===== Settings fixture =====
@@ -47,8 +41,8 @@ def pytest_configure(config: pytest.Config) -> None:
 def test_settings() -> Settings:
     """Provide test settings with per-worker isolation where needed.
 
-    pytest-env sets DOTENV_PATH=.env.test (configured in pyproject.toml).
-    Settings class uses this to load the correct env file via pydantic-settings.
+    Uses pydantic-settings _env_file parameter to load .env.test at instantiation,
+    overriding the class-level default of .env.
 
     What gets isolated per worker (to prevent interference):
       - DATABASE_NAME: Each worker gets its own MongoDB database
@@ -59,17 +53,14 @@ def test_settings() -> Settings:
       - KAFKA_TOPIC_PREFIX: Topics created once by CI/scripts
       - SCHEMA_SUBJECT_PREFIX: Schemas shared across workers
     """
-    base = Settings()  # Uses DOTENV_PATH from pytest-env to load .env.test
+    base = Settings(_env_file=".env.test")
     session_id = uuid.uuid4().hex[:8]
     return base.model_copy(
         update={
-            # Per-worker isolation
+            # Per-worker isolation for xdist - must be dynamic, can't be in .env.test
             "DATABASE_NAME": f"integr8scode_test_{session_id}_{_WORKER_ID}",
             "REDIS_DB": _WORKER_NUM,
             "KAFKA_GROUP_SUFFIX": f"{session_id}.{_WORKER_ID}",
-            # Disable telemetry in tests
-            "OTEL_EXPORTER_OTLP_ENDPOINT": None,
-            "ENABLE_TRACING": False,
         }
     )
 
@@ -84,11 +75,19 @@ async def app(test_settings: Settings) -> AsyncGenerator[FastAPI, None]:
 
     Uses lifespan_context to trigger startup/shutdown events, which initializes
     Beanie, metrics, and other services through the normal DI flow.
+
+    Cleanup: Best-effort drop of test database. May not always succeed due to
+    known MongoDB driver behavior when client stays connected, but ulimits on
+    MongoDB container (65536) prevent file descriptor exhaustion regardless.
     """
     application = create_app(settings=test_settings)
 
     async with application.router.lifespan_context(application):
         yield application
+        # Best-effort cleanup (may fail silently due to MongoDB driver behavior)
+        container: AsyncContainer = application.state.dishka_container
+        db: Database = await container.get(Database)
+        await db.client.drop_database(test_settings.DATABASE_NAME)
 
 
 @pytest_asyncio.fixture(scope="session")

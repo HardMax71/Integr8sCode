@@ -5,7 +5,7 @@ import logging
 from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics.events import EventMetrics
 from app.domain.enums.events import EventType
-from app.domain.enums.kafka import KafkaTopic
+from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId
 from app.domain.events.typed import DomainEvent
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer
 from app.events.schema.schema_registry import SchemaRegistryManager
@@ -23,12 +23,12 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
     """
 
     def __init__(
-        self,
-        schema_registry: SchemaRegistryManager,
-        settings: Settings,
-        event_metrics: EventMetrics,
-        sse_bus: SSERedisBus,
-        logger: logging.Logger,
+            self,
+            schema_registry: SchemaRegistryManager,
+            settings: Settings,
+            event_metrics: EventMetrics,
+            sse_bus: SSERedisBus,
+            logger: logging.Logger,
     ) -> None:
         super().__init__()
         self.schema_registry = schema_registry
@@ -87,15 +87,8 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
             logger=self.logger,
         )
 
-        topics = [
-            KafkaTopic.EXECUTION_EVENTS,
-            KafkaTopic.EXECUTION_COMPLETED,
-            KafkaTopic.EXECUTION_FAILED,
-            KafkaTopic.EXECUTION_TIMEOUT,
-            KafkaTopic.EXECUTION_RESULTS,
-            KafkaTopic.POD_EVENTS,
-            KafkaTopic.POD_STATUS_UPDATES,
-        ]
+        # Use WEBSOCKET_GATEWAY subscriptions - SSE bridge serves same purpose (real-time client delivery)
+        topics = list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.WEBSOCKET_GATEWAY])
         await consumer.start(topics)
 
         self.logger.info(f"Bridge consumer {consumer_index} started")
@@ -150,11 +143,11 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
 
 
 def create_sse_kafka_redis_bridge(
-    schema_registry: SchemaRegistryManager,
-    settings: Settings,
-    event_metrics: EventMetrics,
-    sse_bus: SSERedisBus,
-    logger: logging.Logger,
+        schema_registry: SchemaRegistryManager,
+        settings: Settings,
+        event_metrics: EventMetrics,
+        sse_bus: SSERedisBus,
+        logger: logging.Logger,
 ) -> SSEKafkaRedisBridge:
     return SSEKafkaRedisBridge(
         schema_registry=schema_registry,

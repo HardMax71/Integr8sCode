@@ -76,14 +76,14 @@ CONSUMER_GROUP_SUBSCRIPTIONS: Dict[GroupId, Set[KafkaTopic]] = {
         KafkaTopic.EXECUTION_RESULTS,
     },
     GroupId.K8S_WORKER: {
-        KafkaTopic.EXECUTION_EVENTS,
+        KafkaTopic.SAGA_COMMANDS,  # Receives CreatePodCommand/DeletePodCommand from coordinator
     },
     GroupId.POD_MONITOR: {
         KafkaTopic.POD_EVENTS,
         KafkaTopic.POD_STATUS_UPDATES,
     },
     GroupId.RESULT_PROCESSOR: {
-        KafkaTopic.EXECUTION_RESULTS,
+        KafkaTopic.EXECUTION_EVENTS,  # Listens for COMPLETED/FAILED/TIMEOUT, publishes to EXECUTION_RESULTS
     },
     GroupId.SAGA_ORCHESTRATOR: {
         # Orchestrator is triggered by domain events, specifically EXECUTION_REQUESTED,
@@ -96,7 +96,6 @@ CONSUMER_GROUP_SUBSCRIPTIONS: Dict[GroupId, Set[KafkaTopic]] = {
         KafkaTopic.EXECUTION_RESULTS,
         KafkaTopic.POD_EVENTS,
         KafkaTopic.POD_STATUS_UPDATES,
-        KafkaTopic.EXECUTION_RESULTS,
     },
     GroupId.NOTIFICATION_SERVICE: {
         KafkaTopic.NOTIFICATION_EVENTS,

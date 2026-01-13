@@ -2,15 +2,13 @@ import logging
 from enum import auto
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
-
 from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics.context import get_execution_metrics
 from app.core.utils import StringEnum
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
-from app.domain.enums.kafka import GroupId, KafkaTopic
+from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId, KafkaTopic
 from app.domain.enums.storage import ExecutionErrorType, StorageType
 from app.domain.events.typed import (
     DomainEvent,
@@ -27,6 +25,7 @@ from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.idempotency import IdempotencyManager
 from app.services.idempotency.middleware import IdempotentConsumerWrapper
 from app.settings import Settings
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ProcessingState(StringEnum):
@@ -44,11 +43,7 @@ class ResultProcessorConfig(BaseModel):
 
     consumer_group: GroupId = Field(default=GroupId.RESULT_PROCESSOR)
     topics: list[KafkaTopic] = Field(
-        default_factory=lambda: [
-            KafkaTopic.EXECUTION_COMPLETED,
-            KafkaTopic.EXECUTION_FAILED,
-            KafkaTopic.EXECUTION_TIMEOUT,
-        ]
+        default_factory=lambda: list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.RESULT_PROCESSOR])
     )
     result_topic: KafkaTopic = Field(default=KafkaTopic.EXECUTION_RESULTS)
     batch_size: int = Field(default=10)
@@ -59,13 +54,13 @@ class ResultProcessor(LifecycleEnabled):
     """Service for processing execution completion events and storing results."""
 
     def __init__(
-        self,
-        execution_repo: ExecutionRepository,
-        producer: UnifiedProducer,
-        schema_registry: SchemaRegistryManager,
-        settings: Settings,
-        idempotency_manager: IdempotencyManager,
-        logger: logging.Logger,
+            self,
+            execution_repo: ExecutionRepository,
+            producer: UnifiedProducer,
+            schema_registry: SchemaRegistryManager,
+            settings: Settings,
+            idempotency_manager: IdempotencyManager,
+            logger: logging.Logger,
     ) -> None:
         """Initialize the result processor."""
         super().__init__()

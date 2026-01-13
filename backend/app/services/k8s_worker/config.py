@@ -1,14 +1,14 @@
 import os
 from dataclasses import dataclass, field
 
-from app.domain.enums.kafka import KafkaTopic
+from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId, KafkaTopic
 
 
 @dataclass
 class K8sWorkerConfig:
     # Kafka settings
     consumer_group: str = "kubernetes-worker"
-    topics: list[KafkaTopic] = field(default_factory=lambda: [KafkaTopic.EXECUTION_TASKS])
+    topics: list[KafkaTopic] = field(default_factory=lambda: list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.K8S_WORKER]))
 
     # Kubernetes settings
     namespace: str = os.environ.get("K8S_NAMESPACE", "integr8scode")

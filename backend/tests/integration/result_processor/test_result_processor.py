@@ -70,8 +70,9 @@ async def test_result_processor_persists_and_emits(scope: AsyncContainer) -> Non
     stored_received = asyncio.Event()
 
     @dispatcher.register(EventType.RESULT_STORED)
-    async def _stored(_event: ResultStoredEvent) -> None:
-        stored_received.set()
+    async def _stored(event: ResultStoredEvent) -> None:
+        if event.execution_id == execution_id:
+            stored_received.set()
 
     group_id = f"rp-test.{uuid.uuid4().hex[:6]}"
     cconf = ConsumerConfig(

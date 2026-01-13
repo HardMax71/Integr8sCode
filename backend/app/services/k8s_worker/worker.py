@@ -5,14 +5,10 @@ import time
 from pathlib import Path
 from typing import Any
 
-from kubernetes import client as k8s_client
-from kubernetes import config as k8s_config
-from kubernetes.client.rest import ApiException
-
 from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics import ExecutionMetrics, KubernetesMetrics
 from app.domain.enums.events import EventType
-from app.domain.enums.kafka import KafkaTopic
+from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId, KafkaTopic
 from app.domain.enums.storage import ExecutionErrorType
 from app.domain.events.typed import (
     CreatePodCommandEvent,
@@ -33,6 +29,9 @@ from app.services.idempotency.middleware import IdempotentConsumerWrapper
 from app.services.k8s_worker.config import K8sWorkerConfig
 from app.services.k8s_worker.pod_builder import PodBuilder
 from app.settings import Settings
+from kubernetes import client as k8s_client
+from kubernetes import config as k8s_config
+from kubernetes.client.rest import ApiException
 
 
 class KubernetesWorker(LifecycleEnabled):
@@ -48,14 +47,14 @@ class KubernetesWorker(LifecycleEnabled):
     """
 
     def __init__(
-        self,
-        config: K8sWorkerConfig,
-        producer: UnifiedProducer,
-        schema_registry_manager: SchemaRegistryManager,
-        settings: Settings,
-        event_store: EventStore,
-        idempotency_manager: IdempotencyManager,
-        logger: logging.Logger,
+            self,
+            config: K8sWorkerConfig,
+            producer: UnifiedProducer,
+            schema_registry_manager: SchemaRegistryManager,
+            settings: Settings,
+            event_store: EventStore,
+            idempotency_manager: IdempotencyManager,
+            logger: logging.Logger,
     ):
         super().__init__()
         self.logger = logger
@@ -135,8 +134,8 @@ class KubernetesWorker(LifecycleEnabled):
             enable_for_all_handlers=True,  # Enable idempotency for all handlers
         )
 
-        # Start the consumer with idempotency - listen to saga commands topic
-        await self.idempotent_consumer.start([KafkaTopic.SAGA_COMMANDS])
+        # Start the consumer with idempotency - topics from centralized config
+        await self.idempotent_consumer.start(list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.K8S_WORKER]))
 
         # Create daemonset for image pre-pulling
         asyncio.create_task(self.ensure_image_pre_puller_daemonset())

@@ -9,7 +9,7 @@ from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics.context import get_coordinator_metrics
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
-from app.domain.enums.kafka import KafkaTopic
+from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId, KafkaTopic
 from app.domain.enums.storage import ExecutionErrorType
 from app.domain.events.typed import (
     CreatePodCommandEvent,
@@ -157,7 +157,7 @@ class ExecutionCoordinator(LifecycleEnabled):
 
         self.logger.info("COORDINATOR: Event handlers registered with idempotency protection")
 
-        await self.idempotent_consumer.start([KafkaTopic.EXECUTION_EVENTS])
+        await self.idempotent_consumer.start(list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.EXECUTION_COORDINATOR]))
 
         # Start scheduling task
         self._scheduling_task = asyncio.create_task(self._scheduling_loop())

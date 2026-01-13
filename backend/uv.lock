@@ -1211,7 +1211,7 @@ requires-dist = [
     { name = "markdown-it-py", specifier = "==4.0.0" },
     { name = "markupsafe", specifier = "==3.0.2" },
     { name = "mdurl", specifier = "==0.1.2" },
-    { name = "monggregate", specifier = ">=0.22.1" },
+    { name = "monggregate", specifier = "==0.22.1" },
     { name = "msgpack", specifier = "==1.1.0" },
     { name = "multidict", specifier = "==6.7.0" },
     { name = "oauthlib", specifier = "==3.2.2" },

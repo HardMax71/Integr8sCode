@@ -54,24 +54,28 @@ class DLQRepository:
         event_type_results = await DLQMessageDocument.aggregate(event_type_pipeline.export()).to_list()
         by_event_type = [EventTypeStatistic.model_validate(doc) for doc in event_type_results if doc["event_type"]]
 
-        # Age statistics - get timestamps, calculate ages in Python
+        # Age statistics - get timestamps and sum for true average, calculate ages in Python
         time_pipeline = Pipeline().group(
             by=None,
             query={
                 "oldest": S.min(S.field(DLQMessageDocument.failed_at)),
                 "newest": S.max(S.field(DLQMessageDocument.failed_at)),
-                "total": S.sum(1),
+                "count": S.sum(1),
+                "sum_failed_at": S.sum(S.field(DLQMessageDocument.failed_at)),
             },
         )
         time_results = await DLQMessageDocument.aggregate(time_pipeline.export()).to_list()
         now = datetime.now(timezone.utc)
         if time_results and time_results[0].get("oldest"):
             r = time_results[0]
-            oldest, newest = r["oldest"], r["newest"]
+            oldest, newest, count = r["oldest"], r["newest"], r["count"]
+            # sum_failed_at is sum of timestamps in ms since epoch, compute true average age
+            now_ms = now.timestamp() * 1000
+            avg_age_seconds = (now_ms * count - r["sum_failed_at"]) / count / 1000 if count > 0 else 0.0
             age_stats = AgeStatistics(
                 min_age_seconds=(now - newest).total_seconds(),
                 max_age_seconds=(now - oldest).total_seconds(),
-                avg_age_seconds=((now - oldest).total_seconds() + (now - newest).total_seconds()) / 2,
+                avg_age_seconds=avg_age_seconds,
             )
         else:
             age_stats = AgeStatistics()
@@ -110,10 +114,11 @@ class DLQRepository:
 
     async def get_topics_summary(self) -> list[DLQTopicSummary]:
         # Two-stage aggregation: group by topic+status first, then by topic with $arrayToObject
+        # Note: compound keys need S.field() wrapper for monggregate to add $ prefix
         pipeline = (
             Pipeline()
             .group(
-                by={"topic": DLQMessageDocument.original_topic, "status": DLQMessageDocument.status},
+                by={"topic": S.field(DLQMessageDocument.original_topic), "status": S.field(DLQMessageDocument.status)},
                 query={
                     "count": S.sum(1),
                     "oldest": S.min(S.field(DLQMessageDocument.failed_at)),

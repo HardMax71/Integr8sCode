@@ -2,6 +2,8 @@ import logging
 from enum import auto
 from typing import Any
 
+from pydantic import BaseModel, ConfigDict, Field
+
 from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics.context import get_execution_metrics
 from app.core.utils import StringEnum
@@ -25,7 +27,6 @@ from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.idempotency import IdempotencyManager
 from app.services.idempotency.middleware import IdempotentConsumerWrapper
 from app.settings import Settings
-from pydantic import BaseModel, ConfigDict, Field
 
 
 class ProcessingState(StringEnum):

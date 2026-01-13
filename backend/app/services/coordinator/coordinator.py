@@ -9,7 +9,7 @@ from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics.context import get_coordinator_metrics
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
-from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId, KafkaTopic
+from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId
 from app.domain.enums.storage import ExecutionErrorType
 from app.domain.events.typed import (
     CreatePodCommandEvent,

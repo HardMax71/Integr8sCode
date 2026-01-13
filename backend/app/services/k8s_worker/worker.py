@@ -5,10 +5,14 @@ import time
 from pathlib import Path
 from typing import Any
 
+from kubernetes import client as k8s_client
+from kubernetes import config as k8s_config
+from kubernetes.client.rest import ApiException
+
 from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics import ExecutionMetrics, KubernetesMetrics
 from app.domain.enums.events import EventType
-from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId, KafkaTopic
+from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId
 from app.domain.enums.storage import ExecutionErrorType
 from app.domain.events.typed import (
     CreatePodCommandEvent,
@@ -29,9 +33,6 @@ from app.services.idempotency.middleware import IdempotentConsumerWrapper
 from app.services.k8s_worker.config import K8sWorkerConfig
 from app.services.k8s_worker.pod_builder import PodBuilder
 from app.settings import Settings
-from kubernetes import client as k8s_client
-from kubernetes import config as k8s_config
-from kubernetes.client.rest import ApiException
 
 
 class KubernetesWorker(LifecycleEnabled):

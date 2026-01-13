@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from app.domain.enums.events import EventType
-from app.domain.enums.kafka import GroupId, KafkaTopic
+from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId, KafkaTopic
 from app.services.result_processor.processor import ResultProcessor, ResultProcessorConfig
 
 pytestmark = pytest.mark.unit
@@ -15,9 +15,9 @@ class TestResultProcessorConfig:
     def test_default_values(self) -> None:
         config = ResultProcessorConfig()
         assert config.consumer_group == GroupId.RESULT_PROCESSOR
-        assert KafkaTopic.EXECUTION_COMPLETED in config.topics
-        assert KafkaTopic.EXECUTION_FAILED in config.topics
-        assert KafkaTopic.EXECUTION_TIMEOUT in config.topics
+        # Topics should match centralized CONSUMER_GROUP_SUBSCRIPTIONS mapping
+        assert set(config.topics) == CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.RESULT_PROCESSOR]
+        assert KafkaTopic.EXECUTION_EVENTS in config.topics
         assert config.result_topic == KafkaTopic.EXECUTION_RESULTS
         assert config.batch_size == 10
         assert config.processing_timeout == 300

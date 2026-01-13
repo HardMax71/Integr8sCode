@@ -96,6 +96,7 @@ class AdminEventsRepository:
         start_time = datetime.now(timezone.utc) - timedelta(hours=hours)
 
         # Overview stats pipeline
+        # Note: monggregate doesn't have S.add_to_set - use raw dict syntax
         overview_pipeline = (
             Pipeline()
             .match({EventDocument.timestamp: {"$gte": start_time}})
@@ -103,9 +104,9 @@ class AdminEventsRepository:
                 by=None,
                 query={
                     "total_events": S.sum(1),
-                    "event_types": S.add_to_set(S.field(EventDocument.event_type)),
-                    "unique_users": S.add_to_set(S.field(EventDocument.metadata.user_id)),
-                    "services": S.add_to_set(S.field(EventDocument.metadata.service_name)),
+                    "event_types": {"$addToSet": S.field(EventDocument.event_type)},
+                    "unique_users": {"$addToSet": S.field(EventDocument.metadata.user_id)},
+                    "services": {"$addToSet": S.field(EventDocument.metadata.service_name)},
                 },
             )
             .project(

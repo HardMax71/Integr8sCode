@@ -66,7 +66,7 @@ class EventRepository:
         return [event.event_id for event in events]
 
     async def get_event(self, event_id: str) -> DomainEvent | None:
-        doc = await EventDocument.find_one({"event_id": event_id})
+        doc = await EventDocument.find_one(EventDocument.event_id == event_id)
         if not doc:
             return None
         return domain_event_adapter.validate_python(doc, from_attributes=True)
@@ -147,7 +147,7 @@ class EventRepository:
     ) -> EventListResult:
         conditions: list[Any] = [
             Or(
-                {"execution_id": execution_id},
+                EventDocument.execution_id == execution_id,
                 EventDocument.aggregate_id == execution_id,
             ),
             Not(RegEx(EventDocument.metadata.service_name, "^system-")) if exclude_system_events else None,
@@ -325,7 +325,7 @@ class EventRepository:
     async def delete_event_with_archival(
         self, event_id: str, deleted_by: str, deletion_reason: str = "Admin deletion via API"
     ) -> ArchivedEvent | None:
-        doc = await EventDocument.find_one({"event_id": event_id})
+        doc = await EventDocument.find_one(EventDocument.event_id == event_id)
         if not doc:
             return None
 

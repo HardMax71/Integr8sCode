@@ -28,7 +28,7 @@ class SagaRepository:
         return [c for c in conditions if c is not None]
 
     async def upsert_saga(self, saga: Saga) -> bool:
-        existing = await SagaDocument.find_one({"saga_id": saga.saga_id})
+        existing = await SagaDocument.find_one(SagaDocument.saga_id == saga.saga_id)
         doc = SagaDocument(**saga.model_dump())
         if existing:
             doc.id = existing.id
@@ -43,7 +43,7 @@ class SagaRepository:
         return Saga.model_validate(doc, from_attributes=True) if doc else None
 
     async def get_saga(self, saga_id: str) -> Saga | None:
-        doc = await SagaDocument.find_one({"saga_id": saga_id})
+        doc = await SagaDocument.find_one(SagaDocument.saga_id == saga_id)
         return Saga.model_validate(doc, from_attributes=True) if doc else None
 
     async def get_sagas_by_execution(
@@ -78,7 +78,7 @@ class SagaRepository:
         )
 
     async def update_saga_state(self, saga_id: str, state: SagaState, error_message: str | None = None) -> bool:
-        doc = await SagaDocument.find_one({"saga_id": saga_id})
+        doc = await SagaDocument.find_one(SagaDocument.saga_id == saga_id)
         if not doc:
             return False
 
@@ -90,7 +90,7 @@ class SagaRepository:
         return True
 
     async def get_user_execution_ids(self, user_id: str) -> list[str]:
-        docs = await ExecutionDocument.find({"user_id": user_id}).to_list()
+        docs = await ExecutionDocument.find(ExecutionDocument.user_id == user_id).to_list()
         return [doc.execution_id for doc in docs]
 
     async def count_sagas_by_state(self) -> dict[str, int]:

@@ -1,5 +1,3 @@
-from beanie.operators import Eq
-
 from app.db.docs import SavedScriptDocument
 from app.domain.saved_script import DomainSavedScript, DomainSavedScriptCreate, DomainSavedScriptUpdate
 
@@ -12,8 +10,8 @@ class SavedScriptRepository:
 
     async def get_saved_script(self, script_id: str, user_id: str) -> DomainSavedScript | None:
         doc = await SavedScriptDocument.find_one(
-            Eq(SavedScriptDocument.script_id, script_id),
-            Eq(SavedScriptDocument.user_id, user_id),
+            SavedScriptDocument.script_id == script_id,
+            SavedScriptDocument.user_id == user_id,
         )
         return DomainSavedScript.model_validate(doc, from_attributes=True) if doc else None
 
@@ -24,8 +22,8 @@ class SavedScriptRepository:
         update_data: DomainSavedScriptUpdate,
     ) -> DomainSavedScript | None:
         doc = await SavedScriptDocument.find_one(
-            Eq(SavedScriptDocument.script_id, script_id),
-            Eq(SavedScriptDocument.user_id, user_id),
+            SavedScriptDocument.script_id == script_id,
+            SavedScriptDocument.user_id == user_id,
         )
         if not doc:
             return None
@@ -36,8 +34,8 @@ class SavedScriptRepository:
 
     async def delete_saved_script(self, script_id: str, user_id: str) -> bool:
         doc = await SavedScriptDocument.find_one(
-            Eq(SavedScriptDocument.script_id, script_id),
-            Eq(SavedScriptDocument.user_id, user_id),
+            SavedScriptDocument.script_id == script_id,
+            SavedScriptDocument.user_id == user_id,
         )
         if not doc:
             return False
@@ -45,5 +43,5 @@ class SavedScriptRepository:
         return True
 
     async def list_saved_scripts(self, user_id: str) -> list[DomainSavedScript]:
-        docs = await SavedScriptDocument.find(Eq(SavedScriptDocument.user_id, user_id)).to_list()
+        docs = await SavedScriptDocument.find(SavedScriptDocument.user_id == user_id).to_list()
         return [DomainSavedScript.model_validate(d, from_attributes=True) for d in docs]

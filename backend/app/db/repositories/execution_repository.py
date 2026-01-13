@@ -26,7 +26,7 @@ class ExecutionRepository:
 
     async def get_execution(self, execution_id: str) -> DomainExecution | None:
         self.logger.info("Searching for execution in MongoDB", extra={"execution_id": execution_id})
-        doc = await ExecutionDocument.find_one({"execution_id": execution_id})
+        doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == execution_id)
         if not doc:
             self.logger.warning("Execution not found in MongoDB", extra={"execution_id": execution_id})
             return None
@@ -35,7 +35,7 @@ class ExecutionRepository:
         return DomainExecution.model_validate(doc, from_attributes=True)
 
     async def update_execution(self, execution_id: str, update_data: DomainExecutionUpdate) -> bool:
-        doc = await ExecutionDocument.find_one({"execution_id": execution_id})
+        doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == execution_id)
         if not doc:
             return False
 
@@ -46,7 +46,7 @@ class ExecutionRepository:
         return True
 
     async def write_terminal_result(self, result: ExecutionResultDomain) -> bool:
-        doc = await ExecutionDocument.find_one({"execution_id": result.execution_id})
+        doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == result.execution_id)
         if not doc:
             self.logger.warning("No execution found", extra={"execution_id": result.execution_id})
             return False
@@ -81,7 +81,7 @@ class ExecutionRepository:
         return await ExecutionDocument.find(query).count()
 
     async def delete_execution(self, execution_id: str) -> bool:
-        doc = await ExecutionDocument.find_one({"execution_id": execution_id})
+        doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == execution_id)
         if not doc:
             return False
         await doc.delete()

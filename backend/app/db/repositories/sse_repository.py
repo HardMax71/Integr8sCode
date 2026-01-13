@@ -7,7 +7,7 @@ from app.domain.sse import SSEExecutionStatusDomain
 
 class SSERepository:
     async def get_execution_status(self, execution_id: str) -> SSEExecutionStatusDomain | None:
-        doc = await ExecutionDocument.find_one({"execution_id": execution_id})
+        doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == execution_id)
         if not doc:
             return None
         return SSEExecutionStatusDomain(
@@ -17,7 +17,7 @@ class SSERepository:
         )
 
     async def get_execution(self, execution_id: str) -> DomainExecution | None:
-        doc = await ExecutionDocument.find_one({"execution_id": execution_id})
+        doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == execution_id)
         if not doc:
             return None
         return DomainExecution.model_validate(doc, from_attributes=True)

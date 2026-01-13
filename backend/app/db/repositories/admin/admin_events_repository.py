@@ -62,7 +62,7 @@ class AdminEventsRepository:
         return EventBrowseResult(events=events, total=total, skip=skip, limit=limit)
 
     async def get_event_detail(self, event_id: str) -> EventDetail | None:
-        doc = await EventDocument.find_one({"event_id": event_id})
+        doc = await EventDocument.find_one(EventDocument.event_id == event_id)
         if not doc:
             return None
 
@@ -86,7 +86,7 @@ class AdminEventsRepository:
         return EventDetail(event=event, related_events=related_events, timeline=timeline)
 
     async def delete_event(self, event_id: str) -> bool:
-        doc = await EventDocument.find_one({"event_id": event_id})
+        doc = await EventDocument.find_one(EventDocument.event_id == event_id)
         if not doc:
             return False
         await doc.delete()
@@ -190,7 +190,7 @@ class AdminEventsRepository:
         return session.session_id
 
     async def get_replay_session(self, session_id: str) -> ReplaySessionState | None:
-        doc = await ReplaySessionDocument.find_one({"session_id": session_id})
+        doc = await ReplaySessionDocument.find_one(ReplaySessionDocument.session_id == session_id)
         if not doc:
             return None
         return ReplaySessionState.model_validate(doc, from_attributes=True)
@@ -199,14 +199,14 @@ class AdminEventsRepository:
         update_dict = updates.model_dump(exclude_none=True)
         if not update_dict:
             return False
-        doc = await ReplaySessionDocument.find_one({"session_id": session_id})
+        doc = await ReplaySessionDocument.find_one(ReplaySessionDocument.session_id == session_id)
         if not doc:
             return False
         await doc.set(update_dict)
         return True
 
     async def get_replay_status_with_progress(self, session_id: str) -> ReplaySessionStatusDetail | None:
-        doc = await ReplaySessionDocument.find_one({"session_id": session_id})
+        doc = await ReplaySessionDocument.find_one(ReplaySessionDocument.session_id == session_id)
         if not doc:
             return None
 
@@ -251,7 +251,7 @@ class AdminEventsRepository:
             execution_ids = {event.execution_id for event in original_events if event.execution_id}
 
             for exec_id in list(execution_ids)[:10]:
-                exec_doc = await ExecutionDocument.find_one({"execution_id": exec_id})
+                exec_doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == exec_id)
                 if exec_doc:
                     execution_results.append(
                         {

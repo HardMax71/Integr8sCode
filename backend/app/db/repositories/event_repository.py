@@ -2,6 +2,10 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping
 
+from beanie.odm.enums import SortDirection
+from beanie.operators import GTE, LT, LTE, In, Not, Or, RegEx
+from monggregate import S
+
 from app.core.tracing import EventAttributes
 from app.core.tracing.utils import add_span_attributes
 from app.db.docs import EventArchiveDocument, EventDocument
@@ -15,9 +19,6 @@ from app.domain.events import (
     EventStatistics,
     domain_event_adapter,
 )
-from beanie.odm.enums import SortDirection
-from beanie.operators import GTE, LT, LTE, In, Not, Or, RegEx
-from monggregate import S
 
 
 class EventRepository:

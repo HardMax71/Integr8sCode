@@ -96,16 +96,12 @@ class TestDLQRoutes:
         # If there are messages, validate their structure
         for message in messages_response.messages:
             assert isinstance(message, DLQMessageResponse)
-            assert message.event_id is not None
-            assert message.event_type is not None
+            assert message.event.event_id is not None
+            assert message.event.event_type is not None
             assert message.original_topic is not None
             assert message.retry_count >= 0
             assert message.failed_at is not None
             assert message.status in DLQMessageStatus.__members__.values()
-
-            # Check age_seconds is reasonable
-            if message.age_seconds is not None:
-                assert message.age_seconds >= 0
 
     @pytest.mark.asyncio
     async def test_filter_dlq_messages_by_status(self, test_user: AsyncClient) -> None:
@@ -156,11 +152,10 @@ class TestDLQRoutes:
             detail_data = detail_response.json()
             message_detail = DLQMessageDetail(**detail_data)
 
-            # Verify all fields are present
-            assert message_detail.event_id == event_id
+            # Verify all fields are present - event is DomainEvent with event_id/event_type
             assert message_detail.event is not None
-            assert isinstance(message_detail.event, dict)
-            assert message_detail.event_type is not None
+            assert message_detail.event.event_id == event_id
+            assert message_detail.event.event_type is not None
             assert message_detail.original_topic is not None
             assert message_detail.error is not None
             assert message_detail.retry_count >= 0
@@ -345,8 +340,8 @@ class TestDLQRoutes:
 
             # Messages should be different
             if page1.messages and page2.messages:
-                page1_ids = {msg.event_id for msg in page1.messages}
-                page2_ids = {msg.event_id for msg in page2.messages}
+                page1_ids = {msg.event.event_id for msg in page1.messages}
+                page2_ids = {msg.event.event_id for msg in page2.messages}
                 # Should have no overlap
                 assert len(page1_ids.intersection(page2_ids)) == 0
 

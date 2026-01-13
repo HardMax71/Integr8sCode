@@ -216,9 +216,10 @@ log_cli_level = "ERROR"
 log_level = "ERROR"
 addopts = "--tb=short -n auto --dist=loadfile"
 
-# pytest-env: Set DOTENV_PATH so Settings loads .env.test instead of .env
+# pytest-env: Sets env vars before test execution, like: DOTENV_PATH=.env.test OTEL_SDK_DISABLED=true pytest ...
 [tool.pytest_env]
 DOTENV_PATH = ".env.test"
+OTEL_SDK_DISABLED = "true"  # Prevents 40s teardown delays from OTLP exporter retries
 
 # Coverage configuration
 [tool.coverage.run]

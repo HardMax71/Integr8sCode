@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import TypedDict
 
 import pytest
-from app.dlq import DLQMessageStatus
+from app.dlq import AgeStatistics, DLQMessageStatus, EventTypeStatistic, TopicStatistic
 from app.schemas_pydantic.dlq import (
     DLQBatchRetryResponse,
     DLQMessageDetail,
@@ -47,39 +47,33 @@ class TestDLQRoutes:
         stats_data = response.json()
         stats = DLQStats(**stats_data)
 
-        # Verify structure
+        # Verify structure - using typed models
         assert isinstance(stats.by_status, dict)
         assert isinstance(stats.by_topic, list)
         assert isinstance(stats.by_event_type, list)
-        assert isinstance(stats.age_stats, dict)
+        assert isinstance(stats.age_stats, AgeStatistics)
         assert stats.timestamp is not None
 
-        # Check status breakdown
-        for status in ["pending", "retrying", "failed", "discarded"]:
+        # Check status breakdown - iterate over actual enum values
+        for status in DLQMessageStatus:
             if status in stats.by_status:
                 assert isinstance(stats.by_status[status], int)
                 assert stats.by_status[status] >= 0
 
-        # Check topic stats
+        # Check topic stats - now typed as TopicStatistic
         for topic_stat in stats.by_topic:
-            assert "topic" in topic_stat
-            assert "count" in topic_stat
-            assert isinstance(topic_stat["count"], int)
-            assert topic_stat["count"] >= 0
+            assert isinstance(topic_stat, TopicStatistic)
+            assert topic_stat.count >= 0
 
-        # Check event type stats
+        # Check event type stats - now typed as EventTypeStatistic
         for event_type_stat in stats.by_event_type:
-            assert "event_type" in event_type_stat
-            assert "count" in event_type_stat
-            assert isinstance(event_type_stat["count"], int)
-            assert event_type_stat["count"] >= 0
+            assert isinstance(event_type_stat, EventTypeStatistic)
+            assert event_type_stat.count >= 0
 
-        # Check age stats
-        if stats.age_stats:
-            for key in ["min", "max", "avg", "median"]:
-                if key in stats.age_stats:
-                    assert isinstance(stats.age_stats[key], (int, float))
-                    assert stats.age_stats[key] >= 0
+        # Check age stats - now typed as AgeStatistics
+        assert stats.age_stats.min_age_seconds >= 0
+        assert stats.age_stats.max_age_seconds >= 0
+        assert stats.age_stats.avg_age_seconds >= 0
 
     @pytest.mark.asyncio
     async def test_list_dlq_messages(self, test_user: AsyncClient) -> None:
@@ -197,7 +191,7 @@ class TestDLQRoutes:
 
     @pytest.mark.asyncio
     async def test_set_retry_policy(
-        self, test_user: AsyncClient, test_settings: Settings
+            self, test_user: AsyncClient, test_settings: Settings
     ) -> None:
         """Test setting a retry policy for a topic."""
         # Set retry policy

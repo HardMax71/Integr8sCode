@@ -1,6 +1,3 @@
-from datetime import datetime, timezone
-from typing import List
-
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -31,19 +28,7 @@ router = APIRouter(
 @router.get("/stats", response_model=DLQStats)
 async def get_dlq_statistics(repository: FromDishka[DLQRepository]) -> DLQStats:
     stats = await repository.get_dlq_stats()
-    return DLQStats(
-        by_status=stats.by_status,
-        by_topic=[{"topic": t.topic, "count": t.count, "avg_retry_count": t.avg_retry_count} for t in stats.by_topic],
-        by_event_type=[{"event_type": e.event_type, "count": e.count} for e in stats.by_event_type],
-        age_stats={
-            "min_age": stats.age_stats.min_age_seconds,
-            "max_age": stats.age_stats.max_age_seconds,
-            "avg_age": stats.age_stats.avg_age_seconds,
-        }
-        if stats.age_stats
-        else {},
-        timestamp=stats.timestamp,
-    )
+    return DLQStats.model_validate(stats, from_attributes=True)
 
 
 @router.get("/messages", response_model=DLQMessagesResponse)
@@ -70,27 +55,7 @@ async def get_dlq_message(event_id: str, repository: FromDishka[DLQRepository]) 
     message = await repository.get_message_by_id(event_id)
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
-
-    return DLQMessageDetail(
-        event_id=message.event.event_id,
-        event=message.event.model_dump(),
-        event_type=message.event.event_type,
-        original_topic=message.original_topic,
-        error=message.error,
-        retry_count=message.retry_count,
-        failed_at=message.failed_at or datetime(1970, 1, 1, tzinfo=timezone.utc),
-        status=DLQMessageStatus(message.status),
-        created_at=message.created_at,
-        last_updated=message.last_updated,
-        next_retry_at=message.next_retry_at,
-        retried_at=message.retried_at,
-        discarded_at=message.discarded_at,
-        discard_reason=message.discard_reason,
-        producer_id=message.producer_id,
-        dlq_offset=message.dlq_offset,
-        dlq_partition=message.dlq_partition,
-        last_error=message.last_error,
-    )
+    return DLQMessageDetail.model_validate(message, from_attributes=True)
 
 
 @router.post("/retry", response_model=DLQBatchRetryResponse)
@@ -141,7 +106,7 @@ async def discard_dlq_message(
     return MessageResponse(message=f"Message {event_id} discarded")
 
 
-@router.get("/topics", response_model=List[DLQTopicSummaryResponse])
-async def get_dlq_topics(repository: FromDishka[DLQRepository]) -> List[DLQTopicSummaryResponse]:
+@router.get("/topics", response_model=list[DLQTopicSummaryResponse])
+async def get_dlq_topics(repository: FromDishka[DLQRepository]) -> list[DLQTopicSummaryResponse]:
     topics = await repository.get_topics_summary()
     return [DLQTopicSummaryResponse.model_validate(topic) for topic in topics]

@@ -116,41 +116,45 @@ class RetryPolicy:
 
 
 # Statistics models
-@dataclass
-class TopicStatistic:
+class TopicStatistic(BaseModel):
     """Statistics for a single topic."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     topic: str
     count: int
     avg_retry_count: float
 
 
-@dataclass
-class EventTypeStatistic:
+class EventTypeStatistic(BaseModel):
     """Statistics for a single event type."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     event_type: str
     count: int
 
 
-@dataclass
-class AgeStatistics:
+class AgeStatistics(BaseModel):
     """Age statistics for DLQ messages."""
 
-    min_age_seconds: float
-    max_age_seconds: float
-    avg_age_seconds: float
+    model_config = ConfigDict(from_attributes=True)
+
+    min_age_seconds: float = 0.0
+    max_age_seconds: float = 0.0
+    avg_age_seconds: float = 0.0
 
 
-@dataclass
-class DLQStatistics:
+class DLQStatistics(BaseModel):
     """Comprehensive DLQ statistics."""
 
-    by_status: dict[str, int]
+    model_config = ConfigDict(from_attributes=True)
+
+    by_status: dict[DLQMessageStatus, int]
     by_topic: list[TopicStatistic]
     by_event_type: list[EventTypeStatistic]
     age_stats: AgeStatistics
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 @dataclass
@@ -182,9 +186,10 @@ class DLQMessageListResult:
     limit: int
 
 
-@dataclass
-class DLQTopicSummary:
+class DLQTopicSummary(BaseModel):
     """Summary of a topic in DLQ."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     topic: str
     total_messages: int

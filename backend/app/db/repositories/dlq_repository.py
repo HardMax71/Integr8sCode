@@ -1,8 +1,9 @@
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Mapping
+from typing import Any
 
 from beanie.odm.enums import SortDirection
+from monggregate import Pipeline, S
 
 from app.db.docs import DLQMessageDocument
 from app.dlq import (
@@ -16,93 +17,74 @@ from app.dlq import (
     TopicStatistic,
 )
 from app.domain.enums.events import EventType
-from app.infrastructure.kafka.mappings import get_event_class_for_type
 
 
 class DLQRepository:
     def __init__(self, logger: logging.Logger):
         self.logger = logger
 
-    def _doc_to_message(self, doc: DLQMessageDocument) -> DLQMessage:
-        event_type = doc.event.event_type
-        event_class = get_event_class_for_type(event_type)
-        if not event_class:
-            raise ValueError(f"Unknown event type: {event_type}")
-        data = doc.model_dump(exclude={"id", "revision_id"})
-        return DLQMessage(**{**data, "event": event_class(**data["event"])})
-
     async def get_dlq_stats(self) -> DLQStatistics:
-        # Get counts by status
-        status_pipeline: list[Mapping[str, object]] = [{"$group": {"_id": "$status", "count": {"$sum": 1}}}]
-        by_status: Dict[str, int] = {}
-        async for doc in DLQMessageDocument.aggregate(status_pipeline):
-            if doc["_id"]:
-                by_status[doc["_id"]] = doc["count"]
+        # Counts by status
+        status_pipeline = Pipeline().group(by=DLQMessageDocument.status, query={"count": S.sum(1)})
+        status_results = await DLQMessageDocument.aggregate(status_pipeline.export()).to_list()
+        by_status = {doc["_id"]: doc["count"] for doc in status_results if doc["_id"]}
 
-        # Get counts by topic
-        topic_pipeline: list[Mapping[str, object]] = [
-            {
-                "$group": {
-                    "_id": "$original_topic",
-                    "count": {"$sum": 1},
-                    "avg_retry_count": {"$avg": "$retry_count"},
-                }
-            },
-            {"$sort": {"count": -1}},
-            {"$limit": 10},
-        ]
-        by_topic: List[TopicStatistic] = []
-        async for doc in DLQMessageDocument.aggregate(topic_pipeline):
-            by_topic.append(
-                TopicStatistic(topic=doc["_id"], count=doc["count"], avg_retry_count=round(doc["avg_retry_count"], 2))
+        # Counts by topic (top 10) - project renames _id->topic and rounds avg_retry_count
+        topic_pipeline = (
+            Pipeline()
+            .group(
+                by=DLQMessageDocument.original_topic,
+                query={"count": S.sum(1), "avg_retry_count": S.avg(S.field(DLQMessageDocument.retry_count))},
             )
-
-        # Get counts by event type
-        event_type_pipeline: list[Mapping[str, object]] = [
-            {"$group": {"_id": "$event_type", "count": {"$sum": 1}}},
-            {"$sort": {"count": -1}},
-            {"$limit": 10},
-        ]
-        by_event_type: List[EventTypeStatistic] = []
-        async for doc in DLQMessageDocument.aggregate(event_type_pipeline):
-            if doc["_id"]:
-                by_event_type.append(EventTypeStatistic(event_type=doc["_id"], count=doc["count"]))
-
-        # Get age statistics
-        age_pipeline: list[Mapping[str, object]] = [
-            {
-                "$project": {
-                    "age_seconds": {"$divide": [{"$subtract": [datetime.now(timezone.utc), "$failed_at"]}, 1000]}
-                }
-            },
-            {
-                "$group": {
-                    "_id": None,
-                    "min_age": {"$min": "$age_seconds"},
-                    "max_age": {"$max": "$age_seconds"},
-                    "avg_age": {"$avg": "$age_seconds"},
-                }
-            },
-        ]
-        age_result = []
-        async for doc in DLQMessageDocument.aggregate(age_pipeline):
-            age_result.append(doc)
-        age_stats_data = age_result[0] if age_result else {}
-        age_stats = AgeStatistics(
-            min_age_seconds=age_stats_data.get("min_age", 0.0),
-            max_age_seconds=age_stats_data.get("max_age", 0.0),
-            avg_age_seconds=age_stats_data.get("avg_age", 0.0),
+            .sort(by="count", descending=True)
+            .limit(10)
+            .project(_id=0, topic="$_id", count=1, avg_retry_count={"$round": ["$avg_retry_count", 2]})
         )
+        topic_results = await DLQMessageDocument.aggregate(topic_pipeline.export()).to_list()
+        by_topic = [TopicStatistic.model_validate(doc) for doc in topic_results]
+
+        # Counts by event type (top 10) - project renames _id->event_type
+        event_type_pipeline = (
+            Pipeline()
+            .group(by=DLQMessageDocument.event.event_type, query={"count": S.sum(1)})
+            .sort(by="count", descending=True)
+            .limit(10)
+            .project(_id=0, event_type="$_id", count=1)
+        )
+        event_type_results = await DLQMessageDocument.aggregate(event_type_pipeline.export()).to_list()
+        by_event_type = [EventTypeStatistic.model_validate(doc) for doc in event_type_results if doc["event_type"]]
+
+        # Age statistics - get timestamps, calculate ages in Python
+        time_pipeline = Pipeline().group(
+            by=None,
+            query={
+                "oldest": S.min(S.field(DLQMessageDocument.failed_at)),
+                "newest": S.max(S.field(DLQMessageDocument.failed_at)),
+                "total": S.sum(1),
+            },
+        )
+        time_results = await DLQMessageDocument.aggregate(time_pipeline.export()).to_list()
+        now = datetime.now(timezone.utc)
+        if time_results and time_results[0].get("oldest"):
+            r = time_results[0]
+            oldest, newest = r["oldest"], r["newest"]
+            age_stats = AgeStatistics(
+                min_age_seconds=(now - newest).total_seconds(),
+                max_age_seconds=(now - oldest).total_seconds(),
+                avg_age_seconds=((now - oldest).total_seconds() + (now - newest).total_seconds()) / 2,
+            )
+        else:
+            age_stats = AgeStatistics()
 
         return DLQStatistics(by_status=by_status, by_topic=by_topic, by_event_type=by_event_type, age_stats=age_stats)
 
     async def get_messages(
-        self,
-        status: DLQMessageStatus | None = None,
-        topic: str | None = None,
-        event_type: EventType | None = None,
-        limit: int = 50,
-        offset: int = 0,
+            self,
+            status: DLQMessageStatus | None = None,
+            topic: str | None = None,
+            event_type: EventType | None = None,
+            limit: int = 50,
+            offset: int = 0,
     ) -> DLQMessageListResult:
         conditions: list[Any] = [
             DLQMessageDocument.status == status if status else None,
@@ -116,7 +98,7 @@ class DLQRepository:
         docs = await query.sort([("failed_at", SortDirection.DESCENDING)]).skip(offset).limit(limit).to_list()
 
         return DLQMessageListResult(
-            messages=[self._doc_to_message(d) for d in docs],
+            messages=[DLQMessage.model_validate(d, from_attributes=True) for d in docs],
             total=total_count,
             offset=offset,
             limit=limit,
@@ -124,43 +106,48 @@ class DLQRepository:
 
     async def get_message_by_id(self, event_id: str) -> DLQMessage | None:
         doc = await DLQMessageDocument.find_one({"event.event_id": event_id})
-        return self._doc_to_message(doc) if doc else None
+        return DLQMessage.model_validate(doc, from_attributes=True) if doc else None
 
     async def get_topics_summary(self) -> list[DLQTopicSummary]:
-        pipeline: list[Mapping[str, object]] = [
-            {
-                "$group": {
-                    "_id": "$original_topic",
-                    "count": {"$sum": 1},
-                    "statuses": {"$push": "$status"},
-                    "oldest_message": {"$min": "$failed_at"},
-                    "newest_message": {"$max": "$failed_at"},
-                    "avg_retry_count": {"$avg": "$retry_count"},
-                    "max_retry_count": {"$max": "$retry_count"},
-                }
-            },
-            {"$sort": {"count": -1}},
-        ]
-
-        topics = []
-        async for result in DLQMessageDocument.aggregate(pipeline):
-            status_counts: dict[str, int] = {}
-            for status in result["statuses"]:
-                status_counts[status] = status_counts.get(status, 0) + 1
-
-            topics.append(
-                DLQTopicSummary(
-                    topic=result["_id"],
-                    total_messages=result["count"],
-                    status_breakdown=status_counts,
-                    oldest_message=result["oldest_message"],
-                    newest_message=result["newest_message"],
-                    avg_retry_count=round(result["avg_retry_count"], 2),
-                    max_retry_count=result["max_retry_count"],
-                )
+        # Two-stage aggregation: group by topic+status first, then by topic with $arrayToObject
+        pipeline = (
+            Pipeline()
+            .group(
+                by={"topic": DLQMessageDocument.original_topic, "status": DLQMessageDocument.status},
+                query={
+                    "count": S.sum(1),
+                    "oldest": S.min(S.field(DLQMessageDocument.failed_at)),
+                    "newest": S.max(S.field(DLQMessageDocument.failed_at)),
+                    "sum_retry": S.sum(S.field(DLQMessageDocument.retry_count)),
+                    "max_retry": S.max(S.field(DLQMessageDocument.retry_count)),
+                },
             )
-
-        return topics
+            .group(
+                by="$_id.topic",
+                query={
+                    "status_pairs": S.push({"k": "$_id.status", "v": "$count"}),
+                    "total_messages": S.sum("$count"),
+                    "oldest_message": S.min("$oldest"),
+                    "newest_message": S.max("$newest"),
+                    "total_retry": S.sum("$sum_retry"),
+                    "doc_count": S.sum("$count"),
+                    "max_retry_count": S.max("$max_retry"),
+                },
+            )
+            .sort(by="total_messages", descending=True)
+            .project(
+                _id=0,
+                topic="$_id",
+                total_messages=1,
+                status_breakdown={"$arrayToObject": "$status_pairs"},
+                oldest_message=1,
+                newest_message=1,
+                avg_retry_count={"$round": [{"$divide": ["$total_retry", "$doc_count"]}, 2]},
+                max_retry_count=1,
+            )
+        )
+        results = await DLQMessageDocument.aggregate(pipeline.export()).to_list()
+        return [DLQTopicSummary.model_validate(r) for r in results]
 
     async def mark_message_retried(self, event_id: str) -> bool:
         doc = await DLQMessageDocument.find_one({"event.event_id": event_id})

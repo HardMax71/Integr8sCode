@@ -2,9 +2,6 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping
 
-from beanie.odm.enums import SortDirection
-from beanie.operators import GTE, LT, LTE, In, Not, Or, RegEx
-
 from app.core.tracing import EventAttributes
 from app.core.tracing.utils import add_span_attributes
 from app.db.docs import EventArchiveDocument, EventDocument
@@ -18,6 +15,9 @@ from app.domain.events import (
     EventStatistics,
     domain_event_adapter,
 )
+from beanie.odm.enums import SortDirection
+from beanie.operators import GTE, LT, LTE, In, Not, Or, RegEx
+from monggregate import S
 
 
 class EventRepository:
@@ -72,12 +72,12 @@ class EventRepository:
         return domain_event_adapter.validate_python(doc, from_attributes=True)
 
     async def get_events_by_type(
-        self,
-        event_type: str,
-        start_time: datetime | None = None,
-        end_time: datetime | None = None,
-        limit: int = 100,
-        skip: int = 0,
+            self,
+            event_type: str,
+            start_time: datetime | None = None,
+            end_time: datetime | None = None,
+            limit: int = 100,
+            skip: int = 0,
     ) -> list[DomainEvent]:
         conditions = [
             EventDocument.event_type == event_type,
@@ -93,7 +93,7 @@ class EventRepository:
         return [domain_event_adapter.validate_python(d, from_attributes=True) for d in docs]
 
     async def get_events_by_aggregate(
-        self, aggregate_id: str, event_types: list[EventType] | None = None, limit: int = 100
+            self, aggregate_id: str, event_types: list[EventType] | None = None, limit: int = 100
     ) -> list[DomainEvent]:
         conditions = [
             EventDocument.aggregate_id == aggregate_id,
@@ -119,13 +119,13 @@ class EventRepository:
         )
 
     async def get_events_by_user(
-        self,
-        user_id: str,
-        event_types: list[str] | None = None,
-        start_time: datetime | None = None,
-        end_time: datetime | None = None,
-        limit: int = 100,
-        skip: int = 0,
+            self,
+            user_id: str,
+            event_types: list[str] | None = None,
+            start_time: datetime | None = None,
+            end_time: datetime | None = None,
+            limit: int = 100,
+            skip: int = 0,
     ) -> list[DomainEvent]:
         conditions = [
             EventDocument.metadata.user_id == user_id,
@@ -143,7 +143,7 @@ class EventRepository:
         return [domain_event_adapter.validate_python(d, from_attributes=True) for d in docs]
 
     async def get_execution_events(
-        self, execution_id: str, limit: int = 100, skip: int = 0, exclude_system_events: bool = False
+            self, execution_id: str, limit: int = 100, skip: int = 0, exclude_system_events: bool = False
     ) -> EventListResult:
         conditions: list[Any] = [
             Or(
@@ -166,10 +166,10 @@ class EventRepository:
         )
 
     async def get_event_statistics(
-        self,
-        start_time: datetime | None = None,
-        end_time: datetime | None = None,
-        match: dict[str, object] | None = None,
+            self,
+            start_time: datetime | None = None,
+            end_time: datetime | None = None,
+            match: dict[str, object] | None = None,
     ) -> EventStatistics:
         pipeline: list[Mapping[str, object]] = []
         if match:
@@ -183,17 +183,22 @@ class EventRepository:
                 {
                     "$facet": {
                         "by_type": [
-                            {"$group": {"_id": "$event_type", "count": {"$sum": 1}}},
+                            {"$group": {"_id": S.field(EventDocument.event_type), "count": {"$sum": 1}}},
                             {"$sort": {"count": -1}},
                         ],
                         "by_service": [
-                            {"$group": {"_id": "$metadata.service_name", "count": {"$sum": 1}}},
+                            {"$group": {"_id": S.field(EventDocument.metadata.service_name), "count": {"$sum": 1}}},
                             {"$sort": {"count": -1}},
                         ],
                         "by_hour": [
                             {
                                 "$group": {
-                                    "_id": {"$dateToString": {"format": "%Y-%m-%d %H:00", "date": "$timestamp"}},
+                                    "_id": {
+                                        "$dateToString": {
+                                            "format": "%Y-%m-%d %H:00",
+                                            "date": S.field(EventDocument.timestamp),
+                                        }
+                                    },
                                     "count": {"$sum": 1},
                                 }
                             },
@@ -234,7 +239,7 @@ class EventRepository:
         return EventStatistics(total_events=0, events_by_type={}, events_by_service={}, events_by_hour=[])
 
     async def cleanup_old_events(
-        self, older_than_days: int = 30, event_types: list[str] | None = None, dry_run: bool = False
+            self, older_than_days: int = 30, event_types: list[str] | None = None, dry_run: bool = False
     ) -> int:
         cutoff_dt = datetime.now(timezone.utc) - timedelta(days=older_than_days)
         conditions: list[Any] = [
@@ -254,14 +259,14 @@ class EventRepository:
         return deleted_count
 
     async def get_user_events_paginated(
-        self,
-        user_id: str,
-        event_types: list[str] | None = None,
-        start_time: datetime | None = None,
-        end_time: datetime | None = None,
-        limit: int = 100,
-        skip: int = 0,
-        sort_order: str = "desc",
+            self,
+            user_id: str,
+            event_types: list[str] | None = None,
+            start_time: datetime | None = None,
+            end_time: datetime | None = None,
+            limit: int = 100,
+            skip: int = 0,
+            sort_order: str = "desc",
     ) -> EventListResult:
         conditions = [
             EventDocument.metadata.user_id == user_id,
@@ -287,11 +292,11 @@ class EventRepository:
         return await EventDocument.find(*conditions).count()
 
     async def query_events(
-        self,
-        query: dict[str, Any],
-        sort_field: str = "timestamp",
-        skip: int = 0,
-        limit: int = 100,
+            self,
+            query: dict[str, Any],
+            sort_field: str = "timestamp",
+            skip: int = 0,
+            limit: int = 100,
     ) -> EventListResult:
         """Query events with filter, sort, and pagination. Always sorts descending (newest first)."""
         cursor = EventDocument.find(query)
@@ -315,7 +320,7 @@ class EventRepository:
             pipeline.append({"$match": match})
         pipeline.extend(
             [
-                {"$group": {"_id": "$event_type"}},
+                {"$group": {"_id": S.field(EventDocument.event_type)}},
                 {"$sort": {"_id": 1}},
             ]
         )
@@ -323,7 +328,7 @@ class EventRepository:
         return [doc["_id"] for doc in results if doc.get("_id")]
 
     async def delete_event_with_archival(
-        self, event_id: str, deleted_by: str, deletion_reason: str = "Admin deletion via API"
+            self, event_id: str, deleted_by: str, deletion_reason: str = "Admin deletion via API"
     ) -> ArchivedEvent | None:
         doc = await EventDocument.find_one(EventDocument.event_id == event_id)
         if not doc:
@@ -341,16 +346,16 @@ class EventRepository:
 
     async def get_aggregate_replay_info(self, aggregate_id: str) -> EventReplayInfo | None:
         pipeline = [
-            {"$match": {"aggregate_id": aggregate_id}},
-            {"$sort": {"timestamp": 1}},
+            {"$match": {EventDocument.aggregate_id: aggregate_id}},
+            {"$sort": {EventDocument.timestamp: 1}},
             {
                 "$group": {
                     "_id": None,
                     "events": {"$push": "$$ROOT"},
                     "event_count": {"$sum": 1},
-                    "event_types": {"$addToSet": "$event_type"},
-                    "start_time": {"$min": "$timestamp"},
-                    "end_time": {"$max": "$timestamp"},
+                    "event_types": {"$addToSet": S.field(EventDocument.event_type)},
+                    "start_time": {"$min": S.field(EventDocument.timestamp)},
+                    "end_time": {"$max": S.field(EventDocument.timestamp)},
                 }
             },
             {"$project": {"_id": 0}},

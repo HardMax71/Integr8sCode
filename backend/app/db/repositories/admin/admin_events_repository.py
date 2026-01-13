@@ -3,6 +3,7 @@ from typing import Any
 
 from beanie.odm.enums import SortDirection
 from beanie.operators import GTE, LTE, In, Text
+from monggregate import Pipeline, S
 
 from app.db.docs import (
     EventArchiveDocument,
@@ -25,7 +26,6 @@ from app.domain.events import (
     UserEventCount,
     domain_event_adapter,
 )
-from app.domain.events.query_builders import EventStatsAggregation
 from app.domain.replay.models import ReplayFilter, ReplaySessionState
 
 
@@ -95,9 +95,28 @@ class AdminEventsRepository:
     async def get_event_stats(self, hours: int = 24) -> EventStatistics:
         start_time = datetime.now(timezone.utc) - timedelta(hours=hours)
 
-        overview_pipeline = EventStatsAggregation.build_overview_pipeline(start_time)
-        overview_result = await EventDocument.aggregate(overview_pipeline).to_list()
-
+        # Overview stats pipeline
+        overview_pipeline = (
+            Pipeline()
+            .match({EventDocument.timestamp: {"$gte": start_time}})
+            .group(
+                by=None,
+                query={
+                    "total_events": S.sum(1),
+                    "event_types": S.add_to_set(S.field(EventDocument.event_type)),
+                    "unique_users": S.add_to_set(S.field(EventDocument.metadata.user_id)),
+                    "services": S.add_to_set(S.field(EventDocument.metadata.service_name)),
+                },
+            )
+            .project(
+                _id=0,
+                total_events=1,
+                event_type_count={"$size": "$event_types"},
+                unique_user_count={"$size": "$unique_users"},
+                service_count={"$size": "$services"},
+            )
+        )
+        overview_result = await EventDocument.aggregate(overview_pipeline.export()).to_list()
         stats = (
             overview_result[0]
             if overview_result
@@ -106,41 +125,61 @@ class AdminEventsRepository:
 
         error_count = await EventDocument.find(
             {
-                "timestamp": {"$gte": start_time},
-                "event_type": {"$regex": "failed|error|timeout", "$options": "i"},
+                EventDocument.timestamp: {"$gte": start_time},
+                EventDocument.event_type: {"$regex": "failed|error|timeout", "$options": "i"},
             }
         ).count()
-
         error_rate = (error_count / stats["total_events"] * 100) if stats["total_events"] > 0 else 0
 
-        type_pipeline = EventStatsAggregation.build_event_types_pipeline(start_time)
-        top_types = await EventDocument.aggregate(type_pipeline).to_list()
+        # Event types pipeline
+        type_pipeline = (
+            Pipeline()
+            .match({EventDocument.timestamp: {"$gte": start_time}})
+            .group(by=EventDocument.event_type, query={"count": S.sum(1)})
+            .sort(by="count", descending=True)
+            .limit(10)
+        )
+        top_types = await EventDocument.aggregate(type_pipeline.export()).to_list()
         events_by_type = {t["_id"]: t["count"] for t in top_types}
 
-        hourly_pipeline = EventStatsAggregation.build_hourly_events_pipeline(start_time)
-        hourly_result = await EventDocument.aggregate(hourly_pipeline).to_list()
-        events_by_hour: list[HourlyEventCount | dict[str, Any]] = [
-            HourlyEventCount(hour=doc["_id"], count=doc["count"]) for doc in hourly_result
-        ]
+        # Hourly events pipeline - project renames _id->hour
+        hourly_pipeline = (
+            Pipeline()
+            .match({EventDocument.timestamp: {"$gte": start_time}})
+            .group(
+                by={"$dateToString": {"format": "%Y-%m-%d-%H", "date": S.field(EventDocument.timestamp)}},
+                query={"count": S.sum(1)},
+            )
+            .sort(by="_id")
+            .project(_id=0, hour="$_id", count=1)
+        )
+        hourly_result = await EventDocument.aggregate(hourly_pipeline.export()).to_list()
+        events_by_hour: list[HourlyEventCount | dict[str, Any]] = [HourlyEventCount(**doc) for doc in hourly_result]
 
-        user_pipeline = EventStatsAggregation.build_top_users_pipeline(start_time)
-        top_users_result = await EventDocument.aggregate(user_pipeline).to_list()
-        top_users = [
-            UserEventCount(user_id=doc["_id"], event_count=doc["count"]) for doc in top_users_result if doc["_id"]
-        ]
+        # Top users pipeline - project renames _id->user_id, count->event_count
+        user_pipeline = (
+            Pipeline()
+            .match({EventDocument.timestamp: {"$gte": start_time}})
+            .group(by=EventDocument.metadata.user_id, query={"count": S.sum(1)})
+            .sort(by="count", descending=True)
+            .limit(10)
+            .project(_id=0, user_id="$_id", event_count="$count")
+        )
+        top_users_result = await EventDocument.aggregate(user_pipeline.export()).to_list()
+        top_users = [UserEventCount(**doc) for doc in top_users_result if doc["user_id"]]
 
-        exec_pipeline: list[dict[str, Any]] = [
-            {
-                "$match": {
-                    "created_at": {"$gte": start_time},
-                    "status": "completed",
-                    "resource_usage.execution_time_wall_seconds": {"$exists": True},
-                }
-            },
-            {"$group": {"_id": None, "avg_duration": {"$avg": "$resource_usage.execution_time_wall_seconds"}}},
-        ]
-
-        exec_result = await ExecutionDocument.aggregate(exec_pipeline).to_list()
+        # Execution duration pipeline
+        exec_time_field = S.field(ExecutionDocument.resource_usage.execution_time_wall_seconds)
+        exec_pipeline = (
+            Pipeline()
+            .match({
+                ExecutionDocument.created_at: {"$gte": start_time},
+                ExecutionDocument.status: "completed",
+                ExecutionDocument.resource_usage.execution_time_wall_seconds: {"$exists": True},
+            })
+            .group(by=None, query={"avg_duration": S.avg(exec_time_field)})
+        )
+        exec_result = await ExecutionDocument.aggregate(exec_pipeline.export()).to_list()
         avg_processing_time = (
             exec_result[0]["avg_duration"] if exec_result and exec_result[0].get("avg_duration") else 0
         )

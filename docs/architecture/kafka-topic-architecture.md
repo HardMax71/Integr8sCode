@@ -147,9 +147,9 @@ Admins can:
 
 Key files:
 
-- `infrastructure/kafka/events/*` — Pydantic event models
-- `infrastructure/kafka/mappings.py` — event to topic mapping
+- `domain/events/typed.py` — all Pydantic event models (extends `AvroBase` for Avro serialization)
+- `infrastructure/kafka/mappings.py` — event-to-topic routing and helper functions
 - `events/schema/schema_registry.py` — schema manager
 - `events/core/{producer,consumer,dispatcher}.py` — unified Kafka plumbing
 
-All events are Pydantic models with *strict typing*. The mappings module routes each event type to its destination topic. Schema Registry integration ensures producers and consumers agree on structure, catching incompatible changes *before* runtime failures. The unified producer and consumer classes handle serialization, error handling, and observability.
+All events are Pydantic models with *strict typing* that extend `AvroBase` for Avro schema generation. The mappings module routes each event type to its destination topic via `EVENT_TYPE_TO_TOPIC`. Schema Registry integration ensures producers and consumers agree on structure, catching incompatible changes *before* runtime failures. The unified producer and consumer classes handle serialization, error handling, and observability.

@@ -12,9 +12,8 @@ from app.core.utils import get_client_ip
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.user import UserRole
+from app.domain.events.typed import BaseEvent, EventMetadata
 from app.domain.exceptions import DomainError
-from app.infrastructure.kafka.events.base import BaseEvent
-from app.infrastructure.kafka.events.metadata import AvroEventMetadata as EventMetadata
 from app.schemas_pydantic.execution import (
     CancelExecutionRequest,
     CancelResponse,

@@ -8,8 +8,8 @@ from typing import Any
 
 import pytest
 import redis.asyncio as redis
+from app.domain.events.typed import DomainEvent
 from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus
-from app.infrastructure.kafka.events.base import BaseEvent
 from app.services.idempotency.idempotency_manager import IdempotencyConfig, IdempotencyManager
 from app.services.idempotency.middleware import IdempotentEventHandler, idempotent_handler
 from app.services.idempotency.redis_repository import RedisIdempotencyRepository
@@ -268,9 +268,9 @@ class TestIdempotentEventHandlerIntegration:
     @pytest.mark.asyncio
     async def test_handler_processes_new_event(self, manager: IdempotencyManager) -> None:
         """Test that handler processes new events"""
-        processed_events: list[BaseEvent] = []
+        processed_events: list[DomainEvent] = []
 
-        async def actual_handler(event: BaseEvent) -> None:
+        async def actual_handler(event: DomainEvent) -> None:
             processed_events.append(event)
 
         # Create idempotent handler
@@ -292,9 +292,9 @@ class TestIdempotentEventHandlerIntegration:
     @pytest.mark.asyncio
     async def test_handler_blocks_duplicate(self, manager: IdempotencyManager) -> None:
         """Test that handler blocks duplicate events"""
-        processed_events: list[BaseEvent] = []
+        processed_events: list[DomainEvent] = []
 
-        async def actual_handler(event: BaseEvent) -> None:
+        async def actual_handler(event: DomainEvent) -> None:
             processed_events.append(event)
 
         # Create idempotent handler
@@ -317,7 +317,7 @@ class TestIdempotentEventHandlerIntegration:
     async def test_handler_with_failure(self, manager: IdempotencyManager) -> None:
         """Test handler marks failure on exception"""
 
-        async def failing_handler(event: BaseEvent) -> None:  # noqa: ARG001
+        async def failing_handler(event: DomainEvent) -> None:  # noqa: ARG001
             raise ValueError("Processing failed")
 
         handler = IdempotentEventHandler(
@@ -343,12 +343,12 @@ class TestIdempotentEventHandlerIntegration:
     @pytest.mark.asyncio
     async def test_handler_duplicate_callback(self, manager: IdempotencyManager) -> None:
         """Test duplicate callback is invoked"""
-        duplicate_events: list[tuple[BaseEvent, Any]] = []
+        duplicate_events: list[tuple[DomainEvent, Any]] = []
 
-        async def actual_handler(event: BaseEvent) -> None:  # noqa: ARG001
+        async def actual_handler(event: DomainEvent) -> None:  # noqa: ARG001
             pass  # Do nothing
 
-        async def on_duplicate(event: BaseEvent, result: Any) -> None:
+        async def on_duplicate(event: DomainEvent, result: Any) -> None:
             duplicate_events.append((event, result))
 
         handler = IdempotentEventHandler(
@@ -372,7 +372,7 @@ class TestIdempotentEventHandlerIntegration:
     @pytest.mark.asyncio
     async def test_decorator_integration(self, manager: IdempotencyManager) -> None:
         """Test the @idempotent_handler decorator"""
-        processed_events: list[BaseEvent] = []
+        processed_events: list[DomainEvent] = []
 
         @idempotent_handler(
             idempotency_manager=manager,
@@ -380,7 +380,7 @@ class TestIdempotentEventHandlerIntegration:
             ttl_seconds=300,
             logger=_test_logger,
         )
-        async def my_handler(event: BaseEvent) -> None:
+        async def my_handler(event: DomainEvent) -> None:
             processed_events.append(event)
 
         # Process same event twice
@@ -406,11 +406,11 @@ class TestIdempotentEventHandlerIntegration:
         """Test handler with custom key function"""
         processed_scripts: list[str] = []
 
-        async def process_script(event: BaseEvent) -> None:
+        async def process_script(event: DomainEvent) -> None:
             script: str = getattr(event, "script", "")
             processed_scripts.append(script)
 
-        def extract_script_key(event: BaseEvent) -> str:
+        def extract_script_key(event: DomainEvent) -> str:
             # Custom key based on script content only
             script: str = getattr(event, "script", "")
             return f"script:{hash(script)}"

@@ -10,8 +10,7 @@ import pytest
 from app.domain.enums.events import EventType
 from app.domain.enums.notification import NotificationSeverity, NotificationStatus
 from app.domain.enums.sse import SSEControlEvent, SSENotificationEvent
-from app.infrastructure.kafka.events.metadata import AvroEventMetadata
-from app.infrastructure.kafka.events.pod import PodCreatedEvent
+from app.domain.events.typed import EventMetadata, PodCreatedEvent
 from app.schemas_pydantic.sse import (
     RedisNotificationMessage,
     RedisSSEMessage,
@@ -69,7 +68,7 @@ class TestRedisPubSubExecution:
             execution_id=exec_id,
             pod_name="test-pod",
             namespace="test-ns",
-            metadata=AvroEventMetadata(service_name="test", service_version="1.0"),
+            metadata=EventMetadata(service_name="test", service_version="1.0"),
         )
         await bus.publish_event(exec_id, event)
 
@@ -96,7 +95,7 @@ class TestRedisPubSubExecution:
             execution_id=exec_a,
             pod_name="pod-a",
             namespace="default",
-            metadata=AvroEventMetadata(service_name="test", service_version="1"),
+            metadata=EventMetadata(service_name="test", service_version="1"),
         )
         await bus.publish_event(exec_a, event)
 

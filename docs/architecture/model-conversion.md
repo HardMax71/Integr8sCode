@@ -25,7 +25,7 @@ graph TB
     end
 
     subgraph "Infrastructure Layer"
-        INF["Pydantic/ODM<br/><code>app/db/docs/</code><br/><code>app/infrastructure/kafka/events/</code>"]
+        INF["Pydantic/ODM<br/><code>app/db/docs/</code><br/><code>app/domain/events/typed.py</code>"]
     end
 
     API <--> SVC

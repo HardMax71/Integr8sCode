@@ -18,7 +18,7 @@ Repositories don't create their own indexes — they only read and write. This s
 
 The `SchemaRegistryManager` class in `app/events/schema/schema_registry.py` handles Avro serialization for Kafka events. All registry operations are async and must be awaited. The manager connects to a Confluent Schema Registry and registers schemas for all event types at startup via `await initialize_schemas()`.
 
-Each event class (subclass of `BaseEvent`) generates its own Avro schema from Pydantic model definitions. The manager registers these schemas with subjects named after the class (like `ExecutionRequestedEvent-value`) and sets FORWARD compatibility, meaning new schemas can add fields but not remove required ones. This allows producers to be upgraded before consumers without breaking deserialization.
+All event classes in `domain/events/typed.py` extend `AvroBase` (from `pydantic-avro`), enabling automatic Avro schema generation. The manager registers these schemas with subjects named after the class (like `ExecutionRequestedEvent-value`) and sets FORWARD compatibility, meaning new schemas can add fields but not remove required ones. This allows producers to be upgraded before consumers without breaking deserialization.
 
 Serialization and deserialization are async — `await serialize_event(event)` and `await deserialize_event(data, topic)` must be awaited. The wire format follows Confluent conventions: a magic byte, four-byte schema id, then the Avro binary payload. The underlying `python-schema-registry-client` library handles schema registration caching internally. The manager maintains a bidirectional cache between schema ids and Python event classes for deserialization. When deserializing, it reads the schema id from the message header, looks up the corresponding event class, deserializes the Avro payload to a dict, and hydrates the Pydantic model.
 
@@ -40,4 +40,6 @@ For Kafka schemas, the registry keeps all versions. If you break compatibility a
 |--------------------------------------------------------------------------------------------------------------------------------|----------------------------|
 | [`schema_manager.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/db/schema/schema_manager.py)             | MongoDB migrations         |
 | [`schema_registry.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/events/schema/schema_registry.py)       | Kafka Avro serialization   |
+| [`typed.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/domain/events/typed.py)                           | Domain events (extend AvroBase) |
+| [`mappings.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/infrastructure/kafka/mappings.py)              | Event-to-topic routing     |
 | [`dishka_lifespan.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/dishka_lifespan.py)                     | Startup initialization     |

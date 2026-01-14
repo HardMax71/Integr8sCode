@@ -1,9 +1,8 @@
 import pytest
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
+from app.domain.events.typed import DomainEvent, ExecutionRequestedEvent
 from app.domain.saga import DomainResourceAllocation, DomainResourceAllocationCreate
 from app.events.core import UnifiedProducer
-from app.infrastructure.kafka.events import BaseEvent
-from app.infrastructure.kafka.events.execution import ExecutionRequestedEvent
 from app.services.saga.execution_saga import (
     AllocateResourcesStep,
     CreatePodStep,
@@ -114,9 +113,9 @@ class _FakeProducer(UnifiedProducer):
     """Fake UnifiedProducer for testing."""
 
     def __init__(self) -> None:
-        self.events: list[BaseEvent] = []
+        self.events: list[DomainEvent] = []
 
-    async def produce(self, event_to_produce: BaseEvent, key: str | None = None,
+    async def produce(self, event_to_produce: DomainEvent, key: str | None = None,
                       headers: dict[str, str] | None = None) -> None:
         self.events.append(event_to_produce)
 

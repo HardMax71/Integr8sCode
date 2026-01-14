@@ -123,6 +123,7 @@ dependencies = [
     "wrapt==1.16.0",
     "yarl==1.20.1",
     "zipp==3.20.2",
+    "monggregate==0.22.1",
 ]
 
 [build-system]
@@ -215,9 +216,9 @@ log_cli_level = "ERROR"
 log_level = "ERROR"
 addopts = "--tb=short -n auto --dist=loadfile"
 
-# pytest-env: Set DOTENV_PATH so Settings loads .env.test instead of .env
+# pytest-env: Sets env vars before test execution
 [tool.pytest_env]
-DOTENV_PATH = ".env.test"
+OTEL_SDK_DISABLED = "true"  # Prevents teardown delays from OTLP exporter retries
 
 # Coverage configuration
 [tool.coverage.run]

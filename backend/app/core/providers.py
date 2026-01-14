@@ -43,7 +43,7 @@ from app.db.repositories.user_settings_repository import UserSettingsRepository
 from app.dlq.manager import DLQManager, create_dlq_manager
 from app.domain.enums.kafka import KafkaTopic
 from app.domain.saga.models import SagaConfig
-from app.events.core import ProducerConfig, UnifiedProducer
+from app.events.core import UnifiedProducer
 from app.events.event_store import EventStore, create_event_store
 from app.events.event_store_consumer import EventStoreConsumer, create_event_store_consumer
 from app.events.schema.schema_registry import SchemaRegistryManager
@@ -160,8 +160,7 @@ class MessagingProvider(Provider):
     async def get_kafka_producer(
         self, settings: Settings, schema_registry: SchemaRegistryManager, logger: logging.Logger
     ) -> AsyncIterator[UnifiedProducer]:
-        config = ProducerConfig(bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS)
-        async with UnifiedProducer(config, schema_registry, logger, settings=settings) as producer:
+        async with UnifiedProducer(schema_registry, logger, settings) as producer:
             yield producer
 
     @provide

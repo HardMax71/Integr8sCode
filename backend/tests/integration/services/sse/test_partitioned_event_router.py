@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from uuid import uuid4
 
@@ -12,7 +13,6 @@ from app.services.sse.redis_bus import SSERedisBus
 from app.settings import Settings
 
 from tests.helpers import make_execution_requested_event
-from tests.helpers.eventually import eventually
 
 pytestmark = [pytest.mark.integration, pytest.mark.redis]
 
@@ -46,12 +46,9 @@ async def test_router_bridges_to_redis(redis_client: redis.Redis, test_settings:
     handler = disp.get_handlers(ev.event_type)[0]
     await handler(ev)
 
-    async def _recv() -> RedisSSEMessage:
-        m = await subscription.get(RedisSSEMessage)
-        assert m is not None
-        return m
-
-    msg = await eventually(_recv, timeout=2.0, interval=0.05)
+    # Await the subscription directly - true async, no polling
+    msg = await asyncio.wait_for(subscription.get(RedisSSEMessage), timeout=2.0)
+    assert msg is not None
     assert str(msg.event_type) == str(ev.event_type)
 
 

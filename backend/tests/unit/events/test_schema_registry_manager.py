@@ -1,8 +1,8 @@
 import logging
 
 import pytest
+from app.domain.events.typed import ExecutionRequestedEvent
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.infrastructure.kafka.events.execution import ExecutionRequestedEvent
 from app.settings import Settings
 
 _test_logger = logging.getLogger("test.events.schema_registry_manager")

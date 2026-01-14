@@ -93,6 +93,10 @@ class EventBus(LifecycleEnabled):
             auto_offset_reset="latest",
             enable_auto_commit=True,
             client_id=f"event-bus-consumer-{uuid4()}",
+            session_timeout_ms=self.settings.KAFKA_SESSION_TIMEOUT_MS,
+            heartbeat_interval_ms=self.settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+            max_poll_interval_ms=self.settings.KAFKA_MAX_POLL_INTERVAL_MS,
+            request_timeout_ms=self.settings.KAFKA_REQUEST_TIMEOUT_MS,
         )
         await self.consumer.start()
 

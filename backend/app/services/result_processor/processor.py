@@ -10,22 +10,20 @@ from app.core.utils import StringEnum
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
-from app.domain.enums.kafka import GroupId, KafkaTopic
+from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId, KafkaTopic
 from app.domain.enums.storage import ExecutionErrorType, StorageType
-from app.domain.execution import ExecutionNotFoundError, ExecutionResultDomain
-from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
-from app.events.schema.schema_registry import SchemaRegistryManager
-from app.infrastructure.kafka import BaseEvent
-from app.infrastructure.kafka.events.execution import (
+from app.domain.events.typed import (
+    DomainEvent,
+    EventMetadata,
     ExecutionCompletedEvent,
     ExecutionFailedEvent,
     ExecutionTimeoutEvent,
-)
-from app.infrastructure.kafka.events.metadata import AvroEventMetadata as EventMetadata
-from app.infrastructure.kafka.events.system import (
     ResultFailedEvent,
     ResultStoredEvent,
 )
+from app.domain.execution import ExecutionNotFoundError, ExecutionResultDomain
+from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
+from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.idempotency import IdempotencyManager
 from app.services.idempotency.middleware import IdempotentConsumerWrapper
 from app.settings import Settings
@@ -46,11 +44,7 @@ class ResultProcessorConfig(BaseModel):
 
     consumer_group: GroupId = Field(default=GroupId.RESULT_PROCESSOR)
     topics: list[KafkaTopic] = Field(
-        default_factory=lambda: [
-            KafkaTopic.EXECUTION_COMPLETED,
-            KafkaTopic.EXECUTION_FAILED,
-            KafkaTopic.EXECUTION_TIMEOUT,
-        ]
+        default_factory=lambda: list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.RESULT_PROCESSOR])
     )
     result_topic: KafkaTopic = Field(default=KafkaTopic.EXECUTION_RESULTS)
     batch_size: int = Field(default=10)
@@ -61,13 +55,13 @@ class ResultProcessor(LifecycleEnabled):
     """Service for processing execution completion events and storing results."""
 
     def __init__(
-        self,
-        execution_repo: ExecutionRepository,
-        producer: UnifiedProducer,
-        schema_registry: SchemaRegistryManager,
-        settings: Settings,
-        idempotency_manager: IdempotencyManager,
-        logger: logging.Logger,
+            self,
+            execution_repo: ExecutionRepository,
+            producer: UnifiedProducer,
+            schema_registry: SchemaRegistryManager,
+            settings: Settings,
+            idempotency_manager: IdempotencyManager,
+            logger: logging.Logger,
     ) -> None:
         """Initialize the result processor."""
         super().__init__()
@@ -127,6 +121,10 @@ class ResultProcessor(LifecycleEnabled):
             max_poll_records=1,
             enable_auto_commit=True,
             auto_offset_reset="earliest",
+            session_timeout_ms=self._settings.KAFKA_SESSION_TIMEOUT_MS,
+            heartbeat_interval_ms=self._settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+            max_poll_interval_ms=self._settings.KAFKA_MAX_POLL_INTERVAL_MS,
+            request_timeout_ms=self._settings.KAFKA_REQUEST_TIMEOUT_MS,
         )
 
         # Create consumer with schema registry and dispatcher
@@ -152,17 +150,17 @@ class ResultProcessor(LifecycleEnabled):
         await wrapper.start(self.config.topics)
         return wrapper
 
-    # Wrappers accepting BaseEvent to satisfy dispatcher typing
+    # Wrappers accepting DomainEvent to satisfy dispatcher typing
 
-    async def _handle_completed_wrapper(self, event: BaseEvent) -> None:
+    async def _handle_completed_wrapper(self, event: DomainEvent) -> None:
         assert isinstance(event, ExecutionCompletedEvent)
         await self._handle_completed(event)
 
-    async def _handle_failed_wrapper(self, event: BaseEvent) -> None:
+    async def _handle_failed_wrapper(self, event: DomainEvent) -> None:
         assert isinstance(event, ExecutionFailedEvent)
         await self._handle_failed(event)
 
-    async def _handle_timeout_wrapper(self, event: BaseEvent) -> None:
+    async def _handle_timeout_wrapper(self, event: DomainEvent) -> None:
         assert isinstance(event, ExecutionTimeoutEvent)
         await self._handle_timeout(event)
 
@@ -177,20 +175,21 @@ class ResultProcessor(LifecycleEnabled):
 
         # Record metrics for successful completion
         self._metrics.record_script_execution(ExecutionStatus.COMPLETED, lang_and_version)
-        runtime_seconds = event.resource_usage.execution_time_wall_seconds
-        self._metrics.record_execution_duration(runtime_seconds, lang_and_version)
+        if event.resource_usage:
+            runtime_seconds = event.resource_usage.execution_time_wall_seconds
+            self._metrics.record_execution_duration(runtime_seconds, lang_and_version)
 
-        # Record memory utilization
-        memory_mib = event.resource_usage.peak_memory_kb / 1024
-        self._metrics.record_memory_usage(memory_mib, lang_and_version)
+            # Record memory utilization
+            memory_mib = event.resource_usage.peak_memory_kb / 1024
+            self._metrics.record_memory_usage(memory_mib, lang_and_version)
 
-        # Calculate and record memory utilization percentage
-        settings_limit = self._settings.K8S_POD_MEMORY_LIMIT
-        memory_limit_mib = int(settings_limit.rstrip("Mi"))  # TODO: Less brittle acquisition of limit
-        memory_percent = (memory_mib / memory_limit_mib) * 100
-        self._metrics.memory_utilization_percent.record(
-            memory_percent, attributes={"lang_and_version": lang_and_version}
-        )
+            # Calculate and record memory utilization percentage
+            settings_limit = self._settings.K8S_POD_MEMORY_LIMIT
+            memory_limit_mib = int(settings_limit.rstrip("Mi"))  # TODO: Less brittle acquisition of limit
+            memory_percent = (memory_mib / memory_limit_mib) * 100
+            self._metrics.memory_utilization_percent.record(
+                memory_percent, attributes={"lang_and_version": lang_and_version}
+            )
 
         result = ExecutionResultDomain(
             execution_id=event.execution_id,
@@ -217,7 +216,7 @@ class ResultProcessor(LifecycleEnabled):
         if exec_obj is None:
             raise ExecutionNotFoundError(event.execution_id)
 
-        self._metrics.record_error(event.error_type)
+        self._metrics.record_error(str(event.error_type) if event.error_type else "unknown")
         lang_and_version = f"{exec_obj.lang}-{exec_obj.lang_version}"
 
         self._metrics.record_script_execution(ExecutionStatus.FAILED, lang_and_version)

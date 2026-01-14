@@ -12,8 +12,8 @@ from app.core.tracing import EventAttributes
 from app.core.tracing.utils import add_span_attributes
 from app.db.docs import EventDocument
 from app.domain.enums.events import EventType
+from app.domain.events.typed import DomainEvent
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.infrastructure.kafka.events.base import BaseEvent
 
 
 class EventStore:
@@ -43,7 +43,7 @@ class EventStore:
         self._initialized = True
         self.logger.info("Event store initialized with Beanie")
 
-    async def store_event(self, event: BaseEvent) -> bool:
+    async def store_event(self, event: DomainEvent) -> bool:
         start = asyncio.get_running_loop().time()
         try:
             now = datetime.now(timezone.utc)
@@ -71,7 +71,7 @@ class EventStore:
             self.metrics.record_event_store_failed(event.event_type, type(e).__name__)
             return False
 
-    async def store_batch(self, events: list[BaseEvent]) -> dict[str, int]:
+    async def store_batch(self, events: list[DomainEvent]) -> dict[str, int]:
         start = asyncio.get_running_loop().time()
         results = {"total": len(events), "stored": 0, "duplicates": 0, "failed": 0}
         if not events:
@@ -108,7 +108,7 @@ class EventStore:
             results["failed"] = results["total"] - results["stored"]
             return results
 
-    async def get_event(self, event_id: str) -> BaseEvent | None:
+    async def get_event(self, event_id: str) -> DomainEvent | None:
         start = asyncio.get_running_loop().time()
         doc = await EventDocument.find_one({"event_id": event_id})
         if not doc:
@@ -127,7 +127,7 @@ class EventStore:
         end_time: datetime | None = None,
         limit: int = 100,
         offset: int = 0,
-    ) -> list[BaseEvent]:
+    ) -> list[DomainEvent]:
         start = asyncio.get_running_loop().time()
         query: dict[str, Any] = {"event_type": event_type}
         if tr := self._time_range(start_time, end_time):
@@ -150,7 +150,7 @@ class EventStore:
         self,
         execution_id: str,
         event_types: list[EventType] | None = None,
-    ) -> list[BaseEvent]:
+    ) -> list[DomainEvent]:
         start = asyncio.get_running_loop().time()
         query: dict[str, Any] = {"$or": [{"execution_id": execution_id}, {"aggregate_id": execution_id}]}
         if event_types:
@@ -170,7 +170,7 @@ class EventStore:
         start_time: datetime | None = None,
         end_time: datetime | None = None,
         limit: int = 100,
-    ) -> list[BaseEvent]:
+    ) -> list[DomainEvent]:
         start = asyncio.get_running_loop().time()
         query: dict[str, Any] = {"metadata.user_id": str(user_id)}
         if event_types:
@@ -191,7 +191,7 @@ class EventStore:
         end_time: datetime | None = None,
         user_id: str | None = None,
         limit: int = 100,
-    ) -> list[BaseEvent]:
+    ) -> list[DomainEvent]:
         start = asyncio.get_running_loop().time()
         query: dict[str, Any] = {"event_type": {"$in": self._SECURITY_TYPES}}
         if user_id:
@@ -206,7 +206,7 @@ class EventStore:
         self.metrics.record_event_query_duration(duration, "get_security_events", "event_store")
         return events
 
-    async def get_correlation_chain(self, correlation_id: str) -> list[BaseEvent]:
+    async def get_correlation_chain(self, correlation_id: str) -> list[DomainEvent]:
         start = asyncio.get_running_loop().time()
         docs = await (
             EventDocument.find({"metadata.correlation_id": str(correlation_id)})
@@ -224,7 +224,7 @@ class EventStore:
         start_time: datetime,
         end_time: datetime | None = None,
         event_types: list[EventType] | None = None,
-        callback: Callable[[BaseEvent], Awaitable[None]] | None = None,
+        callback: Callable[[DomainEvent], Awaitable[None]] | None = None,
     ) -> int:
         start = asyncio.get_running_loop().time()
         count = 0

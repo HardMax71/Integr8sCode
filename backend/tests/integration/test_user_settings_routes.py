@@ -5,8 +5,6 @@ import pytest
 from app.schemas_pydantic.user_settings import SettingsHistoryResponse, UserSettings
 from httpx import AsyncClient
 
-from tests.helpers.eventually import eventually
-
 
 class _NotificationSettings(TypedDict):
     execution_completed: bool
@@ -301,16 +299,7 @@ class TestUserSettingsRoutes:
         new_theme = "dark" if original_theme != "dark" else "light"
         await test_user.put("/api/v1/user/settings/theme", json={"theme": new_theme})
 
-        # Ensure restore point is distinct by checking time monotonicity
-        prev = datetime.now(timezone.utc)
-
-        async def _tick() -> None:
-            now = datetime.now(timezone.utc)
-            assert (now - prev).total_seconds() >= 0
-
-        await eventually(_tick, timeout=0.5, interval=0.05)
-
-        # Get restore point (before the change)
+        # Get restore point - timestamps are monotonic by definition
         restore_point = datetime.now(timezone.utc).isoformat()
 
         # Make another change

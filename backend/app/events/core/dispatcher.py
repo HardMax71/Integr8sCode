@@ -5,11 +5,11 @@ from collections.abc import Awaitable, Callable
 from typing import TypeAlias, TypeVar
 
 from app.domain.enums.events import EventType
-from app.infrastructure.kafka.events.base import BaseEvent
+from app.domain.events.typed import DomainEvent
 from app.infrastructure.kafka.mappings import get_event_class_for_type
 
-T = TypeVar("T", bound=BaseEvent)
-EventHandler: TypeAlias = Callable[[BaseEvent], Awaitable[None]]
+T = TypeVar("T", bound=DomainEvent)
+EventHandler: TypeAlias = Callable[[DomainEvent], Awaitable[None]]
 
 
 class EventDispatcher:
@@ -23,26 +23,15 @@ class EventDispatcher:
     def __init__(self, logger: logging.Logger) -> None:
         self.logger = logger
         # Map event types to their handlers
-        self._handlers: dict[EventType, list[Callable[[BaseEvent], Awaitable[None]]]] = defaultdict(list)
+        self._handlers: dict[EventType, list[Callable[[DomainEvent], Awaitable[None]]]] = defaultdict(list)
 
         # Map topics to event types that can appear on them
-        self._topic_event_types: dict[str, set[type[BaseEvent]]] = defaultdict(set)
+        self._topic_event_types: dict[str, set[type[DomainEvent]]] = defaultdict(set)
 
         # Metrics per event type
         self._event_metrics: dict[EventType, dict[str, int]] = defaultdict(
             lambda: {"processed": 0, "failed": 0, "skipped": 0}
         )
-
-        # Build topic->event type mapping from schema
-        self._build_topic_mapping()
-
-    def _build_topic_mapping(self) -> None:
-        """Build mapping of topics to event types based on event classes."""
-        for event_class in BaseEvent.__subclasses__():
-            if hasattr(event_class, "topic"):
-                topic = str(event_class.topic)
-                self._topic_event_types[topic].add(event_class)
-                self.logger.debug(f"Mapped {event_class.__name__} to topic {topic}")
 
     def register(
         self, event_type: EventType
@@ -50,7 +39,7 @@ class EventDispatcher:
         """
         Decorator for registering type-safe event handlers.
 
-        Generic over T (any BaseEvent subtype) - accepts handlers with specific
+        Generic over T (any DomainEvent subtype) - accepts handlers with specific
         event types while preserving their type signature for callers.
 
         Usage:
@@ -98,7 +87,7 @@ class EventDispatcher:
             return True
         return False
 
-    async def dispatch(self, event: BaseEvent) -> None:
+    async def dispatch(self, event: DomainEvent) -> None:
         """
         Dispatch an event to all registered handlers for its type.
 
@@ -133,7 +122,7 @@ class EventDispatcher:
             else:
                 self._event_metrics[event_type]["processed"] += 1
 
-    async def _execute_handler(self, handler: EventHandler, event: BaseEvent) -> None:
+    async def _execute_handler(self, handler: EventHandler, event: DomainEvent) -> None:
         """
         Execute a single handler with error handling.
 
@@ -175,14 +164,14 @@ class EventDispatcher:
         self._handlers.clear()
         self.logger.info("All event handlers cleared")
 
-    def get_handlers(self, event_type: EventType) -> list[Callable[[BaseEvent], Awaitable[None]]]:
+    def get_handlers(self, event_type: EventType) -> list[Callable[[DomainEvent], Awaitable[None]]]:
         """Get all handlers for a specific event type."""
         return self._handlers.get(event_type, []).copy()
 
-    def get_all_handlers(self) -> dict[EventType, list[Callable[[BaseEvent], Awaitable[None]]]]:
+    def get_all_handlers(self) -> dict[EventType, list[Callable[[DomainEvent], Awaitable[None]]]]:
         """Get all registered handlers (returns a copy)."""
         return {k: v.copy() for k, v in self._handlers.items()}
 
-    def replace_handlers(self, event_type: EventType, handlers: list[Callable[[BaseEvent], Awaitable[None]]]) -> None:
+    def replace_handlers(self, event_type: EventType, handlers: list[Callable[[DomainEvent], Awaitable[None]]]) -> None:
         """Replace all handlers for a specific event type."""
         self._handlers[event_type] = handlers

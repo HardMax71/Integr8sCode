@@ -2,9 +2,11 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from pydantic import BaseModel, ConfigDict, Field
+
 from app.core.utils import StringEnum
 from app.domain.enums.events import EventType
-from app.infrastructure.kafka.events import BaseEvent
+from app.domain.events.typed import DomainEvent
 
 
 class DLQMessageStatus(StringEnum):
@@ -26,20 +28,19 @@ class RetryStrategy(StringEnum):
     MANUAL = "manual"
 
 
-@dataclass
-class DLQMessage:
-    """Unified DLQ message model for the entire system."""
+class DLQMessage(BaseModel):
+    """Unified DLQ message model. Access event_id/event_type via event.event_id, event.event_type."""
 
-    event_id: str
-    event: BaseEvent
-    event_type: EventType
-    original_topic: str
-    error: str
-    retry_count: int
-    failed_at: datetime
-    status: DLQMessageStatus
-    producer_id: str
-    created_at: datetime | None = None
+    model_config = ConfigDict(from_attributes=True)
+
+    event: DomainEvent  # Discriminated union - auto-validates from dict
+    original_topic: str = ""
+    error: str = "Unknown error"
+    retry_count: int = 0
+    failed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    status: DLQMessageStatus = DLQMessageStatus.PENDING
+    producer_id: str = "unknown"
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     last_updated: datetime | None = None
     next_retry_at: datetime | None = None
     retried_at: datetime | None = None
@@ -48,11 +49,7 @@ class DLQMessage:
     dlq_offset: int | None = None
     dlq_partition: int | None = None
     last_error: str | None = None
-    headers: dict[str, str] = field(default_factory=dict)
-
-    @property
-    def age_seconds(self) -> float:
-        return (datetime.now(timezone.utc) - self.failed_at).total_seconds()
+    headers: dict[str, str] = Field(default_factory=dict)
 
 
 @dataclass
@@ -119,41 +116,45 @@ class RetryPolicy:
 
 
 # Statistics models
-@dataclass
-class TopicStatistic:
+class TopicStatistic(BaseModel):
     """Statistics for a single topic."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     topic: str
     count: int
     avg_retry_count: float
 
 
-@dataclass
-class EventTypeStatistic:
+class EventTypeStatistic(BaseModel):
     """Statistics for a single event type."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     event_type: str
     count: int
 
 
-@dataclass
-class AgeStatistics:
+class AgeStatistics(BaseModel):
     """Age statistics for DLQ messages."""
 
-    min_age_seconds: float
-    max_age_seconds: float
-    avg_age_seconds: float
+    model_config = ConfigDict(from_attributes=True)
+
+    min_age_seconds: float = 0.0
+    max_age_seconds: float = 0.0
+    avg_age_seconds: float = 0.0
 
 
-@dataclass
-class DLQStatistics:
+class DLQStatistics(BaseModel):
     """Comprehensive DLQ statistics."""
 
-    by_status: dict[str, int]
+    model_config = ConfigDict(from_attributes=True)
+
+    by_status: dict[DLQMessageStatus, int]
     by_topic: list[TopicStatistic]
     by_event_type: list[EventTypeStatistic]
     age_stats: AgeStatistics
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 @dataclass
@@ -185,9 +186,10 @@ class DLQMessageListResult:
     limit: int
 
 
-@dataclass
-class DLQTopicSummary:
+class DLQTopicSummary(BaseModel):
     """Summary of a topic in DLQ."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     topic: str
     total_messages: int

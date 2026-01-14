@@ -5,11 +5,11 @@ import uuid
 import pytest
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
+from app.domain.events.typed import DomainEvent
 from app.events.core import UnifiedConsumer, UnifiedProducer
 from app.events.core.dispatcher import EventDispatcher
 from app.events.core.types import ConsumerConfig
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
-from app.infrastructure.kafka.events.base import BaseEvent
 from app.settings import Settings
 from dishka import AsyncContainer
 
@@ -35,11 +35,11 @@ async def test_dispatcher_with_multiple_handlers(scope: AsyncContainer) -> None:
     h2_called = asyncio.Event()
 
     @dispatcher.register(EventType.EXECUTION_REQUESTED)
-    async def h1(_e: BaseEvent) -> None:
+    async def h1(_e: DomainEvent) -> None:
         h1_called.set()
 
     @dispatcher.register(EventType.EXECUTION_REQUESTED)
-    async def h2(_e: BaseEvent) -> None:
+    async def h2(_e: DomainEvent) -> None:
         h2_called.set()
 
     # Real consumer against execution-events

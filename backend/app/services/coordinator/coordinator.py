@@ -9,22 +9,22 @@ from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics.context import get_coordinator_metrics
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
-from app.domain.enums.kafka import KafkaTopic
+from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId
 from app.domain.enums.storage import ExecutionErrorType
-from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
-from app.events.event_store import EventStore
-from app.events.schema.schema_registry import (
-    SchemaRegistryManager,
-)
-from app.infrastructure.kafka.events.execution import (
+from app.domain.events.typed import (
+    CreatePodCommandEvent,
+    EventMetadata,
     ExecutionAcceptedEvent,
     ExecutionCancelledEvent,
     ExecutionCompletedEvent,
     ExecutionFailedEvent,
     ExecutionRequestedEvent,
 )
-from app.infrastructure.kafka.events.metadata import AvroEventMetadata as EventMetadata
-from app.infrastructure.kafka.events.saga import CreatePodCommandEvent
+from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
+from app.events.event_store import EventStore
+from app.events.schema.schema_registry import (
+    SchemaRegistryManager,
+)
 from app.services.coordinator.queue_manager import QueueManager, QueuePriority
 from app.services.coordinator.resource_manager import ResourceAllocation, ResourceManager
 from app.services.idempotency import IdempotencyManager
@@ -56,7 +56,7 @@ class ExecutionCoordinator(LifecycleEnabled):
         execution_repository: ExecutionRepository,
         idempotency_manager: IdempotencyManager,
         logger: logging.Logger,
-        consumer_group: str = "execution-coordinator",
+        consumer_group: str = GroupId.EXECUTION_COORDINATOR,
         max_concurrent_scheduling: int = 10,
         scheduling_interval_seconds: float = 0.5,
     ):
@@ -112,9 +112,10 @@ class ExecutionCoordinator(LifecycleEnabled):
             bootstrap_servers=self.kafka_servers,
             group_id=f"{self.consumer_group}.{self._settings.KAFKA_GROUP_SUFFIX}",
             enable_auto_commit=False,
-            session_timeout_ms=30000,  # 30 seconds
-            heartbeat_interval_ms=10000,  # 10 seconds (must be < session_timeout / 3)
-            max_poll_interval_ms=300000,  # 5 minutes - max time between polls
+            session_timeout_ms=self._settings.KAFKA_SESSION_TIMEOUT_MS,
+            heartbeat_interval_ms=self._settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+            max_poll_interval_ms=self._settings.KAFKA_MAX_POLL_INTERVAL_MS,
+            request_timeout_ms=self._settings.KAFKA_REQUEST_TIMEOUT_MS,
             max_poll_records=100,  # Process max 100 messages at a time for flow control
             fetch_max_wait_ms=500,  # Wait max 500ms for data (reduces latency)
             fetch_min_bytes=1,  # Return immediately if any data available
@@ -157,7 +158,7 @@ class ExecutionCoordinator(LifecycleEnabled):
 
         self.logger.info("COORDINATOR: Event handlers registered with idempotency protection")
 
-        await self.idempotent_consumer.start([KafkaTopic.EXECUTION_EVENTS])
+        await self.idempotent_consumer.start(list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.EXECUTION_COORDINATOR]))
 
         # Start scheduling task
         self._scheduling_task = asyncio.create_task(self._scheduling_loop())
@@ -242,6 +243,10 @@ class ExecutionCoordinator(LifecycleEnabled):
 
             self.logger.info(f"Execution {event.execution_id} added to queue at position {position}")
 
+            # Schedule immediately if at front of queue (position 0)
+            if position == 0:
+                await self._schedule_execution(event)
+
         except Exception as e:
             self.logger.error(f"Failed to handle execution request {event.execution_id}: {e}", exc_info=True)
             self.metrics.record_coordinator_execution_scheduled("error")
@@ -311,16 +316,19 @@ class ExecutionCoordinator(LifecycleEnabled):
         """Schedule a single execution"""
         async with self._scheduling_semaphore:
             start_time = time.time()
+            execution_id = event.execution_id
+
+            # Atomic check-and-claim: no await between check and add prevents TOCTOU race
+            # when both eager scheduling (position=0) and _scheduling_loop try to schedule
+            if execution_id in self._active_executions:
+                self.logger.debug(f"Execution {execution_id} already claimed, skipping")
+                return
+            self._active_executions.add(execution_id)
 
             try:
-                # Check if already active (shouldn't happen, but be safe)
-                if event.execution_id in self._active_executions:
-                    self.logger.warning(f"Execution {event.execution_id} already active, skipping")
-                    return
-
                 # Request resource allocation
                 allocation = await self.resource_manager.request_allocation(
-                    event.execution_id,
+                    execution_id,
                     event.language,
                     requested_cpu=None,  # Use defaults for now
                     requested_memory_mb=None,
@@ -328,14 +336,14 @@ class ExecutionCoordinator(LifecycleEnabled):
                 )
 
                 if not allocation:
-                    # No resources available, requeue
+                    # No resources available, release claim and requeue
+                    self._active_executions.discard(execution_id)
                     await self.queue_manager.requeue_execution(event, increment_retry=False)
-                    self.logger.info(f"No resources available for {event.execution_id}, requeued")
+                    self.logger.info(f"No resources available for {execution_id}, requeued")
                     return
 
-                # Track allocation
-                self._execution_resources[event.execution_id] = allocation
-                self._active_executions.add(event.execution_id)
+                # Track allocation (already in _active_executions from claim above)
+                self._execution_resources[execution_id] = allocation
                 self.metrics.update_coordinator_active_executions(len(self._active_executions))
 
                 # Publish execution started event for workers
@@ -383,7 +391,6 @@ class ExecutionCoordinator(LifecycleEnabled):
 
     async def _build_command_metadata(self, request: ExecutionRequestedEvent) -> EventMetadata:
         """Build metadata for CreatePodCommandEvent with guaranteed user_id."""
-        # Prefer execution record user_id to avoid missing attribution
         # Prefer execution record user_id to avoid missing attribution
         exec_rec = await self.execution_repository.get_execution(request.execution_id)
         user_id: str = exec_rec.user_id if exec_rec and exec_rec.user_id else "system"

@@ -16,7 +16,7 @@ class AdminSettingsRepository:
         self.logger = logger
 
     async def get_system_settings(self) -> SystemSettings:
-        doc = await SystemSettingsDocument.find_one({"settings_id": "global"})
+        doc = await SystemSettingsDocument.find_one(SystemSettingsDocument.settings_id == "global")
         if not doc:
             self.logger.info("System settings not found, creating defaults")
             doc = SystemSettingsDocument(
@@ -40,7 +40,7 @@ class AdminSettingsRepository:
         updated_by: str,
         user_id: str,
     ) -> SystemSettings:
-        doc = await SystemSettingsDocument.find_one({"settings_id": "global"})
+        doc = await SystemSettingsDocument.find_one(SystemSettingsDocument.settings_id == "global")
         if not doc:
             doc = SystemSettingsDocument(settings_id="global")
 
@@ -68,7 +68,7 @@ class AdminSettingsRepository:
         )
 
     async def reset_system_settings(self, username: str, user_id: str) -> SystemSettings:
-        doc = await SystemSettingsDocument.find_one({"settings_id": "global"})
+        doc = await SystemSettingsDocument.find_one(SystemSettingsDocument.settings_id == "global")
         if doc:
             await doc.delete()
 

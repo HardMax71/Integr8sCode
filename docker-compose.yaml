@@ -47,6 +47,10 @@ services:
     networks:
       - app-network
     container_name: mongo
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     healthcheck:
       test: echo 'db.runCommand("ping").ok' | mongosh localhost/integr8scode -u ${MONGO_ROOT_USER:-root} -p ${MONGO_ROOT_PASSWORD:-rootpassword} --authenticationDatabase admin --quiet
       interval: 10s

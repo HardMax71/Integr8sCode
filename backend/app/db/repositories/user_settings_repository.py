@@ -14,13 +14,13 @@ class UserSettingsRepository:
         self.logger = logger
 
     async def get_snapshot(self, user_id: str) -> DomainUserSettings | None:
-        doc = await UserSettingsDocument.find_one({"user_id": user_id})
+        doc = await UserSettingsDocument.find_one(UserSettingsDocument.user_id == user_id)
         if not doc:
             return None
         return DomainUserSettings.model_validate(doc, from_attributes=True)
 
     async def create_snapshot(self, settings: DomainUserSettings) -> None:
-        existing = await UserSettingsDocument.find_one({"user_id": settings.user_id})
+        existing = await UserSettingsDocument.find_one(UserSettingsDocument.user_id == settings.user_id)
         doc = UserSettingsDocument(**settings.model_dump())
         if existing:
             doc.id = existing.id
@@ -71,7 +71,7 @@ class UserSettingsRepository:
         return await EventDocument.find(EventDocument.aggregate_id == f"user_settings_{user_id}").count()
 
     async def delete_user_settings(self, user_id: str) -> None:
-        doc = await UserSettingsSnapshotDocument.find_one({"user_id": user_id})
+        doc = await UserSettingsSnapshotDocument.find_one(UserSettingsSnapshotDocument.user_id == user_id)
         if doc:
             await doc.delete()
         await EventDocument.find(EventDocument.aggregate_id == f"user_settings_{user_id}").delete()

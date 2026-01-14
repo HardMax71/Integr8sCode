@@ -5,17 +5,16 @@ import uuid
 import pytest
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
+from app.domain.events.typed import DomainEvent
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
 from app.events.core.dispatcher import EventDispatcher as Disp
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.infrastructure.kafka.events.base import BaseEvent
 from app.services.idempotency.idempotency_manager import IdempotencyManager
 from app.services.idempotency.middleware import IdempotentConsumerWrapper
 from app.settings import Settings
 from dishka import AsyncContainer
 
 from tests.helpers import make_execution_requested_event
-from tests.helpers.eventually import eventually
 
 # xdist_group: Kafka consumer creation can crash librdkafka when multiple workers
 # instantiate Consumer() objects simultaneously. Serial execution prevents this.
@@ -36,13 +35,24 @@ async def test_consumer_idempotent_wrapper_blocks_duplicates(scope: AsyncContain
     registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
     settings: Settings = await scope.get(Settings)
 
-    # Build a dispatcher with a counter
-    disp: Disp = EventDispatcher(logger=_test_logger)
+    # Future resolves when handler processes an event - no polling needed
+    handled_future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
     seen = {"n": 0}
 
+    # Build a dispatcher that signals completion via future
+    disp: Disp = EventDispatcher(logger=_test_logger)
+
     @disp.register(EventType.EXECUTION_REQUESTED)
-    async def handle(_ev: BaseEvent) -> None:
+    async def handle(_ev: DomainEvent) -> None:
         seen["n"] += 1
+        if not handled_future.done():
+            handled_future.set_result(None)
+
+    # Produce messages BEFORE starting consumer (auto_offset_reset="earliest" will read them)
+    execution_id = f"e-{uuid.uuid4().hex[:8]}"
+    ev = make_execution_requested_event(execution_id=execution_id)
+    await producer.produce(ev, key=execution_id)
+    await producer.produce(ev, key=execution_id)
 
     # Real consumer with idempotent wrapper
     cfg = ConsumerConfig(
@@ -68,18 +78,9 @@ async def test_consumer_idempotent_wrapper_blocks_duplicates(scope: AsyncContain
     )
 
     await wrapper.start([KafkaTopic.EXECUTION_EVENTS])
-    # Allow time for consumer to join group and get partition assignments
-    await asyncio.sleep(2)
     try:
-        # Produce the same event twice (same event_id)
-        execution_id = f"e-{uuid.uuid4().hex[:8]}"
-        ev = make_execution_requested_event(execution_id=execution_id)
-        await producer.produce(ev, key=execution_id)
-        await producer.produce(ev, key=execution_id)
-
-        async def _one() -> None:
-            assert seen["n"] >= 1
-
-        await eventually(_one, timeout=10.0, interval=0.2)
+        # Await the future directly - true async, no polling
+        await asyncio.wait_for(handled_future, timeout=10.0)
+        assert seen["n"] >= 1
     finally:
         await wrapper.stop()

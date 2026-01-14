@@ -16,14 +16,14 @@ class ReplayRepository:
         self.logger = logger
 
     async def save_session(self, session: ReplaySessionState) -> None:
-        existing = await ReplaySessionDocument.find_one({"session_id": session.session_id})
+        existing = await ReplaySessionDocument.find_one(ReplaySessionDocument.session_id == session.session_id)
         doc = ReplaySessionDocument(**session.model_dump())
         if existing:
             doc.id = existing.id
         await doc.save()
 
     async def get_session(self, session_id: str) -> ReplaySessionState | None:
-        doc = await ReplaySessionDocument.find_one({"session_id": session_id})
+        doc = await ReplaySessionDocument.find_one(ReplaySessionDocument.session_id == session_id)
         if not doc:
             return None
         return ReplaySessionState.model_validate(doc, from_attributes=True)
@@ -46,7 +46,7 @@ class ReplayRepository:
         return [ReplaySessionState.model_validate(doc, from_attributes=True) for doc in docs]
 
     async def update_session_status(self, session_id: str, status: ReplayStatus) -> bool:
-        doc = await ReplaySessionDocument.find_one({"session_id": session_id})
+        doc = await ReplaySessionDocument.find_one(ReplaySessionDocument.session_id == session_id)
         if not doc:
             return False
         doc.status = status
@@ -72,7 +72,7 @@ class ReplayRepository:
         update_dict = updates.model_dump(exclude_none=True)
         if not update_dict:
             return False
-        doc = await ReplaySessionDocument.find_one({"session_id": session_id})
+        doc = await ReplaySessionDocument.find_one(ReplaySessionDocument.session_id == session_id)
         if not doc:
             return False
         await doc.set(update_dict)

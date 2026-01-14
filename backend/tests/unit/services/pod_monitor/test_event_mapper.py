@@ -4,13 +4,13 @@ import logging
 import pytest
 from app.domain.enums.events import EventType
 from app.domain.enums.storage import ExecutionErrorType
-from app.infrastructure.kafka.events.execution import (
+from app.domain.events.typed import (
+    EventMetadata,
     ExecutionCompletedEvent,
     ExecutionFailedEvent,
     ExecutionTimeoutEvent,
+    PodRunningEvent,
 )
-from app.infrastructure.kafka.events.metadata import AvroEventMetadata
-from app.infrastructure.kafka.events.pod import PodRunningEvent
 from app.services.pod_monitor.event_mapper import PodContext, PodEventMapper
 
 from tests.helpers.k8s_fakes import (
@@ -31,7 +31,7 @@ def _ctx(pod: Pod, event_type: str = "ADDED") -> PodContext:
     return PodContext(
         pod=pod,
         execution_id="e1",
-        metadata=AvroEventMetadata(service_name="t", service_version="1"),
+        metadata=EventMetadata(service_name="t", service_version="1"),
         phase=pod.status.phase or "",
         event_type=event_type,
     )

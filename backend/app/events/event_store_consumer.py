@@ -7,10 +7,10 @@ from app.core.lifecycle import LifecycleEnabled
 from app.core.tracing.utils import trace_span
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import GroupId, KafkaTopic
+from app.domain.events.typed import DomainEvent
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer, create_dlq_error_handler
 from app.events.event_store import EventStore
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.infrastructure.kafka.events.base import BaseEvent
 from app.settings import Settings
 
 
@@ -41,7 +41,7 @@ class EventStoreConsumer(LifecycleEnabled):
         self.schema_registry_manager = schema_registry_manager
         self.dispatcher = EventDispatcher(logger)
         self.producer = producer  # For DLQ handling
-        self._batch_buffer: list[BaseEvent] = []
+        self._batch_buffer: list[DomainEvent] = []
         self._batch_lock = asyncio.Lock()
         self._last_batch_time: float = 0.0
         self._batch_task: asyncio.Task[None] | None = None
@@ -54,6 +54,10 @@ class EventStoreConsumer(LifecycleEnabled):
             group_id=f"{self.group_id}.{self.settings.KAFKA_GROUP_SUFFIX}",
             enable_auto_commit=False,
             max_poll_records=self.batch_size,
+            session_timeout_ms=self.settings.KAFKA_SESSION_TIMEOUT_MS,
+            heartbeat_interval_ms=self.settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+            max_poll_interval_ms=self.settings.KAFKA_MAX_POLL_INTERVAL_MS,
+            request_timeout_ms=self.settings.KAFKA_REQUEST_TIMEOUT_MS,
         )
 
         self.consumer = UnifiedConsumer(
@@ -104,7 +108,7 @@ class EventStoreConsumer(LifecycleEnabled):
 
         self.logger.info("Event store consumer stopped")
 
-    async def _handle_event(self, event: BaseEvent) -> None:
+    async def _handle_event(self, event: DomainEvent) -> None:
         """Handle incoming event from dispatcher."""
         self.logger.info(f"Event store received event: {event.event_type} - {event.event_id}")
 
@@ -114,7 +118,7 @@ class EventStoreConsumer(LifecycleEnabled):
             if len(self._batch_buffer) >= self.batch_size:
                 await self._flush_batch()
 
-    async def _handle_error_with_event(self, error: Exception, event: BaseEvent) -> None:
+    async def _handle_error_with_event(self, error: Exception, event: DomainEvent) -> None:
         """Handle processing errors with event context."""
         self.logger.error(f"Error processing event {event.event_id} ({event.event_type}): {error}", exc_info=True)
 

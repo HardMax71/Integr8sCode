@@ -11,13 +11,11 @@ from app.core.tracing.utils import get_tracer
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.db.repositories.saga_repository import SagaRepository
 from app.domain.enums.saga import SagaState
+from app.domain.events.typed import DomainEvent, EventMetadata, SagaCancelledEvent
 from app.domain.saga.models import Saga, SagaConfig
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
 from app.events.event_store import EventStore
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.infrastructure.kafka.events.base import BaseEvent
-from app.infrastructure.kafka.events.metadata import AvroEventMetadata as EventMetadata
-from app.infrastructure.kafka.events.saga import SagaCancelledEvent
 from app.infrastructure.kafka.mappings import get_topic_for_event
 from app.services.idempotency import IdempotentConsumerWrapper
 from app.services.idempotency.idempotency_manager import IdempotencyManager
@@ -121,6 +119,10 @@ class SagaOrchestrator(LifecycleEnabled):
             bootstrap_servers=self._settings.KAFKA_BOOTSTRAP_SERVERS,
             group_id=f"saga-{self.config.name}.{self._settings.KAFKA_GROUP_SUFFIX}",
             enable_auto_commit=False,
+            session_timeout_ms=self._settings.KAFKA_SESSION_TIMEOUT_MS,
+            heartbeat_interval_ms=self._settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+            max_poll_interval_ms=self._settings.KAFKA_MAX_POLL_INTERVAL_MS,
+            request_timeout_ms=self._settings.KAFKA_REQUEST_TIMEOUT_MS,
         )
 
         dispatcher = EventDispatcher(logger=self.logger)
@@ -150,7 +152,7 @@ class SagaOrchestrator(LifecycleEnabled):
 
         self.logger.info(f"Saga consumer started for topics: {topics}")
 
-    async def _handle_event(self, event: BaseEvent) -> None:
+    async def _handle_event(self, event: DomainEvent) -> None:
         """Handle incoming event"""
         self.logger.info(f"Saga orchestrator handling event: type={event.event_type}, id={event.event_id}")
         try:
@@ -171,7 +173,7 @@ class SagaOrchestrator(LifecycleEnabled):
             self.logger.error(f"Error handling event {event.event_id}: {e}", exc_info=True)
             raise
 
-    def _should_trigger_saga(self, saga_class: type[BaseSaga], event: BaseEvent) -> bool:
+    def _should_trigger_saga(self, saga_class: type[BaseSaga], event: DomainEvent) -> bool:
         trigger_event_types = saga_class.get_trigger_events()
         should_trigger = event.event_type in trigger_event_types
         self.logger.debug(
@@ -180,7 +182,7 @@ class SagaOrchestrator(LifecycleEnabled):
         )
         return should_trigger
 
-    async def _start_saga(self, saga_name: str, trigger_event: BaseEvent) -> str | None:
+    async def _start_saga(self, saga_name: str, trigger_event: DomainEvent) -> str | None:
         """Start a new saga instance"""
         self.logger.info(f"Starting saga {saga_name} for event {trigger_event.event_type}")
         saga_class = self._sagas.get(saga_name)
@@ -234,7 +236,7 @@ class SagaOrchestrator(LifecycleEnabled):
         saga: BaseSaga,
         instance: Saga,
         context: SagaContext,
-        trigger_event: BaseEvent,
+        trigger_event: DomainEvent,
     ) -> None:
         """Execute saga steps"""
         tracer = get_tracer()

@@ -1,31 +1,19 @@
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Any, ClassVar, cast
+from typing import Any, cast
 
 import pytest
 import redis.asyncio as redis_async
 from app.domain.enums.events import EventType
-from app.domain.enums.kafka import KafkaTopic
 from app.domain.enums.notification import NotificationSeverity, NotificationStatus
-from app.infrastructure.kafka.events import BaseEvent
-from app.infrastructure.kafka.events.metadata import AvroEventMetadata
+from app.domain.events.typed import EventMetadata, ExecutionCompletedEvent
 from app.schemas_pydantic.sse import RedisNotificationMessage, RedisSSEMessage
 from app.services.sse.redis_bus import SSERedisBus
 
 pytestmark = pytest.mark.integration
 
 _test_logger = logging.getLogger("test.services.sse.redis_bus")
-
-
-class _DummyEvent(BaseEvent):
-    """Dummy event for testing."""
-    execution_id: str = ""
-    status: str | None = None
-    topic: ClassVar[KafkaTopic] = KafkaTopic.EXECUTION_EVENTS
-
-    def model_dump(self, **kwargs: object) -> dict[str, Any]:
-        return {"execution_id": self.execution_id, "status": self.status}
 
 
 class _FakePubSub:
@@ -72,8 +60,8 @@ class _FakeRedis:
         return self._pubsub
 
 
-def _make_metadata() -> AvroEventMetadata:
-    return AvroEventMetadata(service_name="test", service_version="1.0")
+def _make_metadata() -> EventMetadata:
+    return EventMetadata(service_name="test", service_version="1.0")
 
 
 @pytest.mark.asyncio
@@ -87,11 +75,12 @@ async def test_publish_and_subscribe_round_trip() -> None:
     assert "sse:exec:exec-1" in r._pubsub.subscribed
 
     # Publish event
-    evt = _DummyEvent(
-        event_type=EventType.EXECUTION_COMPLETED,
-        metadata=_make_metadata(),
+    evt = ExecutionCompletedEvent(
         execution_id="exec-1",
-        status="completed"
+        exit_code=0,
+        stdout="",
+        stderr="",
+        metadata=_make_metadata(),
     )
     await bus.publish_event("exec-1", evt)
     assert r.published, "nothing published"

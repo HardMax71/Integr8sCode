@@ -5,11 +5,11 @@ import uuid
 import pytest
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
+from app.domain.events.typed import DomainEvent
 from app.events.core import UnifiedConsumer, UnifiedProducer
 from app.events.core.dispatcher import EventDispatcher
 from app.events.core.types import ConsumerConfig
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
-from app.infrastructure.kafka.events.base import BaseEvent
 from app.settings import Settings
 from dishka import AsyncContainer
 
@@ -37,7 +37,7 @@ async def test_produce_consume_roundtrip(scope: AsyncContainer) -> None:
     received = asyncio.Event()
 
     @dispatcher.register(EventType.EXECUTION_REQUESTED)
-    async def _handle(_event: BaseEvent) -> None:
+    async def _handle(_event: DomainEvent) -> None:
         received.set()
 
     group_id = f"test-consumer.{uuid.uuid4().hex[:6]}"

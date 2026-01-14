@@ -9,6 +9,12 @@ from app.core.metrics.context import get_execution_metrics
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
+from app.domain.events.typed import (
+    DomainEvent,
+    EventMetadata,
+    ExecutionCancelledEvent,
+    ExecutionRequestedEvent,
+)
 from app.domain.exceptions import InfrastructureError
 from app.domain.execution import (
     DomainExecution,
@@ -19,12 +25,6 @@ from app.domain.execution import (
 )
 from app.events.core import UnifiedProducer
 from app.events.event_store import EventStore
-from app.infrastructure.kafka.events.base import BaseEvent
-from app.infrastructure.kafka.events.execution import (
-    ExecutionCancelledEvent,
-    ExecutionRequestedEvent,
-)
-from app.infrastructure.kafka.events.metadata import AvroEventMetadata as EventMetadata
 from app.runtime_registry import RUNTIME_REGISTRY
 from app.settings import Settings
 
@@ -288,7 +288,7 @@ class ExecutionService:
         execution_id: str,
         event_types: EventFilter = None,
         limit: int = 100,
-    ) -> list[BaseEvent]:
+    ) -> list[DomainEvent]:
         """
         Get all events for an execution from the event store.
 

@@ -15,8 +15,6 @@ from app.services.notification_service import NotificationService
 from dishka import AsyncContainer
 from httpx import AsyncClient
 
-from tests.helpers.eventually import eventually
-
 
 @pytest.mark.integration
 class TestNotificationRoutes:
@@ -150,6 +148,7 @@ class TestNotificationRoutes:
         user_id = me_response.json()["user_id"]
 
         notification_service = await scope.get(NotificationService)
+        # Delivery is now awaited synchronously - notification available immediately
         await notification_service.create_notification(
             user_id=user_id,
             subject="Test notification",
@@ -159,18 +158,11 @@ class TestNotificationRoutes:
             channel=NotificationChannel.IN_APP,
         )
 
-        # Wait for async delivery to complete (create_notification uses asyncio.create_task)
-        async def _has_unread() -> None:
-            resp = await test_user.get("/api/v1/notifications/unread-count")
-            assert resp.status_code == 200
-            assert resp.json()["unread_count"] >= 1
-
-        await eventually(_has_unread, timeout=5.0, interval=0.1)
-
-        # Get initial unread count (guaranteed >= 1 now)
+        # Get initial unread count (notification created synchronously, available now)
         initial_response = await test_user.get("/api/v1/notifications/unread-count")
         assert initial_response.status_code == 200
         initial_count = initial_response.json()["unread_count"]
+        assert initial_count >= 1, "Expected at least one unread notification after create"
 
         # Mark all as read
         mark_all_response = await test_user.post("/api/v1/notifications/mark-all-read")

@@ -8,23 +8,21 @@ from kubernetes import client as k8s_client
 
 from app.domain.enums.kafka import GroupId
 from app.domain.enums.storage import ExecutionErrorType
-from app.domain.execution import ResourceUsageDomain
-from app.infrastructure.kafka.events.base import BaseEvent
-from app.infrastructure.kafka.events.execution import (
+from app.domain.events.typed import (
+    DomainEvent,
+    EventMetadata,
     ExecutionCompletedEvent,
     ExecutionFailedEvent,
     ExecutionTimeoutEvent,
-)
-from app.infrastructure.kafka.events.metadata import AvroEventMetadata as EventMetadata
-from app.infrastructure.kafka.events.pod import (
     PodRunningEvent,
     PodScheduledEvent,
     PodTerminatedEvent,
 )
+from app.domain.execution import ResourceUsageDomain
 
 # Python 3.12 type aliases
 type PodPhase = str
-type EventList = list[BaseEvent]
+type EventList = list[DomainEvent]
 
 
 @dataclass(frozen=True)
@@ -51,7 +49,7 @@ class PodLogs:
 class EventMapper(Protocol):
     """Protocol for event mapping functions"""
 
-    def __call__(self, ctx: PodContext) -> BaseEvent | None: ...
+    def __call__(self, ctx: PodContext) -> DomainEvent | None: ...
 
 
 class PodEventMapper:
@@ -111,7 +109,7 @@ class PodEventMapper:
         )
 
         # Collect events from mappers
-        events: list[BaseEvent] = []
+        events: list[DomainEvent] = []
 
         # Check for timeout first - if pod timed out, only return timeout event
         if timeout_event := self._check_timeout(ctx):
@@ -271,7 +269,7 @@ class PodEventMapper:
         self.logger.info(f"POD-EVENT: mapped completed exec={ctx.execution_id} exit_code={logs.exit_code}")
         return evt
 
-    def _map_failed_or_completed(self, ctx: PodContext) -> BaseEvent | None:
+    def _map_failed_or_completed(self, ctx: PodContext) -> DomainEvent | None:
         """Map failed pod to either timeout, completed, or failed"""
         if ctx.pod.status and ctx.pod.status.reason == "DeadlineExceeded":
             return self._check_timeout(ctx)

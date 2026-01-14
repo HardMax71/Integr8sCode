@@ -1,8 +1,9 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Annotated, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Discriminator, Field, TypeAdapter
+from pydantic import ConfigDict, Discriminator, Field, TypeAdapter
+from pydantic_avro.to_avro.base import AvroBase
 
 from app.domain.enums.auth import LoginMethod
 from app.domain.enums.common import Environment
@@ -12,10 +13,10 @@ from app.domain.enums.storage import ExecutionErrorType, StorageType
 from app.domain.execution import ResourceUsageDomain
 
 
-class EventMetadata(BaseModel):
+class EventMetadata(AvroBase):
     """Event metadata - embedded in all events."""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, use_enum_values=True)
 
     service_name: str
     service_version: str
@@ -26,18 +27,17 @@ class EventMetadata(BaseModel):
     environment: Environment = Environment.PRODUCTION
 
 
-class BaseEvent(BaseModel):
+class BaseEvent(AvroBase):
     """Base fields for all domain events."""
 
     model_config = ConfigDict(from_attributes=True)
 
     event_id: str = Field(default_factory=lambda: str(uuid4()))
+    event_type: EventType
     event_version: str = "1.0"
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     aggregate_id: str | None = None
     metadata: EventMetadata
-    stored_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    ttl_expires_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc) + timedelta(days=30))
 
 
 # --- Execution Events ---
@@ -514,10 +514,48 @@ class ServiceRecoveredEvent(BaseEvent):
     downtime_seconds: int
 
 
+# --- DLQ Events ---
+
+
+class DLQMessageReceivedEvent(BaseEvent):
+    """Emitted when a message is received and persisted in the DLQ."""
+
+    event_type: Literal[EventType.DLQ_MESSAGE_RECEIVED] = EventType.DLQ_MESSAGE_RECEIVED
+    dlq_event_id: str  # The event_id of the failed message
+    original_topic: str
+    original_event_type: str
+    error: str
+    retry_count: int
+    producer_id: str
+    failed_at: datetime
+
+
+class DLQMessageRetriedEvent(BaseEvent):
+    """Emitted when a DLQ message is retried."""
+
+    event_type: Literal[EventType.DLQ_MESSAGE_RETRIED] = EventType.DLQ_MESSAGE_RETRIED
+    dlq_event_id: str  # The event_id of the retried message
+    original_topic: str
+    original_event_type: str
+    retry_count: int  # New retry count after this retry
+    retry_topic: str  # Topic the message was retried to
+
+
+class DLQMessageDiscardedEvent(BaseEvent):
+    """Emitted when a DLQ message is discarded (max retries exceeded or manual discard)."""
+
+    event_type: Literal[EventType.DLQ_MESSAGE_DISCARDED] = EventType.DLQ_MESSAGE_DISCARDED
+    dlq_event_id: str  # The event_id of the discarded message
+    original_topic: str
+    original_event_type: str
+    reason: str
+    retry_count: int  # Final retry count when discarded
+
+
 # --- Archived Event (for deleted events) ---
 
 
-class ArchivedEvent(BaseModel):
+class ArchivedEvent(AvroBase):
     """Archived event with deletion metadata. Wraps the original event data."""
 
     model_config = ConfigDict(from_attributes=True)
@@ -602,7 +640,11 @@ DomainEvent = Annotated[
     # System Events
     | SystemErrorEvent
     | ServiceUnhealthyEvent
-    | ServiceRecoveredEvent,
+    | ServiceRecoveredEvent
+    # DLQ Events
+    | DLQMessageReceivedEvent
+    | DLQMessageRetriedEvent
+    | DLQMessageDiscardedEvent,
     Discriminator("event_type"),
 ]
 

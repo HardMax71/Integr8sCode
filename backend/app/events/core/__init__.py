@@ -9,7 +9,6 @@ from .types import (
     ConsumerConfig,
     ConsumerMetrics,
     ConsumerState,
-    ProducerConfig,
     ProducerMetrics,
     ProducerState,
 )
@@ -18,7 +17,6 @@ __all__ = [
     # Types
     "ProducerState",
     "ConsumerState",
-    "ProducerConfig",
     "ConsumerConfig",
     "ProducerMetrics",
     "ConsumerMetrics",

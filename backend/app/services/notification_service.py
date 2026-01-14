@@ -19,6 +19,12 @@ from app.domain.enums.notification import (
     NotificationStatus,
 )
 from app.domain.enums.user import UserRole
+from app.domain.events.typed import (
+    DomainEvent,
+    ExecutionCompletedEvent,
+    ExecutionFailedEvent,
+    ExecutionTimeoutEvent,
+)
 from app.domain.notification import (
     DomainNotification,
     DomainNotificationCreate,
@@ -32,12 +38,6 @@ from app.domain.notification import (
 )
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.infrastructure.kafka.events.base import BaseEvent
-from app.infrastructure.kafka.events.execution import (
-    ExecutionCompletedEvent,
-    ExecutionFailedEvent,
-    ExecutionTimeoutEvent,
-)
 from app.infrastructure.kafka.mappings import get_topic_for_event
 from app.schemas_pydantic.sse import RedisNotificationMessage
 from app.services.event_bus import EventBusManager
@@ -221,7 +221,11 @@ class NotificationService:
             group_id=f"{GroupId.NOTIFICATION_SERVICE}.{self.settings.KAFKA_GROUP_SUFFIX}",
             max_poll_records=10,
             enable_auto_commit=True,
-            auto_offset_reset="latest",  # Only process new events
+            auto_offset_reset="latest",
+            session_timeout_ms=self.settings.KAFKA_SESSION_TIMEOUT_MS,
+            heartbeat_interval_ms=self.settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+            max_poll_interval_ms=self.settings.KAFKA_MAX_POLL_INTERVAL_MS,
+            request_timeout_ms=self.settings.KAFKA_REQUEST_TIMEOUT_MS,
         )
 
         execution_results_topic = get_topic_for_event(EventType.EXECUTION_COMPLETED)
@@ -327,7 +331,7 @@ class NotificationService:
             },
         )
 
-        asyncio.create_task(self._deliver_notification(notification))
+        await self._deliver_notification(notification)
 
         return notification
 
@@ -628,9 +632,8 @@ class NotificationService:
             return
 
         title = f"Execution Completed: {event.execution_id}"
-        body = (
-            f"Your execution completed successfully. Duration: {event.resource_usage.execution_time_wall_seconds:.2f}s."
-        )
+        duration = event.resource_usage.execution_time_wall_seconds if event.resource_usage else 0.0
+        body = f"Your execution completed successfully. Duration: {duration:.2f}s."
         await self.create_notification(
             user_id=user_id,
             subject=title,
@@ -642,7 +645,7 @@ class NotificationService:
             ),
         )
 
-    async def _handle_execution_event(self, event: BaseEvent) -> None:
+    async def _handle_execution_event(self, event: DomainEvent) -> None:
         """Unified handler for execution result events."""
         try:
             if isinstance(event, ExecutionCompletedEvent):

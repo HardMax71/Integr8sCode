@@ -3,8 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from app.domain.enums.events import EventType
-from app.infrastructure.kafka.events import BaseEvent
-from app.infrastructure.kafka.events.metadata import AvroEventMetadata
+from app.domain.events.typed import EventMetadata, SystemErrorEvent
 from app.services.saga.base_saga import BaseSaga
 from app.services.saga.saga_step import CompensationStep, SagaContext, SagaStep
 
@@ -43,12 +42,13 @@ class _DummyComp(CompensationStep):
 
 @pytest.mark.asyncio
 async def test_context_adders() -> None:
-    class E(BaseEvent):
-        event_type: EventType = EventType.SYSTEM_ERROR
-        topic = None  # type: ignore[assignment]
-
     ctx = SagaContext("s1", "e1")
-    evt = E(metadata=AvroEventMetadata(service_name="t", service_version="1"))
+    evt = SystemErrorEvent(
+        error_type="test_error",
+        message="test",
+        service_name="test_service",
+        metadata=EventMetadata(service_name="t", service_version="1"),
+    )
     ctx.add_event(evt)
     assert len(ctx.events) == 1
     comp = _DummyComp()
@@ -74,15 +74,15 @@ def test_base_saga_abstract_calls_cover_pass_lines() -> None:
         def get_trigger_events(cls) -> list[EventType]:
             return []
 
-        def get_steps(self) -> list[SagaStep[BaseEvent]]:
+        def get_steps(self) -> list[SagaStep[SystemErrorEvent]]:
             return []
 
     Dummy().bind_dependencies()
 
 
 def test_saga_step_str_and_can_execute() -> None:
-    class S(SagaStep[BaseEvent]):
-        async def execute(self, context: SagaContext, event: BaseEvent) -> bool:
+    class S(SagaStep[SystemErrorEvent]):
+        async def execute(self, context: SagaContext, event: SystemErrorEvent) -> bool:
             return True
 
         def get_compensation(self) -> CompensationStep | None:
@@ -91,4 +91,4 @@ def test_saga_step_str_and_can_execute() -> None:
     s = S("nm")
     assert str(s) == "SagaStep(nm)"
     # can_execute default True
-    assert asyncio.run(s.can_execute(SagaContext("s", "e"), MagicMock(spec=BaseEvent))) is True
+    assert asyncio.run(s.can_execute(SagaContext("s", "e"), MagicMock(spec=SystemErrorEvent))) is True

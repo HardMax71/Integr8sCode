@@ -9,8 +9,6 @@ from app.schemas_pydantic.replay import CleanupResponse, ReplayRequest, ReplayRe
 from app.schemas_pydantic.replay_models import ReplaySession
 from httpx import AsyncClient
 
-from tests.helpers.eventually import eventually
-
 
 @pytest.mark.integration
 class TestReplayRoutes:
@@ -389,16 +387,14 @@ class TestReplayRoutes:
         # Start the session
         await test_admin.post(f"/api/v1/replay/sessions/{session_id}/start")
 
-        # Poll progress without fixed sleeps
-        async def _check_progress_once() -> None:
-            detail_response = await test_admin.get(f"/api/v1/replay/sessions/{session_id}")
-            assert detail_response.status_code == 200
-            session_data = detail_response.json()
-            session = ReplaySession(**session_data)
-            if session.replayed_events is not None and session.total_events is not None:
-                assert 0 <= session.replayed_events <= session.total_events
-                if session.total_events > 0:
-                    progress = (session.replayed_events / session.total_events) * 100
-                    assert 0.0 <= progress <= 100.0
-
-        await eventually(_check_progress_once, timeout=5.0, interval=0.5)
+        # Check progress immediately - session state available right after start
+        detail_response = await test_admin.get(f"/api/v1/replay/sessions/{session_id}")
+        assert detail_response.status_code == 200
+        session_data = detail_response.json()
+        session = ReplaySession(**session_data)
+        # Validate progress fields are present and valid
+        if session.replayed_events is not None and session.total_events is not None:
+            assert 0 <= session.replayed_events <= session.total_events
+            if session.total_events > 0:
+                progress = (session.replayed_events / session.total_events) * 100
+                assert 0.0 <= progress <= 100.0

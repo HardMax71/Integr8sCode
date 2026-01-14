@@ -2,7 +2,7 @@ import re
 from datetime import datetime, timezone
 
 from beanie.odm.operators.find import BaseFindOperator
-from beanie.operators import Eq, Or, RegEx
+from beanie.operators import Or, RegEx
 
 from app.db.docs import UserDocument
 from app.domain.enums.user import UserRole
@@ -11,7 +11,7 @@ from app.domain.user import DomainUserCreate, DomainUserUpdate, User, UserListRe
 
 class UserRepository:
     async def get_user(self, username: str) -> User | None:
-        doc = await UserDocument.find_one({"username": username})
+        doc = await UserDocument.find_one(UserDocument.username == username)
         return User.model_validate(doc, from_attributes=True) if doc else None
 
     async def create_user(self, create_data: DomainUserCreate) -> User:
@@ -20,7 +20,7 @@ class UserRepository:
         return User.model_validate(doc, from_attributes=True)
 
     async def get_user_by_id(self, user_id: str) -> User | None:
-        doc = await UserDocument.find_one({"user_id": user_id})
+        doc = await UserDocument.find_one(UserDocument.user_id == user_id)
         return User.model_validate(doc, from_attributes=True) if doc else None
 
     async def list_users(
@@ -38,7 +38,7 @@ class UserRepository:
             )
 
         if role:
-            conditions.append(Eq(UserDocument.role, role))
+            conditions.append(UserDocument.role == role)
 
         query = UserDocument.find(*conditions)
         total = await query.count()
@@ -51,7 +51,7 @@ class UserRepository:
         )
 
     async def update_user(self, user_id: str, update_data: DomainUserUpdate) -> User | None:
-        doc = await UserDocument.find_one({"user_id": user_id})
+        doc = await UserDocument.find_one(UserDocument.user_id == user_id)
         if not doc:
             return None
 
@@ -62,7 +62,7 @@ class UserRepository:
         return User.model_validate(doc, from_attributes=True)
 
     async def delete_user(self, user_id: str) -> bool:
-        doc = await UserDocument.find_one({"user_id": user_id})
+        doc = await UserDocument.find_one(UserDocument.user_id == user_id)
         if not doc:
             return False
         await doc.delete()

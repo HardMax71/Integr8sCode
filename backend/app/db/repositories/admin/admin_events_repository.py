@@ -3,6 +3,7 @@ from typing import Any
 
 from beanie.odm.enums import SortDirection
 from beanie.operators import GTE, LTE, In, Text
+from monggregate import Pipeline, S
 
 from app.db.docs import (
     EventArchiveDocument,
@@ -25,7 +26,6 @@ from app.domain.events import (
     UserEventCount,
     domain_event_adapter,
 )
-from app.domain.events.query_builders import EventStatsAggregation
 from app.domain.replay.models import ReplayFilter, ReplaySessionState
 
 
@@ -62,7 +62,7 @@ class AdminEventsRepository:
         return EventBrowseResult(events=events, total=total, skip=skip, limit=limit)
 
     async def get_event_detail(self, event_id: str) -> EventDetail | None:
-        doc = await EventDocument.find_one({"event_id": event_id})
+        doc = await EventDocument.find_one(EventDocument.event_id == event_id)
         if not doc:
             return None
 
@@ -86,7 +86,7 @@ class AdminEventsRepository:
         return EventDetail(event=event, related_events=related_events, timeline=timeline)
 
     async def delete_event(self, event_id: str) -> bool:
-        doc = await EventDocument.find_one({"event_id": event_id})
+        doc = await EventDocument.find_one(EventDocument.event_id == event_id)
         if not doc:
             return False
         await doc.delete()
@@ -95,9 +95,29 @@ class AdminEventsRepository:
     async def get_event_stats(self, hours: int = 24) -> EventStatistics:
         start_time = datetime.now(timezone.utc) - timedelta(hours=hours)
 
-        overview_pipeline = EventStatsAggregation.build_overview_pipeline(start_time)
-        overview_result = await EventDocument.aggregate(overview_pipeline).to_list()
-
+        # Overview stats pipeline
+        # Note: monggregate doesn't have S.add_to_set - use raw dict syntax
+        overview_pipeline = (
+            Pipeline()
+            .match({EventDocument.timestamp: {"$gte": start_time}})
+            .group(
+                by=None,
+                query={
+                    "total_events": S.sum(1),
+                    "event_types": {"$addToSet": S.field(EventDocument.event_type)},
+                    "unique_users": {"$addToSet": S.field(EventDocument.metadata.user_id)},
+                    "services": {"$addToSet": S.field(EventDocument.metadata.service_name)},
+                },
+            )
+            .project(
+                _id=0,
+                total_events=1,
+                event_type_count={"$size": "$event_types"},
+                unique_user_count={"$size": "$unique_users"},
+                service_count={"$size": "$services"},
+            )
+        )
+        overview_result = await EventDocument.aggregate(overview_pipeline.export()).to_list()
         stats = (
             overview_result[0]
             if overview_result
@@ -106,41 +126,61 @@ class AdminEventsRepository:
 
         error_count = await EventDocument.find(
             {
-                "timestamp": {"$gte": start_time},
-                "event_type": {"$regex": "failed|error|timeout", "$options": "i"},
+                EventDocument.timestamp: {"$gte": start_time},
+                EventDocument.event_type: {"$regex": "failed|error|timeout", "$options": "i"},
             }
         ).count()
-
         error_rate = (error_count / stats["total_events"] * 100) if stats["total_events"] > 0 else 0
 
-        type_pipeline = EventStatsAggregation.build_event_types_pipeline(start_time)
-        top_types = await EventDocument.aggregate(type_pipeline).to_list()
+        # Event types pipeline
+        type_pipeline = (
+            Pipeline()
+            .match({EventDocument.timestamp: {"$gte": start_time}})
+            .group(by=S.field(EventDocument.event_type), query={"count": S.sum(1)})
+            .sort(by="count", descending=True)
+            .limit(10)
+        )
+        top_types = await EventDocument.aggregate(type_pipeline.export()).to_list()
         events_by_type = {t["_id"]: t["count"] for t in top_types}
 
-        hourly_pipeline = EventStatsAggregation.build_hourly_events_pipeline(start_time)
-        hourly_result = await EventDocument.aggregate(hourly_pipeline).to_list()
-        events_by_hour: list[HourlyEventCount | dict[str, Any]] = [
-            HourlyEventCount(hour=doc["_id"], count=doc["count"]) for doc in hourly_result
-        ]
+        # Hourly events pipeline - project renames _id->hour
+        hourly_pipeline = (
+            Pipeline()
+            .match({EventDocument.timestamp: {"$gte": start_time}})
+            .group(
+                by={"$dateToString": {"format": "%Y-%m-%d-%H", "date": S.field(EventDocument.timestamp)}},
+                query={"count": S.sum(1)},
+            )
+            .sort(by="_id")
+            .project(_id=0, hour="$_id", count=1)
+        )
+        hourly_result = await EventDocument.aggregate(hourly_pipeline.export()).to_list()
+        events_by_hour: list[HourlyEventCount | dict[str, Any]] = [HourlyEventCount(**doc) for doc in hourly_result]
 
-        user_pipeline = EventStatsAggregation.build_top_users_pipeline(start_time)
-        top_users_result = await EventDocument.aggregate(user_pipeline).to_list()
-        top_users = [
-            UserEventCount(user_id=doc["_id"], event_count=doc["count"]) for doc in top_users_result if doc["_id"]
-        ]
+        # Top users pipeline - project renames _id->user_id, count->event_count
+        user_pipeline = (
+            Pipeline()
+            .match({EventDocument.timestamp: {"$gte": start_time}})
+            .group(by=S.field(EventDocument.metadata.user_id), query={"count": S.sum(1)})
+            .sort(by="count", descending=True)
+            .limit(10)
+            .project(_id=0, user_id="$_id", event_count="$count")
+        )
+        top_users_result = await EventDocument.aggregate(user_pipeline.export()).to_list()
+        top_users = [UserEventCount(**doc) for doc in top_users_result if doc["user_id"]]
 
-        exec_pipeline: list[dict[str, Any]] = [
-            {
-                "$match": {
-                    "created_at": {"$gte": start_time},
-                    "status": "completed",
-                    "resource_usage.execution_time_wall_seconds": {"$exists": True},
-                }
-            },
-            {"$group": {"_id": None, "avg_duration": {"$avg": "$resource_usage.execution_time_wall_seconds"}}},
-        ]
-
-        exec_result = await ExecutionDocument.aggregate(exec_pipeline).to_list()
+        # Execution duration pipeline
+        exec_time_field = S.field(ExecutionDocument.resource_usage.execution_time_wall_seconds)
+        exec_pipeline = (
+            Pipeline()
+            .match({
+                ExecutionDocument.created_at: {"$gte": start_time},
+                ExecutionDocument.status: "completed",
+                ExecutionDocument.resource_usage.execution_time_wall_seconds: {"$exists": True},
+            })
+            .group(by=None, query={"avg_duration": S.avg(exec_time_field)})
+        )
+        exec_result = await ExecutionDocument.aggregate(exec_pipeline.export()).to_list()
         avg_processing_time = (
             exec_result[0]["avg_duration"] if exec_result and exec_result[0].get("avg_duration") else 0
         )
@@ -190,7 +230,7 @@ class AdminEventsRepository:
         return session.session_id
 
     async def get_replay_session(self, session_id: str) -> ReplaySessionState | None:
-        doc = await ReplaySessionDocument.find_one({"session_id": session_id})
+        doc = await ReplaySessionDocument.find_one(ReplaySessionDocument.session_id == session_id)
         if not doc:
             return None
         return ReplaySessionState.model_validate(doc, from_attributes=True)
@@ -199,14 +239,14 @@ class AdminEventsRepository:
         update_dict = updates.model_dump(exclude_none=True)
         if not update_dict:
             return False
-        doc = await ReplaySessionDocument.find_one({"session_id": session_id})
+        doc = await ReplaySessionDocument.find_one(ReplaySessionDocument.session_id == session_id)
         if not doc:
             return False
         await doc.set(update_dict)
         return True
 
     async def get_replay_status_with_progress(self, session_id: str) -> ReplaySessionStatusDetail | None:
-        doc = await ReplaySessionDocument.find_one({"session_id": session_id})
+        doc = await ReplaySessionDocument.find_one(ReplaySessionDocument.session_id == session_id)
         if not doc:
             return None
 
@@ -251,7 +291,7 @@ class AdminEventsRepository:
             execution_ids = {event.execution_id for event in original_events if event.execution_id}
 
             for exec_id in list(execution_ids)[:10]:
-                exec_doc = await ExecutionDocument.find_one({"execution_id": exec_id})
+                exec_doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == exec_id)
                 if exec_doc:
                     execution_results.append(
                         {

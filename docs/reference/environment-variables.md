@@ -43,20 +43,23 @@ Complete reference of all environment variables used by the Integr8sCode backend
 
 ## Kafka Configuration
 
-| Variable                   | Default                       | Description                         |
-|----------------------------|-------------------------------|-------------------------------------|
-| `KAFKA_BOOTSTRAP_SERVERS`  | `kafka:29092`                 | Kafka broker addresses              |
-| `SCHEMA_REGISTRY_URL`      | `http://schema-registry:8081` | Schema Registry URL                 |
-| `SCHEMA_REGISTRY_AUTH`     | `""`                          | Registry auth (`username:password`) |
-| `ENABLE_EVENT_STREAMING`   | `false`                       | Enable Kafka event streaming        |
-| `EVENT_RETENTION_DAYS`     | `30`                          | Event retention period              |
-| `KAFKA_TOPIC_PREFIX`       | `pref`                        | Topic name prefix                   |
-| `KAFKA_GROUP_SUFFIX`       | `suff`                        | Consumer group suffix               |
-| `KAFKA_CONSUMER_GROUP_ID`  | `integr8scode-backend`        | Default consumer group              |
-| `KAFKA_AUTO_OFFSET_RESET`  | `earliest`                    | Offset reset policy                 |
-| `KAFKA_ENABLE_AUTO_COMMIT` | `true`                        | Auto-commit offsets                 |
-| `KAFKA_SESSION_TIMEOUT_MS` | `30000`                       | Session timeout                     |
-| `KAFKA_MAX_POLL_RECORDS`   | `500`                         | Max poll batch size                 |
+| Variable                      | Default                       | Description                            |
+|-------------------------------|-------------------------------|----------------------------------------|
+| `KAFKA_BOOTSTRAP_SERVERS`     | `kafka:29092`                 | Kafka broker addresses                 |
+| `SCHEMA_REGISTRY_URL`         | `http://schema-registry:8081` | Schema Registry URL                    |
+| `SCHEMA_REGISTRY_AUTH`        | `""`                          | Registry auth (`username:password`)    |
+| `ENABLE_EVENT_STREAMING`      | `false`                       | Enable Kafka event streaming           |
+| `EVENT_RETENTION_DAYS`        | `30`                          | Event retention period                 |
+| `KAFKA_TOPIC_PREFIX`          | `pref`                        | Topic name prefix                      |
+| `KAFKA_GROUP_SUFFIX`          | `suff`                        | Consumer group suffix                  |
+| `KAFKA_CONSUMER_GROUP_ID`     | `integr8scode-backend`        | Default consumer group                 |
+| `KAFKA_AUTO_OFFSET_RESET`     | `earliest`                    | Offset reset policy                    |
+| `KAFKA_ENABLE_AUTO_COMMIT`    | `true`                        | Auto-commit offsets                    |
+| `KAFKA_SESSION_TIMEOUT_MS`    | `45000`                       | Session timeout (ms)                   |
+| `KAFKA_HEARTBEAT_INTERVAL_MS` | `10000`                       | Heartbeat interval (ms)                |
+| `KAFKA_MAX_POLL_INTERVAL_MS`  | `300000`                      | Max poll interval (ms)                 |
+| `KAFKA_REQUEST_TIMEOUT_MS`    | `40000`                       | Request timeout for broker calls (ms)  |
+| `KAFKA_MAX_POLL_RECORDS`      | `500`                         | Max poll batch size                    |
 
 ## Redis Configuration
 

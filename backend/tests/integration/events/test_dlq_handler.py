@@ -1,10 +1,8 @@
 import logging
 
 import pytest
+from app.domain.events.typed import DomainEvent, EventMetadata, SagaStartedEvent
 from app.events.core import UnifiedProducer, create_dlq_error_handler, create_immediate_dlq_handler
-from app.infrastructure.kafka.events.base import BaseEvent
-from app.infrastructure.kafka.events.metadata import AvroEventMetadata
-from app.infrastructure.kafka.events.saga import SagaStartedEvent
 from dishka import AsyncContainer
 
 pytestmark = [pytest.mark.integration, pytest.mark.kafka]
@@ -18,7 +16,7 @@ async def test_dlq_handler_with_retries(scope: AsyncContainer, monkeypatch: pyte
     calls: list[tuple[str | None, str, str, int]] = []
 
     async def _record_send_to_dlq(
-        original_event: BaseEvent, original_topic: str, error: Exception, retry_count: int
+        original_event: DomainEvent, original_topic: str, error: Exception, retry_count: int
     ) -> None:
         calls.append((original_event.event_id, original_topic, str(error), retry_count))
 
@@ -29,7 +27,7 @@ async def test_dlq_handler_with_retries(scope: AsyncContainer, monkeypatch: pyte
         saga_name="n",
         execution_id="x",
         initial_event_id="i",
-        metadata=AvroEventMetadata(service_name="a", service_version="1"),
+        metadata=EventMetadata(service_name="a", service_version="1"),
     )
     # Call 1 and 2 should not send to DLQ
     await h(RuntimeError("boom"), e)
@@ -47,7 +45,7 @@ async def test_immediate_dlq_handler(scope: AsyncContainer, monkeypatch: pytest.
     calls: list[tuple[str | None, str, str, int]] = []
 
     async def _record_send_to_dlq(
-        original_event: BaseEvent, original_topic: str, error: Exception, retry_count: int
+        original_event: DomainEvent, original_topic: str, error: Exception, retry_count: int
     ) -> None:
         calls.append((original_event.event_id, original_topic, str(error), retry_count))
 
@@ -58,7 +56,7 @@ async def test_immediate_dlq_handler(scope: AsyncContainer, monkeypatch: pytest.
         saga_name="n",
         execution_id="x",
         initial_event_id="i",
-        metadata=AvroEventMetadata(service_name="a", service_version="1"),
+        metadata=EventMetadata(service_name="a", service_version="1"),
     )
     await h(RuntimeError("x"), e)
     assert calls and calls[0][3] == 0

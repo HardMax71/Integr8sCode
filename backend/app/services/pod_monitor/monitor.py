@@ -14,7 +14,7 @@ from app.core.k8s_clients import K8sClients, close_k8s_clients, create_k8s_clien
 from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics.context import get_kubernetes_metrics
 from app.core.utils import StringEnum
-from app.infrastructure.kafka.events import BaseEvent
+from app.domain.events.typed import DomainEvent
 from app.services.kafka_event_service import KafkaEventService
 from app.services.pod_monitor.config import PodMonitorConfig
 from app.services.pod_monitor.event_mapper import PodEventMapper
@@ -323,7 +323,7 @@ class PodMonitor(LifecycleEnabled):
             self.logger.error(f"Error processing pod event: {e}", exc_info=True)
             self._metrics.record_pod_monitor_watch_error(ErrorType.PROCESSING_ERROR)
 
-    async def _publish_event(self, event: BaseEvent, pod: k8s_client.V1Pod) -> None:
+    async def _publish_event(self, event: DomainEvent, pod: k8s_client.V1Pod) -> None:
         """Publish event to Kafka and store in events collection."""
         try:
             # Add correlation ID from pod labels
@@ -333,7 +333,7 @@ class PodMonitor(LifecycleEnabled):
             execution_id = getattr(event, "execution_id", None) or event.aggregate_id
             key = str(execution_id or (pod.metadata.name if pod.metadata else "unknown"))
 
-            await self._kafka_event_service.publish_base_event(event=event, key=key)
+            await self._kafka_event_service.publish_domain_event(event=event, key=key)
 
             phase = pod.status.phase if pod.status else "Unknown"
             self._metrics.record_pod_monitor_event_published(event.event_type, phase)

@@ -23,9 +23,8 @@ async def insert_test_dlq_docs() -> None:
 
     docs = [
         DLQMessageDocument(
-            event_id="id1",
-            event_type=str(EventType.USER_LOGGED_IN),
             event={
+                "event_id": "id1",
                 "event_type": str(EventType.USER_LOGGED_IN),
                 "metadata": {"service_name": "svc", "service_version": "1"},
                 "user_id": "u1",
@@ -39,9 +38,8 @@ async def insert_test_dlq_docs() -> None:
             producer_id="p1",
         ),
         DLQMessageDocument(
-            event_id="id2",
-            event_type=str(EventType.USER_LOGGED_IN),
             event={
+                "event_id": "id2",
                 "event_type": str(EventType.USER_LOGGED_IN),
                 "metadata": {"service_name": "svc", "service_version": "1"},
                 "user_id": "u1",
@@ -55,9 +53,8 @@ async def insert_test_dlq_docs() -> None:
             producer_id="p1",
         ),
         DLQMessageDocument(
-            event_id="id3",
-            event_type=str(EventType.EXECUTION_STARTED),
             event={
+                "event_id": "id3",
                 "event_type": str(EventType.EXECUTION_STARTED),
                 "metadata": {"service_name": "svc", "service_version": "1"},
                 "execution_id": "x1",
@@ -86,7 +83,7 @@ async def test_stats_list_get_and_updates(repo: DLQRepository) -> None:
     res = await repo.get_messages(limit=2)
     assert res.total >= 3 and len(res.messages) <= 2
     msg = await repo.get_message_by_id("id1")
-    assert msg and msg.event_id == "id1"
+    assert msg and msg.event.event_id == "id1"
     assert await repo.mark_message_retried("id1") in (True, False)
     assert await repo.mark_message_discarded("id1", "r") in (True, False)
 

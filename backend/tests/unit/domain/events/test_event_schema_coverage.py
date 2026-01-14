@@ -3,7 +3,7 @@ Validates complete correspondence between EventType enum and event classes.
 
 This test ensures that:
 1. Every EventType has a corresponding domain event class (in DomainEvent union)
-2. Every EventType has a corresponding Kafka event class (BaseEvent subclass)
+2. Every EventType has a corresponding Kafka event class (DomainEvent subclass)
 3. No orphan event classes exist (classes without matching EventType)
 
 Run this test to catch missing event implementations early.
@@ -12,10 +12,8 @@ Run this test to catch missing event implementations early.
 from typing import get_args
 
 from app.domain.enums.events import EventType
-from app.domain.events.typed import BaseEvent as DomainBaseEvent
-from app.domain.events.typed import DomainEvent, domain_event_adapter
+from app.domain.events.typed import BaseEvent, DomainEvent, domain_event_adapter
 from app.events.schema.schema_registry import _get_event_type_to_class_mapping
-from app.infrastructure.kafka.events.base import BaseEvent as KafkaBaseEvent
 
 
 def get_domain_event_classes() -> dict[EventType, type]:
@@ -35,10 +33,10 @@ def get_domain_event_classes() -> dict[EventType, type]:
     else:
         event_classes = []
 
-    # Fallback: iterate through all DomainBaseEvent subclasses
+    # Fallback: iterate through all BaseEvent subclasses
     if not event_classes:
         event_classes = []
-        for cls in DomainBaseEvent.__subclasses__():
+        for cls in BaseEvent.__subclasses__():
             if hasattr(cls, "model_fields") and "event_type" in cls.model_fields:
                 event_classes.append(cls)
 
@@ -52,7 +50,7 @@ def get_domain_event_classes() -> dict[EventType, type]:
 
 
 def get_kafka_event_classes() -> dict[EventType, type]:
-    """Extract EventType -> class mapping from Kafka BaseEvent subclasses."""
+    """Extract EventType -> class mapping from Kafka DomainEvent subclasses."""
     return _get_event_type_to_class_mapping()
 
 
@@ -108,7 +106,7 @@ class TestEventSchemaCoverage:
         """All domain event classes must have a corresponding EventType."""
         orphans: list[str] = []
 
-        for cls in DomainBaseEvent.__subclasses__():
+        for cls in BaseEvent.__subclasses__():
             # Skip test fixtures/mocks (private classes starting with _)
             if cls.__name__.startswith("_"):
                 continue
@@ -128,7 +126,7 @@ class TestEventSchemaCoverage:
         """All Kafka event classes must have a corresponding EventType."""
         orphans: list[str] = []
 
-        for cls in KafkaBaseEvent.__subclasses__():
+        for cls in BaseEvent.__subclasses__():
             # Skip test fixtures/mocks (private classes starting with _)
             if cls.__name__.startswith("_"):
                 continue

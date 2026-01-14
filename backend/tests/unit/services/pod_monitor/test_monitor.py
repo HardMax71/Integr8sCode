@@ -8,12 +8,9 @@ import pytest
 from app.core import k8s_clients as k8s_clients_module
 from app.core.k8s_clients import K8sClients
 from app.db.repositories.event_repository import EventRepository
-from app.domain.events import DomainEvent
+from app.domain.events.typed import DomainEvent, EventMetadata, ExecutionCompletedEvent, ExecutionStartedEvent
 from app.domain.execution.models import ResourceUsageDomain
 from app.events.core import UnifiedProducer
-from app.infrastructure.kafka.events.base import BaseEvent
-from app.infrastructure.kafka.events.execution import ExecutionCompletedEvent, ExecutionStartedEvent
-from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.services.kafka_event_service import KafkaEventService
 from app.services.pod_monitor.config import PodMonitorConfig
 from app.services.pod_monitor.event_mapper import PodEventMapper
@@ -63,11 +60,11 @@ class FakeUnifiedProducer(UnifiedProducer):
 
     def __init__(self) -> None:
         # Don't call super().__init__ - we don't need real Kafka
-        self.produced_events: list[tuple[BaseEvent, str | None]] = []
+        self.produced_events: list[tuple[DomainEvent, str | None]] = []
         self.logger = _test_logger
 
     async def produce(
-            self, event_to_produce: BaseEvent, key: str | None = None, headers: dict[str, str] | None = None
+            self, event_to_produce: DomainEvent, key: str | None = None, headers: dict[str, str] | None = None
     ) -> None:
         self.produced_events.append((event_to_produce, key))
 
@@ -399,7 +396,7 @@ async def test_publish_event_full_flow() -> None:
         aggregate_id="exec1",
         exit_code=0,
         resource_usage=ResourceUsageDomain(),
-        metadata=AvroEventMetadata(service_name="test", service_version="1.0"),
+        metadata=EventMetadata(service_name="test", service_version="1.0"),
     )
 
     pod = make_pod(name="test-pod", phase="Succeeded", labels={"execution-id": "exec1"})
@@ -415,7 +412,7 @@ async def test_publish_event_exception_handling() -> None:
 
     class FailingProducer(FakeUnifiedProducer):
         async def produce(
-                self, event_to_produce: BaseEvent, key: str | None = None, headers: dict[str, str] | None = None
+                self, event_to_produce: DomainEvent, key: str | None = None, headers: dict[str, str] | None = None
         ) -> None:
             raise RuntimeError("Publish failed")
 
@@ -434,7 +431,7 @@ async def test_publish_event_exception_handling() -> None:
     event = ExecutionStartedEvent(
         execution_id="exec1",
         pod_name="test-pod",
-        metadata=AvroEventMetadata(service_name="test", service_version="1.0"),
+        metadata=EventMetadata(service_name="test", service_version="1.0"),
     )
 
     # Use pod with no metadata to exercise edge case

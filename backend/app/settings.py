@@ -1,5 +1,3 @@
-import os
-
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -62,8 +60,11 @@ class Settings(BaseSettings):
     KAFKA_CONSUMER_GROUP_ID: str = "integr8scode-backend"
     KAFKA_AUTO_OFFSET_RESET: str = "earliest"
     KAFKA_ENABLE_AUTO_COMMIT: bool = True
-    KAFKA_SESSION_TIMEOUT_MS: int = 30000
+    KAFKA_SESSION_TIMEOUT_MS: int = 45000
+    KAFKA_HEARTBEAT_INTERVAL_MS: int = 10000
+    KAFKA_MAX_POLL_INTERVAL_MS: int = 300000
     KAFKA_MAX_POLL_RECORDS: int = 500
+    KAFKA_REQUEST_TIMEOUT_MS: int = 40000
 
     # SSE Configuration
     SSE_CONSUMER_POOL_SIZE: int = 10  # Number of consumers in the partitioned pool
@@ -162,7 +163,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = Field(default="DEBUG", description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
 
     model_config = SettingsConfigDict(
-        env_file=os.environ.get("DOTENV_PATH", ".env"),
+        env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="forbid",  # Raise error on extra fields

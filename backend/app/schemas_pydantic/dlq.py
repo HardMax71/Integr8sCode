@@ -3,8 +3,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from app.dlq import DLQMessageStatus, RetryStrategy
-from app.domain.enums.events import EventType
+from app.dlq import AgeStatistics, DLQMessageStatus, EventTypeStatistic, RetryStrategy, TopicStatistic
+from app.domain.events.typed import DomainEvent
 
 
 class DLQStats(BaseModel):
@@ -12,26 +12,24 @@ class DLQStats(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    by_status: dict[str, int]
-    by_topic: list[dict[str, Any]]
-    by_event_type: list[dict[str, Any]]
-    age_stats: dict[str, Any]
+    by_status: dict[DLQMessageStatus, int]
+    by_topic: list[TopicStatistic]
+    by_event_type: list[EventTypeStatistic]
+    age_stats: AgeStatistics
     timestamp: datetime
 
 
 class DLQMessageResponse(BaseModel):
-    """Response model for a DLQ message."""
+    """Response model for a DLQ message. Mirrors DLQMessage for direct model_validate."""
 
     model_config = ConfigDict(from_attributes=True)
 
-    event_id: str
-    event_type: EventType
+    event: DomainEvent
     original_topic: str
     error: str
     retry_count: int
     failed_at: datetime
     status: DLQMessageStatus
-    age_seconds: float
     producer_id: str
     dlq_offset: int | None = None
     dlq_partition: int | None = None
@@ -93,25 +91,23 @@ class DLQTopicSummaryResponse(BaseModel):
 
 
 class DLQMessageDetail(BaseModel):
-    """Detailed DLQ message response."""
+    """Detailed DLQ message response. Mirrors DLQMessage for direct model_validate."""
 
     model_config = ConfigDict(from_attributes=True)
 
-    event_id: str
-    event: dict[str, Any]  # BaseEvent as dict
-    event_type: EventType
+    event: DomainEvent
     original_topic: str
     error: str
     retry_count: int
     failed_at: datetime
     status: DLQMessageStatus
+    producer_id: str
     created_at: datetime | None = None
     last_updated: datetime | None = None
     next_retry_at: datetime | None = None
     retried_at: datetime | None = None
     discarded_at: datetime | None = None
     discard_reason: str | None = None
-    producer_id: str
     dlq_offset: int | None = None
     dlq_partition: int | None = None
     last_error: str | None = None

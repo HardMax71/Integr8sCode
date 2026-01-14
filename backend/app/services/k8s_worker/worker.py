@@ -12,20 +12,21 @@ from kubernetes.client.rest import ApiException
 from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics import ExecutionMetrics, KubernetesMetrics
 from app.domain.enums.events import EventType
-from app.domain.enums.kafka import KafkaTopic
+from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId
 from app.domain.enums.storage import ExecutionErrorType
+from app.domain.events.typed import (
+    CreatePodCommandEvent,
+    DeletePodCommandEvent,
+    DomainEvent,
+    ExecutionFailedEvent,
+    ExecutionStartedEvent,
+    PodCreatedEvent,
+)
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
 from app.events.event_store import EventStore
 from app.events.schema.schema_registry import (
     SchemaRegistryManager,
 )
-from app.infrastructure.kafka.events.base import BaseEvent
-from app.infrastructure.kafka.events.execution import (
-    ExecutionFailedEvent,
-    ExecutionStartedEvent,
-)
-from app.infrastructure.kafka.events.pod import PodCreatedEvent
-from app.infrastructure.kafka.events.saga import CreatePodCommandEvent, DeletePodCommandEvent
 from app.runtime_registry import RUNTIME_REGISTRY
 from app.services.idempotency import IdempotencyManager
 from app.services.idempotency.middleware import IdempotentConsumerWrapper
@@ -47,14 +48,14 @@ class KubernetesWorker(LifecycleEnabled):
     """
 
     def __init__(
-        self,
-        config: K8sWorkerConfig,
-        producer: UnifiedProducer,
-        schema_registry_manager: SchemaRegistryManager,
-        settings: Settings,
-        event_store: EventStore,
-        idempotency_manager: IdempotencyManager,
-        logger: logging.Logger,
+            self,
+            config: K8sWorkerConfig,
+            producer: UnifiedProducer,
+            schema_registry_manager: SchemaRegistryManager,
+            settings: Settings,
+            event_store: EventStore,
+            idempotency_manager: IdempotencyManager,
+            logger: logging.Logger,
     ):
         super().__init__()
         self.logger = logger
@@ -107,6 +108,10 @@ class KubernetesWorker(LifecycleEnabled):
             bootstrap_servers=self.kafka_servers,
             group_id=f"{self.config.consumer_group}.{self._settings.KAFKA_GROUP_SUFFIX}",
             enable_auto_commit=False,
+            session_timeout_ms=self._settings.KAFKA_SESSION_TIMEOUT_MS,
+            heartbeat_interval_ms=self._settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+            max_poll_interval_ms=self._settings.KAFKA_MAX_POLL_INTERVAL_MS,
+            request_timeout_ms=self._settings.KAFKA_REQUEST_TIMEOUT_MS,
         )
 
         # Create dispatcher and register handlers for saga commands
@@ -134,8 +139,8 @@ class KubernetesWorker(LifecycleEnabled):
             enable_for_all_handlers=True,  # Enable idempotency for all handlers
         )
 
-        # Start the consumer with idempotency - listen to saga commands topic
-        await self.idempotent_consumer.start([KafkaTopic.SAGA_COMMANDS])
+        # Start the consumer with idempotency - topics from centralized config
+        await self.idempotent_consumer.start(list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.K8S_WORKER]))
 
         # Create daemonset for image pre-pulling
         asyncio.create_task(self.ensure_image_pre_puller_daemonset())
@@ -211,13 +216,13 @@ class KubernetesWorker(LifecycleEnabled):
             self.logger.error(f"Failed to initialize Kubernetes client: {e}")
             raise
 
-    async def _handle_create_pod_command_wrapper(self, event: BaseEvent) -> None:
+    async def _handle_create_pod_command_wrapper(self, event: DomainEvent) -> None:
         """Wrapper for handling CreatePodCommandEvent with type safety."""
         assert isinstance(event, CreatePodCommandEvent)
         self.logger.info(f"Processing create_pod_command for execution {event.execution_id} from saga {event.saga_id}")
         await self._handle_create_pod_command(event)
 
-    async def _handle_delete_pod_command_wrapper(self, event: BaseEvent) -> None:
+    async def _handle_delete_pod_command_wrapper(self, event: DomainEvent) -> None:
         """Wrapper for handling DeletePodCommandEvent."""
         assert isinstance(event, DeletePodCommandEvent)
         self.logger.info(f"Processing delete_pod_command for execution {event.execution_id} from saga {event.saga_id}")

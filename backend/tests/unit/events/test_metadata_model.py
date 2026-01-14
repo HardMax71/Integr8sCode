@@ -1,22 +1,20 @@
-from app.infrastructure.kafka.events.metadata import AvroEventMetadata
+from app.domain.events.typed import EventMetadata
 
 
-def test_with_correlation() -> None:
-    m = AvroEventMetadata(service_name="svc", service_version="1")
-    m2 = m.with_correlation("cid")
+def test_metadata_creation() -> None:
+    m = EventMetadata(service_name="svc", service_version="1")
+    assert m.service_name == "svc"
+    assert m.service_version == "1"
+    assert m.correlation_id  # auto-generated
+
+
+def test_metadata_with_user() -> None:
+    m = EventMetadata(service_name="svc", service_version="1", user_id="u1")
+    assert m.user_id == "u1"
+
+
+def test_metadata_copy_with_correlation() -> None:
+    m = EventMetadata(service_name="svc", service_version="1")
+    m2 = m.model_copy(update={"correlation_id": "cid"})
     assert m2.correlation_id == "cid"
-    assert m2.service_name == m.service_name  # preserves other fields
-
-
-def test_with_user() -> None:
-    m = AvroEventMetadata(service_name="svc", service_version="1")
-    m2 = m.with_user("u1")
-    assert m2.user_id == "u1"
-
-
-def test_ensure_correlation_id() -> None:
-    m = AvroEventMetadata(service_name="svc", service_version="1")
-    # ensure_correlation_id returns self if correlation_id already present
-    same = m.ensure_correlation_id()
-    assert same.correlation_id == m.correlation_id
-    assert m.ensure_correlation_id().correlation_id
+    assert m2.service_name == m.service_name

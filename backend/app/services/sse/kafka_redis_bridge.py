@@ -5,10 +5,10 @@ import logging
 from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics.events import EventMetrics
 from app.domain.enums.events import EventType
-from app.domain.enums.kafka import KafkaTopic
+from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId
+from app.domain.events.typed import DomainEvent
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.infrastructure.kafka.events.base import BaseEvent
 from app.services.sse.redis_bus import SSERedisBus
 from app.settings import Settings
 
@@ -23,12 +23,12 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
     """
 
     def __init__(
-        self,
-        schema_registry: SchemaRegistryManager,
-        settings: Settings,
-        event_metrics: EventMetrics,
-        sse_bus: SSERedisBus,
-        logger: logging.Logger,
+            self,
+            schema_registry: SchemaRegistryManager,
+            settings: Settings,
+            event_metrics: EventMetrics,
+            sse_bus: SSERedisBus,
+            logger: logging.Logger,
     ) -> None:
         super().__init__()
         self.schema_registry = schema_registry
@@ -71,9 +71,10 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
             client_id=client_id,
             enable_auto_commit=True,
             auto_offset_reset="latest",
-            max_poll_interval_ms=300000,
-            session_timeout_ms=30000,
-            heartbeat_interval_ms=3000,
+            max_poll_interval_ms=self.settings.KAFKA_MAX_POLL_INTERVAL_MS,
+            session_timeout_ms=self.settings.KAFKA_SESSION_TIMEOUT_MS,
+            heartbeat_interval_ms=self.settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+            request_timeout_ms=self.settings.KAFKA_REQUEST_TIMEOUT_MS,
         )
 
         dispatcher = EventDispatcher(logger=self.logger)
@@ -87,15 +88,8 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
             logger=self.logger,
         )
 
-        topics = [
-            KafkaTopic.EXECUTION_EVENTS,
-            KafkaTopic.EXECUTION_COMPLETED,
-            KafkaTopic.EXECUTION_FAILED,
-            KafkaTopic.EXECUTION_TIMEOUT,
-            KafkaTopic.EXECUTION_RESULTS,
-            KafkaTopic.POD_EVENTS,
-            KafkaTopic.POD_STATUS_UPDATES,
-        ]
+        # Use WEBSOCKET_GATEWAY subscriptions - SSE bridge serves same purpose (real-time client delivery)
+        topics = list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.WEBSOCKET_GATEWAY])
         await consumer.start(topics)
 
         self.logger.info(f"Bridge consumer {consumer_index} started")
@@ -122,7 +116,7 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
             EventType.POD_DELETED,
         ]
 
-        async def route_event(event: BaseEvent) -> None:
+        async def route_event(event: DomainEvent) -> None:
             data = event.model_dump()
             execution_id = data.get("execution_id")
             if not execution_id:
@@ -150,11 +144,11 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
 
 
 def create_sse_kafka_redis_bridge(
-    schema_registry: SchemaRegistryManager,
-    settings: Settings,
-    event_metrics: EventMetrics,
-    sse_bus: SSERedisBus,
-    logger: logging.Logger,
+        schema_registry: SchemaRegistryManager,
+        settings: Settings,
+        event_metrics: EventMetrics,
+        sse_bus: SSERedisBus,
+        logger: logging.Logger,
 ) -> SSEKafkaRedisBridge:
     return SSEKafkaRedisBridge(
         schema_registry=schema_registry,

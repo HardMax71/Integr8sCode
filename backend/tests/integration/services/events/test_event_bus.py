@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -7,7 +8,6 @@ from app.domain.enums.kafka import KafkaTopic
 from app.services.event_bus import EventBusEvent, EventBusManager
 from app.settings import Settings
 from dishka import AsyncContainer
-from tests.helpers.eventually import eventually
 
 pytestmark = pytest.mark.integration
 
@@ -18,15 +18,16 @@ async def test_event_bus_publish_subscribe(scope: AsyncContainer, test_settings:
     manager: EventBusManager = await scope.get(EventBusManager)
     bus = await manager.get_event_bus()
 
-    received: list[EventBusEvent] = []
+    # Future resolves when handler receives the event - no polling needed
+    received_future: asyncio.Future[EventBusEvent] = asyncio.get_running_loop().create_future()
 
     async def handler(event: EventBusEvent) -> None:
-        received.append(event)
+        if not received_future.done():
+            received_future.set_result(event)
 
     await bus.subscribe("test.*", handler)
 
-    # EventBus filters self-published messages (designed for cross-instance communication).
-    # Simulate a message from another instance by producing directly to Kafka.
+    # Simulate message from another instance by producing directly to Kafka
     event = EventBusEvent(
         id=str(uuid4()),
         event_type="test.created",
@@ -42,12 +43,11 @@ async def test_event_bus_publish_subscribe(scope: AsyncContainer, test_settings:
             topic=topic,
             value=event.model_dump_json().encode("utf-8"),
             key=b"test.created",
-            headers=[("source_instance", b"other-instance")],  # Different instance
+            headers=[("source_instance", b"other-instance")],
         )
     finally:
         await producer.stop()
 
-    async def _received() -> None:
-        assert any(e.event_type == "test.created" for e in received)
-
-    await eventually(_received, timeout=5.0, interval=0.1)
+    # Await the future directly - true async, no polling
+    received = await asyncio.wait_for(received_future, timeout=10.0)
+    assert received.event_type == "test.created"

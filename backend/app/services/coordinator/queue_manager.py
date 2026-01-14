@@ -8,7 +8,7 @@ from enum import IntEnum
 from typing import Any, Dict, List, Tuple
 
 from app.core.metrics.context import get_coordinator_metrics
-from app.infrastructure.kafka.events import ExecutionRequestedEvent
+from app.domain.events.typed import ExecutionRequestedEvent
 
 
 class QueuePriority(IntEnum):

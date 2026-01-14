@@ -11,12 +11,9 @@ from app.core.metrics.context import get_event_metrics
 from app.core.tracing.utils import inject_trace_context
 from app.db.repositories.event_repository import EventRepository
 from app.domain.enums.events import EventType
-from app.domain.events import EventMetadata as DomainEventMetadata
 from app.domain.events import domain_event_adapter
+from app.domain.events.typed import DomainEvent, EventMetadata
 from app.events.core import UnifiedProducer
-from app.infrastructure.kafka.events.base import BaseEvent
-from app.infrastructure.kafka.events.metadata import AvroEventMetadata
-from app.infrastructure.kafka.mappings import get_event_class_for_type
 from app.settings import Settings
 
 tracer = trace.get_tracer(__name__)
@@ -42,7 +39,7 @@ class KafkaEventService:
         payload: Dict[str, Any],
         aggregate_id: str | None,
         correlation_id: str | None = None,
-        metadata: AvroEventMetadata | None = None,
+        metadata: EventMetadata | None = None,
     ) -> str:
         """
         Publish an event to Kafka and store an audit copy via the repository
@@ -67,21 +64,16 @@ class KafkaEventService:
             if not correlation_id:
                 correlation_id = CorrelationContext.get_correlation_id()
 
-            # Create or enrich event metadata (Avro for Kafka)
-            avro_metadata = metadata or AvroEventMetadata(
+            event_metadata = metadata or EventMetadata(
                 service_name=self.settings.SERVICE_NAME,
                 service_version=self.settings.SERVICE_VERSION,
+                correlation_id=correlation_id or str(uuid4()),
             )
-            avro_metadata = avro_metadata.with_correlation(correlation_id or str(uuid4()))
+            if correlation_id and event_metadata.correlation_id != correlation_id:
+                event_metadata = event_metadata.model_copy(update={"correlation_id": correlation_id})
 
-            # Create event
             event_id = str(uuid4())
             timestamp = datetime.now(timezone.utc)
-
-            # Convert to domain metadata for storage
-            domain_metadata = DomainEventMetadata(
-                **avro_metadata.model_dump(include=set(DomainEventMetadata.model_fields.keys()))
-            )
 
             # Create typed domain event via discriminated union adapter
             event_data = {
@@ -90,36 +82,17 @@ class KafkaEventService:
                 "event_version": "1.0",
                 "timestamp": timestamp,
                 "aggregate_id": aggregate_id,
-                "metadata": domain_metadata,
+                "metadata": event_metadata,
                 **payload,
             }
             domain_event = domain_event_adapter.validate_python(event_data)
-            _ = await self.event_repository.store_event(domain_event)
+            await self.event_repository.store_event(domain_event)
 
-            # Get event class and create proper event instance
-            event_class = get_event_class_for_type(event_type)
-            if not event_class:
-                raise ValueError(f"No event class found for event type: {event_type}")
-
-            # Create proper Kafka event instance with all required fields
-            kafka_event_data = {
-                "event_id": domain_event.event_id,
-                "event_type": event_type,
-                "event_version": "1.0",
-                "timestamp": timestamp,
-                "aggregate_id": aggregate_id,
-                "metadata": avro_metadata,
-                **payload,  # Include event-specific payload fields
-            }
-
-            # Create the typed Kafka event instance
-            kafka_event = event_class(**kafka_event_data)
-
-            # Prepare headers (all values must be strings for UnifiedProducer)
+            # Prepare headers
             headers: Dict[str, str] = {
                 "event_type": event_type,
-                "correlation_id": domain_metadata.correlation_id or "",
-                "service": avro_metadata.service_name,
+                "correlation_id": event_metadata.correlation_id or "",
+                "service": event_metadata.service_name,
             }
 
             # Add trace context
@@ -132,31 +105,18 @@ class KafkaEventService:
             headers = inject_trace_context(headers)
 
             # Publish to Kafka
-            await self.kafka_producer.produce(event_to_produce=kafka_event, key=aggregate_id, headers=headers)
-
+            await self.kafka_producer.produce(domain_event, aggregate_id, headers)
             self.metrics.record_event_published(event_type)
-
-            # Record processing duration
-            duration = time.time() - start_time
-            self.metrics.record_event_processing_duration(duration, event_type)
-
-            self.logger.info(
-                "Event published",
-                extra={
-                    "event_type": event_type,
-                    "event_id": kafka_event.event_id,
-                    "topic": getattr(kafka_event, "topic", "unknown"),
-                },
-            )
-
-            return kafka_event.event_id
+            self.metrics.record_event_processing_duration(time.time() - start_time, event_type)
+            self.logger.info("Event published", extra={"event_type": event_type, "event_id": domain_event.event_id})
+            return domain_event.event_id
 
     async def publish_execution_event(
         self,
         event_type: EventType,
         execution_id: str,
         status: str,
-        metadata: AvroEventMetadata | None = None,
+        metadata: EventMetadata | None = None,
         error_message: str | None = None,
     ) -> str:
         """Publish execution-related event using provided metadata (no framework coupling)."""
@@ -199,7 +159,7 @@ class KafkaEventService:
         execution_id: str,
         namespace: str = "integr8scode",
         status: str | None = None,
-        metadata: AvroEventMetadata | None = None,
+        metadata: EventMetadata | None = None,
     ) -> str:
         """Publish pod-related event"""
         payload = {"pod_name": pod_name, "execution_id": execution_id, "namespace": namespace}
@@ -214,83 +174,31 @@ class KafkaEventService:
             metadata=metadata,
         )
 
-    async def publish_base_event(self, event: BaseEvent, key: str | None = None) -> str:
-        """
-        Publish a pre-built BaseEvent to Kafka and store an audit copy.
-
-        Used by PodMonitor and other components that create fully-formed events.
-        This ensures events are stored in the events collection AND published to Kafka.
-
-        Args:
-            event: Pre-built BaseEvent with all fields populated
-            key: Optional Kafka message key (defaults to aggregate_id)
-
-        Returns:
-            Event ID of published event
-        """
-        with tracer.start_as_current_span("publish_base_event") as span:
+    async def publish_domain_event(self, event: DomainEvent, key: str | None = None) -> str:
+        """Publish a pre-built DomainEvent to Kafka and store an audit copy."""
+        with tracer.start_as_current_span("publish_domain_event") as span:
             span.set_attribute("event.type", event.event_type)
             if event.aggregate_id:
                 span.set_attribute("aggregate.id", event.aggregate_id)
 
             start_time = time.time()
+            await self.event_repository.store_event(event)
 
-            # Convert to domain metadata for storage
-            domain_metadata = DomainEventMetadata(**event.metadata.model_dump())
-
-            # Build payload from event attributes (exclude base fields)
-            base_fields = {"event_id", "event_type", "event_version", "timestamp", "aggregate_id", "metadata", "topic"}
-            payload = {k: v for k, v in event.model_dump().items() if k not in base_fields}
-
-            # Create typed domain event via discriminated union adapter
-            event_data = {
-                "event_id": event.event_id,
-                "event_type": event.event_type,
-                "event_version": event.event_version,
-                "timestamp": event.timestamp,
-                "aggregate_id": event.aggregate_id,
-                "metadata": domain_metadata,
-                **payload,
-            }
-            domain_event = domain_event_adapter.validate_python(event_data)
-            await self.event_repository.store_event(domain_event)
-
-            # Prepare headers
             headers: Dict[str, str] = {
                 "event_type": event.event_type,
                 "correlation_id": event.metadata.correlation_id or "",
                 "service": event.metadata.service_name,
             }
-
-            # Add trace context
             span_context = span.get_span_context()
             if span_context.is_valid:
                 headers["trace_id"] = f"{span_context.trace_id:032x}"
                 headers["span_id"] = f"{span_context.span_id:016x}"
-
             headers = inject_trace_context(headers)
 
-            # Publish to Kafka
-            await self.kafka_producer.produce(
-                event_to_produce=event,
-                key=key or event.aggregate_id,
-                headers=headers,
-            )
-
+            await self.kafka_producer.produce(event, key or event.aggregate_id, headers)
             self.metrics.record_event_published(event.event_type)
-
-            duration = time.time() - start_time
-            self.metrics.record_event_processing_duration(duration, event.event_type)
-
-            self.logger.info(
-                "Base event published",
-                extra={
-                    "event_type": event.event_type,
-                    "event_id": event.event_id,
-                    "aggregate_id": event.aggregate_id,
-                },
-            )
-
+            self.metrics.record_event_processing_duration(time.time() - start_time, event.event_type)
+            self.logger.info("Domain event published", extra={"event_id": event.event_id})
             return event.event_id
 
     async def close(self) -> None:

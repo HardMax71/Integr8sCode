@@ -64,6 +64,10 @@ class SSEShutdownManager:
         self._shutdown_event = asyncio.Event()
         self._drain_complete_event = asyncio.Event()
 
+        # Phase transition events for external coordination
+        self.initiated_event = asyncio.Event()  # Set when shutdown initiated
+        self.notifying_event = asyncio.Event()  # Set when entering notifying phase
+
         self.logger.info(
             "SSEShutdownManager initialized",
             extra={"drain_timeout": drain_timeout, "notification_timeout": notification_timeout},

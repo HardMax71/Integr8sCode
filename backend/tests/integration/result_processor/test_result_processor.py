@@ -8,21 +8,17 @@ from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.kafka import KafkaTopic
+from app.domain.events.typed import EventMetadata, ExecutionCompletedEvent, ResultStoredEvent
 from app.domain.execution import DomainExecutionCreate
 from app.domain.execution.models import ResourceUsageDomain
 from app.events.core import UnifiedConsumer, UnifiedProducer
 from app.events.core.dispatcher import EventDispatcher
 from app.events.core.types import ConsumerConfig
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
-from app.infrastructure.kafka.events.execution import ExecutionCompletedEvent
-from app.infrastructure.kafka.events.metadata import AvroEventMetadata
-from app.infrastructure.kafka.events.system import ResultStoredEvent
 from app.services.idempotency import IdempotencyManager
 from app.services.result_processor.processor import ResultProcessor
 from app.settings import Settings
 from dishka import AsyncContainer
-
-from tests.helpers.eventually import eventually
 
 # xdist_group: Kafka consumer creation can crash librdkafka when multiple workers
 # instantiate Consumer() objects simultaneously. Serial execution prevents this.
@@ -74,8 +70,9 @@ async def test_result_processor_persists_and_emits(scope: AsyncContainer) -> Non
     stored_received = asyncio.Event()
 
     @dispatcher.register(EventType.RESULT_STORED)
-    async def _stored(_event: ResultStoredEvent) -> None:
-        stored_received.set()
+    async def _stored(event: ResultStoredEvent) -> None:
+        if event.execution_id == execution_id:
+            stored_received.set()
 
     group_id = f"rp-test.{uuid.uuid4().hex[:6]}"
     cconf = ConsumerConfig(
@@ -91,36 +88,37 @@ async def test_result_processor_persists_and_emits(scope: AsyncContainer) -> Non
         settings=settings,
         logger=_test_logger,
     )
+
+    # Produce the event BEFORE starting consumers (auto_offset_reset="earliest" will read it)
+    usage = ResourceUsageDomain(
+        execution_time_wall_seconds=0.5,
+        cpu_time_jiffies=100,
+        clk_tck_hertz=100,
+        peak_memory_kb=1024,
+    )
+    evt = ExecutionCompletedEvent(
+        execution_id=execution_id,
+        exit_code=0,
+        stdout="hello",
+        stderr="",
+        resource_usage=usage,
+        metadata=EventMetadata(service_name="tests", service_version="1.0.0"),
+    )
+    await producer.produce(evt, key=execution_id)
+
+    # Start consumers after producing
     await stored_consumer.start([KafkaTopic.EXECUTION_RESULTS])
 
     try:
         async with processor:
-            # Emit a completed event
-            usage = ResourceUsageDomain(
-                execution_time_wall_seconds=0.5,
-                cpu_time_jiffies=100,
-                clk_tck_hertz=100,
-                peak_memory_kb=1024,
+            # Await the ResultStoredEvent - signals that processing is complete
+            await asyncio.wait_for(stored_received.wait(), timeout=12.0)
+
+            # Now verify DB persistence - should be done since event was emitted
+            doc = await db.get_collection("executions").find_one({"execution_id": execution_id})
+            assert doc is not None, f"Execution {execution_id} not found in DB after ResultStoredEvent"
+            assert doc.get("status") == ExecutionStatus.COMPLETED, (
+                f"Expected COMPLETED status, got {doc.get('status')}"
             )
-            evt = ExecutionCompletedEvent(
-                execution_id=execution_id,
-                exit_code=0,
-                stdout="hello",
-                stderr="",
-                resource_usage=usage,
-                metadata=AvroEventMetadata(service_name="tests", service_version="1.0.0"),
-            )
-            await producer.produce(evt, key=execution_id)
-
-            # Wait for DB persistence (event-driven polling)
-            async def _persisted() -> None:
-                doc = await db.get_collection("executions").find_one({"execution_id": execution_id})
-                assert doc is not None
-                assert doc.get("status") == ExecutionStatus.COMPLETED
-
-            await eventually(_persisted, timeout=12.0, interval=0.2)
-
-            # Wait for result stored event
-            await asyncio.wait_for(stored_received.wait(), timeout=10.0)
     finally:
         await stored_consumer.stop()

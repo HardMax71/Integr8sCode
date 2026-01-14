@@ -29,7 +29,10 @@ class NotificationRepository:
     async def update_notification(
         self, notification_id: str, user_id: str, update_data: DomainNotificationUpdate
     ) -> bool:
-        doc = await NotificationDocument.find_one({"notification_id": notification_id, "user_id": user_id})
+        doc = await NotificationDocument.find_one(
+            NotificationDocument.notification_id == notification_id,
+            NotificationDocument.user_id == user_id,
+        )
         if not doc:
             return False
         update_dict = update_data.model_dump(exclude_none=True)
@@ -38,13 +41,19 @@ class NotificationRepository:
         return True
 
     async def get_notification(self, notification_id: str, user_id: str) -> DomainNotification | None:
-        doc = await NotificationDocument.find_one({"notification_id": notification_id, "user_id": user_id})
+        doc = await NotificationDocument.find_one(
+            NotificationDocument.notification_id == notification_id,
+            NotificationDocument.user_id == user_id,
+        )
         if not doc:
             return None
         return DomainNotification.model_validate(doc, from_attributes=True)
 
     async def mark_as_read(self, notification_id: str, user_id: str) -> bool:
-        doc = await NotificationDocument.find_one({"notification_id": notification_id, "user_id": user_id})
+        doc = await NotificationDocument.find_one(
+            NotificationDocument.notification_id == notification_id,
+            NotificationDocument.user_id == user_id,
+        )
         if not doc:
             return False
         await doc.set({"status": NotificationStatus.READ, "read_at": datetime.now(UTC)})
@@ -52,12 +61,16 @@ class NotificationRepository:
 
     async def mark_all_as_read(self, user_id: str) -> int:
         result = await NotificationDocument.find(
-            {"user_id": user_id, "status": NotificationStatus.DELIVERED}
+            NotificationDocument.user_id == user_id,
+            NotificationDocument.status == NotificationStatus.DELIVERED,
         ).update_many({"$set": {"status": NotificationStatus.READ, "read_at": datetime.now(UTC)}})
         return result.modified_count if result and hasattr(result, "modified_count") else 0
 
     async def delete_notification(self, notification_id: str, user_id: str) -> bool:
-        doc = await NotificationDocument.find_one({"notification_id": notification_id, "user_id": user_id})
+        doc = await NotificationDocument.find_one(
+            NotificationDocument.notification_id == notification_id,
+            NotificationDocument.user_id == user_id,
+        )
         if not doc:
             return False
         await doc.delete()
@@ -155,7 +168,10 @@ class NotificationRepository:
         self, user_id: str, channel: NotificationChannel
     ) -> DomainNotificationSubscription:
         """Get subscription for user/channel, returning default enabled subscription if none exists."""
-        doc = await NotificationSubscriptionDocument.find_one({"user_id": user_id, "channel": channel})
+        doc = await NotificationSubscriptionDocument.find_one(
+            NotificationSubscriptionDocument.user_id == user_id,
+            NotificationSubscriptionDocument.channel == channel,
+        )
         if not doc:
             # Default: enabled=True for new users (consistent with get_all_subscriptions)
             return DomainNotificationSubscription(user_id=user_id, channel=channel, enabled=True)
@@ -164,7 +180,10 @@ class NotificationRepository:
     async def upsert_subscription(
         self, user_id: str, channel: NotificationChannel, update_data: DomainSubscriptionUpdate
     ) -> DomainNotificationSubscription:
-        existing = await NotificationSubscriptionDocument.find_one({"user_id": user_id, "channel": channel})
+        existing = await NotificationSubscriptionDocument.find_one(
+            NotificationSubscriptionDocument.user_id == user_id,
+            NotificationSubscriptionDocument.channel == channel,
+        )
         update_dict = update_data.model_dump(exclude_none=True)
         update_dict["updated_at"] = datetime.now(UTC)
 
@@ -183,7 +202,10 @@ class NotificationRepository:
     async def get_all_subscriptions(self, user_id: str) -> dict[NotificationChannel, DomainNotificationSubscription]:
         subs: dict[NotificationChannel, DomainNotificationSubscription] = {}
         for channel in NotificationChannel:
-            doc = await NotificationSubscriptionDocument.find_one({"user_id": user_id, "channel": channel})
+            doc = await NotificationSubscriptionDocument.find_one(
+                NotificationSubscriptionDocument.user_id == user_id,
+                NotificationSubscriptionDocument.channel == channel,
+            )
             if doc:
                 subs[channel] = DomainNotificationSubscription.model_validate(doc, from_attributes=True)
             else:

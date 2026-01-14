@@ -1,46 +1,27 @@
 import logging
-from datetime import datetime, timezone
-from typing import ClassVar
 from unittest.mock import MagicMock
 
 import pytest
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.db.repositories.saga_repository import SagaRepository
 from app.domain.enums.events import EventType
-from app.domain.enums.kafka import KafkaTopic
 from app.domain.enums.saga import SagaState
+from app.domain.events.typed import DomainEvent, ExecutionRequestedEvent
 from app.domain.saga.models import Saga, SagaConfig
 from app.events.core import UnifiedProducer
 from app.events.event_store import EventStore
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.infrastructure.kafka.events import BaseEvent
-from app.infrastructure.kafka.events.metadata import AvroEventMetadata
 from app.services.idempotency.idempotency_manager import IdempotencyManager
 from app.services.saga.base_saga import BaseSaga
 from app.services.saga.saga_orchestrator import SagaOrchestrator
 from app.services.saga.saga_step import CompensationStep, SagaContext, SagaStep
 from app.settings import Settings
-from pydantic import Field
+
+from tests.helpers import make_execution_requested_event
 
 pytestmark = pytest.mark.unit
 
 _test_logger = logging.getLogger("test.services.saga.orchestrator")
-
-
-class _FakeEvent(BaseEvent):
-    """Fake event for testing that extends BaseEvent.
-
-    Note: event_type has no default to avoid polluting the global event type mapping
-    (which is built from BaseEvent subclasses with default event_type values).
-    """
-
-    event_type: EventType  # No default - set explicitly in _make_event()
-    execution_id: str = ""
-    topic: ClassVar[KafkaTopic] = KafkaTopic.EXECUTION_EVENTS
-    metadata: AvroEventMetadata = Field(default_factory=lambda: AvroEventMetadata(
-        service_name="test", service_version="1.0", correlation_id="test-corr-id"
-    ))
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class _FakeRepo(SagaRepository):
@@ -65,7 +46,7 @@ class _FakeProd(UnifiedProducer):
         pass  # Skip parent __init__
 
     async def produce(
-        self, event_to_produce: BaseEvent, key: str | None = None, headers: dict[str, str] | None = None
+        self, event_to_produce: DomainEvent, key: str | None = None, headers: dict[str, str] | None = None
     ) -> None:
         return None
 
@@ -94,11 +75,11 @@ class _FakeAlloc(ResourceAllocationRepository):
         pass  # No special attributes needed
 
 
-class _StepOK(SagaStep[_FakeEvent]):
+class _StepOK(SagaStep[ExecutionRequestedEvent]):
     def __init__(self) -> None:
         super().__init__("ok")
 
-    async def execute(self, context: SagaContext, event: _FakeEvent) -> bool:
+    async def execute(self, context: SagaContext, event: ExecutionRequestedEvent) -> bool:
         return True
 
     def get_compensation(self) -> CompensationStep | None:
@@ -114,7 +95,7 @@ class _Saga(BaseSaga):
     def get_trigger_events(cls) -> list[EventType]:
         return [EventType.EXECUTION_REQUESTED]
 
-    def get_steps(self) -> list[SagaStep[_FakeEvent]]:
+    def get_steps(self) -> list[SagaStep[ExecutionRequestedEvent]]:
         return [_StepOK()]
 
 
@@ -132,17 +113,13 @@ def _orch() -> SagaOrchestrator:
     )
 
 
-def _make_event(et: EventType, execution_id: str) -> _FakeEvent:
-    return _FakeEvent(event_type=et, execution_id=execution_id)
-
-
 @pytest.mark.asyncio
 async def test_min_success_flow() -> None:
     orch = _orch()
     orch.register_saga(_Saga)
     # Set orchestrator running state via lifecycle property
     orch._lifecycle_started = True
-    await orch._handle_event(_make_event(EventType.EXECUTION_REQUESTED, "e"))
+    await orch._handle_event(make_execution_requested_event(execution_id="e"))
     # basic sanity; deep behavior covered by integration
     assert orch.is_running is True
 
@@ -162,9 +139,9 @@ async def test_should_trigger_and_existing_short_circuit() -> None:
         logger=_test_logger,
     )
     orch.register_saga(_Saga)
-    assert orch._should_trigger_saga(_Saga, _make_event(EventType.EXECUTION_REQUESTED, "e")) is True
+    assert orch._should_trigger_saga(_Saga, make_execution_requested_event(execution_id="e")) is True
     # Existing short-circuit returns existing ID
     s = Saga(saga_id="sX", saga_name="s", execution_id="e", state=SagaState.RUNNING)
     fake_repo.existing[("e", "s")] = s
-    sid = await orch._start_saga("s", _make_event(EventType.EXECUTION_REQUESTED, "e"))
+    sid = await orch._start_saga("s", make_execution_requested_event(execution_id="e"))
     assert sid == "sX"

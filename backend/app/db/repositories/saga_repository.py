@@ -4,6 +4,7 @@ from typing import Any
 from beanie.odm.enums import SortDirection
 from beanie.odm.operators.find import BaseFindOperator
 from beanie.operators import GT, LT, In
+from monggregate import Pipeline, S
 
 from app.db.docs import ExecutionDocument, SagaDocument
 from app.domain.enums.saga import SagaState
@@ -28,7 +29,7 @@ class SagaRepository:
         return [c for c in conditions if c is not None]
 
     async def upsert_saga(self, saga: Saga) -> bool:
-        existing = await SagaDocument.find_one({"saga_id": saga.saga_id})
+        existing = await SagaDocument.find_one(SagaDocument.saga_id == saga.saga_id)
         doc = SagaDocument(**saga.model_dump())
         if existing:
             doc.id = existing.id
@@ -43,11 +44,11 @@ class SagaRepository:
         return Saga.model_validate(doc, from_attributes=True) if doc else None
 
     async def get_saga(self, saga_id: str) -> Saga | None:
-        doc = await SagaDocument.find_one({"saga_id": saga_id})
+        doc = await SagaDocument.find_one(SagaDocument.saga_id == saga_id)
         return Saga.model_validate(doc, from_attributes=True) if doc else None
 
     async def get_sagas_by_execution(
-        self, execution_id: str, state: SagaState | None = None, limit: int = 100, skip: int = 0
+            self, execution_id: str, state: SagaState | None = None, limit: int = 100, skip: int = 0
     ) -> SagaListResult:
         conditions = [
             SagaDocument.execution_id == execution_id,
@@ -78,7 +79,7 @@ class SagaRepository:
         )
 
     async def update_saga_state(self, saga_id: str, state: SagaState, error_message: str | None = None) -> bool:
-        doc = await SagaDocument.find_one({"saga_id": saga_id})
+        doc = await SagaDocument.find_one(SagaDocument.saga_id == saga_id)
         if not doc:
             return False
 
@@ -90,21 +91,21 @@ class SagaRepository:
         return True
 
     async def get_user_execution_ids(self, user_id: str) -> list[str]:
-        docs = await ExecutionDocument.find({"user_id": user_id}).to_list()
+        docs = await ExecutionDocument.find(ExecutionDocument.user_id == user_id).to_list()
         return [doc.execution_id for doc in docs]
 
     async def count_sagas_by_state(self) -> dict[str, int]:
-        pipeline = [{"$group": {"_id": "$state", "count": {"$sum": 1}}}]
+        pipeline = Pipeline().group(by=S.field(SagaDocument.state), query={"count": S.sum(1)})
         result = {}
-        async for doc in SagaDocument.aggregate(pipeline):
+        async for doc in SagaDocument.aggregate(pipeline.export()):
             result[doc["_id"]] = doc["count"]
         return result
 
     async def find_timed_out_sagas(
-        self,
-        cutoff_time: datetime,
-        states: list[SagaState] | None = None,
-        limit: int = 100,
+            self,
+            cutoff_time: datetime,
+            states: list[SagaState] | None = None,
+            limit: int = 100,
     ) -> list[Saga]:
         states = states or [SagaState.RUNNING, SagaState.COMPENSATING]
         docs = (
@@ -123,9 +124,9 @@ class SagaRepository:
         total = await base_query.count()
 
         # Group by state
-        state_pipeline = [{"$group": {"_id": "$state", "count": {"$sum": 1}}}]
+        state_pipeline = Pipeline().group(by=S.field(SagaDocument.state), query={"count": S.sum(1)})
         states = {}
-        async for doc in base_query.aggregate(state_pipeline):
+        async for doc in base_query.aggregate(state_pipeline.export()):
             states[doc["_id"]] = doc["count"]
 
         # Average duration for completed sagas
@@ -134,12 +135,15 @@ class SagaRepository:
             SagaDocument.state == SagaState.COMPLETED,
             SagaDocument.completed_at != None,  # noqa: E711
         ]
-        duration_pipeline = [
-            {"$project": {"duration": {"$subtract": ["$completed_at", "$created_at"]}}},
-            {"$group": {"_id": None, "avg_duration": {"$avg": "$duration"}}},
-        ]
+        duration_pipeline = (
+            Pipeline()
+            .project(
+                duration={"$subtract": [S.field(SagaDocument.completed_at), S.field(SagaDocument.created_at)]}
+            )
+            .group(by=None, query={"avg_duration": S.avg("$duration")})
+        )
         avg_duration = 0.0
-        async for doc in SagaDocument.find(*completed_conditions).aggregate(duration_pipeline):
+        async for doc in SagaDocument.find(*completed_conditions).aggregate(duration_pipeline.export()):
             avg_duration = doc["avg_duration"] / 1000.0 if doc["avg_duration"] else 0.0
 
         return {"total": total, "by_state": states, "average_duration_seconds": avg_duration}

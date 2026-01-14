@@ -2,7 +2,7 @@ import re
 from datetime import datetime, timezone
 
 from beanie.odm.operators.find import BaseFindOperator
-from beanie.operators import Eq, Or, RegEx
+from beanie.operators import Or, RegEx
 
 from app.core.security import SecurityService
 from app.db.docs import (
@@ -42,7 +42,7 @@ class AdminUserRepository:
             )
 
         if role:
-            conditions.append(Eq(UserDocument.role, role))
+            conditions.append(UserDocument.role == role)
 
         query = UserDocument.find(*conditions)
         total = await query.count()
@@ -51,11 +51,11 @@ class AdminUserRepository:
         return UserListResult(users=users, total=total, offset=offset, limit=limit)
 
     async def get_user_by_id(self, user_id: str) -> User | None:
-        doc = await UserDocument.find_one({"user_id": user_id})
+        doc = await UserDocument.find_one(UserDocument.user_id == user_id)
         return User.model_validate(doc, from_attributes=True) if doc else None
 
     async def update_user(self, user_id: str, update_data: UserUpdate) -> User | None:
-        doc = await UserDocument.find_one({"user_id": user_id})
+        doc = await UserDocument.find_one(UserDocument.user_id == user_id)
         if not doc:
             return None
 
@@ -72,7 +72,7 @@ class AdminUserRepository:
     async def delete_user(self, user_id: str, cascade: bool = True) -> dict[str, int]:
         deleted_counts = {}
 
-        doc = await UserDocument.find_one({"user_id": user_id})
+        doc = await UserDocument.find_one(UserDocument.user_id == user_id)
         if doc:
             await doc.delete()
             deleted_counts["user"] = 1
@@ -83,28 +83,28 @@ class AdminUserRepository:
             return deleted_counts
 
         # Cascade delete related data
-        exec_result = await ExecutionDocument.find({"user_id": user_id}).delete()
+        exec_result = await ExecutionDocument.find(ExecutionDocument.user_id == user_id).delete()
         deleted_counts["executions"] = exec_result.deleted_count if exec_result else 0
 
-        scripts_result = await SavedScriptDocument.find({"user_id": user_id}).delete()
+        scripts_result = await SavedScriptDocument.find(SavedScriptDocument.user_id == user_id).delete()
         deleted_counts["saved_scripts"] = scripts_result.deleted_count if scripts_result else 0
 
-        notif_result = await NotificationDocument.find({"user_id": user_id}).delete()
+        notif_result = await NotificationDocument.find(NotificationDocument.user_id == user_id).delete()
         deleted_counts["notifications"] = notif_result.deleted_count if notif_result else 0
 
-        settings_result = await UserSettingsDocument.find({"user_id": user_id}).delete()
+        settings_result = await UserSettingsDocument.find(UserSettingsDocument.user_id == user_id).delete()
         deleted_counts["user_settings"] = settings_result.deleted_count if settings_result else 0
 
-        events_result = await EventDocument.find({"metadata.user_id": user_id}).delete()
+        events_result = await EventDocument.find(EventDocument.metadata.user_id == user_id).delete()
         deleted_counts["events"] = events_result.deleted_count if events_result else 0
 
-        sagas_result = await SagaDocument.find({"context_data.user_id": user_id}).delete()
+        sagas_result = await SagaDocument.find(SagaDocument.context_data["user_id"] == user_id).delete()
         deleted_counts["sagas"] = sagas_result.deleted_count if sagas_result else 0
 
         return deleted_counts
 
     async def reset_user_password(self, reset_data: PasswordReset) -> bool:
-        doc = await UserDocument.find_one({"user_id": reset_data.user_id})
+        doc = await UserDocument.find_one(UserDocument.user_id == reset_data.user_id)
         if not doc:
             return False
 

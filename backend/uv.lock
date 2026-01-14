@@ -1068,6 +1068,7 @@ dependencies = [
     { name = "markdown-it-py" },
     { name = "markupsafe" },
     { name = "mdurl" },
+    { name = "monggregate" },
     { name = "msgpack" },
     { name = "multidict" },
     { name = "oauthlib" },
@@ -1210,6 +1211,7 @@ requires-dist = [
     { name = "markdown-it-py", specifier = "==4.0.0" },
     { name = "markupsafe", specifier = "==3.0.2" },
     { name = "mdurl", specifier = "==0.1.2" },
+    { name = "monggregate", specifier = "==0.22.1" },
     { name = "msgpack", specifier = "==1.1.0" },
     { name = "multidict", specifier = "==6.7.0" },
     { name = "oauthlib", specifier = "==3.2.2" },
@@ -1578,6 +1580,20 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d6/54/cfe61301667036ec958cb99bd3efefba235e65cdeb9c84d24a8293ba1d90/mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba", size = 8729, upload-time = "2022-08-14T12:40:10.846Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b3/38/89ba8ad64ae25be8de66a6d463314cf1eb366222074cfda9ee839c56a4b4/mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8", size = 9979, upload-time = "2022-08-14T12:40:09.779Z" },
+]
+
+[[package]]
+name = "monggregate"
+version = "0.22.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "pyhumps" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e2/8c/9627d0d3a569a2e1c6657dcd27ff7593c33f07efc5c6d206c7bf27b58c78/monggregate-0.22.1.tar.gz", hash = "sha256:6c36b5cea8ec51bd4a36e25f149d6f4b424060b9a8e023ef909884ae500b8c3a", size = 97860, upload-time = "2025-08-24T15:00:57.315Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/38/77/2f37358731fdf228379fb9bdc0c736371691c0493075c393ee431e42b908/monggregate-0.22.1-py3-none-any.whl", hash = "sha256:4eef7839109ce4b1bb1172b6643fa22e2dc284a45e645ea55fd4efd848aedfb2", size = 169108, upload-time = "2025-08-24T15:00:55.959Z" },
 ]
 
 [[package]]
@@ -2416,6 +2432,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/b0/77/a5b8c569bf593b0140bde72ea885a803b82086995367bf2037de0159d924/pygments-2.19.2.tar.gz", hash = "sha256:636cb2477cec7f8952536970bc533bc43743542f70392ae026374600add5b887", size = 4968631, upload-time = "2025-06-21T13:39:12.283Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c7/21/705964c7812476f378728bdf590ca4b771ec72385c533964653c68e86bdc/pygments-2.19.2-py3-none-any.whl", hash = "sha256:86540386c03d588bb81d44bc3928634ff26449851e99741617ecb9037ee5ec0b", size = 1225217, upload-time = "2025-06-21T13:39:07.939Z" },
+]
+
+[[package]]
+name = "pyhumps"
+version = "3.8.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/c4/83/fa6f8fb7accb21f39e8f2b6a18f76f6d90626bdb0a5e5448e5cc9b8ab014/pyhumps-3.8.0.tar.gz", hash = "sha256:498026258f7ee1a8e447c2e28526c0bea9407f9a59c03260aee4bd6c04d681a3", size = 9018, upload-time = "2022-10-21T10:38:59.496Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9e/11/a1938340ecb32d71e47ad4914843775011e6e9da59ba1229f181fef3119e/pyhumps-3.8.0-py3-none-any.whl", hash = "sha256:060e1954d9069f428232a1adda165db0b9d8dfdce1d265d36df7fbff540acfd6", size = 6095, upload-time = "2022-10-21T10:38:58.231Z" },
 ]
 
 [[package]]

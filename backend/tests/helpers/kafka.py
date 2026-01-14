@@ -1,8 +1,8 @@
 from collections.abc import Awaitable, Callable
 
 import pytest
+from app.domain.events.typed import DomainEvent
 from app.events.core import UnifiedProducer
-from app.infrastructure.kafka.events.base import BaseEvent
 from dishka import AsyncContainer
 
 
@@ -14,8 +14,8 @@ async def producer(scope: AsyncContainer) -> UnifiedProducer:
 
 
 @pytest.fixture(scope="function")
-def send_event(producer: UnifiedProducer) -> Callable[[BaseEvent], Awaitable[None]]:
-    async def _send(ev: BaseEvent) -> None:
+def send_event(producer: UnifiedProducer) -> Callable[[DomainEvent], Awaitable[None]]:
+    async def _send(ev: DomainEvent) -> None:
         await producer.produce(ev)
     return _send
 

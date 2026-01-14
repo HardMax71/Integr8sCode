@@ -9,8 +9,8 @@ from pydantic import BaseModel
 from pymongo.errors import DuplicateKeyError
 
 from app.core.metrics.context import get_database_metrics
+from app.domain.events.typed import BaseEvent
 from app.domain.idempotency import IdempotencyRecord, IdempotencyStats, IdempotencyStatus
-from app.infrastructure.kafka.events import BaseEvent
 
 
 class IdempotencyResult(BaseModel):
@@ -41,7 +41,7 @@ class IdempotencyKeyStrategy:
 
     @staticmethod
     def content_hash(event: BaseEvent, fields: set[str] | None = None) -> str:
-        event_dict = event.model_dump()
+        event_dict = event.model_dump(mode="json")
         event_dict.pop("event_id", None)
         event_dict.pop("timestamp", None)
         event_dict.pop("metadata", None)

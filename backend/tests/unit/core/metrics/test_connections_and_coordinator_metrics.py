@@ -1,6 +1,7 @@
 import pytest
 from app.core.metrics.connections import ConnectionMetrics
 from app.core.metrics.coordinator import CoordinatorMetrics
+from app.domain.enums import ResourceType
 from app.settings import Settings
 
 pytestmark = pytest.mark.unit
@@ -37,9 +38,9 @@ def test_coordinator_metrics_methods(test_settings: Settings) -> None:
     m.update_execution_request_queue_size(6)
     m.record_rate_limited("per_user", "u1")
     m.update_rate_limit_wait_time("per_user", "u1", 1.0)
-    m.record_resource_allocation("cpu", 1.0, "e1")
-    m.record_resource_release("cpu", 0.5, "e1")
-    m.update_resource_usage("cpu", 75.0)
+    m.record_resource_allocation(ResourceType.CPU, 1.0, "e1")
+    m.record_resource_release(ResourceType.CPU, 0.5, "e1")
+    m.update_resource_usage(ResourceType.CPU, 75.0)
     m.record_scheduling_decision("assign", "enough_resources")
     m.record_queue_reordering("q", 2)
     m.record_priority_change("e1", "low", "high")

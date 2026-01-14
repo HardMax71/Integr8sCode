@@ -1,4 +1,5 @@
 from app.core.metrics.base import BaseMetrics
+from app.domain.enums import ResourceType
 
 
 class CoordinatorMetrics(BaseMetrics):
@@ -73,8 +74,10 @@ class CoordinatorMetrics(BaseMetrics):
         self._exec_request_queue_size: int = 0
         self._resource_cpu: float = 0.0
         self._resource_memory: float = 0.0
+        self._resource_gpu: float = 0.0
         self._resource_usage_cpu: float = 0.0
         self._resource_usage_memory: float = 0.0
+        self._resource_usage_gpu: float = 0.0
         self._rate_limiter_user: int = 0
         self._rate_limiter_global: int = 0
 
@@ -125,40 +128,55 @@ class CoordinatorMetrics(BaseMetrics):
             wait_seconds, attributes={"limit_type": limit_type, "user_id": user_id}
         )
 
-    def record_resource_allocation(self, resource_type: str, amount: float, execution_id: str) -> None:
+    def record_resource_allocation(self, resource_type: ResourceType, amount: float, execution_id: str) -> None:
         self.coordinator_resource_allocations.add(
             1, attributes={"resource_type": resource_type, "execution_id": execution_id}
         )
 
         # Update gauge for current allocation
-        if resource_type == "cpu":
-            self._resource_cpu += amount
-        elif resource_type == "memory":
-            self._resource_memory += amount
+        match resource_type:
+            case ResourceType.CPU:
+                self._resource_cpu += amount
+            case ResourceType.MEMORY:
+                self._resource_memory += amount
+            case ResourceType.GPU:
+                self._resource_gpu += amount
 
-    def record_resource_release(self, resource_type: str, amount: float, execution_id: str) -> None:
+    def record_resource_release(self, resource_type: ResourceType, amount: float, execution_id: str) -> None:
         self.coordinator_resource_allocations.add(
             -1, attributes={"resource_type": resource_type, "execution_id": execution_id}
         )
 
         # Update gauge for current allocation
-        if resource_type == "cpu":
-            self._resource_cpu = max(0.0, self._resource_cpu - amount)
-        elif resource_type == "memory":
-            self._resource_memory = max(0.0, self._resource_memory - amount)
+        match resource_type:
+            case ResourceType.CPU:
+                self._resource_cpu = max(0.0, self._resource_cpu - amount)
+            case ResourceType.MEMORY:
+                self._resource_memory = max(0.0, self._resource_memory - amount)
+            case ResourceType.GPU:
+                self._resource_gpu = max(0.0, self._resource_gpu - amount)
 
-    def update_resource_usage(self, resource_type: str, usage_percent: float) -> None:
+    def update_resource_usage(self, resource_type: ResourceType, usage_percent: float) -> None:
         # Record as a gauge-like metric
-        if resource_type == "cpu":
-            delta = usage_percent - self._resource_usage_cpu
-            if delta != 0:
-                self.coordinator_resource_utilization.add(delta, attributes={"resource_type": resource_type})
-            self._resource_usage_cpu = usage_percent
-        elif resource_type == "memory":
-            delta = usage_percent - self._resource_usage_memory
-            if delta != 0:
-                self.coordinator_resource_utilization.add(delta, attributes={"resource_type": resource_type})
-            self._resource_usage_memory = usage_percent
+        match resource_type:
+            case ResourceType.CPU:
+                delta = usage_percent - self._resource_usage_cpu
+                delta != 0 and self.coordinator_resource_utilization.add(
+                    delta, attributes={"resource_type": resource_type}
+                )
+                self._resource_usage_cpu = usage_percent
+            case ResourceType.MEMORY:
+                delta = usage_percent - self._resource_usage_memory
+                delta != 0 and self.coordinator_resource_utilization.add(
+                    delta, attributes={"resource_type": resource_type}
+                )
+                self._resource_usage_memory = usage_percent
+            case ResourceType.GPU:
+                delta = usage_percent - self._resource_usage_gpu
+                delta != 0 and self.coordinator_resource_utilization.add(
+                    delta, attributes={"resource_type": resource_type}
+                )
+                self._resource_usage_gpu = usage_percent
 
     def record_scheduling_decision(self, decision: str, reason: str) -> None:
         self.coordinator_scheduling_decisions.add(1, attributes={"decision": decision, "reason": reason})
@@ -178,15 +196,14 @@ class CoordinatorMetrics(BaseMetrics):
 
     def update_rate_limiter_tokens(self, limit_type: str, tokens: int) -> None:
         # Track tokens as gauge-like metric
+        attrs = {"resource_type": f"rate_limit_{limit_type}"}
         if limit_type == "user":
             delta = tokens - self._rate_limiter_user
-            if delta != 0:
-                self.coordinator_resource_utilization.add(delta, attributes={"resource_type": f"rate_limit_{limit_type}"})
+            delta != 0 and self.coordinator_resource_utilization.add(delta, attributes=attrs)
             self._rate_limiter_user = tokens
         elif limit_type == "global":
             delta = tokens - self._rate_limiter_global
-            if delta != 0:
-                self.coordinator_resource_utilization.add(delta, attributes={"resource_type": f"rate_limit_{limit_type}"})
+            delta != 0 and self.coordinator_resource_utilization.add(delta, attributes=attrs)
             self._rate_limiter_global = tokens
 
     def record_rate_limit_reset(self, limit_type: str, user_id: str) -> None:

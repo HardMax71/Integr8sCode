@@ -2,12 +2,7 @@
 from uuid import uuid4
 
 import pytest
-from app.schemas_pydantic.admin_settings import (
-    ExecutionLimitsSchema,
-    MonitoringSettingsSchema,
-    SecuritySettingsSchema,
-    SystemSettings,
-)
+from app.schemas_pydantic.admin_settings import SystemSettings
 from app.schemas_pydantic.admin_user_overview import AdminUserOverview
 from httpx import AsyncClient
 

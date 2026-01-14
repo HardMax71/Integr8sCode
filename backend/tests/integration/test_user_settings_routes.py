@@ -69,7 +69,7 @@ class TestUserSettingsRoutes:
         # Verify required fields
         assert settings.user_id is not None
         assert settings.theme in ["light", "dark", "auto", "system"]
-        assert settings.timezone
+        assert settings.timezone  # must be non-empty string
 
         # Verify notification settings (API uses execution_* and security_alerts fields)
         assert settings.notifications is not None

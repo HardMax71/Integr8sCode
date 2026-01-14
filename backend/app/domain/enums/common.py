@@ -31,3 +31,11 @@ class Environment(StringEnum):
     STAGING = "staging"
     PRODUCTION = "production"
     TEST = "test"
+
+
+class ResourceType(StringEnum):
+    """Types of compute resources for metrics and allocation."""
+
+    CPU = "cpu"
+    MEMORY = "memory"
+    GPU = "gpu"

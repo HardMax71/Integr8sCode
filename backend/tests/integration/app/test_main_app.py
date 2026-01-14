@@ -30,5 +30,5 @@ def test_create_app_real_instance(app: FastAPI, test_settings: Settings) -> None
 
 def test_create_app_function_constructs(test_settings: Settings) -> None:
     # Sanity: calling create_app returns a FastAPI instance (lazy import)
-    inst: FastAPI = import_module("app.main").create_app(settings=test_settings)
-    assert inst is not None
+    inst = import_module("app.main").create_app(settings=test_settings)
+    assert isinstance(inst, FastAPI)  # type: ignore[slop-any-check]

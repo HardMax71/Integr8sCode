@@ -108,6 +108,10 @@ class KubernetesWorker(LifecycleEnabled):
             bootstrap_servers=self.kafka_servers,
             group_id=f"{self.config.consumer_group}.{self._settings.KAFKA_GROUP_SUFFIX}",
             enable_auto_commit=False,
+            session_timeout_ms=self._settings.KAFKA_SESSION_TIMEOUT_MS,
+            heartbeat_interval_ms=self._settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+            max_poll_interval_ms=self._settings.KAFKA_MAX_POLL_INTERVAL_MS,
+            request_timeout_ms=self._settings.KAFKA_REQUEST_TIMEOUT_MS,
         )
 
         # Create dispatcher and register handlers for saga commands

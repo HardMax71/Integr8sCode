@@ -112,9 +112,10 @@ class ExecutionCoordinator(LifecycleEnabled):
             bootstrap_servers=self.kafka_servers,
             group_id=f"{self.consumer_group}.{self._settings.KAFKA_GROUP_SUFFIX}",
             enable_auto_commit=False,
-            session_timeout_ms=30000,  # 30 seconds
-            heartbeat_interval_ms=10000,  # 10 seconds (must be < session_timeout / 3)
-            max_poll_interval_ms=300000,  # 5 minutes - max time between polls
+            session_timeout_ms=self._settings.KAFKA_SESSION_TIMEOUT_MS,
+            heartbeat_interval_ms=self._settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+            max_poll_interval_ms=self._settings.KAFKA_MAX_POLL_INTERVAL_MS,
+            request_timeout_ms=self._settings.KAFKA_REQUEST_TIMEOUT_MS,
             max_poll_records=100,  # Process max 100 messages at a time for flow control
             fetch_max_wait_ms=500,  # Wait max 500ms for data (reduces latency)
             fetch_min_bytes=1,  # Return immediately if any data available

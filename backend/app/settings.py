@@ -61,7 +61,10 @@ class Settings(BaseSettings):
     KAFKA_AUTO_OFFSET_RESET: str = "earliest"
     KAFKA_ENABLE_AUTO_COMMIT: bool = True
     KAFKA_SESSION_TIMEOUT_MS: int = 30000
+    KAFKA_HEARTBEAT_INTERVAL_MS: int = 3000
+    KAFKA_MAX_POLL_INTERVAL_MS: int = 300000
     KAFKA_MAX_POLL_RECORDS: int = 500
+    KAFKA_REQUEST_TIMEOUT_MS: int = 40000
 
     # SSE Configuration
     SSE_CONSUMER_POOL_SIZE: int = 10  # Number of consumers in the partitioned pool

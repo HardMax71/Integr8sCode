@@ -456,6 +456,10 @@ def create_dlq_manager(
         enable_auto_commit=False,
         auto_offset_reset="earliest",
         client_id="dlq-manager-consumer",
+        session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
+        heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+        max_poll_interval_ms=settings.KAFKA_MAX_POLL_INTERVAL_MS,
+        request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
     )
     producer = AIOKafkaProducer(
         bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,

@@ -54,6 +54,10 @@ class EventStoreConsumer(LifecycleEnabled):
             group_id=f"{self.group_id}.{self.settings.KAFKA_GROUP_SUFFIX}",
             enable_auto_commit=False,
             max_poll_records=self.batch_size,
+            session_timeout_ms=self.settings.KAFKA_SESSION_TIMEOUT_MS,
+            heartbeat_interval_ms=self.settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+            max_poll_interval_ms=self.settings.KAFKA_MAX_POLL_INTERVAL_MS,
+            request_timeout_ms=self.settings.KAFKA_REQUEST_TIMEOUT_MS,
         )
 
         self.consumer = UnifiedConsumer(

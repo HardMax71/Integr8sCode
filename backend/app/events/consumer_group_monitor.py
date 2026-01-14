@@ -147,6 +147,7 @@ class NativeConsumerGroupMonitor:
         min_members_threshold: int = 1,
     ):
         self.logger = logger
+        self._settings = settings
         self._bootstrap_servers = settings.KAFKA_BOOTSTRAP_SERVERS
         self._client_id = client_id
 
@@ -383,6 +384,9 @@ class NativeConsumerGroupMonitor:
                 group_id=f"{group_id}-lag-monitor-{datetime.now().timestamp()}",
                 enable_auto_commit=False,
                 auto_offset_reset="earliest",
+                session_timeout_ms=self._settings.KAFKA_SESSION_TIMEOUT_MS,
+                heartbeat_interval_ms=self._settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+                request_timeout_ms=self._settings.KAFKA_REQUEST_TIMEOUT_MS,
             )
 
             try:

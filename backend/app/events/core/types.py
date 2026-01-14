@@ -78,6 +78,7 @@ class ConsumerConfig:
     session_timeout_ms: int = 30000
     heartbeat_interval_ms: int = 3000
     max_poll_interval_ms: int = 300000
+    request_timeout_ms: int = 40000
 
     # Fetch configuration
     max_poll_records: int = 500

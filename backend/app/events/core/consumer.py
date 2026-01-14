@@ -57,6 +57,7 @@ class UnifiedConsumer:
             session_timeout_ms=self._config.session_timeout_ms,
             heartbeat_interval_ms=self._config.heartbeat_interval_ms,
             max_poll_interval_ms=self._config.max_poll_interval_ms,
+            request_timeout_ms=self._config.request_timeout_ms,
             fetch_min_bytes=self._config.fetch_min_bytes,
             fetch_max_wait_ms=self._config.fetch_max_wait_ms,
         )

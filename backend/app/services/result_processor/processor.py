@@ -121,6 +121,10 @@ class ResultProcessor(LifecycleEnabled):
             max_poll_records=1,
             enable_auto_commit=True,
             auto_offset_reset="earliest",
+            session_timeout_ms=self._settings.KAFKA_SESSION_TIMEOUT_MS,
+            heartbeat_interval_ms=self._settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+            max_poll_interval_ms=self._settings.KAFKA_MAX_POLL_INTERVAL_MS,
+            request_timeout_ms=self._settings.KAFKA_REQUEST_TIMEOUT_MS,
         )
 
         # Create consumer with schema registry and dispatcher

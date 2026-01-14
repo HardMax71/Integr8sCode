@@ -221,7 +221,11 @@ class NotificationService:
             group_id=f"{GroupId.NOTIFICATION_SERVICE}.{self.settings.KAFKA_GROUP_SUFFIX}",
             max_poll_records=10,
             enable_auto_commit=True,
-            auto_offset_reset="latest",  # Only process new events
+            auto_offset_reset="latest",
+            session_timeout_ms=self.settings.KAFKA_SESSION_TIMEOUT_MS,
+            heartbeat_interval_ms=self.settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+            max_poll_interval_ms=self.settings.KAFKA_MAX_POLL_INTERVAL_MS,
+            request_timeout_ms=self.settings.KAFKA_REQUEST_TIMEOUT_MS,
         )
 
         execution_results_topic = get_topic_for_event(EventType.EXECUTION_COMPLETED)

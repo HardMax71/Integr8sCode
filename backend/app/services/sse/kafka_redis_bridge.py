@@ -71,9 +71,10 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
             client_id=client_id,
             enable_auto_commit=True,
             auto_offset_reset="latest",
-            max_poll_interval_ms=300000,
-            session_timeout_ms=30000,
-            heartbeat_interval_ms=3000,
+            max_poll_interval_ms=self.settings.KAFKA_MAX_POLL_INTERVAL_MS,
+            session_timeout_ms=self.settings.KAFKA_SESSION_TIMEOUT_MS,
+            heartbeat_interval_ms=self.settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+            request_timeout_ms=self.settings.KAFKA_REQUEST_TIMEOUT_MS,
         )
 
         dispatcher = EventDispatcher(logger=self.logger)

@@ -119,6 +119,10 @@ class SagaOrchestrator(LifecycleEnabled):
             bootstrap_servers=self._settings.KAFKA_BOOTSTRAP_SERVERS,
             group_id=f"saga-{self.config.name}.{self._settings.KAFKA_GROUP_SUFFIX}",
             enable_auto_commit=False,
+            session_timeout_ms=self._settings.KAFKA_SESSION_TIMEOUT_MS,
+            heartbeat_interval_ms=self._settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+            max_poll_interval_ms=self._settings.KAFKA_MAX_POLL_INTERVAL_MS,
+            request_timeout_ms=self._settings.KAFKA_REQUEST_TIMEOUT_MS,
         )
 
         dispatcher = EventDispatcher(logger=self.logger)

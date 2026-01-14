@@ -56,7 +56,7 @@ class ExecutionCoordinator(LifecycleEnabled):
         execution_repository: ExecutionRepository,
         idempotency_manager: IdempotencyManager,
         logger: logging.Logger,
-        consumer_group: str = "execution-coordinator",
+        consumer_group: str = GroupId.EXECUTION_COORDINATOR,
         max_concurrent_scheduling: int = 10,
         scheduling_interval_seconds: float = 0.5,
     ):
@@ -316,16 +316,19 @@ class ExecutionCoordinator(LifecycleEnabled):
         """Schedule a single execution"""
         async with self._scheduling_semaphore:
             start_time = time.time()
+            execution_id = event.execution_id
+
+            # Atomic check-and-claim: no await between check and add prevents TOCTOU race
+            # when both eager scheduling (position=0) and _scheduling_loop try to schedule
+            if execution_id in self._active_executions:
+                self.logger.debug(f"Execution {execution_id} already claimed, skipping")
+                return
+            self._active_executions.add(execution_id)
 
             try:
-                # Check if already active (shouldn't happen, but be safe)
-                if event.execution_id in self._active_executions:
-                    self.logger.warning(f"Execution {event.execution_id} already active, skipping")
-                    return
-
                 # Request resource allocation
                 allocation = await self.resource_manager.request_allocation(
-                    event.execution_id,
+                    execution_id,
                     event.language,
                     requested_cpu=None,  # Use defaults for now
                     requested_memory_mb=None,
@@ -333,14 +336,14 @@ class ExecutionCoordinator(LifecycleEnabled):
                 )
 
                 if not allocation:
-                    # No resources available, requeue
+                    # No resources available, release claim and requeue
+                    self._active_executions.discard(execution_id)
                     await self.queue_manager.requeue_execution(event, increment_retry=False)
-                    self.logger.info(f"No resources available for {event.execution_id}, requeued")
+                    self.logger.info(f"No resources available for {execution_id}, requeued")
                     return
 
-                # Track allocation
-                self._execution_resources[event.execution_id] = allocation
-                self._active_executions.add(event.execution_id)
+                # Track allocation (already in _active_executions from claim above)
+                self._execution_resources[execution_id] = allocation
                 self.metrics.update_coordinator_active_executions(len(self._active_executions))
 
                 # Publish execution started event for workers

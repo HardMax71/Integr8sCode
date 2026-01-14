@@ -25,7 +25,7 @@ class DLQRepository:
 
     async def get_dlq_stats(self) -> DLQStatistics:
         # Counts by status
-        status_pipeline = Pipeline().group(by=DLQMessageDocument.status, query={"count": S.sum(1)})
+        status_pipeline = Pipeline().group(by=S.field(DLQMessageDocument.status), query={"count": S.sum(1)})
         status_results = await DLQMessageDocument.aggregate(status_pipeline.export()).to_list()
         by_status = {doc["_id"]: doc["count"] for doc in status_results if doc["_id"]}
 
@@ -33,7 +33,7 @@ class DLQRepository:
         topic_pipeline = (
             Pipeline()
             .group(
-                by=DLQMessageDocument.original_topic,
+                by=S.field(DLQMessageDocument.original_topic),
                 query={"count": S.sum(1), "avg_retry_count": S.avg(S.field(DLQMessageDocument.retry_count))},
             )
             .sort(by="count", descending=True)
@@ -46,7 +46,7 @@ class DLQRepository:
         # Counts by event type (top 10) - project renames _id->event_type
         event_type_pipeline = (
             Pipeline()
-            .group(by=DLQMessageDocument.event.event_type, query={"count": S.sum(1)})
+            .group(by=S.field(DLQMessageDocument.event.event_type), query={"count": S.sum(1)})
             .sort(by="count", descending=True)
             .limit(10)
             .project(_id=0, event_type="$_id", count=1)
@@ -54,24 +54,27 @@ class DLQRepository:
         event_type_results = await DLQMessageDocument.aggregate(event_type_pipeline.export()).to_list()
         by_event_type = [EventTypeStatistic.model_validate(doc) for doc in event_type_results if doc["event_type"]]
 
-        # Age statistics - get timestamps and sum for true average, calculate ages in Python
+        # Age statistics - use $toLong to convert Date to milliseconds for $avg
         time_pipeline = Pipeline().group(
             by=None,
             query={
                 "oldest": S.min(S.field(DLQMessageDocument.failed_at)),
                 "newest": S.max(S.field(DLQMessageDocument.failed_at)),
-                "count": S.sum(1),
-                "sum_failed_at": S.sum(S.field(DLQMessageDocument.failed_at)),
+                "avg_failed_at_ms": {"$avg": {"$toLong": S.field(DLQMessageDocument.failed_at)}},
             },
         )
         time_results = await DLQMessageDocument.aggregate(time_pipeline.export()).to_list()
         now = datetime.now(timezone.utc)
         if time_results and time_results[0].get("oldest"):
             r = time_results[0]
-            oldest, newest, count = r["oldest"], r["newest"], r["count"]
-            # sum_failed_at is sum of timestamps in ms since epoch, compute true average age
-            now_ms = now.timestamp() * 1000
-            avg_age_seconds = (now_ms * count - r["sum_failed_at"]) / count / 1000 if count > 0 else 0.0
+            oldest, newest = r["oldest"], r["newest"]
+            # Convert average timestamp (ms) back to datetime for age calculation
+            avg_failed_at_ms = r.get("avg_failed_at_ms")
+            if avg_failed_at_ms:
+                avg_failed_at = datetime.fromtimestamp(avg_failed_at_ms / 1000, tz=timezone.utc)
+                avg_age_seconds = (now - avg_failed_at).total_seconds()
+            else:
+                avg_age_seconds = 0.0
             age_stats = AgeStatistics(
                 min_age_seconds=(now - newest).total_seconds(),
                 max_age_seconds=(now - oldest).total_seconds(),

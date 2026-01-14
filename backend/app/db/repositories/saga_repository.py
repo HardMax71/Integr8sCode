@@ -95,7 +95,7 @@ class SagaRepository:
         return [doc.execution_id for doc in docs]
 
     async def count_sagas_by_state(self) -> dict[str, int]:
-        pipeline = Pipeline().group(by=SagaDocument.state, query={"count": S.sum(1)})
+        pipeline = Pipeline().group(by=S.field(SagaDocument.state), query={"count": S.sum(1)})
         result = {}
         async for doc in SagaDocument.aggregate(pipeline.export()):
             result[doc["_id"]] = doc["count"]
@@ -124,7 +124,7 @@ class SagaRepository:
         total = await base_query.count()
 
         # Group by state
-        state_pipeline = Pipeline().group(by=SagaDocument.state, query={"count": S.sum(1)})
+        state_pipeline = Pipeline().group(by=S.field(SagaDocument.state), query={"count": S.sum(1)})
         states = {}
         async for doc in base_query.aggregate(state_pipeline.export()):
             states[doc["_id"]] = doc["count"]

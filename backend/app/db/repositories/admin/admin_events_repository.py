@@ -136,7 +136,7 @@ class AdminEventsRepository:
         type_pipeline = (
             Pipeline()
             .match({EventDocument.timestamp: {"$gte": start_time}})
-            .group(by=EventDocument.event_type, query={"count": S.sum(1)})
+            .group(by=S.field(EventDocument.event_type), query={"count": S.sum(1)})
             .sort(by="count", descending=True)
             .limit(10)
         )
@@ -161,7 +161,7 @@ class AdminEventsRepository:
         user_pipeline = (
             Pipeline()
             .match({EventDocument.timestamp: {"$gte": start_time}})
-            .group(by=EventDocument.metadata.user_id, query={"count": S.sum(1)})
+            .group(by=S.field(EventDocument.metadata.user_id), query={"count": S.sum(1)})
             .sort(by="count", descending=True)
             .limit(10)
             .project(_id=0, user_id="$_id", event_count="$count")

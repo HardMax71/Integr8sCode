@@ -7,7 +7,7 @@ from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId, KafkaT
 @dataclass
 class K8sWorkerConfig:
     # Kafka settings
-    consumer_group: str = "kubernetes-worker"
+    consumer_group: str = GroupId.K8S_WORKER
     topics: list[KafkaTopic] = field(default_factory=lambda: list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.K8S_WORKER]))
 
     # Kubernetes settings

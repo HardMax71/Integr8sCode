@@ -150,7 +150,7 @@ dev = [
     "pytest-xdist==3.6.1",
     "ruff==0.14.10",
     "types-cachetools==6.2.0.20250827",
-    "no-slop>=0.2.0",
+    "no-slop==0.3.0",
 ]
 
 # Ruff configuration

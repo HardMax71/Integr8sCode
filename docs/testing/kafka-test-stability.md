@@ -25,7 +25,7 @@ Serialize `Producer` initialization using a global threading lock. In
 `app/events/core/producer.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/events/core/producer.py):
 
 ```python
---8 < -- "backend/app/events/core/producer.py:22:24"
+--8<-- "backend/app/events/core/producer.py:22:24"
 ```
 
 The lock is process-global, so all `UnifiedProducer` instances serialize their initialization. This adds negligible
@@ -124,7 +124,11 @@ consumer = AIOKafkaConsumer(
 
 | Setting                       | Default | Test Value | Purpose                                            |
 |-------------------------------|---------|------------|----------------------------------------------------|
-| `KAFKA_SESSION_TIMEOUT_MS`    | 30000   | 6000       | Time before broker considers consumer dead         |
-| `KAFKA_HEARTBEAT_INTERVAL_MS` | 3000    | 2000       | Frequency of heartbeats to coordinator             |
+| `KAFKA_SESSION_TIMEOUT_MS`    | 45000   | 6000       | Time before broker considers consumer dead         |
+| `KAFKA_HEARTBEAT_INTERVAL_MS` | 10000   | 2000       | Frequency of heartbeats to coordinator             |
 | `KAFKA_REQUEST_TIMEOUT_MS`    | 40000   | 5000       | Timeout for broker requests (including LeaveGroup) |
 | `SSE_CONSUMER_POOL_SIZE`      | 10      | 1          | Number of SSE consumers (fewer = faster startup)   |
+
+!!! note "Timeout constraints"
+    `request_timeout_ms` must be less than `session_timeout_ms`. The test values (5000 < 6000) and
+    production defaults (40000 < 45000) satisfy this constraint.

@@ -17,7 +17,7 @@ from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.mappings import EVENT_TYPE_TO_TOPIC
 from app.settings import Settings
 
-from .types import ProducerConfig, ProducerMetrics, ProducerState
+from .types import ProducerMetrics, ProducerState
 
 
 class UnifiedProducer(LifecycleEnabled):
@@ -25,13 +25,12 @@ class UnifiedProducer(LifecycleEnabled):
 
     def __init__(
         self,
-        config: ProducerConfig,
         schema_registry_manager: SchemaRegistryManager,
         logger: logging.Logger,
         settings: Settings,
     ):
         super().__init__()
-        self._config = config
+        self._settings = settings
         self._schema_registry = schema_registry_manager
         self.logger = logger
         self._producer: AIOKafkaProducer | None = None
@@ -62,28 +61,26 @@ class UnifiedProducer(LifecycleEnabled):
         self.logger.info("Starting producer...")
 
         self._producer = AIOKafkaProducer(
-            bootstrap_servers=self._config.bootstrap_servers,
-            client_id=self._config.client_id,
-            acks=self._config.acks,
-            compression_type=self._config.compression_type,
-            max_batch_size=self._config.batch_size,
-            linger_ms=self._config.linger_ms,
-            enable_idempotence=self._config.enable_idempotence,
+            bootstrap_servers=self._settings.KAFKA_BOOTSTRAP_SERVERS,
+            client_id=f"{self._settings.SERVICE_NAME}-producer",
+            acks="all",
+            compression_type="gzip",
+            max_batch_size=16384,
+            linger_ms=10,
+            enable_idempotence=True,
         )
 
         await self._producer.start()
         self._state = ProducerState.RUNNING
-        self.logger.info(f"Producer started: {self._config.bootstrap_servers}")
+        self.logger.info(f"Producer started: {self._settings.KAFKA_BOOTSTRAP_SERVERS}")
 
     def get_status(self) -> dict[str, Any]:
         return {
             "state": self._state,
             "running": self.is_running,
             "config": {
-                "bootstrap_servers": self._config.bootstrap_servers,
-                "client_id": self._config.client_id,
-                "batch_size": self._config.batch_size,
-                "compression_type": self._config.compression_type,
+                "bootstrap_servers": self._settings.KAFKA_BOOTSTRAP_SERVERS,
+                "client_id": f"{self._settings.SERVICE_NAME}-producer",
             },
             "metrics": {
                 "messages_sent": self._metrics.messages_sent,

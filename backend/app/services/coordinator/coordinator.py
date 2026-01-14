@@ -184,7 +184,7 @@ class ExecutionCoordinator(LifecycleEnabled):
         await self.queue_manager.stop()
 
         # Close idempotency manager
-        if hasattr(self, "idempotency_manager") and self.idempotency_manager:
+        if self.idempotency_manager:
             await self.idempotency_manager.close()
 
         self.logger.info(f"ExecutionCoordinator service stopped. Active executions: {len(self._active_executions)}")
@@ -360,8 +360,7 @@ class ExecutionCoordinator(LifecycleEnabled):
 
                 # Track metrics
                 queue_time = start_time - event.timestamp.timestamp()
-                priority = getattr(event, "priority", QueuePriority.NORMAL.value)
-                self.metrics.record_coordinator_queue_time(queue_time, QueuePriority(priority).name)
+                self.metrics.record_coordinator_queue_time(queue_time, QueuePriority(event.priority).name)
 
                 scheduling_duration = time.time() - start_time
                 self.metrics.record_coordinator_scheduling_duration(scheduling_duration)

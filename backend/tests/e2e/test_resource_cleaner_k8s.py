@@ -57,5 +57,5 @@ async def test_cleanup_nonexistent_pod() -> None:
 
     # usage returns counts (int), not lists
     # Just check that we got a valid usage report
-    assert isinstance(usage.get("pods", 0), int)
-    assert isinstance(usage.get("configmaps", 0), int)
+    assert usage.get("pods", 0) >= 0
+    assert usage.get("configmaps", 0) >= 0

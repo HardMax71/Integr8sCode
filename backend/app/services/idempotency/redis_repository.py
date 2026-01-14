@@ -1,3 +1,5 @@
+# mypy: disable-error-code="slop-any-check"
+# Rationale: redis pipeline.execute() returns List[Any]
 from __future__ import annotations
 
 import json
@@ -14,7 +16,7 @@ def _iso(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).isoformat()
 
 
-def _json_default(obj: Any) -> str:
+def _json_default(obj: datetime | Any) -> str:
     if isinstance(obj, datetime):
         return _iso(obj)
     return str(obj)

@@ -1,3 +1,5 @@
+# mypy: disable-error-code="slop-any-check"
+# Rationale: kubernetes client has no type annotations
 from uuid import uuid4
 
 import pytest

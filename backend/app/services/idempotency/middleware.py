@@ -1,3 +1,5 @@
+# mypy: disable-error-code="slop-any-check"
+# Rationale: Works with dynamically typed event data
 """Idempotent event processing middleware"""
 
 import asyncio

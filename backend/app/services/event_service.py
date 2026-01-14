@@ -29,7 +29,7 @@ def _filter_to_mongo_query(flt: EventFilter) -> dict[str, Any]:
         query["metadata.user_id"] = flt.user_id
     if flt.service_name:
         query["metadata.service_name"] = flt.service_name
-    if getattr(flt, "status", None):
+    if flt.status:
         query["status"] = flt.status
 
     if flt.start_time or flt.end_time:

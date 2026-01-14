@@ -134,8 +134,8 @@ class AdminUserService:
             username=user_data.username,
             email=user_data.email,
             hashed_password=hashed_password,
-            role=getattr(user_data, "role", UserRole.USER),
-            is_active=getattr(user_data, "is_active", True),
+            role=user_data.role,
+            is_active=user_data.is_active,
             is_superuser=False,
         )
         created = await self._users.create_user(create_data)

@@ -53,7 +53,7 @@ async def _run(cfg: LoadConfig) -> int:
     )
     print(f"Report saved to: {stats_path}")
     # Optional plots
-    if getattr(cfg, "generate_plots", False):
+    if cfg.generate_plots:
         try:
             generated = generate_plots(str(stats_path))
             for pth in generated:

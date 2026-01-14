@@ -1,3 +1,4 @@
+# mypy: disable-error-code="slop-any-check"
 import asyncio
 from uuid import UUID
 

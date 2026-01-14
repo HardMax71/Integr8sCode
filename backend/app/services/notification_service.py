@@ -1,3 +1,5 @@
+# mypy: disable-error-code="slop-any-check"
+# Rationale: Works with dynamically typed notification data
 import asyncio
 import logging
 from dataclasses import dataclass, field

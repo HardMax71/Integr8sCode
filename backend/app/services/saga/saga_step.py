@@ -50,18 +50,18 @@ class SagaContext:
         - Encodes values to JSON-friendly types using FastAPI's jsonable_encoder
         """
 
-        def _is_simple(val: Any) -> bool:
+        def _is_simple(val: str | int | float | bool | dict[str, Any] | list[Any] | tuple[Any, ...] | None) -> bool:
             if isinstance(val, (str, int, float, bool)) or val is None:
                 return True
             if isinstance(val, dict):
-                return all(isinstance(k, str) and _is_simple(v) for k, v in val.items())
+                return all(_is_simple(v) for v in val.values())
             if isinstance(val, (list, tuple)):
                 return all(_is_simple(i) for i in val)
             return False
 
         public: dict[str, Any] = {}
         for k, v in self.data.items():
-            if isinstance(k, str) and k.startswith("_"):
+            if k.startswith("_"):
                 continue
             encoded = jsonable_encoder(v, exclude_none=False)
             if _is_simple(encoded):

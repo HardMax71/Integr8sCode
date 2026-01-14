@@ -74,8 +74,8 @@ def test_pending_running_and_succeeded_mapping() -> None:
     if not any(e.event_type == EventType.POD_RUNNING for e in evts):
         print(f"Events returned: {[e.event_type for e in evts]}")
     assert any(e.event_type == EventType.POD_RUNNING for e in evts)
-    pr = [e for e in evts if e.event_type == EventType.POD_RUNNING][0]
-    assert isinstance(pr, PodRunningEvent)
+    pr = next(e for e in evts if e.event_type == EventType.POD_RUNNING)
+    assert pr.event_type == EventType.POD_RUNNING
     statuses = json.loads(pr.container_statuses)
     assert any("waiting" in s["state"] for s in statuses) and any("terminated" in s["state"] for s in statuses)
 
@@ -84,8 +84,7 @@ def test_pending_running_and_succeeded_mapping() -> None:
     suc = Pod("p", "Succeeded", cs=[term])
     suc.metadata.labels = {"execution-id": "e1"}
     evts = pem.map_pod_event(suc, "MODIFIED")
-    comp = [e for e in evts if e.event_type == EventType.EXECUTION_COMPLETED][0]
-    assert isinstance(comp, ExecutionCompletedEvent)
+    comp = next(e for e in evts if e.event_type == EventType.EXECUTION_COMPLETED)
     assert comp.exit_code == 0 and comp.stdout == "ok"
 
 

@@ -118,8 +118,8 @@ class APIClient:
                         if time.perf_counter() - start > max_seconds:
                             break
                 dur = (time.perf_counter() - t0) * 1000
-                self.stats.record("GET", url, getattr(resp, "status_code", 200), dur, bytes_rx)
-                return getattr(resp, "status_code", 200), bytes_rx
+                self.stats.record("GET", url, resp.status_code, dur, bytes_rx)
+                return resp.status_code, bytes_rx
             except Exception as e:  # noqa: BLE001
                 dur = (time.perf_counter() - t0) * 1000
                 self.stats.record("GET", url, 599, dur, 0)

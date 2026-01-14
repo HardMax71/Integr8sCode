@@ -1,3 +1,5 @@
+# mypy: disable-error-code="slop-any-check"
+# Rationale: aiokafka message headers are untyped (Any)
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable

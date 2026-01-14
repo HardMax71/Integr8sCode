@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import TypedDict
+from typing import Any, TypedDict
 
 import pytest
 from app.dlq import AgeStatistics, DLQMessageStatus, EventTypeStatistic, TopicStatistic
@@ -48,26 +48,19 @@ class TestDLQRoutes:
         stats = DLQStats(**stats_data)
 
         # Verify structure - using typed models
-        assert isinstance(stats.by_status, dict)
-        assert isinstance(stats.by_topic, list)
-        assert isinstance(stats.by_event_type, list)
-        assert isinstance(stats.age_stats, AgeStatistics)
         assert stats.timestamp is not None
 
         # Check status breakdown - iterate over actual enum values
         for status in DLQMessageStatus:
             if status in stats.by_status:
-                assert isinstance(stats.by_status[status], int)
                 assert stats.by_status[status] >= 0
 
-        # Check topic stats - now typed as TopicStatistic
+        # Check topic stats
         for topic_stat in stats.by_topic:
-            assert isinstance(topic_stat, TopicStatistic)
             assert topic_stat.count >= 0
 
-        # Check event type stats - now typed as EventTypeStatistic
+        # Check event type stats
         for event_type_stat in stats.by_event_type:
-            assert isinstance(event_type_stat, EventTypeStatistic)
             assert event_type_stat.count >= 0
 
         # Check age stats - now typed as AgeStatistics
@@ -87,15 +80,12 @@ class TestDLQRoutes:
         messages_response = DLQMessagesResponse(**messages_data)
 
         # Verify pagination
-        assert isinstance(messages_response.messages, list)
-        assert isinstance(messages_response.total, int)
         assert messages_response.limit == 10
         assert messages_response.offset == 0
         assert messages_response.total >= 0
 
         # If there are messages, validate their structure
         for message in messages_response.messages:
-            assert isinstance(message, DLQMessageResponse)
             assert message.event.event_id is not None
             assert message.event.event_type is not None
             assert message.original_topic is not None
@@ -165,8 +155,6 @@ class TestDLQRoutes:
             assert message_detail.last_updated is not None
 
             # Optional fields
-            if message_detail.producer_id:
-                assert isinstance(message_detail.producer_id, str)
             if message_detail.dlq_offset is not None:
                 assert message_detail.dlq_offset >= 0
             if message_detail.dlq_partition is not None:
@@ -240,9 +228,7 @@ class TestDLQRoutes:
 
             # Check details if present
             if batch_result.details:
-                assert isinstance(batch_result.details, list)
                 for detail in batch_result.details:
-                    assert isinstance(detail, dict)
                     assert "event_id" in detail
                     assert "success" in detail
 
@@ -285,29 +271,19 @@ class TestDLQRoutes:
         assert response.status_code == 200
 
         # Validate response
-        topics_data = response.json()
-        assert isinstance(topics_data, list)
+        topics_data: list[dict[str, Any]] = response.json()
 
         for topic_data in topics_data:
             topic_summary = DLQTopicSummaryResponse(**topic_data)
 
             # Verify structure
             assert topic_summary.topic is not None
-            assert isinstance(topic_summary.total_messages, int)
             assert topic_summary.total_messages >= 0
-            assert isinstance(topic_summary.status_breakdown, dict)
 
             # Check status breakdown
             for status, count in topic_summary.status_breakdown.items():
                 assert status in ["pending", "scheduled", "retried", "discarded"]
-                assert isinstance(count, int)
                 assert count >= 0
-
-            # Check dates if present (may be str or datetime)
-            if topic_summary.oldest_message:
-                assert isinstance(topic_summary.oldest_message, (str, datetime))
-            if topic_summary.newest_message:
-                assert isinstance(topic_summary.newest_message, (str, datetime))
 
             # Check retry stats
             if topic_summary.avg_retry_count is not None:

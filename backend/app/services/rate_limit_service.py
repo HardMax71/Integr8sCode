@@ -1,3 +1,5 @@
+# mypy: disable-error-code="slop-any-check"
+# Rationale: redis commands return untyped values
 import json
 import math
 import re

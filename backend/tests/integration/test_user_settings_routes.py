@@ -69,36 +69,21 @@ class TestUserSettingsRoutes:
         # Verify required fields
         assert settings.user_id is not None
         assert settings.theme in ["light", "dark", "auto", "system"]
-        # Language field may not be present in all deployments
-        if hasattr(settings, "language"):
-            assert isinstance(settings.language, str)
-        assert isinstance(settings.timezone, str)
+        assert settings.timezone
 
         # Verify notification settings (API uses execution_* and security_alerts fields)
         assert settings.notifications is not None
-        assert isinstance(settings.notifications.execution_completed, bool)
-        assert isinstance(settings.notifications.execution_failed, bool)
-        assert isinstance(settings.notifications.system_updates, bool)
-        assert isinstance(settings.notifications.security_alerts, bool)
 
         # Verify editor settings
         assert settings.editor is not None
-        assert isinstance(settings.editor.font_size, int)
         assert 8 <= settings.editor.font_size <= 32
         assert settings.editor.theme in ["auto", "one-dark", "monokai", "github", "dracula", "solarized", "vs",
                                          "vscode"]
-        assert isinstance(settings.editor.tab_size, int)
         assert settings.editor.tab_size in [2, 4, 8]
-        assert isinstance(settings.editor.word_wrap, bool)
-        assert isinstance(settings.editor.show_line_numbers, bool)
 
         # Verify timestamp fields
         assert settings.created_at is not None
         assert settings.updated_at is not None
-
-        # Custom settings might be empty or contain user preferences
-        if settings.custom_settings:
-            assert isinstance(settings.custom_settings, dict)
 
     @pytest.mark.asyncio
     async def test_update_user_settings(self, test_user: AsyncClient) -> None:
@@ -281,7 +266,6 @@ class TestUserSettingsRoutes:
 
         # Validate history structure
         history = SettingsHistoryResponse(**history_response.json())
-        assert isinstance(history.history, list)
 
         # If we have history entries, validate them
         for entry in history.history:

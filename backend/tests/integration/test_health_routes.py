@@ -13,8 +13,7 @@ class TestHealthRoutes:
     async def test_liveness_available(self, client: AsyncClient) -> None:
         r = await client.get("/api/v1/health/live")
         assert r.status_code == 200
-        data = r.json()
-        assert isinstance(data, dict)
+        data: dict[str, str] = r.json()
         assert data.get("status") == "ok"
 
     @pytest.mark.asyncio

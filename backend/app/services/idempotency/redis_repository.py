@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
-
 import redis.asyncio as redis
 from pydantic import TypeAdapter
 from pymongo.errors import DuplicateKeyError
@@ -57,7 +55,7 @@ class RedisIdempotencyRepository:
         result = await self._r.delete(self._full_key(key))
         return int(result) if result else 0
 
-    async def aggregate_status_counts(self, key_prefix: str) -> Mapping[str, int]:
+    async def aggregate_status_counts(self, key_prefix: str) -> dict[str, int]:
         pattern = f"{key_prefix.rstrip(':')}:*"
         counts: dict[str, int] = {}
         async for k in self._r.scan_iter(match=pattern, count=200):

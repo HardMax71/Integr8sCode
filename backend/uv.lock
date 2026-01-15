@@ -1290,7 +1290,7 @@ dev = [
     { name = "matplotlib", specifier = "==3.10.8" },
     { name = "mypy", specifier = "==1.17.1" },
     { name = "mypy-extensions", specifier = "==1.1.0" },
-    { name = "no-slop", specifier = "==0.3.0" },
+    { name = "no-slop", specifier = "==0.4.0" },
     { name = "pipdeptree", specifier = "==2.23.4" },
     { name = "pluggy", specifier = "==1.5.0" },
     { name = "pytest", specifier = "==8.4.2" },
@@ -1770,14 +1770,14 @@ wheels = [
 
 [[package]]
 name = "no-slop"
-version = "0.3.0"
+version = "0.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "mypy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6d/18/51c7d9defcbad9d2043d36a493fa3ab12344063a0e0173f2215a3b896844/no_slop-0.3.0.tar.gz", hash = "sha256:d57ffc1be5dcfe19ae2274345b3484d4a90773c16780d6057a4a4efd675e647a", size = 22209, upload-time = "2026-01-14T18:44:03.972Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/41/9a/422055ab856a210e85d45925b0ccf76efd3ceef166b6c1dbd4de616ddf7b/no_slop-0.4.0.tar.gz", hash = "sha256:cc20d47e96e27084494361a5f5df3e5e3f35486d64e8065d987265e4def331a3", size = 31649, upload-time = "2026-01-14T23:57:59.702Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/30/f5/85e721df448a0c73248b4f5485aca0e325f452523fb8d37808aff130462a/no_slop-0.3.0-py3-none-any.whl", hash = "sha256:2820d4f428614ec259b4712137cce83d5e6931408541e7f8527b425ea46a0565", size = 19762, upload-time = "2026-01-14T18:44:02.421Z" },
+    { url = "https://files.pythonhosted.org/packages/83/fb/fb4698f77b2bd24f960cc1fd980e9b41417aa705c72ff2975dd7f49fe980/no_slop-0.4.0-py3-none-any.whl", hash = "sha256:ea223e676270e59a9cd5150a3fa004b0e5e6369aead807a49bd3d34efdd45959", size = 29433, upload-time = "2026-01-14T23:57:58.206Z" },
 ]
 
 [[package]]

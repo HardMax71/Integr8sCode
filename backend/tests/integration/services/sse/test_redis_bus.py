@@ -71,7 +71,7 @@ async def test_publish_and_subscribe_round_trip() -> None:
 
     # Subscribe
     sub = await bus.open_subscription("exec-1")
-    assert isinstance(sub, object)
+    assert sub is not None
     assert "sse:exec:exec-1" in r._pubsub.subscribed
 
     # Publish event

@@ -1,3 +1,5 @@
+# mypy: disable-error-code="slop-isinstance"
+# Rationale: Test assertions validating API contract types
 import pytest
 from app.core.database_context import Database
 from app.services.event_service import EventService

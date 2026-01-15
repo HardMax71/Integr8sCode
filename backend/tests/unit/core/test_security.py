@@ -87,7 +87,6 @@ class TestSecurityService:
         )
 
         assert token is not None
-        assert isinstance(token, str)
         assert len(token) > 0
 
         # Decode and verify token

@@ -1,3 +1,5 @@
+# mypy: disable-error-code="slop-isinstance"
+# Rationale: Test assertions validating API contract types
 import asyncio
 import json
 import logging

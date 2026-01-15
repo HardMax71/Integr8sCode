@@ -1,12 +1,8 @@
+# mypy: disable-error-code="slop-any-check"
 from uuid import uuid4
 
 import pytest
-from app.schemas_pydantic.admin_settings import (
-    ExecutionLimitsSchema,
-    MonitoringSettingsSchema,
-    SecuritySettingsSchema,
-    SystemSettings,
-)
+from app.schemas_pydantic.admin_settings import SystemSettings
 from app.schemas_pydantic.admin_user_overview import AdminUserOverview
 from httpx import AsyncClient
 
@@ -38,21 +34,18 @@ class TestAdminSettings:
 
         # Verify all nested structures
         assert settings.execution_limits is not None
-        assert isinstance(settings.execution_limits, ExecutionLimitsSchema)
         assert settings.execution_limits.max_timeout_seconds == 300  # Default value
         assert settings.execution_limits.max_memory_mb == 512
         assert settings.execution_limits.max_cpu_cores == 2
         assert settings.execution_limits.max_concurrent_executions == 10
 
         assert settings.security_settings is not None
-        assert isinstance(settings.security_settings, SecuritySettingsSchema)
         assert settings.security_settings.password_min_length == 8
         assert settings.security_settings.session_timeout_minutes == 60
         assert settings.security_settings.max_login_attempts == 5
         assert settings.security_settings.lockout_duration_minutes == 15
 
         assert settings.monitoring_settings is not None
-        assert isinstance(settings.monitoring_settings, MonitoringSettingsSchema)
         assert settings.monitoring_settings.metrics_retention_days == 30
         assert settings.monitoring_settings.log_level == "INFO"
         assert settings.monitoring_settings.enable_tracing is True

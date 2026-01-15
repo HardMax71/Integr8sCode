@@ -13,7 +13,7 @@ _test_logger = logging.getLogger("test.events.consumer_group_monitor")
 async def test_list_groups_and_error_status(test_settings: Settings) -> None:
     mon = NativeConsumerGroupMonitor(settings=test_settings, logger=_test_logger)
     groups = await mon.list_consumer_groups()
-    assert isinstance(groups, list)
+    assert isinstance(groups, list)  # type: ignore[slop-isinstance]
 
     # Query a non-existent group to exercise error handling with real AdminClient
     status = await mon.get_consumer_group_status("nonexistent-group-for-tests")

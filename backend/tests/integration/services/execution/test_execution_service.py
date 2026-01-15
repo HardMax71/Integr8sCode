@@ -1,3 +1,5 @@
+# mypy: disable-error-code="slop-isinstance"
+# Rationale: Test assertions validating API contract types
 import pytest
 from app.domain.execution import ResourceLimitsDomain
 from app.services.execution_service import ExecutionService

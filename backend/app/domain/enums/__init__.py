@@ -1,4 +1,4 @@
-from app.domain.enums.common import ErrorType, SortOrder, Theme
+from app.domain.enums.common import Environment, ErrorType, ResourceType, SortOrder, Theme
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.health import AlertSeverity, AlertStatus, ComponentStatus
 from app.domain.enums.notification import (
@@ -12,7 +12,9 @@ from app.domain.enums.user import UserRole
 
 __all__ = [
     # Common
+    "Environment",
     "ErrorType",
+    "ResourceType",
     "SortOrder",
     "Theme",
     # Execution

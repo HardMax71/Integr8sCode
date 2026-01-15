@@ -1,39 +1,19 @@
 from __future__ import annotations
 
-import json
-from datetime import datetime, timezone
-from typing import Any, Dict
-
 import redis.asyncio as redis
+from pydantic import TypeAdapter
 from pymongo.errors import DuplicateKeyError
 
-from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus
+from app.domain.idempotency import IdempotencyRecord
 
-
-def _iso(dt: datetime) -> str:
-    return dt.astimezone(timezone.utc).isoformat()
-
-
-def _json_default(obj: Any) -> str:
-    if isinstance(obj, datetime):
-        return _iso(obj)
-    return str(obj)
-
-
-def _parse_iso_datetime(v: str | None) -> datetime | None:
-    if not v:
-        return None
-    try:
-        return datetime.fromisoformat(v.replace("Z", "+00:00"))
-    except Exception:
-        return None
+_record_adapter = TypeAdapter(IdempotencyRecord)
 
 
 class RedisIdempotencyRepository:
     """Redis-backed repository compatible with IdempotencyManager expectations.
 
     Key shape: <prefix>:<derived-key>
-    Value: JSON document with fields similar to Mongo version.
+    Value: JSON document serialized via Pydantic TypeAdapter.
     Expiration: handled by Redis key expiry; initial EX set on insert.
     """
 
@@ -42,99 +22,47 @@ class RedisIdempotencyRepository:
         self._prefix = key_prefix.rstrip(":")
 
     def _full_key(self, key: str) -> str:
-        # If caller already namespaces, respect it; otherwise prefix.
         return key if key.startswith(f"{self._prefix}:") else f"{self._prefix}:{key}"
 
-    def _doc_to_record(self, doc: Dict[str, Any]) -> IdempotencyRecord:
-        created_at = doc.get("created_at")
-        if isinstance(created_at, str):
-            created_at = _parse_iso_datetime(created_at)
-        completed_at = doc.get("completed_at")
-        if isinstance(completed_at, str):
-            completed_at = _parse_iso_datetime(completed_at)
-        return IdempotencyRecord(
-            key=str(doc.get("key", "")),
-            status=IdempotencyStatus(doc.get("status", IdempotencyStatus.PROCESSING)),
-            event_type=str(doc.get("event_type", "")),
-            event_id=str(doc.get("event_id", "")),
-            created_at=created_at,  # type: ignore[arg-type]
-            ttl_seconds=int(doc.get("ttl_seconds", 0) or 0),
-            completed_at=completed_at,
-            processing_duration_ms=doc.get("processing_duration_ms"),
-            error=doc.get("error"),
-            result_json=doc.get("result"),
-        )
-
-    def _record_to_doc(self, rec: IdempotencyRecord) -> Dict[str, Any]:
-        return {
-            "key": rec.key,
-            "status": rec.status,
-            "event_type": rec.event_type,
-            "event_id": rec.event_id,
-            "created_at": _iso(rec.created_at),
-            "ttl_seconds": rec.ttl_seconds,
-            "completed_at": _iso(rec.completed_at) if rec.completed_at else None,
-            "processing_duration_ms": rec.processing_duration_ms,
-            "error": rec.error,
-            "result": rec.result_json,
-        }
-
     async def find_by_key(self, key: str) -> IdempotencyRecord | None:
-        k = self._full_key(key)
-        raw = await self._r.get(k)
-        if not raw:
-            return None
-        try:
-            doc: Dict[str, Any] = json.loads(raw)
-        except Exception:
-            return None
-        return self._doc_to_record(doc)
+        raw = await self._r.get(self._full_key(key))
+        return _record_adapter.validate_json(raw) if raw else None
 
     async def insert_processing(self, record: IdempotencyRecord) -> None:
-        k = self._full_key(record.key)
-        doc = self._record_to_doc(record)
-        # SET NX with EX for atomic reservation
-        ok = await self._r.set(k, json.dumps(doc, default=_json_default), ex=record.ttl_seconds, nx=True)
+        ok = await self._r.set(
+            self._full_key(record.key),
+            _record_adapter.dump_json(record),
+            ex=record.ttl_seconds,
+            nx=True,
+        )
         if not ok:
-            # Mirror Mongo behavior so manager's DuplicateKeyError path is reused
             raise DuplicateKeyError("Key already exists")
 
     async def update_record(self, record: IdempotencyRecord) -> int:
         k = self._full_key(record.key)
-        # Read-modify-write while preserving TTL
         pipe = self._r.pipeline()
         pipe.ttl(k)
         pipe.get(k)
-        ttl_val, raw = await pipe.execute()
+        results: list[int | bytes | None] = await pipe.execute()
+        ttl_val, raw = results[0], results[1]
         if not raw:
             return 0
-        doc = self._record_to_doc(record)
-        # Write back, keep TTL if positive
-        payload = json.dumps(doc, default=_json_default)
-        if isinstance(ttl_val, int) and ttl_val > 0:
-            await self._r.set(k, payload, ex=ttl_val)
-        else:
-            await self._r.set(k, payload)
+        ex = ttl_val if isinstance(ttl_val, int) and ttl_val > 0 else None
+        await self._r.set(k, _record_adapter.dump_json(record), ex=ex)
         return 1
 
     async def delete_key(self, key: str) -> int:
-        k = self._full_key(key)
-        return int(await self._r.delete(k) or 0)
+        result = await self._r.delete(self._full_key(key))
+        return int(result) if result else 0
 
     async def aggregate_status_counts(self, key_prefix: str) -> dict[str, int]:
         pattern = f"{key_prefix.rstrip(':')}:*"
         counts: dict[str, int] = {}
-        # SCAN to avoid blocking Redis
         async for k in self._r.scan_iter(match=pattern, count=200):
-            try:
-                raw = await self._r.get(k)
-                if not raw:
-                    continue
-                doc = json.loads(raw)
-                status = str(doc.get("status", ""))
-                counts[status] = counts.get(status, 0) + 1
-            except Exception:
-                continue
+            raw = await self._r.get(k)
+            if raw:
+                rec = _record_adapter.validate_json(raw)
+                counts[rec.status] = counts.get(rec.status, 0) + 1
         return counts
 
     async def health_check(self) -> None:

@@ -219,7 +219,7 @@ class SagaOrchestrator(LifecycleEnabled):
             saga.bind_dependencies(
                 producer=self._producer,
                 alloc_repo=self._alloc_repo,
-                publish_commands=bool(getattr(self.config, "publish_commands", False)),
+                publish_commands=self.config.publish_commands,
             )
         except Exception:
             # Back-compat: if saga doesn't support binding, it will fallback to context where needed
@@ -460,7 +460,7 @@ class SagaOrchestrator(LifecycleEnabled):
                         saga.bind_dependencies(
                             producer=self._producer,
                             alloc_repo=self._alloc_repo,
-                            publish_commands=bool(getattr(self.config, "publish_commands", False)),
+                            publish_commands=self.config.publish_commands,
                         )
                     except Exception:
                         pass

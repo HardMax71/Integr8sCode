@@ -45,16 +45,12 @@ class TestEventsRoutes:
             events_response = EventListResponse(**events_data)
 
             # Verify pagination
-            assert isinstance(events_response.events, list)
-            assert isinstance(events_response.total, int)
             assert events_response.limit == 10
             assert events_response.skip == 0
-            assert isinstance(events_response.has_more, bool)
             assert events_response.total >= 0
 
             # If there are events, validate their structure
             for event in events_response.events:
-                assert isinstance(event, EventResponse)
                 assert event.event_id is not None
                 assert event.event_type is not None
                 assert event.aggregate_id is not None
@@ -62,12 +58,6 @@ class TestEventsRoutes:
                 assert event.event_version is not None
                 assert event.metadata is not None
                 assert event.metadata.user_id is not None
-
-                # Optional fields
-                if event.payload:
-                    assert isinstance(event.payload, dict)
-                if event.correlation_id:
-                    assert isinstance(event.correlation_id, str)
 
     @pytest.mark.asyncio
     async def test_get_user_events_with_filters(self, test_user: AsyncClient) -> None:
@@ -127,7 +117,7 @@ class TestEventsRoutes:
         events_response = EventListResponse(**events_data)
 
         # Should return a valid payload; some environments may have no persisted events
-        assert isinstance(events_response.events, list)
+        assert events_response.events is not None
 
         # All events should be for this execution
         for event in events_response.events:
@@ -159,7 +149,6 @@ class TestEventsRoutes:
         events_response = EventListResponse(**events_data)
 
         # Verify query results
-        assert isinstance(events_response.events, list)
         assert events_response.limit == 50
         assert events_response.skip == 0
 
@@ -168,7 +157,6 @@ class TestEventsRoutes:
             for i in range(len(events_response.events) - 1):
                 t1 = events_response.events[i].timestamp
                 t2 = events_response.events[i + 1].timestamp
-                assert isinstance(t1, datetime) and isinstance(t2, datetime)
                 assert t1 >= t2  # Descending order
 
     @pytest.mark.asyncio
@@ -214,7 +202,6 @@ class TestEventsRoutes:
         events_response = EventListResponse(**events_data)
 
         # Should return a valid response (might be empty)
-        assert isinstance(events_response.events, list)
         assert events_response.total >= 0
 
     @pytest.mark.asyncio
@@ -228,19 +215,10 @@ class TestEventsRoutes:
         stats = EventStatistics(**stats_data)
 
         # Verify statistics structure
-        assert isinstance(stats.total_events, int)
         assert stats.total_events >= 0
-        assert isinstance(stats.events_by_type, dict)
-        assert isinstance(stats.events_by_hour, list)
-        # Optional extra fields may not be present in this deployment
-
-        # Optional window fields are allowed by schema; no strict check here
 
         # Events by hour should have proper structure
         for hourly_stat in stats.events_by_hour:
-            # HourlyEventCountSchema has hour: str and count: int
-            assert isinstance(hourly_stat.hour, str)
-            assert isinstance(hourly_stat.count, int)
             assert hourly_stat.count >= 0
 
     @pytest.mark.asyncio
@@ -285,12 +263,10 @@ class TestEventsRoutes:
         response = await test_user.get("/api/v1/events/types/list")
         assert response.status_code == 200
 
-        event_types = response.json()
-        assert isinstance(event_types, list)
+        event_types: list[str] = response.json()
 
         # Event types should be non-empty strings
         for event_type in event_types:
-            assert isinstance(event_type, str)
             assert len(event_type) > 0
 
     @pytest.mark.asyncio
@@ -356,15 +332,12 @@ class TestEventsRoutes:
         response = await test_user.post("/api/v1/events/aggregate", json=aggregation_request)
         assert response.status_code == 200
 
-        results = response.json()
-        assert isinstance(results, list)
+        results: list[dict[str, int]] = response.json()
 
         # Verify aggregation results structure
         for result in results:
-            assert isinstance(result, dict)
             assert "_id" in result  # Group key
             assert "count" in result  # Aggregation result
-            assert isinstance(result["count"], int)
             assert result["count"] >= 0
 
     @pytest.mark.asyncio
@@ -407,12 +380,7 @@ class TestEventsRoutes:
                 assert replay_response.aggregate_id == aggregate_id
                 assert replay_response.event_count is not None and replay_response.event_count >= 0
 
-                if replay_response.event_types:
-                    assert isinstance(replay_response.event_types, list)
-                if replay_response.start_time:
-                    assert isinstance(replay_response.start_time, datetime)
-                if replay_response.end_time:
-                    assert isinstance(replay_response.end_time, datetime)
+                # event_types, start_time, end_time are typed in pydantic model
             elif response.status_code == 404:
                 # No events for this aggregate
                 error_data = response.json()

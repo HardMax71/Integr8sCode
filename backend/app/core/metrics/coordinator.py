@@ -1,4 +1,5 @@
 from app.core.metrics.base import BaseMetrics
+from app.domain.enums import ResourceType
 
 
 class CoordinatorMetrics(BaseMetrics):
@@ -68,6 +69,18 @@ class CoordinatorMetrics(BaseMetrics):
             name="coordinator.scheduling.decisions.total", description="Total scheduling decisions made", unit="1"
         )
 
+        # Internal state tracking for gauge-like counters
+        self._active_executions_current: int = 0
+        self._exec_request_queue_size: int = 0
+        self._resource_cpu: float = 0.0
+        self._resource_memory: float = 0.0
+        self._resource_gpu: float = 0.0
+        self._resource_usage_cpu: float = 0.0
+        self._resource_usage_memory: float = 0.0
+        self._resource_usage_gpu: float = 0.0
+        self._rate_limiter_user: int = 0
+        self._rate_limiter_global: int = 0
+
     def record_coordinator_processing_time(self, duration_seconds: float) -> None:
         self.coordinator_processing_time.record(duration_seconds)
 
@@ -78,8 +91,7 @@ class CoordinatorMetrics(BaseMetrics):
         """Update the count of active executions (absolute value)."""
         # Reset to 0 then set to new value (for gauge-like behavior)
         # This is a workaround since we're using up_down_counter
-        current_val = getattr(self, "_active_executions_current", 0)
-        delta = count - current_val
+        delta = count - self._active_executions_current
         if delta != 0:
             self.coordinator_active_executions.add(delta)
         self._active_executions_current = count
@@ -103,12 +115,10 @@ class CoordinatorMetrics(BaseMetrics):
 
     def update_execution_request_queue_size(self, size: int) -> None:
         """Update the execution-only request queue depth (absolute value)."""
-        key = "_exec_request_queue_size"
-        current_val = getattr(self, key, 0)
-        delta = size - current_val
+        delta = size - self._exec_request_queue_size
         if delta != 0:
             self.execution_request_queue_depth.add(delta)
-        setattr(self, key, size)
+        self._exec_request_queue_size = size
 
     def record_rate_limited(self, limit_type: str, user_id: str) -> None:
         self.coordinator_rate_limited.add(1, attributes={"limit_type": limit_type, "user_id": user_id})
@@ -118,36 +128,55 @@ class CoordinatorMetrics(BaseMetrics):
             wait_seconds, attributes={"limit_type": limit_type, "user_id": user_id}
         )
 
-    def record_resource_allocation(self, resource_type: str, amount: float, execution_id: str) -> None:
+    def record_resource_allocation(self, resource_type: ResourceType, amount: float, execution_id: str) -> None:
         self.coordinator_resource_allocations.add(
             1, attributes={"resource_type": resource_type, "execution_id": execution_id}
         )
 
         # Update gauge for current allocation
-        key = f"_resource_{resource_type}"
-        current_val = getattr(self, key, 0.0)
-        new_val = current_val + amount
-        setattr(self, key, new_val)
+        match resource_type:
+            case ResourceType.CPU:
+                self._resource_cpu += amount
+            case ResourceType.MEMORY:
+                self._resource_memory += amount
+            case ResourceType.GPU:
+                self._resource_gpu += amount
 
-    def record_resource_release(self, resource_type: str, amount: float, execution_id: str) -> None:
+    def record_resource_release(self, resource_type: ResourceType, amount: float, execution_id: str) -> None:
         self.coordinator_resource_allocations.add(
             -1, attributes={"resource_type": resource_type, "execution_id": execution_id}
         )
 
         # Update gauge for current allocation
-        key = f"_resource_{resource_type}"
-        current_val = getattr(self, key, 0.0)
-        new_val = max(0.0, current_val - amount)
-        setattr(self, key, new_val)
+        match resource_type:
+            case ResourceType.CPU:
+                self._resource_cpu = max(0.0, self._resource_cpu - amount)
+            case ResourceType.MEMORY:
+                self._resource_memory = max(0.0, self._resource_memory - amount)
+            case ResourceType.GPU:
+                self._resource_gpu = max(0.0, self._resource_gpu - amount)
 
-    def update_resource_usage(self, resource_type: str, usage_percent: float) -> None:
+    def update_resource_usage(self, resource_type: ResourceType, usage_percent: float) -> None:
         # Record as a gauge-like metric
-        key = f"_resource_usage_{resource_type}"
-        current_val = getattr(self, key, 0.0)
-        delta = usage_percent - current_val
-        if delta != 0:
-            self.coordinator_resource_utilization.add(delta, attributes={"resource_type": resource_type})
-        setattr(self, key, usage_percent)
+        match resource_type:
+            case ResourceType.CPU:
+                delta = usage_percent - self._resource_usage_cpu
+                delta != 0 and self.coordinator_resource_utilization.add(
+                    delta, attributes={"resource_type": resource_type}
+                )
+                self._resource_usage_cpu = usage_percent
+            case ResourceType.MEMORY:
+                delta = usage_percent - self._resource_usage_memory
+                delta != 0 and self.coordinator_resource_utilization.add(
+                    delta, attributes={"resource_type": resource_type}
+                )
+                self._resource_usage_memory = usage_percent
+            case ResourceType.GPU:
+                delta = usage_percent - self._resource_usage_gpu
+                delta != 0 and self.coordinator_resource_utilization.add(
+                    delta, attributes={"resource_type": resource_type}
+                )
+                self._resource_usage_gpu = usage_percent
 
     def record_scheduling_decision(self, decision: str, reason: str) -> None:
         self.coordinator_scheduling_decisions.add(1, attributes={"decision": decision, "reason": reason})
@@ -167,12 +196,15 @@ class CoordinatorMetrics(BaseMetrics):
 
     def update_rate_limiter_tokens(self, limit_type: str, tokens: int) -> None:
         # Track tokens as gauge-like metric
-        key = f"_rate_limiter_{limit_type}"
-        current_val = getattr(self, key, 0)
-        delta = tokens - current_val
-        if delta != 0:
-            self.coordinator_resource_utilization.add(delta, attributes={"resource_type": f"rate_limit_{limit_type}"})
-        setattr(self, key, tokens)
+        attrs = {"resource_type": f"rate_limit_{limit_type}"}
+        if limit_type == "user":
+            delta = tokens - self._rate_limiter_user
+            delta != 0 and self.coordinator_resource_utilization.add(delta, attributes=attrs)
+            self._rate_limiter_user = tokens
+        elif limit_type == "global":
+            delta = tokens - self._rate_limiter_global
+            delta != 0 and self.coordinator_resource_utilization.add(delta, attributes=attrs)
+            self._rate_limiter_global = tokens
 
     def record_rate_limit_reset(self, limit_type: str, user_id: str) -> None:
         self.coordinator_scheduling_decisions.add(

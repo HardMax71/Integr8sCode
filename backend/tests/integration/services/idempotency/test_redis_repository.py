@@ -1,49 +1,16 @@
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import pytest
 import redis.asyncio as redis
 from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus
-from app.services.idempotency.redis_repository import (
-    RedisIdempotencyRepository,
-    _iso,
-    _json_default,
-    _parse_iso_datetime,
-)
+from app.services.idempotency.redis_repository import RedisIdempotencyRepository
+from pydantic import TypeAdapter
 from pymongo.errors import DuplicateKeyError
 
 pytestmark = [pytest.mark.integration, pytest.mark.redis]
 
-
-class TestHelperFunctions:
-    def test_iso_datetime(self) -> None:
-        dt = datetime(2025, 1, 15, 10, 30, 45, tzinfo=timezone.utc)
-        result = _iso(dt)
-        assert result == "2025-01-15T10:30:45+00:00"
-
-    def test_iso_datetime_with_timezone(self) -> None:
-        dt = datetime(2025, 1, 15, 10, 30, 45, tzinfo=timezone(timedelta(hours=5)))
-        result = _iso(dt)
-        assert result == "2025-01-15T05:30:45+00:00"
-
-    def test_json_default_datetime(self) -> None:
-        dt = datetime(2025, 1, 15, 10, 30, 45, tzinfo=timezone.utc)
-        result = _json_default(dt)
-        assert result == "2025-01-15T10:30:45+00:00"
-
-    def test_json_default_other(self) -> None:
-        obj = {"key": "value"}
-        result = _json_default(obj)
-        assert result == "{'key': 'value'}"
-
-    def test_parse_iso_datetime_variants(self) -> None:
-        result1 = _parse_iso_datetime("2025-01-15T10:30:45+00:00")
-        assert result1 is not None and result1.year == 2025
-        result2 = _parse_iso_datetime("2025-01-15T10:30:45Z")
-        assert result2 is not None and result2.tzinfo == timezone.utc
-        assert _parse_iso_datetime(None) is None
-        assert _parse_iso_datetime("") is None
-        assert _parse_iso_datetime("not-a-date") is None
+_record_adapter = TypeAdapter(IdempotencyRecord)
 
 
 @pytest.fixture
@@ -72,7 +39,8 @@ def test_full_key_helpers(repository: RedisIdempotencyRepository) -> None:
     assert repository._full_key("idempotency:my") == "idempotency:my"
 
 
-def test_doc_record_roundtrip(repository: RedisIdempotencyRepository) -> None:
+def test_record_json_roundtrip() -> None:
+    """Test that records serialize and deserialize correctly via TypeAdapter."""
     rec = IdempotencyRecord(
         key="k",
         status=IdempotencyStatus.COMPLETED,
@@ -85,9 +53,12 @@ def test_doc_record_roundtrip(repository: RedisIdempotencyRepository) -> None:
         error="err",
         result_json='{"ok":true}',
     )
-    doc = repository._record_to_doc(rec)
-    back = repository._doc_to_record(doc)
-    assert back.key == rec.key and back.status == rec.status
+    json_bytes = _record_adapter.dump_json(rec)
+    back = _record_adapter.validate_json(json_bytes)
+    assert back.key == rec.key
+    assert back.status == rec.status
+    assert back.created_at == rec.created_at
+    assert back.completed_at == rec.completed_at
 
 
 @pytest.mark.asyncio

@@ -1,3 +1,4 @@
+# mypy: disable-error-code="slop-any-check"
 """
 Validates complete correspondence between EventType enum and event classes.
 

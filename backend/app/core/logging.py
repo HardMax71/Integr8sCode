@@ -3,35 +3,20 @@ import json
 import logging
 import re
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any
 
 from opentelemetry import trace
 
 correlation_id_context: contextvars.ContextVar[str | None] = contextvars.ContextVar("correlation_id", default=None)
 
-request_metadata_context: contextvars.ContextVar[Dict[str, Any] | None] = contextvars.ContextVar(
+request_metadata_context: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar(
     "request_metadata", default=None
 )
 
 
-class CorrelationFilter(logging.Filter):
-    def filter(self, record: logging.LogRecord) -> bool:
-        correlation_id = correlation_id_context.get()
-        if correlation_id:
-            record.correlation_id = correlation_id
-
-        metadata = request_metadata_context.get()
-        if metadata:
-            record.request_method = metadata.get("method")
-            record.request_path = metadata.get("path")
-            # Client IP is now safely extracted without DNS lookup
-            if metadata.get("client"):
-                record.client_host = metadata["client"].get("host")
-
-        return True
-
-
 class JSONFormatter(logging.Formatter):
+    """JSON formatter that reads context directly from typed sources."""
+
     def _sanitize_sensitive_data(self, data: str) -> str:
         """Remove or mask sensitive information from log data."""
         # Mask API keys, tokens, and similar sensitive data
@@ -59,52 +44,38 @@ class JSONFormatter(logging.Formatter):
         return data
 
     def format(self, record: logging.LogRecord) -> str:
-        # Sanitize the message
-        message = self._sanitize_sensitive_data(record.getMessage())
-
-        log_data = {
+        log_data: dict[str, Any] = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "level": record.levelname,
             "logger": record.name,
-            "message": message,
+            "message": self._sanitize_sensitive_data(record.getMessage()),
         }
 
-        if hasattr(record, "correlation_id"):
-            log_data["correlation_id"] = record.correlation_id
+        # Correlation context - read directly from typed ContextVar
+        (v := correlation_id_context.get()) and log_data.update(correlation_id=v)
 
-        if hasattr(record, "request_method"):
-            log_data["request_method"] = record.request_method
+        # Request metadata - read directly from typed ContextVar
+        metadata = request_metadata_context.get() or {}
+        (v := metadata.get("method")) and log_data.update(request_method=v)
+        (v := metadata.get("path")) and log_data.update(request_path=v)
+        (v := (metadata.get("client") or {}).get("host")) and log_data.update(client_host=v)
 
-        if hasattr(record, "request_path"):
-            log_data["request_path"] = record.request_path
+        # OpenTelemetry trace context - read directly from typed trace API
+        span = trace.get_current_span()
+        if span.is_recording():
+            span_context = span.get_span_context()
+            if span_context.is_valid:
+                log_data["trace_id"] = format(span_context.trace_id, "032x")
+                log_data["span_id"] = format(span_context.span_id, "016x")
 
-        if hasattr(record, "client_host"):
-            log_data["client_host"] = record.client_host
-
-        # OpenTelemetry trace context (hexadecimal ids)
-        if hasattr(record, "trace_id"):
-            log_data["trace_id"] = record.trace_id
-        if hasattr(record, "span_id"):
-            log_data["span_id"] = record.span_id
-
-        if record.exc_info:
-            exc_text = self.formatException(record.exc_info)
-            log_data["exc_info"] = self._sanitize_sensitive_data(exc_text)
-
-        if hasattr(record, "stack_info") and record.stack_info:
-            stack_text = self.formatStack(record.stack_info)
-            log_data["stack_info"] = self._sanitize_sensitive_data(stack_text)
+        record.exc_info and log_data.update(
+            exc_info=self._sanitize_sensitive_data(self.formatException(record.exc_info))
+        )
+        record.stack_info and log_data.update(
+            stack_info=self._sanitize_sensitive_data(self.formatStack(record.stack_info))
+        )
 
         return json.dumps(log_data, ensure_ascii=False)
-
-
-LOG_LEVELS: dict[str, int] = {
-    "DEBUG": logging.DEBUG,
-    "INFO": logging.INFO,
-    "WARNING": logging.WARNING,
-    "ERROR": logging.ERROR,
-    "CRITICAL": logging.CRITICAL,
-}
 
 
 def setup_logger(log_level: str) -> logging.Logger:
@@ -113,35 +84,8 @@ def setup_logger(log_level: str) -> logging.Logger:
     new_logger.handlers.clear()
 
     console_handler = logging.StreamHandler()
-    formatter = JSONFormatter()
-
-    console_handler.setFormatter(formatter)
-
-    correlation_filter = CorrelationFilter()
-    console_handler.addFilter(correlation_filter)
-
-    class TracingFilter(logging.Filter):
-        def filter(self, record: logging.LogRecord) -> bool:
-            # Inline minimal helpers to avoid circular import on tracing.utils
-            span = trace.get_current_span()
-            trace_id = None
-            span_id = None
-            if span and span.is_recording():
-                span_context = span.get_span_context()
-                if span_context.is_valid:
-                    trace_id = format(span_context.trace_id, "032x")
-                    span_id = format(span_context.span_id, "016x")
-            if trace_id:
-                record.trace_id = trace_id
-            if span_id:
-                record.span_id = span_id
-            return True
-
-    console_handler.addFilter(TracingFilter())
-
+    console_handler.setFormatter(JSONFormatter())
     new_logger.addHandler(console_handler)
-
-    level = LOG_LEVELS.get(log_level.upper(), logging.DEBUG)
-    new_logger.setLevel(level)
+    new_logger.setLevel(logging.getLevelNamesMapping().get(log_level.upper(), logging.DEBUG))
 
     return new_logger

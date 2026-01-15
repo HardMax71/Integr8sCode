@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 from app.core.correlation import CorrelationContext, CorrelationMiddleware
-from app.core.logging import CorrelationFilter, JSONFormatter, setup_logger
+from app.core.logging import JSONFormatter, setup_logger
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -14,40 +14,25 @@ from starlette.testclient import TestClient
 
 
 def capture_log(formatter: logging.Formatter, msg: str, extra: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Capture a log message formatted by the given formatter."""
     logger = logging.getLogger("t")
 
-    # Use StringIO to capture output
     string_io = io.StringIO()
     stream = logging.StreamHandler(string_io)
     stream.setFormatter(formatter)
-
-    # Add the correlation filter
-    correlation_filter = CorrelationFilter()
-    stream.addFilter(correlation_filter)
 
     logger.handlers = [stream]
     logger.setLevel(logging.INFO)
     logger.propagate = False
 
-    # Log the message
     logger.info(msg, extra=extra or {})
     stream.flush()
 
-    # Get the formatted output
     output = string_io.getvalue()
     string_io.close()
 
-    if output:
-        result: dict[str, Any] = json.loads(output)
-        return result
-
-    # Fallback: create and format record manually
-    lr = logging.LogRecord("t", logging.INFO, __file__, 1, msg, (), None, None)
-    # Apply the filter manually
-    correlation_filter.filter(lr)
-    s = formatter.format(lr)
-    fallback_result: dict[str, Any] = json.loads(s)
-    return fallback_result
+    result: dict[str, Any] = json.loads(output)
+    return result
 
 
 def test_json_formatter_sanitizes_tokens(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -87,4 +72,4 @@ def test_correlation_middleware_sets_header() -> None:
 
 def test_setup_logger_returns_logger() -> None:
     lg = setup_logger(log_level="INFO")
-    assert hasattr(lg, "info")
+    lg.info("test log message")

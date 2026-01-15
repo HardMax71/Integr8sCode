@@ -81,8 +81,6 @@ class TestSagaRoutes:
         assert response.status_code == 200
 
         saga_list = SagaListResponse(**response.json())
-        assert isinstance(saga_list.total, int)
-        assert isinstance(saga_list.sagas, list)
         assert saga_list.total >= 0
 
     @pytest.mark.asyncio
@@ -160,8 +158,8 @@ class TestSagaRoutes:
         # Each user should see only their own sagas
         # (we can't verify the exact content without creating sagas,
         # but we can verify the endpoint works correctly)
-        assert isinstance(user1_sagas.sagas, list)
-        assert isinstance(user2_sagas.sagas, list)
+        assert user1_sagas.sagas is not None
+        assert user2_sagas.sagas is not None
 
     @pytest.mark.asyncio
     async def test_get_saga_with_details(self, test_user: AsyncClient) -> None:
@@ -258,18 +256,14 @@ class TestSagaRoutes:
         assert response.status_code == 200
 
         saga_list = SagaListResponse(**response.json())
-        assert hasattr(saga_list, "sagas")
-        assert hasattr(saga_list, "total")
-        assert isinstance(saga_list.sagas, list)
-        assert isinstance(saga_list.total, int)
 
         # If we have sagas, verify their structure
         if saga_list.sagas:
             saga = saga_list.sagas[0]
-            assert hasattr(saga, "saga_id")
-            assert hasattr(saga, "execution_id")
-            assert hasattr(saga, "state")
-            assert hasattr(saga, "created_at")
+            assert saga.saga_id is not None
+            assert saga.execution_id is not None
+            assert saga.state is not None
+            assert saga.created_at is not None
 
     @pytest.mark.asyncio
     async def test_concurrent_saga_access(self, test_user: AsyncClient) -> None:
@@ -288,4 +282,4 @@ class TestSagaRoutes:
         for response in responses:
             assert response.status_code == 200
             saga_list = SagaListResponse(**response.json())
-            assert isinstance(saga_list.sagas, list)
+            assert saga_list.sagas is not None

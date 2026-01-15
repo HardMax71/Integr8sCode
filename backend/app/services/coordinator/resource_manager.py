@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Dict, List
 
 from app.core.metrics.context import get_coordinator_metrics
+from app.domain.enums import ResourceType
 
 
 @dataclass
@@ -311,14 +312,14 @@ class ResourceManager:
         """Update metrics"""
         cpu_usage = self.pool.total_cpu_cores - self.pool.available_cpu_cores
         cpu_percent = cpu_usage / self.pool.total_cpu_cores * 100
-        self.metrics.update_resource_usage("cpu", cpu_percent)
+        self.metrics.update_resource_usage(ResourceType.CPU, cpu_percent)
 
         memory_usage = self.pool.total_memory_mb - self.pool.available_memory_mb
         memory_percent = memory_usage / self.pool.total_memory_mb * 100
-        self.metrics.update_resource_usage("memory", memory_percent)
+        self.metrics.update_resource_usage(ResourceType.MEMORY, memory_percent)
 
         gpu_usage = self.pool.total_gpu_count - self.pool.available_gpu_count
         gpu_percent = gpu_usage / max(1, self.pool.total_gpu_count) * 100
-        self.metrics.update_resource_usage("gpu", gpu_percent)
+        self.metrics.update_resource_usage(ResourceType.GPU, gpu_percent)
 
         self.metrics.update_coordinator_active_executions(len(self._allocations))

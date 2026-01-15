@@ -47,7 +47,7 @@ class SSEService:
         self.settings = settings
         self.logger = logger
         self.metrics = get_connection_metrics()
-        self.heartbeat_interval = getattr(settings, "SSE_HEARTBEAT_INTERVAL", 30)
+        self.heartbeat_interval = settings.SSE_HEARTBEAT_INTERVAL
 
     async def create_execution_stream(self, execution_id: str, user_id: str) -> AsyncGenerator[Dict[str, Any], None]:
         connection_id = f"sse_{execution_id}_{datetime.now(timezone.utc).timestamp()}"

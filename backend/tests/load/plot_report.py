@@ -3,38 +3,45 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Dict, List, Tuple, TypedDict
 
 import matplotlib.pyplot as plt
+from pydantic import TypeAdapter
+from pydantic.dataclasses import dataclass
 
 
-class LatencyStats(TypedDict, total=False):
-    p50: int
-    p90: int
-    p99: int
+@dataclass
+class LatencyStats:
+    p50: int = 0
+    p90: int = 0
+    p99: int = 0
 
 
-class EndpointData(TypedDict, total=False):
-    count: int
-    errors: int
-    latency_ms_success: LatencyStats
+@dataclass
+class EndpointData:
+    count: int = 0
+    errors: int = 0
+    latency_ms_success: LatencyStats | None = None
 
 
-class TimelineData(TypedDict, total=False):
-    seconds: List[int]
-    rps: List[int]
-    eps: List[int]
+@dataclass
+class TimelineData:
+    seconds: list[int] | None = None
+    rps: list[int] | None = None
+    eps: list[int] | None = None
 
 
-class ReportDict(TypedDict, total=False):
-    timeline: TimelineData
-    endpoints: Dict[str, EndpointData]
+@dataclass
+class ReportDict:
+    timeline: TimelineData | None = None
+    endpoints: dict[str, EndpointData] | None = None
+
+
+_report_adapter = TypeAdapter(ReportDict)
 
 
 def _load_report(path: str | Path) -> ReportDict:
-    with open(path, "r", encoding="utf-8") as f:
-        result: ReportDict = json.load(f)
-        return result
+    with open(path, encoding="utf-8") as f:
+        return _report_adapter.validate_python(json.load(f))
 
 
 def _ensure_out_dir(path: str | Path) -> Path:
@@ -44,13 +51,12 @@ def _ensure_out_dir(path: str | Path) -> Path:
 
 
 def plot_timeline(report: ReportDict, out_dir: Path) -> Path:
-    tl: TimelineData = report.get("timeline", {})
-    seconds: List[int] = tl.get("seconds", [])
-    rps: List[int] = tl.get("rps", [])
-    eps: List[int] = tl.get("eps", [])
+    tl = report.timeline or TimelineData()
+    seconds = tl.seconds or []
+    rps = tl.rps or []
+    eps = tl.eps or []
 
     if not seconds:
-        # Nothing to plot
         return out_dir / "timeline.png"
 
     fig, ax = plt.subplots(figsize=(10, 4))
@@ -68,10 +74,10 @@ def plot_timeline(report: ReportDict, out_dir: Path) -> Path:
     return out_path
 
 
-def _top_endpoints(report: ReportDict, top_n: int = 10) -> List[Tuple[str, EndpointData]]:
-    eps: Dict[str, EndpointData] = report.get("endpoints", {})
+def _top_endpoints(report: ReportDict, top_n: int = 10) -> list[tuple[str, EndpointData]]:
+    eps = report.endpoints or {}
     items = list(eps.items())
-    items.sort(key=lambda kv: kv[1].get("count", 0), reverse=True)
+    items.sort(key=lambda kv: kv[1].count, reverse=True)
     return items[:top_n]
 
 
@@ -81,17 +87,16 @@ def plot_endpoint_latency(report: ReportDict, out_dir: Path, top_n: int = 10) ->
         return out_dir / "endpoint_latency.png"
 
     labels = [k for k, _ in data]
-    empty_latency: LatencyStats = {}
-    p50 = [v.get("latency_ms_success", empty_latency).get("p50", 0) for _, v in data]
-    p90 = [v.get("latency_ms_success", empty_latency).get("p90", 0) for _, v in data]
-    p99 = [v.get("latency_ms_success", empty_latency).get("p99", 0) for _, v in data]
+    p50 = [(v.latency_ms_success or LatencyStats()).p50 for _, v in data]
+    p90 = [(v.latency_ms_success or LatencyStats()).p90 for _, v in data]
+    p99 = [(v.latency_ms_success or LatencyStats()).p99 for _, v in data]
 
     x = range(len(labels))
     width = 0.25
 
     fig, ax = plt.subplots(figsize=(max(10, len(labels) * 0.6), 5))
     ax.bar([i - width for i in x], p50, width=width, label="p50", color="#22c55e")
-    ax.bar(x, p90, width=width, label="p90", color="#eab308")
+    ax.bar(list(x), p90, width=width, label="p90", color="#eab308")
     ax.bar([i + width for i in x], p99, width=width, label="p99", color="#ef4444")
     ax.set_ylabel("Latency (ms)")
     ax.set_title("Success Latency by Endpoint (Top N)")
@@ -112,16 +117,16 @@ def plot_endpoint_throughput(report: ReportDict, out_dir: Path, top_n: int = 10)
         return out_dir / "endpoint_throughput.png"
 
     labels = [k for k, _ in data]
-    total = [v.get("count", 0) for _, v in data]
-    errors = [v.get("errors", 0) for _, v in data]
-    successes = [t - e for t, e in zip(total, errors)]
+    total = [v.count for _, v in data]
+    errors = [v.errors for _, v in data]
+    successes = [t - e for t, e in zip(total, errors, strict=True)]
 
     x = range(len(labels))
     width = 0.45
 
     fig, ax = plt.subplots(figsize=(max(10, len(labels) * 0.6), 5))
-    ax.bar(x, successes, width=width, label="Success", color="#22c55e")
-    ax.bar(x, errors, width=width, bottom=successes, label="Errors", color="#ef4444")
+    ax.bar(list(x), successes, width=width, label="Success", color="#22c55e")
+    ax.bar(list(x), errors, width=width, bottom=successes, label="Errors", color="#ef4444")
     ax.set_ylabel("Requests")
     ax.set_title("Endpoint Throughput (Top N)")
     ax.set_xticks(list(x))
@@ -135,18 +140,17 @@ def plot_endpoint_throughput(report: ReportDict, out_dir: Path, top_n: int = 10)
     return out_path
 
 
-def generate_plots(report_path: str | Path, output_dir: str | Path | None = None) -> List[Path]:
+def generate_plots(report_path: str | Path, output_dir: str | Path | None = None) -> list[Path]:
     report = _load_report(report_path)
     out_dir = _ensure_out_dir(output_dir or Path(report_path).parent)
-    paths = [
+    return [
         plot_timeline(report, out_dir),
         plot_endpoint_latency(report, out_dir),
         plot_endpoint_throughput(report, out_dir),
     ]
-    return paths
 
 
-def main(argv: List[str] | None = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Generate plots from a load report JSON")
     p.add_argument("report", help="Path to JSON report")
     p.add_argument("--out", default=None, help="Output directory for PNGs (default: report dir)")

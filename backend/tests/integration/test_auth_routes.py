@@ -1,3 +1,4 @@
+# mypy: disable-error-code="slop-any-check"
 from uuid import uuid4
 
 import pytest

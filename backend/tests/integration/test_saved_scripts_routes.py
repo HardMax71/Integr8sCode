@@ -125,7 +125,6 @@ class TestSavedScripts:
         assert list_response.status_code == 200
 
         scripts_list = list_response.json()
-        assert isinstance(scripts_list, list)
 
         # Should have at least the scripts we just created
         assert len(scripts_list) >= len(created_ids)

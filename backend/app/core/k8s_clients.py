@@ -1,3 +1,5 @@
+# mypy: disable-error-code="slop-any-check"
+# Rationale: kubernetes client 31.0.0 has no type annotations (all Any)
 import logging
 from dataclasses import dataclass
 

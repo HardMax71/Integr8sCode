@@ -1,7 +1,7 @@
 # CI/CD Pipeline
 
 The project uses GitHub Actions to automate code quality checks, security scanning, testing, and documentation
-deployment. Every push to `main` or `dev` and every pull request triggers the pipeline, with each workflow running in
+deployment. Every push to `main` or `dev` and every pull request triggers the pipeline, with workflows running in
 parallel to provide fast feedback.
 
 ## Pipeline overview
@@ -11,6 +11,7 @@ graph LR
     subgraph "Code Quality"
         Ruff["Ruff Linting"]
         MyPy["MyPy Type Check"]
+        ESLint["ESLint + TypeScript"]
     end
 
     subgraph "Security"
@@ -29,8 +30,12 @@ graph LR
         Frontend --> ScanFE
     end
 
-    subgraph "Testing"
-        Integration["Integration Tests"]
+    subgraph "Testing (stack-tests.yml)"
+        UnitBE["Backend Unit"]
+        UnitFE["Frontend Unit"]
+        Stack["Stack Tests"]
+        UnitBE --> Stack
+        UnitFE --> Stack
     end
 
     subgraph "Documentation"
@@ -40,36 +45,38 @@ graph LR
 
     Push["Push / PR"] --> Ruff
     Push --> MyPy
+    Push --> ESLint
     Push --> Bandit
     Push --> Base
-    Push --> Integration
+    Push --> UnitBE
+    Push --> UnitFE
     Push --> Docs
     Docs -->|main only| Pages
 ```
 
 All workflows trigger on pushes to `main` and `dev` branches, pull requests against those branches, and can be triggered
-manually via `workflow_dispatch`. The documentation workflow additionally filters on path changes to avoid unnecessary
-rebuilds.
+manually via `workflow_dispatch`. Path filters ensure workflows only run when relevant files change.
 
 ## Linting and type checking
 
-Two lightweight workflows run first since they catch obvious issues quickly.
+Three lightweight workflows run first since they catch obvious issues quickly.
 
-The linting workflow installs dependencies with [uv](https://docs.astral.sh/uv/) and
-runs [Ruff](https://docs.astral.sh/ruff/) against the backend codebase. Ruff checks for style violations, import
-ordering, and common bugs in a single pass. The configuration lives in `pyproject.toml` under `[tool.ruff]`, selecting
-rules from the E, F, B, I, and W categories.
+**Backend (Python):**
+- [Ruff](https://docs.astral.sh/ruff/) checks for style violations, import ordering, and common bugs
+- [mypy](https://mypy.readthedocs.io/) with strict settings catches type mismatches and missing return types
 
-The type checking workflow runs [mypy](https://mypy.readthedocs.io/) with strict settings. It catches type mismatches,
-missing return types, and incorrect function signatures before they reach production. Both workflows use uv's dependency
-caching to skip reinstallation when the lockfile hasn't changed.
+**Frontend (TypeScript):**
+- ESLint checks for code quality issues
+- TypeScript compiler (`tsc --noEmit`) verifies type correctness
+
+Both use dependency caching to skip reinstallation when lockfiles haven't changed.
 
 ## Security scanning
 
 The security workflow uses [Bandit](https://bandit.readthedocs.io/) to perform static analysis on Python source files,
 flagging issues like hardcoded credentials, SQL injection patterns, and unsafe deserialization. It excludes the test
 directory and reports only medium-severity and above findings. Container-level vulnerability scanning with Trivy runs
-as part of the Docker workflow (see below).
+as part of the Docker workflow.
 
 ## Docker build and scan
 
@@ -106,96 +113,90 @@ graph TD
 
 The base image (`Dockerfile.base`) contains Python, system dependencies, and all pip packages. It
 uses [uv](https://docs.astral.sh/uv/) to install dependencies from the lockfile with `uv sync --locked --no-dev`,
-ensuring reproducible builds without development tools. The base includes gcc, curl, and compression libraries needed
-by some Python packages.
-
-The image sets `PATH="/app/.venv/bin:$PATH"` so services can run Python directly without `uv run` at startup. This
-avoids dependency resolution at container start, making services launch in seconds rather than minutes. Separating base
-from application means dependency changes rebuild the base layer while code changes only rebuild the thin application
-layer. See [Docker build strategy](deployment.md#docker-build-strategy) for details on the local development setup.
-
-### Build contexts
-
-Backend and frontend builds reference the base image via Docker's `build-contexts` feature. The workflow passes the
-appropriate tag (`pr-<number>` for pull requests, `latest` for main branch) so each build uses the correct base.
+ensuring reproducible builds without development tools.
 
 ### Security scanning
 
 After each image builds, [Trivy](https://trivy.dev/) scans it for known vulnerabilities in OS packages and Python
-dependencies. The scan fails if it finds any critical or high severity issues with available fixes. Results upload to
-GitHub Security for tracking. The backend scan respects `.trivyignore` for acknowledged vulnerabilities.
+dependencies. The scan fails if it finds any critical or high severity issues with available fixes.
 
-## Backend tests
+## Stack tests (unified testing)
 
-The backend CI workflow runs three test jobs: unit tests (no infrastructure needed), integration tests (requires
-infrastructure), and E2E tests (requires infrastructure and Kubernetes).
-
-### Integration tests
-
-Integration tests verify that services work together correctly. Tests run inside Docker containers to ensure the same
-environment as production.
+The `stack-tests.yml` workflow consolidates all testing that requires infrastructure into a single job, avoiding
+redundant stack setup across multiple jobs.
 
 ```mermaid
-sequenceDiagram
-    participant GHA as GitHub Actions
-    participant Docker as Docker Compose
-    participant Tests as pytest (in container)
+graph TD
+    subgraph "Parallel (fast)"
+        A[Backend Unit Tests]
+        B[Frontend Unit Tests]
+    end
 
-    GHA->>Docker: Build base + backend images
-    GHA->>Docker: Start infrastructure (infra --wait)
-    GHA->>Docker: docker compose run backend pytest
-    Tests->>Docker: Connect to kafka:29092, mongo:27017
-    Tests-->>GHA: Coverage report (via volume mount)
-    GHA->>GHA: Upload to Codecov
+    subgraph "Sequential (single stack)"
+        C[Setup k3s]
+        D[Build Images]
+        E[Start Stack]
+        F[Backend Integration]
+        G[Backend E2E]
+        H[Frontend E2E]
+        C --> D --> E --> F --> G --> H
+    end
+
+    A --> C
+    B --> C
+
+    style A fill:#e8f5e9
+    style B fill:#e8f5e9
+    style C fill:#e1f5fe
+    style D fill:#e1f5fe
+    style E fill:#e1f5fe
+    style F fill:#fff3e0
+    style G fill:#fff3e0
+    style H fill:#fff3e0
 ```
 
-The workflow builds the base image with GHA layer caching using [docker/build-push-action](https://github.com/docker/build-push-action),
-then builds the backend image on top. Infrastructure services start via `./deploy.sh infra --wait`.
+### Why unified?
 
-Tests run inside a container using `docker compose run --rm -T backend`, which:
+Previously, backend integration, backend E2E, and frontend E2E tests each started their own full stack independently.
+This caused:
+- **3x setup time**: k3s installation, image builds, and docker-compose startup repeated for each job
+- **~15 minutes total**: Each job took ~5 minutes, running in parallel but with redundant work
 
-- Uses the same Docker network as infrastructure services
-- Connects to services using Docker hostnames (`kafka:29092`, `mongo:27017`)
-- Writes coverage reports to the mounted volume for upload
+The unified approach:
+- **1x setup time**: Stack starts once, all tests run sequentially against it
+- **~10 minutes total**: Single setup (~5 min) + all tests (~5 min)
+- **Better resource efficiency**: One runner instead of three
 
-The `.env.test` file contains Docker-internal hostnames, ensuring tests use the same configuration locally and in CI.
+### Test execution order
 
-### E2E tests
+1. **Unit tests (parallel)**: Backend and frontend unit tests run simultaneously. They require no infrastructure and
+   complete quickly (~1-2 min each).
 
-E2E tests require Kubernetes for code execution. The workflow installs [k3s](https://k3s.io/) on the runner and
-configures the kubeconfig to be accessible from inside Docker containers:
+2. **Stack setup**: After unit tests pass, the stack-tests job:
+    - Installs k3s for Kubernetes functionality
+    - Builds all Docker images (with GHA layer caching)
+    - Starts the full stack via `./deploy.sh dev --ci`
+    - Seeds test users
 
-```bash
-# Update kubeconfig to use host IP instead of localhost
-HOST_IP=$(hostname -I | awk '{print $1}')
-sed -i "s/127.0.0.1/${HOST_IP}/g" /home/runner/.kube/config
-```
+3. **Integration & E2E tests (sequential)**: All tests run against the same stack:
+    - Backend integration tests (pytest)
+    - Backend E2E tests (pytest with k8s)
+    - Frontend E2E tests (Playwright)
 
-Tests run inside Docker with the kubeconfig mounted:
+### Coverage reporting
 
-```bash
-docker compose run --rm -T \
-  -v /home/runner/.kube/config:/app/kubeconfig.yaml:ro \
-  backend \
-  uv run pytest tests/e2e -v
-```
-
-Coverage reports go to [Codecov](https://codecov.io/) for tracking over time. The workflow always collects container
-logs and Kubernetes events as artifacts, which helps debug failures without reproducing them locally.
+Each test suite reports coverage to [Codecov](https://codecov.io/):
+- `backend-unit` flag for unit tests
+- `backend-stack` flag for integration + E2E tests (combined)
+- `frontend-unit` flag for frontend unit tests
 
 ## Documentation
 
 The docs workflow builds this documentation site using [MkDocs](https://www.mkdocs.org/) with
 the [Material theme](https://squidfunk.github.io/mkdocs-material/). It triggers only when files under `docs/`,
-`mkdocs.yml`, or the workflow itself change, avoiding rebuilds for unrelated commits.
+`mkdocs.yml`, or the workflow itself change.
 
-Before building, the workflow fetches the current OpenAPI spec from the production API and injects it into the docs
-directory. The [swagger-ui-tag](https://github.com/blueswen/mkdocs-swagger-ui-tag) plugin renders this spec as an
-interactive API reference.
-
-On pushes to main, the workflow deploys the built site to GitHub Pages. Pull requests only build without deploying, so
-you can verify the build succeeds before merging. The deployment uses GitHub's native Pages action with artifact
-uploads, which handles cache invalidation and atomic deployments automatically.
+On pushes to main, the workflow deploys the built site to GitHub Pages.
 
 ## Running locally
 
@@ -217,6 +218,19 @@ uv tool run bandit -r . -x tests/ -ll
 uv run pytest tests/unit -v
 ```
 
+```bash
+cd frontend
+
+# Linting
+npm run lint
+
+# Type checking
+npx tsc --noEmit
+
+# Unit tests
+npm run test
+```
+
 For integration and E2E tests, use the same deployment as CI:
 
 ```bash
@@ -226,125 +240,62 @@ For integration and E2E tests, use the same deployment as CI:
 # Run tests inside the running backend container
 docker compose exec -T backend uv run pytest tests/integration -v
 docker compose exec -T backend uv run pytest tests/e2e -v
+
+# Run frontend E2E tests
+cd frontend && npx playwright test
 ```
 
-Or use `./deploy.sh test` which handles everything automatically (starts stack, runs tests, cleans up).
+Or use `./deploy.sh test` which handles everything automatically.
 
 ## Build optimizations
 
-The CI pipeline employs several caching strategies to minimize build times. Without caching, a full frontend E2E build
-takes 3+ minutes; with caching, subsequent runs complete in under 30 seconds.
+The CI pipeline employs several caching strategies to minimize build times.
 
 ### Docker layer caching
 
-The frontend E2E workflow uses [docker/build-push-action](https://github.com/docker/build-push-action) with GitHub
-Actions cache for each image:
+All image builds use [docker/build-push-action](https://github.com/docker/build-push-action) with GitHub Actions cache:
 
 ```yaml
-- name: Build frontend image
+- name: Build base image
   uses: docker/build-push-action@v6
   with:
-    context: ./frontend
-    file: ./frontend/Dockerfile
+    context: ./backend
+    file: ./backend/Dockerfile.base
     load: true
-    tags: integr8scode-frontend:latest
-    cache-from: type=gha,scope=frontend
-    cache-to: type=gha,mode=max,scope=frontend
+    tags: integr8scode-base:latest
+    cache-from: type=gha,scope=backend-base
+    cache-to: type=gha,mode=max,scope=backend-base
 ```
 
 Each service has its own cache scope (`backend-base`, `backend`, `frontend`, `cert-generator`), preventing cache
-pollution between unrelated builds. The `mode=max` setting caches all layers, not just the final image, so even
-intermediate layers benefit from caching.
-
-### Local registry for dependent builds
-
-The `docker-container` buildx driver runs in isolation and cannot access images in the local Docker daemon. This
-creates a problem when the backend image needs to reference the base image via `FROM base`. The workflow solves this
-using a local registry:
-
-```yaml
-services:
-  registry:
-    image: registry:2
-    ports:
-      - 5000:5000
-
-steps:
-  - name: Setup Docker Buildx
-    uses: docker/setup-buildx-action@v3
-    with:
-      driver-opts: network=host
-
-  - name: Build and push base image
-    uses: docker/build-push-action@v6
-    with:
-      push: true
-      tags: localhost:5000/integr8scode-base:latest
-      cache-from: type=gha,scope=backend-base
-      cache-to: type=gha,mode=max,scope=backend-base
-
-  - name: Build backend image
-    uses: docker/build-push-action@v6
-    with:
-      build-contexts: |
-        base=docker-image://localhost:5000/integr8scode-base:latest
-      cache-from: type=gha,scope=backend
-      cache-to: type=gha,mode=max,scope=backend
-```
-
-The `network=host` driver option allows buildx to reach `localhost:5000`. After pushing the base image to the local
-registry, subsequent builds can reference it with `docker-image://localhost:5000/...`. This preserves full GHA layer
-caching for all images while allowing dependent builds to work correctly.
+pollution between unrelated builds.
 
 ### Infrastructure image caching
 
 A reusable action at `.github/actions/docker-cache` handles infrastructure images (MongoDB, Redis, Kafka, Schema
-Registry). It stores pulled images as zstd-compressed tarballs in the GitHub Actions cache:
+Registry). It stores pulled images as zstd-compressed tarballs in the GitHub Actions cache, saving ~30 seconds per run
+and avoiding Docker Hub rate limits.
 
-```yaml
-- name: Cache and load Docker images
-  uses: ./.github/actions/docker-cache
-  with:
-    images: mongo:8.0 redis:7-alpine apache/kafka:3.9.0 confluentinc/cp-schema-registry:7.5.0
-```
+### k3s setup action
 
-On cache hit, images load from local tarballs instead of pulling from registries. This saves ~30 seconds per run and
-avoids Docker Hub rate limits.
+A reusable composite action at `.github/actions/k3s-setup` handles Kubernetes setup:
+- Installs k3s with traefik disabled
+- Creates the `integr8scode` namespace
+- Generates a kubeconfig accessible from Docker containers (via `host.docker.internal`)
 
-### Frontend Dockerfile optimizations
-
-The frontend Dockerfile uses several techniques to minimize build time and image size:
-
-| Optimization    | Before                      | After                  | Impact                  |
-|-----------------|-----------------------------|------------------------|-------------------------|
-| Base image      | `node:22` (1GB)             | `node:22-slim` (200MB) | -80% image size         |
-| Package install | `npm install`               | `npm ci`               | 3x faster, reproducible |
-| Lockfile        | Excluded in `.dockerignore` | Included               | Enables `npm ci`        |
-
-The `npm ci` command requires `package-lock.json` and installs dependencies exactly as specified, skipping dependency
-resolution. This is faster than `npm install` and ensures reproducible builds.
-
-### Cache invalidation
-
-Docker layer caching works best when layers change infrequently. The Dockerfiles are structured to maximize cache hits:
-
-1. **System dependencies** - Rarely change, cached long-term
-2. **Package lockfiles** - Change only when dependencies update
-3. **Application code** - Changes frequently, rebuilt on each commit
-
-By copying lockfiles before application code, dependency installation layers remain cached even when code changes.
+This eliminates copy-paste across workflows and ensures consistent k8s setup.
 
 ## Workflow files
 
-| Workflow            | File                                | Purpose                       |
-|---------------------|-------------------------------------|-------------------------------|
-| Ruff Linting        | `.github/workflows/ruff.yml`        | Code style and import checks  |
-| MyPy Type Checking  | `.github/workflows/mypy.yml`        | Static type analysis          |
-| Security Scanning   | `.github/workflows/security.yml`    | Bandit SAST                   |
-| Docker Build & Scan | `.github/workflows/docker.yml`      | Image build and Trivy scan    |
-| Backend CI          | `.github/workflows/backend-ci.yml`  | Unit, integration, E2E tests  |
-| Frontend CI         | `.github/workflows/frontend-ci.yml` | Unit tests and Playwright E2E |
-| Documentation       | `.github/workflows/docs.yml`        | MkDocs build and deploy       |
+| Workflow           | File                                 | Purpose                            |
+|--------------------|--------------------------------------|------------------------------------|
+| Ruff Linting       | `.github/workflows/ruff.yml`         | Python code style and import checks |
+| MyPy Type Checking | `.github/workflows/mypy.yml`         | Python static type analysis        |
+| Frontend CI        | `.github/workflows/frontend-ci.yml`  | TypeScript lint and type check     |
+| Security Scanning  | `.github/workflows/security.yml`     | Bandit SAST                        |
+| Docker Build & Scan| `.github/workflows/docker.yml`       | Image build and Trivy scan         |
+| Stack Tests        | `.github/workflows/stack-tests.yml`  | All unit, integration, and E2E tests |
+| Documentation      | `.github/workflows/docs.yml`         | MkDocs build and deploy            |
 
-All workflows use [uv](https://docs.astral.sh/uv/) for Python dependency management, with caching enabled via
-`astral-sh/setup-uv`. The lockfile at `backend/uv.lock` ensures reproducible installs across CI runs.
+All workflows use [uv](https://docs.astral.sh/uv/) for Python dependency management and npm for Node.js, with caching
+enabled for both.

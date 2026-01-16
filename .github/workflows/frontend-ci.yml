@@ -5,21 +5,17 @@ on:
     branches: [main, dev]
     paths:
       - 'frontend/**'
-      - 'docker-compose.yaml'
-      - 'deploy.sh'
       - '.github/workflows/frontend-ci.yml'
   pull_request:
     branches: [main, dev]
     paths:
       - 'frontend/**'
-      - 'docker-compose.yaml'
-      - 'deploy.sh'
       - '.github/workflows/frontend-ci.yml'
   workflow_dispatch:
 
 jobs:
-  unit:
-    name: Unit Tests
+  lint:
+    name: Lint & Type Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -35,137 +31,10 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Run unit tests with coverage
+      - name: Run ESLint
         working-directory: frontend
-        run: npm run test:coverage
+        run: npm run lint
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: frontend/coverage/lcov.info
-          flags: frontend
-          name: frontend-coverage
-          fail_ci_if_error: false
-          verbose: true
-
-  e2e:
-    name: E2E Tests
-    needs: unit
-    runs-on: ubuntu-latest
-
-    env:
-      MONGO_IMAGE: mongo:8.0
-      REDIS_IMAGE: redis:7-alpine
-      KAFKA_IMAGE: confluentinc/cp-kafka:7.5.0
-      ZOOKEEPER_IMAGE: confluentinc/cp-zookeeper:7.5.0
-      SCHEMA_REGISTRY_IMAGE: confluentinc/cp-schema-registry:7.5.0
-
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Cache and load Docker images
-        uses: ./.github/actions/docker-cache
-        with:
-          images: ${{ env.MONGO_IMAGE }} ${{ env.REDIS_IMAGE }} ${{ env.KAFKA_IMAGE }} ${{ env.ZOOKEEPER_IMAGE }} ${{ env.SCHEMA_REGISTRY_IMAGE }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install dependencies
+      - name: Run TypeScript type check
         working-directory: frontend
-        run: npm ci
-
-      - name: Install Playwright browsers
-        working-directory: frontend
-        run: npx playwright install chromium
-
-      - name: Setup k3s
-        uses: ./.github/actions/k3s-setup
-
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build base image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./backend
-          file: ./backend/Dockerfile.base
-          load: true
-          tags: integr8scode-base:latest
-          cache-from: type=gha,scope=backend-base
-          cache-to: type=gha,mode=max,scope=backend-base
-
-      - name: Build backend image
-        run: docker build -t integr8scode-backend:latest --build-context base=docker-image://integr8scode-base:latest -f ./backend/Dockerfile ./backend
-
-      - name: Build cert-generator image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./cert-generator
-          file: ./cert-generator/Dockerfile
-          load: true
-          tags: integr8scode-cert-generator:latest
-          cache-from: type=gha,scope=cert-generator
-          cache-to: type=gha,mode=max,scope=cert-generator
-
-      - name: Build frontend image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./frontend
-          file: ./frontend/Dockerfile
-          load: true
-          tags: integr8scode-frontend:latest
-          cache-from: type=gha,scope=frontend
-          cache-to: type=gha,mode=max,scope=frontend
-
-      - name: Build worker images
-        run: |
-          docker build -t integr8scode-coordinator:latest -f backend/workers/Dockerfile.coordinator --build-context base=docker-image://integr8scode-base:latest ./backend
-          docker build -t integr8scode-k8s-worker:latest -f backend/workers/Dockerfile.k8s_worker --build-context base=docker-image://integr8scode-base:latest ./backend
-          docker build -t integr8scode-pod-monitor:latest -f backend/workers/Dockerfile.pod_monitor --build-context base=docker-image://integr8scode-base:latest ./backend
-          docker build -t integr8scode-result-processor:latest -f backend/workers/Dockerfile.result_processor --build-context base=docker-image://integr8scode-base:latest ./backend
-          docker build -t integr8scode-saga-orchestrator:latest -f backend/workers/Dockerfile.saga_orchestrator --build-context base=docker-image://integr8scode-base:latest ./backend
-
-      - name: Start full stack
-        run: ./deploy.sh dev --ci
-
-      - name: Seed test users
-        run: docker compose exec -T backend uv run python scripts/seed_users.py
-
-      - name: Run E2E tests
-        working-directory: frontend
-        env:
-          CI: true
-        run: npx playwright test --reporter=html
-
-      - name: Upload Playwright report
-        uses: actions/upload-artifact@v6
-        if: always()
-        with:
-          name: playwright-report
-          path: frontend/playwright-report/
-
-      - name: Collect logs
-        if: failure()
-        run: |
-          mkdir -p logs
-          docker compose logs > logs/docker-compose.log 2>&1
-          docker compose logs backend > logs/backend.log 2>&1
-          docker compose logs frontend > logs/frontend.log 2>&1
-          docker compose logs kafka > logs/kafka.log 2>&1
-          docker compose logs coordinator > logs/coordinator.log 2>&1 || true
-          docker compose logs k8s-worker > logs/k8s-worker.log 2>&1 || true
-          docker compose logs result-processor > logs/result-processor.log 2>&1 || true
-          kubectl get events --sort-by='.metadata.creationTimestamp' -A > logs/k8s-events.log 2>&1 || true
-
-      - name: Upload logs
-        if: failure()
-        uses: actions/upload-artifact@v6
-        with:
-          name: frontend-e2e-logs
-          path: logs/
+        run: npx tsc --noEmit

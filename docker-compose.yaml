@@ -100,6 +100,7 @@ services:
       - ./backend/app:/app/app
       - ./backend/workers:/app/workers
       - ./backend/scripts:/app/scripts
+      - ./backend/tests:/app/tests:ro
       - ./backend/certs:/app/certs:ro
       - shared_ca:/shared_ca:ro
       - ./backend/kubeconfig.yaml:/app/kubeconfig.yaml:ro

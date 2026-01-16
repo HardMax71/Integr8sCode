@@ -54,12 +54,6 @@ jobs:
     needs: unit
     runs-on: ubuntu-latest
 
-    services:
-      registry:
-        image: registry:2
-        ports:
-          - 5000:5000
-
     env:
       MONGO_IMAGE: mongo:8.0
       REDIS_IMAGE: redis:7-alpine
@@ -92,8 +86,6 @@ jobs:
 
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: network=host
 
       - name: Setup Kubernetes (k3s)
         run: |
@@ -111,32 +103,18 @@ jobs:
             /home/runner/.kube/config > backend/kubeconfig.yaml
           chmod 644 backend/kubeconfig.yaml
 
-      - name: Build and push base image
+      - name: Build base image
         uses: docker/build-push-action@v6
         with:
           context: ./backend
           file: ./backend/Dockerfile.base
-          push: true
-          tags: localhost:5000/integr8scode-base:latest
+          load: true
+          tags: base:latest
           cache-from: type=gha,scope=backend-base
           cache-to: type=gha,mode=max,scope=backend-base
 
-      - name: Load base image to Docker daemon
-        run: |
-          docker pull localhost:5000/integr8scode-base:latest
-          docker tag localhost:5000/integr8scode-base:latest integr8scode-base:latest
-
       - name: Build backend image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./backend
-          file: ./backend/Dockerfile
-          load: true
-          tags: integr8scode-backend:latest
-          build-contexts: |
-            base=docker-image://localhost:5000/integr8scode-base:latest
-          cache-from: type=gha,scope=backend
-          cache-to: type=gha,mode=max,scope=backend
+        run: docker build -t integr8scode-backend:latest -f ./backend/Dockerfile ./backend
 
       - name: Build cert-generator image
         uses: docker/build-push-action@v6
@@ -160,11 +138,11 @@ jobs:
 
       - name: Build worker images
         run: |
-          docker build -t integr8scode-coordinator:latest -f backend/workers/Dockerfile.coordinator --build-context base=docker-image://integr8scode-base:latest backend
-          docker build -t integr8scode-k8s-worker:latest -f backend/workers/Dockerfile.k8s_worker --build-context base=docker-image://integr8scode-base:latest backend
-          docker build -t integr8scode-pod-monitor:latest -f backend/workers/Dockerfile.pod_monitor --build-context base=docker-image://integr8scode-base:latest backend
-          docker build -t integr8scode-result-processor:latest -f backend/workers/Dockerfile.result_processor --build-context base=docker-image://integr8scode-base:latest backend
-          docker build -t integr8scode-saga-orchestrator:latest -f backend/workers/Dockerfile.saga_orchestrator --build-context base=docker-image://integr8scode-base:latest backend
+          docker build -t integr8scode-coordinator:latest -f backend/workers/Dockerfile.coordinator --build-context base=docker-image://base:latest ./backend
+          docker build -t integr8scode-k8s-worker:latest -f backend/workers/Dockerfile.k8s_worker --build-context base=docker-image://base:latest ./backend
+          docker build -t integr8scode-pod-monitor:latest -f backend/workers/Dockerfile.pod_monitor --build-context base=docker-image://base:latest ./backend
+          docker build -t integr8scode-result-processor:latest -f backend/workers/Dockerfile.result_processor --build-context base=docker-image://base:latest ./backend
+          docker build -t integr8scode-saga-orchestrator:latest -f backend/workers/Dockerfile.saga_orchestrator --build-context base=docker-image://base:latest ./backend
 
       - name: Start full stack
         run: ./deploy.sh dev --ci

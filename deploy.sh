@@ -265,27 +265,22 @@ cmd_check() {
 cmd_test() {
     print_header "Running Test Suite"
 
-    print_info "Starting services..."
-    docker compose up -d --build
+    print_info "Building images..."
+    docker build -t base:latest -f ./backend/Dockerfile.base ./backend
+    docker build -t integr8scode-backend:latest -f ./backend/Dockerfile ./backend
 
-    print_info "Waiting for backend to be healthy..."
-    if ! curl --retry 60 --retry-delay 5 --retry-all-errors -ksfo /dev/null https://localhost:443/api/v1/health/live; then
-        print_error "Backend failed to become healthy"
-        docker compose logs
-        exit 1
-    fi
-    print_success "Backend is healthy"
+    print_info "Starting infrastructure..."
+    cmd_infra --wait
 
-    print_info "Running tests..."
-    cd backend
-    if uv run pytest tests/integration tests/unit -v --cov=app --cov-report=term; then
+    print_info "Running tests inside Docker..."
+    if docker compose run --rm -T backend \
+        uv run pytest tests/integration tests/unit -v --cov=app --cov-report=term; then
         print_success "All tests passed!"
         TEST_RESULT=0
     else
         print_error "Tests failed"
         TEST_RESULT=1
     fi
-    cd ..
 
     print_info "Cleaning up..."
     docker compose down

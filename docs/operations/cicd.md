@@ -125,56 +125,60 @@ After each image builds, [Trivy](https://trivy.dev/) scans it for known vulnerab
 dependencies. The scan fails if it finds any critical or high severity issues with available fixes. Results upload to
 GitHub Security for tracking. The backend scan respects `.trivyignore` for acknowledged vulnerabilities.
 
-## Integration tests
+## Backend tests
 
-The integration test workflow is the most complex. It spins up the entire stack on a GitHub Actions runner to verify
-that services work together correctly.
+The backend CI workflow runs three test jobs: unit tests (no infrastructure needed), integration tests (requires
+infrastructure), and E2E tests (requires infrastructure and Kubernetes).
+
+### Integration tests
+
+Integration tests verify that services work together correctly. Tests run inside Docker containers to ensure the same
+environment as production.
 
 ```mermaid
 sequenceDiagram
     participant GHA as GitHub Actions
-    participant K3s as K3s Cluster
     participant Docker as Docker Compose
-    participant Tests as pytest
+    participant Tests as pytest (in container)
 
-    GHA->>K3s: Install k3s
-    GHA->>Docker: Pre-pull base images
-    GHA->>Docker: Build services (bake)
-    GHA->>Docker: Start compose stack
-    Docker->>Docker: Wait for health checks
-    GHA->>Tests: Run pytest
-    Tests->>Docker: HTTP requests
-    Tests-->>GHA: Coverage report
+    GHA->>Docker: Build base + backend images
+    GHA->>Docker: Start infrastructure (infra --wait)
+    GHA->>Docker: docker compose run backend pytest
+    Tests->>Docker: Connect to kafka:29092, mongo:27017
+    Tests-->>GHA: Coverage report (via volume mount)
     GHA->>GHA: Upload to Codecov
 ```
 
-The workflow starts by installing [k3s](https://k3s.io/), a lightweight Kubernetes distribution, so the backend can
-interact with a real cluster during tests. It pre-pulls container images in parallel to avoid cold-start delays during
-the build step.
+The workflow builds the base image with GHA layer caching using [docker/build-push-action](https://github.com/docker/build-push-action),
+then builds the backend image on top. Infrastructure services start via `./deploy.sh infra --wait`.
 
-The CI workflow uses `deploy.sh` to start the infrastructure, ensuring consistency between local development and CI
-environments. The `deploy.sh dev --ci` command starts the full stack without observability services (Jaeger, Grafana,
-etc.) and waits for all services to be healthy before proceeding. For backend-only tests, `deploy.sh infra --wait`
-starts just the infrastructure services (MongoDB, Redis, Kafka, Zookeeper, Schema Registry).
+Tests run inside a container using `docker compose run --rm -T backend`, which:
 
-The [docker/bake-action](https://github.com/docker/bake-action) builds all services with GitHub Actions cache support.
-It reads cache layers from previous runs and writes new layers back, so unchanged dependencies don't rebuild. The cache
-scopes are branch-specific with a fallback to main, meaning feature branches benefit from the main branch cache even on
-their first run.
+- Uses the same Docker network as infrastructure services
+- Connects to services using Docker hostnames (`kafka:29092`, `mongo:27017`)
+- Writes coverage reports to the mounted volume for upload
 
-Once images are built, `docker compose up -d` starts the stack. The workflow then uses curl's built-in retry mechanism
-to wait for the backend health endpoint:
+The `.env.test` file contains Docker-internal hostnames, ensuring tests use the same configuration locally and in CI.
+
+### E2E tests
+
+E2E tests require Kubernetes for code execution. The workflow installs [k3s](https://k3s.io/) on the runner and
+configures the kubeconfig to be accessible from inside Docker containers:
 
 ```bash
-curl --retry 60 --retry-delay 5 --retry-all-errors -ksf https://127.0.0.1:443/api/v1/health/live
+# Update kubeconfig to use host IP instead of localhost
+HOST_IP=$(hostname -I | awk '{print $1}')
+sed -i "s/127.0.0.1/${HOST_IP}/g" /home/runner/.kube/config
 ```
 
-This approach is cleaner than shell loops and more reliable than Docker Compose's `--wait` flag (which has issues with
-init containers that exit after completion). The backend's `depends_on` configuration ensures MongoDB, Redis, Kafka,
-and Schema Registry are healthy before backend starts, so waiting for backend health implicitly waits for all
-dependencies. Once the health check passes, the workflow runs pytest against the integration and unit test suites with
-coverage reporting. Test isolation uses
-per-worker database names and schema registry prefixes to avoid conflicts when pytest-xdist runs tests in parallel.
+Tests run inside Docker with the kubeconfig mounted:
+
+```bash
+docker compose run --rm -T \
+  -v /home/runner/.kube/config:/app/kubeconfig.yaml:ro \
+  backend \
+  uv run pytest tests/e2e -v
+```
 
 Coverage reports go to [Codecov](https://codecov.io/) for tracking over time. The workflow always collects container
 logs and Kubernetes events as artifacts, which helps debug failures without reproducing them locally.
@@ -209,17 +213,28 @@ uv run mypy .
 # Security scan
 uv tool run bandit -r . -x tests/ -ll
 
-# Unit tests only (fast)
+# Unit tests only (fast, no infrastructure needed)
 uv run pytest tests/unit -v
-
-# Full integration tests (requires docker compose up)
-uv run pytest tests/integration tests/unit -v
 ```
 
-For the full integration test experience, start the stack with `docker compose up -d`, wait for the backend to be
-healthy, then run pytest. Alternatively, use `./deploy.sh test` which handles startup, health checks, testing, and
-cleanup automatically. The CI workflow's yq modifications aren't necessary locally since your environment
-likely has the expected configuration already.
+For integration and E2E tests, use Docker to match the CI environment:
+
+```bash
+# Start infrastructure
+./deploy.sh infra --wait
+
+# Run integration tests inside Docker
+docker compose run --rm -T backend \
+  uv run pytest tests/integration -v
+
+# Run E2E tests (requires k8s configured)
+docker compose run --rm -T \
+  -v ~/.kube/config:/app/kubeconfig.yaml:ro \
+  backend \
+  uv run pytest tests/e2e -v
+```
+
+Alternatively, use `./deploy.sh test` which handles startup, health checks, testing, and cleanup automatically.
 
 ## Build optimizations
 

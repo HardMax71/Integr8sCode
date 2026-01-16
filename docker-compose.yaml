@@ -420,7 +420,6 @@ services:
       - MONGODB_URL=mongodb://${MONGO_ROOT_USER:-root}:${MONGO_ROOT_PASSWORD:-rootpassword}@mongo:27017/integr8scode?authSource=admin
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-      - ENABLE_TRACING=${ENABLE_TRACING:-false}
       - JAEGER_AGENT_HOST=jaeger
       - JAEGER_AGENT_PORT=6831
       - TRACING_SERVICE_NAME=execution-coordinator
@@ -449,7 +448,6 @@ services:
       - MONGODB_URL=mongodb://${MONGO_ROOT_USER:-root}:${MONGO_ROOT_PASSWORD:-rootpassword}@mongo:27017/integr8scode?authSource=admin
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-      - ENABLE_TRACING=${ENABLE_TRACING:-false}
       - JAEGER_AGENT_HOST=jaeger
       - JAEGER_AGENT_PORT=6831
       - TRACING_SERVICE_NAME=k8s-worker
@@ -483,7 +481,6 @@ services:
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-      - ENABLE_TRACING=${ENABLE_TRACING:-false}
       - JAEGER_AGENT_HOST=jaeger
       - JAEGER_AGENT_PORT=6831
       - TRACING_SERVICE_NAME=pod-monitor
@@ -520,7 +517,6 @@ services:
       - MONGODB_URL=mongodb://${MONGO_ROOT_USER:-root}:${MONGO_ROOT_PASSWORD:-rootpassword}@mongo:27017/integr8scode?authSource=admin
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-      - ENABLE_TRACING=${ENABLE_TRACING:-false}
       - JAEGER_AGENT_HOST=jaeger
       - JAEGER_AGENT_PORT=6831
       - TRACING_SERVICE_NAME=result-processor
@@ -556,7 +552,6 @@ services:
       - MONGODB_URL=mongodb://${MONGO_ROOT_USER:-root}:${MONGO_ROOT_PASSWORD:-rootpassword}@mongo:27017/integr8scode?authSource=admin
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-      - ENABLE_TRACING=${ENABLE_TRACING:-false}
       - JAEGER_AGENT_HOST=jaeger
       - JAEGER_AGENT_PORT=6831
       - TRACING_SERVICE_NAME=saga-orchestrator
@@ -608,7 +603,6 @@ services:
       - SCHEMA_REGISTRY_URL=http://schema-registry:8081
       - SERVICE_NAME=event-replay
       - TRACING_SERVICE_NAME=event-replay
-      - ENABLE_TRACING=${ENABLE_TRACING:-false}
       - JAEGER_AGENT_HOST=jaeger
       - JAEGER_AGENT_PORT=6831
     networks:
@@ -639,7 +633,6 @@ services:
       - SCHEMA_REGISTRY_URL=http://schema-registry:8081
       - SERVICE_NAME=dlq-processor
       - TRACING_SERVICE_NAME=dlq-processor
-      - ENABLE_TRACING=${ENABLE_TRACING:-false}
       - JAEGER_AGENT_HOST=jaeger
       - JAEGER_AGENT_PORT=6831
       - DLQ_MAX_RETRY_ATTEMPTS=5

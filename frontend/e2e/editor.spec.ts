@@ -63,7 +63,6 @@ test.describe('Editor Page', () => {
 });
 
 test.describe('Editor Execution', () => {
-  test.describe.configure({ timeout: 120000 });
 
   test.beforeEach(async ({ page }) => {
     await loginAsUser(page);

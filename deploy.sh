@@ -56,11 +56,14 @@ show_help() {
     echo ""
     echo "Commands:"
     echo "  dev [options]      Start full stack (docker-compose)"
-    echo "                     --build           Rebuild images"
-    echo "                     --ci              CI mode: skip observability, wait for healthy"
-    echo "                     --wait            Wait for services to be healthy"
+    echo "                     --build             Rebuild images"
+    echo "                     --ci                CI mode: skip observability, wait for healthy"
+    echo "                     --wait              Wait for services to be healthy"
+    echo "                     --no-observability  Skip Jaeger, Grafana, metrics collectors"
+    echo "                     --timeout <secs>    Health check timeout (default: 300)"
     echo "  infra [options]    Start infrastructure only (mongo, redis, kafka, etc.)"
-    echo "                     --wait            Wait for services to be healthy"
+    echo "                     --wait              Wait for services to be healthy"
+    echo "                     --timeout <secs>    Health check timeout (default: 120)"
     echo "  down               Stop all services"
     echo "  prod [options]     Deploy to Kubernetes with Helm"
     echo "  check              Run quality checks (ruff, mypy, bandit)"
@@ -131,8 +134,12 @@ cmd_dev() {
         WAIT_TIMEOUT_FLAG="--wait-timeout $WAIT_TIMEOUT"
     fi
 
-    ENABLE_TRACING=${ENABLE_TRACING:-$([[ -n "$PROFILE_FLAGS" ]] && echo "true" || echo "false")} \
+    # In CI mode, disable tracing (no Jaeger). Otherwise let env_file control it.
+    if [[ "$CI_MODE" == "true" ]]; then
+        ENABLE_TRACING=false docker compose $PROFILE_FLAGS up -d $BUILD_FLAG $WAIT_FLAG $WAIT_TIMEOUT_FLAG
+    else
         docker compose $PROFILE_FLAGS up -d $BUILD_FLAG $WAIT_FLAG $WAIT_TIMEOUT_FLAG
+    fi
 
     if [[ "$CI_MODE" == "true" ]]; then
         print_success "Stack started and healthy"

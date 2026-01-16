@@ -86,14 +86,14 @@ export async function expectTableColumn(page: Page, columnName: string, emptyPat
 
 export async function runExampleAndExecute(page: Page): Promise<void> {
   await page.getByRole('button', { name: /Example/i }).click();
-  await expect(page.locator('.cm-content')).not.toBeEmpty({ timeout: 3000 });
+  await expect(page.locator('.cm-content')).not.toBeEmpty({ timeout: 2000 });
   const runButton = page.getByRole('button', { name: /Run Script/i });
   await runButton.click();
-  await expect(page.getByRole('button', { name: /Executing/i })).toBeVisible({ timeout: 5000 });
+  await expect(page.getByRole('button', { name: /Executing/i })).toBeVisible({ timeout: 2000 });
   const success = page.locator('text=Status:').first();
   const failure = page.getByText('Execution Failed');
-  await expect(success.or(failure).first()).toBeVisible({ timeout: 15000 });
-  await expect(success).toBeVisible({ timeout: 1000 });
+  await expect(success.or(failure).first()).toBeVisible({ timeout: 5000 });
+  await expect(success).toBeVisible({ timeout: 500 });
 }
 
 export async function expectAuthRequired(page: Page, path: string): Promise<void> {

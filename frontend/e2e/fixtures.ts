@@ -1,4 +1,5 @@
 import { test as base, expect, type Page } from '@playwright/test';
+import { ADMIN_ROUTES, type AdminPath } from '../src/lib/admin/constants';
 
 export const TEST_USERS = {
   user: { username: 'user', password: 'user123' },
@@ -24,6 +25,9 @@ export async function login(page: Page, username = 'user', password = 'user123')
   await page.fill('#username', username);
   await page.fill('#password', password);
   await page.click('button[type="submit"]');
+  // Wait for navigation away from login page first
+  await page.waitForURL(url => !url.pathname.includes('/login'), { timeout: 15000 });
+  // Then verify we're on the editor page
   await expect(page.getByRole('heading', { name: 'Code Editor' })).toBeVisible({ timeout: 10000 });
 }
 
@@ -44,23 +48,25 @@ export async function isVisibleWithTimeout(page: Page, selector: string, timeout
   }
 }
 
-export async function navigateToAdminPage(
-  page: Page,
-  path: '/admin/events' | '/admin/sagas' | '/admin/users' | '/admin/settings',
-  expectedHeading: string
-): Promise<void> {
-  await page.goto(path);
-  await expect(page.getByRole('heading', { name: expectedHeading })).toBeVisible({ timeout: 10000 });
+export function getAdminRoute(path: AdminPath) {
+  const route = ADMIN_ROUTES.find(r => r.path === path);
+  if (!route) throw new Error(`Unknown admin path: ${path}`);
+  return route;
 }
 
-export function adminPageTest(
-  path: '/admin/events' | '/admin/sagas' | '/admin/users' | '/admin/settings',
-  expectedHeading: string
-) {
+export async function navigateToAdminPage(page: Page, path: AdminPath): Promise<void> {
+  const route = getAdminRoute(path);
+  await page.goto(path);
+  // Wait for network to be idle before checking heading
+  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+  await expect(page.getByRole('heading', { name: route.pageHeading })).toBeVisible({ timeout: 15000 });
+}
+
+export function adminPageTest(path: AdminPath) {
   return base.extend<{ adminPage: Page }>({
     adminPage: async ({ page }, use) => {
       await loginAsAdmin(page);
-      await navigateToAdminPage(page, path, expectedHeading);
+      await navigateToAdminPage(page, path);
       await use(page);
     },
   });
@@ -111,4 +117,22 @@ export async function testNonAdminAccessControl(page: Page, targetPath: string):
   await expect(page).toHaveURL(/^\/$|\/login/);
 }
 
-export { base as test, expect };
+export async function testAdminAccessControl(
+  page: Page,
+  path: AdminPath,
+  options: { testUnauthenticated?: boolean; testNonAdmin?: boolean } = { testUnauthenticated: true, testNonAdmin: true }
+): Promise<void> {
+  if (options.testUnauthenticated) {
+    await clearSession(page);
+    await page.goto(path);
+    await expect(page).toHaveURL(/\/login/);
+  }
+
+  if (options.testNonAdmin) {
+    await loginAsUser(page);
+    await page.goto(path);
+    await page.waitForURL(url => url.pathname === '/' || url.pathname.includes('/login'));
+  }
+}
+
+export { base as test, expect, ADMIN_ROUTES, type AdminPath };

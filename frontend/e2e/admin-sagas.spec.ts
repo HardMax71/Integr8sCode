@@ -1,13 +1,9 @@
 import { test, expect, loginAsAdmin, loginAsUser, clearSession, expectAdminSidebar, navigateToAdminPage } from './fixtures';
 
-const navigateToSagas = async (page: import('@playwright/test').Page) => {
-  await navigateToAdminPage(page, '/admin/sagas', 'Saga Management');
-};
-
 test.describe('Admin Sagas Page', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await navigateToSagas(page);
+    await navigateToAdminPage(page, '/admin/sagas');
   });
 
   test('displays saga management page with header', async ({ page }) => {
@@ -31,7 +27,7 @@ test.describe('Admin Sagas Page', () => {
 test.describe('Admin Sagas Filtering', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await navigateToSagas(page);
+    await navigateToAdminPage(page, '/admin/sagas');
   });
 
   test('shows search input', async ({ page }) => {
@@ -60,7 +56,7 @@ test.describe('Admin Sagas Filtering', () => {
 test.describe('Admin Sagas Table', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await navigateToSagas(page);
+    await navigateToAdminPage(page, '/admin/sagas');
   });
 
   test('shows sagas table or empty state', async ({ page }) => {
@@ -84,7 +80,7 @@ test.describe('Admin Sagas Table', () => {
 test.describe('Admin Sagas Auto-Refresh', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await navigateToSagas(page);
+    await navigateToAdminPage(page, '/admin/sagas');
   });
 
   test('auto-refresh control is visible', async ({ page }) => {

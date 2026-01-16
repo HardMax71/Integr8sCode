@@ -61,6 +61,9 @@ test.describe('Editor Page', () => {
 });
 
 test.describe('Editor Execution', () => {
+  // Execution tests require k8s and can take longer
+  test.setTimeout(60000); // 60s timeout for execution tests
+
   test.beforeEach(async ({ page }) => {
     await loginAsUser(page);
   });

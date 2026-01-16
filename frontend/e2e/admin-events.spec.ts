@@ -1,13 +1,9 @@
 import { test, expect, loginAsAdmin, loginAsUser, clearSession, expectAdminSidebar, navigateToAdminPage } from './fixtures';
 
-const navigateToEvents = async (page: import('@playwright/test').Page) => {
-  await navigateToAdminPage(page, '/admin/events', 'Event Browser');
-};
-
 test.describe('Admin Events Page', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await navigateToEvents(page);
+    await navigateToAdminPage(page, '/admin/events');
   });
 
   test('displays event browser page with header', async ({ page }) => {
@@ -32,7 +28,7 @@ test.describe('Admin Events Page', () => {
 test.describe('Admin Events Filtering', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await navigateToEvents(page);
+    await navigateToAdminPage(page, '/admin/events');
   });
 
   test('can toggle filter panel', async ({ page }) => {
@@ -53,7 +49,7 @@ test.describe('Admin Events Filtering', () => {
 test.describe('Admin Events Export', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await navigateToEvents(page);
+    await navigateToAdminPage(page, '/admin/events');
   });
 
   test('can open export dropdown', async ({ page }) => {
@@ -66,7 +62,7 @@ test.describe('Admin Events Export', () => {
 test.describe('Admin Events Table', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await navigateToEvents(page);
+    await navigateToAdminPage(page, '/admin/events');
   });
 
   test('shows events table or empty state', async ({ page }) => {
@@ -90,7 +86,7 @@ test.describe('Admin Events Table', () => {
 test.describe('Admin Events Refresh', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await navigateToEvents(page);
+    await navigateToAdminPage(page, '/admin/events');
   });
 
   test('can manually refresh events', async ({ page }) => {

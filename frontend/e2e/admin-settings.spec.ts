@@ -1,13 +1,9 @@
 import { test, expect, loginAsAdmin, loginAsUser, clearSession, expectAdminSidebar, navigateToAdminPage, expectToastVisible } from './fixtures';
 
-const navigateToSettings = async (page: import('@playwright/test').Page) => {
-  await navigateToAdminPage(page, '/admin/settings', 'System Settings');
-};
-
 test.describe('Admin Settings Page', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await navigateToSettings(page);
+    await navigateToAdminPage(page, '/admin/settings');
   });
 
   test('displays system settings page with header', async ({ page }) => {
@@ -30,7 +26,7 @@ test.describe('Admin Settings Page', () => {
 test.describe('Admin Settings Execution Limits', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await navigateToSettings(page);
+    await navigateToAdminPage(page, '/admin/settings');
   });
 
   test('shows execution limits section', async ({ page }) => {
@@ -57,7 +53,7 @@ test.describe('Admin Settings Execution Limits', () => {
 test.describe('Admin Settings Security Settings', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await navigateToSettings(page);
+    await navigateToAdminPage(page, '/admin/settings');
   });
 
   test('shows security settings section', async ({ page }) => {
@@ -75,7 +71,7 @@ test.describe('Admin Settings Security Settings', () => {
 test.describe('Admin Settings Monitoring Settings', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await navigateToSettings(page);
+    await navigateToAdminPage(page, '/admin/settings');
   });
 
   test('shows monitoring settings section', async ({ page }) => {
@@ -107,7 +103,7 @@ test.describe('Admin Settings Monitoring Settings', () => {
 test.describe('Admin Settings Actions', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await navigateToSettings(page);
+    await navigateToAdminPage(page, '/admin/settings');
   });
 
   test('shows save and reset buttons', async ({ page }) => {
@@ -124,7 +120,7 @@ test.describe('Admin Settings Actions', () => {
 test.describe('Admin Settings Navigation', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await navigateToSettings(page);
+    await navigateToAdminPage(page, '/admin/settings');
   });
 
   test('can navigate to events from sidebar', async ({ page }) => {

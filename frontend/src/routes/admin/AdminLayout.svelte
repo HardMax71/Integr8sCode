@@ -7,19 +7,12 @@
     import Spinner from '$components/Spinner.svelte';
     import type { Snippet } from 'svelte';
     import { ShieldCheck } from '@lucide/svelte';
+    import { ADMIN_ROUTES } from '$lib/admin/constants';
 
     let { path = '', children }: { path?: string; children?: Snippet } = $props();
 
     let user = $state<{ username: string; role: string } | null>(null);
     let loading = $state(true);
-
-
-    const menuItems = [
-        { href: '/admin/events', label: 'Event Browser' },
-        { href: '/admin/sagas', label: 'Sagas' },
-        { href: '/admin/users', label: 'Users' },
-        { href: '/admin/settings', label: 'Settings' },
-    ];
 
     onMount(async () => {
         // First verify authentication with the backend
@@ -84,19 +77,19 @@
                 </div>
 
                 <nav class="space-y-2">
-                    {#each menuItems as item}
+                    {#each ADMIN_ROUTES as route}
                         <a
-                            href={item.href}
+                            href={route.path}
                             use:route
                             class="flex items-center gap-3 px-4 py-2 rounded-lg transition-colors cursor-pointer"
-                            class:bg-primary={path === item.href}
-                            class:text-white={path === item.href}
-                            class:hover:bg-neutral-200={path !== item.href}
-                            class:dark:hover:bg-neutral-700={path !== item.href}
-                            class:text-fg-default={path !== item.href}
-                            class:dark:text-dark-fg-default={path !== item.href}
+                            class:bg-primary={path === route.path}
+                            class:text-white={path === route.path}
+                            class:hover:bg-neutral-200={path !== route.path}
+                            class:dark:hover:bg-neutral-700={path !== route.path}
+                            class:text-fg-default={path !== route.path}
+                            class:dark:text-dark-fg-default={path !== route.path}
                         >
-                            <span>{item.label}</span>
+                            <span>{route.sidebarLabel}</span>
                         </a>
                     {/each}
                 </nav>

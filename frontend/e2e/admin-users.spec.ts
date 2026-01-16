@@ -1,13 +1,9 @@
-import { test, expect, loginAsAdmin, loginAsUser, clearSession, expectAdminSidebar, navigateToAdminPage } from './fixtures';
-
-const navigateToUsers = async (page: import('@playwright/test').Page) => {
-  await navigateToAdminPage(page, '/admin/users', 'User Management');
-};
+import { test, expect, loginAsAdmin, loginAsUser, clearSession, expectAdminSidebar, navigateToAdminPage, testAdminAccessControl } from './fixtures';
 
 test.describe('Admin Users Page', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await navigateToUsers(page);
+    await navigateToAdminPage(page, '/admin/users');
   });
 
   test('displays admin users page with sidebar', async ({ page }) => {
@@ -24,10 +20,11 @@ test.describe('Admin Users Page', () => {
     await page.waitForSelector('.table, [class*="card"]', { timeout: 10000 });
     const desktopTable = page.locator('.table').first();
     if (await desktopTable.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await expect(page.getByText('Username')).toBeVisible();
-      await expect(page.getByText('Email')).toBeVisible();
-      await expect(page.getByText('Role')).toBeVisible();
-      await expect(page.getByText('Status')).toBeVisible();
+      // Use columnheader role to avoid matching filter labels/options
+      await expect(page.getByRole('columnheader', { name: 'Username' })).toBeVisible();
+      await expect(page.getByRole('columnheader', { name: 'Email' })).toBeVisible();
+      await expect(page.getByRole('columnheader', { name: 'Role' })).toBeVisible();
+      await expect(page.getByRole('columnheader', { name: 'Status' })).toBeVisible();
     }
   });
 
@@ -47,7 +44,7 @@ test.describe('Admin Users Page', () => {
 test.describe('Admin Users Create Modal', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await navigateToUsers(page);
+    await navigateToAdminPage(page, '/admin/users');
   });
 
   test('can open create user modal', async ({ page }) => {
@@ -84,7 +81,7 @@ test.describe('Admin Users Create Modal', () => {
 test.describe('Admin Users Edit', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await navigateToUsers(page);
+    await navigateToAdminPage(page, '/admin/users');
   });
 
   test('can open edit modal for existing user', async ({ page }) => {

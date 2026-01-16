@@ -76,6 +76,9 @@ jobs:
         with:
           images: ${{ env.MONGO_IMAGE }} ${{ env.REDIS_IMAGE }} ${{ env.KAFKA_IMAGE }} ${{ env.ZOOKEEPER_IMAGE }} ${{ env.SCHEMA_REGISTRY_IMAGE }}
 
+      - name: Setup k3s
+        uses: ./.github/actions/k3s-setup
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -85,20 +88,20 @@ jobs:
           context: ./backend
           file: ./backend/Dockerfile.base
           load: true
-          tags: base:latest
+          tags: integr8scode-base:latest
           cache-from: type=gha,scope=backend-base
           cache-to: type=gha,mode=max,scope=backend-base
 
       - name: Build backend image
-        run: docker build -t integr8scode-backend:latest -f ./backend/Dockerfile ./backend
+        run: docker build -t integr8scode-backend:latest --build-context base=docker-image://integr8scode-base:latest -f ./backend/Dockerfile ./backend
 
-      - name: Start infrastructure services
-        run: ./deploy.sh infra --wait
+      - name: Start full stack
+        run: ./deploy.sh dev --ci
 
       - name: Run integration tests
         timeout-minutes: 10
         run: |
-          docker compose run --rm -T backend \
+          docker compose exec -T backend \
             uv run pytest tests/integration -v -rs \
             --durations=0 \
             --cov=app \
@@ -120,14 +123,13 @@ jobs:
         run: |
           mkdir -p logs
           docker compose logs > logs/docker-compose.log 2>&1
-          docker compose logs kafka > logs/kafka.log 2>&1
-          docker compose logs schema-registry > logs/schema-registry.log 2>&1
+          kubectl get events --sort-by='.metadata.creationTimestamp' -A > logs/k8s-events.log 2>&1 || true
 
       - name: Upload logs
         if: failure()
         uses: actions/upload-artifact@v6
         with:
-          name: backend-logs
+          name: backend-integration-logs
           path: logs/
 
   e2e:
@@ -142,6 +144,9 @@ jobs:
         with:
           images: ${{ env.MONGO_IMAGE }} ${{ env.REDIS_IMAGE }} ${{ env.KAFKA_IMAGE }} ${{ env.ZOOKEEPER_IMAGE }} ${{ env.SCHEMA_REGISTRY_IMAGE }}
 
+      - name: Setup k3s
+        uses: ./.github/actions/k3s-setup
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -151,35 +156,20 @@ jobs:
           context: ./backend
           file: ./backend/Dockerfile.base
           load: true
-          tags: base:latest
+          tags: integr8scode-base:latest
           cache-from: type=gha,scope=backend-base
           cache-to: type=gha,mode=max,scope=backend-base
 
       - name: Build backend image
-        run: docker build -t integr8scode-backend:latest -f ./backend/Dockerfile ./backend
+        run: docker build -t integr8scode-backend:latest --build-context base=docker-image://integr8scode-base:latest -f ./backend/Dockerfile ./backend
 
-      - name: Start infrastructure services
-        run: ./deploy.sh infra --wait
-
-      - name: Setup Kubernetes (k3s)
-        run: |
-          curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik" sh -
-          mkdir -p /home/runner/.kube
-          sudo k3s kubectl config view --raw > /home/runner/.kube/config
-          # Use host IP instead of localhost so containers can reach k3s API
-          HOST_IP=$(hostname -I | awk '{print $1}')
-          sed -i "s/127.0.0.1/${HOST_IP}/g" /home/runner/.kube/config
-          sudo chmod 644 /home/runner/.kube/config
-          export KUBECONFIG=/home/runner/.kube/config
-          timeout 90 bash -c 'until sudo k3s kubectl cluster-info; do sleep 5; done'
-          kubectl create namespace integr8scode --dry-run=client -o yaml | kubectl apply -f -
+      - name: Start full stack
+        run: ./deploy.sh dev --ci
 
       - name: Run E2E tests
         timeout-minutes: 10
         run: |
-          docker compose run --rm -T \
-            -v /home/runner/.kube/config:/app/kubeconfig.yaml:ro \
-            backend \
+          docker compose exec -T backend \
             uv run pytest tests/e2e -v -rs \
             --durations=0 \
             --cov=app \
@@ -208,5 +198,5 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v6
         with:
-          name: k8s-logs
+          name: backend-e2e-logs
           path: logs/

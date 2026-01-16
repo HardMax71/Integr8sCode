@@ -217,24 +217,18 @@ uv tool run bandit -r . -x tests/ -ll
 uv run pytest tests/unit -v
 ```
 
-For integration and E2E tests, use Docker to match the CI environment:
+For integration and E2E tests, use the same deployment as CI:
 
 ```bash
-# Start infrastructure
-./deploy.sh infra --wait
+# Start full stack (requires k8s configured locally)
+./deploy.sh dev
 
-# Run integration tests inside Docker
-docker compose run --rm -T backend \
-  uv run pytest tests/integration -v
-
-# Run E2E tests (requires k8s configured)
-docker compose run --rm -T \
-  -v ~/.kube/config:/app/kubeconfig.yaml:ro \
-  backend \
-  uv run pytest tests/e2e -v
+# Run tests inside the running backend container
+docker compose exec -T backend uv run pytest tests/integration -v
+docker compose exec -T backend uv run pytest tests/e2e -v
 ```
 
-Alternatively, use `./deploy.sh test` which handles startup, health checks, testing, and cleanup automatically.
+Or use `./deploy.sh test` which handles everything automatically (starts stack, runs tests, cleans up).
 
 ## Build optimizations
 

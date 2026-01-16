@@ -265,15 +265,11 @@ cmd_check() {
 cmd_test() {
     print_header "Running Test Suite"
 
-    print_info "Building images..."
-    docker build -t base:latest -f ./backend/Dockerfile.base ./backend
-    docker build -t integr8scode-backend:latest -f ./backend/Dockerfile ./backend
-
-    print_info "Starting infrastructure..."
-    cmd_infra --wait
+    print_info "Starting full stack..."
+    cmd_dev --build
 
     print_info "Running tests inside Docker..."
-    if docker compose run --rm -T backend \
+    if docker compose exec -T backend \
         uv run pytest tests/integration tests/unit -v --cov=app --cov-report=term; then
         print_success "All tests passed!"
         TEST_RESULT=0

@@ -17,10 +17,17 @@ from httpx import ASGITransport
 from scripts.create_topics import create_topics
 
 # ===== Worker-specific isolation for pytest-xdist =====
-# Redis has 16 DBs (0-15); each xdist worker gets one, limiting parallel workers to 16.
+# Supports both xdist workers AND multiple independent pytest processes.
+#
+# TEST_RUN_ID: Unique identifier for this pytest process (set by CI or auto-generated).
+#              Allows running backend-integration, backend-e2e, frontend-e2e in parallel.
+# PYTEST_XDIST_WORKER: Worker ID within a single pytest-xdist run (gw0, gw1, etc.)
+#
+# Combined, these give full isolation: each test worker in each pytest process is unique.
+_RUN_ID = os.environ.get("TEST_RUN_ID") or uuid.uuid4().hex[:8]
 _WORKER_ID = os.environ.get("PYTEST_XDIST_WORKER", "gw0")
 _WORKER_NUM = int(_WORKER_ID.removeprefix("gw") or "0")
-assert _WORKER_NUM < 16, f"xdist worker {_WORKER_NUM} >= 16 exceeds Redis DB limit; use -n 16 or fewer"
+_ISOLATION_KEY = f"{_RUN_ID}_{_WORKER_ID}"
 
 
 # ===== Pytest hooks =====
@@ -46,21 +53,26 @@ def test_settings() -> Settings:
 
     What gets isolated per worker (to prevent interference):
       - DATABASE_NAME: Each worker gets its own MongoDB database
-      - REDIS_DB: Each worker gets its own Redis database (0-15)
+      - REDIS_DB: Each worker gets its own Redis database (0-15, hash-distributed)
       - KAFKA_GROUP_SUFFIX: Each worker gets unique consumer groups
 
     What's SHARED (from env, no per-worker suffix):
       - KAFKA_TOPIC_PREFIX: Topics created once by CI/scripts
       - SCHEMA_SUBJECT_PREFIX: Schemas shared across workers
+
+    Isolation works across:
+      - xdist workers within a single pytest process (gw0, gw1, ...)
+      - Multiple independent pytest processes (via TEST_RUN_ID or auto-UUID)
     """
     base = Settings(_env_file=".env.test")
-    session_id = uuid.uuid4().hex[:8]
+    # Use hash to distribute across 16 Redis DBs (handles both xdist and multi-process)
+    redis_db = hash(_ISOLATION_KEY) % 16
     return base.model_copy(
         update={
-            # Per-worker isolation for xdist - must be dynamic, can't be in .env.test
-            "DATABASE_NAME": f"integr8scode_test_{session_id}_{_WORKER_ID}",
-            "REDIS_DB": _WORKER_NUM,
-            "KAFKA_GROUP_SUFFIX": f"{session_id}.{_WORKER_ID}",
+            # Per-worker isolation - uses _ISOLATION_KEY which includes RUN_ID + WORKER_ID
+            "DATABASE_NAME": f"integr8scode_test_{_ISOLATION_KEY}",
+            "REDIS_DB": redis_db,
+            "KAFKA_GROUP_SUFFIX": _ISOLATION_KEY,
         }
     )
 

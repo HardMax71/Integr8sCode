@@ -181,44 +181,77 @@ jobs:
       - name: Seed test users
         run: docker compose exec -T backend uv run python scripts/seed_users.py
 
-      # Run all tests sequentially (stack is already running)
-      - name: Run backend integration tests
-        timeout-minutes: 10
+      # Run all tests in parallel (each process gets unique isolation via TEST_RUN_ID/UUID)
+      - name: Run all tests in parallel
+        timeout-minutes: 15
         run: |
-          docker compose exec -T backend \
+          # Backend integration tests
+          docker compose exec -T -e TEST_RUN_ID=integration backend \
             uv run pytest tests/integration -v -rs \
             --durations=0 \
             --cov=app \
-            --cov-report=xml --cov-report=term
-        continue-on-error: true
-        id: backend-integration
+            --cov-report=xml:coverage-integration.xml \
+            --cov-report=term \
+            > /tmp/backend-integration.log 2>&1 &
+          PID_INTEGRATION=$!
 
-      - name: Run backend E2E tests
-        timeout-minutes: 10
-        run: |
-          docker compose exec -T backend \
+          # Backend E2E tests
+          docker compose exec -T -e TEST_RUN_ID=e2e backend \
             uv run pytest tests/e2e -v -rs \
             --durations=0 \
-            --cov=app --cov-append \
-            --cov-report=xml --cov-report=term
-        continue-on-error: true
-        id: backend-e2e
+            --cov=app \
+            --cov-report=xml:coverage-e2e.xml \
+            --cov-report=term \
+            > /tmp/backend-e2e.log 2>&1 &
+          PID_E2E=$!
 
-      - name: Run frontend E2E tests
-        working-directory: frontend
-        timeout-minutes: 15
-        env:
-          CI: true
-        run: npx playwright test --reporter=html
-        continue-on-error: true
-        id: frontend-e2e
+          # Frontend E2E tests
+          cd frontend && CI=true npx playwright test --reporter=html \
+            > /tmp/frontend-e2e.log 2>&1 &
+          PID_FRONTEND=$!
+
+          # Wait for all and capture exit codes
+          wait $PID_INTEGRATION
+          EXIT_INTEGRATION=$?
+          wait $PID_E2E
+          EXIT_E2E=$?
+          wait $PID_FRONTEND
+          EXIT_FRONTEND=$?
+
+          # Print logs
+          echo "=== Backend Integration Tests ==="
+          cat /tmp/backend-integration.log
+          echo ""
+          echo "=== Backend E2E Tests ==="
+          cat /tmp/backend-e2e.log
+          echo ""
+          echo "=== Frontend E2E Tests ==="
+          cat /tmp/frontend-e2e.log
+
+          # Save exit codes for later steps
+          echo "EXIT_INTEGRATION=$EXIT_INTEGRATION" >> $GITHUB_ENV
+          echo "EXIT_E2E=$EXIT_E2E" >> $GITHUB_ENV
+          echo "EXIT_FRONTEND=$EXIT_FRONTEND" >> $GITHUB_ENV
+
+          # Report results
+          echo "::group::Test Results Summary"
+          echo "Backend Integration: $([ $EXIT_INTEGRATION -eq 0 ] && echo '✅ PASSED' || echo '❌ FAILED')"
+          echo "Backend E2E: $([ $EXIT_E2E -eq 0 ] && echo '✅ PASSED' || echo '❌ FAILED')"
+          echo "Frontend E2E: $([ $EXIT_FRONTEND -eq 0 ] && echo '✅ PASSED' || echo '❌ FAILED')"
+          echo "::endgroup::"
+
+      - name: Copy coverage files from container
+        if: always()
+        run: |
+          docker compose cp backend:/app/coverage-integration.xml backend/coverage-integration.xml || true
+          docker compose cp backend:/app/coverage-e2e.xml backend/coverage-e2e.xml || true
 
       - name: Upload backend coverage to Codecov
         uses: codecov/codecov-action@v5
         if: always()
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: backend/coverage.xml
+          files: backend/coverage-integration.xml,backend/coverage-e2e.xml
           flags: backend-stack
           name: backend-stack-coverage
           fail_ci_if_error: false
@@ -232,7 +265,7 @@ jobs:
           path: frontend/playwright-report/
 
       - name: Collect logs
-        if: failure() || steps.backend-integration.outcome == 'failure' || steps.backend-e2e.outcome == 'failure' || steps.frontend-e2e.outcome == 'failure'
+        if: failure() || env.EXIT_INTEGRATION != '0' || env.EXIT_E2E != '0' || env.EXIT_FRONTEND != '0'
         run: |
           mkdir -p logs
           docker compose logs > logs/docker-compose.log 2>&1
@@ -244,27 +277,33 @@ jobs:
           docker compose logs result-processor > logs/result-processor.log 2>&1 || true
           kubectl get events --sort-by='.metadata.creationTimestamp' -A > logs/k8s-events.log 2>&1 || true
           kubectl describe pods -A > logs/k8s-describe-pods.log 2>&1 || true
+          # Include test output logs
+          cp /tmp/backend-integration.log logs/ || true
+          cp /tmp/backend-e2e.log logs/ || true
+          cp /tmp/frontend-e2e.log logs/ || true
 
       - name: Upload logs
-        if: failure() || steps.backend-integration.outcome == 'failure' || steps.backend-e2e.outcome == 'failure' || steps.frontend-e2e.outcome == 'failure'
+        if: failure() || env.EXIT_INTEGRATION != '0' || env.EXIT_E2E != '0' || env.EXIT_FRONTEND != '0'
         uses: actions/upload-artifact@v6
         with:
           name: stack-tests-logs
           path: logs/
 
-      # Fail the job if any test step failed
+      # Fail the job if any test failed
       - name: Check test results
         if: always()
         run: |
-          if [ "${{ steps.backend-integration.outcome }}" == "failure" ]; then
-            echo "::error::Backend integration tests failed"
-            exit 1
+          FAILED=0
+          if [ "$EXIT_INTEGRATION" != "0" ]; then
+            echo "::error::Backend integration tests failed (exit code: $EXIT_INTEGRATION)"
+            FAILED=1
           fi
-          if [ "${{ steps.backend-e2e.outcome }}" == "failure" ]; then
-            echo "::error::Backend E2E tests failed"
-            exit 1
+          if [ "$EXIT_E2E" != "0" ]; then
+            echo "::error::Backend E2E tests failed (exit code: $EXIT_E2E)"
+            FAILED=1
           fi
-          if [ "${{ steps.frontend-e2e.outcome }}" == "failure" ]; then
-            echo "::error::Frontend E2E tests failed"
-            exit 1
+          if [ "$EXIT_FRONTEND" != "0" ]; then
+            echo "::error::Frontend E2E tests failed (exit code: $EXIT_FRONTEND)"
+            FAILED=1
           fi
+          exit $FAILED

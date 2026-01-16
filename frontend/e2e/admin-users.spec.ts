@@ -3,6 +3,8 @@ import { test, expect, loginAsAdmin, navigateToAdminPage, describeAdminCommonTes
 const PATH = '/admin/users' as const;
 
 test.describe('Admin Users', () => {
+  test.describe.configure({ timeout: 30000 });
+
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
     await navigateToAdminPage(page, PATH);

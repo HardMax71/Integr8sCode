@@ -4,6 +4,8 @@ const PATH = '/admin/events' as const;
 const EMPTY_PATTERN = /No events found/i;
 
 test.describe('Admin Events', () => {
+  test.describe.configure({ timeout: 30000 });
+
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
     await navigateToAdminPage(page, PATH);

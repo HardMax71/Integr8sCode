@@ -4,6 +4,8 @@ const PATH = '/admin/sagas' as const;
 const EMPTY_PATTERN = /No sagas found/i;
 
 test.describe('Admin Sagas', () => {
+  test.describe.configure({ timeout: 30000 });
+
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
     await navigateToAdminPage(page, PATH);

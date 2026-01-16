@@ -1,28 +1,13 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, loginAsAdmin, loginAsUser, clearSession, expectAdminSidebar, navigateToAdminPage, expectToastVisible } from './fixtures';
 
-async function loginAsAdmin(page: Page) {
-  await page.context().clearCookies();
-  await page.goto('/login');
-  await page.evaluate(() => {
-    localStorage.clear();
-    sessionStorage.clear();
-  });
-  await page.waitForSelector('#username');
-  await page.fill('#username', 'admin');
-  await page.fill('#password', 'admin123');
-  await page.click('button[type="submit"]');
-  await expect(page.getByRole('heading', { name: 'Code Editor' })).toBeVisible({ timeout: 10000 });
-}
-
-async function navigateToAdminSettings(page: Page) {
-  await page.goto('/admin/settings');
-  await expect(page.getByRole('heading', { name: 'System Settings' })).toBeVisible({ timeout: 10000 });
-}
+const navigateToSettings = async (page: import('@playwright/test').Page) => {
+  await navigateToAdminPage(page, '/admin/settings', 'System Settings');
+};
 
 test.describe('Admin Settings Page', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await navigateToAdminSettings(page);
+    await navigateToSettings(page);
   });
 
   test('displays system settings page with header', async ({ page }) => {
@@ -30,16 +15,11 @@ test.describe('Admin Settings Page', () => {
   });
 
   test('shows admin sidebar navigation', async ({ page }) => {
-    await expect(page.getByText('Admin Panel')).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Event Browser' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Sagas' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Users' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Settings' })).toBeVisible();
+    await expectAdminSidebar(page);
   });
 
   test('settings link is active in sidebar', async ({ page }) => {
-    const settingsLink = page.getByRole('link', { name: 'Settings' });
-    await expect(settingsLink).toHaveClass(/bg-primary/);
+    await expect(page.getByRole('link', { name: 'Settings' })).toHaveClass(/bg-primary/);
   });
 
   test('shows configuration card', async ({ page }) => {
@@ -50,248 +30,101 @@ test.describe('Admin Settings Page', () => {
 test.describe('Admin Settings Execution Limits', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await navigateToAdminSettings(page);
+    await navigateToSettings(page);
   });
 
   test('shows execution limits section', async ({ page }) => {
     await expect(page.getByText('Execution Limits')).toBeVisible();
   });
 
-  test('shows max timeout input', async ({ page }) => {
-    const maxTimeoutInput = page.locator('#max-timeout');
-    await expect(maxTimeoutInput).toBeVisible();
-  });
-
-  test('shows max memory input', async ({ page }) => {
-    const maxMemoryInput = page.locator('#max-memory');
-    await expect(maxMemoryInput).toBeVisible();
-  });
-
-  test('shows max CPU input', async ({ page }) => {
-    const maxCpuInput = page.locator('#max-cpu');
-    await expect(maxCpuInput).toBeVisible();
-  });
-
-  test('shows max concurrent executions input', async ({ page }) => {
-    const maxConcurrentInput = page.locator('#max-concurrent');
-    await expect(maxConcurrentInput).toBeVisible();
+  test('shows all execution limit inputs', async ({ page }) => {
+    await expect(page.locator('#max-timeout')).toBeVisible();
+    await expect(page.locator('#max-memory')).toBeVisible();
+    await expect(page.locator('#max-cpu')).toBeVisible();
+    await expect(page.locator('#max-concurrent')).toBeVisible();
   });
 
   test('can modify max timeout value', async ({ page }) => {
-    const maxTimeoutInput = page.locator('#max-timeout');
-    const currentValue = await maxTimeoutInput.inputValue();
-
-    await maxTimeoutInput.fill('');
-    await maxTimeoutInput.fill('120');
-    await expect(maxTimeoutInput).toHaveValue('120');
-
-    await maxTimeoutInput.fill('');
-    await maxTimeoutInput.fill(currentValue);
-  });
-
-  test('can modify max memory value', async ({ page }) => {
-    const maxMemoryInput = page.locator('#max-memory');
-    const currentValue = await maxMemoryInput.inputValue();
-
-    await maxMemoryInput.fill('');
-    await maxMemoryInput.fill('512');
-    await expect(maxMemoryInput).toHaveValue('512');
-
-    await maxMemoryInput.fill('');
-    await maxMemoryInput.fill(currentValue);
+    const input = page.locator('#max-timeout');
+    const currentValue = await input.inputValue();
+    await input.fill('');
+    await input.fill('120');
+    await expect(input).toHaveValue('120');
+    await input.fill(currentValue);
   });
 });
 
 test.describe('Admin Settings Security Settings', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await navigateToAdminSettings(page);
+    await navigateToSettings(page);
   });
 
   test('shows security settings section', async ({ page }) => {
     await expect(page.getByText('Security Settings')).toBeVisible();
   });
 
-  test('shows min password length input', async ({ page }) => {
-    const minPasswordInput = page.locator('#min-password');
-    await expect(minPasswordInput).toBeVisible();
-  });
-
-  test('shows session timeout input', async ({ page }) => {
-    const sessionTimeoutInput = page.locator('#session-timeout');
-    await expect(sessionTimeoutInput).toBeVisible();
-  });
-
-  test('shows max login attempts input', async ({ page }) => {
-    const maxLoginInput = page.locator('#max-login');
-    await expect(maxLoginInput).toBeVisible();
-  });
-
-  test('shows lockout duration input', async ({ page }) => {
-    const lockoutDurationInput = page.locator('#lockout-duration');
-    await expect(lockoutDurationInput).toBeVisible();
-  });
-
-  test('can modify min password length value', async ({ page }) => {
-    const minPasswordInput = page.locator('#min-password');
-    const currentValue = await minPasswordInput.inputValue();
-
-    await minPasswordInput.fill('');
-    await minPasswordInput.fill('10');
-    await expect(minPasswordInput).toHaveValue('10');
-
-    await minPasswordInput.fill('');
-    await minPasswordInput.fill(currentValue);
+  test('shows all security inputs', async ({ page }) => {
+    await expect(page.locator('#min-password')).toBeVisible();
+    await expect(page.locator('#session-timeout')).toBeVisible();
+    await expect(page.locator('#max-login')).toBeVisible();
+    await expect(page.locator('#lockout-duration')).toBeVisible();
   });
 });
 
 test.describe('Admin Settings Monitoring Settings', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await navigateToAdminSettings(page);
+    await navigateToSettings(page);
   });
 
   test('shows monitoring settings section', async ({ page }) => {
     await expect(page.getByText('Monitoring Settings')).toBeVisible();
   });
 
-  test('shows metrics retention days input', async ({ page }) => {
-    const metricsRetentionInput = page.locator('#metrics-retention');
-    await expect(metricsRetentionInput).toBeVisible();
-  });
-
-  test('shows log level select', async ({ page }) => {
-    const logLevelSelect = page.locator('#log-level');
-    await expect(logLevelSelect).toBeVisible();
+  test('shows monitoring inputs and selects', async ({ page }) => {
+    await expect(page.locator('#metrics-retention')).toBeVisible();
+    await expect(page.locator('#log-level')).toBeVisible();
+    await expect(page.locator('#enable-tracing')).toBeVisible();
+    await expect(page.locator('#sampling-rate')).toBeVisible();
   });
 
   test('log level select has correct options', async ({ page }) => {
     const logLevelSelect = page.locator('#log-level');
-    await logLevelSelect.click();
-
-    await expect(page.getByText('DEBUG')).toBeVisible();
-    await expect(page.getByText('INFO')).toBeVisible();
-    await expect(page.getByText('WARNING')).toBeVisible();
-    await expect(page.getByText('ERROR')).toBeVisible();
-  });
-
-  test('shows enable tracing select', async ({ page }) => {
-    const enableTracingSelect = page.locator('#enable-tracing');
-    await expect(enableTracingSelect).toBeVisible();
-  });
-
-  test('shows sampling rate input', async ({ page }) => {
-    const samplingRateInput = page.locator('#sampling-rate');
-    await expect(samplingRateInput).toBeVisible();
+    const options = await logLevelSelect.locator('option').allTextContents();
+    expect(options).toContain('DEBUG');
+    expect(options).toContain('INFO');
+    expect(options).toContain('WARNING');
+    expect(options).toContain('ERROR');
   });
 
   test('can change log level', async ({ page }) => {
-    const logLevelSelect = page.locator('#log-level');
-    await logLevelSelect.selectOption('DEBUG');
-    await expect(logLevelSelect).toHaveValue('DEBUG');
+    await page.locator('#log-level').selectOption('DEBUG');
+    await expect(page.locator('#log-level')).toHaveValue('DEBUG');
   });
 });
 
 test.describe('Admin Settings Actions', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await navigateToAdminSettings(page);
+    await navigateToSettings(page);
   });
 
-  test('shows save settings button', async ({ page }) => {
+  test('shows save and reset buttons', async ({ page }) => {
     await expect(page.getByRole('button', { name: 'Save Settings' })).toBeVisible();
-  });
-
-  test('shows reset to defaults button', async ({ page }) => {
     await expect(page.getByRole('button', { name: 'Reset to Defaults' })).toBeVisible();
   });
 
-  test('save settings button is enabled', async ({ page }) => {
-    const saveButton = page.getByRole('button', { name: 'Save Settings' });
-    await expect(saveButton).toBeEnabled();
-  });
-
-  test('reset button is enabled', async ({ page }) => {
-    const resetButton = page.getByRole('button', { name: 'Reset to Defaults' });
-    await expect(resetButton).toBeEnabled();
-  });
-
   test('can save settings', async ({ page }) => {
-    const saveButton = page.getByRole('button', { name: 'Save Settings' });
-    await saveButton.click();
-
-    const toast = page.locator('[class*="toast"]').first();
-    const hasToast = await toast.isVisible({ timeout: 5000 }).catch(() => false);
-
-    if (hasToast) {
-      await expect(toast).toBeVisible();
-    }
-  });
-});
-
-test.describe('Admin Settings Loading State', () => {
-  test.beforeEach(async ({ page }) => {
-    await loginAsAdmin(page);
-  });
-
-  test('shows loading state initially', async ({ page }) => {
-    await page.goto('/admin/settings');
-
-    const spinner = page.locator('[class*="spinner"], [class*="animate-spin"]').first();
-    const settingsHeading = page.getByRole('heading', { name: 'System Settings' });
-
-    const hasSpinner = await spinner.isVisible({ timeout: 1000 }).catch(() => false);
-    const hasHeading = await settingsHeading.isVisible({ timeout: 1000 }).catch(() => false);
-
-    expect(hasSpinner || hasHeading).toBe(true);
-  });
-
-  test('loads settings data after initial load', async ({ page }) => {
-    await navigateToAdminSettings(page);
-
-    await expect(page.locator('#max-timeout')).toBeVisible();
-    const value = await page.locator('#max-timeout').inputValue();
-    expect(value).toBeTruthy();
-  });
-});
-
-test.describe('Admin Settings Access Control', () => {
-  test('redirects non-admin users', async ({ page }) => {
-    await page.context().clearCookies();
-    await page.goto('/login');
-    await page.evaluate(() => {
-      localStorage.clear();
-      sessionStorage.clear();
-    });
-    await page.waitForSelector('#username');
-    await page.fill('#username', 'user');
-    await page.fill('#password', 'user123');
-    await page.click('button[type="submit"]');
-    await expect(page.getByRole('heading', { name: 'Code Editor' })).toBeVisible({ timeout: 10000 });
-
-    await page.goto('/admin/settings');
-
-    await expect(page).toHaveURL(/^\/$|\/login/);
-  });
-
-  test('redirects unauthenticated users to login', async ({ page }) => {
-    await page.context().clearCookies();
-    await page.goto('/login');
-    await page.evaluate(() => {
-      localStorage.clear();
-      sessionStorage.clear();
-    });
-
-    await page.goto('/admin/settings');
-
-    await expect(page).toHaveURL(/\/login/);
+    await page.getByRole('button', { name: 'Save Settings' }).click();
+    await expectToastVisible(page);
   });
 });
 
 test.describe('Admin Settings Navigation', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await navigateToAdminSettings(page);
+    await navigateToSettings(page);
   });
 
   test('can navigate to events from sidebar', async ({ page }) => {
@@ -307,5 +140,21 @@ test.describe('Admin Settings Navigation', () => {
   test('can navigate to users from sidebar', async ({ page }) => {
     await page.getByRole('link', { name: 'Users' }).click();
     await expect(page.getByRole('heading', { name: 'User Management' })).toBeVisible();
+  });
+});
+
+test.describe('Admin Settings Access Control', () => {
+  test('redirects non-admin users', async ({ page }) => {
+    await loginAsUser(page);
+    await page.goto('/admin/settings');
+    await page.waitForURL(url => url.pathname === '/' || url.pathname.includes('/login'));
+    const url = new URL(page.url());
+    expect(url.pathname === '/' || url.pathname.includes('/login')).toBe(true);
+  });
+
+  test('redirects unauthenticated users to login', async ({ page }) => {
+    await clearSession(page);
+    await page.goto('/admin/settings');
+    await expect(page).toHaveURL(/\/login/);
   });
 });

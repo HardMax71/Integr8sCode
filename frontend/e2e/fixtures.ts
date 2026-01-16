@@ -57,8 +57,8 @@ export function getAdminRoute(path: AdminPath) {
 export async function navigateToAdminPage(page: Page, path: AdminPath): Promise<void> {
   const route = getAdminRoute(path);
   await page.goto(path);
-  // Wait for network to be idle before checking heading
-  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+  // Rely on Playwright's auto-waiting - the heading check waits up to 15s
+  // which is sufficient for admin auth verification to complete
   await expect(page.getByRole('heading', { name: route.pageHeading })).toBeVisible({ timeout: 15000 });
 }
 
@@ -91,48 +91,16 @@ export async function expectAdminSidebar(page: Page): Promise<void> {
   await expect(page.getByRole('link', { name: 'Settings' })).toBeVisible();
 }
 
-export async function expectToastVisible(page: Page, timeout = 5000): Promise<boolean> {
-  try {
-    await page.locator('[class*="toast"]').first().waitFor({ state: 'visible', timeout });
-    return true;
-  } catch {
-    return false;
-  }
+export async function expectToastVisible(page: Page, timeout = 5000): Promise<void> {
+  await expect(page.locator('[class*="toast"]').first()).toBeVisible({ timeout });
 }
 
-export async function testAccessControl(
-  page: Page,
-  targetPath: string,
-  expectedRedirectPattern: RegExp
-): Promise<void> {
-  await clearSession(page);
-  await page.goto('/login');
-  await page.goto(targetPath);
-  await expect(page).toHaveURL(expectedRedirectPattern);
+export async function expectRedirectToLogin(page: Page): Promise<void> {
+  await expect(page).toHaveURL(/\/login/, { timeout: 10000 });
 }
 
-export async function testNonAdminAccessControl(page: Page, targetPath: string): Promise<void> {
-  await loginAsUser(page);
-  await page.goto(targetPath);
-  await expect(page).toHaveURL(/^\/$|\/login/);
-}
-
-export async function testAdminAccessControl(
-  page: Page,
-  path: AdminPath,
-  options: { testUnauthenticated?: boolean; testNonAdmin?: boolean } = { testUnauthenticated: true, testNonAdmin: true }
-): Promise<void> {
-  if (options.testUnauthenticated) {
-    await clearSession(page);
-    await page.goto(path);
-    await expect(page).toHaveURL(/\/login/);
-  }
-
-  if (options.testNonAdmin) {
-    await loginAsUser(page);
-    await page.goto(path);
-    await page.waitForURL(url => url.pathname === '/' || url.pathname.includes('/login'));
-  }
+export async function expectRedirectToHome(page: Page): Promise<void> {
+  await expect(page).toHaveURL('/', { timeout: 10000 });
 }
 
 export { base as test, expect, ADMIN_ROUTES, type AdminPath };

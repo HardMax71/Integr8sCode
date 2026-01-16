@@ -77,19 +77,19 @@
                 </div>
 
                 <nav class="space-y-2">
-                    {#each ADMIN_ROUTES as route}
+                    {#each ADMIN_ROUTES as navItem}
                         <a
-                            href={route.path}
+                            href={navItem.path}
                             use:route
                             class="flex items-center gap-3 px-4 py-2 rounded-lg transition-colors cursor-pointer"
-                            class:bg-primary={path === route.path}
-                            class:text-white={path === route.path}
-                            class:hover:bg-neutral-200={path !== route.path}
-                            class:dark:hover:bg-neutral-700={path !== route.path}
-                            class:text-fg-default={path !== route.path}
-                            class:dark:text-dark-fg-default={path !== route.path}
+                            class:bg-primary={path === navItem.path}
+                            class:text-white={path === navItem.path}
+                            class:hover:bg-neutral-200={path !== navItem.path}
+                            class:dark:hover:bg-neutral-700={path !== navItem.path}
+                            class:text-fg-default={path !== navItem.path}
+                            class:dark:text-dark-fg-default={path !== navItem.path}
                         >
-                            <span>{route.sidebarLabel}</span>
+                            <span>{navItem.sidebarLabel}</span>
                         </a>
                     {/each}
                 </nav>

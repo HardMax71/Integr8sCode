@@ -114,8 +114,8 @@ test.describe('Home Page Responsive', () => {
     const menuButton = page.locator('header button').filter({ has: page.locator('svg') }).last();
     await menuButton.click();
     await page.waitForTimeout(300);
-    // Mobile menu Login has different class than desktop - look for the visible one
-    await expect(page.getByRole('link', { name: 'Login' }).locator('visible=true').first()).toBeVisible();
+    // Mobile menu Login link should be visible after opening menu
+    await expect(page.getByRole('link', { name: 'Login' }).first()).toBeVisible();
   });
 });
 

@@ -1,6 +1,6 @@
-import { test, expect, loginAsAdmin, loginAsUser, clearSession, expectAdminSidebar, navigateToAdminPage } from './fixtures';
+import { test, expect, loginAsAdmin, loginAsUser, clearSession, expectAdminSidebar, navigateToAdminPage, expectRedirectToHome, expectRedirectToLogin } from './fixtures';
 
-test.describe('Admin Events Page', () => {
+test.describe('Admin Events', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
     await navigateToAdminPage(page, '/admin/events');
@@ -23,90 +23,70 @@ test.describe('Admin Events Page', () => {
     await expect(page.getByRole('button', { name: /Export/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /Refresh/i })).toBeVisible();
   });
-});
 
-test.describe('Admin Events Filtering', () => {
-  test.beforeEach(async ({ page }) => {
-    await loginAsAdmin(page);
-    await navigateToAdminPage(page, '/admin/events');
+  test.describe('Filtering', () => {
+    test('filter panel shows date range inputs', async ({ page }) => {
+      await page.getByRole('button', { name: /Filters/i }).click();
+      await expect(page.locator('input[type="datetime-local"], input[type="date"]').first()).toBeVisible();
+    });
   });
 
-  test('can toggle filter panel', async ({ page }) => {
-    await page.getByRole('button', { name: /Filters/i }).click();
-    await page.waitForTimeout(500);
+  test.describe('Export', () => {
+    test('can open export dropdown', async ({ page }) => {
+      await page.getByRole('button', { name: /Export/i }).click();
+      await expect(page.getByText('CSV')).toBeVisible();
+      await expect(page.getByText('JSON')).toBeVisible();
+    });
   });
 
-  test('filter panel shows date range inputs', async ({ page }) => {
-    await page.getByRole('button', { name: /Filters/i }).click();
-    await page.waitForTimeout(500);
-    const fromInput = page.locator('input[type="datetime-local"], input[type="date"]').first();
-    if (await fromInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await expect(fromInput).toBeVisible();
-    }
-  });
-});
+  test.describe('Table', () => {
+    test('shows events table or empty state', async ({ page }) => {
+      await page.waitForTimeout(2000);
+      const table = page.locator('table').first();
+      const emptyState = page.getByText(/No events found/i);
+      const hasTable = await table.isVisible({ timeout: 3000 }).catch(() => false);
+      const hasEmpty = await emptyState.isVisible({ timeout: 3000 }).catch(() => false);
+      expect(hasTable || hasEmpty).toBe(true);
+    });
 
-test.describe('Admin Events Export', () => {
-  test.beforeEach(async ({ page }) => {
-    await loginAsAdmin(page);
-    await navigateToAdminPage(page, '/admin/events');
-  });
-
-  test('can open export dropdown', async ({ page }) => {
-    await page.getByRole('button', { name: /Export/i }).click();
-    await expect(page.getByText('CSV')).toBeVisible();
-    await expect(page.getByText('JSON')).toBeVisible();
-  });
-});
-
-test.describe('Admin Events Table', () => {
-  test.beforeEach(async ({ page }) => {
-    await loginAsAdmin(page);
-    await navigateToAdminPage(page, '/admin/events');
+    test('events table shows time column when data exists', async ({ page }) => {
+      const table = page.locator('table').first();
+      // Only verify columns if table is visible (not empty state)
+      if (await table.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await expect(page.getByRole('columnheader', { name: 'Time' })).toBeVisible();
+      }
+    });
   });
 
-  test('shows events table or empty state', async ({ page }) => {
-    await page.waitForTimeout(2000);
-    const table = page.locator('table').first();
-    const emptyState = page.getByText(/No events found/i);
-    const hasTable = await table.isVisible({ timeout: 3000 }).catch(() => false);
-    const hasEmpty = await emptyState.isVisible({ timeout: 3000 }).catch(() => false);
-    expect(hasTable || hasEmpty).toBe(true);
-  });
+  test.describe('Refresh', () => {
+    test('can manually refresh events', async ({ page }) => {
+      const refreshButton = page.getByRole('button', { name: /Refresh/i });
 
-  test('events table shows time column', async ({ page }) => {
-    await page.waitForTimeout(2000);
-    const timeHeader = page.getByText('Time');
-    if (await timeHeader.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await expect(timeHeader).toBeVisible();
-    }
-  });
-});
+      // Click refresh and wait for the events API request to complete
+      const [response] = await Promise.all([
+        page.waitForResponse(resp => resp.url().includes('/events') && resp.status() === 200),
+        refreshButton.click(),
+      ]);
 
-test.describe('Admin Events Refresh', () => {
-  test.beforeEach(async ({ page }) => {
-    await loginAsAdmin(page);
-    await navigateToAdminPage(page, '/admin/events');
-  });
+      // Verify the API call was made and succeeded
+      expect(response.ok()).toBe(true);
 
-  test('can manually refresh events', async ({ page }) => {
-    await page.getByRole('button', { name: /Refresh/i }).click();
-    await page.waitForTimeout(500);
+      // Verify page still functional after refresh
+      await expect(page.getByRole('heading', { name: 'Event Browser' })).toBeVisible();
+    });
   });
 });
 
 test.describe('Admin Events Access Control', () => {
-  test('redirects non-admin users', async ({ page }) => {
+  test('redirects non-admin users to home', async ({ page }) => {
     await loginAsUser(page);
     await page.goto('/admin/events');
-    await page.waitForURL(url => url.pathname === '/' || url.pathname.includes('/login'));
-    const url = new URL(page.url());
-    expect(url.pathname === '/' || url.pathname.includes('/login')).toBe(true);
+    await expectRedirectToHome(page);
   });
 
   test('redirects unauthenticated users to login', async ({ page }) => {
     await clearSession(page);
     await page.goto('/admin/events');
-    await expect(page).toHaveURL(/\/login/);
+    await expectRedirectToLogin(page);
   });
 });

@@ -34,7 +34,8 @@ test.describe('Notifications Page', () => {
   test('can apply filters', async ({ page }) => {
     await page.getByLabel('Include tags').fill('test');
     await page.getByRole('button', { name: 'Filter' }).click();
-    await page.waitForTimeout(500);
+    // Verify page still functional after applying filters
+    await expect(page.getByRole('heading', { name: 'Notifications' })).toBeVisible();
   });
 
   test('shows empty state or notifications', async ({ page }) => {
@@ -53,17 +54,21 @@ test.describe('Notifications Interaction', () => {
   });
 
   test('notification cards show severity badges when present', async ({ page }) => {
-    await page.waitForTimeout(1000);
-    const severityBadge = page.locator('[class*="badge"]').filter({ hasText: /low|medium|high|urgent/i }).first();
-    if (await severityBadge.isVisible({ timeout: 2000 }).catch(() => false)) {
+    const notificationCard = page.locator('[class*="card"]').first();
+    // Only verify badge content if notifications exist
+    if (await notificationCard.isVisible({ timeout: 3000 }).catch(() => false)) {
+      // When notification cards exist, they should contain severity badges
+      const severityBadge = notificationCard.locator('[class*="badge"]').filter({ hasText: /low|medium|high|urgent/i });
       await expect(severityBadge).toBeVisible();
     }
   });
 
   test('notification cards show timestamp when present', async ({ page }) => {
-    await page.waitForTimeout(1000);
-    const timeIndicator = page.locator('text=/ago|Just now/').first();
-    if (await timeIndicator.isVisible({ timeout: 2000 }).catch(() => false)) {
+    const notificationCard = page.locator('[class*="card"]').first();
+    // Only verify timestamp content if notifications exist
+    if (await notificationCard.isVisible({ timeout: 3000 }).catch(() => false)) {
+      // When notification cards exist, they should contain timestamps
+      const timeIndicator = notificationCard.locator('text=/ago|Just now/');
       await expect(timeIndicator).toBeVisible();
     }
   });

@@ -22,15 +22,22 @@ test.describe('Editor Page', () => {
   test('can select different language', async ({ page }) => {
     const languageButton = page.locator('button[aria-haspopup="menu"]').first();
     await languageButton.click();
+
+    // Select Python from the language menu
     const pythonButton = page.getByRole('menuitem', { name: /python/i });
-    if (await pythonButton.isVisible()) {
-      await pythonButton.hover();
-      const versionMenu = page.getByRole('menu', { name: /python versions/i });
-      if (await versionMenu.isVisible({ timeout: 1000 }).catch(() => false)) {
-        await versionMenu.getByRole('menuitemradio').first().click();
-      }
-    }
-    await expect(languageButton).toContainText(/python|go|javascript/i);
+    await expect(pythonButton).toBeVisible();
+    await pythonButton.hover();
+
+    // Select a Python version from the submenu
+    const versionMenu = page.getByRole('menu', { name: /python versions/i });
+    await expect(versionMenu).toBeVisible();
+    const versionOption = versionMenu.getByRole('menuitemradio').first();
+    await versionOption.click();
+
+    // Assert Python was specifically selected (not any language)
+    await expect(languageButton).toContainText(/python/i);
+    // Assert the menu closed after selection
+    await expect(versionMenu).not.toBeVisible();
   });
 
   test('shows file actions when panel opened', async ({ page }) => {
@@ -62,7 +69,7 @@ test.describe('Editor Page', () => {
 
 test.describe('Editor Execution', () => {
   // Execution tests require k8s and can take longer
-  test.setTimeout(60000); // 60s timeout for execution tests
+  test.describe.configure({ timeout: 60000 });
 
   test.beforeEach(async ({ page }) => {
     await loginAsUser(page);
@@ -70,39 +77,43 @@ test.describe('Editor Execution', () => {
 
   test('can execute simple python script', async ({ page }) => {
     await page.getByRole('button', { name: /Example/i }).click();
-    await page.waitForTimeout(500);
-    await page.getByRole('button', { name: /Run Script/i }).click();
+    const runButton = page.getByRole('button', { name: /Run Script/i });
+    await expect(runButton).toBeEnabled({ timeout: 2000 });
+    await runButton.click();
     await expect(page.getByRole('button', { name: /Executing/i })).toBeVisible({ timeout: 5000 });
     await expect(page.locator('text=Status:').first()).toBeVisible({ timeout: 30000 });
   });
 
   test('shows execution output on successful run', async ({ page }) => {
     await page.getByRole('button', { name: /Example/i }).click();
-    await page.waitForTimeout(500);
-    await page.getByRole('button', { name: /Run Script/i }).click();
+    const runButton = page.getByRole('button', { name: /Run Script/i });
+    await expect(runButton).toBeEnabled({ timeout: 2000 });
+    await runButton.click();
+    // Wait for execution to complete
     await expect(page.locator('text=Status:').first()).toBeVisible({ timeout: 30000 });
-    const outputSection = page.locator('text=Output:').first();
-    if (await outputSection.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await expect(page.locator('.output-pre').first()).toBeVisible();
-    }
+    // Output should always appear after successful execution
+    await expect(page.locator('text=Output:').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.output-pre').first()).toBeVisible();
   });
 
   test('shows resource usage after execution', async ({ page }) => {
     await page.getByRole('button', { name: /Example/i }).click();
-    await page.waitForTimeout(500);
-    await page.getByRole('button', { name: /Run Script/i }).click();
+    const runButton = page.getByRole('button', { name: /Run Script/i });
+    await expect(runButton).toBeEnabled({ timeout: 2000 });
+    await runButton.click();
+    // Wait for execution to complete
     await expect(page.locator('text=Status:').first()).toBeVisible({ timeout: 30000 });
-    const resourceUsage = page.getByText('Resource Usage:');
-    if (await resourceUsage.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await expect(page.getByText(/CPU:/)).toBeVisible();
-      await expect(page.getByText(/Memory:/)).toBeVisible();
-    }
+    // Resource usage should always appear after execution
+    await expect(page.getByText('Resource Usage:')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/CPU:/)).toBeVisible();
+    await expect(page.getByText(/Memory:/)).toBeVisible();
   });
 
   test('run button is disabled during execution', async ({ page }) => {
     await page.getByRole('button', { name: /Example/i }).click();
-    await page.waitForTimeout(500);
-    await page.getByRole('button', { name: /Run Script/i }).click();
+    const runButton = page.getByRole('button', { name: /Run Script/i });
+    await expect(runButton).toBeEnabled({ timeout: 2000 });
+    await runButton.click();
     const executingButton = page.getByRole('button', { name: /Executing/i });
     await expect(executingButton).toBeVisible({ timeout: 5000 });
     await expect(executingButton).toBeDisabled();

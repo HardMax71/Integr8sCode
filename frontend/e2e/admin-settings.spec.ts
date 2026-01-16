@@ -2,6 +2,12 @@ import { test, expect, loginAsAdmin, navigateToAdminPage, describeAdminCommonTes
 
 const PATH = '/admin/settings' as const;
 
+const SETTINGS_SECTIONS = [
+  { name: 'Execution Limits', inputs: ['#max-timeout', '#max-memory', '#max-cpu', '#max-concurrent'] },
+  { name: 'Security Settings', inputs: ['#min-password', '#session-timeout', '#max-login', '#lockout-duration'] },
+  { name: 'Monitoring Settings', inputs: ['#metrics-retention', '#log-level', '#enable-tracing', '#sampling-rate'] },
+] as const;
+
 test.describe('Admin Settings', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
@@ -14,93 +20,44 @@ test.describe('Admin Settings', () => {
     await expect(page.getByText('Configuration')).toBeVisible();
   });
 
-  test.describe('Execution Limits', () => {
-    test('shows execution limits section', async ({ page }) => {
-      await expect(page.getByText('Execution Limits')).toBeVisible();
+  for (const section of SETTINGS_SECTIONS) {
+    test(`shows ${section.name} section with all inputs`, async ({ page }) => {
+      await expect(page.getByText(section.name)).toBeVisible();
+      for (const input of section.inputs) {
+        await expect(page.locator(input)).toBeVisible();
+      }
     });
+  }
 
-    test('shows all execution limit inputs', async ({ page }) => {
-      await expect(page.locator('#max-timeout')).toBeVisible();
-      await expect(page.locator('#max-memory')).toBeVisible();
-      await expect(page.locator('#max-cpu')).toBeVisible();
-      await expect(page.locator('#max-concurrent')).toBeVisible();
-    });
-
-    test('can modify max timeout value', async ({ page }) => {
-      const input = page.locator('#max-timeout');
-      const current = await input.inputValue();
-      await input.fill('120');
-      await expect(input).toHaveValue('120');
-      await input.fill(current);
-    });
+  test('can modify max timeout value', async ({ page }) => {
+    const input = page.locator('#max-timeout');
+    const current = await input.inputValue();
+    await input.fill('120');
+    await expect(input).toHaveValue('120');
+    await input.fill(current);
   });
 
-  test.describe('Security Settings', () => {
-    test('shows security settings section', async ({ page }) => {
-      await expect(page.getByText('Security Settings')).toBeVisible();
-    });
-
-    test('shows all security inputs', async ({ page }) => {
-      await expect(page.locator('#min-password')).toBeVisible();
-      await expect(page.locator('#session-timeout')).toBeVisible();
-      await expect(page.locator('#max-login')).toBeVisible();
-      await expect(page.locator('#lockout-duration')).toBeVisible();
-    });
+  test('log level select has correct options', async ({ page }) => {
+    const options = await page.locator('#log-level option').allTextContents();
+    expect(options).toContain('DEBUG');
+    expect(options).toContain('INFO');
+    expect(options).toContain('WARNING');
+    expect(options).toContain('ERROR');
   });
 
-  test.describe('Monitoring Settings', () => {
-    test('shows monitoring settings section', async ({ page }) => {
-      await expect(page.getByText('Monitoring Settings')).toBeVisible();
-    });
-
-    test('shows monitoring inputs and selects', async ({ page }) => {
-      await expect(page.locator('#metrics-retention')).toBeVisible();
-      await expect(page.locator('#log-level')).toBeVisible();
-      await expect(page.locator('#enable-tracing')).toBeVisible();
-      await expect(page.locator('#sampling-rate')).toBeVisible();
-    });
-
-    test('log level select has correct options', async ({ page }) => {
-      const options = await page.locator('#log-level option').allTextContents();
-      expect(options).toContain('DEBUG');
-      expect(options).toContain('INFO');
-      expect(options).toContain('WARNING');
-      expect(options).toContain('ERROR');
-    });
-
-    test('can change log level', async ({ page }) => {
-      await page.locator('#log-level').selectOption('DEBUG');
-      await expect(page.locator('#log-level')).toHaveValue('DEBUG');
-    });
+  test('can change log level', async ({ page }) => {
+    await page.locator('#log-level').selectOption('DEBUG');
+    await expect(page.locator('#log-level')).toHaveValue('DEBUG');
   });
 
-  test.describe('Actions', () => {
-    test('shows save and reset buttons', async ({ page }) => {
-      await expect(page.getByRole('button', { name: 'Save Settings' })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Reset to Defaults' })).toBeVisible();
-    });
-
-    test('can save settings', async ({ page }) => {
-      await page.getByRole('button', { name: 'Save Settings' }).click();
-      await expectToastVisible(page);
-    });
+  test('shows save and reset buttons', async ({ page }) => {
+    await expect(page.getByRole('button', { name: 'Save Settings' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Reset to Defaults' })).toBeVisible();
   });
 
-  test.describe('Navigation', () => {
-    test('can navigate to events from sidebar', async ({ page }) => {
-      await page.getByRole('link', { name: 'Event Browser' }).click();
-      await expect(page.getByRole('heading', { name: 'Event Browser' })).toBeVisible();
-    });
-
-    test('can navigate to sagas from sidebar', async ({ page }) => {
-      await page.getByRole('link', { name: 'Sagas' }).click();
-      await expect(page.getByRole('heading', { name: 'Saga Management' })).toBeVisible();
-    });
-
-    test('can navigate to users from sidebar', async ({ page }) => {
-      await page.getByRole('link', { name: 'Users' }).click();
-      await expect(page.getByRole('heading', { name: 'User Management' })).toBeVisible();
-    });
+  test('can save settings', async ({ page }) => {
+    await page.getByRole('button', { name: 'Save Settings' }).click();
+    await expectToastVisible(page);
   });
 });
 

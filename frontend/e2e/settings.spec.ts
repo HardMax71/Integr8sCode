@@ -1,20 +1,17 @@
-import { test, expect, loginAsUser, clearSession, expectToastVisible } from './fixtures';
+import { test, expect, loginAsUser, navigateToPage, expectToastVisible, describeAuthRequired, clearSession, TEST_USERS } from './fixtures';
 
-const navigateToSettings = async (page: import('@playwright/test').Page) => {
-  await page.goto('/settings');
-  await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible({ timeout: 10000 });
-};
+const PATH = '/settings';
+const HEADING = 'Settings';
 
 test.describe('Settings Page', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsUser(page);
-    await navigateToSettings(page);
+    await navigateToPage(page, PATH, HEADING);
   });
 
   test('displays settings page with all tabs', async ({ page }) => {
     await expect(page.getByRole('button', { name: 'General' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Editor' })).toBeVisible();
-    // Use main locator to avoid conflict with header Notifications button
     await expect(page.locator('main').getByText('Notifications')).toBeVisible();
     await expect(page.getByRole('button', { name: 'View History' })).toBeVisible();
   });
@@ -27,7 +24,6 @@ test.describe('Settings Page', () => {
 
   test('can open theme dropdown and see options', async ({ page }) => {
     await page.locator('#theme-select').click();
-    // Use getByRole with exact to select dropdown buttons specifically
     await expect(page.getByRole('button', { name: 'Light', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Dark', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Auto (System)', exact: true })).toBeVisible();
@@ -51,7 +47,7 @@ test.describe('Settings Page', () => {
 test.describe('Settings Editor Tab', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsUser(page);
-    await navigateToSettings(page);
+    await navigateToPage(page, PATH, HEADING);
     await page.getByRole('button', { name: 'Editor' }).click();
   });
 
@@ -64,7 +60,6 @@ test.describe('Settings Editor Tab', () => {
 
   test('shows editor theme dropdown', async ({ page }) => {
     await page.locator('#editor-theme-select').click();
-    // Use getByRole with exact name to avoid matching the button label
     await expect(page.getByRole('button', { name: 'Auto (Follow App Theme)', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'One Dark', exact: true })).toBeVisible();
   });
@@ -95,8 +90,7 @@ test.describe('Settings Editor Tab', () => {
 test.describe('Settings Notifications Tab', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsUser(page);
-    await navigateToSettings(page);
-    // Use getByText to avoid conflict with header Notifications button
+    await navigateToPage(page, PATH, HEADING);
     await page.locator('main').getByText('Notifications').click();
   });
 
@@ -124,7 +118,7 @@ test.describe('Settings Notifications Tab', () => {
 test.describe('Settings Save and History', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsUser(page);
-    await navigateToSettings(page);
+    await navigateToPage(page, PATH, HEADING);
   });
 
   test('shows save button', async ({ page }) => {
@@ -155,17 +149,17 @@ test.describe('Settings Save and History', () => {
 test.describe('Settings Access Control', () => {
   test('redirects to login when not authenticated', async ({ page }) => {
     await clearSession(page);
-    await page.goto('/settings');
+    await page.goto(PATH);
     await expect(page).toHaveURL(/\/login/);
   });
 
   test('preserves settings page as redirect target after login', async ({ page }) => {
     await clearSession(page);
-    await page.goto('/settings');
+    await page.goto(PATH);
     await expect(page).toHaveURL(/\/login/);
-    await page.fill('#username', 'user');
-    await page.fill('#password', 'user123');
+    await page.fill('#username', TEST_USERS.user.username);
+    await page.fill('#password', TEST_USERS.user.password);
     await page.click('button[type="submit"]');
-    await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: HEADING, level: 1 })).toBeVisible({ timeout: 10000 });
   });
 });

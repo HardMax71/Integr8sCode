@@ -1,22 +1,14 @@
-import { test, expect, loginAsAdmin, loginAsUser, clearSession, expectAdminSidebar, navigateToAdminPage, expectToastVisible, expectRedirectToHome, expectRedirectToLogin } from './fixtures';
+import { test, expect, loginAsAdmin, navigateToAdminPage, describeAdminCommonTests, describeAdminAccessControl, expectToastVisible } from './fixtures';
+
+const PATH = '/admin/settings' as const;
 
 test.describe('Admin Settings', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await navigateToAdminPage(page, '/admin/settings');
+    await navigateToAdminPage(page, PATH);
   });
 
-  test('displays system settings page with header', async ({ page }) => {
-    await expect(page.getByRole('heading', { name: 'System Settings' })).toBeVisible();
-  });
-
-  test('shows admin sidebar navigation', async ({ page }) => {
-    await expectAdminSidebar(page);
-  });
-
-  test('settings link is active in sidebar', async ({ page }) => {
-    await expect(page.getByRole('link', { name: 'Settings' })).toHaveClass(/bg-primary/);
-  });
+  describeAdminCommonTests(test, PATH);
 
   test('shows configuration card', async ({ page }) => {
     await expect(page.getByText('Configuration')).toBeVisible();
@@ -36,11 +28,10 @@ test.describe('Admin Settings', () => {
 
     test('can modify max timeout value', async ({ page }) => {
       const input = page.locator('#max-timeout');
-      const currentValue = await input.inputValue();
-      await input.fill('');
+      const current = await input.inputValue();
       await input.fill('120');
       await expect(input).toHaveValue('120');
-      await input.fill(currentValue);
+      await input.fill(current);
     });
   });
 
@@ -70,8 +61,7 @@ test.describe('Admin Settings', () => {
     });
 
     test('log level select has correct options', async ({ page }) => {
-      const logLevelSelect = page.locator('#log-level');
-      const options = await logLevelSelect.locator('option').allTextContents();
+      const options = await page.locator('#log-level option').allTextContents();
       expect(options).toContain('DEBUG');
       expect(options).toContain('INFO');
       expect(options).toContain('WARNING');
@@ -114,16 +104,4 @@ test.describe('Admin Settings', () => {
   });
 });
 
-test.describe('Admin Settings Access Control', () => {
-  test('redirects non-admin users to home', async ({ page }) => {
-    await loginAsUser(page);
-    await page.goto('/admin/settings');
-    await expectRedirectToHome(page);
-  });
-
-  test('redirects unauthenticated users to login', async ({ page }) => {
-    await clearSession(page);
-    await page.goto('/admin/settings');
-    await expectRedirectToLogin(page);
-  });
-});
+describeAdminAccessControl(test, PATH);

@@ -113,9 +113,8 @@ test.describe('Home Page Responsive', () => {
     await page.goto('/');
     const menuButton = page.locator('header button').filter({ has: page.locator('svg') }).last();
     await menuButton.click();
-    await page.waitForTimeout(300);
-    // Mobile menu Login link should be visible after opening menu
-    await expect(page.getByRole('link', { name: 'Login' }).first()).toBeVisible();
+    // Mobile menu Login link should be visible after opening menu (assertion waits for animation)
+    await expect(page.getByRole('link', { name: 'Login' }).first()).toBeVisible({ timeout: 3000 });
   });
 });
 

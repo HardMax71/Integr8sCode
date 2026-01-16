@@ -64,37 +64,31 @@ test.describe('Editor Page', () => {
 });
 
 test.describe('Editor Execution', () => {
-  test.describe.configure({ timeout: 60000 });
+  test.describe.configure({ timeout: 120000 });
 
   test.beforeEach(async ({ page }) => {
     await loginAsUser(page);
   });
 
-  test('can execute simple python script', async ({ page }, testInfo) => {
-    const completed = await runExampleAndExecute(page, testInfo);
-    if (completed) {
-      await expect(page.locator('text=Status:').first()).toBeVisible();
-    }
+  test('can execute simple python script', async ({ page }) => {
+    await runExampleAndExecute(page);
+    await expect(page.locator('text=Status:').first()).toBeVisible();
   });
 
-  test('shows execution output on successful run', async ({ page }, testInfo) => {
-    const completed = await runExampleAndExecute(page, testInfo);
-    if (completed) {
-      await expect(page.locator('text=Output:').first()).toBeVisible({ timeout: 5000 });
-      await expect(page.locator('.output-pre').first()).toBeVisible();
-    }
+  test('shows execution output on successful run', async ({ page }) => {
+    await runExampleAndExecute(page);
+    await expect(page.locator('text=Output:').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.output-pre').first()).toBeVisible();
   });
 
-  test('shows resource usage after execution', async ({ page }, testInfo) => {
-    const completed = await runExampleAndExecute(page, testInfo);
-    if (completed) {
-      await expect(page.getByText('Resource Usage:')).toBeVisible({ timeout: 5000 });
-      await expect(page.getByText(/CPU:/)).toBeVisible();
-      await expect(page.getByText(/Memory:/)).toBeVisible();
-    }
+  test('shows resource usage after execution', async ({ page }) => {
+    await runExampleAndExecute(page);
+    await expect(page.getByText('Resource Usage:')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/CPU:/)).toBeVisible();
+    await expect(page.getByText(/Memory:/)).toBeVisible();
   });
 
-  test('run button is disabled during execution', async ({ page }, testInfo) => {
+  test('run button is disabled during execution', async ({ page }) => {
     await page.getByRole('button', { name: /Example/i }).click();
     await expect(page.locator('.cm-content')).not.toBeEmpty({ timeout: 3000 });
     const runButton = page.getByRole('button', { name: /Run Script/i });
@@ -102,10 +96,6 @@ test.describe('Editor Execution', () => {
     const executingButton = page.getByRole('button', { name: /Executing/i });
     await expect(executingButton).toBeVisible({ timeout: 5000 });
     await expect(executingButton).toBeDisabled();
-    const statusVisible = await page.locator('text=Status:').first().isVisible({ timeout: 30000 }).catch(() => false);
-    if (!statusVisible) {
-      testInfo.skip(true, 'Execution backend unavailable');
-    }
   });
 });
 

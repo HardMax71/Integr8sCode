@@ -71,13 +71,10 @@ export async function expectTableOrEmptyState(
   emptyTextPattern: RegExp,
   timeout = 10000
 ): Promise<boolean> {
-  const table = page.locator('table').first();
-  const emptyState = page.getByText(emptyTextPattern);
-  await expect(table.or(emptyState)).toBeVisible({ timeout });
-  const hasTable = await table.isVisible().catch(() => false);
-  const hasEmpty = await emptyState.isVisible().catch(() => false);
-  expect(hasTable || hasEmpty).toBe(true);
-  return hasTable;
+  const tableRow = page.locator('table tbody tr').first();
+  const emptyState = page.getByText(emptyTextPattern).first();
+  await expect(tableRow.or(emptyState).first()).toBeVisible({ timeout });
+  return await tableRow.isVisible().catch(() => false);
 }
 
 export async function expectTableColumn(page: Page, columnName: string, emptyPattern: RegExp): Promise<void> {
@@ -87,18 +84,13 @@ export async function expectTableColumn(page: Page, columnName: string, emptyPat
   }
 }
 
-export async function runExampleAndExecute(page: Page, testInfo: TestInfo): Promise<boolean> {
+export async function runExampleAndExecute(page: Page): Promise<void> {
   await page.getByRole('button', { name: /Example/i }).click();
   await expect(page.locator('.cm-content')).not.toBeEmpty({ timeout: 3000 });
   const runButton = page.getByRole('button', { name: /Run Script/i });
   await runButton.click();
   await expect(page.getByRole('button', { name: /Executing/i })).toBeVisible({ timeout: 5000 });
-  const statusVisible = await page.locator('text=Status:').first().isVisible({ timeout: 30000 }).catch(() => false);
-  if (!statusVisible) {
-    testInfo.skip(true, 'Execution backend unavailable');
-    return false;
-  }
-  return true;
+  await expect(page.locator('text=Status:').first()).toBeVisible({ timeout: 60000 });
 }
 
 export async function expectAuthRequired(page: Page, path: string): Promise<void> {
@@ -152,4 +144,4 @@ export function describeAdminCommonTests(test: typeof base, path: AdminPath): vo
   });
 }
 
-export { base as test, expect, ADMIN_ROUTES, type AdminPath, type Page, type TestInfo };
+export { base as test, expect, ADMIN_ROUTES, type AdminPath, type Page };

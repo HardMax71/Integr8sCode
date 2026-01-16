@@ -80,19 +80,17 @@ test.describe('Admin Users', () => {
 
   test.describe('Edit', () => {
     test('can open edit modal for existing user', async ({ page }) => {
-      const tableBody = page.locator('table tbody, [class*="card"]').first();
-      await expect(tableBody).toBeVisible({ timeout: 5000 });
-      const editButton = tableBody.locator('button[title="Edit User"], button:has-text("Edit")').first();
-      await expect(editButton).toBeVisible({ timeout: 5000 });
+      const firstRow = page.locator('table tbody tr').first();
+      await expect(firstRow).toBeVisible({ timeout: 10000 });
+      const editButton = firstRow.locator('button[title="Edit User"]');
       await editButton.click();
       await expect(page.getByRole('heading', { name: 'Edit User' })).toBeVisible({ timeout: 5000 });
     });
 
     test('edit modal pre-fills user data', async ({ page }) => {
-      const tableBody = page.locator('table tbody, [class*="card"]').first();
-      await expect(tableBody).toBeVisible({ timeout: 5000 });
-      const editButton = tableBody.locator('button[title="Edit User"], button:has-text("Edit")').first();
-      await expect(editButton).toBeVisible({ timeout: 5000 });
+      const firstRow = page.locator('table tbody tr').first();
+      await expect(firstRow).toBeVisible({ timeout: 10000 });
+      const editButton = firstRow.locator('button[title="Edit User"]');
       await editButton.click();
       await expect(page.getByRole('heading', { name: 'Edit User' })).toBeVisible({ timeout: 5000 });
       const value = await page.locator('#user-form-username').inputValue();

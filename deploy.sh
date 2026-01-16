@@ -55,11 +55,16 @@ show_help() {
     echo "Usage: ./deploy.sh <command> [options]"
     echo ""
     echo "Commands:"
-    echo "  dev [--build]      Start local development environment (docker-compose)"
-    echo "  down               Stop local development environment"
+    echo "  dev [options]      Start full stack (docker-compose)"
+    echo "                     --build           Rebuild images"
+    echo "                     --ci              CI mode: skip observability, wait for healthy"
+    echo "                     --wait            Wait for services to be healthy"
+    echo "  infra [options]    Start infrastructure only (mongo, redis, kafka, etc.)"
+    echo "                     --wait            Wait for services to be healthy"
+    echo "  down               Stop all services"
     echo "  prod [options]     Deploy to Kubernetes with Helm"
     echo "  check              Run quality checks (ruff, mypy, bandit)"
-    echo "  test               Run full test suite with docker-compose"
+    echo "  test               Run full test suite"
     echo "  logs [service]     View logs (defaults to all services)"
     echo "  status             Show status of running services"
     echo "  openapi [path]     Generate OpenAPI spec (default: docs/reference/openapi.json)"
@@ -89,33 +94,105 @@ cmd_dev() {
     print_header "Starting Local Development Environment"
 
     local BUILD_FLAG=""
-    if [[ "$1" == "--build" ]]; then
-        BUILD_FLAG="--build"
-        print_info "Rebuilding images..."
+    local PROFILE_FLAGS="--profile observability"
+    local WAIT_FLAG=""
+    local WAIT_TIMEOUT="300"
+    local CI_MODE=false
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --build)
+                BUILD_FLAG="--build"
+                print_info "Rebuilding images..."
+                ;;
+            --no-observability)
+                PROFILE_FLAGS=""
+                print_info "Skipping observability services (Jaeger, Grafana, etc.)"
+                ;;
+            --ci)
+                PROFILE_FLAGS=""
+                WAIT_FLAG="--wait"
+                CI_MODE=true
+                print_info "CI mode: skipping observability, waiting for healthy"
+                ;;
+            --wait)
+                WAIT_FLAG="--wait"
+                ;;
+            --timeout)
+                shift
+                WAIT_TIMEOUT="$1"
+                ;;
+        esac
+        shift
+    done
+
+    local WAIT_TIMEOUT_FLAG=""
+    if [[ -n "$WAIT_FLAG" ]]; then
+        WAIT_TIMEOUT_FLAG="--wait-timeout $WAIT_TIMEOUT"
     fi
 
-    docker compose up -d $BUILD_FLAG
+    ENABLE_TRACING=${ENABLE_TRACING:-$([[ -n "$PROFILE_FLAGS" ]] && echo "true" || echo "false")} \
+        docker compose $PROFILE_FLAGS up -d $BUILD_FLAG $WAIT_FLAG $WAIT_TIMEOUT_FLAG
 
-    echo ""
-    print_success "Development environment started!"
-    echo ""
-    echo "Services:"
-    echo "  Backend:   https://localhost:443"
-    echo "  Frontend:  https://localhost:5001"
-    echo "  Kafdrop:   http://localhost:9000"
-    echo "  Jaeger:    http://localhost:16686"
-    echo "  Grafana:   http://localhost:3000"
-    echo ""
-    echo "Commands:"
-    echo "  ./deploy.sh logs             # View all logs"
-    echo "  ./deploy.sh logs backend     # View backend logs"
-    echo "  ./deploy.sh down             # Stop all services"
+    if [[ "$CI_MODE" == "true" ]]; then
+        print_success "Stack started and healthy"
+        docker compose ps
+    else
+        echo ""
+        print_success "Development environment started!"
+        echo ""
+        echo "Services:"
+        echo "  Backend:   https://localhost:443"
+        echo "  Frontend:  https://localhost:5001"
+        echo "  Kafdrop:   http://localhost:9000"
+        if [[ -n "$PROFILE_FLAGS" ]]; then
+            echo "  Jaeger:    http://localhost:16686"
+            echo "  Grafana:   http://localhost:3000"
+        fi
+        echo ""
+        echo "Commands:"
+        echo "  ./deploy.sh logs             # View all logs"
+        echo "  ./deploy.sh logs backend     # View backend logs"
+        echo "  ./deploy.sh down             # Stop all services"
+    fi
 }
 
 cmd_down() {
     print_header "Stopping Local Development Environment"
     docker compose down
     print_success "All services stopped"
+}
+
+cmd_infra() {
+    print_header "Starting Infrastructure Services Only"
+
+    local WAIT_FLAG=""
+    local WAIT_TIMEOUT="120"
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --wait)
+                WAIT_FLAG="--wait"
+                ;;
+            --timeout)
+                shift
+                WAIT_TIMEOUT="$1"
+                ;;
+        esac
+        shift
+    done
+
+    local WAIT_TIMEOUT_FLAG=""
+    if [[ -n "$WAIT_FLAG" ]]; then
+        WAIT_TIMEOUT_FLAG="--wait-timeout $WAIT_TIMEOUT"
+    fi
+
+    # Start only infrastructure services (no app, no workers, no observability)
+    # zookeeper-certgen is needed for kafka to start
+    docker compose up -d zookeeper-certgen mongo redis zookeeper kafka schema-registry $WAIT_FLAG $WAIT_TIMEOUT_FLAG
+
+    print_success "Infrastructure services started"
+    docker compose ps
 }
 
 cmd_logs() {
@@ -383,7 +460,12 @@ cmd_types() {
 # =============================================================================
 case "${1:-help}" in
     dev)
-        cmd_dev "$2"
+        shift
+        cmd_dev "$@"
+        ;;
+    infra)
+        shift
+        cmd_infra "$@"
         ;;
     down)
         cmd_down

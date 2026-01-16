@@ -5,21 +5,23 @@ on:
     branches: [main, dev]
     paths:
       - 'backend/**'
+      - 'docker-compose.yaml'
+      - 'deploy.sh'
       - '.github/workflows/backend-ci.yml'
-      - 'docker-compose.ci.yaml'
   pull_request:
     branches: [main, dev]
     paths:
       - 'backend/**'
+      - 'docker-compose.yaml'
+      - 'deploy.sh'
       - '.github/workflows/backend-ci.yml'
-      - 'docker-compose.ci.yaml'
   workflow_dispatch:
 
-# Pin image versions for cache key consistency
 env:
   MONGO_IMAGE: mongo:8.0
   REDIS_IMAGE: redis:7-alpine
-  KAFKA_IMAGE: apache/kafka:3.9.0
+  KAFKA_IMAGE: confluentinc/cp-kafka:7.5.0
+  ZOOKEEPER_IMAGE: confluentinc/cp-zookeeper:7.5.0
   SCHEMA_REGISTRY_IMAGE: confluentinc/cp-schema-registry:7.5.0
 
 jobs:
@@ -72,7 +74,7 @@ jobs:
       - name: Cache and load Docker images
         uses: ./.github/actions/docker-cache
         with:
-          images: ${{ env.MONGO_IMAGE }} ${{ env.REDIS_IMAGE }} ${{ env.KAFKA_IMAGE }} ${{ env.SCHEMA_REGISTRY_IMAGE }}
+          images: ${{ env.MONGO_IMAGE }} ${{ env.REDIS_IMAGE }} ${{ env.KAFKA_IMAGE }} ${{ env.ZOOKEEPER_IMAGE }} ${{ env.SCHEMA_REGISTRY_IMAGE }}
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
@@ -87,9 +89,7 @@ jobs:
           uv sync --frozen
 
       - name: Start infrastructure services
-        run: |
-          docker compose -f docker-compose.ci.yaml up -d --wait --wait-timeout 120
-          docker compose -f docker-compose.ci.yaml ps
+        run: ./deploy.sh infra --wait
 
       - name: Run integration tests
         timeout-minutes: 10
@@ -115,9 +115,9 @@ jobs:
         if: failure()
         run: |
           mkdir -p logs
-          docker compose -f docker-compose.ci.yaml logs > logs/docker-compose.log 2>&1
-          docker compose -f docker-compose.ci.yaml logs kafka > logs/kafka.log 2>&1
-          docker compose -f docker-compose.ci.yaml logs schema-registry > logs/schema-registry.log 2>&1
+          docker compose logs > logs/docker-compose.log 2>&1
+          docker compose logs kafka > logs/kafka.log 2>&1
+          docker compose logs schema-registry > logs/schema-registry.log 2>&1
 
       - name: Upload logs
         if: failure()
@@ -136,7 +136,7 @@ jobs:
       - name: Cache and load Docker images
         uses: ./.github/actions/docker-cache
         with:
-          images: ${{ env.MONGO_IMAGE }} ${{ env.REDIS_IMAGE }} ${{ env.KAFKA_IMAGE }} ${{ env.SCHEMA_REGISTRY_IMAGE }}
+          images: ${{ env.MONGO_IMAGE }} ${{ env.REDIS_IMAGE }} ${{ env.KAFKA_IMAGE }} ${{ env.ZOOKEEPER_IMAGE }} ${{ env.SCHEMA_REGISTRY_IMAGE }}
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
@@ -151,9 +151,7 @@ jobs:
           uv sync --frozen
 
       - name: Start infrastructure services
-        run: |
-          docker compose -f docker-compose.ci.yaml up -d --wait --wait-timeout 120
-          docker compose -f docker-compose.ci.yaml ps
+        run: ./deploy.sh infra --wait
 
       - name: Setup Kubernetes (k3s)
         run: |
@@ -192,7 +190,7 @@ jobs:
         if: failure()
         run: |
           mkdir -p logs
-          docker compose -f docker-compose.ci.yaml logs > logs/docker-compose.log 2>&1
+          docker compose logs > logs/docker-compose.log 2>&1
           kubectl get events --sort-by='.metadata.creationTimestamp' -A > logs/k8s-events.log 2>&1 || true
           kubectl describe pods -A > logs/k8s-describe-pods.log 2>&1 || true
 

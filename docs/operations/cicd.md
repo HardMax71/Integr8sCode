@@ -152,11 +152,10 @@ The workflow starts by installing [k3s](https://k3s.io/), a lightweight Kubernet
 interact with a real cluster during tests. It pre-pulls container images in parallel to avoid cold-start delays during
 the build step.
 
-Before building, the workflow modifies `docker-compose.yaml` using [yq](https://github.com/mikefarah/yq) to create a
-CI-specific configuration. These modifications disable SASL authentication on Kafka and Zookeeper (unnecessary for
-isolated CI), remove volume mounts that cause permission conflicts, inject test credentials for MongoDB, and disable
-OpenTelemetry export to avoid connection errors. The result is a `docker-compose.ci.yaml` that works reliably in the
-ephemeral CI environment.
+The CI workflow uses `deploy.sh` to start the infrastructure, ensuring consistency between local development and CI
+environments. The `deploy.sh dev --ci` command starts the full stack without observability services (Jaeger, Grafana,
+etc.) and waits for all services to be healthy before proceeding. For backend-only tests, `deploy.sh infra --wait`
+starts just the infrastructure services (MongoDB, Redis, Kafka, Zookeeper, Schema Registry).
 
 The [docker/bake-action](https://github.com/docker/bake-action) builds all services with GitHub Actions cache support.
 It reads cache layers from previous runs and writes new layers back, so unchanged dependencies don't rebuild. The cache

@@ -154,6 +154,7 @@ services:
   grafana:
     container_name: grafana
     image: grafana/grafana:latest
+    profiles: ["observability"]
     user: "472"
     ports:
       - "3000:3000"
@@ -413,15 +414,13 @@ services:
         condition: service_completed_successfully
       mongo:
         condition: service_started
-      jaeger:
-        condition: service_started
     env_file:
       - ./backend/.env
     environment:
       - MONGODB_URL=mongodb://${MONGO_ROOT_USER:-root}:${MONGO_ROOT_PASSWORD:-rootpassword}@mongo:27017/integr8scode?authSource=admin
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-      - ENABLE_TRACING=true
+      - ENABLE_TRACING=${ENABLE_TRACING:-false}
       - JAEGER_AGENT_HOST=jaeger
       - JAEGER_AGENT_PORT=6831
       - TRACING_SERVICE_NAME=execution-coordinator
@@ -444,15 +443,13 @@ services:
         condition: service_completed_successfully
       mongo:
         condition: service_started
-      jaeger:
-        condition: service_started
     env_file:
       - ./backend/.env
     environment:
       - MONGODB_URL=mongodb://${MONGO_ROOT_USER:-root}:${MONGO_ROOT_PASSWORD:-rootpassword}@mongo:27017/integr8scode?authSource=admin
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-      - ENABLE_TRACING=true
+      - ENABLE_TRACING=${ENABLE_TRACING:-false}
       - JAEGER_AGENT_HOST=jaeger
       - JAEGER_AGENT_PORT=6831
       - TRACING_SERVICE_NAME=k8s-worker
@@ -462,6 +459,7 @@ services:
     volumes:
       - ./backend/app:/app/app:ro
       - ./backend/workers:/app/workers:ro
+      - ./backend/kubeconfig.yaml:/app/kubeconfig.yaml:ro
     networks:
       - app-network
     extra_hosts:
@@ -480,14 +478,12 @@ services:
         condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
-      jaeger:
-        condition: service_started
     env_file:
       - ./backend/.env
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-      - ENABLE_TRACING=true
+      - ENABLE_TRACING=${ENABLE_TRACING:-false}
       - JAEGER_AGENT_HOST=jaeger
       - JAEGER_AGENT_PORT=6831
       - TRACING_SERVICE_NAME=pod-monitor
@@ -497,6 +493,7 @@ services:
     volumes:
       - ./backend/app:/app/app:ro
       - ./backend/workers:/app/workers:ro
+      - ./backend/kubeconfig.yaml:/app/kubeconfig.yaml:ro
     networks:
       - app-network
     extra_hosts:
@@ -517,15 +514,13 @@ services:
         condition: service_completed_successfully
       mongo:
         condition: service_started
-      jaeger:
-        condition: service_started
     env_file:
       - ./backend/.env
     environment:
       - MONGODB_URL=mongodb://${MONGO_ROOT_USER:-root}:${MONGO_ROOT_PASSWORD:-rootpassword}@mongo:27017/integr8scode?authSource=admin
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-      - ENABLE_TRACING=true
+      - ENABLE_TRACING=${ENABLE_TRACING:-false}
       - JAEGER_AGENT_HOST=jaeger
       - JAEGER_AGENT_PORT=6831
       - TRACING_SERVICE_NAME=result-processor
@@ -534,6 +529,7 @@ services:
     volumes:
       - ./backend/app:/app/app:ro
       - ./backend/workers:/app/workers:ro
+      - ./backend/kubeconfig.yaml:/app/kubeconfig.yaml:ro
     networks:
       - app-network
     extra_hosts:
@@ -554,15 +550,13 @@ services:
         condition: service_completed_successfully
       mongo:
         condition: service_started
-      jaeger:
-        condition: service_started
     env_file:
       - ./backend/.env
     environment:
       - MONGODB_URL=mongodb://${MONGO_ROOT_USER:-root}:${MONGO_ROOT_PASSWORD:-rootpassword}@mongo:27017/integr8scode?authSource=admin
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-      - ENABLE_TRACING=true
+      - ENABLE_TRACING=${ENABLE_TRACING:-false}
       - JAEGER_AGENT_HOST=jaeger
       - JAEGER_AGENT_PORT=6831
       - TRACING_SERVICE_NAME=saga-orchestrator
@@ -574,6 +568,7 @@ services:
   jaeger:
     image: jaegertracing/all-in-one:1.52
     container_name: jaeger
+    profiles: ["observability"]
     ports:
       - "5775:5775/udp"   # Zipkin/thrift compact
       - "6831:6831/udp"   # Thrift compact
@@ -613,7 +608,7 @@ services:
       - SCHEMA_REGISTRY_URL=http://schema-registry:8081
       - SERVICE_NAME=event-replay
       - TRACING_SERVICE_NAME=event-replay
-      - ENABLE_TRACING=true
+      - ENABLE_TRACING=${ENABLE_TRACING:-false}
       - JAEGER_AGENT_HOST=jaeger
       - JAEGER_AGENT_PORT=6831
     networks:
@@ -644,7 +639,7 @@ services:
       - SCHEMA_REGISTRY_URL=http://schema-registry:8081
       - SERVICE_NAME=dlq-processor
       - TRACING_SERVICE_NAME=dlq-processor
-      - ENABLE_TRACING=true
+      - ENABLE_TRACING=${ENABLE_TRACING:-false}
       - JAEGER_AGENT_HOST=jaeger
       - JAEGER_AGENT_PORT=6831
       - DLQ_MAX_RETRY_ATTEMPTS=5
@@ -660,6 +655,7 @@ services:
   victoria-metrics:
     image: victoriametrics/victoria-metrics:v1.96.0
     container_name: victoria-metrics
+    profiles: ["observability"]
     ports:
       - "8428:8428"
     volumes:
@@ -681,6 +677,7 @@ services:
   kafka-exporter:
     image: danielqsj/kafka-exporter:latest
     container_name: kafka-exporter
+    profiles: ["observability"]
     command:
       - "--kafka.server=kafka:29092"
       - "--web.listen-address=:9308"
@@ -699,6 +696,7 @@ services:
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.91.0
     container_name: otel-collector
+    profiles: ["observability"]
     command: ["--config=/etc/otel-collector-config.yaml"]
     volumes:
       - ./backend/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro

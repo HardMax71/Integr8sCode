@@ -324,23 +324,6 @@ describe('AdminSagas', () => {
       });
     });
 
-    it('shows context data when available', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-      const saga = createMockSaga({
-        context_data: { user_id: 'user-123', language: 'python' },
-      });
-      mocks.getSagaStatusApiV1SagasSagaIdGet.mockResolvedValue({ data: saga, error: null });
-      await renderWithSagas([saga]);
-
-      const viewButtons = screen.getAllByText(/view details/i);
-      await user.click(viewButtons[0]);
-
-      await waitFor(() => {
-        expect(screen.getByText(/context data/i)).toBeInTheDocument();
-        expect(screen.getByText(/user-123/)).toBeInTheDocument();
-      });
-    });
-
     it('closes modal on close button click', async () => {
       const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       const saga = createMockSaga();

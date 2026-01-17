@@ -29,7 +29,7 @@ env:
   SCHEMA_REGISTRY_IMAGE: confluentinc/cp-schema-registry:7.5.0
 
 jobs:
-  # Fast unit tests run in parallel (no infrastructure needed)
+  # Fast unit tests (no infrastructure needed)
   backend-unit:
     name: Backend Unit Tests
     runs-on: ubuntu-latest
@@ -99,45 +99,13 @@ jobs:
           fail_ci_if_error: false
           verbose: true
 
-  # Single job that starts the full stack once and runs all integration/e2e tests
-  stack-tests:
-    name: Integration & E2E Tests
+  # Build all images once, cache for test jobs
+  build-images:
+    name: Build Images
     needs: [backend-unit, frontend-unit]
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v6
-
-      - name: Cache and load Docker images
-        uses: ./.github/actions/docker-cache
-        with:
-          images: ${{ env.MONGO_IMAGE }} ${{ env.REDIS_IMAGE }} ${{ env.KAFKA_IMAGE }} ${{ env.ZOOKEEPER_IMAGE }} ${{ env.SCHEMA_REGISTRY_IMAGE }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        id: playwright-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
-
-      - name: Install Playwright browsers
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        working-directory: frontend
-        run: npx playwright install chromium
-
-      - name: Setup k3s
-        uses: ./.github/actions/k3s-setup
 
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -168,8 +136,14 @@ jobs:
         if: steps.base-cache.outputs.cache-hit != 'true'
         run: docker save integr8scode-base:latest | zstd -T0 -3 > /tmp/base-image.tar.zst
 
-      - name: Build backend image
-        run: docker build -t integr8scode-backend:latest --build-context base=docker-image://integr8scode-base:latest -f ./backend/Dockerfile ./backend
+      - name: Build all images
+        run: |
+          docker build -t integr8scode-backend:latest --build-context base=docker-image://integr8scode-base:latest -f ./backend/Dockerfile ./backend
+          docker build -t integr8scode-coordinator:latest -f backend/workers/Dockerfile.coordinator --build-context base=docker-image://integr8scode-base:latest ./backend
+          docker build -t integr8scode-k8s-worker:latest -f backend/workers/Dockerfile.k8s_worker --build-context base=docker-image://integr8scode-base:latest ./backend
+          docker build -t integr8scode-pod-monitor:latest -f backend/workers/Dockerfile.pod_monitor --build-context base=docker-image://integr8scode-base:latest ./backend
+          docker build -t integr8scode-result-processor:latest -f backend/workers/Dockerfile.result_processor --build-context base=docker-image://integr8scode-base:latest ./backend
+          docker build -t integr8scode-saga-orchestrator:latest -f backend/workers/Dockerfile.saga_orchestrator --build-context base=docker-image://integr8scode-base:latest ./backend
 
       - name: Build cert-generator image
         uses: docker/build-push-action@v6
@@ -191,56 +165,231 @@ jobs:
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
 
-      - name: Build worker images
+      - name: Save all images
         run: |
-          docker build -t integr8scode-coordinator:latest -f backend/workers/Dockerfile.coordinator --build-context base=docker-image://integr8scode-base:latest ./backend
-          docker build -t integr8scode-k8s-worker:latest -f backend/workers/Dockerfile.k8s_worker --build-context base=docker-image://integr8scode-base:latest ./backend
-          docker build -t integr8scode-pod-monitor:latest -f backend/workers/Dockerfile.pod_monitor --build-context base=docker-image://integr8scode-base:latest ./backend
-          docker build -t integr8scode-result-processor:latest -f backend/workers/Dockerfile.result_processor --build-context base=docker-image://integr8scode-base:latest ./backend
-          docker build -t integr8scode-saga-orchestrator:latest -f backend/workers/Dockerfile.saga_orchestrator --build-context base=docker-image://integr8scode-base:latest ./backend
+          docker save \
+            integr8scode-backend:latest \
+            integr8scode-coordinator:latest \
+            integr8scode-k8s-worker:latest \
+            integr8scode-pod-monitor:latest \
+            integr8scode-result-processor:latest \
+            integr8scode-saga-orchestrator:latest \
+            integr8scode-cert-generator:latest \
+            integr8scode-frontend:latest \
+            | zstd -T0 -3 > /tmp/all-images.tar.zst
+
+      - name: Upload images artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: docker-images
+          path: /tmp/all-images.tar.zst
+          retention-days: 1
+
+  # Three parallel test jobs
+  backend-integration:
+    name: Backend Integration Tests
+    needs: [build-images]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Cache and load Docker images
+        uses: ./.github/actions/docker-cache
+        with:
+          images: ${{ env.MONGO_IMAGE }} ${{ env.REDIS_IMAGE }} ${{ env.KAFKA_IMAGE }} ${{ env.ZOOKEEPER_IMAGE }} ${{ env.SCHEMA_REGISTRY_IMAGE }}
+
+      - name: Download built images
+        uses: actions/download-artifact@v6
+        with:
+          name: docker-images
+          path: /tmp
+
+      - name: Load built images
+        run: zstd -d -c /tmp/all-images.tar.zst | docker load
+
+      - name: Setup k3s
+        uses: ./.github/actions/k3s-setup
 
       - name: Use test environment config
         run: cp backend/.env.test backend/.env
 
-      - name: Start full stack
+      - name: Start stack
+        run: ./deploy.sh dev --wait
+
+      - name: Run integration tests
+        timeout-minutes: 10
+        run: |
+          docker compose exec -T -e TEST_RUN_ID=integration backend \
+            uv run pytest tests/integration -v -rs \
+            --durations=0 \
+            --cov=app \
+            --cov-report=xml:coverage-integration.xml \
+            --cov-report=term
+
+      - name: Copy coverage
+        if: always()
+        run: docker compose cp backend:/app/coverage-integration.xml backend/coverage-integration.xml || true
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        if: always()
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: backend/coverage-integration.xml
+          flags: backend-integration
+          name: backend-integration-coverage
+          fail_ci_if_error: false
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          mkdir -p logs
+          docker compose logs > logs/docker-compose.log 2>&1
+          docker compose logs backend > logs/backend.log 2>&1
+          docker compose logs kafka > logs/kafka.log 2>&1
+
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: backend-integration-logs
+          path: logs/
+
+  backend-e2e:
+    name: Backend E2E Tests
+    needs: [build-images]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Cache and load Docker images
+        uses: ./.github/actions/docker-cache
+        with:
+          images: ${{ env.MONGO_IMAGE }} ${{ env.REDIS_IMAGE }} ${{ env.KAFKA_IMAGE }} ${{ env.ZOOKEEPER_IMAGE }} ${{ env.SCHEMA_REGISTRY_IMAGE }}
+
+      - name: Download built images
+        uses: actions/download-artifact@v6
+        with:
+          name: docker-images
+          path: /tmp
+
+      - name: Load built images
+        run: zstd -d -c /tmp/all-images.tar.zst | docker load
+
+      - name: Setup k3s
+        uses: ./.github/actions/k3s-setup
+
+      - name: Use test environment config
+        run: cp backend/.env.test backend/.env
+
+      - name: Start stack
         run: ./deploy.sh dev --wait
 
       - name: Seed test users
         run: docker compose exec -T backend uv run python scripts/seed_users.py
 
-      # Run all tests in parallel using GNU parallel (clean exit code handling)
-      - name: Run all tests in parallel
-        id: tests
-        continue-on-error: true
-        timeout-minutes: 15
+      - name: Run E2E tests
+        timeout-minutes: 10
         run: |
-          parallel --joblog /tmp/test-results.log --tag --line-buffer ::: \
-            "docker compose exec -T -e TEST_RUN_ID=integration -e COVERAGE_FILE=.coverage.integration backend uv run pytest tests/integration -v -rs --durations=0 --cov=app --cov-report=xml:coverage-integration.xml --cov-report=term" \
-            "docker compose exec -T -e TEST_RUN_ID=e2e -e COVERAGE_FILE=.coverage.e2e backend uv run pytest tests/e2e -v -rs --durations=0 --cov=app --cov-report=xml:coverage-e2e.xml --cov-report=term" \
-            "cd frontend && CI=true npx playwright test --reporter=html"
+          docker compose exec -T -e TEST_RUN_ID=e2e backend \
+            uv run pytest tests/e2e -v -rs \
+            --durations=0 \
+            --cov=app \
+            --cov-report=xml:coverage-e2e.xml \
+            --cov-report=term
 
-      - name: Test Results Summary
+      - name: Copy coverage
         if: always()
-        run: |
-          echo "=== Test Results ==="
-          cat /tmp/test-results.log
+        run: docker compose cp backend:/app/coverage-e2e.xml backend/coverage-e2e.xml || true
 
-      - name: Copy coverage files from container
-        if: always()
-        run: |
-          docker compose cp backend:/app/coverage-integration.xml backend/coverage-integration.xml || true
-          docker compose cp backend:/app/coverage-e2e.xml backend/coverage-e2e.xml || true
-
-      - name: Upload backend coverage to Codecov
+      - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         if: always()
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: backend/coverage-integration.xml,backend/coverage-e2e.xml
-          flags: backend-stack
-          name: backend-stack-coverage
+          files: backend/coverage-e2e.xml
+          flags: backend-e2e
+          name: backend-e2e-coverage
           fail_ci_if_error: false
-          verbose: true
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          mkdir -p logs
+          docker compose logs > logs/docker-compose.log 2>&1
+          docker compose logs backend > logs/backend.log 2>&1
+          docker compose logs kafka > logs/kafka.log 2>&1
+          docker compose logs coordinator > logs/coordinator.log 2>&1 || true
+          docker compose logs k8s-worker > logs/k8s-worker.log 2>&1 || true
+          kubectl get events --sort-by='.metadata.creationTimestamp' -A > logs/k8s-events.log 2>&1 || true
+
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: backend-e2e-logs
+          path: logs/
+
+  frontend-e2e:
+    name: Frontend E2E Tests
+    needs: [build-images]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        working-directory: frontend
+        run: npx playwright install chromium
+
+      - name: Cache and load Docker images
+        uses: ./.github/actions/docker-cache
+        with:
+          images: ${{ env.MONGO_IMAGE }} ${{ env.REDIS_IMAGE }} ${{ env.KAFKA_IMAGE }} ${{ env.ZOOKEEPER_IMAGE }} ${{ env.SCHEMA_REGISTRY_IMAGE }}
+
+      - name: Download built images
+        uses: actions/download-artifact@v6
+        with:
+          name: docker-images
+          path: /tmp
+
+      - name: Load built images
+        run: zstd -d -c /tmp/all-images.tar.zst | docker load
+
+      - name: Setup k3s
+        uses: ./.github/actions/k3s-setup
+
+      - name: Use test environment config
+        run: cp backend/.env.test backend/.env
+
+      - name: Start stack
+        run: ./deploy.sh dev --wait
+
+      - name: Seed test users
+        run: docker compose exec -T backend uv run python scripts/seed_users.py
+
+      - name: Run Playwright tests
+        timeout-minutes: 10
+        working-directory: frontend
+        run: CI=true npx playwright test --reporter=html
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v6
@@ -250,27 +399,16 @@ jobs:
           path: frontend/playwright-report/
 
       - name: Collect logs on failure
-        if: failure() || steps.tests.outcome == 'failure'
+        if: failure()
         run: |
           mkdir -p logs
           docker compose logs > logs/docker-compose.log 2>&1
           docker compose logs backend > logs/backend.log 2>&1
           docker compose logs frontend > logs/frontend.log 2>&1
-          docker compose logs kafka > logs/kafka.log 2>&1
-          docker compose logs coordinator > logs/coordinator.log 2>&1 || true
-          docker compose logs k8s-worker > logs/k8s-worker.log 2>&1 || true
-          docker compose logs result-processor > logs/result-processor.log 2>&1 || true
-          kubectl get events --sort-by='.metadata.creationTimestamp' -A > logs/k8s-events.log 2>&1 || true
-          kubectl describe pods -A > logs/k8s-describe-pods.log 2>&1 || true
-          cp /tmp/test-results.log logs/ || true
 
       - name: Upload logs
-        if: failure() || steps.tests.outcome == 'failure'
+        if: failure()
         uses: actions/upload-artifact@v6
         with:
-          name: stack-tests-logs
+          name: frontend-e2e-logs
           path: logs/
-
-      - name: Fail if tests failed
-        if: steps.tests.outcome == 'failure'
-        run: exit 1

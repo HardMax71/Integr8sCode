@@ -102,6 +102,7 @@ services:
       - ./backend/scripts:/app/scripts
       - ./backend/tests:/app/tests:ro
       - ./backend/certs:/app/certs:ro
+      - ./backend/.env.test:/app/.env.test:ro
       - shared_ca:/shared_ca:ro
       - ./backend/kubeconfig.yaml:/app/kubeconfig.yaml:ro
     ports:

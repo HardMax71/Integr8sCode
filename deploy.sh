@@ -266,7 +266,7 @@ cmd_test() {
     print_header "Running Test Suite"
 
     print_info "Starting full stack..."
-    cmd_dev --build
+    cmd_dev --build --wait
 
     print_info "Running tests inside Docker..."
     if docker compose exec -T backend \

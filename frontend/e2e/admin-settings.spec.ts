@@ -48,8 +48,11 @@ test.describe('Admin Settings', () => {
   });
 
   test('can change log level', async ({ page }) => {
-    await page.locator('#log-level').selectOption('DEBUG');
-    await expect(page.locator('#log-level')).toHaveValue('DEBUG');
+    const select = page.locator('#log-level');
+    const original = await select.inputValue();
+    await select.selectOption('DEBUG');
+    await expect(select).toHaveValue('DEBUG');
+    await select.selectOption(original);
   });
 
   test('shows save and reset buttons', async ({ page }) => {

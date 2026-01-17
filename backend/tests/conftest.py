@@ -65,8 +65,8 @@ def test_settings() -> Settings:
       - Multiple independent pytest processes (via TEST_RUN_ID or auto-UUID)
     """
     base = Settings(_env_file=".env.test")
-    # Use hash to distribute across 16 Redis DBs (handles both xdist and multi-process)
-    redis_db = hash(_ISOLATION_KEY) % 16
+    # Deterministic Redis DB: worker number + ASCII sum of RUN_ID (no hash randomization)
+    redis_db = (_WORKER_NUM + sum(ord(c) for c in _RUN_ID)) % 16
     return base.model_copy(
         update={
             # Per-worker isolation - uses _ISOLATION_KEY which includes RUN_ID + WORKER_ID

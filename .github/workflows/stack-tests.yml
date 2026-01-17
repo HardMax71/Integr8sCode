@@ -189,7 +189,8 @@ jobs:
         timeout-minutes: 15
         run: |
           # Backend integration tests
-          docker compose exec -T -e TEST_RUN_ID=integration backend \
+          # COVERAGE_FILE prevents race condition when both pytest processes write coverage data
+          docker compose exec -T -e TEST_RUN_ID=integration -e COVERAGE_FILE=.coverage.integration backend \
             uv run pytest tests/integration -v -rs \
             --durations=0 \
             --cov=app \
@@ -199,7 +200,7 @@ jobs:
           PID_INTEGRATION=$!
 
           # Backend E2E tests
-          docker compose exec -T -e TEST_RUN_ID=e2e backend \
+          docker compose exec -T -e TEST_RUN_ID=e2e -e COVERAGE_FILE=.coverage.e2e backend \
             uv run pytest tests/e2e -v -rs \
             --durations=0 \
             --cov=app \
@@ -243,9 +244,9 @@ jobs:
       - name: Test Results Summary
         if: always()
         run: |
-          echo "Backend Integration: $([ \"$EXIT_INTEGRATION\" = '0' ] && echo 'PASSED' || echo 'FAILED')"
-          echo "Backend E2E: $([ \"$EXIT_E2E\" = '0' ] && echo 'PASSED' || echo 'FAILED')"
-          echo "Frontend E2E: $([ \"$EXIT_FRONTEND\" = '0' ] && echo 'PASSED' || echo 'FAILED')"
+          echo "Backend Integration: $([ "$EXIT_INTEGRATION" = '0' ] && echo 'PASSED' || echo 'FAILED')"
+          echo "Backend E2E: $([ "$EXIT_E2E" = '0' ] && echo 'PASSED' || echo 'FAILED')"
+          echo "Frontend E2E: $([ "$EXIT_FRONTEND" = '0' ] && echo 'PASSED' || echo 'FAILED')"
 
       - name: Copy coverage files from container
         if: always()

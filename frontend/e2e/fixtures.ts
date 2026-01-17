@@ -89,11 +89,12 @@ export async function runExampleAndExecute(page: Page): Promise<void> {
   await expect(page.locator('.cm-content')).not.toBeEmpty({ timeout: 2000 });
   const runButton = page.getByRole('button', { name: /Run Script/i });
   await runButton.click();
-  await expect(page.getByRole('button', { name: /Executing/i })).toBeVisible({ timeout: 2000 });
+  await expect(page.getByRole('button', { name: /Executing/i })).toBeVisible({ timeout: 5000 });
   const success = page.locator('text=Status:').first();
   const failure = page.getByText('Execution Failed');
-  await expect(success.or(failure).first()).toBeVisible({ timeout: 5000 });
-  await expect(success).toBeVisible({ timeout: 500 });
+  // CI needs longer timeout - K8s pod creation takes time
+  await expect(success.or(failure).first()).toBeVisible({ timeout: 60000 });
+  await expect(success).toBeVisible({ timeout: 1000 });
 }
 
 export async function expectAuthRequired(page: Page, path: string): Promise<void> {

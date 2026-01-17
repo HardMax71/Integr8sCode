@@ -5,6 +5,7 @@ from contextlib import AsyncExitStack
 
 from app.core.container import create_result_processor_container
 from app.core.logging import setup_logger
+from app.core.metrics import EventMetrics, ExecutionMetrics
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
 from app.db.repositories.execution_repository import ExecutionRepository
@@ -30,6 +31,8 @@ async def run_result_processor(settings: Settings) -> None:
     schema_registry = await container.get(SchemaRegistryManager)
     idempotency_manager = await container.get(IdempotencyManager)
     execution_repo = await container.get(ExecutionRepository)
+    execution_metrics = await container.get(ExecutionMetrics)
+    event_metrics = await container.get(EventMetrics)
     logger = await container.get(logging.Logger)
     logger.info(f"Beanie ODM initialized with {len(ALL_DOCUMENTS)} document models")
 
@@ -41,6 +44,8 @@ async def run_result_processor(settings: Settings) -> None:
         settings=settings,
         idempotency_manager=idempotency_manager,
         logger=logger,
+        execution_metrics=execution_metrics,
+        event_metrics=event_metrics,
     )
 
     # Shutdown event - signal handlers just set this

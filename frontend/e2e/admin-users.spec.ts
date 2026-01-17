@@ -18,24 +18,14 @@ test.describe('Admin Users', () => {
   });
 
   test('shows users table with correct columns', async ({ page }) => {
-    await page.waitForSelector('.table, [class*="card"]', { timeout: 10000 });
-    const desktopTable = page.locator('.table').first();
-    const mobileCard = page.locator('[class*="card"]').first();
-    const isDesktop = await desktopTable.isVisible({ timeout: 2000 }).catch(() => false);
-    const isMobile = await mobileCard.isVisible({ timeout: 2000 }).catch(() => false);
-    expect(isDesktop || isMobile).toBe(true);
+    // Wait for loading to complete - either table or "Loading users..." disappears
+    await expect(page.locator('text=Loading users...')).not.toBeVisible({ timeout: 15000 });
 
-    if (isDesktop) {
-      await expect(page.getByRole('columnheader', { name: 'Username' })).toBeVisible();
-      await expect(page.getByRole('columnheader', { name: 'Email' })).toBeVisible();
-      await expect(page.getByRole('columnheader', { name: 'Role' })).toBeVisible();
-      await expect(page.getByRole('columnheader', { name: 'Status' })).toBeVisible();
-    } else {
-      await expect(mobileCard.getByText(/username/i)).toBeVisible();
-      await expect(mobileCard.getByText(/email/i)).toBeVisible();
-      await expect(mobileCard.getByText(/role/i)).toBeVisible();
-      await expect(mobileCard.getByText(/status|active|inactive/i)).toBeVisible();
-    }
+    // Desktop viewport (1280px) should show table with lg:block
+    await expect(page.getByRole('columnheader', { name: 'Username' })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'Email' })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'Role' })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'Status' })).toBeVisible();
   });
 
   test('displays seeded users in table', async ({ page }) => {
@@ -82,16 +72,20 @@ test.describe('Admin Users', () => {
 
   test.describe('Edit', () => {
     test('can open edit modal for existing user', async ({ page }) => {
+      // Wait for loading to complete
+      await expect(page.locator('text=Loading users...')).not.toBeVisible({ timeout: 15000 });
       const firstRow = page.locator('table tbody tr').first();
-      await expect(firstRow).toBeVisible({ timeout: 10000 });
+      await expect(firstRow).toBeVisible({ timeout: 5000 });
       const editButton = firstRow.locator('button[title="Edit User"]');
       await editButton.click();
       await expect(page.getByRole('heading', { name: 'Edit User' })).toBeVisible({ timeout: 5000 });
     });
 
     test('edit modal pre-fills user data', async ({ page }) => {
+      // Wait for loading to complete
+      await expect(page.locator('text=Loading users...')).not.toBeVisible({ timeout: 15000 });
       const firstRow = page.locator('table tbody tr').first();
-      await expect(firstRow).toBeVisible({ timeout: 10000 });
+      await expect(firstRow).toBeVisible({ timeout: 5000 });
       const editButton = firstRow.locator('button[title="Edit User"]');
       await editButton.click();
       await expect(page.getByRole('heading', { name: 'Edit User' })).toBeVisible({ timeout: 5000 });

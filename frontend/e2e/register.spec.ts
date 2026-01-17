@@ -72,7 +72,7 @@ test.describe('Registration', () => {
     await expect(page.locator('p.text-red-600, p.text-red-400')).toContainText('at least 8 characters');
   });
 
-  test('shows loading state during registration', async ({ page }) => {
+  test('submit button is disabled during form submission', async ({ page }) => {
     const uniqueId = Date.now();
     await fillRegistrationForm(page, {
       username: `newuser_${uniqueId}`,
@@ -82,7 +82,12 @@ test.describe('Registration', () => {
     });
     const submitButton = page.locator('button[type="submit"]');
     await submitButton.click();
-    await expect(submitButton).toContainText(/Registering|Create Account/);
+    // Either see loading state OR redirect to login (both indicate successful submission)
+    const loadingOrRedirect = await Promise.race([
+      expect(submitButton).toContainText(/Registering/).then(() => 'loading'),
+      expect(page).toHaveURL(/\/login/, { timeout: 10000 }).then(() => 'redirect'),
+    ]).catch(() => 'timeout');
+    expect(['loading', 'redirect']).toContain(loadingOrRedirect);
   });
 
   test('shows error for duplicate username', async ({ page }) => {

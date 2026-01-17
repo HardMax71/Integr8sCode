@@ -57,9 +57,7 @@ show_help() {
     echo "Commands:"
     echo "  dev [options]      Start full stack (docker-compose)"
     echo "                     --build             Rebuild images"
-    echo "                     --ci                CI mode: skip observability, wait for healthy"
     echo "                     --wait              Wait for services to be healthy"
-    echo "                     --no-observability  Skip Jaeger, Grafana, metrics collectors"
     echo "                     --timeout <secs>    Health check timeout (default: 300)"
     echo "  infra [options]    Start infrastructure only (mongo, redis, kafka, etc.)"
     echo "                     --wait              Wait for services to be healthy"
@@ -80,13 +78,16 @@ show_help() {
     echo "  --local            Force local build even with --prod values"
     echo "  --set key=value    Override Helm values"
     echo ""
+    echo "Configuration:"
+    echo "  All settings come from backend/.env (single source of truth)"
+    echo "  For CI/tests: cp backend/.env.test backend/.env"
+    echo "  Observability (Jaeger, Grafana) auto-enabled if OTEL_EXPORTER_OTLP_ENDPOINT is set"
+    echo ""
     echo "Examples:"
     echo "  ./deploy.sh dev                    # Start dev environment"
     echo "  ./deploy.sh dev --build            # Rebuild and start"
+    echo "  ./deploy.sh dev --wait             # Start and wait for healthy"
     echo "  ./deploy.sh prod                   # Deploy with local images"
-    echo "  ./deploy.sh prod --prod            # Deploy with registry images (no build)"
-    echo "  ./deploy.sh prod --prod --local    # Deploy prod values but build locally"
-    echo "  ./deploy.sh prod --set mongodb.auth.rootPassword=secret"
     echo "  ./deploy.sh logs backend           # View backend logs"
 }
 
@@ -97,26 +98,14 @@ cmd_dev() {
     print_header "Starting Local Development Environment"
 
     local BUILD_FLAG=""
-    local PROFILE_FLAGS="--profile observability"
     local WAIT_FLAG=""
     local WAIT_TIMEOUT="300"
-    local CI_MODE=false
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --build)
                 BUILD_FLAG="--build"
                 print_info "Rebuilding images..."
-                ;;
-            --no-observability)
-                PROFILE_FLAGS=""
-                print_info "Skipping observability services (Jaeger, Grafana, etc.)"
-                ;;
-            --ci)
-                PROFILE_FLAGS=""
-                WAIT_FLAG="--wait"
-                CI_MODE=true
-                print_info "CI mode: skipping observability, waiting for healthy"
                 ;;
             --wait)
                 WAIT_FLAG="--wait"
@@ -134,34 +123,33 @@ cmd_dev() {
         WAIT_TIMEOUT_FLAG="--wait-timeout $WAIT_TIMEOUT"
     fi
 
-    # In CI mode, disable tracing (no Jaeger). Otherwise let env_file control it.
-    if [[ "$CI_MODE" == "true" ]]; then
-        ENABLE_TRACING=false docker compose $PROFILE_FLAGS up -d $BUILD_FLAG $WAIT_FLAG $WAIT_TIMEOUT_FLAG
+    # Auto-detect observability: enable if OTEL endpoint is configured in .env
+    local PROFILE_FLAGS=""
+    if grep -q "^OTEL_EXPORTER_OTLP_ENDPOINT=" ./backend/.env 2>/dev/null; then
+        PROFILE_FLAGS="--profile observability"
+        print_info "Observability enabled (OTEL endpoint configured in .env)"
     else
-        docker compose $PROFILE_FLAGS up -d $BUILD_FLAG $WAIT_FLAG $WAIT_TIMEOUT_FLAG
+        print_info "Observability disabled (no OTEL endpoint in .env)"
     fi
 
-    if [[ "$CI_MODE" == "true" ]]; then
-        print_success "Stack started and healthy"
-        docker compose ps
-    else
-        echo ""
-        print_success "Development environment started!"
-        echo ""
-        echo "Services:"
-        echo "  Backend:   https://localhost:443"
-        echo "  Frontend:  https://localhost:5001"
-        echo "  Kafdrop:   http://localhost:9000"
-        if [[ -n "$PROFILE_FLAGS" ]]; then
-            echo "  Jaeger:    http://localhost:16686"
-            echo "  Grafana:   http://localhost:3000"
-        fi
-        echo ""
-        echo "Commands:"
-        echo "  ./deploy.sh logs             # View all logs"
-        echo "  ./deploy.sh logs backend     # View backend logs"
-        echo "  ./deploy.sh down             # Stop all services"
+    docker compose $PROFILE_FLAGS up -d $BUILD_FLAG $WAIT_FLAG $WAIT_TIMEOUT_FLAG
+
+    echo ""
+    print_success "Development environment started!"
+    echo ""
+    echo "Services:"
+    echo "  Backend:   https://localhost:443"
+    echo "  Frontend:  https://localhost:5001"
+    echo "  Kafdrop:   http://localhost:9000"
+    if [[ -n "$PROFILE_FLAGS" ]]; then
+        echo "  Jaeger:    http://localhost:16686"
+        echo "  Grafana:   http://localhost:3000"
     fi
+    echo ""
+    echo "Commands:"
+    echo "  ./deploy.sh logs             # View all logs"
+    echo "  ./deploy.sh logs backend     # View backend logs"
+    echo "  ./deploy.sh down             # Stop all services"
 }
 
 cmd_down() {

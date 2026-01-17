@@ -179,7 +179,7 @@ jobs:
         run: cp backend/.env.test backend/.env
 
       - name: Start full stack
-        run: ./deploy.sh dev --ci
+        run: ./deploy.sh dev --wait
 
       - name: Seed test users
         run: docker compose exec -T backend uv run python scripts/seed_users.py

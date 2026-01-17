@@ -9,19 +9,19 @@ from app.core.database_context import Database
 from app.core.k8s_clients import K8sClients, close_k8s_clients, create_k8s_clients
 from app.core.logging import setup_logger
 from app.core.metrics import (
+    ConnectionMetrics,
     CoordinatorMetrics,
     DatabaseMetrics,
     DLQMetrics,
+    EventMetrics,
     ExecutionMetrics,
     HealthMetrics,
     KubernetesMetrics,
     NotificationMetrics,
+    RateLimitMetrics,
     ReplayMetrics,
     SecurityMetrics,
 )
-from app.core.metrics.connections import ConnectionMetrics
-from app.core.metrics.events import EventMetrics
-from app.core.metrics.rate_limit import RateLimitMetrics
 from app.core.security import SecurityService
 from app.core.tracing import TracerManager
 from app.db.repositories import (
@@ -158,16 +158,21 @@ class MessagingProvider(Provider):
 
     @provide
     async def get_kafka_producer(
-        self, settings: Settings, schema_registry: SchemaRegistryManager, logger: logging.Logger
+        self, settings: Settings, schema_registry: SchemaRegistryManager, logger: logging.Logger,
+        event_metrics: EventMetrics
     ) -> AsyncIterator[UnifiedProducer]:
-        async with UnifiedProducer(schema_registry, logger, settings) as producer:
+        async with UnifiedProducer(schema_registry, logger, settings, event_metrics) as producer:
             yield producer
 
     @provide
     async def get_dlq_manager(
-        self, settings: Settings, schema_registry: SchemaRegistryManager, logger: logging.Logger
+        self,
+        settings: Settings,
+        schema_registry: SchemaRegistryManager,
+        logger: logging.Logger,
+        dlq_metrics: DLQMetrics,
     ) -> AsyncIterator[DLQManager]:
-        async with create_dlq_manager(settings, schema_registry, logger) as manager:
+        async with create_dlq_manager(settings, schema_registry, logger, dlq_metrics) as manager:
             yield manager
 
     @provide
@@ -176,9 +181,11 @@ class MessagingProvider(Provider):
 
     @provide
     async def get_idempotency_manager(
-        self, repo: RedisIdempotencyRepository, logger: logging.Logger
+        self, repo: RedisIdempotencyRepository, logger: logging.Logger, database_metrics: DatabaseMetrics
     ) -> AsyncIterator[IdempotencyManager]:
-        manager = create_idempotency_manager(repository=repo, config=IdempotencyConfig(), logger=logger)
+        manager = create_idempotency_manager(
+            repository=repo, config=IdempotencyConfig(), logger=logger, database_metrics=database_metrics
+        )
         await manager.initialize()
         try:
             yield manager
@@ -194,9 +201,12 @@ class EventProvider(Provider):
         return SchemaRegistryManager(settings, logger)
 
     @provide
-    async def get_event_store(self, schema_registry: SchemaRegistryManager, logger: logging.Logger) -> EventStore:
-        store = create_event_store(schema_registry=schema_registry, logger=logger, ttl_days=90)
-        return store
+    async def get_event_store(
+        self, schema_registry: SchemaRegistryManager, logger: logging.Logger, event_metrics: EventMetrics
+    ) -> EventStore:
+        return create_event_store(
+            schema_registry=schema_registry, logger=logger, event_metrics=event_metrics, ttl_days=90
+        )
 
     @provide
     async def get_event_store_consumer(
@@ -206,6 +216,7 @@ class EventProvider(Provider):
         settings: Settings,
         kafka_producer: UnifiedProducer,
         logger: logging.Logger,
+        event_metrics: EventMetrics,
     ) -> AsyncIterator[EventStoreConsumer]:
         topics = get_all_topics()
         async with create_event_store_consumer(
@@ -215,12 +226,15 @@ class EventProvider(Provider):
             settings=settings,
             producer=kafka_producer,
             logger=logger,
+            event_metrics=event_metrics,
         ) as consumer:
             yield consumer
 
     @provide
-    async def get_event_bus_manager(self, settings: Settings, logger: logging.Logger) -> AsyncIterator[EventBusManager]:
-        manager = EventBusManager(settings, logger)
+    async def get_event_bus_manager(
+        self, settings: Settings, logger: logging.Logger, connection_metrics: ConnectionMetrics
+    ) -> AsyncIterator[EventBusManager]:
+        manager = EventBusManager(settings, logger, connection_metrics)
         try:
             yield manager
         finally:
@@ -240,7 +254,7 @@ class KubernetesProvider(Provider):
 
 
 class MetricsProvider(Provider):
-    """Provides all metrics instances."""
+    """Provides all metrics instances via DI (no contextvars needed)."""
 
     scope = Scope.APP
 
@@ -384,8 +398,10 @@ class SSEProvider(Provider):
             yield bridge
 
     @provide(scope=Scope.REQUEST)
-    def get_sse_shutdown_manager(self, logger: logging.Logger) -> SSEShutdownManager:
-        return create_sse_shutdown_manager(logger=logger)
+    def get_sse_shutdown_manager(
+        self, logger: logging.Logger, connection_metrics: ConnectionMetrics
+    ) -> SSEShutdownManager:
+        return create_sse_shutdown_manager(logger=logger, connection_metrics=connection_metrics)
 
     @provide(scope=Scope.REQUEST)
     def get_sse_service(
@@ -396,6 +412,7 @@ class SSEProvider(Provider):
         shutdown_manager: SSEShutdownManager,
         settings: Settings,
         logger: logging.Logger,
+        connection_metrics: ConnectionMetrics,
     ) -> SSEService:
         shutdown_manager.set_router(router)
         return SSEService(
@@ -405,6 +422,7 @@ class SSEProvider(Provider):
             shutdown_manager=shutdown_manager,
             settings=settings,
             logger=logger,
+            connection_metrics=connection_metrics,
         )
 
 
@@ -434,12 +452,14 @@ class KafkaServicesProvider(Provider):
         kafka_producer: UnifiedProducer,
         settings: Settings,
         logger: logging.Logger,
+        event_metrics: EventMetrics,
     ) -> KafkaEventService:
         return KafkaEventService(
             event_repository=event_repository,
             kafka_producer=kafka_producer,
             settings=settings,
             logger=logger,
+            event_metrics=event_metrics,
         )
 
 
@@ -489,6 +509,8 @@ class AdminServicesProvider(Provider):
         sse_redis_bus: SSERedisBus,
         settings: Settings,
         logger: logging.Logger,
+        notification_metrics: NotificationMetrics,
+        event_metrics: EventMetrics,
     ) -> NotificationService:
         service = NotificationService(
             notification_repository=notification_repository,
@@ -498,6 +520,8 @@ class AdminServicesProvider(Provider):
             sse_bus=sse_redis_bus,
             settings=settings,
             logger=logger,
+            notification_metrics=notification_metrics,
+            event_metrics=event_metrics,
         )
         service.initialize()
         return service
@@ -534,6 +558,7 @@ async def _provide_saga_orchestrator(
     idempotency_manager: IdempotencyManager,
     resource_allocation_repository: ResourceAllocationRepository,
     logger: logging.Logger,
+    event_metrics: EventMetrics,
 ) -> AsyncIterator[SagaOrchestrator]:
     """Shared factory for SagaOrchestrator with lifecycle management."""
     async with create_saga_orchestrator(
@@ -546,6 +571,7 @@ async def _provide_saga_orchestrator(
         resource_allocation_repository=resource_allocation_repository,
         config=_create_default_saga_config(),
         logger=logger,
+        event_metrics=event_metrics,
     ) as orchestrator:
         yield orchestrator
 
@@ -558,6 +584,8 @@ async def _provide_execution_coordinator(
     execution_repository: ExecutionRepository,
     idempotency_manager: IdempotencyManager,
     logger: logging.Logger,
+    coordinator_metrics: CoordinatorMetrics,
+    event_metrics: EventMetrics,
 ) -> AsyncIterator[ExecutionCoordinator]:
     """Shared factory for ExecutionCoordinator with lifecycle management."""
     async with ExecutionCoordinator(
@@ -568,6 +596,8 @@ async def _provide_execution_coordinator(
         execution_repository=execution_repository,
         idempotency_manager=idempotency_manager,
         logger=logger,
+        coordinator_metrics=coordinator_metrics,
+        event_metrics=event_metrics,
     ) as coordinator:
         yield coordinator
 
@@ -603,6 +633,7 @@ class BusinessServicesProvider(Provider):
         event_store: EventStore,
         settings: Settings,
         logger: logging.Logger,
+        execution_metrics: ExecutionMetrics,
     ) -> ExecutionService:
         return ExecutionService(
             execution_repo=execution_repository,
@@ -610,6 +641,7 @@ class BusinessServicesProvider(Provider):
             event_store=event_store,
             settings=settings,
             logger=logger,
+            execution_metrics=execution_metrics,
         )
 
     @provide
@@ -676,6 +708,7 @@ class K8sWorkerProvider(Provider):
         event_store: EventStore,
         idempotency_manager: IdempotencyManager,
         logger: logging.Logger,
+        event_metrics: EventMetrics,
     ) -> AsyncIterator[KubernetesWorker]:
         config = K8sWorkerConfig()
         async with KubernetesWorker(
@@ -686,6 +719,7 @@ class K8sWorkerProvider(Provider):
             event_store=event_store,
             idempotency_manager=idempotency_manager,
             logger=logger,
+            event_metrics=event_metrics,
         ) as worker:
             yield worker
 
@@ -708,6 +742,7 @@ class PodMonitorProvider(Provider):
         k8s_clients: K8sClients,
         logger: logging.Logger,
         event_mapper: PodEventMapper,
+        kubernetes_metrics: KubernetesMetrics,
     ) -> AsyncIterator[PodMonitor]:
         config = PodMonitorConfig()
         async with PodMonitor(
@@ -716,6 +751,7 @@ class PodMonitorProvider(Provider):
             logger=logger,
             k8s_clients=k8s_clients,
             event_mapper=event_mapper,
+            kubernetes_metrics=kubernetes_metrics,
         ) as monitor:
             yield monitor
 
@@ -758,11 +794,13 @@ class DLQProcessorProvider(Provider):
         settings: Settings,
         schema_registry: SchemaRegistryManager,
         logger: logging.Logger,
+        dlq_metrics: DLQMetrics,
     ) -> AsyncIterator[DLQManager]:
         async with create_dlq_manager(
             settings=settings,
             schema_registry=schema_registry,
             logger=logger,
+            dlq_metrics=dlq_metrics,
             dlq_topic=KafkaTopic.DEAD_LETTER_QUEUE,
             retry_topic_suffix="-retry",
         ) as manager:

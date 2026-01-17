@@ -9,7 +9,7 @@ from typing import Any, Awaitable, Dict, Generator, Optional, cast
 
 import redis.asyncio as redis
 
-from app.core.metrics.rate_limit import RateLimitMetrics
+from app.core.metrics import RateLimitMetrics
 from app.core.tracing.utils import add_span_attributes
 from app.domain.rate_limit import (
     EndpointGroup,

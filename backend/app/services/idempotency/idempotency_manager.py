@@ -8,7 +8,7 @@ from typing import Protocol
 from pydantic import BaseModel
 from pymongo.errors import DuplicateKeyError
 
-from app.core.metrics.context import get_database_metrics
+from app.core.metrics import DatabaseMetrics
 from app.domain.events.typed import BaseEvent
 from app.domain.idempotency import IdempotencyRecord, IdempotencyStats, IdempotencyStatus
 
@@ -67,9 +67,15 @@ class IdempotencyRepoProtocol(Protocol):
 
 
 class IdempotencyManager:
-    def __init__(self, config: IdempotencyConfig, repository: IdempotencyRepoProtocol, logger: logging.Logger) -> None:
+    def __init__(
+        self,
+        config: IdempotencyConfig,
+        repository: IdempotencyRepoProtocol,
+        logger: logging.Logger,
+        database_metrics: DatabaseMetrics,
+    ) -> None:
         self.config = config
-        self.metrics = get_database_metrics()
+        self.metrics = database_metrics
         self._repo: IdempotencyRepoProtocol = repository
         self._stats_update_task: asyncio.Task[None] | None = None
         self.logger = logger
@@ -320,5 +326,6 @@ def create_idempotency_manager(
     repository: IdempotencyRepoProtocol,
     config: IdempotencyConfig | None = None,
     logger: logging.Logger,
+    database_metrics: DatabaseMetrics,
 ) -> IdempotencyManager:
-    return IdempotencyManager(config or IdempotencyConfig(), repository, logger)
+    return IdempotencyManager(config or IdempotencyConfig(), repository, logger, database_metrics)

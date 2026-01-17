@@ -5,17 +5,16 @@ class EventMetrics(BaseMetrics):
     """Metrics for event processing and Kafka.
 
     This class tracks metrics related to event processing, event buffers,
-    and Kafka message production/consumption. It's now accessed through
-    the contextvars-based MetricsContext system rather than a singleton.
+    and Kafka message production/consumption. Metrics are provided via
+    dependency injection (DI) through the MetricsProvider.
 
-    Usage:
-        from app.core.metrics.context import get_event_metrics
+    Usage (via DI):
+        class MyService:
+            def __init__(self, event_metrics: EventMetrics):
+                self.metrics = event_metrics
 
-        metrics = get_event_metrics()
-        metrics.record_event_published("execution.requested")
-
-    The metrics instance is managed by the MetricsContext and is available
-    throughout the application without needing to pass it through layers.
+            def my_method(self):
+                self.metrics.record_event_published("execution.requested")
     """
 
     def _create_instruments(self) -> None:

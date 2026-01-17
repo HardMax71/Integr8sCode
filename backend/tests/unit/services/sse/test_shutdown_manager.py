@@ -3,6 +3,7 @@ import logging
 
 import pytest
 from app.core.lifecycle import LifecycleEnabled
+from app.core.metrics import ConnectionMetrics
 from app.services.sse.sse_shutdown_manager import SSEShutdownManager
 
 _test_logger = logging.getLogger("test.services.sse.shutdown_manager")
@@ -21,8 +22,8 @@ class _FakeRouter(LifecycleEnabled):
 
 
 @pytest.mark.asyncio
-async def test_shutdown_graceful_notify_and_drain() -> None:
-    mgr = SSEShutdownManager(drain_timeout=1.0, notification_timeout=0.01, force_close_timeout=0.1, logger=_test_logger)
+async def test_shutdown_graceful_notify_and_drain(connection_metrics: ConnectionMetrics) -> None:
+    mgr = SSEShutdownManager(drain_timeout=1.0, notification_timeout=0.01, force_close_timeout=0.1, logger=_test_logger, connection_metrics=connection_metrics)
 
     # Register two connections and arrange that they unregister when notified
     ev1 = await mgr.register_connection("e1", "c1")
@@ -45,9 +46,9 @@ async def test_shutdown_graceful_notify_and_drain() -> None:
 
 
 @pytest.mark.asyncio
-async def test_shutdown_force_close_calls_router_stop_and_rejects_new() -> None:
+async def test_shutdown_force_close_calls_router_stop_and_rejects_new(connection_metrics: ConnectionMetrics) -> None:
     mgr = SSEShutdownManager(
-        drain_timeout=0.01, notification_timeout=0.01, force_close_timeout=0.01, logger=_test_logger
+        drain_timeout=0.01, notification_timeout=0.01, force_close_timeout=0.01, logger=_test_logger, connection_metrics=connection_metrics
     )
     router = _FakeRouter()
     mgr.set_router(router)
@@ -69,8 +70,8 @@ async def test_shutdown_force_close_calls_router_stop_and_rejects_new() -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_shutdown_status_transitions() -> None:
-    m = SSEShutdownManager(drain_timeout=0.01, notification_timeout=0.0, force_close_timeout=0.0, logger=_test_logger)
+async def test_get_shutdown_status_transitions(connection_metrics: ConnectionMetrics) -> None:
+    m = SSEShutdownManager(drain_timeout=0.01, notification_timeout=0.0, force_close_timeout=0.0, logger=_test_logger, connection_metrics=connection_metrics)
     st0 = m.get_shutdown_status()
     assert st0.phase == "ready"
     await m.initiate_shutdown()

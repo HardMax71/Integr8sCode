@@ -1,5 +1,5 @@
 import pytest
-from app.core.metrics.base import BaseMetrics
+from app.core.metrics import BaseMetrics
 from app.settings import Settings
 
 pytestmark = pytest.mark.unit

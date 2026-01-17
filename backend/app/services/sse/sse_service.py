@@ -4,7 +4,7 @@ from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 from typing import Any, Dict
 
-from app.core.metrics.context import get_connection_metrics
+from app.core.metrics import ConnectionMetrics
 from app.db.repositories.sse_repository import SSERepository
 from app.domain.enums.events import EventType
 from app.domain.enums.sse import SSEControlEvent, SSENotificationEvent
@@ -39,6 +39,7 @@ class SSEService:
         shutdown_manager: SSEShutdownManager,
         settings: Settings,
         logger: logging.Logger,
+        connection_metrics: ConnectionMetrics,
     ) -> None:
         self.repository = repository
         self.router = router
@@ -46,7 +47,7 @@ class SSEService:
         self.shutdown_manager = shutdown_manager
         self.settings = settings
         self.logger = logger
-        self.metrics = get_connection_metrics()
+        self.metrics = connection_metrics
         self.heartbeat_interval = getattr(settings, "SSE_HEARTBEAT_INTERVAL", 30)
 
     async def create_execution_stream(self, execution_id: str, user_id: str) -> AsyncGenerator[Dict[str, Any], None]:

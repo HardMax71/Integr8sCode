@@ -2,6 +2,7 @@ import logging
 from uuid import uuid4
 
 import pytest
+from app.core.metrics import EventMetrics
 from app.events.core import UnifiedProducer
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.mappings import get_topic_for_event
@@ -20,10 +21,12 @@ async def test_unified_producer_start_produce_send_to_dlq_stop(
     scope: AsyncContainer, test_settings: Settings
 ) -> None:
     schema: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
+    event_metrics: EventMetrics = await scope.get(EventMetrics)
     prod = UnifiedProducer(
         schema,
         logger=_test_logger,
         settings=test_settings,
+        event_metrics=event_metrics,
     )
 
     async with prod:

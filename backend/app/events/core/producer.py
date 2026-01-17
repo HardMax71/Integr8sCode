@@ -9,7 +9,7 @@ from aiokafka import AIOKafkaProducer
 from aiokafka.errors import KafkaError
 
 from app.core.lifecycle import LifecycleEnabled
-from app.core.metrics.context import get_event_metrics
+from app.core.metrics import EventMetrics
 from app.dlq.models import DLQMessage, DLQMessageStatus
 from app.domain.enums.kafka import KafkaTopic
 from app.domain.events.typed import DomainEvent
@@ -28,6 +28,7 @@ class UnifiedProducer(LifecycleEnabled):
         schema_registry_manager: SchemaRegistryManager,
         logger: logging.Logger,
         settings: Settings,
+        event_metrics: EventMetrics,
     ):
         super().__init__()
         self._settings = settings
@@ -36,7 +37,7 @@ class UnifiedProducer(LifecycleEnabled):
         self._producer: AIOKafkaProducer | None = None
         self._state = ProducerState.STOPPED
         self._metrics = ProducerMetrics()
-        self._event_metrics = get_event_metrics()
+        self._event_metrics = event_metrics
         self._topic_prefix = settings.KAFKA_TOPIC_PREFIX
 
     @property

@@ -5,7 +5,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.lifecycle import LifecycleEnabled
-from app.core.metrics.context import get_execution_metrics
+from app.core.metrics import EventMetrics, ExecutionMetrics
 from app.core.utils import StringEnum
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
@@ -62,6 +62,8 @@ class ResultProcessor(LifecycleEnabled):
             settings: Settings,
             idempotency_manager: IdempotencyManager,
             logger: logging.Logger,
+            execution_metrics: ExecutionMetrics,
+            event_metrics: EventMetrics,
     ) -> None:
         """Initialize the result processor."""
         super().__init__()
@@ -70,7 +72,8 @@ class ResultProcessor(LifecycleEnabled):
         self._producer = producer
         self._schema_registry = schema_registry
         self._settings = settings
-        self._metrics = get_execution_metrics()
+        self._metrics = execution_metrics
+        self._event_metrics = event_metrics
         self._idempotency_manager: IdempotencyManager = idempotency_manager
         self._state = ProcessingState.IDLE
         self._consumer: IdempotentConsumerWrapper | None = None
@@ -137,6 +140,7 @@ class ResultProcessor(LifecycleEnabled):
             schema_registry=self._schema_registry,
             settings=self._settings,
             logger=self.logger,
+            event_metrics=self._event_metrics,
         )
         wrapper = IdempotentConsumerWrapper(
             consumer=base_consumer,

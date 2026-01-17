@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 from app.core.lifecycle import LifecycleEnabled
-from app.core.metrics.events import EventMetrics
+from app.core.metrics import EventMetrics
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId
 from app.domain.events.typed import DomainEvent
@@ -86,6 +86,7 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
             schema_registry=self.schema_registry,
             settings=self.settings,
             logger=self.logger,
+            event_metrics=self.event_metrics,
         )
 
         # Use WEBSOCKET_GATEWAY subscriptions - SSE bridge serves same purpose (real-time client delivery)

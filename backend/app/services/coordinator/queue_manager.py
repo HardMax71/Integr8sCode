@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import Any, Dict, List, Tuple
 
-from app.core.metrics.context import get_coordinator_metrics
+from app.core.metrics import CoordinatorMetrics
 from app.domain.events.typed import ExecutionRequestedEvent
 
 
@@ -43,12 +43,13 @@ class QueueManager:
     def __init__(
         self,
         logger: logging.Logger,
+        coordinator_metrics: CoordinatorMetrics,
         max_queue_size: int = 10000,
         max_executions_per_user: int = 100,
         stale_timeout_seconds: int = 3600,
     ) -> None:
         self.logger = logger
-        self.metrics = get_coordinator_metrics()
+        self.metrics = coordinator_metrics
         self.max_queue_size = max_queue_size
         self.max_executions_per_user = max_executions_per_user
         self.stale_timeout_seconds = stale_timeout_seconds

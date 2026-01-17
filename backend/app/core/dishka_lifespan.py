@@ -8,7 +8,8 @@ from dishka import AsyncContainer
 from fastapi import FastAPI
 
 from app.core.database_context import Database
-from app.core.startup import initialize_metrics_context, initialize_rate_limits
+from app.core.metrics import RateLimitMetrics
+from app.core.startup import initialize_rate_limits
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
 from app.events.event_store_consumer import EventStoreConsumer
@@ -80,14 +81,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await init_beanie(database=database, document_models=ALL_DOCUMENTS)
     logger.info(f"Beanie ODM initialized with {len(ALL_DOCUMENTS)} document models")
 
-    # Initialize metrics context with instances from DI container
-    # This must happen early so services can access metrics via contextvars
-    await initialize_metrics_context(container, logger)
-    logger.info("Metrics context initialized with contextvars")
+    # Note: Metrics are now provided via DI (MetricsProvider) and injected into services.
+    # No manual metrics context initialization needed.
 
     # Initialize default rate limits in Redis
     redis_client = await container.get(redis.Redis)
-    await initialize_rate_limits(redis_client, settings, logger)
+    rate_limit_metrics = await container.get(RateLimitMetrics)
+    await initialize_rate_limits(redis_client, settings, logger, rate_limit_metrics)
     logger.info("Rate limits initialized in Redis")
 
     # Rate limit middleware added during app creation; service resolved lazily at runtime

@@ -3,6 +3,7 @@ import logging
 
 import pytest
 from app.core.lifecycle import LifecycleEnabled
+from app.core.metrics import ConnectionMetrics
 from app.services.sse.sse_shutdown_manager import SSEShutdownManager
 
 pytestmark = pytest.mark.unit
@@ -23,8 +24,8 @@ class _FakeRouter(LifecycleEnabled):
 
 
 @pytest.mark.asyncio
-async def test_register_unregister_and_shutdown_flow() -> None:
-    mgr = SSEShutdownManager(drain_timeout=0.5, notification_timeout=0.1, force_close_timeout=0.1, logger=_test_logger)
+async def test_register_unregister_and_shutdown_flow(connection_metrics: ConnectionMetrics) -> None:
+    mgr = SSEShutdownManager(drain_timeout=0.5, notification_timeout=0.1, force_close_timeout=0.1, logger=_test_logger, connection_metrics=connection_metrics)
     mgr.set_router(_FakeRouter())
 
     # Register two connections
@@ -50,9 +51,9 @@ async def test_register_unregister_and_shutdown_flow() -> None:
 
 
 @pytest.mark.asyncio
-async def test_reject_new_connection_during_shutdown() -> None:
+async def test_reject_new_connection_during_shutdown(connection_metrics: ConnectionMetrics) -> None:
     mgr = SSEShutdownManager(drain_timeout=0.5, notification_timeout=0.01, force_close_timeout=0.01,
-                             logger=_test_logger)
+                             logger=_test_logger, connection_metrics=connection_metrics)
     # Pre-register one active connection - shutdown will block waiting for it
     e = await mgr.register_connection("e", "c0")
     assert e is not None

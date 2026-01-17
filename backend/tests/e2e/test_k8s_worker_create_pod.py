@@ -3,6 +3,7 @@ import os
 import uuid
 
 import pytest
+from app.core.metrics import EventMetrics
 from app.domain.events.typed import CreatePodCommandEvent, EventMetadata
 from app.events.core import UnifiedProducer
 from app.events.event_store import EventStore
@@ -33,6 +34,7 @@ async def test_worker_creates_configmap_and_pod(
     store: EventStore = await scope.get(EventStore)
     producer: UnifiedProducer = await scope.get(UnifiedProducer)
     idem: IdempotencyManager = await scope.get(IdempotencyManager)
+    event_metrics: EventMetrics = await scope.get(EventMetrics)
 
     cfg = K8sWorkerConfig(namespace=ns, max_concurrent_pods=1)
     worker = KubernetesWorker(
@@ -43,6 +45,7 @@ async def test_worker_creates_configmap_and_pod(
         event_store=store,
         idempotency_manager=idem,
         logger=_test_logger,
+        event_metrics=event_metrics,
     )
 
     # Initialize k8s clients using worker's own method

@@ -6,6 +6,7 @@ from uuid import uuid4
 from opentelemetry.trace import SpanKind
 
 from app.core.lifecycle import LifecycleEnabled
+from app.core.metrics import EventMetrics
 from app.core.tracing import EventAttributes
 from app.core.tracing.utils import get_tracer
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
@@ -40,6 +41,7 @@ class SagaOrchestrator(LifecycleEnabled):
         idempotency_manager: IdempotencyManager,
         resource_allocation_repository: ResourceAllocationRepository,
         logger: logging.Logger,
+        event_metrics: EventMetrics,
     ):
         super().__init__()
         self.config = config
@@ -55,6 +57,7 @@ class SagaOrchestrator(LifecycleEnabled):
         self._alloc_repo: ResourceAllocationRepository = resource_allocation_repository
         self._tasks: list[asyncio.Task[None]] = []
         self.logger = logger
+        self._event_metrics = event_metrics
 
     def register_saga(self, saga_class: type[BaseSaga]) -> None:
         self._sagas[saga_class.get_name()] = saga_class
@@ -136,6 +139,7 @@ class SagaOrchestrator(LifecycleEnabled):
             schema_registry=self._schema_registry_manager,
             settings=self._settings,
             logger=self.logger,
+            event_metrics=self._event_metrics,
         )
         self._consumer = IdempotentConsumerWrapper(
             consumer=base_consumer,
@@ -542,6 +546,7 @@ def create_saga_orchestrator(
     resource_allocation_repository: ResourceAllocationRepository,
     config: SagaConfig,
     logger: logging.Logger,
+    event_metrics: EventMetrics,
 ) -> SagaOrchestrator:
     """Factory function to create a saga orchestrator.
 
@@ -555,6 +560,7 @@ def create_saga_orchestrator(
         resource_allocation_repository: Repository for resource allocations
         config: Saga configuration
         logger: Logger instance
+        event_metrics: Event metrics for tracking Kafka consumption
 
     Returns:
         A new saga orchestrator instance
@@ -569,4 +575,5 @@ def create_saga_orchestrator(
         idempotency_manager=idempotency_manager,
         resource_allocation_repository=resource_allocation_repository,
         logger=logger,
+        event_metrics=event_metrics,
     )

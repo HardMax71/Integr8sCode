@@ -7,7 +7,7 @@ from uuid import uuid4
 from opentelemetry import trace
 
 from app.core.correlation import CorrelationContext
-from app.core.metrics.context import get_event_metrics
+from app.core.metrics import EventMetrics
 from app.core.tracing.utils import inject_trace_context
 from app.db.repositories.event_repository import EventRepository
 from app.domain.enums.events import EventType
@@ -26,11 +26,12 @@ class KafkaEventService:
         kafka_producer: UnifiedProducer,
         settings: Settings,
         logger: logging.Logger,
+        event_metrics: EventMetrics,
     ):
         self.event_repository = event_repository
         self.kafka_producer = kafka_producer
         self.logger = logger
-        self.metrics = get_event_metrics()
+        self.metrics = event_metrics
         self.settings = settings
 
     async def publish_event(

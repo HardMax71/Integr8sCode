@@ -1,6 +1,5 @@
 import pytest
-from app.core.metrics.kubernetes import KubernetesMetrics
-from app.core.metrics.notifications import NotificationMetrics
+from app.core.metrics import KubernetesMetrics, NotificationMetrics
 from app.settings import Settings
 
 pytestmark = pytest.mark.unit

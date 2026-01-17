@@ -1,6 +1,5 @@
 import pytest
-from app.core.metrics.database import DatabaseMetrics
-from app.core.metrics.dlq import DLQMetrics
+from app.core.metrics import DatabaseMetrics, DLQMetrics
 from app.settings import Settings
 
 pytestmark = pytest.mark.unit

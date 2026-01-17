@@ -6,6 +6,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from app.core.metrics import ConnectionMetrics
 from app.db.repositories.sse_repository import SSERepository
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
@@ -129,12 +130,12 @@ def _decode(evt: dict[str, Any]) -> dict[str, Any]:
 
 
 @pytest.mark.asyncio
-async def test_execution_stream_closes_on_failed_event() -> None:
+async def test_execution_stream_closes_on_failed_event(connection_metrics: ConnectionMetrics) -> None:
     repo = _FakeRepo()
     bus = _FakeBus()
     sm = _FakeShutdown()
     svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm,
-                     settings=_make_fake_settings(), logger=_test_logger)
+                     settings=_make_fake_settings(), logger=_test_logger, connection_metrics=connection_metrics)
 
     agen = svc.create_execution_stream("exec-1", user_id="u1")
     first = await agen.__anext__()
@@ -158,7 +159,7 @@ async def test_execution_stream_closes_on_failed_event() -> None:
 
 
 @pytest.mark.asyncio
-async def test_execution_stream_result_stored_includes_result_payload() -> None:
+async def test_execution_stream_result_stored_includes_result_payload(connection_metrics: ConnectionMetrics) -> None:
     repo = _FakeRepo()
     # DomainExecution with RU to_dict
     repo.exec_for_result = DomainExecution(
@@ -178,7 +179,7 @@ async def test_execution_stream_result_stored_includes_result_payload() -> None:
     bus = _FakeBus()
     sm = _FakeShutdown()
     svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm,
-                     settings=_make_fake_settings(), logger=_test_logger)
+                     settings=_make_fake_settings(), logger=_test_logger, connection_metrics=connection_metrics)
 
     agen = svc.create_execution_stream("exec-2", user_id="u1")
     await agen.__anext__()  # connected
@@ -196,14 +197,14 @@ async def test_execution_stream_result_stored_includes_result_payload() -> None:
 
 
 @pytest.mark.asyncio
-async def test_notification_stream_connected_and_heartbeat_and_message() -> None:
+async def test_notification_stream_connected_and_heartbeat_and_message(connection_metrics: ConnectionMetrics) -> None:
     repo = _FakeRepo()
     bus = _FakeBus()
     sm = _FakeShutdown()
     settings = _make_fake_settings()
     settings.SSE_HEARTBEAT_INTERVAL = 0  # emit immediately
     svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm, settings=settings,
-                     logger=_test_logger)
+                     logger=_test_logger, connection_metrics=connection_metrics)
 
     agen = svc.create_notification_stream("u1")
     connected = await agen.__anext__()
@@ -241,9 +242,9 @@ async def test_notification_stream_connected_and_heartbeat_and_message() -> None
 
 
 @pytest.mark.asyncio
-async def test_health_status_shape() -> None:
+async def test_health_status_shape(connection_metrics: ConnectionMetrics) -> None:
     svc = SSEService(repository=_FakeRepo(), router=_FakeRouter(), sse_bus=_FakeBus(), shutdown_manager=_FakeShutdown(),
-                     settings=_make_fake_settings(), logger=_test_logger)
+                     settings=_make_fake_settings(), logger=_test_logger, connection_metrics=connection_metrics)
     h = await svc.get_health_status()
     assert isinstance(h, SSEHealthDomain)
     assert h.active_consumers == 3 and h.active_executions == 2

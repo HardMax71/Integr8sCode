@@ -2,6 +2,7 @@ import logging
 from unittest.mock import MagicMock
 
 import pytest
+from app.core.metrics import EventMetrics, ExecutionMetrics
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId, KafkaTopic
 from app.services.result_processor.processor import ResultProcessor, ResultProcessorConfig
@@ -28,7 +29,9 @@ class TestResultProcessorConfig:
         assert config.processing_timeout == 600
 
 
-def test_create_dispatcher_registers_handlers() -> None:
+def test_create_dispatcher_registers_handlers(
+    execution_metrics: ExecutionMetrics, event_metrics: EventMetrics
+) -> None:
     rp = ResultProcessor(
         execution_repo=MagicMock(),
         producer=MagicMock(),
@@ -36,6 +39,8 @@ def test_create_dispatcher_registers_handlers() -> None:
         settings=MagicMock(),
         idempotency_manager=MagicMock(),
         logger=_test_logger,
+        execution_metrics=execution_metrics,
+        event_metrics=event_metrics,
     )
     dispatcher = rp._create_dispatcher()
     assert dispatcher is not None

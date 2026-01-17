@@ -5,7 +5,6 @@ import signal
 from app.core.container import create_k8s_worker_container
 from app.core.database_context import Database
 from app.core.logging import setup_logger
-from app.core.startup import initialize_metrics_context
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.kafka import GroupId
@@ -24,9 +23,6 @@ async def run_kubernetes_worker(settings: Settings) -> None:
 
     db = await container.get(Database)
     await init_beanie(database=db, document_models=ALL_DOCUMENTS)
-
-    # Initialize metrics context before getting services that use metrics
-    await initialize_metrics_context(container, logger)
 
     schema_registry = await container.get(SchemaRegistryManager)
     await initialize_event_schemas(schema_registry)

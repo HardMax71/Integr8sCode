@@ -8,7 +8,7 @@ from aiokafka import AIOKafkaConsumer, TopicPartition
 from aiokafka.errors import KafkaError
 from opentelemetry.trace import SpanKind
 
-from app.core.metrics.context import get_event_metrics
+from app.core.metrics import EventMetrics
 from app.core.tracing import EventAttributes
 from app.core.tracing.utils import extract_trace_context, get_tracer
 from app.domain.enums.kafka import KafkaTopic
@@ -28,6 +28,7 @@ class UnifiedConsumer:
         schema_registry: SchemaRegistryManager,
         settings: Settings,
         logger: logging.Logger,
+        event_metrics: EventMetrics,
     ):
         self._config = config
         self.logger = logger
@@ -37,7 +38,7 @@ class UnifiedConsumer:
         self._state = ConsumerState.STOPPED
         self._running = False
         self._metrics = ConsumerMetrics()
-        self._event_metrics = get_event_metrics()  # Singleton for Kafka metrics
+        self._event_metrics = event_metrics
         self._error_callback: "Callable[[Exception, DomainEvent], Awaitable[None]] | None" = None
         self._consume_task: asyncio.Task[None] | None = None
         self._topic_prefix = settings.KAFKA_TOPIC_PREFIX

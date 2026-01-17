@@ -4,6 +4,7 @@ import uuid
 
 import pytest
 from app.core.database_context import Database
+from app.core.metrics import EventMetrics, ExecutionMetrics
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
@@ -37,6 +38,8 @@ async def test_result_processor_persists_and_emits(scope: AsyncContainer) -> Non
     # Ensure schemas
     registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
     settings: Settings = await scope.get(Settings)
+    event_metrics: EventMetrics = await scope.get(EventMetrics)
+    execution_metrics: ExecutionMetrics = await scope.get(ExecutionMetrics)
     await initialize_event_schemas(registry)
 
     # Dependencies
@@ -63,6 +66,8 @@ async def test_result_processor_persists_and_emits(scope: AsyncContainer) -> Non
         settings=settings,
         idempotency_manager=idem,
         logger=_test_logger,
+        execution_metrics=execution_metrics,
+        event_metrics=event_metrics,
     )
 
     # Setup a small consumer to capture ResultStoredEvent
@@ -87,6 +92,7 @@ async def test_result_processor_persists_and_emits(scope: AsyncContainer) -> Non
         schema_registry=registry,
         settings=settings,
         logger=_test_logger,
+        event_metrics=event_metrics,
     )
 
     # Produce the event BEFORE starting consumers (auto_offset_reset="earliest" will read it)

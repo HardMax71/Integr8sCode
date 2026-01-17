@@ -8,11 +8,13 @@ from typing import Any
 
 import pytest
 import redis.asyncio as redis
+from app.core.metrics import DatabaseMetrics
 from app.domain.events.typed import DomainEvent
 from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus
 from app.services.idempotency.idempotency_manager import IdempotencyConfig, IdempotencyManager
 from app.services.idempotency.middleware import IdempotentEventHandler, idempotent_handler
 from app.services.idempotency.redis_repository import RedisIdempotencyRepository
+from app.settings import Settings
 
 from tests.helpers import make_execution_requested_event
 
@@ -26,7 +28,7 @@ class TestIdempotencyManager:
     """IdempotencyManager backed by real Redis repository (DI-provided client)."""
 
     @pytest.fixture
-    async def manager(self, redis_client: redis.Redis) -> AsyncGenerator[IdempotencyManager, None]:
+    async def manager(self, redis_client: redis.Redis, test_settings: Settings) -> AsyncGenerator[IdempotencyManager, None]:
         prefix = f"idemp_ut:{uuid.uuid4().hex[:6]}"
         cfg = IdempotencyConfig(
             key_prefix=prefix,
@@ -37,7 +39,8 @@ class TestIdempotencyManager:
             enable_metrics=False,
         )
         repo = RedisIdempotencyRepository(redis_client, key_prefix=prefix)
-        m = IdempotencyManager(cfg, repo, _test_logger)
+        database_metrics = DatabaseMetrics(test_settings)
+        m = IdempotencyManager(cfg, repo, _test_logger, database_metrics=database_metrics)
         await m.initialize()
         try:
             yield m
@@ -254,11 +257,12 @@ class TestIdempotentEventHandlerIntegration:
     """Test IdempotentEventHandler with real components"""
 
     @pytest.fixture
-    async def manager(self, redis_client: redis.Redis) -> AsyncGenerator[IdempotencyManager, None]:
+    async def manager(self, redis_client: redis.Redis, test_settings: Settings) -> AsyncGenerator[IdempotencyManager, None]:
         prefix = f"handler_test:{uuid.uuid4().hex[:6]}"
         config = IdempotencyConfig(key_prefix=prefix, enable_metrics=False)
         repo = RedisIdempotencyRepository(redis_client, key_prefix=prefix)
-        m = IdempotencyManager(config, repo, _test_logger)
+        database_metrics = DatabaseMetrics(test_settings)
+        m = IdempotencyManager(config, repo, _test_logger, database_metrics=database_metrics)
         await m.initialize()
         try:
             yield m
@@ -509,11 +513,12 @@ class TestIdempotentEventHandlerIntegration:
         assert record is not None  # Still exists until explicit cleanup
 
     @pytest.mark.asyncio
-    async def test_metrics_enabled(self, redis_client: redis.Redis) -> None:
+    async def test_metrics_enabled(self, redis_client: redis.Redis, test_settings: Settings) -> None:
         """Test manager with metrics enabled"""
         config = IdempotencyConfig(key_prefix=f"metrics:{uuid.uuid4().hex[:6]}", enable_metrics=True)
         repository = RedisIdempotencyRepository(redis_client, key_prefix=config.key_prefix)
-        manager = IdempotencyManager(config, repository, _test_logger)
+        database_metrics = DatabaseMetrics(test_settings)
+        manager = IdempotencyManager(config, repository, _test_logger, database_metrics=database_metrics)
 
         # Initialize with metrics
         await manager.initialize()

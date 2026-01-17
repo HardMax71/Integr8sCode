@@ -2,6 +2,7 @@ import logging
 from uuid import uuid4
 
 import pytest
+from app.core.metrics import EventMetrics
 from app.domain.enums.kafka import KafkaTopic
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer
 from app.events.schema.schema_registry import SchemaRegistryManager
@@ -19,6 +20,7 @@ _test_logger = logging.getLogger("test.events.consumer_lifecycle")
 async def test_consumer_start_status_seek_and_stop(scope: AsyncContainer) -> None:
     registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
     settings: Settings = await scope.get(Settings)
+    event_metrics: EventMetrics = await scope.get(EventMetrics)
     cfg = ConsumerConfig(
         bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
         group_id=f"test-consumer-{uuid4().hex[:6]}",
@@ -30,6 +32,7 @@ async def test_consumer_start_status_seek_and_stop(scope: AsyncContainer) -> Non
         schema_registry=registry,
         settings=settings,
         logger=_test_logger,
+        event_metrics=event_metrics,
     )
     await c.start([KafkaTopic.EXECUTION_EVENTS])
     try:

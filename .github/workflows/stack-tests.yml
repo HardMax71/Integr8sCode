@@ -208,69 +208,22 @@ jobs:
       - name: Seed test users
         run: docker compose exec -T backend uv run python scripts/seed_users.py
 
-      # Run all tests in parallel (each process gets unique isolation via TEST_RUN_ID/UUID)
+      # Run all tests in parallel using GNU parallel (clean exit code handling)
       - name: Run all tests in parallel
+        id: tests
+        continue-on-error: true
         timeout-minutes: 15
         run: |
-          # Backend integration tests
-          # COVERAGE_FILE prevents race condition when both pytest processes write coverage data
-          docker compose exec -T -e TEST_RUN_ID=integration -e COVERAGE_FILE=.coverage.integration backend \
-            uv run pytest tests/integration -v -rs \
-            --durations=0 \
-            --cov=app \
-            --cov-report=xml:coverage-integration.xml \
-            --cov-report=term \
-            > /tmp/backend-integration.log 2>&1 &
-          PID_INTEGRATION=$!
-
-          # Backend E2E tests
-          docker compose exec -T -e TEST_RUN_ID=e2e -e COVERAGE_FILE=.coverage.e2e backend \
-            uv run pytest tests/e2e -v -rs \
-            --durations=0 \
-            --cov=app \
-            --cov-report=xml:coverage-e2e.xml \
-            --cov-report=term \
-            > /tmp/backend-e2e.log 2>&1 &
-          PID_E2E=$!
-
-          # Frontend E2E tests
-          cd frontend && CI=true npx playwright test --reporter=html \
-            > /tmp/frontend-e2e.log 2>&1 &
-          PID_FRONTEND=$!
-
-          # Wait for all and capture exit codes (disable errexit to capture failures)
-          set +e
-          wait $PID_INTEGRATION
-          EXIT_INTEGRATION=$?
-          wait $PID_E2E
-          EXIT_E2E=$?
-          wait $PID_FRONTEND
-          EXIT_FRONTEND=$?
-          set -e
-
-          # Save exit codes for later steps
-          echo "EXIT_INTEGRATION=$EXIT_INTEGRATION" >> $GITHUB_ENV
-          echo "EXIT_E2E=$EXIT_E2E" >> $GITHUB_ENV
-          echo "EXIT_FRONTEND=$EXIT_FRONTEND" >> $GITHUB_ENV
-
-      - name: Backend Integration Tests Output
-        if: always()
-        run: cat /tmp/backend-integration.log
-
-      - name: Backend E2E Tests Output
-        if: always()
-        run: cat /tmp/backend-e2e.log
-
-      - name: Frontend E2E Tests Output
-        if: always()
-        run: cat /tmp/frontend-e2e.log
+          parallel --joblog /tmp/test-results.log --tag --line-buffer ::: \
+            "docker compose exec -T -e TEST_RUN_ID=integration -e COVERAGE_FILE=.coverage.integration backend uv run pytest tests/integration -v -rs --durations=0 --cov=app --cov-report=xml:coverage-integration.xml --cov-report=term" \
+            "docker compose exec -T -e TEST_RUN_ID=e2e -e COVERAGE_FILE=.coverage.e2e backend uv run pytest tests/e2e -v -rs --durations=0 --cov=app --cov-report=xml:coverage-e2e.xml --cov-report=term" \
+            "cd frontend && CI=true npx playwright test --reporter=html"
 
       - name: Test Results Summary
         if: always()
         run: |
-          echo "Backend Integration: $([ "$EXIT_INTEGRATION" = '0' ] && echo 'PASSED' || echo 'FAILED')"
-          echo "Backend E2E: $([ "$EXIT_E2E" = '0' ] && echo 'PASSED' || echo 'FAILED')"
-          echo "Frontend E2E: $([ "$EXIT_FRONTEND" = '0' ] && echo 'PASSED' || echo 'FAILED')"
+          echo "=== Test Results ==="
+          cat /tmp/test-results.log
 
       - name: Copy coverage files from container
         if: always()
@@ -296,8 +249,8 @@ jobs:
           name: playwright-report
           path: frontend/playwright-report/
 
-      - name: Collect logs
-        if: failure() || env.EXIT_INTEGRATION != '0' || env.EXIT_E2E != '0' || env.EXIT_FRONTEND != '0'
+      - name: Collect logs on failure
+        if: failure() || steps.tests.outcome == 'failure'
         run: |
           mkdir -p logs
           docker compose logs > logs/docker-compose.log 2>&1
@@ -309,33 +262,15 @@ jobs:
           docker compose logs result-processor > logs/result-processor.log 2>&1 || true
           kubectl get events --sort-by='.metadata.creationTimestamp' -A > logs/k8s-events.log 2>&1 || true
           kubectl describe pods -A > logs/k8s-describe-pods.log 2>&1 || true
-          # Include test output logs
-          cp /tmp/backend-integration.log logs/ || true
-          cp /tmp/backend-e2e.log logs/ || true
-          cp /tmp/frontend-e2e.log logs/ || true
+          cp /tmp/test-results.log logs/ || true
 
       - name: Upload logs
-        if: failure() || env.EXIT_INTEGRATION != '0' || env.EXIT_E2E != '0' || env.EXIT_FRONTEND != '0'
+        if: failure() || steps.tests.outcome == 'failure'
         uses: actions/upload-artifact@v6
         with:
           name: stack-tests-logs
           path: logs/
 
-      # Fail the job if any test failed
-      - name: Check test results
-        if: always()
-        run: |
-          FAILED=0
-          if [ "$EXIT_INTEGRATION" != "0" ]; then
-            echo "::error::Backend integration tests failed (exit code: $EXIT_INTEGRATION)"
-            FAILED=1
-          fi
-          if [ "$EXIT_E2E" != "0" ]; then
-            echo "::error::Backend E2E tests failed (exit code: $EXIT_E2E)"
-            FAILED=1
-          fi
-          if [ "$EXIT_FRONTEND" != "0" ]; then
-            echo "::error::Frontend E2E tests failed (exit code: $EXIT_FRONTEND)"
-            FAILED=1
-          fi
-          exit $FAILED
+      - name: Fail if tests failed
+        if: steps.tests.outcome == 'failure'
+        run: exit 1

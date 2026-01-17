@@ -175,6 +175,9 @@ jobs:
           docker build -t integr8scode-result-processor:latest -f backend/workers/Dockerfile.result_processor --build-context base=docker-image://integr8scode-base:latest ./backend
           docker build -t integr8scode-saga-orchestrator:latest -f backend/workers/Dockerfile.saga_orchestrator --build-context base=docker-image://integr8scode-base:latest ./backend
 
+      - name: Use test environment config
+        run: cp backend/.env.test backend/.env
+
       - name: Start full stack
         run: ./deploy.sh dev --ci
 
@@ -210,35 +213,39 @@ jobs:
             > /tmp/frontend-e2e.log 2>&1 &
           PID_FRONTEND=$!
 
-          # Wait for all and capture exit codes
+          # Wait for all and capture exit codes (disable errexit to capture failures)
+          set +e
           wait $PID_INTEGRATION
           EXIT_INTEGRATION=$?
           wait $PID_E2E
           EXIT_E2E=$?
           wait $PID_FRONTEND
           EXIT_FRONTEND=$?
-
-          # Print logs
-          echo "=== Backend Integration Tests ==="
-          cat /tmp/backend-integration.log
-          echo ""
-          echo "=== Backend E2E Tests ==="
-          cat /tmp/backend-e2e.log
-          echo ""
-          echo "=== Frontend E2E Tests ==="
-          cat /tmp/frontend-e2e.log
+          set -e
 
           # Save exit codes for later steps
           echo "EXIT_INTEGRATION=$EXIT_INTEGRATION" >> $GITHUB_ENV
           echo "EXIT_E2E=$EXIT_E2E" >> $GITHUB_ENV
           echo "EXIT_FRONTEND=$EXIT_FRONTEND" >> $GITHUB_ENV
 
-          # Report results
-          echo "::group::Test Results Summary"
-          echo "Backend Integration: $([ $EXIT_INTEGRATION -eq 0 ] && echo '✅ PASSED' || echo '❌ FAILED')"
-          echo "Backend E2E: $([ $EXIT_E2E -eq 0 ] && echo '✅ PASSED' || echo '❌ FAILED')"
-          echo "Frontend E2E: $([ $EXIT_FRONTEND -eq 0 ] && echo '✅ PASSED' || echo '❌ FAILED')"
-          echo "::endgroup::"
+      - name: Backend Integration Tests Output
+        if: always()
+        run: cat /tmp/backend-integration.log
+
+      - name: Backend E2E Tests Output
+        if: always()
+        run: cat /tmp/backend-e2e.log
+
+      - name: Frontend E2E Tests Output
+        if: always()
+        run: cat /tmp/frontend-e2e.log
+
+      - name: Test Results Summary
+        if: always()
+        run: |
+          echo "Backend Integration: $([ \"$EXIT_INTEGRATION\" = '0' ] && echo 'PASSED' || echo 'FAILED')"
+          echo "Backend E2E: $([ \"$EXIT_E2E\" = '0' ] && echo 'PASSED' || echo 'FAILED')"
+          echo "Frontend E2E: $([ \"$EXIT_FRONTEND\" = '0' ] && echo 'PASSED' || echo 'FAILED')"
 
       - name: Copy coverage files from container
         if: always()

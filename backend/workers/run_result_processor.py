@@ -5,6 +5,7 @@ from contextlib import AsyncExitStack
 
 from app.core.container import create_result_processor_container
 from app.core.logging import setup_logger
+from app.core.startup import initialize_metrics_context
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
 from app.db.repositories.execution_repository import ExecutionRepository
@@ -26,6 +27,8 @@ async def run_result_processor(settings: Settings) -> None:
     await init_beanie(database=db_client[settings.DATABASE_NAME], document_models=ALL_DOCUMENTS)
 
     container = create_result_processor_container(settings)
+    logger = await container.get(logging.Logger)
+    await initialize_metrics_context(container, logger)
     producer = await container.get(UnifiedProducer)
     schema_registry = await container.get(SchemaRegistryManager)
     idempotency_manager = await container.get(IdempotencyManager)

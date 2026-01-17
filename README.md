@@ -18,8 +18,11 @@
   <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/stack-tests.yml">
     <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/stack-tests.yml?branch=main&label=backend&logo=python&logoColor=white" alt="Backend Tests" />
   </a>
+  <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/stack-tests.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/stack-tests.yml?branch=main&label=frontend&logo=svelte&logoColor=white" alt="Frontend Tests" />
+  </a>
   <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/frontend-ci.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/frontend-ci.yml?branch=main&label=frontend&logo=svelte&logoColor=white" alt="Frontend Tests" />
+    <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/frontend-ci.yml?branch=main&label=lint&logo=eslint&logoColor=white" alt="Frontend Lint" />
   </a>
 </p>
 <p align="center">

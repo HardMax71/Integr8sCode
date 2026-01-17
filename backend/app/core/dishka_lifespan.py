@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import AsyncExitStack, asynccontextmanager
 from typing import AsyncGenerator
@@ -97,9 +98,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     event_store_consumer = await container.get(EventStoreConsumer)
 
     async with AsyncExitStack() as stack:
-        await stack.enter_async_context(sse_bridge)
-        logger.info("SSE Kafka→Redis bridge started with consumer pool")
-        await stack.enter_async_context(event_store_consumer)
-        logger.info("EventStoreConsumer started - events will be persisted to MongoDB")
-        logger.info("All services initialized by DI and managed by AsyncExitStack")
+        # Start both Kafka consumers in parallel for faster startup
+        await asyncio.gather(
+            sse_bridge.__aenter__(),
+            event_store_consumer.__aenter__(),
+        )
+        # Register for cleanup (aclose called on exit)
+        stack.push_async_callback(sse_bridge.aclose)
+        stack.push_async_callback(event_store_consumer.aclose)
+        logger.info("SSE bridge and EventStoreConsumer started in parallel")
         yield

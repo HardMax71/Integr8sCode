@@ -83,7 +83,6 @@ class EventBus(LifecycleEnabled):
             max_batch_size=16384,
             enable_idempotence=True,
         )
-        await self.producer.start()
 
         # Consumer setup
         self.consumer = AIOKafkaConsumer(
@@ -98,7 +97,9 @@ class EventBus(LifecycleEnabled):
             max_poll_interval_ms=self.settings.KAFKA_MAX_POLL_INTERVAL_MS,
             request_timeout_ms=self.settings.KAFKA_REQUEST_TIMEOUT_MS,
         )
-        await self.consumer.start()
+
+        # Start both in parallel for faster startup
+        await asyncio.gather(self.producer.start(), self.consumer.start())
 
     async def _on_stop(self) -> None:
         """Stop the event bus and clean up resources."""

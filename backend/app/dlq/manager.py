@@ -78,9 +78,8 @@ class DLQManager(LifecycleEnabled):
 
     async def _on_start(self) -> None:
         """Start DLQ manager."""
-        # Start producer and consumer
-        await self.producer.start()
-        await self.consumer.start()
+        # Start producer and consumer in parallel for faster startup
+        await asyncio.gather(self.producer.start(), self.consumer.start())
 
         # Start processing tasks
         self._process_task = asyncio.create_task(self._process_messages())

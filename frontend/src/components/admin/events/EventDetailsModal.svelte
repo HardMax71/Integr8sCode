@@ -1,9 +1,25 @@
 <script lang="ts">
-    import type { EventDetailResponse } from '$lib/api';
+    import type { EventDetailResponse, EventType } from '$lib/api';
     import { formatTimestamp } from '$lib/formatters';
     import { getEventTypeColor } from '$lib/admin/events';
     import Modal from '$components/Modal.svelte';
     import EventTypeIcon from '$components/EventTypeIcon.svelte';
+
+    interface EventData {
+        event_id: string;
+        event_type: EventType;
+        timestamp: string;
+        correlation_id?: string | null;
+        aggregate_id?: string | null;
+        metadata?: Record<string, unknown>;
+        payload?: Record<string, unknown>;
+    }
+
+    interface RelatedEvent {
+        event_id: string;
+        event_type: EventType;
+        timestamp: string;
+    }
 
     interface Props {
         event: EventDetailResponse | null;
@@ -14,10 +30,14 @@
     }
 
     let { event, open, onClose, onReplay, onViewRelated }: Props = $props();
+
+    // Type-safe accessors
+    const eventData = $derived(event?.event as unknown as EventData | undefined);
+    const relatedEvents = $derived((event?.related_events ?? []) as unknown as RelatedEvent[]);
 </script>
 
 <Modal {open} title="Event Details" {onClose} size="lg">
-    {#if event}
+    {#if event && eventData}
         <div class="space-y-4">
             <div>
                 <h4 class="font-semibold mb-2">Basic Information</h4>
@@ -25,32 +45,32 @@
                     <tbody>
                         <tr class="border-b border-border-default dark:border-dark-border-default">
                             <td class="px-4 py-2 font-semibold text-fg-default dark:text-dark-fg-default">Event ID</td>
-                            <td class="px-4 py-2 font-mono text-sm text-fg-default dark:text-dark-fg-default">{event.event.event_id}</td>
+                            <td class="px-4 py-2 font-mono text-sm text-fg-default dark:text-dark-fg-default">{eventData.event_id}</td>
                         </tr>
                         <tr class="border-b border-border-default dark:border-dark-border-default">
                             <td class="px-4 py-2 font-semibold text-fg-default dark:text-dark-fg-default">Event Type</td>
                             <td class="px-4 py-2">
                                 <div class="flex items-center gap-2">
-                                    <span class="{getEventTypeColor(event.event.event_type)} shrink-0" title={event.event.event_type}>
-                                        <EventTypeIcon eventType={event.event.event_type} />
+                                    <span class="{getEventTypeColor(eventData.event_type)} shrink-0" title={eventData.event_type}>
+                                        <EventTypeIcon eventType={eventData.event_type} />
                                     </span>
-                                    <span class={getEventTypeColor(event.event.event_type)}>
-                                        {event.event.event_type}
+                                    <span class={getEventTypeColor(eventData.event_type)}>
+                                        {eventData.event_type}
                                     </span>
                                 </div>
                             </td>
                         </tr>
                         <tr class="border-b border-border-default dark:border-dark-border-default">
                             <td class="px-4 py-2 font-semibold text-fg-default dark:text-dark-fg-default">Timestamp</td>
-                            <td class="px-4 py-2 text-sm text-fg-default dark:text-dark-fg-default">{formatTimestamp(event.event.timestamp)}</td>
+                            <td class="px-4 py-2 text-sm text-fg-default dark:text-dark-fg-default">{formatTimestamp(eventData.timestamp)}</td>
                         </tr>
                         <tr class="border-b border-border-default dark:border-dark-border-default">
                             <td class="px-4 py-2 font-semibold text-fg-default dark:text-dark-fg-default">Correlation ID</td>
-                            <td class="px-4 py-2 font-mono text-sm text-fg-default dark:text-dark-fg-default">{event.event.correlation_id}</td>
+                            <td class="px-4 py-2 font-mono text-sm text-fg-default dark:text-dark-fg-default">{eventData.correlation_id}</td>
                         </tr>
                         <tr class="border-b border-border-default dark:border-dark-border-default">
                             <td class="px-4 py-2 font-semibold text-fg-default dark:text-dark-fg-default">Aggregate ID</td>
-                            <td class="px-4 py-2 font-mono text-sm text-fg-default dark:text-dark-fg-default">{event.event.aggregate_id || '-'}</td>
+                            <td class="px-4 py-2 font-mono text-sm text-fg-default dark:text-dark-fg-default">{eventData.aggregate_id || '-'}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -58,19 +78,19 @@
 
             <div>
                 <h4 class="font-semibold mb-2">Metadata</h4>
-                <pre class="bg-neutral-100 dark:bg-neutral-800 p-3 rounded overflow-auto text-sm font-mono text-fg-default dark:text-dark-fg-default">{JSON.stringify(event.event.metadata, null, 2)}</pre>
+                <pre class="bg-neutral-100 dark:bg-neutral-800 p-3 rounded overflow-auto text-sm font-mono text-fg-default dark:text-dark-fg-default">{JSON.stringify(eventData.metadata, null, 2)}</pre>
             </div>
 
             <div>
                 <h4 class="font-semibold mb-2">Payload</h4>
-                <pre class="bg-neutral-100 dark:bg-neutral-800 p-3 rounded overflow-auto text-sm font-mono text-fg-default dark:text-dark-fg-default">{JSON.stringify(event.event.payload, null, 2)}</pre>
+                <pre class="bg-neutral-100 dark:bg-neutral-800 p-3 rounded overflow-auto text-sm font-mono text-fg-default dark:text-dark-fg-default">{JSON.stringify(eventData.payload, null, 2)}</pre>
             </div>
 
-            {#if event.related_events && event.related_events.length > 0}
+            {#if relatedEvents.length > 0}
                 <div>
                     <h4 class="font-semibold mb-2">Related Events</h4>
                     <div class="space-y-1">
-                        {#each event.related_events as related}
+                        {#each relatedEvents as related}
                             <button
                                 onclick={() => onViewRelated(related.event_id)}
                                 class="flex justify-between items-center w-full p-2 bg-neutral-100 dark:bg-neutral-800 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
@@ -91,7 +111,7 @@
 
     {#snippet footer()}
         <button
-            onclick={() => event && onReplay(event.event.event_id)}
+            onclick={() => eventData && onReplay(eventData.event_id)}
             class="btn btn-primary"
         >
             Replay Event

@@ -30,7 +30,7 @@ export const ENDPOINT_GROUP_PATTERNS: Array<{ pattern: RegExp; group: EndpointGr
 
 export function detectGroupFromEndpoint(endpoint: string): EndpointGroup {
     // Strip regex anchors: leading ^, trailing $, and .* wildcards
-    const cleanEndpoint = endpoint.replace(/^\^/, '').replace(/\$$/, '').replaceAll('.*', '');
+    const cleanEndpoint = endpoint.replace(/^\^/, '').replace(/\$$/, '').replace(/\.\*/g, '');
     for (const { pattern, group } of ENDPOINT_GROUP_PATTERNS) {
         if (pattern.test(cleanEndpoint)) return group;
     }

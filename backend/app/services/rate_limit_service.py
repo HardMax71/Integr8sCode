@@ -200,18 +200,6 @@ class RateLimitService:
         )
 
         try:
-            if not self.settings.RATE_LIMIT_ENABLED:
-                # Track request when rate limiting is disabled
-                self.metrics.requests_total.add(
-                    1,
-                    {
-                        "authenticated": str(ctx.authenticated).lower(),
-                        "endpoint": ctx.normalized_endpoint,
-                        "algorithm": "disabled",
-                    },
-                )
-                return self._unlimited()
-
             if config is None:
                 with self._timer(self.metrics.redis_duration, {"operation": "get_config"}):
                     config = await self._get_config()

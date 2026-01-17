@@ -136,7 +136,7 @@
                 <X class="h-4 w-4" />
             </button>
 
-            {#if toast.progress > 0}
+            {#if (toast.progress ?? 0) > 0}
                 <div
                         class={getTimerClasses(toast.type)}
                         style="transform: scaleX({toast.progress || 0});"

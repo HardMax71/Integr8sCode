@@ -141,7 +141,6 @@ Rate limiting is controlled by environment variables:
 
 | Variable                  | Default          | Description                                          |
 |---------------------------|------------------|------------------------------------------------------|
-| `RATE_LIMIT_ENABLED`      | `true`           | Enable/disable rate limiting globally                |
 | `RATE_LIMIT_REDIS_PREFIX` | `rate_limit:`    | Redis key prefix for isolation                       |
 | `RATE_LIMIT_ALGORITHM`    | `sliding_window` | Algorithm to use (`sliding_window` or `token_bucket`)|
 | `RATE_LIMIT_DEFAULT_REQUESTS` | `100`        | Default request limit                                |

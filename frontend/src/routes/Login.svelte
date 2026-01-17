@@ -43,8 +43,9 @@
       } else {
         goto("/editor"); // Default redirect to editor
       }
-    } catch (err) {
-      error = err.message || "Login failed. Please check your credentials.";
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Login failed. Please check your credentials.";
+      error = message;
       addToast(error, "error");
     } finally {
       loading = false;

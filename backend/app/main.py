@@ -70,9 +70,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     setup_metrics(app, settings, logger)
     app.add_middleware(MetricsMiddleware)
-    if settings.RATE_LIMIT_ENABLED:
-        app.add_middleware(RateLimitMiddleware)
-
+    app.add_middleware(RateLimitMiddleware)
     app.add_middleware(CSRFMiddleware, container=container)
     app.add_middleware(CorrelationMiddleware)
     app.add_middleware(RequestSizeLimitMiddleware)

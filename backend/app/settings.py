@@ -126,7 +126,6 @@ class Settings(BaseSettings):
     REDIS_DECODE_RESPONSES: bool = True
 
     # Rate Limiting Configuration
-    RATE_LIMIT_ENABLED: bool = True
     RATE_LIMIT_DEFAULT_REQUESTS: int = 100
     RATE_LIMIT_DEFAULT_WINDOW: int = 60  # seconds
     RATE_LIMIT_BURST_MULTIPLIER: float = 1.5

@@ -31,14 +31,15 @@
         urgent: 'text-red-600 dark:text-red-400'
     };
     
-    onMount(async () => {
+    onMount(() => {
         // Subscribe to authentication changes
-        const unsubscribe = isAuthenticated.subscribe(async ($isAuth) => {
+        const unsubscribe = isAuthenticated.subscribe(($isAuth) => {
             if ($isAuth && !hasLoadedInitialData) {
                 hasLoadedInitialData = true;
                 // Load notifications using the shared store
-                await notificationStore.load(20);
-                connectToNotificationStream();
+                notificationStore.load(20).then(() => {
+                    connectToNotificationStream();
+                });
             } else if (!$isAuth) {
                 // Close stream if not authenticated
                 if (eventSource) {
@@ -49,7 +50,7 @@
                 notificationStore.clear();
             }
         });
-        
+
         return unsubscribe;
     });
     
@@ -58,7 +59,7 @@
             eventSource.close();
             eventSource = null;
         }
-        clearTimeout(reconnectTimeout);
+        if (reconnectTimeout) clearTimeout(reconnectTimeout);
     });
     
     
@@ -145,7 +146,7 @@
                 // Exponential backoff: 5s, 10s, 20s
                 const delay = Math.min(5000 * Math.pow(2, reconnectAttempts - 1), 20000);
                 
-                clearTimeout(reconnectTimeout);
+                if (reconnectTimeout) clearTimeout(reconnectTimeout);
                 reconnectTimeout = setTimeout(() => {
                     const stillAuth = get(isAuthenticated);
                     if (stillAuth && !eventSource) {

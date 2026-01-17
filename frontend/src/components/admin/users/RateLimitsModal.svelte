@@ -189,9 +189,9 @@
                                                     disabled={config.bypass_rate_limit}
                                                 />
                                                 <span class="text-xs text-neutral-500">s</span>
-                                                {#if config.global_multiplier !== 1.0}
+                                                {#if config.global_multiplier && config.global_multiplier !== 1.0}
                                                     <span class="text-xs text-blue-600 dark:text-blue-400 ml-2">
-                                                        (→ {Math.floor(rule.requests * config.global_multiplier)}/{rule.window_seconds}s)
+                                                        (→ {Math.floor(rule.requests * (config.global_multiplier ?? 1))}/{rule.window_seconds}s)
                                                     </span>
                                                 {/if}
                                             </div>

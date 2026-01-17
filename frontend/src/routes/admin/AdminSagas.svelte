@@ -49,7 +49,7 @@
             query: {
                 state: stateFilter || undefined,
                 limit: pageSize,
-                offset: (currentPage - 1) * pageSize
+                skip: (currentPage - 1) * pageSize
             }
         }), null);
         loading = false;

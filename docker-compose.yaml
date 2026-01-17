@@ -442,6 +442,7 @@ services:
     environment:
       - TRACING_SERVICE_NAME=k8s-worker
       - KAFKA_CONSUMER_GROUP_ID=k8s-worker
+      - KUBECONFIG=/app/kubeconfig.yaml
     volumes:
       - ./backend/app:/app/app:ro
       - ./backend/workers:/app/workers:ro
@@ -469,6 +470,7 @@ services:
     environment:
       - TRACING_SERVICE_NAME=pod-monitor
       - KAFKA_CONSUMER_GROUP_ID=pod-monitor
+      - KUBECONFIG=/app/kubeconfig.yaml
     volumes:
       - ./backend/app:/app/app:ro
       - ./backend/workers:/app/workers:ro
@@ -498,6 +500,7 @@ services:
     environment:
       - TRACING_SERVICE_NAME=result-processor
       - KAFKA_CONSUMER_GROUP_ID=result-processor-group
+      - KUBECONFIG=/app/kubeconfig.yaml
     volumes:
       - ./backend/app:/app/app:ro
       - ./backend/workers:/app/workers:ro

@@ -67,7 +67,7 @@
                             <button
                                 class="text-blue-600 dark:text-blue-400 hover:underline text-left"
                                 title="View user overview"
-                                onclick={(e) => { e.stopPropagation(); onViewUser(event.metadata.user_id); }}
+                                onclick={(e) => { e.stopPropagation(); if (event.metadata.user_id) onViewUser(event.metadata.user_id); }}
                             >
                                 <div class="font-mono text-xs truncate">
                                     {event.metadata.user_id}
@@ -175,7 +175,7 @@
                         <button
                             class="ml-1 text-blue-600 dark:text-blue-400 hover:underline font-mono"
                             title="View user overview"
-                            onclick={(e) => { e.stopPropagation(); onViewUser(event.metadata.user_id); }}
+                            onclick={(e) => { e.stopPropagation(); if (event.metadata.user_id) onViewUser(event.metadata.user_id); }}
                         >
                             {event.metadata.user_id}
                         </button>

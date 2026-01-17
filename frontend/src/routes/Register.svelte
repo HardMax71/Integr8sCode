@@ -37,8 +37,9 @@
             if (apiError) throw apiError;
             addToast("Registration successful! Please log in.", "success");
             goto("/login");
-        } catch (err) {
-            error = err?.detail || err?.message || "Registration failed. Please try again.";
+        } catch (err: unknown) {
+            const errObj = err as { detail?: string; message?: string } | null;
+            error = errObj?.detail || errObj?.message || "Registration failed. Please try again.";
             addToast(error, "error");
         } finally {
             loading = false;

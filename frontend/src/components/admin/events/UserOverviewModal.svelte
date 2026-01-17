@@ -1,9 +1,15 @@
 <script lang="ts">
-    import type { AdminUserOverview } from '$lib/api';
+    import type { AdminUserOverview, EventType } from '$lib/api';
     import { formatTimestamp } from '$lib/formatters';
     import { getEventTypeColor, getEventTypeLabel } from '$lib/admin/events';
     import Modal from '$components/Modal.svelte';
     import Spinner from '$components/Spinner.svelte';
+
+    interface RecentEvent {
+        event_type: EventType;
+        aggregate_id?: string | null;
+        timestamp: string;
+    }
 
     interface Props {
         overview: AdminUserOverview | null;
@@ -13,6 +19,9 @@
     }
 
     let { overview, loading, open, onClose }: Props = $props();
+
+    // Type-safe accessor for recent events
+    const recentEvents = $derived((overview?.recent_events ?? []) as unknown as RecentEvent[]);
 </script>
 
 <Modal {open} title="User Overview" {onClose} size="lg">
@@ -75,11 +84,11 @@
             </div>
         </div>
 
-        {#if overview.recent_events && overview.recent_events.length > 0}
+        {#if recentEvents.length > 0}
             <div class="mt-6">
                 <h3 class="font-semibold mb-2 text-fg-default dark:text-dark-fg-default">Recent Execution Events</h3>
                 <div class="space-y-1 max-h-48 overflow-auto">
-                    {#each overview.recent_events as ev}
+                    {#each recentEvents as ev}
                         <div class="flex justify-between items-center p-2 bg-neutral-50 dark:bg-neutral-800 rounded">
                             <div class="text-sm">
                                 <span class={getEventTypeColor(ev.event_type)}>{getEventTypeLabel(ev.event_type) || ev.event_type}</span>

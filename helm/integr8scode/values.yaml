@@ -271,7 +271,7 @@ infrastructure:
   # Zookeeper
   zookeeper:
     enabled: true
-    image: confluentinc/cp-zookeeper:7.5.0
+    image: confluentinc/cp-zookeeper:7.8.2
     heapOpts: "-Xms256M -Xmx256M"
     resources:
       requests:
@@ -286,7 +286,7 @@ infrastructure:
   # Kafka
   kafka:
     enabled: true
-    image: confluentinc/cp-kafka:7.5.0
+    image: confluentinc/cp-kafka:7.8.2
     heapOpts: "-Xms256M -Xmx256M"
     autoCreateTopics: "true"
     # JAAS authentication credentials for Zookeeper communication
@@ -307,7 +307,7 @@ infrastructure:
   # Schema Registry
   schemaRegistry:
     enabled: true
-    image: confluentinc/cp-schema-registry:7.5.0
+    image: confluentinc/cp-schema-registry:7.8.2
     heapOpts: "-Xms256M -Xmx256M"
     resources:
       requests:

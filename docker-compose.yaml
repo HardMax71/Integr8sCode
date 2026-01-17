@@ -53,10 +53,10 @@ services:
         hard: 65536
     healthcheck:
       test: echo 'db.runCommand("ping").ok' | mongosh localhost/integr8scode -u ${MONGO_ROOT_USER:-root} -p ${MONGO_ROOT_PASSWORD:-rootpassword} --authenticationDatabase admin --quiet
-      interval: 10s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   redis:
     image: redis:7-alpine
@@ -117,9 +117,6 @@ services:
       - ./backend/.env
     environment:
       - SERVER_HOST=0.0.0.0
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
-      - OTEL_SERVICE_NAME=integr8scode-backend
-      - OTEL_SERVICE_VERSION=1.0.0
     healthcheck:
       # Simpler, reliable healthcheck: curl fails non-zero for HTTP >=400 with -f
       test: ["CMD-SHELL", "curl -k -f -s https://localhost:443/api/v1/health/live >/dev/null || exit 1"]
@@ -254,10 +251,10 @@ services:
         hard: 65536
     healthcheck:
       test: ["CMD-SHELL", "echo ruok | nc localhost 2181 | grep imok"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   kafka:
     image: confluentinc/cp-kafka:7.5.0
@@ -315,10 +312,10 @@ services:
         hard: 65536
     healthcheck:
       test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
-      interval: 30s
+      interval: 5s
       timeout: 10s
-      retries: 3
-      start_period: 60s
+      retries: 12
+      start_period: 15s
 
   schema-registry:
     image: confluentinc/cp-schema-registry:7.5.0
@@ -336,10 +333,10 @@ services:
       - app-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8081/config"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
-      retries: 5
-      start_period: 30s
+      retries: 10
+      start_period: 10s
 
   kafdrop:
     image: obsidiandynamics/kafdrop:3.31.0
@@ -419,11 +416,6 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      - MONGODB_URL=mongodb://${MONGO_ROOT_USER:-root}:${MONGO_ROOT_PASSWORD:-rootpassword}@mongo:27017/integr8scode?authSource=admin
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-      - JAEGER_AGENT_HOST=jaeger
-      - JAEGER_AGENT_PORT=6831
       - TRACING_SERVICE_NAME=execution-coordinator
       - KAFKA_CONSUMER_GROUP_ID=execution-coordinator
     networks:
@@ -447,14 +439,7 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      - MONGODB_URL=mongodb://${MONGO_ROOT_USER:-root}:${MONGO_ROOT_PASSWORD:-rootpassword}@mongo:27017/integr8scode?authSource=admin
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-      - JAEGER_AGENT_HOST=jaeger
-      - JAEGER_AGENT_PORT=6831
       - TRACING_SERVICE_NAME=k8s-worker
-      - K8S_NAMESPACE=integr8scode
-      - KUBECONFIG=/app/kubeconfig.yaml
       - KAFKA_CONSUMER_GROUP_ID=k8s-worker
     volumes:
       - ./backend/app:/app/app:ro
@@ -481,13 +466,7 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-      - JAEGER_AGENT_HOST=jaeger
-      - JAEGER_AGENT_PORT=6831
       - TRACING_SERVICE_NAME=pod-monitor
-      - K8S_NAMESPACE=integr8scode
-      - KUBECONFIG=/app/kubeconfig.yaml
       - KAFKA_CONSUMER_GROUP_ID=pod-monitor
     volumes:
       - ./backend/app:/app/app:ro
@@ -516,14 +495,8 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      - MONGODB_URL=mongodb://${MONGO_ROOT_USER:-root}:${MONGO_ROOT_PASSWORD:-rootpassword}@mongo:27017/integr8scode?authSource=admin
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-      - JAEGER_AGENT_HOST=jaeger
-      - JAEGER_AGENT_PORT=6831
       - TRACING_SERVICE_NAME=result-processor
       - KAFKA_CONSUMER_GROUP_ID=result-processor-group
-      - KUBECONFIG=/app/kubeconfig.yaml
     volumes:
       - ./backend/app:/app/app:ro
       - ./backend/workers:/app/workers:ro
@@ -551,12 +524,8 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      - MONGODB_URL=mongodb://${MONGO_ROOT_USER:-root}:${MONGO_ROOT_PASSWORD:-rootpassword}@mongo:27017/integr8scode?authSource=admin
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-      - JAEGER_AGENT_HOST=jaeger
-      - JAEGER_AGENT_PORT=6831
       - TRACING_SERVICE_NAME=saga-orchestrator
+      - KAFKA_CONSUMER_GROUP_ID=saga-orchestrator
     networks:
       - app-network
     restart: unless-stopped
@@ -600,13 +569,8 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      - MONGODB_URL=mongodb://${MONGO_ROOT_USER:-root}:${MONGO_ROOT_PASSWORD:-rootpassword}@mongo:27017/integr8scode?authSource=admin
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-      - SERVICE_NAME=event-replay
       - TRACING_SERVICE_NAME=event-replay
-      - JAEGER_AGENT_HOST=jaeger
-      - JAEGER_AGENT_PORT=6831
+      - KAFKA_CONSUMER_GROUP_ID=event-replay
     networks:
       - app-network
     restart: unless-stopped
@@ -630,17 +594,8 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      - MONGODB_URL=mongodb://${MONGO_ROOT_USER:-root}:${MONGO_ROOT_PASSWORD:-rootpassword}@mongo:27017/integr8scode?authSource=admin
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - SCHEMA_REGISTRY_URL=http://schema-registry:8081
-      - SERVICE_NAME=dlq-processor
       - TRACING_SERVICE_NAME=dlq-processor
-      - JAEGER_AGENT_HOST=jaeger
-      - JAEGER_AGENT_PORT=6831
-      - DLQ_MAX_RETRY_ATTEMPTS=5
-      - DLQ_RETRY_DELAY_HOURS=1
-      - DLQ_MAX_AGE_DAYS=7
-      - DLQ_BATCH_SIZE=100
+      - KAFKA_CONSUMER_GROUP_ID=dlq-processor
     networks:
       - app-network
     restart: unless-stopped

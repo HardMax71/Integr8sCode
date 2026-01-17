@@ -1,5 +1,4 @@
 import logging
-import os
 import uuid
 
 import pytest
@@ -22,13 +21,9 @@ _test_logger = logging.getLogger("test.k8s.worker_create_pod")
 
 @pytest.mark.asyncio
 async def test_worker_creates_configmap_and_pod(
-    scope: AsyncContainer, monkeypatch: pytest.MonkeyPatch, test_settings: Settings
+        scope: AsyncContainer, test_settings: Settings
 ) -> None:
-    # Ensure non-default namespace for worker validation
-    ns = os.environ.get("K8S_NAMESPACE", "integr8scode")
-    if ns == "default":
-        ns = "integr8scode"
-        monkeypatch.setenv("K8S_NAMESPACE", ns)
+    ns = test_settings.K8S_NAMESPACE
 
     schema: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
     store: EventStore = await scope.get(EventStore)

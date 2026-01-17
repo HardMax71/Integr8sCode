@@ -124,7 +124,15 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
+
       - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         working-directory: frontend
         run: npx playwright install chromium
 
@@ -134,7 +142,19 @@ jobs:
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Cache base image
+        uses: actions/cache@v4
+        id: base-cache
+        with:
+          path: /tmp/base-image.tar.zst
+          key: base-image-${{ runner.os }}-${{ hashFiles('backend/Dockerfile.base', 'backend/pyproject.toml', 'backend/uv.lock') }}
+
+      - name: Load base image from cache
+        if: steps.base-cache.outputs.cache-hit == 'true'
+        run: zstd -d -c /tmp/base-image.tar.zst | docker load
+
       - name: Build base image
+        if: steps.base-cache.outputs.cache-hit != 'true'
         uses: docker/build-push-action@v6
         with:
           context: ./backend
@@ -143,6 +163,10 @@ jobs:
           tags: integr8scode-base:latest
           cache-from: type=gha,scope=backend-base
           cache-to: type=gha,mode=max,scope=backend-base
+
+      - name: Save base image to cache
+        if: steps.base-cache.outputs.cache-hit != 'true'
+        run: docker save integr8scode-base:latest | zstd -T0 -3 > /tmp/base-image.tar.zst
 
       - name: Build backend image
         run: docker build -t integr8scode-backend:latest --build-context base=docker-image://integr8scode-base:latest -f ./backend/Dockerfile ./backend

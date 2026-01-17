@@ -117,6 +117,7 @@ services:
       - ./backend/.env
     environment:
       - SERVER_HOST=0.0.0.0
+      - KUBECONFIG=/app/kubeconfig.yaml
     healthcheck:
       # Simpler, reliable healthcheck: curl fails non-zero for HTTP >=400 with -f
       test: ["CMD-SHELL", "curl -k -f -s https://localhost:443/api/v1/health/live >/dev/null || exit 1"]

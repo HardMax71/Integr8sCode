@@ -660,12 +660,8 @@ services:
     depends_on:
       - victoria-metrics
       - jaeger
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:13133/"]
-      interval: 5s
-      timeout: 5s
-      retries: 12
-      start_period: 10s
+    # Note: otel-collector uses scratch image - no wget/curl available for healthcheck
+    # The service exposes health endpoint at :13133 but we can't check it from inside container
 
 volumes:
   mongo_data:

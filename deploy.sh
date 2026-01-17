@@ -81,7 +81,6 @@ show_help() {
     echo "Configuration:"
     echo "  All settings come from backend/.env (single source of truth)"
     echo "  For CI/tests: cp backend/.env.test backend/.env"
-    echo "  Observability (Jaeger, Grafana) auto-enabled if OTEL_EXPORTER_OTLP_ENDPOINT is set"
     echo ""
     echo "Examples:"
     echo "  ./deploy.sh dev                    # Start dev environment"
@@ -123,16 +122,7 @@ cmd_dev() {
         WAIT_TIMEOUT_FLAG="--wait-timeout $WAIT_TIMEOUT"
     fi
 
-    # Auto-detect observability: enable if OTEL endpoint is configured in .env
-    local PROFILE_FLAGS=""
-    if grep -q "^OTEL_EXPORTER_OTLP_ENDPOINT=" ./backend/.env 2>/dev/null; then
-        PROFILE_FLAGS="--profile observability"
-        print_info "Observability enabled (OTEL endpoint configured in .env)"
-    else
-        print_info "Observability disabled (no OTEL endpoint in .env)"
-    fi
-
-    docker compose $PROFILE_FLAGS up -d $BUILD_FLAG $WAIT_FLAG $WAIT_TIMEOUT_FLAG
+    docker compose --profile observability up -d $BUILD_FLAG $WAIT_FLAG $WAIT_TIMEOUT_FLAG
 
     echo ""
     print_success "Development environment started!"
@@ -141,10 +131,8 @@ cmd_dev() {
     echo "  Backend:   https://localhost:443"
     echo "  Frontend:  https://localhost:5001"
     echo "  Kafdrop:   http://localhost:9000"
-    if [[ -n "$PROFILE_FLAGS" ]]; then
-        echo "  Jaeger:    http://localhost:16686"
-        echo "  Grafana:   http://localhost:3000"
-    fi
+    echo "  Jaeger:    http://localhost:16686"
+    echo "  Grafana:   http://localhost:3000"
     echo ""
     echo "Commands:"
     echo "  ./deploy.sh logs             # View all logs"

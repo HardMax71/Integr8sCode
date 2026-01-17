@@ -72,7 +72,7 @@ test.describe('Registration', () => {
     await expect(page.locator('p.text-red-600, p.text-red-400')).toContainText('at least 8 characters');
   });
 
-  test('submit button is disabled during form submission', async ({ page }) => {
+  test('submits form and shows loading or redirects', async ({ page }) => {
     const uniqueId = Date.now();
     await fillRegistrationForm(page, {
       username: `newuser_${uniqueId}`,

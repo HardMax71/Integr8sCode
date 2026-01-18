@@ -1,5 +1,6 @@
 # Integr8sCode
 
+[![SBOM & Supply Chain Security](https://github.com/HardMax71/Integr8sCode/actions/workflows/sbom-compliance.yml/badge.svg)](https://github.com/HardMax71/Integr8sCode/actions/workflows/sbom-compliance.yml)
 [GitHub :material-github:](https://github.com/HardMax71/Integr8sCode){ .md-button }
 [Live Demo :material-play:](https://app.integr8scode.cc/){ .md-button .md-button--primary }
 
@@ -80,6 +81,7 @@ For detailed architecture diagrams, see the [Architecture](architecture/overview
 | Non-root execution       | Dropped capabilities, no privilege escalation|
 | Filesystem               | Read-only root filesystem                   |
 | Kubernetes API           | No service account token mounted            |
+| Supply Chain (SBOM)      | [Weekly Scans & Artifacts](https://github.com/HardMax71/Integr8sCode/actions/workflows/sbom-compliance.yml) |
 
 ## Documentation
 
@@ -120,6 +122,12 @@ For detailed architecture diagrams, see the [Architecture](architecture/overview
     ---
 
     Frontend routing and components
+
+-   :material-github: **[Contributing](https://github.com/HardMax71/Integr8sCode/blob/main/CONTRIBUTING.md)**
+
+    ---
+
+    Development setup, pre-commit hooks, and PR guidelines
 
 </div>
 

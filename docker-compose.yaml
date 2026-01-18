@@ -29,6 +29,8 @@ services:
        - SHARED_CA_DIR=/shared_ca
        - BACKEND_CERT_DIR=/backend-certs
        - FRONTEND_CERT_DIR=/frontend-certs
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: "no"
     networks:
       - app-network

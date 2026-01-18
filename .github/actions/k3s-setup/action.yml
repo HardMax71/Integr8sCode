@@ -22,7 +22,9 @@ runs:
     - name: Install k3s
       shell: bash
       run: |
-        curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik --tls-san host.docker.internal" sh -
+        # --bind-address 0.0.0.0: Listen on all interfaces so Docker containers can reach it
+        # --tls-san host.docker.internal: Include in cert SANs for Docker container access
+        curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik --bind-address 0.0.0.0 --tls-san host.docker.internal" sh -
         mkdir -p /home/runner/.kube
         sudo k3s kubectl config view --raw > /home/runner/.kube/config
         sudo chmod 600 /home/runner/.kube/config

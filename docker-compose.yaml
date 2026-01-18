@@ -148,7 +148,12 @@ services:
     environment:
       - VITE_BACKEND_URL=https://backend:443
       - NODE_EXTRA_CA_CERTS=/shared_ca/mkcert-ca.pem
-
+    healthcheck:
+      test: ["CMD-SHELL", "curl -k -f -s https://localhost:5001 >/dev/null || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
 
 
   grafana:

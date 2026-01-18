@@ -30,9 +30,10 @@ configure_kubectl() {
             K3S_HOST_IP=$(ip route 2>/dev/null | grep default | awk '{print $3}' | head -1)
         fi
         if [ -n "$K3S_HOST_IP" ] && [ "$K3S_HOST_IP" != "127.0.0.1" ]; then
-            # Create modified kubeconfig with routable IP
+            # Create modified kubeconfig with routable IP/hostname
+            # Handle both 127.0.0.1 and 0.0.0.0 (k3s may use either depending on config)
             mkdir -p /tmp/kube
-            sed "s|https://127.0.0.1:|https://${K3S_HOST_IP}:|g" /etc/rancher/k3s/k3s.yaml > /tmp/kube/config
+            sed -E "s|https://(127\.0\.0\.1|0\.0\.0\.0):|https://${K3S_HOST_IP}:|g" /etc/rancher/k3s/k3s.yaml > /tmp/kube/config
             export KUBECONFIG=/tmp/kube/config
             echo "Using k3s kubeconfig with routable IP: $K3S_HOST_IP"
         else

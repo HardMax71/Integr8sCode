@@ -424,6 +424,9 @@ services:
     environment:
       - TRACING_SERVICE_NAME=execution-coordinator
       - KAFKA_CONSUMER_GROUP_ID=execution-coordinator
+    volumes:
+      - ./backend/app:/app/app:ro
+      - ./backend/workers:/app/workers:ro
     networks:
       - app-network
     restart: unless-stopped
@@ -535,6 +538,9 @@ services:
     environment:
       - TRACING_SERVICE_NAME=saga-orchestrator
       - KAFKA_CONSUMER_GROUP_ID=saga-orchestrator
+    volumes:
+      - ./backend/app:/app/app:ro
+      - ./backend/workers:/app/workers:ro
     networks:
       - app-network
     restart: unless-stopped
@@ -580,6 +586,9 @@ services:
     environment:
       - TRACING_SERVICE_NAME=event-replay
       - KAFKA_CONSUMER_GROUP_ID=event-replay
+    volumes:
+      - ./backend/app:/app/app:ro
+      - ./backend/workers:/app/workers:ro
     networks:
       - app-network
     restart: unless-stopped
@@ -605,6 +614,9 @@ services:
     environment:
       - TRACING_SERVICE_NAME=dlq-processor
       - KAFKA_CONSUMER_GROUP_ID=dlq-processor
+    volumes:
+      - ./backend/app:/app/app:ro
+      - ./backend/workers:/app/workers:ro
     networks:
       - app-network
     restart: unless-stopped

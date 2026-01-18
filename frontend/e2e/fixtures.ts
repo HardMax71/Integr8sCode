@@ -1,4 +1,4 @@
-import { test as base, expect, type Page, type TestInfo } from '@playwright/test';
+import { test as base, expect, type Page, type BrowserContext } from '@playwright/test';
 import { ADMIN_ROUTES, type AdminPath } from '../src/lib/admin/constants';
 
 export const TEST_USERS = {
@@ -6,26 +6,82 @@ export const TEST_USERS = {
   admin: { username: 'admin', password: 'admin123' },
 } as const;
 
-export async function clearSession(page: Page): Promise<void> {
-  await page.context().clearCookies();
-  if (page.url() === 'about:blank') {
-    await page.goto('/');
-  }
-  await page.evaluate(() => {
-    localStorage.clear();
-    sessionStorage.clear();
-  });
-}
+// Worker-scoped fixtures: authenticate ONCE per worker, reuse context for all tests
+type WorkerFixtures = {
+  userContext: BrowserContext;
+  adminContext: BrowserContext;
+};
 
-// Auth is pre-set via storageState - just navigate to editor
+type TestFixtures = {
+  userPage: Page;
+  adminPage: Page;
+};
+
+export const test = base.extend<TestFixtures, WorkerFixtures>({
+  // Worker-scoped: one login per worker, shared across all tests in that worker
+  userContext: [async ({ browser }, use) => {
+    const context = await browser.newContext({ ignoreHTTPSErrors: true });
+    const page = await context.newPage();
+    await page.goto('/login');
+    await page.locator('#username').fill(TEST_USERS.user.username);
+    await page.locator('#password').fill(TEST_USERS.user.password);
+    await page.locator('button[type="submit"]').click();
+    await expect(page.getByRole('heading', { name: 'Code Editor' })).toBeVisible();
+    await page.close();
+    await use(context);
+    await context.close();
+  }, { scope: 'worker' }],
+
+  adminContext: [async ({ browser }, use) => {
+    const context = await browser.newContext({ ignoreHTTPSErrors: true });
+    const page = await context.newPage();
+    await page.goto('/login');
+    await page.locator('#username').fill(TEST_USERS.admin.username);
+    await page.locator('#password').fill(TEST_USERS.admin.password);
+    await page.locator('button[type="submit"]').click();
+    await expect(page.getByRole('heading', { name: 'Code Editor' })).toBeVisible();
+    await page.close();
+    await use(context);
+    await context.close();
+  }, { scope: 'worker' }],
+
+  // Test-scoped: new page per test, but reuses authenticated context
+  userPage: async ({ userContext }, use) => {
+    const page = await userContext.newPage();
+    await use(page);
+    await page.close();
+  },
+
+  adminPage: async ({ adminContext }, use) => {
+    const page = await adminContext.newPage();
+    await use(page);
+    await page.close();
+  },
+});
+
+// Helper functions using the default page (for tests that don't need pre-auth)
 export async function loginAsUser(page: Page): Promise<void> {
-  await page.goto('/editor');
+  await page.goto('/login');
+  await page.locator('#username').fill(TEST_USERS.user.username);
+  await page.locator('#password').fill(TEST_USERS.user.password);
+  await page.locator('button[type="submit"]').click();
   await expect(page.getByRole('heading', { name: 'Code Editor' })).toBeVisible();
 }
 
 export async function loginAsAdmin(page: Page): Promise<void> {
-  await page.goto('/editor');
+  await page.goto('/login');
+  await page.locator('#username').fill(TEST_USERS.admin.username);
+  await page.locator('#password').fill(TEST_USERS.admin.password);
+  await page.locator('button[type="submit"]').click();
   await expect(page.getByRole('heading', { name: 'Code Editor' })).toBeVisible();
+}
+
+export async function clearSession(page: Page): Promise<void> {
+  await page.context().clearCookies();
+  await page.evaluate(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
 }
 
 export function getAdminRoute(path: AdminPath) {
@@ -37,7 +93,7 @@ export function getAdminRoute(path: AdminPath) {
 export async function navigateToAdminPage(page: Page, path: AdminPath): Promise<void> {
   const route = getAdminRoute(path);
   await page.goto(path);
-  await expect(page.getByRole('heading', { name: route.pageHeading })).toBeVisible({ timeout: 15000 });
+  await expect(page.getByRole('heading', { name: route.pageHeading })).toBeVisible();
 }
 
 export async function expectAdminSidebar(page: Page): Promise<void> {
@@ -56,11 +112,11 @@ export async function expectToastVisible(page: Page, timeout = 5000): Promise<vo
 }
 
 export async function expectRedirectToLogin(page: Page): Promise<void> {
-  await expect(page).toHaveURL(/\/login/, { timeout: 10000 });
+  await expect(page).toHaveURL(/\/login/);
 }
 
 export async function expectRedirectToHome(page: Page): Promise<void> {
-  await expect(page).toHaveURL('/', { timeout: 10000 });
+  await expect(page).toHaveURL('/');
 }
 
 export async function expectTableOrEmptyState(
@@ -84,8 +140,7 @@ export async function expectTableColumn(page: Page, columnName: string, emptyPat
 export async function runExampleAndExecute(page: Page): Promise<void> {
   await page.getByRole('button', { name: /Example/i }).click();
   await expect(page.locator('.cm-content')).not.toBeEmpty({ timeout: 2000 });
-  const runButton = page.getByRole('button', { name: /Run Script/i });
-  await runButton.click();
+  await page.getByRole('button', { name: /Run Script/i }).click();
   await expect(page.getByRole('button', { name: /Executing/i })).toBeVisible({ timeout: 5000 });
   const success = page.locator('text=Status:').first();
   const failure = page.getByText('Execution Failed');
@@ -101,26 +156,25 @@ export async function expectAuthRequired(page: Page, path: string): Promise<void
 
 export async function navigateToPage(page: Page, path: string, headingName: string, headingLevel: 1 | 2 = 1): Promise<void> {
   await page.goto(path);
-  await expect(page.getByRole('heading', { name: headingName, level: headingLevel })).toBeVisible({ timeout: 15000 });
+  await expect(page.getByRole('heading', { name: headingName, level: headingLevel })).toBeVisible();
 }
 
-export function describeAuthRequired(test: typeof base, path: string): void {
-  test.describe('Access Control', () => {
-    test('redirects to login when not authenticated', async ({ page }) => {
+export function describeAuthRequired(testFn: typeof base, path: string): void {
+  testFn.describe('Access Control', () => {
+    testFn('redirects to login when not authenticated', async ({ page }) => {
       await expectAuthRequired(page, path);
     });
   });
 }
 
-export function describeAdminAccessControl(test: typeof base, path: AdminPath): void {
-  test.describe('Access Control', () => {
-    test('redirects non-admin users to home', async ({ page }) => {
-      await loginAsUser(page);
-      await page.goto(path);
-      await expectRedirectToHome(page);
+export function describeAdminAccessControl(testFn: typeof base, path: AdminPath): void {
+  testFn.describe('Access Control', () => {
+    testFn('redirects non-admin users to home', async ({ userPage }) => {
+      await userPage.goto(path);
+      await expectRedirectToHome(userPage);
     });
 
-    test('redirects unauthenticated users to login', async ({ page }) => {
+    testFn('redirects unauthenticated users to login', async ({ page }) => {
       await clearSession(page);
       await page.goto(path);
       await expectRedirectToLogin(page);
@@ -128,20 +182,23 @@ export function describeAdminAccessControl(test: typeof base, path: AdminPath): 
   });
 }
 
-export function describeAdminCommonTests(test: typeof base, path: AdminPath): void {
+export function describeAdminCommonTests(testFn: typeof base, path: AdminPath): void {
   const route = getAdminRoute(path);
 
-  test('displays page with header', async ({ page }) => {
-    await expect(page.getByRole('heading', { name: route.pageHeading })).toBeVisible();
+  testFn('displays page with header', async ({ adminPage }) => {
+    await adminPage.goto(path);
+    await expect(adminPage.getByRole('heading', { name: route.pageHeading })).toBeVisible();
   });
 
-  test('shows admin sidebar navigation', async ({ page }) => {
-    await expectAdminSidebar(page);
+  testFn('shows admin sidebar navigation', async ({ adminPage }) => {
+    await adminPage.goto(path);
+    await expectAdminSidebar(adminPage);
   });
 
-  test('nav link is active in sidebar', async ({ page }) => {
-    await expectActiveNavLink(page, route.sidebarLabel);
+  testFn('nav link is active in sidebar', async ({ adminPage }) => {
+    await adminPage.goto(path);
+    await expectActiveNavLink(adminPage, route.sidebarLabel);
   });
 }
 
-export { base as test, expect, ADMIN_ROUTES, type AdminPath, type Page };
+export { expect, ADMIN_ROUTES, type AdminPath, type Page };

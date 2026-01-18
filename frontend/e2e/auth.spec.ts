@@ -1,4 +1,4 @@
-import { test, expect, clearSession, login, TEST_USERS } from './fixtures';
+import { test, expect, clearSession, loginAsUser, TEST_USERS } from './fixtures';
 
 const PATH = '/login';
 
@@ -84,7 +84,7 @@ test.describe('Authentication', () => {
 
 test.describe('Logout', () => {
   test.beforeEach(async ({ page }) => {
-    await login(page, TEST_USERS.user.username, TEST_USERS.user.password);
+    await loginAsUser(page);
   });
 
   test('can logout from authenticated state', async ({ page }) => {

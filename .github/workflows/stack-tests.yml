@@ -355,10 +355,14 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
 
+      - name: Install Playwright system dependencies
+        working-directory: frontend
+        run: npx playwright install-deps chromium
+
       - name: Install Playwright browsers
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         working-directory: frontend
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
 
       - name: Cache and load Docker images
         uses: ./.github/actions/docker-cache

@@ -89,6 +89,70 @@ Component tests render Svelte components in jsdom and verify their DOM output, p
 
 E2E tests run in Playwright against the real application. They exercise full user flows like registration, login, theme switching, and protected route access.
 
+## Playwright authentication
+
+E2E tests use Playwright's [storageState](https://playwright.dev/docs/auth) feature to authenticate once and reuse across all tests. This avoids hammering the backend with 100+ login requests.
+
+### How it works
+
+1. **Setup project** runs first, executing `e2e/auth.setup.ts`
+2. Setup logs in as `user` and `admin`, saving cookies to `e2e/.auth/*.json`
+3. **Test projects** load pre-saved auth state before each test
+
+```
+e2e/
+├── .auth/              # Git-ignored, created at runtime
+│   ├── user.json       # User session cookies
+│   └── admin.json      # Admin session cookies
+├── auth.setup.ts       # Runs once, creates auth files
+├── fixtures.ts         # Shared test utilities
+├── auth.spec.ts        # Tests login flow itself
+├── editor.spec.ts      # User tests (use user.json)
+└── admin-*.spec.ts     # Admin tests (use admin.json)
+```
+
+### Project configuration
+
+Tests are split into three Playwright projects:
+
+| Project | Matches | Auth State |
+|---------|---------|------------|
+| `setup` | `auth.setup.ts` | None (creates auth files) |
+| `user-tests` | `*.spec.ts` (non-admin) | `e2e/.auth/user.json` |
+| `admin-tests` | `admin-*.spec.ts` | `e2e/.auth/admin.json` |
+
+The `dependencies: ['setup']` ensures auth files exist before tests run.
+
+### Writing tests
+
+Tests don't need to call login—the browser is already authenticated:
+
+```typescript
+// Before: slow, hits backend every test
+test.beforeEach(async ({ page }) => {
+  await login(page, 'user', 'password');  // 2-5s per test
+});
+
+// After: fast, auth pre-loaded via storageState
+test.beforeEach(async ({ page }) => {
+  await loginAsUser(page);  // Just navigates to /editor
+});
+```
+
+The `loginAsUser` and `loginAsAdmin` helpers in `fixtures.ts` simply navigate to `/editor` since auth is already set.
+
+### Testing unauthenticated flows
+
+For tests that need to verify login/logout behavior, use `clearSession()` to wipe auth state:
+
+```typescript
+test('redirects unauthenticated users to login', async ({ page }) => {
+  await clearSession(page);  // Clears cookies
+  await page.goto('/editor');
+  await expect(page).toHaveURL(/\/login/);
+});
+```
+
 ## Configuration
 
 Vitest configuration lives in [`vitest.config.ts`](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/vitest.config.ts):

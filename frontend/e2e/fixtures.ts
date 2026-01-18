@@ -17,19 +17,16 @@ export async function clearSession(page: Page): Promise<void> {
   });
 }
 
-export async function login(page: Page, username = 'user', password = 'user123'): Promise<void> {
-  await clearSession(page);
-  await page.goto('/login');
-  await page.waitForSelector('#username');
-  await page.fill('#username', username);
-  await page.fill('#password', password);
-  await page.click('button[type="submit"]');
-  await page.waitForURL(url => !url.pathname.includes('/login'), { timeout: 15000 });
-  await expect(page.getByRole('heading', { name: 'Code Editor' })).toBeVisible({ timeout: 10000 });
+// Auth is pre-set via storageState - just navigate to editor
+export async function loginAsUser(page: Page): Promise<void> {
+  await page.goto('/editor');
+  await expect(page.getByRole('heading', { name: 'Code Editor' })).toBeVisible();
 }
 
-export const loginAsAdmin = (page: Page) => login(page, TEST_USERS.admin.username, TEST_USERS.admin.password);
-export const loginAsUser = (page: Page) => login(page, TEST_USERS.user.username, TEST_USERS.user.password);
+export async function loginAsAdmin(page: Page): Promise<void> {
+  await page.goto('/editor');
+  await expect(page.getByRole('heading', { name: 'Code Editor' })).toBeVisible();
+}
 
 export function getAdminRoute(path: AdminPath) {
   const route = ADMIN_ROUTES.find(r => r.path === path);

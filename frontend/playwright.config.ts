@@ -18,9 +18,18 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
+    { name: 'setup', testMatch: /auth\.setup\.ts/ },
     {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      name: 'user-tests',
+      use: { ...devices['Desktop Chrome'], storageState: 'e2e/.auth/user.json' },
+      dependencies: ['setup'],
+      testMatch: /^(?!.*admin-).*\.spec\.ts$/,
+    },
+    {
+      name: 'admin-tests',
+      use: { ...devices['Desktop Chrome'], storageState: 'e2e/.auth/admin.json' },
+      dependencies: ['setup'],
+      testMatch: /admin-.*\.spec\.ts$/,
     },
   ],
   // In CI, frontend runs via docker-compose; locally, start dev server if needed

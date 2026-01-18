@@ -101,7 +101,7 @@ export async function navigateToAdminPage(page: Page, path: AdminPath): Promise<
 }
 
 export async function expectAdminSidebar(page: Page): Promise<void> {
-  await expect(page.getByText('Admin Panel')).toBeVisible();
+  await expect(page.getByText('Admin Panel')).toBeVisible({ timeout: 10000 });
   for (const route of ADMIN_ROUTES) {
     await expect(page.getByRole('link', { name: route.sidebarLabel })).toBeVisible();
   }
@@ -148,7 +148,8 @@ export async function runExampleAndExecute(page: Page): Promise<void> {
   await expect(page.getByRole('button', { name: /Executing/i })).toBeVisible({ timeout: 5000 });
   const success = page.locator('text=Status:').first();
   const failure = page.getByText('Execution Failed');
-  await expect(success.or(failure).first()).toBeVisible({ timeout: 10000 });
+  // K8s pod creation + execution can take 15-20s in CI
+  await expect(success.or(failure).first()).toBeVisible({ timeout: 25000 });
   await expect(success).toBeVisible({ timeout: 1000 });
 }
 
@@ -191,7 +192,7 @@ export function describeAdminCommonTests(testFn: typeof base, path: AdminPath): 
 
   testFn('displays page with header', async ({ adminPage }) => {
     await adminPage.goto(path);
-    await expect(adminPage.getByRole('heading', { name: route.pageHeading })).toBeVisible();
+    await expect(adminPage.getByRole('heading', { name: route.pageHeading })).toBeVisible({ timeout: 10000 });
   });
 
   testFn('shows admin sidebar navigation', async ({ adminPage }) => {

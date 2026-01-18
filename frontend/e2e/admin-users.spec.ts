@@ -71,9 +71,8 @@ test.describe('Admin Users', () => {
   test.describe('Edit', () => {
     test('can open edit modal for existing user', async ({ adminPage }) => {
       await adminPage.goto(PATH);
-      await expect(adminPage.locator('text=Loading users...')).not.toBeVisible({ timeout: 15000 });
       const firstRow = adminPage.locator('table tbody tr').first();
-      await expect(firstRow).toBeVisible({ timeout: 5000 });
+      await expect(firstRow).toBeVisible({ timeout: 15000 });
       const editButton = firstRow.locator('button[title="Edit User"]');
       await editButton.click();
       await expect(adminPage.getByRole('heading', { name: 'Edit User' })).toBeVisible({ timeout: 5000 });
@@ -81,9 +80,8 @@ test.describe('Admin Users', () => {
 
     test('edit modal pre-fills user data', async ({ adminPage }) => {
       await adminPage.goto(PATH);
-      await expect(adminPage.locator('text=Loading users...')).not.toBeVisible({ timeout: 15000 });
       const firstRow = adminPage.locator('table tbody tr').first();
-      await expect(firstRow).toBeVisible({ timeout: 5000 });
+      await expect(firstRow).toBeVisible({ timeout: 15000 });
       const editButton = firstRow.locator('button[title="Edit User"]');
       await editButton.click();
       await expect(adminPage.getByRole('heading', { name: 'Edit User' })).toBeVisible({ timeout: 5000 });

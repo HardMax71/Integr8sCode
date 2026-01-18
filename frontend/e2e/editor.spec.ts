@@ -65,6 +65,9 @@ test.describe('Editor Page', () => {
 });
 
 test.describe('Editor Execution', () => {
+  // K8s pod execution can take 15-20s in CI (pod creation + execution + result processing)
+  test.describe.configure({ timeout: 30000 });
+
   test('can execute simple python script', async ({ userPage }) => {
     await userPage.goto(PATH);
     await runExampleAndExecute(userPage);

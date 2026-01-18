@@ -356,6 +356,19 @@ k3s detects the mismatch between config (`node-ip` in `/etc/rancher/k3s/config.y
 
 **Solution:**
 
+> **WARNING: DATA LOSS** — The steps below will permanently delete all cluster state, including:
+> - All deployed workloads (pods, deployments, services)
+> - All cluster configuration (namespaces, RBAC, ConfigMaps, Secrets)
+> - All PersistentVolume data stored in the default local-path provisioner
+>
+> **Before proceeding, back up:**
+> - etcd snapshots: `sudo k3s etcd-snapshot save`
+> - kubeconfig files
+> - Application manifests
+> - Any critical PersistentVolume data
+>
+> Confirm backups are complete before continuing.
+
 ```bash
 # 1. Stop k3s
 sudo systemctl stop k3s

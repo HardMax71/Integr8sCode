@@ -20,7 +20,7 @@ If you encounter a bug or have a specific feature request, please verify it hasn
 
 For privacy-related inquiries, GDPR requests, or professional support queries, please contact us directly via email:
 
-*   **Email:** max.azatian@gmail.com
+*   **Email:** [max.azatian@gmail.com](mailto:max.azatian@gmail.com)
 
 ## Community Guidelines
 

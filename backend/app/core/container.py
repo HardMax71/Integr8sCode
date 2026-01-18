@@ -1,3 +1,6 @@
+from dishka import AsyncContainer, make_async_container
+from dishka.integrations.fastapi import FastapiProvider
+
 from app.core.providers import (
     AdminServicesProvider,
     AuthProvider,
@@ -22,8 +25,6 @@ from app.core.providers import (
     UserServicesProvider,
 )
 from app.settings import Settings
-from dishka import AsyncContainer, make_async_container
-from dishka.integrations.fastapi import FastapiProvider
 
 
 def create_app_container(settings: Settings) -> AsyncContainer:

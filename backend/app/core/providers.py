@@ -2,6 +2,9 @@ import logging
 from typing import AsyncIterator
 
 import redis.asyncio as redis
+from dishka import Provider, Scope, from_context, provide
+from pymongo.asynchronous.mongo_client import AsyncMongoClient
+
 from app.core.database_context import Database
 from app.core.k8s_clients import K8sClients, close_k8s_clients, create_k8s_clients
 from app.core.logging import setup_logger
@@ -38,7 +41,6 @@ from app.db.repositories.replay_repository import ReplayRepository
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.db.repositories.user_settings_repository import UserSettingsRepository
 from app.dlq.manager import DLQManager, create_dlq_manager
-from app.domain.enums.kafka import KafkaTopic
 from app.domain.saga.models import SagaConfig
 from app.events.core import UnifiedProducer
 from app.events.event_store import EventStore, create_event_store
@@ -74,8 +76,6 @@ from app.services.sse.sse_service import SSEService
 from app.services.sse.sse_shutdown_manager import SSEShutdownManager, create_sse_shutdown_manager
 from app.services.user_settings_service import UserSettingsService
 from app.settings import Settings
-from dishka import Provider, Scope, from_context, provide
-from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 
 class SettingsProvider(Provider):

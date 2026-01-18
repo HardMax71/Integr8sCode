@@ -163,7 +163,9 @@ nav:
     - Grafana Integration: operations/grafana-integration.md
     - Admin API: operations/admin-api.md
 
-  - Network Isolation: security/policies.md
+  - Security:
+    - Policy & SBOM: SECURITY.md
+    - Network Isolation: security/policies.md
 
   - Frontend:
     - Routing: frontend/routing.md

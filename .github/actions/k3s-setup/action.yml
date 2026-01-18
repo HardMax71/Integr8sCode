@@ -50,7 +50,7 @@ runs:
       run: |
         # Replace localhost/0.0.0.0 with host.docker.internal for container access
         # (k3s may use 0.0.0.0 when started with --bind-address 0.0.0.0)
-        sed -E 's|https://(127\.0\.0\.1|0\.0\.0\.0):6443|https://host.docker.internal:6443|g' \
+        sed -E 's#https://(127\.0\.0\.1|0\.0\.0\.0):6443#https://host.docker.internal:6443#g' \
           /home/runner/.kube/config > "$KUBECONFIG_PATH"
         chmod 644 "$KUBECONFIG_PATH"
         echo "Kubeconfig written to $KUBECONFIG_PATH"

@@ -7,7 +7,7 @@ ARG KUBECTL_VERSION=v1.33.6
 ARG MKCERT_VERSION=v1.4.4
 
 # Install required packages and tools for all architectures
-RUN apk add --no-cache wget ca-certificates openssl curl dos2unix netcat-openbsd && \
+RUN apk add --no-cache wget ca-certificates openssl curl dos2unix netcat-openbsd iproute2 && \
     update-ca-certificates && \
     # Detect architecture and install appropriate binaries
     ARCH=$(uname -m); \

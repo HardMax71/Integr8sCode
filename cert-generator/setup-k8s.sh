@@ -16,7 +16,18 @@ configure_kubectl() {
         # Get the k3s node-ip from config (routable from containers)
         K3S_HOST_IP=""
         if [ -r /etc/rancher/k3s/config.yaml ]; then
-            K3S_HOST_IP=$(grep -E '^node-ip:' /etc/rancher/k3s/config.yaml 2>/dev/null | sed 's/.*"\([^"]*\)".*/\1/' | head -1)
+            K3S_HOST_IP=$(grep -E '^node-ip:' /etc/rancher/k3s/config.yaml 2>/dev/null | sed -E 's/^node-ip:[[:space:]]*"?([^"[:space:]]+)"?.*/\1/' | head -1)
+        fi
+        # If no node-ip found, try to detect host IP from container (for CI/Docker environments)
+        if [ -z "$K3S_HOST_IP" ] || [ "$K3S_HOST_IP" = "127.0.0.1" ]; then
+            # Try Docker gateway (host from container's perspective)
+            K3S_HOST_IP=$(ip route 2>/dev/null | grep default | awk '{print $3}' | head -1)
+        fi
+        if [ -z "$K3S_HOST_IP" ] || [ "$K3S_HOST_IP" = "127.0.0.1" ]; then
+            # Fallback: try host.docker.internal (requires extra_hosts in compose)
+            if getent hosts host.docker.internal >/dev/null 2>&1; then
+                K3S_HOST_IP=$(getent hosts host.docker.internal | awk '{print $1}')
+            fi
         fi
         if [ -n "$K3S_HOST_IP" ] && [ "$K3S_HOST_IP" != "127.0.0.1" ]; then
             # Create modified kubeconfig with routable IP
@@ -215,7 +226,7 @@ echo "ServiceAccount token acquired (len=${TOKEN_LEN}, head=${TOKEN_HEAD}...)"
 get_container_host_ip() {
     # Try k3s config node-ip (most reliable for k3s setups)
     if [ -f /etc/rancher/k3s/config.yaml ]; then
-        K3S_NODE_IP=$(grep -E '^node-ip:' /etc/rancher/k3s/config.yaml 2>/dev/null | sed 's/.*"\([^"]*\)".*/\1/' | head -1)
+        K3S_NODE_IP=$(grep -E '^node-ip:' /etc/rancher/k3s/config.yaml 2>/dev/null | sed -E 's/^node-ip:[[:space:]]*"?([^"[:space:]]+)"?.*/\1/' | head -1)
         if [ -n "$K3S_NODE_IP" ] && [ "$K3S_NODE_IP" != "127.0.0.1" ]; then
             echo "$K3S_NODE_IP"
             return

@@ -38,9 +38,10 @@ jobs:
           path: ${{ matrix.path }}
           format: spdx-json
           output-file: ${{ matrix.component }}-sbom.spdx.json
+          upload-artifact: false
 
       - name: Scan SBOM for Vulnerabilities
-        uses: anchore/scan-action@v5
+        uses: anchore/scan-action@v6
         id: scan
         with:
           sbom: ${{ matrix.component }}-sbom.spdx.json

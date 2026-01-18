@@ -22,7 +22,7 @@ please report it privately to our security team.
 
 ### How to Report
 
-1. **Email:** Send a detailed report to **max.azatian@gmail.com**.
+1. **Email:** Send a detailed report to <mailto:max.azatian@gmail.com>.
 2. **Details:** Please include as much information as possible:
     * Type of vulnerability (e.g., XSS, SQL Injection, RCE).
     * Full path or URL where the vulnerability occurs.

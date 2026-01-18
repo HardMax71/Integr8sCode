@@ -2,6 +2,7 @@ import logging
 from unittest.mock import MagicMock
 
 import pytest
+from app.core.metrics import DatabaseMetrics
 from app.domain.events.typed import BaseEvent
 from app.services.idempotency.idempotency_manager import (
     IdempotencyConfig,
@@ -85,9 +86,9 @@ class TestIdempotencyConfig:
         assert config.collection_name == "custom_keys"
 
 
-def test_manager_generate_key_variants() -> None:
+def test_manager_generate_key_variants(database_metrics: DatabaseMetrics) -> None:
     repo = MagicMock()
-    mgr = IdempotencyManager(IdempotencyConfig(), repo, _test_logger)
+    mgr = IdempotencyManager(IdempotencyConfig(), repo, _test_logger, database_metrics=database_metrics)
     ev = MagicMock(spec=BaseEvent)
     ev.event_type = "t"
     ev.event_id = "e"

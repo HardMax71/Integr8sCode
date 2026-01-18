@@ -2,6 +2,17 @@
  * Shared constants for admin pages
  */
 
+// Admin route definitions - single source of truth for sidebar and tests
+export const ADMIN_ROUTES = [
+    { path: '/admin/events', sidebarLabel: 'Event Browser', pageHeading: 'Event Browser' },
+    { path: '/admin/sagas', sidebarLabel: 'Sagas', pageHeading: 'Saga Management' },
+    { path: '/admin/users', sidebarLabel: 'Users', pageHeading: 'User Management' },
+    { path: '/admin/settings', sidebarLabel: 'Settings', pageHeading: 'System Settings' },
+] as const;
+
+export type AdminRoute = (typeof ADMIN_ROUTES)[number];
+export type AdminPath = AdminRoute['path'];
+
 // Common badge/status color classes
 export const STATUS_COLORS = {
     success: 'badge-success',

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from app.core.lifecycle import LifecycleEnabled
-from app.core.metrics.events import EventMetrics
+from app.core.metrics import EventMetrics
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId
 from app.domain.events.typed import DomainEvent
@@ -44,31 +45,29 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
         """Start the SSE Kafka→Redis bridge."""
         self.logger.info(f"Starting SSE Kafka→Redis bridge with {self.num_consumers} consumers")
 
-        for i in range(self.num_consumers):
-            consumer = await self._create_consumer(i)
-            self.consumers.append(consumer)
+        # Phase 1: Build all consumers and track them immediately (no I/O)
+        self.consumers = [self._build_consumer(i) for i in range(self.num_consumers)]
+
+        # Phase 2: Start all in parallel - already tracked in self.consumers for cleanup
+        topics = list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.WEBSOCKET_GATEWAY])
+        await asyncio.gather(*[c.start(topics) for c in self.consumers])
 
         self.logger.info("SSE Kafka→Redis bridge started successfully")
 
     async def _on_stop(self) -> None:
         """Stop the SSE Kafka→Redis bridge."""
         self.logger.info("Stopping SSE Kafka→Redis bridge")
-
-        for consumer in self.consumers:
-            await consumer.stop()
-
+        await asyncio.gather(*[c.stop() for c in self.consumers], return_exceptions=True)
         self.consumers.clear()
         self.logger.info("SSE Kafka→Redis bridge stopped")
 
-    async def _create_consumer(self, consumer_index: int) -> UnifiedConsumer:
+    def _build_consumer(self, consumer_index: int) -> UnifiedConsumer:
+        """Build a consumer instance without starting it."""
         suffix = self.settings.KAFKA_GROUP_SUFFIX
-        group_id = f"sse-bridge-pool.{suffix}"
-        client_id = f"sse-bridge-{consumer_index}.{suffix}"
-
         config = ConsumerConfig(
             bootstrap_servers=self.settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=group_id,
-            client_id=client_id,
+            group_id=f"sse-bridge-pool.{suffix}",
+            client_id=f"sse-bridge-{consumer_index}.{suffix}",
             enable_auto_commit=True,
             auto_offset_reset="latest",
             max_poll_interval_ms=self.settings.KAFKA_MAX_POLL_INTERVAL_MS,
@@ -80,20 +79,14 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
         dispatcher = EventDispatcher(logger=self.logger)
         self._register_routing_handlers(dispatcher)
 
-        consumer = UnifiedConsumer(
+        return UnifiedConsumer(
             config=config,
             event_dispatcher=dispatcher,
             schema_registry=self.schema_registry,
             settings=self.settings,
             logger=self.logger,
+            event_metrics=self.event_metrics,
         )
-
-        # Use WEBSOCKET_GATEWAY subscriptions - SSE bridge serves same purpose (real-time client delivery)
-        topics = list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.WEBSOCKET_GATEWAY])
-        await consumer.start(topics)
-
-        self.logger.info(f"Bridge consumer {consumer_index} started")
-        return consumer
 
     def _register_routing_handlers(self, dispatcher: EventDispatcher) -> None:
         """Publish relevant events to Redis channels keyed by execution_id."""

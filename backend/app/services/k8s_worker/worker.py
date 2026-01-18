@@ -10,7 +10,7 @@ from kubernetes import config as k8s_config
 from kubernetes.client.rest import ApiException
 
 from app.core.lifecycle import LifecycleEnabled
-from app.core.metrics import ExecutionMetrics, KubernetesMetrics
+from app.core.metrics import EventMetrics, ExecutionMetrics, KubernetesMetrics
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId
 from app.domain.enums.storage import ExecutionErrorType
@@ -56,8 +56,10 @@ class KubernetesWorker(LifecycleEnabled):
             event_store: EventStore,
             idempotency_manager: IdempotencyManager,
             logger: logging.Logger,
+            event_metrics: EventMetrics,
     ):
         super().__init__()
+        self._event_metrics = event_metrics
         self.logger = logger
         self.metrics = KubernetesMetrics(settings)
         self.execution_metrics = ExecutionMetrics(settings)
@@ -126,6 +128,7 @@ class KubernetesWorker(LifecycleEnabled):
             schema_registry=self._schema_registry_manager,
             settings=self._settings,
             logger=self.logger,
+            event_metrics=self._event_metrics,
         )
 
         # Wrap consumer with idempotency - use content hash for pod commands

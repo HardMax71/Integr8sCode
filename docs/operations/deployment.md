@@ -336,6 +336,91 @@ Topics should be prefixed (e.g., `prefexecution_events` not `execution_events`).
 kubectl get secret -n integr8scode integr8scode-mongodb -o jsonpath='{.data.mongodb-root-password}' | base64 -d
 ```
 
+### k3s crash loop after VPN or IP change
+
+**Symptoms:**
+
+- `systemctl status k3s` shows `Active: activating (auto-restart) (Result: exit-code)`
+- k3s repeatedly crashes with `status=1/FAILURE`
+- `kubectl` commands fail with `connection refused` or `ServiceUnavailable`
+- API intermittently responds then stops
+
+**Root cause:**
+
+When the host IP changes (VPN on/off, network switch, DHCP renewal), k3s stores stale IP references in two locations:
+
+1. **SQLite database** (`/var/lib/rancher/k3s/server/db/`) — contains cluster state with old IP
+2. **TLS certificates** (`/var/lib/rancher/k3s/server/tls/`) — generated with old IP in SAN field
+
+k3s detects the mismatch between config (`node-ip` in `/etc/rancher/k3s/config.yaml`) and stored data, causing the crash loop.
+
+**Solution:**
+
+> **WARNING: DATA LOSS** — The steps below will permanently delete all cluster state, including:
+> - All deployed workloads (pods, deployments, services)
+> - All cluster configuration (namespaces, RBAC, ConfigMaps, Secrets)
+> - All PersistentVolume data stored in the default local-path provisioner
+>
+> **Before proceeding, back up:**
+> - etcd snapshots: `sudo k3s etcd-snapshot save`
+> - kubeconfig files
+> - Application manifests
+> - Any critical PersistentVolume data
+>
+> Confirm backups are complete before continuing.
+
+```bash
+# 1. Stop k3s
+sudo systemctl stop k3s
+
+# 2. Delete corrupted database (k3s will rebuild it)
+sudo rm -rf /var/lib/rancher/k3s/server/db/
+
+# 3. Delete old TLS certificates (k3s will regenerate them)
+sudo rm -rf /var/lib/rancher/k3s/server/tls/
+
+# 4. Start k3s with clean state
+sudo systemctl start k3s
+```
+
+After k3s restarts, regenerate the application kubeconfig:
+
+```bash
+# Regenerate kubeconfig with fresh ServiceAccount token
+docker compose restart cert-generator
+
+# Restart workers to pick up new kubeconfig
+docker compose restart k8s-worker pod-monitor
+```
+
+**Verification:**
+
+```bash
+# Check k3s is running
+systemctl status k3s  # Should show "active (running)"
+
+# Test API access
+KUBECONFIG=/path/to/backend/kubeconfig.yaml kubectl get namespaces
+
+# Check workers connected
+docker logs k8s-worker 2>&1 | tail -5
+docker logs pod-monitor 2>&1 | tail -5
+```
+
+**VPN-specific notes:**
+
+When using VPN (e.g., NordVPN with WireGuard/NordLynx):
+
+- **LAN Discovery must be enabled**: `nordvpn set lan-discovery enabled`
+- VPN can interfere with Docker's `host` network mode and k3s flannel networking
+- Consider using bridge networking for containers that need to reach k3s
+
+**References:**
+
+- [k3s IP change issue #277](https://github.com/k3s-io/k3s/issues/277)
+- [k3s crash loop troubleshooting](https://dev.to/shankar_t/my-k3s-pi-cluster-died-after-a-reboot-a-troubleshooting-war-story-m93)
+- [k3s certificate documentation](https://docs.k3s.io/cli/certificate)
+
 ## Pre-built images
 
 For production deployments, you can skip the local build step entirely by using pre-built images from GitHub Container

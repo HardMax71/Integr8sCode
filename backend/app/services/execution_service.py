@@ -5,7 +5,7 @@ from time import time
 from typing import Any, Generator, TypeAlias
 
 from app.core.correlation import CorrelationContext
-from app.core.metrics.context import get_execution_metrics
+from app.core.metrics import ExecutionMetrics
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
@@ -52,6 +52,7 @@ class ExecutionService:
         event_store: EventStore,
         settings: Settings,
         logger: logging.Logger,
+        execution_metrics: ExecutionMetrics,
     ) -> None:
         """
         Initialize execution service.
@@ -62,13 +63,14 @@ class ExecutionService:
             event_store: Event store for event persistence.
             settings: Application settings.
             logger: Logger instance.
+            execution_metrics: Metrics for tracking execution operations.
         """
         self.execution_repo = execution_repo
         self.producer = producer
         self.event_store = event_store
         self.settings = settings
         self.logger = logger
-        self.metrics = get_execution_metrics()
+        self.metrics = execution_metrics
 
     @contextmanager
     def _track_active_execution(self) -> Generator[None, None, None]:  # noqa: D401

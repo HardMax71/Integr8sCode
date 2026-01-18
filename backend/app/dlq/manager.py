@@ -8,7 +8,7 @@ from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from opentelemetry.trace import SpanKind
 
 from app.core.lifecycle import LifecycleEnabled
-from app.core.metrics.context import get_dlq_metrics
+from app.core.metrics import DLQMetrics
 from app.core.tracing import EventAttributes
 from app.core.tracing.utils import extract_trace_context, get_tracer, inject_trace_context
 from app.db.docs import DLQMessageDocument
@@ -40,13 +40,14 @@ class DLQManager(LifecycleEnabled):
         producer: AIOKafkaProducer,
         schema_registry: SchemaRegistryManager,
         logger: logging.Logger,
+        dlq_metrics: DLQMetrics,
         dlq_topic: KafkaTopic = KafkaTopic.DEAD_LETTER_QUEUE,
         retry_topic_suffix: str = "-retry",
         default_retry_policy: RetryPolicy | None = None,
     ):
         super().__init__()
         self.settings = settings
-        self.metrics = get_dlq_metrics()
+        self.metrics = dlq_metrics
         self.schema_registry = schema_registry
         self.logger = logger
         self.dlq_topic = dlq_topic
@@ -77,9 +78,8 @@ class DLQManager(LifecycleEnabled):
 
     async def _on_start(self) -> None:
         """Start DLQ manager."""
-        # Start producer and consumer
-        await self.producer.start()
-        await self.consumer.start()
+        # Start producer and consumer in parallel for faster startup
+        await asyncio.gather(self.producer.start(), self.consumer.start())
 
         # Start processing tasks
         self._process_task = asyncio.create_task(self._process_messages())
@@ -444,6 +444,7 @@ def create_dlq_manager(
     settings: Settings,
     schema_registry: SchemaRegistryManager,
     logger: logging.Logger,
+    dlq_metrics: DLQMetrics,
     dlq_topic: KafkaTopic = KafkaTopic.DEAD_LETTER_QUEUE,
     retry_topic_suffix: str = "-retry",
     default_retry_policy: RetryPolicy | None = None,
@@ -478,6 +479,7 @@ def create_dlq_manager(
         producer=producer,
         schema_registry=schema_registry,
         logger=logger,
+        dlq_metrics=dlq_metrics,
         dlq_topic=dlq_topic,
         retry_topic_suffix=retry_topic_suffix,
         default_retry_policy=default_retry_policy,

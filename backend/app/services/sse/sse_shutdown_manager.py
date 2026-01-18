@@ -5,7 +5,7 @@ from enum import Enum
 from typing import Dict, Set
 
 from app.core.lifecycle import LifecycleEnabled
-from app.core.metrics.context import get_connection_metrics
+from app.core.metrics import ConnectionMetrics
 from app.domain.sse import ShutdownStatus
 
 
@@ -36,6 +36,7 @@ class SSEShutdownManager:
     def __init__(
         self,
         logger: logging.Logger,
+        connection_metrics: ConnectionMetrics,
         drain_timeout: float = 30.0,
         notification_timeout: float = 5.0,
         force_close_timeout: float = 10.0,
@@ -44,7 +45,7 @@ class SSEShutdownManager:
         self.drain_timeout = drain_timeout
         self.notification_timeout = notification_timeout
         self.force_close_timeout = force_close_timeout
-        self.metrics = get_connection_metrics()
+        self.metrics = connection_metrics
 
         self._phase = ShutdownPhase.READY
         self._shutdown_initiated = False
@@ -309,6 +310,7 @@ class SSEShutdownManager:
 
 def create_sse_shutdown_manager(
     logger: logging.Logger,
+    connection_metrics: ConnectionMetrics,
     drain_timeout: float = 30.0,
     notification_timeout: float = 5.0,
     force_close_timeout: float = 10.0,
@@ -317,6 +319,7 @@ def create_sse_shutdown_manager(
 
     Args:
         logger: Logger instance
+        connection_metrics: Connection metrics for tracking SSE connections
         drain_timeout: Time to wait for connections to close gracefully
         notification_timeout: Time to wait for shutdown notifications to be sent
         force_close_timeout: Time before force closing connections
@@ -326,6 +329,7 @@ def create_sse_shutdown_manager(
     """
     return SSEShutdownManager(
         logger=logger,
+        connection_metrics=connection_metrics,
         drain_timeout=drain_timeout,
         notification_timeout=notification_timeout,
         force_close_timeout=force_close_timeout,

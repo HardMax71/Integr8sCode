@@ -9,7 +9,7 @@ from typing import Any, Awaitable, Dict, Generator, Optional, cast
 
 import redis.asyncio as redis
 
-from app.core.metrics.rate_limit import RateLimitMetrics
+from app.core.metrics import RateLimitMetrics
 from app.core.tracing.utils import add_span_attributes
 from app.domain.rate_limit import (
     EndpointGroup,
@@ -200,18 +200,6 @@ class RateLimitService:
         )
 
         try:
-            if not self.settings.RATE_LIMIT_ENABLED:
-                # Track request when rate limiting is disabled
-                self.metrics.requests_total.add(
-                    1,
-                    {
-                        "authenticated": str(ctx.authenticated).lower(),
-                        "endpoint": ctx.normalized_endpoint,
-                        "algorithm": "disabled",
-                    },
-                )
-                return self._unlimited()
-
             if config is None:
                 with self._timer(self.metrics.redis_duration, {"operation": "get_config"}):
                     config = await self._get_config()

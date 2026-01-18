@@ -3,7 +3,7 @@ import logging
 from dataclasses import dataclass
 from typing import Dict, List
 
-from app.core.metrics.context import get_coordinator_metrics
+from app.core.metrics import CoordinatorMetrics
 
 
 @dataclass
@@ -86,13 +86,14 @@ class ResourceManager:
     def __init__(
         self,
         logger: logging.Logger,
+        coordinator_metrics: CoordinatorMetrics,
         total_cpu_cores: float = 32.0,
         total_memory_mb: int = 65536,  # 64GB
         total_gpu_count: int = 0,
         overcommit_factor: float = 1.2,  # Allow 20% overcommit
     ):
         self.logger = logger
-        self.metrics = get_coordinator_metrics()
+        self.metrics = coordinator_metrics
         self.pool = ResourcePool(
             total_cpu_cores=total_cpu_cores * overcommit_factor,
             total_memory_mb=int(total_memory_mb * overcommit_factor),

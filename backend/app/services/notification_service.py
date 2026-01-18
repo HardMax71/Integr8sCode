@@ -7,7 +7,7 @@ from typing import Awaitable, Callable
 
 import httpx
 
-from app.core.metrics.context import get_notification_metrics
+from app.core.metrics import EventMetrics, NotificationMetrics
 from app.core.tracing.utils import add_span_attributes
 from app.core.utils import StringEnum
 from app.db.repositories.notification_repository import NotificationRepository
@@ -122,11 +122,14 @@ class NotificationService:
         sse_bus: SSERedisBus,
         settings: Settings,
         logger: logging.Logger,
+        notification_metrics: NotificationMetrics,
+        event_metrics: EventMetrics,
     ) -> None:
         self.repository = notification_repository
         self.event_service = event_service
         self.event_bus_manager = event_bus_manager
-        self.metrics = get_notification_metrics()
+        self.metrics = notification_metrics
+        self._event_metrics = event_metrics
         self.settings = settings
         self.schema_registry_manager = schema_registry_manager
         self.sse_bus = sse_bus
@@ -247,6 +250,7 @@ class NotificationService:
             schema_registry=self.schema_registry_manager,
             settings=self.settings,
             logger=self.logger,
+            event_metrics=self._event_metrics,
         )
 
         # Start consumer

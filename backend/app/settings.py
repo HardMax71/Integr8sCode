@@ -21,12 +21,16 @@ class Settings(BaseSettings):
     KUBERNETES_CONFIG_PATH: str = "~/.kube/config"
     KUBERNETES_CA_CERTIFICATE_PATH: str | None = None
     RATE_LIMITS: str = "100/minute"
+    RATE_LIMIT_ENABLED: bool = True  # Set to False to disable rate limiting entirely
 
     SSL_KEYFILE: str = "/app/certs/server.key"
     SSL_CERTFILE: str = "/app/certs/server.crt"
 
     SERVER_HOST: str = "localhost"
     SERVER_PORT: int = 443
+
+    # Kubernetes namespace for execution pods
+    K8S_NAMESPACE: str = "integr8scode"
 
     # Settings for Kubernetes resource limits and requests
     K8S_POD_CPU_LIMIT: str = "1000m"
@@ -119,11 +123,10 @@ class Settings(BaseSettings):
     REDIS_DB: int = 0
     REDIS_PASSWORD: str | None = None
     REDIS_SSL: bool = False
-    REDIS_MAX_CONNECTIONS: int = 50
+    REDIS_MAX_CONNECTIONS: int = 200
     REDIS_DECODE_RESPONSES: bool = True
 
     # Rate Limiting Configuration
-    RATE_LIMIT_ENABLED: bool = True
     RATE_LIMIT_DEFAULT_REQUESTS: int = 100
     RATE_LIMIT_DEFAULT_WINDOW: int = 60  # seconds
     RATE_LIMIT_BURST_MULTIPLIER: float = 1.5

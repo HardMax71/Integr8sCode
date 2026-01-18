@@ -1,46 +1,82 @@
-import logging
-from collections.abc import Generator
 from typing import NoReturn
 
 import pytest
-from app.core.metrics.connections import ConnectionMetrics
-from app.core.metrics.context import MetricsContext
-from app.core.metrics.coordinator import CoordinatorMetrics
-from app.core.metrics.database import DatabaseMetrics
-from app.core.metrics.dlq import DLQMetrics
-from app.core.metrics.events import EventMetrics
-from app.core.metrics.execution import ExecutionMetrics
-from app.core.metrics.health import HealthMetrics
-from app.core.metrics.kubernetes import KubernetesMetrics
-from app.core.metrics.notifications import NotificationMetrics
-from app.core.metrics.rate_limit import RateLimitMetrics
-from app.core.metrics.replay import ReplayMetrics
-from app.core.metrics.security import SecurityMetrics
+from app.core.metrics import (
+    ConnectionMetrics,
+    CoordinatorMetrics,
+    DatabaseMetrics,
+    DLQMetrics,
+    EventMetrics,
+    ExecutionMetrics,
+    HealthMetrics,
+    KubernetesMetrics,
+    NotificationMetrics,
+    RateLimitMetrics,
+    ReplayMetrics,
+    SecurityMetrics,
+)
 from app.settings import Settings
 
-_unit_test_logger = logging.getLogger("test.unit")
+
+# Metrics fixtures - provided via DI, not global context
+@pytest.fixture
+def connection_metrics(test_settings: Settings) -> ConnectionMetrics:
+    return ConnectionMetrics(test_settings)
 
 
-@pytest.fixture(scope="session", autouse=True)
-def init_metrics_for_unit_tests(test_settings: Settings) -> Generator[None, None, None]:
-    """Initialize all metrics context for unit tests."""
-    MetricsContext.initialize_all(
-        _unit_test_logger,
-        connection=ConnectionMetrics(test_settings),
-        coordinator=CoordinatorMetrics(test_settings),
-        database=DatabaseMetrics(test_settings),
-        dlq=DLQMetrics(test_settings),
-        event=EventMetrics(test_settings),
-        execution=ExecutionMetrics(test_settings),
-        health=HealthMetrics(test_settings),
-        kubernetes=KubernetesMetrics(test_settings),
-        notification=NotificationMetrics(test_settings),
-        rate_limit=RateLimitMetrics(test_settings),
-        replay=ReplayMetrics(test_settings),
-        security=SecurityMetrics(test_settings),
-    )
-    yield
-    MetricsContext.reset_all(_unit_test_logger)
+@pytest.fixture
+def coordinator_metrics(test_settings: Settings) -> CoordinatorMetrics:
+    return CoordinatorMetrics(test_settings)
+
+
+@pytest.fixture
+def database_metrics(test_settings: Settings) -> DatabaseMetrics:
+    return DatabaseMetrics(test_settings)
+
+
+@pytest.fixture
+def dlq_metrics(test_settings: Settings) -> DLQMetrics:
+    return DLQMetrics(test_settings)
+
+
+@pytest.fixture
+def event_metrics(test_settings: Settings) -> EventMetrics:
+    return EventMetrics(test_settings)
+
+
+@pytest.fixture
+def execution_metrics(test_settings: Settings) -> ExecutionMetrics:
+    return ExecutionMetrics(test_settings)
+
+
+@pytest.fixture
+def health_metrics(test_settings: Settings) -> HealthMetrics:
+    return HealthMetrics(test_settings)
+
+
+@pytest.fixture
+def kubernetes_metrics(test_settings: Settings) -> KubernetesMetrics:
+    return KubernetesMetrics(test_settings)
+
+
+@pytest.fixture
+def notification_metrics(test_settings: Settings) -> NotificationMetrics:
+    return NotificationMetrics(test_settings)
+
+
+@pytest.fixture
+def rate_limit_metrics(test_settings: Settings) -> RateLimitMetrics:
+    return RateLimitMetrics(test_settings)
+
+
+@pytest.fixture
+def replay_metrics(test_settings: Settings) -> ReplayMetrics:
+    return ReplayMetrics(test_settings)
+
+
+@pytest.fixture
+def security_metrics(test_settings: Settings) -> SecurityMetrics:
+    return SecurityMetrics(test_settings)
 
 
 @pytest.fixture

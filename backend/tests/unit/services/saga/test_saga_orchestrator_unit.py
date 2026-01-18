@@ -2,6 +2,7 @@ import logging
 from unittest.mock import MagicMock
 
 import pytest
+from app.core.metrics import EventMetrics
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.db.repositories.saga_repository import SagaRepository
 from app.domain.enums.events import EventType
@@ -99,7 +100,7 @@ class _Saga(BaseSaga):
         return [_StepOK()]
 
 
-def _orch() -> SagaOrchestrator:
+def _orch(event_metrics: EventMetrics) -> SagaOrchestrator:
     return SagaOrchestrator(
         config=SagaConfig(name="t", enable_compensation=True, store_events=True, publish_commands=False),
         saga_repository=_FakeRepo(),
@@ -110,12 +111,13 @@ def _orch() -> SagaOrchestrator:
         idempotency_manager=_FakeIdem(),
         resource_allocation_repository=_FakeAlloc(),
         logger=_test_logger,
+        event_metrics=event_metrics,
     )
 
 
 @pytest.mark.asyncio
-async def test_min_success_flow() -> None:
-    orch = _orch()
+async def test_min_success_flow(event_metrics: EventMetrics) -> None:
+    orch = _orch(event_metrics)
     orch.register_saga(_Saga)
     # Set orchestrator running state via lifecycle property
     orch._lifecycle_started = True
@@ -125,7 +127,7 @@ async def test_min_success_flow() -> None:
 
 
 @pytest.mark.asyncio
-async def test_should_trigger_and_existing_short_circuit() -> None:
+async def test_should_trigger_and_existing_short_circuit(event_metrics: EventMetrics) -> None:
     fake_repo = _FakeRepo()
     orch = SagaOrchestrator(
         config=SagaConfig(name="t", enable_compensation=True, store_events=True, publish_commands=False),
@@ -137,6 +139,7 @@ async def test_should_trigger_and_existing_short_circuit() -> None:
         idempotency_manager=_FakeIdem(),
         resource_allocation_repository=_FakeAlloc(),
         logger=_test_logger,
+        event_metrics=event_metrics,
     )
     orch.register_saga(_Saga)
     assert orch._should_trigger_saga(_Saga, make_execution_requested_event(execution_id="e")) is True

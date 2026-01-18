@@ -1,5 +1,5 @@
 import pytest
-from app.core.metrics.health import HealthMetrics
+from app.core.metrics import HealthMetrics
 from app.settings import Settings
 
 pytestmark = pytest.mark.unit

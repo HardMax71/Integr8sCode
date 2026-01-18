@@ -116,8 +116,8 @@
             );
         }
         if (role !== 'all') filtered = filtered.filter(user => user.role === role);
-        if (status === 'active') filtered = filtered.filter(user => !user.is_disabled);
-        else if (status === 'disabled') filtered = filtered.filter(user => user.is_disabled);
+        if (status === 'active') filtered = filtered.filter(user => user.is_active !== false);
+        else if (status === 'disabled') filtered = filtered.filter(user => user.is_active === false);
         if (advanced.bypassRateLimit === 'yes') filtered = filtered.filter(user => user.bypass_rate_limit === true);
         else if (advanced.bypassRateLimit === 'no') filtered = filtered.filter(user => user.bypass_rate_limit !== true);
         if (advanced.hasCustomLimits === 'yes') filtered = filtered.filter(user => user.has_custom_limits === true);
@@ -136,7 +136,7 @@
 
     function openEditUserModal(user: UserResponse): void {
         editingUser = user;
-        userForm = { username: user.username, email: user.email || '', password: '', role: user.role, is_active: !user.is_disabled };
+        userForm = { username: user.username, email: user.email || '', password: '', role: user.role ?? 'user', is_active: user.is_active !== false };
         showUserModal = true;
     }
 
@@ -153,7 +153,7 @@
             result = await updateUserApiV1AdminUsersUserIdPut({ path: { user_id: editingUser.user_id }, body: updateData });
         } else {
             result = await createUserApiV1AdminUsersPost({
-                body: { username: userForm.username, email: userForm.email || null, password: userForm.password, role: userForm.role, is_active: userForm.is_active }
+                body: { username: userForm.username, email: userForm.email, password: userForm.password, role: userForm.role as 'user' | 'admin' | undefined, is_active: userForm.is_active }
             });
         }
         savingUser = false;
@@ -186,7 +186,7 @@
                 path: { user_id: user.user_id }
             });
             const response = unwrap(result);
-            rateLimitConfig = response?.rate_limit_config || {
+            rateLimitConfig = (response?.rate_limit_config as UserRateLimit | undefined) || {
                 user_id: user.user_id, rules: [], global_multiplier: 1.0, bypass_rate_limit: false, notes: ''
             };
             rateLimitUsage = response?.current_usage || {};

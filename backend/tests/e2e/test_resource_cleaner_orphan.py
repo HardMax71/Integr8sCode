@@ -3,6 +3,7 @@ from datetime import datetime
 
 import pytest
 from app.services.result_processor.resource_cleaner import ResourceCleaner
+from app.settings import Settings
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
 
@@ -19,10 +20,10 @@ def _ensure_kubeconfig() -> None:
 
 
 @pytest.mark.asyncio
-async def test_cleanup_orphaned_configmaps_dry_run() -> None:
+async def test_cleanup_orphaned_configmaps_dry_run(test_settings: Settings) -> None:
     _ensure_kubeconfig()
     v1 = k8s_client.CoreV1Api()
-    ns = "default"
+    ns = test_settings.K8S_NAMESPACE
     name = f"int-test-cm-{int(datetime.now().timestamp())}"
 
     # Create a configmap labeled like the app uses

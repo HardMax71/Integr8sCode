@@ -1,6 +1,5 @@
 import pytest
-from app.core.metrics.replay import ReplayMetrics
-from app.core.metrics.security import SecurityMetrics
+from app.core.metrics import ReplayMetrics, SecurityMetrics
 from app.settings import Settings
 
 pytestmark = pytest.mark.unit

@@ -70,14 +70,13 @@ Complete reference of all environment variables used by the Integr8sCode backend
 | `REDIS_DB`               | `0`     | Redis database number       |
 | `REDIS_PASSWORD`         | *none*  | Redis password              |
 | `REDIS_SSL`              | `false` | Enable SSL/TLS              |
-| `REDIS_MAX_CONNECTIONS`  | `50`    | Connection pool size        |
+| `REDIS_MAX_CONNECTIONS`  | `200`   | Connection pool size        |
 | `REDIS_DECODE_RESPONSES` | `true`  | Decode responses to strings |
 
 ## Rate Limiting Configuration
 
 | Variable                      | Default          | Description                                    |
 |-------------------------------|------------------|------------------------------------------------|
-| `RATE_LIMIT_ENABLED`          | `true`           | Enable rate limiting                           |
 | `RATE_LIMITS`                 | `100/minute`     | Default rate limit string                      |
 | `RATE_LIMIT_DEFAULT_REQUESTS` | `100`            | Default request limit                          |
 | `RATE_LIMIT_DEFAULT_WINDOW`   | `60`             | Default window (seconds)                       |

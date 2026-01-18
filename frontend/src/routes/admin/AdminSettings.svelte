@@ -4,16 +4,23 @@
         getSystemSettingsApiV1AdminSettingsGet,
         updateSystemSettingsApiV1AdminSettingsPut,
         resetSystemSettingsApiV1AdminSettingsResetPost,
+        type SystemSettings,
+        type ExecutionLimitsSchema,
+        type SecuritySettingsSchema,
+        type MonitoringSettingsSchema,
     } from '$lib/api';
     import { addToast } from '$stores/toastStore';
     import AdminLayout from '$routes/admin/AdminLayout.svelte';
     import Spinner from '$components/Spinner.svelte';
 
-    let settings = $state<{
-        execution_limits: Record<string, unknown>;
-        security_settings: Record<string, unknown>;
-        monitoring_settings: Record<string, unknown>;
-    }>({
+    // Required version of SystemSettings for local state
+    interface RequiredSettings {
+        execution_limits: ExecutionLimitsSchema;
+        security_settings: SecuritySettingsSchema;
+        monitoring_settings: MonitoringSettingsSchema;
+    }
+
+    let settings = $state<RequiredSettings>({
         execution_limits: {},
         security_settings: {},
         monitoring_settings: {}
@@ -31,7 +38,11 @@
         try {
             const { data, error } = await getSystemSettingsApiV1AdminSettingsGet({});
             if (error) throw error;
-            settings = data;
+            if (data) settings = {
+                execution_limits: data.execution_limits ?? {},
+                security_settings: data.security_settings ?? {},
+                monitoring_settings: data.monitoring_settings ?? {}
+            };
         } catch (err) {
             console.error('Failed to load settings:', err);
             const msg = (err as Error)?.message || 'Unknown error';
@@ -64,7 +75,11 @@
         try {
             const { data, error } = await resetSystemSettingsApiV1AdminSettingsResetPost({});
             if (error) throw error;
-            settings = data;
+            if (data) settings = {
+                execution_limits: data.execution_limits ?? {},
+                security_settings: data.security_settings ?? {},
+                monitoring_settings: data.monitoring_settings ?? {}
+            };
             addToast('Settings reset to defaults', 'success');
         } catch (err) {
             const msg = (err as Error)?.message || 'Unknown error';

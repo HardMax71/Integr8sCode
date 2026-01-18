@@ -6,7 +6,7 @@ from typing import Any, TypeAlias
 from uuid import uuid4
 
 from app.core.lifecycle import LifecycleEnabled
-from app.core.metrics.context import get_coordinator_metrics
+from app.core.metrics import CoordinatorMetrics, EventMetrics
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId
@@ -56,13 +56,16 @@ class ExecutionCoordinator(LifecycleEnabled):
         execution_repository: ExecutionRepository,
         idempotency_manager: IdempotencyManager,
         logger: logging.Logger,
+        coordinator_metrics: CoordinatorMetrics,
+        event_metrics: EventMetrics,
         consumer_group: str = GroupId.EXECUTION_COORDINATOR,
         max_concurrent_scheduling: int = 10,
         scheduling_interval_seconds: float = 0.5,
     ):
         super().__init__()
         self.logger = logger
-        self.metrics = get_coordinator_metrics()
+        self.metrics = coordinator_metrics
+        self._event_metrics = event_metrics
         self._settings = settings
 
         # Kafka configuration
@@ -71,11 +74,19 @@ class ExecutionCoordinator(LifecycleEnabled):
 
         # Components
         self.queue_manager = QueueManager(
-            logger=self.logger, max_queue_size=10000, max_executions_per_user=100, stale_timeout_seconds=3600
+            logger=self.logger,
+            coordinator_metrics=coordinator_metrics,
+            max_queue_size=10000,
+            max_executions_per_user=100,
+            stale_timeout_seconds=3600,
         )
 
         self.resource_manager = ResourceManager(
-            logger=self.logger, total_cpu_cores=32.0, total_memory_mb=65536, total_gpu_count=0
+            logger=self.logger,
+            coordinator_metrics=coordinator_metrics,
+            total_cpu_cores=32.0,
+            total_memory_mb=65536,
+            total_gpu_count=0,
         )
 
         # Kafka components
@@ -127,6 +138,7 @@ class ExecutionCoordinator(LifecycleEnabled):
             schema_registry=self._schema_registry_manager,
             settings=self._settings,
             logger=self.logger,
+            event_metrics=self._event_metrics,
         )
 
         # Register handlers with EventDispatcher BEFORE wrapping with idempotency

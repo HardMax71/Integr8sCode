@@ -62,7 +62,7 @@
     document.removeEventListener('click', handleClickOutside);
   });
 
-  const getLinkClasses = (isActive, isMobileLink = false) => {
+  const getLinkClasses = (isActive: boolean, isMobileLink = false) => {
     const baseDesktop = "text-sm font-medium transition-colors duration-200";
     const baseMobile = "block text-base font-medium transition-colors duration-200 px-3 py-2 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-700";
     const active = "text-primary dark:text-primary-light bg-primary/10 dark:bg-primary/20";
@@ -130,7 +130,7 @@
                     <div class="flex items-center gap-3">
                       <div class="w-7 h-7 rounded-full bg-primary/20 dark:bg-primary/30 flex items-center justify-center shrink-0">
                         <span class="text-xs font-semibold text-primary dark:text-primary-light">
-                          {$username.charAt(0).toUpperCase()}
+                          {$username?.charAt(0).toUpperCase() ?? '?'}
                         </span>
                       </div>
                       <div class="min-w-0">

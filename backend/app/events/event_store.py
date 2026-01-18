@@ -7,7 +7,7 @@ from typing import Any
 from beanie.odm.enums import SortDirection
 from pymongo.errors import BulkWriteError, DuplicateKeyError
 
-from app.core.metrics.context import get_event_metrics
+from app.core.metrics import EventMetrics
 from app.core.tracing import EventAttributes
 from app.core.tracing.utils import add_span_attributes
 from app.db.docs import EventDocument
@@ -21,10 +21,11 @@ class EventStore:
         self,
         schema_registry: SchemaRegistryManager,
         logger: logging.Logger,
+        event_metrics: EventMetrics,
         ttl_days: int = 90,
         batch_size: int = 100,
     ):
-        self.metrics = get_event_metrics()
+        self.metrics = event_metrics
         self.schema_registry = schema_registry
         self.logger = logger
         self.ttl_days = ttl_days
@@ -317,12 +318,14 @@ class EventStore:
 def create_event_store(
     schema_registry: SchemaRegistryManager,
     logger: logging.Logger,
+    event_metrics: EventMetrics,
     ttl_days: int = 90,
     batch_size: int = 100,
 ) -> EventStore:
     return EventStore(
         schema_registry=schema_registry,
         logger=logger,
+        event_metrics=event_metrics,
         ttl_days=ttl_days,
         batch_size=batch_size,
     )

@@ -105,7 +105,7 @@
             }
         }), null);
         loading = false;
-        events = data?.events || [];
+        events = (data?.events ?? []) as EventResponse[];
         totalEvents = data?.total || 0;
     }
 
@@ -132,7 +132,7 @@
             if (status.status === 'completed') {
                 addToast(`Replay completed! Processed ${status.replayed_events} events successfully.`, 'success');
             } else if (status.status === 'failed') {
-                addToast(`Replay failed: ${status.error || 'Unknown error'}`, 'error');
+                addToast(`Replay failed: ${(status as { errors?: string[] }).errors?.[0] || 'Unknown error'}`, 'error');
             }
         }
     }
@@ -148,23 +148,28 @@
 
         if (dryRun) {
             if (response?.events_preview && response.events_preview.length > 0) {
-                replayPreview = { ...response, eventId };
+                replayPreview = { eventId, total_events: response.total_events, events_preview: (response.events_preview ?? []) as EventResponse[] };
                 showReplayPreview = true;
             } else {
                 addToast(`Dry run: ${response?.total_events} events would be replayed`, 'info');
             }
         } else {
             addToast(`Replay scheduled! Tracking progress...`, 'success');
-            if (response?.session_id) {
+            const sessionId = response?.session_id;
+            if (sessionId) {
                 activeReplaySession = {
-                    session_id: response.session_id,
+                    session_id: sessionId,
                     status: 'scheduled',
                     total_events: response.total_events,
                     replayed_events: 0,
-                    progress_percentage: 0
+                    progress_percentage: 0,
+                    failed_events: 0,
+                    skipped_events: 0,
+                    correlation_id: '',
+                    created_at: new Date().toISOString()
                 };
-                checkReplayStatus(response.session_id);
-                replayCheckInterval = setInterval(() => { checkReplayStatus(response.session_id); }, 2000);
+                checkReplayStatus(sessionId);
+                replayCheckInterval = setInterval(() => { checkReplayStatus(sessionId); }, 2000);
             }
             selectedEvent = null;
         }

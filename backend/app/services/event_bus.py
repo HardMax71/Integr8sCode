@@ -13,7 +13,7 @@ from fastapi import Request
 from pydantic import BaseModel, ConfigDict
 
 from app.core.lifecycle import LifecycleEnabled
-from app.core.metrics.context import get_connection_metrics
+from app.core.metrics import ConnectionMetrics
 from app.domain.enums.kafka import KafkaTopic
 from app.settings import Settings
 
@@ -53,11 +53,11 @@ class EventBus(LifecycleEnabled):
     - *.completed - matches all completed events
     """
 
-    def __init__(self, settings: Settings, logger: logging.Logger) -> None:
+    def __init__(self, settings: Settings, logger: logging.Logger, connection_metrics: ConnectionMetrics) -> None:
         super().__init__()
         self.logger = logger
         self.settings = settings
-        self.metrics = get_connection_metrics()
+        self.metrics = connection_metrics
         self.producer: Optional[AIOKafkaProducer] = None
         self.consumer: Optional[AIOKafkaConsumer] = None
         self._subscriptions: dict[str, Subscription] = {}  # id -> Subscription
@@ -83,7 +83,6 @@ class EventBus(LifecycleEnabled):
             max_batch_size=16384,
             enable_idempotence=True,
         )
-        await self.producer.start()
 
         # Consumer setup
         self.consumer = AIOKafkaConsumer(
@@ -98,7 +97,9 @@ class EventBus(LifecycleEnabled):
             max_poll_interval_ms=self.settings.KAFKA_MAX_POLL_INTERVAL_MS,
             request_timeout_ms=self.settings.KAFKA_REQUEST_TIMEOUT_MS,
         )
-        await self.consumer.start()
+
+        # Start both in parallel for faster startup
+        await asyncio.gather(self.producer.start(), self.consumer.start())
 
     async def _on_stop(self) -> None:
         """Stop the event bus and clean up resources."""
@@ -318,9 +319,10 @@ class EventBus(LifecycleEnabled):
 class EventBusManager:
     """Manages EventBus lifecycle as a singleton."""
 
-    def __init__(self, settings: Settings, logger: logging.Logger) -> None:
+    def __init__(self, settings: Settings, logger: logging.Logger, connection_metrics: ConnectionMetrics) -> None:
         self.settings = settings
         self.logger = logger
+        self._connection_metrics = connection_metrics
         self._event_bus: Optional[EventBus] = None
         self._lock = asyncio.Lock()
 
@@ -328,7 +330,7 @@ class EventBusManager:
         """Get or create the event bus instance."""
         async with self._lock:
             if self._event_bus is None:
-                self._event_bus = EventBus(self.settings, self.logger)
+                self._event_bus = EventBus(self.settings, self.logger, self._connection_metrics)
                 await self._event_bus.__aenter__()
             return self._event_bus
 

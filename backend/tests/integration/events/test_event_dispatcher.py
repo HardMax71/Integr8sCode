@@ -3,6 +3,7 @@ import logging
 import uuid
 
 import pytest
+from app.core.metrics import EventMetrics
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.domain.events.typed import DomainEvent
@@ -27,6 +28,7 @@ async def test_dispatcher_with_multiple_handlers(scope: AsyncContainer) -> None:
     # Ensure schema registry is ready
     registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
     settings: Settings = await scope.get(Settings)
+    event_metrics: EventMetrics = await scope.get(EventMetrics)
     await initialize_event_schemas(registry)
 
     # Build dispatcher with two handlers for the same event
@@ -55,6 +57,7 @@ async def test_dispatcher_with_multiple_handlers(scope: AsyncContainer) -> None:
         schema_registry=registry,
         settings=settings,
         logger=_test_logger,
+        event_metrics=event_metrics,
     )
     await consumer.start([KafkaTopic.EXECUTION_EVENTS])
 

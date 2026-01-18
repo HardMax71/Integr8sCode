@@ -146,7 +146,7 @@ The `EventBusManager` provides singleton access to the EventBus with proper life
 async def get_event_bus(self) -> EventBus:
     async with self._lock:
         if self._event_bus is None:
-            self._event_bus = EventBus(self.settings, self.logger)
+            self._event_bus = EventBus(self.settings, self.logger, self._connection_metrics)
             await self._event_bus.__aenter__()
         return self._event_bus
 ```

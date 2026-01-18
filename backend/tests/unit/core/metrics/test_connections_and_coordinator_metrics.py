@@ -1,6 +1,5 @@
 import pytest
-from app.core.metrics.connections import ConnectionMetrics
-from app.core.metrics.coordinator import CoordinatorMetrics
+from app.core.metrics import ConnectionMetrics, CoordinatorMetrics
 from app.settings import Settings
 
 pytestmark = pytest.mark.unit

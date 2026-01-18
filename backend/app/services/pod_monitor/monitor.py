@@ -12,7 +12,7 @@ from kubernetes.client.rest import ApiException
 
 from app.core.k8s_clients import K8sClients, close_k8s_clients, create_k8s_clients
 from app.core.lifecycle import LifecycleEnabled
-from app.core.metrics.context import get_kubernetes_metrics
+from app.core.metrics import KubernetesMetrics
 from app.core.utils import StringEnum
 from app.domain.events.typed import DomainEvent
 from app.services.kafka_event_service import KafkaEventService
@@ -104,6 +104,7 @@ class PodMonitor(LifecycleEnabled):
         logger: logging.Logger,
         k8s_clients: K8sClients,
         event_mapper: PodEventMapper,
+        kubernetes_metrics: KubernetesMetrics,
     ) -> None:
         """Initialize the pod monitor with all required dependencies.
 
@@ -134,7 +135,7 @@ class PodMonitor(LifecycleEnabled):
         self._reconcile_task: asyncio.Task[None] | None = None
 
         # Metrics
-        self._metrics = get_kubernetes_metrics()
+        self._metrics = kubernetes_metrics
 
     @property
     def state(self) -> MonitorState:
@@ -462,6 +463,7 @@ async def create_pod_monitor(
     config: PodMonitorConfig,
     kafka_event_service: KafkaEventService,
     logger: logging.Logger,
+    kubernetes_metrics: KubernetesMetrics,
     k8s_clients: K8sClients | None = None,
     event_mapper: PodEventMapper | None = None,
 ) -> AsyncIterator[PodMonitor]:
@@ -491,6 +493,7 @@ async def create_pod_monitor(
         logger=logger,
         k8s_clients=k8s_clients,
         event_mapper=event_mapper,
+        kubernetes_metrics=kubernetes_metrics,
     )
 
     try:

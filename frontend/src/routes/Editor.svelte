@@ -117,10 +117,10 @@
 
         await verifyAuth();
 
-        unsubscribeSettings = editorSettingsStore.subscribe(s => editorSettings = s);
+        unsubscribeSettings = editorSettingsStore.subscribe(s => editorSettings = { ...editorSettings, ...s });
         unsubscribeAuth = isAuthenticated.subscribe(async authStatus => {
             const wasAuthenticated = authenticated;
-            authenticated = authStatus;
+            authenticated = authStatus ?? false;
             if (!wasAuthenticated && authenticated) await loadSavedScripts();
             else if (wasAuthenticated && !authenticated) {
                 savedScripts = [];
@@ -133,7 +133,7 @@
         if (limitsError) {
             addToast('Failed to load runtime configuration. Execution disabled.', 'error');
         } else {
-            k8sLimits = limitsData;
+            k8sLimits = limitsData ?? null;
             supportedRuntimes = k8sLimits?.supported_runtimes || {};
             const lang = get(selectedLang);
             const ver = get(selectedVersion);
@@ -163,7 +163,7 @@
     async function loadSavedScripts() {
         if (!authenticated) return;
         const data = unwrapOr(await listSavedScriptsApiV1ScriptsGet({}), null);
-        savedScripts = (data || []).map((s, i) => ({ ...s, id: s.id || s._id || `temp_${i}_${Date.now()}` }));
+        savedScripts = (data || []).map((s, i) => ({ ...s, id: s.script_id || `temp_${i}_${Date.now()}` }));
     }
 
     function loadScript(s: SavedScript) {
@@ -192,7 +192,7 @@
                 if (response?.status === 404) {
                     currentScriptId.set(null);
                     const data = unwrap(await createSavedScriptApiV1ScriptsPost({ body }));
-                    currentScriptId.set(data.id);
+                    currentScriptId.set(data.script_id);
                     addToast('Script saved successfully.', 'success');
                 }
                 return;
@@ -200,7 +200,7 @@
             addToast('Script updated successfully.', 'success');
         } else {
             const data = unwrap(await createSavedScriptApiV1ScriptsPost({ body }));
-            currentScriptId.set(data.id);
+            currentScriptId.set(data.script_id);
             addToast('Script saved successfully.', 'success');
         }
         await loadSavedScripts();

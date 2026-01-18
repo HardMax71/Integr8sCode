@@ -182,14 +182,6 @@
                 </div>
             {/if}
 
-            {#if saga.context_data && Object.keys(saga.context_data).length > 0}
-                <div class="mt-6">
-                    <h3 class="font-semibold mb-3">Context Data</h3>
-                    <div class="p-4 bg-neutral-50 dark:bg-neutral-700/50 rounded-lg">
-                        <pre class="text-sm overflow-x-auto">{JSON.stringify(saga.context_data, null, 2)}</pre>
-                    </div>
-                </div>
-            {/if}
         {/if}
     {/snippet}
 </Modal>

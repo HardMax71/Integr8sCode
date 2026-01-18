@@ -46,8 +46,6 @@ class RateLimitMiddleware:
         self.app = app
         self.rate_limit_service = rate_limit_service
         self.settings = settings
-        # Default to enabled unless settings says otherwise
-        self.enabled = bool(settings.RATE_LIMIT_ENABLED) if settings else True
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -56,7 +54,12 @@ class RateLimitMiddleware:
 
         path = scope["path"]
 
-        if not self.enabled or path in self.EXCLUDED_PATHS:
+        if path in self.EXCLUDED_PATHS:
+            await self.app(scope, receive, send)
+            return
+
+        # Check if rate limiting is globally disabled via settings
+        if self.settings is not None and not self.settings.RATE_LIMIT_ENABLED:
             await self.app(scope, receive, send)
             return
 

@@ -1,9 +1,9 @@
 import asyncio
 import logging
-import os
 
 import pytest
 from app.services.result_processor.resource_cleaner import ResourceCleaner
+from app.settings import Settings
 
 pytestmark = [pytest.mark.e2e, pytest.mark.k8s]
 
@@ -11,19 +11,19 @@ _test_logger = logging.getLogger("test.k8s.resource_cleaner_k8s")
 
 
 @pytest.mark.asyncio
-async def test_initialize_and_get_usage() -> None:
+async def test_initialize_and_get_usage(test_settings: Settings) -> None:
     rc = ResourceCleaner(logger=_test_logger)
     await rc.initialize()
-    usage = await rc.get_resource_usage(namespace=os.environ.get("K8S_NAMESPACE", "default"))
+    usage = await rc.get_resource_usage(namespace=test_settings.K8S_NAMESPACE)
     assert set(usage.keys()) >= {"pods", "configmaps", "network_policies"}
 
 
 @pytest.mark.asyncio
-async def test_cleanup_orphaned_resources_dry_run() -> None:
+async def test_cleanup_orphaned_resources_dry_run(test_settings: Settings) -> None:
     rc = ResourceCleaner(logger=_test_logger)
     await rc.initialize()
     cleaned = await rc.cleanup_orphaned_resources(
-        namespace=os.environ.get("K8S_NAMESPACE", "default"),
+        namespace=test_settings.K8S_NAMESPACE,
         max_age_hours=0,
         dry_run=True,
     )
@@ -31,12 +31,12 @@ async def test_cleanup_orphaned_resources_dry_run() -> None:
 
 
 @pytest.mark.asyncio
-async def test_cleanup_nonexistent_pod() -> None:
+async def test_cleanup_nonexistent_pod(test_settings: Settings) -> None:
     rc = ResourceCleaner(logger=_test_logger)
     await rc.initialize()
 
     # Attempt to delete a pod that doesn't exist - should complete without errors
-    namespace = os.environ.get("K8S_NAMESPACE", "default")
+    namespace = test_settings.K8S_NAMESPACE
     nonexistent_pod = "integr8s-test-nonexistent-pod"
 
     # Should complete within timeout and not raise any exceptions

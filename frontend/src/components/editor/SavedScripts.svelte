@@ -5,6 +5,7 @@
     interface SavedScript {
         id: string;
         name: string;
+        script: string;
         lang?: string;
         lang_version?: string;
     }

@@ -8,7 +8,7 @@ from starlette.routing import Route
 pytestmark = pytest.mark.integration
 
 
-def test_create_app_real_instance(app: FastAPI, test_settings: Settings) -> None:
+def test_create_app_real_instance(app: FastAPI) -> None:
     assert isinstance(app, FastAPI)
 
     # Verify API routes are configured
@@ -24,8 +24,7 @@ def test_create_app_real_instance(app: FastAPI, test_settings: Settings) -> None
     assert "RequestSizeLimitMiddleware" in middleware_class_names, "Request size limit middleware not configured"
     assert "CacheControlMiddleware" in middleware_class_names, "Cache control middleware not configured"
     assert "MetricsMiddleware" in middleware_class_names, "Metrics middleware not configured"
-    if test_settings.RATE_LIMIT_ENABLED:
-        assert "RateLimitMiddleware" in middleware_class_names, "Rate limit middleware not configured"
+    assert "RateLimitMiddleware" in middleware_class_names, "Rate limit middleware not configured"
 
 
 def test_create_app_function_constructs(test_settings: Settings) -> None:

@@ -68,25 +68,25 @@
         { value: 'github', label: 'GitHub' }
     ];
     
-    onMount(async () => {
+    onMount(() => {
         // First verify if user is authenticated
         if (!get(isAuthenticated)) {
             return;
         }
-        
-        await loadSettings();
-        
+
+        loadSettings();
+
         // Add click outside handler for dropdowns
-        const handleClickOutside = (event) => {
-            const target = event.target;
-            if (!target.closest('.dropdown-container')) {
+        const handleClickOutside = (event: MouseEvent) => {
+            const target = event.target as Element | null;
+            if (!target?.closest('.dropdown-container')) {
                 showThemeDropdown = false;
                 showEditorThemeDropdown = false;
             }
         };
-        
+
         document.addEventListener('click', handleClickOutside);
-        
+
         return () => {
             document.removeEventListener('click', handleClickOutside);
         };
@@ -98,26 +98,28 @@
             const { data, error } = await getUserSettingsApiV1UserSettingsGet({});
             if (error) throw error;
 
-            setUserSettings(data);
+            setUserSettings(data ?? null);
 
-            formData = {
-                theme: data.theme || 'auto',
-                notifications: {
-                    execution_completed: data.notifications?.execution_completed ?? true,
-                    execution_failed: data.notifications?.execution_failed ?? true,
-                    system_updates: data.notifications?.system_updates ?? true,
-                    security_alerts: data.notifications?.security_alerts ?? true,
-                    channels: [...(data.notifications?.channels || ['in_app'])]
-                },
-                editor: {
-                    theme: data.editor?.theme || 'auto',
-                    font_size: data.editor?.font_size || 14,
-                    tab_size: data.editor?.tab_size || 4,
-                    use_tabs: data.editor?.use_tabs ?? false,
-                    word_wrap: data.editor?.word_wrap ?? true,
-                    show_line_numbers: data.editor?.show_line_numbers ?? true,
-                }
-            };
+            if (data) {
+                formData = {
+                    theme: data.theme || 'auto',
+                    notifications: {
+                        execution_completed: data.notifications?.execution_completed ?? true,
+                        execution_failed: data.notifications?.execution_failed ?? true,
+                        system_updates: data.notifications?.system_updates ?? true,
+                        security_alerts: data.notifications?.security_alerts ?? true,
+                        channels: [...(data.notifications?.channels || ['in_app'])]
+                    },
+                    editor: {
+                        theme: data.editor?.theme || 'auto',
+                        font_size: data.editor?.font_size || 14,
+                        tab_size: data.editor?.tab_size || 4,
+                        use_tabs: data.editor?.use_tabs ?? false,
+                        word_wrap: data.editor?.word_wrap ?? true,
+                        show_line_numbers: data.editor?.show_line_numbers ?? true,
+                    }
+                };
+            }
             savedSnapshot = JSON.stringify(formData);
         } catch (err) {
             console.error('Failed to load settings:', err);
@@ -184,10 +186,10 @@
     }
     
     // Cache for history data
-    let historyCache = null;
+    let historyCache: typeof history | null = null;
     let historyCacheTime = 0;
     const HISTORY_CACHE_DURATION = 30000; // Cache for 30 seconds
-    
+
     async function loadHistory() {
         showHistory = true;
 
@@ -210,7 +212,7 @@
                     displayField: item.field,
                     isRestore: item.reason?.includes('restore')
                 }))
-                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
             historyCache = history;
             historyCacheTime = Date.now();
@@ -335,7 +337,7 @@
                                     formData.theme = theme.value;
                                     showThemeDropdown = false;
                                     if (theme.value) {
-                                        setTheme(theme.value);
+                                        setTheme(theme.value as 'light' | 'dark' | 'auto');
                                     }
                                 }}
                                                         class:selected={formData.theme === theme.value}

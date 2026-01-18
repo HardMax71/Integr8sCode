@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import AsyncExitStack, asynccontextmanager
 from typing import AsyncGenerator
@@ -8,7 +9,8 @@ from dishka import AsyncContainer
 from fastapi import FastAPI
 
 from app.core.database_context import Database
-from app.core.startup import initialize_metrics_context, initialize_rate_limits
+from app.core.metrics import RateLimitMetrics
+from app.core.startup import initialize_rate_limits
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
 from app.events.event_store_consumer import EventStoreConsumer
@@ -71,35 +73,38 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             extra={"testing": settings.TESTING, "enable_tracing": settings.ENABLE_TRACING},
         )
 
-    # Initialize schema registry once at startup
-    schema_registry = await container.get(SchemaRegistryManager)
-    await initialize_event_schemas(schema_registry)
+    # Phase 1: Resolve all DI dependencies in parallel
+    (
+        schema_registry,
+        database,
+        redis_client,
+        rate_limit_metrics,
+        sse_bridge,
+        event_store_consumer,
+    ) = await asyncio.gather(
+        container.get(SchemaRegistryManager),
+        container.get(Database),
+        container.get(redis.Redis),
+        container.get(RateLimitMetrics),
+        container.get(SSEKafkaRedisBridge),
+        container.get(EventStoreConsumer),
+    )
 
-    # Initialize Beanie ODM with database from DI container
-    database = await container.get(Database)
-    await init_beanie(database=database, document_models=ALL_DOCUMENTS)
-    logger.info(f"Beanie ODM initialized with {len(ALL_DOCUMENTS)} document models")
+    # Phase 2: Initialize infrastructure in parallel (independent subsystems)
+    await asyncio.gather(
+        initialize_event_schemas(schema_registry),
+        init_beanie(database=database, document_models=ALL_DOCUMENTS),
+        initialize_rate_limits(redis_client, settings, logger, rate_limit_metrics),
+    )
+    logger.info("Infrastructure initialized (schemas, beanie, rate limits)")
 
-    # Initialize metrics context with instances from DI container
-    # This must happen early so services can access metrics via contextvars
-    await initialize_metrics_context(container, logger)
-    logger.info("Metrics context initialized with contextvars")
-
-    # Initialize default rate limits in Redis
-    redis_client = await container.get(redis.Redis)
-    await initialize_rate_limits(redis_client, settings, logger)
-    logger.info("Rate limits initialized in Redis")
-
-    # Rate limit middleware added during app creation; service resolved lazily at runtime
-
-    # Acquire long-lived services and manage lifecycle via AsyncExitStack
-    sse_bridge = await container.get(SSEKafkaRedisBridge)
-    event_store_consumer = await container.get(EventStoreConsumer)
-
+    # Phase 3: Start Kafka consumers in parallel
     async with AsyncExitStack() as stack:
-        await stack.enter_async_context(sse_bridge)
-        logger.info("SSE Kafka→Redis bridge started with consumer pool")
-        await stack.enter_async_context(event_store_consumer)
-        logger.info("EventStoreConsumer started - events will be persisted to MongoDB")
-        logger.info("All services initialized by DI and managed by AsyncExitStack")
+        stack.push_async_callback(sse_bridge.aclose)
+        stack.push_async_callback(event_store_consumer.aclose)
+        await asyncio.gather(
+            sse_bridge.__aenter__(),
+            event_store_consumer.__aenter__(),
+        )
+        logger.info("SSE bridge and EventStoreConsumer started")
         yield

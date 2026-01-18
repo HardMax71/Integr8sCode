@@ -55,11 +55,17 @@ show_help() {
     echo "Usage: ./deploy.sh <command> [options]"
     echo ""
     echo "Commands:"
-    echo "  dev [--build]      Start local development environment (docker-compose)"
-    echo "  down               Stop local development environment"
+    echo "  dev [options]      Start full stack (docker-compose)"
+    echo "                     --build             Rebuild images"
+    echo "                     --wait              Wait for services to be healthy"
+    echo "                     --timeout <secs>    Health check timeout (default: 300)"
+    echo "  infra [options]    Start infrastructure only (mongo, redis, kafka, etc.)"
+    echo "                     --wait              Wait for services to be healthy"
+    echo "                     --timeout <secs>    Health check timeout (default: 120)"
+    echo "  down               Stop all services"
     echo "  prod [options]     Deploy to Kubernetes with Helm"
     echo "  check              Run quality checks (ruff, mypy, bandit)"
-    echo "  test               Run full test suite with docker-compose"
+    echo "  test               Run full test suite"
     echo "  logs [service]     View logs (defaults to all services)"
     echo "  status             Show status of running services"
     echo "  openapi [path]     Generate OpenAPI spec (default: docs/reference/openapi.json)"
@@ -72,13 +78,15 @@ show_help() {
     echo "  --local            Force local build even with --prod values"
     echo "  --set key=value    Override Helm values"
     echo ""
+    echo "Configuration:"
+    echo "  All settings come from backend/.env (single source of truth)"
+    echo "  For CI/tests: cp backend/.env.test backend/.env"
+    echo ""
     echo "Examples:"
     echo "  ./deploy.sh dev                    # Start dev environment"
     echo "  ./deploy.sh dev --build            # Rebuild and start"
+    echo "  ./deploy.sh dev --wait             # Start and wait for healthy"
     echo "  ./deploy.sh prod                   # Deploy with local images"
-    echo "  ./deploy.sh prod --prod            # Deploy with registry images (no build)"
-    echo "  ./deploy.sh prod --prod --local    # Deploy prod values but build locally"
-    echo "  ./deploy.sh prod --set mongodb.auth.rootPassword=secret"
     echo "  ./deploy.sh logs backend           # View backend logs"
 }
 
@@ -89,12 +97,32 @@ cmd_dev() {
     print_header "Starting Local Development Environment"
 
     local BUILD_FLAG=""
-    if [[ "$1" == "--build" ]]; then
-        BUILD_FLAG="--build"
-        print_info "Rebuilding images..."
+    local WAIT_FLAG=""
+    local WAIT_TIMEOUT="300"
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --build)
+                BUILD_FLAG="--build"
+                print_info "Rebuilding images..."
+                ;;
+            --wait)
+                WAIT_FLAG="--wait"
+                ;;
+            --timeout)
+                shift
+                WAIT_TIMEOUT="$1"
+                ;;
+        esac
+        shift
+    done
+
+    local WAIT_TIMEOUT_FLAG=""
+    if [[ -n "$WAIT_FLAG" ]]; then
+        WAIT_TIMEOUT_FLAG="--wait-timeout $WAIT_TIMEOUT"
     fi
 
-    docker compose up -d $BUILD_FLAG
+    docker compose --profile observability up -d $BUILD_FLAG $WAIT_FLAG $WAIT_TIMEOUT_FLAG
 
     echo ""
     print_success "Development environment started!"
@@ -116,6 +144,38 @@ cmd_down() {
     print_header "Stopping Local Development Environment"
     docker compose down
     print_success "All services stopped"
+}
+
+cmd_infra() {
+    print_header "Starting Infrastructure Services Only"
+
+    local WAIT_FLAG=""
+    local WAIT_TIMEOUT="120"
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --wait)
+                WAIT_FLAG="--wait"
+                ;;
+            --timeout)
+                shift
+                WAIT_TIMEOUT="$1"
+                ;;
+        esac
+        shift
+    done
+
+    local WAIT_TIMEOUT_FLAG=""
+    if [[ -n "$WAIT_FLAG" ]]; then
+        WAIT_TIMEOUT_FLAG="--wait-timeout $WAIT_TIMEOUT"
+    fi
+
+    # Start only infrastructure services (no app, no workers, no observability)
+    # zookeeper-certgen is needed for kafka to start
+    docker compose up -d zookeeper-certgen mongo redis zookeeper kafka schema-registry $WAIT_FLAG $WAIT_TIMEOUT_FLAG
+
+    print_success "Infrastructure services started"
+    docker compose ps
 }
 
 cmd_logs() {
@@ -181,27 +241,18 @@ cmd_check() {
 cmd_test() {
     print_header "Running Test Suite"
 
-    print_info "Starting services..."
-    docker compose up -d --build
+    print_info "Starting full stack..."
+    cmd_dev --build --wait
 
-    print_info "Waiting for backend to be healthy..."
-    if ! curl --retry 60 --retry-delay 5 --retry-all-errors -ksfo /dev/null https://localhost:443/api/v1/health/live; then
-        print_error "Backend failed to become healthy"
-        docker compose logs
-        exit 1
-    fi
-    print_success "Backend is healthy"
-
-    print_info "Running tests..."
-    cd backend
-    if uv run pytest tests/integration tests/unit -v --cov=app --cov-report=term; then
+    print_info "Running tests inside Docker..."
+    if docker compose exec -T backend \
+        uv run pytest tests/integration tests/unit -v --cov=app --cov-report=term; then
         print_success "All tests passed!"
         TEST_RESULT=0
     else
         print_error "Tests failed"
         TEST_RESULT=1
     fi
-    cd ..
 
     print_info "Cleaning up..."
     docker compose down
@@ -383,7 +434,12 @@ cmd_types() {
 # =============================================================================
 case "${1:-help}" in
     dev)
-        cmd_dev "$2"
+        shift
+        cmd_dev "$@"
+        ;;
+    infra)
+        shift
+        cmd_infra "$@"
         ;;
     down)
         cmd_down

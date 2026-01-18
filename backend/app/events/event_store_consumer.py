@@ -4,6 +4,7 @@ import logging
 from opentelemetry.trace import SpanKind
 
 from app.core.lifecycle import LifecycleEnabled
+from app.core.metrics import EventMetrics
 from app.core.tracing.utils import trace_span
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import GroupId, KafkaTopic
@@ -24,6 +25,7 @@ class EventStoreConsumer(LifecycleEnabled):
         schema_registry_manager: SchemaRegistryManager,
         settings: Settings,
         logger: logging.Logger,
+        event_metrics: EventMetrics,
         producer: UnifiedProducer | None = None,
         group_id: GroupId = GroupId.EVENT_STORE_CONSUMER,
         batch_size: int = 100,
@@ -37,6 +39,7 @@ class EventStoreConsumer(LifecycleEnabled):
         self.batch_size = batch_size
         self.batch_timeout = batch_timeout_seconds
         self.logger = logger
+        self.event_metrics = event_metrics
         self.consumer: UnifiedConsumer | None = None
         self.schema_registry_manager = schema_registry_manager
         self.dispatcher = EventDispatcher(logger)
@@ -66,6 +69,7 @@ class EventStoreConsumer(LifecycleEnabled):
             schema_registry=self.schema_registry_manager,
             settings=self.settings,
             logger=self.logger,
+            event_metrics=self.event_metrics,
         )
 
         # Register handler for all event types - store everything
@@ -166,6 +170,7 @@ def create_event_store_consumer(
     schema_registry_manager: SchemaRegistryManager,
     settings: Settings,
     logger: logging.Logger,
+    event_metrics: EventMetrics,
     producer: UnifiedProducer | None = None,
     group_id: GroupId = GroupId.EVENT_STORE_CONSUMER,
     batch_size: int = 100,
@@ -180,5 +185,6 @@ def create_event_store_consumer(
         schema_registry_manager=schema_registry_manager,
         settings=settings,
         logger=logger,
+        event_metrics=event_metrics,
         producer=producer,
     )

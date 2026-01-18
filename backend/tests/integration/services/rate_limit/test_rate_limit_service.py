@@ -19,21 +19,15 @@ pytestmark = [pytest.mark.integration, pytest.mark.redis]
 
 
 @pytest.mark.asyncio
-async def test_normalize_and_disabled_and_bypass_and_no_rule(scope: AsyncContainer) -> None:
+async def test_normalize_and_bypass_and_no_rule(scope: AsyncContainer) -> None:
     svc: RateLimitService = await scope.get(RateLimitService)
     svc.prefix = f"{svc.prefix}{uuid4().hex[:6]}:"
-    # ensure disabled for first path
-    await svc.update_config(RateLimitConfig(default_rules=[]))
-    svc.settings.RATE_LIMIT_ENABLED = False
+
     # normalization masks uuids and ids
     n = svc._normalize_endpoint("/api/12345678901234567890/abcdef-1234-5678-9abc-def012345678")
     assert "*" in n
-    # disabled path allowed
-    res = await svc.check_rate_limit("u1", "/api/x")
-    assert res.allowed is True
 
-    # enabled, bypass
-    svc.settings.RATE_LIMIT_ENABLED = True
+    # bypass user is always allowed
     cfg = RateLimitConfig(default_rules=[], user_overrides={
         "u1": UserRateLimit(user_id="u1", bypass_rate_limit=True)
     })
@@ -51,7 +45,6 @@ async def test_normalize_and_disabled_and_bypass_and_no_rule(scope: AsyncContain
 async def test_sliding_window_allowed_and_rejected(scope: AsyncContainer) -> None:
     svc: RateLimitService = await scope.get(RateLimitService)
     svc.prefix = f"{svc.prefix}{uuid4().hex[:6]}:"
-    svc.settings.RATE_LIMIT_ENABLED = True  # Enable rate limiting for this test
     # matching rule with window 5, limit 3
     rule = RateLimitRule(endpoint_pattern=r"^/api/v1/x", group=EndpointGroup.API, requests=3, window_seconds=5,
                          algorithm=RateLimitAlgorithm.SLIDING_WINDOW)
@@ -76,7 +69,6 @@ async def test_sliding_window_allowed_and_rejected(scope: AsyncContainer) -> Non
 async def test_token_bucket_paths(scope: AsyncContainer) -> None:
     svc: RateLimitService = await scope.get(RateLimitService)
     svc.prefix = f"{svc.prefix}{uuid4().hex[:6]}:"
-    svc.settings.RATE_LIMIT_ENABLED = True  # Enable rate limiting for this test
     rule = RateLimitRule(endpoint_pattern=r"^/api/v1/t", group=EndpointGroup.API, requests=2, window_seconds=10,
                          burst_multiplier=1.0, algorithm=RateLimitAlgorithm.TOKEN_BUCKET)
     await svc.update_config(RateLimitConfig(default_rules=[rule]))
@@ -168,7 +160,6 @@ async def test_get_config_roundtrip(scope: AsyncContainer) -> None:
 async def test_sliding_window_edge(scope: AsyncContainer) -> None:
     svc: RateLimitService = await scope.get(RateLimitService)
     svc.prefix = f"{svc.prefix}{uuid4().hex[:6]}:"
-    svc.settings.RATE_LIMIT_ENABLED = True  # Enable rate limiting for this test
     # Configure a tight window and ensure behavior is consistent
     cfg = RateLimitConfig(
         default_rules=[
@@ -294,7 +285,6 @@ async def test_get_usage_stats_with_keys(scope: AsyncContainer) -> None:
 @pytest.mark.asyncio
 async def test_check_rate_limit_with_user_override(scope: AsyncContainer) -> None:
     svc: RateLimitService = await scope.get(RateLimitService)
-    svc.settings.RATE_LIMIT_ENABLED = True  # Enable rate limiting for this test
     rule = RateLimitRule(
         endpoint_pattern=r"^/api",
         group=EndpointGroup.API,

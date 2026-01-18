@@ -2,7 +2,7 @@ import logging
 from unittest.mock import MagicMock
 
 import pytest
-from app.core.metrics.events import EventMetrics
+from app.core.metrics import EventMetrics
 from app.domain.enums.events import EventType
 from app.domain.events.typed import DomainEvent, EventMetadata, ExecutionStartedEvent
 from app.events.core import EventDispatcher

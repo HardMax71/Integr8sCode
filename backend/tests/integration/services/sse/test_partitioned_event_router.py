@@ -4,7 +4,7 @@ from uuid import uuid4
 
 import pytest
 import redis.asyncio as redis
-from app.core.metrics.events import EventMetrics
+from app.core.metrics import EventMetrics
 from app.events.core import EventDispatcher
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.schemas_pydantic.sse import RedisSSEMessage

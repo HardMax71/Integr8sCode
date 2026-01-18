@@ -31,21 +31,6 @@ from app.core.correlation import CorrelationMiddleware
 from app.core.dishka_lifespan import lifespan
 from app.core.exceptions import configure_exception_handlers
 from app.core.logging import setup_logger
-from app.core.metrics import (
-    ConnectionMetrics,
-    CoordinatorMetrics,
-    DatabaseMetrics,
-    DLQMetrics,
-    EventMetrics,
-    ExecutionMetrics,
-    HealthMetrics,
-    KubernetesMetrics,
-    NotificationMetrics,
-    RateLimitMetrics,
-    ReplayMetrics,
-    SecurityMetrics,
-)
-from app.core.metrics.context import MetricsContext
 from app.core.middlewares import (
     CacheControlMiddleware,
     CSRFMiddleware,
@@ -68,22 +53,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings()
     logger = setup_logger(settings.LOG_LEVEL)
 
-    # Initialize metrics context for all services
-    MetricsContext.initialize_all(
-        logger,
-        connection=ConnectionMetrics(settings),
-        coordinator=CoordinatorMetrics(settings),
-        database=DatabaseMetrics(settings),
-        dlq=DLQMetrics(settings),
-        event=EventMetrics(settings),
-        execution=ExecutionMetrics(settings),
-        health=HealthMetrics(settings),
-        kubernetes=KubernetesMetrics(settings),
-        notification=NotificationMetrics(settings),
-        rate_limit=RateLimitMetrics(settings),
-        replay=ReplayMetrics(settings),
-        security=SecurityMetrics(settings),
-    )
+    # Note: Metrics are now provided via DI (MetricsProvider) and injected into services.
+    # No manual MetricsContext initialization is needed.
 
     # Disable OpenAPI/Docs in production for security; health endpoints provide readiness
     app = FastAPI(
@@ -99,9 +70,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     setup_metrics(app, settings, logger)
     app.add_middleware(MetricsMiddleware)
-    if settings.RATE_LIMIT_ENABLED:
-        app.add_middleware(RateLimitMiddleware)
-
+    app.add_middleware(RateLimitMiddleware, settings=settings)
     app.add_middleware(CSRFMiddleware, container=container)
     app.add_middleware(CorrelationMiddleware)
     app.add_middleware(RequestSizeLimitMiddleware)

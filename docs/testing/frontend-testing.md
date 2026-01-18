@@ -89,6 +89,72 @@ Component tests render Svelte components in jsdom and verify their DOM output, p
 
 E2E tests run in Playwright against the real application. They exercise full user flows like registration, login, theme switching, and protected route access.
 
+## Playwright authentication
+
+E2E tests use worker-scoped fixtures to authenticate once per worker and reuse the browser context across all tests. This avoids hammering the backend with 100+ login requests.
+
+### How it works
+
+1. **Worker-scoped fixtures** (`userContext`, `adminContext`) authenticate once when a worker starts
+2. The authenticated browser context is kept alive for the entire worker lifetime
+3. **Test-scoped fixtures** (`userPage`, `adminPage`) create new pages within the authenticated context
+
+```text
+e2e/
+├── fixtures.ts         # Worker-scoped auth fixtures
+├── auth.spec.ts        # Tests login flow itself (uses raw page)
+├── editor.spec.ts      # User tests (use userPage fixture)
+├── settings.spec.ts    # User tests (use userPage fixture)
+├── home.spec.ts        # Public tests (use raw page)
+└── admin-*.spec.ts     # Admin tests (use adminPage fixture)
+```
+
+### Fixture types
+
+Tests use different fixtures based on auth requirements:
+
+| Fixture | Scope | Auth State |
+|---------|-------|------------|
+| `userPage` | Test | Pre-authenticated as regular user |
+| `adminPage` | Test | Pre-authenticated as admin |
+| `page` | Test | No auth (for public pages, login flow tests) |
+
+### Writing tests
+
+Tests request the appropriate fixture—the browser is already authenticated:
+
+```typescript
+// User tests: use userPage fixture
+test('displays editor page', async ({ userPage }) => {
+  await userPage.goto('/editor');
+  await expect(userPage.getByRole('heading', { name: 'Code Editor' })).toBeVisible();
+});
+
+// Admin tests: use adminPage fixture
+test('shows admin dashboard', async ({ adminPage }) => {
+  await adminPage.goto('/admin/users');
+  await expect(adminPage.getByRole('heading', { name: 'User Management' })).toBeVisible();
+});
+
+// Public page tests: use raw page
+test('shows home page', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByText('Welcome')).toBeVisible();
+});
+```
+
+### Testing unauthenticated flows
+
+For tests that need to verify login/logout behavior, use the raw `page` fixture with `clearSession()`:
+
+```typescript
+test('redirects unauthenticated users to login', async ({ page }) => {
+  await clearSession(page);  // Clears cookies and storage
+  await page.goto('/editor');
+  await expect(page).toHaveURL(/\/login/);
+});
+```
+
 ## Configuration
 
 Vitest configuration lives in [`vitest.config.ts`](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/vitest.config.ts):

@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onMount, onDestroy } from 'svelte';
-    import { Router, type Route, goto } from "@mateothegreat/svelte5-router";
+    import { Router, goto } from "@mateothegreat/svelte5-router";
     import Header from "$components/Header.svelte";
     import Footer from "$components/Footer.svelte";
     import ToastContainer from "$components/ToastContainer.svelte";
@@ -67,7 +67,7 @@
     };
 
     // Routes configuration
-    const routes: Route[] = [
+    const routes = [
         // Public routes
         { path: "/", component: Home },
         { path: "/login", component: Login },

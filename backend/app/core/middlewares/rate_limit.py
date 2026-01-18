@@ -58,6 +58,11 @@ class RateLimitMiddleware:
             await self.app(scope, receive, send)
             return
 
+        # Check if rate limiting is globally disabled via settings
+        if self.settings is not None and not self.settings.RATE_LIMIT_ENABLED:
+            await self.app(scope, receive, send)
+            return
+
         # Try to get service if not initialized
         if self.rate_limit_service is None:
             asgi_app = scope.get("app")

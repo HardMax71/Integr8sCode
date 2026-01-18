@@ -78,6 +78,10 @@ export async function loginAsAdmin(page: Page): Promise<void> {
 
 export async function clearSession(page: Page): Promise<void> {
   await page.context().clearCookies();
+  const url = page.url();
+  if (!url || url === 'about:blank') {
+    return; // No storage to clear on about:blank
+  }
   await page.evaluate(() => {
     localStorage.clear();
     sessionStorage.clear();

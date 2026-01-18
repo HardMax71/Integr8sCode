@@ -91,63 +91,65 @@ E2E tests run in Playwright against the real application. They exercise full use
 
 ## Playwright authentication
 
-E2E tests use Playwright's [storageState](https://playwright.dev/docs/auth) feature to authenticate once and reuse across all tests. This avoids hammering the backend with 100+ login requests.
+E2E tests use worker-scoped fixtures to authenticate once per worker and reuse the browser context across all tests. This avoids hammering the backend with 100+ login requests.
 
 ### How it works
 
-1. **Setup project** runs first, executing `e2e/auth.setup.ts`
-2. Setup logs in as `user` and `admin`, saving cookies to `e2e/.auth/*.json`
-3. **Test projects** load pre-saved auth state before each test
+1. **Worker-scoped fixtures** (`userContext`, `adminContext`) authenticate once when a worker starts
+2. The authenticated browser context is kept alive for the entire worker lifetime
+3. **Test-scoped fixtures** (`userPage`, `adminPage`) create new pages within the authenticated context
 
-```
+```text
 e2e/
-├── .auth/              # Git-ignored, created at runtime
-│   ├── user.json       # User session cookies
-│   └── admin.json      # Admin session cookies
-├── auth.setup.ts       # Runs once, creates auth files
-├── fixtures.ts         # Shared test utilities
-├── auth.spec.ts        # Tests login flow itself
-├── editor.spec.ts      # User tests (use user.json)
-└── admin-*.spec.ts     # Admin tests (use admin.json)
+├── fixtures.ts         # Worker-scoped auth fixtures
+├── auth.spec.ts        # Tests login flow itself (uses raw page)
+├── editor.spec.ts      # User tests (use userPage fixture)
+├── settings.spec.ts    # User tests (use userPage fixture)
+├── home.spec.ts        # Public tests (use raw page)
+└── admin-*.spec.ts     # Admin tests (use adminPage fixture)
 ```
 
-### Project configuration
+### Fixture types
 
-Tests are split into three Playwright projects:
+Tests use different fixtures based on auth requirements:
 
-| Project | Matches | Auth State |
-|---------|---------|------------|
-| `setup` | `auth.setup.ts` | None (creates auth files) |
-| `user-tests` | `*.spec.ts` (non-admin) | `e2e/.auth/user.json` |
-| `admin-tests` | `admin-*.spec.ts` | `e2e/.auth/admin.json` |
-
-The `dependencies: ['setup']` ensures auth files exist before tests run.
+| Fixture | Scope | Auth State |
+|---------|-------|------------|
+| `userPage` | Test | Pre-authenticated as regular user |
+| `adminPage` | Test | Pre-authenticated as admin |
+| `page` | Test | No auth (for public pages, login flow tests) |
 
 ### Writing tests
 
-Tests don't need to call login—the browser is already authenticated:
+Tests request the appropriate fixture—the browser is already authenticated:
 
 ```typescript
-// Before: slow, hits backend every test
-test.beforeEach(async ({ page }) => {
-  await login(page, 'user', 'password');  // 2-5s per test
+// User tests: use userPage fixture
+test('displays editor page', async ({ userPage }) => {
+  await userPage.goto('/editor');
+  await expect(userPage.getByRole('heading', { name: 'Code Editor' })).toBeVisible();
 });
 
-// After: fast, auth pre-loaded via storageState
-test.beforeEach(async ({ page }) => {
-  await loginAsUser(page);  // Just navigates to /editor
+// Admin tests: use adminPage fixture
+test('shows admin dashboard', async ({ adminPage }) => {
+  await adminPage.goto('/admin/users');
+  await expect(adminPage.getByRole('heading', { name: 'User Management' })).toBeVisible();
+});
+
+// Public page tests: use raw page
+test('shows home page', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByText('Welcome')).toBeVisible();
 });
 ```
 
-The `loginAsUser` and `loginAsAdmin` helpers in `fixtures.ts` simply navigate to `/editor` since auth is already set.
-
 ### Testing unauthenticated flows
 
-For tests that need to verify login/logout behavior, use `clearSession()` to wipe auth state:
+For tests that need to verify login/logout behavior, use the raw `page` fixture with `clearSession()`:
 
 ```typescript
 test('redirects unauthenticated users to login', async ({ page }) => {
-  await clearSession(page);  // Clears cookies
+  await clearSession(page);  // Clears cookies and storage
   await page.goto('/editor');
   await expect(page).toHaveURL(/\/login/);
 });

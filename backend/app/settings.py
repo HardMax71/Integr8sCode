@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     KUBERNETES_CONFIG_PATH: str = "~/.kube/config"
     KUBERNETES_CA_CERTIFICATE_PATH: str | None = None
     RATE_LIMITS: str = "100/minute"
+    RATE_LIMIT_ENABLED: bool = True  # Set to False to disable rate limiting entirely
 
     SSL_KEYFILE: str = "/app/certs/server.key"
     SSL_CERTFILE: str = "/app/certs/server.crt"

@@ -10,7 +10,7 @@ export default defineConfig({
   expect: {
     timeout: 3000,  // 3s for assertions
   },
-  reporter: process.env.CI ? [['html'], ['github']] : 'html',
+  reporter: process.env.CI ? [['list'], ['html'], ['github']] : 'list',
   use: {
     baseURL: 'https://localhost:5001',
     ignoreHTTPSErrors: true,

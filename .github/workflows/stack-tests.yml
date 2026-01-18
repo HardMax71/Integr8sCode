@@ -389,7 +389,7 @@ jobs:
       - name: Run Playwright tests
         timeout-minutes: 10
         working-directory: frontend
-        run: CI=true npx playwright test --reporter=html
+        run: CI=true npx playwright test
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v6

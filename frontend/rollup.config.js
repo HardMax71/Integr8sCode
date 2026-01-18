@@ -53,8 +53,6 @@ function startServer() {
     const proxyAgent = new https.Agent({
         ca: fs.readFileSync(caPath),
         rejectUnauthorized: false,  // Accept self-signed certificates in development
-        keepAlive: true,  // Reuse connections to avoid TLS handshake per request
-        keepAliveMsecs: 1000
     });
 
     server = https.createServer(httpsOptions, (req, res) => {
@@ -76,15 +74,6 @@ function startServer() {
             const proxyReq = https.request(options, (proxyRes) => {
                 res.writeHead(proxyRes.statusCode, proxyRes.headers);
                 proxyRes.pipe(res, { end: true });
-            });
-
-            // Socket timeout prevents hanging when backend is unreachable
-            proxyReq.on('socket', (socket) => {
-                socket.setTimeout(2000);
-                socket.on('timeout', () => {
-                    console.error('Proxy socket timeout - backend unreachable');
-                    proxyReq.destroy(new Error('Socket timeout'));
-                });
             });
 
             proxyReq.on('error', (e) => {

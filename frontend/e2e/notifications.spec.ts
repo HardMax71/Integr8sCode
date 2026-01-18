@@ -3,6 +3,15 @@ import { test, expect, describeAuthRequired } from './fixtures';
 const PATH = '/notifications';
 const HEADING = 'Notifications';
 
+// Helper to navigate and wait for notifications API response
+async function gotoAndWaitForNotifications(page: import('@playwright/test').Page) {
+  const notificationsResponse = page.waitForResponse(
+    response => response.url().includes('/api/v1/notifications') && response.status() === 200
+  );
+  await page.goto(PATH);
+  await notificationsResponse;
+}
+
 test.describe('Notifications Page', () => {
   test('displays notifications page with header', async ({ userPage }) => {
     await userPage.goto(PATH);
@@ -35,11 +44,11 @@ test.describe('Notifications Page', () => {
   });
 
   test('shows empty state or notifications', async ({ userPage }) => {
-    await userPage.goto(PATH);
+    await gotoAndWaitForNotifications(userPage);
     const emptyState = userPage.getByText('No notifications yet');
     const notificationCard = userPage.locator('[class*="card"]').filter({ hasText: /notification/i });
-    const hasEmptyState = await emptyState.isVisible({ timeout: 2000 }).catch(() => false);
-    const hasNotifications = await notificationCard.first().isVisible({ timeout: 2000 }).catch(() => false);
+    const hasEmptyState = await emptyState.isVisible({ timeout: 3000 }).catch(() => false);
+    const hasNotifications = await notificationCard.first().isVisible({ timeout: 3000 }).catch(() => false);
     expect(hasEmptyState || hasNotifications).toBe(true);
   });
 });

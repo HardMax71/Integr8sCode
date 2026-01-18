@@ -35,8 +35,10 @@ test.describe('Editor Page', () => {
 
   test('shows file actions when panel opened', async ({ userPage }) => {
     await userPage.goto(PATH);
-    const settingsButton = userPage.locator('button[aria-expanded]').filter({ hasText: '' }).last();
-    await settingsButton.click();
+    // Use the button's accessible name from sr-only text
+    const optionsToggle = userPage.getByRole('button', { name: 'Toggle Script Options' });
+    await expect(optionsToggle).toBeVisible();
+    await optionsToggle.click();
     await expect(userPage.getByText('File Actions')).toBeVisible();
     await expect(userPage.getByRole('button', { name: /New/i })).toBeVisible();
     await expect(userPage.getByRole('button', { name: /Upload/i })).toBeVisible();
@@ -107,8 +109,8 @@ test.describe('Editor Script Management', () => {
     await userPage.getByRole('button', { name: /Example/i }).click();
     await expect(userPage.locator('.cm-content')).not.toBeEmpty({ timeout: 3000 });
     await userPage.locator('#scriptNameInput').fill(`Test Script ${Date.now()}`);
-    const settingsButton = userPage.locator('button[aria-expanded]').filter({ hasText: '' }).last();
-    await settingsButton.click();
+    const optionsToggle = userPage.getByRole('button', { name: 'Toggle Script Options' });
+    await optionsToggle.click();
     await userPage.locator('button[title="Save current script"]').click();
     await expectToastVisible(userPage);
   });
@@ -117,16 +119,16 @@ test.describe('Editor Script Management', () => {
     await userPage.goto(PATH);
     await userPage.getByRole('button', { name: /Example/i }).click();
     await expect(userPage.locator('.cm-content')).not.toBeEmpty({ timeout: 3000 });
-    const settingsButton = userPage.locator('button[aria-expanded]').filter({ hasText: '' }).last();
-    await settingsButton.click();
+    const optionsToggle = userPage.getByRole('button', { name: 'Toggle Script Options' });
+    await optionsToggle.click();
     await userPage.getByRole('button', { name: /New/i }).click();
     await expect(userPage.locator('#scriptNameInput')).toHaveValue('');
   });
 
   test('shows saved scripts section when authenticated', async ({ userPage }) => {
     await userPage.goto(PATH);
-    const settingsButton = userPage.locator('button[aria-expanded]').filter({ hasText: '' }).last();
-    await settingsButton.click();
+    const optionsToggle = userPage.getByRole('button', { name: 'Toggle Script Options' });
+    await optionsToggle.click();
     await expect(userPage.getByRole('heading', { name: 'Saved Scripts' })).toBeVisible();
   });
 });

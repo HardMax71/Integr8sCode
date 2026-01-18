@@ -22,6 +22,7 @@ services:
       - ./backend/certs:/backend-certs
       - ./frontend/certs:/frontend-certs
       - ~/.kube:/root/.kube
+      - /etc/rancher/k3s:/etc/rancher/k3s:ro
       - shared_ca:/shared_ca
       - ./backend:/backend
     environment:
@@ -29,7 +30,8 @@ services:
        - BACKEND_CERT_DIR=/backend-certs
        - FRONTEND_CERT_DIR=/frontend-certs
     restart: "no"
-    network_mode: host
+    networks:
+      - app-network
     depends_on:
       shared-ca:
         condition: service_completed_successfully

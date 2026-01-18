@@ -3,6 +3,38 @@ set -e
 
 echo "Setting up Kubernetes resources..."
 
+# Auto-configure kubectl for k3s if needed
+# k3s stores its kubeconfig at /etc/rancher/k3s/k3s.yaml
+# When running in bridge network, we need to use the routable host IP instead of 127.0.0.1
+configure_kubectl() {
+    # If kubectl already works, nothing to do
+    if kubectl version --request-timeout=2s >/dev/null 2>&1; then
+        return 0
+    fi
+    # Try k3s kubeconfig with routable IP (for bridge network containers)
+    if [ -r /etc/rancher/k3s/k3s.yaml ]; then
+        # Get the k3s node-ip from config (routable from containers)
+        K3S_HOST_IP=""
+        if [ -r /etc/rancher/k3s/config.yaml ]; then
+            K3S_HOST_IP=$(grep -E '^node-ip:' /etc/rancher/k3s/config.yaml 2>/dev/null | sed 's/.*"\([^"]*\)".*/\1/' | head -1)
+        fi
+        if [ -n "$K3S_HOST_IP" ] && [ "$K3S_HOST_IP" != "127.0.0.1" ]; then
+            # Create modified kubeconfig with routable IP
+            mkdir -p /tmp/kube
+            sed "s|https://127.0.0.1:|https://${K3S_HOST_IP}:|g" /etc/rancher/k3s/k3s.yaml > /tmp/kube/config
+            export KUBECONFIG=/tmp/kube/config
+            echo "Using k3s kubeconfig with routable IP: $K3S_HOST_IP"
+        else
+            export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+            echo "Using k3s kubeconfig: $KUBECONFIG"
+        fi
+        return 0
+    fi
+    return 1
+}
+
+configure_kubectl || true
+
 # In CI mode, skip k8s setup if connection fails
 if [ -n "$CI" ]; then
     echo "Running in CI mode"
@@ -34,11 +66,22 @@ EOF
     fi
 fi
 
-# Check k8s connection
-if ! kubectl version --request-timeout=5s >/dev/null 2>&1; then
-    echo "ERROR: Cannot connect to Kubernetes cluster!"
-    exit 1
-fi
+# Check k8s connection with retries (k3s may still be initializing)
+echo "Checking Kubernetes connection..."
+MAX_RETRIES=12
+RETRY_DELAY=5
+for i in $(seq 1 $MAX_RETRIES); do
+    if kubectl version --request-timeout=10s >/dev/null 2>&1; then
+        echo "Connected to Kubernetes (attempt $i)"
+        break
+    fi
+    if [ $i -eq $MAX_RETRIES ]; then
+        echo "ERROR: Cannot connect to Kubernetes cluster after $MAX_RETRIES attempts!"
+        exit 1
+    fi
+    echo "Kubernetes not ready, retrying in ${RETRY_DELAY}s... (attempt $i/$MAX_RETRIES)"
+    sleep $RETRY_DELAY
+done
 
 echo "Connected to Kubernetes"
 
@@ -167,8 +210,29 @@ TOKEN_LEN=$(printf %s "$TOKEN" | wc -c | awk '{print $1}')
 TOKEN_HEAD=$(printf %s "$TOKEN" | cut -c1-10)
 echo "ServiceAccount token acquired (len=${TOKEN_LEN}, head=${TOKEN_HEAD}...)"
 
-# For containers: use host.docker.internal (mapped to host-gateway) but keep TLS host verification via tls-server-name
-CONTAINER_SERVER="https://host.docker.internal:${K8S_PORT}"
+# Determine the host IP that containers can reach
+# Priority: 1) k3s node-ip config, 2) server URL from kubeconfig, 3) fallback to host.docker.internal
+get_container_host_ip() {
+    # Try k3s config node-ip (most reliable for k3s setups)
+    if [ -f /etc/rancher/k3s/config.yaml ]; then
+        K3S_NODE_IP=$(grep -E '^node-ip:' /etc/rancher/k3s/config.yaml 2>/dev/null | sed 's/.*"\([^"]*\)".*/\1/' | head -1)
+        if [ -n "$K3S_NODE_IP" ] && [ "$K3S_NODE_IP" != "127.0.0.1" ]; then
+            echo "$K3S_NODE_IP"
+            return
+        fi
+    fi
+    # Try extracting from kubeconfig server URL (if not localhost)
+    if [ -n "$SERVER_HOST" ] && [ "$SERVER_HOST" != "127.0.0.1" ] && [ "$SERVER_HOST" != "localhost" ]; then
+        echo "$SERVER_HOST"
+        return
+    fi
+    # Fallback to host.docker.internal (works on Docker Desktop, may need extra_hosts on Linux)
+    echo "host.docker.internal"
+}
+
+CONTAINER_HOST_IP=$(get_container_host_ip)
+CONTAINER_SERVER="https://${CONTAINER_HOST_IP}:${K8S_PORT}"
+echo "Detected container-accessible host IP: ${CONTAINER_HOST_IP}"
 
 echo "Writing kubeconfig for containers:"
 echo "  cluster: ${CLUSTER_NAME}"

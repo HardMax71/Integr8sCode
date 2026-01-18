@@ -123,7 +123,7 @@ class Settings(BaseSettings):
     REDIS_DB: int = 0
     REDIS_PASSWORD: str | None = None
     REDIS_SSL: bool = False
-    REDIS_MAX_CONNECTIONS: int = 50
+    REDIS_MAX_CONNECTIONS: int = 200
     REDIS_DECODE_RESPONSES: bool = True
 
     # Rate Limiting Configuration

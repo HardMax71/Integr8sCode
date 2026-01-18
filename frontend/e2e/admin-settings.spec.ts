@@ -37,6 +37,9 @@ test.describe('Admin Settings', () => {
 
   test('log level select has correct options', async ({ adminPage }) => {
     await adminPage.goto(PATH);
+    // Wait for select to be visible and have options loaded
+    await expect(adminPage.locator('#log-level')).toBeVisible();
+    await expect(adminPage.locator('#log-level option').first()).toBeAttached();
     const options = await adminPage.locator('#log-level option').allTextContents();
     expect(options).toContain('DEBUG');
     expect(options).toContain('INFO');

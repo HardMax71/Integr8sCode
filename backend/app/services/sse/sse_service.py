@@ -115,8 +115,8 @@ class SSEService:
 
         finally:
             if subscription is not None:
-                await subscription.close()
-            await self.shutdown_manager.unregister_connection(execution_id, connection_id)
+                await asyncio.shield(subscription.close())
+            await asyncio.shield(self.shutdown_manager.unregister_connection(execution_id, connection_id))
             self.logger.info("SSE connection closed", extra={"execution_id": execution_id})
 
     async def _stream_events_redis(
@@ -255,11 +255,8 @@ class SSEService:
                         )
                     )
         finally:
-            try:
-                if subscription is not None:
-                    await subscription.close()
-            except Exception:
-                pass
+            if subscription is not None:
+                await asyncio.shield(subscription.close())
 
     async def get_health_status(self) -> SSEHealthDomain:
         router_stats = self.router.get_stats()

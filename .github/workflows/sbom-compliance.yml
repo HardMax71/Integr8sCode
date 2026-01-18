@@ -1,0 +1,62 @@
+name: SBOM & Supply Chain Security
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 0 * * 0'  # Run weekly on Sundays
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  sbom-analysis:
+    name: Generate & Scan SBOMs
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        component: [backend, frontend]
+        include:
+          - component: backend
+            path: ./backend
+            type: python
+          - component: frontend
+            path: ./frontend
+            type: javascript
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Generate SBOM (${{ matrix.component }})
+        uses: anchore/sbom-action@v0
+        id: sbom
+        with:
+          path: ${{ matrix.path }}
+          format: spdx-json
+          output-file: ${{ matrix.component }}-sbom.spdx.json
+
+      - name: Scan SBOM for Vulnerabilities
+        uses: anchore/scan-action@v5
+        id: scan
+        with:
+          sbom: ${{ matrix.component }}-sbom.spdx.json
+          fail-build: false # Don't block builds yet, just report
+          severity-cutoff: high
+
+      - name: Upload SBOM Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.component }}-sbom
+          path: ${{ matrix.component }}-sbom.spdx.json
+          retention-days: 5
+
+      - name: Upload Vulnerability Report
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: ${{ steps.scan.outputs.sarif }}
+          category: ${{ matrix.component }}-dependencies

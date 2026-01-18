@@ -121,6 +121,12 @@ For detailed architecture diagrams, see the [Architecture](architecture/overview
 
     Frontend routing and components
 
+-   :material-github: **[Contributing](https://github.com/HardMax71/Integr8sCode/blob/main/CONTRIBUTING.md)**
+
+    ---
+
+    Development setup, pre-commit hooks, and PR guidelines
+
 </div>
 
 ## Sample code

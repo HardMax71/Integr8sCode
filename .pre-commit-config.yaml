@@ -1,0 +1,23 @@
+# Pre-commit hooks configuration
+# Install: uv tool install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  # Local hooks using uv run to match CI exactly
+  - repo: local
+    hooks:
+      # Ruff - matches CI: cd backend && uv run ruff check . --config pyproject.toml
+      - id: ruff-backend
+        name: ruff check (backend)
+        entry: bash -c 'cd backend && uv run ruff check . --config pyproject.toml'
+        language: system
+        files: ^backend/.*\.py$
+        pass_filenames: false
+
+      # MyPy - matches CI: cd backend && uv run mypy --config-file pyproject.toml --strict .
+      - id: mypy-backend
+        name: mypy --strict (backend)
+        entry: bash -c 'cd backend && uv run mypy --config-file pyproject.toml --strict .'
+        language: system
+        files: ^backend/.*\.py$
+        pass_filenames: false

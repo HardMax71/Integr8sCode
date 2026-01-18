@@ -1,0 +1,16 @@
+# This file defines code owners for the repository.
+# It assigns the default owner for all files to @HardMax71.
+# Later, specific paths can be assigned to different teams or individuals.
+
+# Default owner for everything
+*       @HardMax71
+
+# Backend
+backend/  @HardMax71
+
+# Frontend
+frontend/ @HardMax71
+
+# DevOps / Helm / CI
+helm/     @HardMax71
+.github/  @HardMax71

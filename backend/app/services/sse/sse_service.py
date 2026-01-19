@@ -32,14 +32,14 @@ class SSEService:
     }
 
     def __init__(
-        self,
-        repository: SSERepository,
-        router: SSEKafkaRedisBridge,
-        sse_bus: SSERedisBus,
-        shutdown_manager: SSEShutdownManager,
-        settings: Settings,
-        logger: logging.Logger,
-        connection_metrics: ConnectionMetrics,
+            self,
+            repository: SSERepository,
+            router: SSEKafkaRedisBridge,
+            sse_bus: SSERedisBus,
+            shutdown_manager: SSEShutdownManager,
+            settings: Settings,
+            logger: logging.Logger,
+            connection_metrics: ConnectionMetrics,
     ) -> None:
         self.repository = repository
         self.router = router
@@ -48,7 +48,7 @@ class SSEService:
         self.settings = settings
         self.logger = logger
         self.metrics = connection_metrics
-        self.heartbeat_interval = getattr(settings, "SSE_HEARTBEAT_INTERVAL", 30)
+        self.heartbeat_interval = settings.SSE_HEARTBEAT_INTERVAL
 
     async def create_execution_stream(self, execution_id: str, user_id: str) -> AsyncGenerator[Dict[str, Any], None]:
         connection_id = f"sse_{execution_id}_{datetime.now(timezone.utc).timestamp()}"
@@ -106,10 +106,10 @@ class SSEService:
                 self.metrics.record_sse_message_sent("executions", "status")
 
             async for event_data in self._stream_events_redis(
-                execution_id,
-                subscription,
-                shutdown_event,
-                include_heartbeat=False,
+                    execution_id,
+                    subscription,
+                    shutdown_event,
+                    include_heartbeat=False,
             ):
                 yield event_data
 
@@ -120,11 +120,11 @@ class SSEService:
             self.logger.info("SSE connection closed", extra={"execution_id": execution_id})
 
     async def _stream_events_redis(
-        self,
-        execution_id: str,
-        subscription: Any,
-        shutdown_event: asyncio.Event,
-        include_heartbeat: bool = True,
+            self,
+            execution_id: str,
+            subscription: Any,
+            shutdown_event: asyncio.Event,
+            include_heartbeat: bool = True,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         last_heartbeat = datetime.now(timezone.utc)
         while True:

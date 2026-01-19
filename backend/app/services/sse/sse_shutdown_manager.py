@@ -35,12 +35,14 @@ class SSEShutdownManager:
 
     def __init__(
         self,
+        router: LifecycleEnabled,
         logger: logging.Logger,
         connection_metrics: ConnectionMetrics,
         drain_timeout: float = 30.0,
         notification_timeout: float = 5.0,
         force_close_timeout: float = 10.0,
     ):
+        self._router = router
         self.logger = logger
         self.drain_timeout = drain_timeout
         self.notification_timeout = notification_timeout
@@ -57,9 +59,6 @@ class SSEShutdownManager:
         self._connection_callbacks: Dict[str, asyncio.Event] = {}  # connection_id -> shutdown event
         self._draining_connections: Set[str] = set()
 
-        # Router reference (set during initialization)
-        self._router: LifecycleEnabled | None = None
-
         # Synchronization
         self._lock = asyncio.Lock()
         self._shutdown_event = asyncio.Event()
@@ -73,10 +72,6 @@ class SSEShutdownManager:
             "SSEShutdownManager initialized",
             extra={"drain_timeout": drain_timeout, "notification_timeout": notification_timeout},
         )
-
-    def set_router(self, router: LifecycleEnabled) -> None:
-        """Set the router reference for shutdown coordination."""
-        self._router = router
 
     async def register_connection(self, execution_id: str, connection_id: str) -> asyncio.Event | None:
         """
@@ -260,9 +255,8 @@ class SSEShutdownManager:
             self._connection_callbacks.clear()
             self._draining_connections.clear()
 
-        # If we have a router, tell it to stop accepting new subscriptions
-        if self._router:
-            await self._router.aclose()
+        # Tell router to stop accepting new subscriptions
+        await self._router.aclose()
 
         self.metrics.update_sse_draining_connections(0)
         self.logger.info("Force close phase complete")
@@ -306,31 +300,3 @@ class SSEShutdownManager:
         """Wait for shutdown to complete"""
         while not self._shutdown_complete:
             await asyncio.sleep(0.1)
-
-
-def create_sse_shutdown_manager(
-    logger: logging.Logger,
-    connection_metrics: ConnectionMetrics,
-    drain_timeout: float = 30.0,
-    notification_timeout: float = 5.0,
-    force_close_timeout: float = 10.0,
-) -> SSEShutdownManager:
-    """Factory function to create an SSE shutdown manager.
-
-    Args:
-        logger: Logger instance
-        connection_metrics: Connection metrics for tracking SSE connections
-        drain_timeout: Time to wait for connections to close gracefully
-        notification_timeout: Time to wait for shutdown notifications to be sent
-        force_close_timeout: Time before force closing connections
-
-    Returns:
-        A new SSE shutdown manager instance
-    """
-    return SSEShutdownManager(
-        logger=logger,
-        connection_metrics=connection_metrics,
-        drain_timeout=drain_timeout,
-        notification_timeout=notification_timeout,
-        force_close_timeout=force_close_timeout,
-    )

@@ -73,7 +73,7 @@ from app.services.saved_script_service import SavedScriptService
 from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge, create_sse_kafka_redis_bridge
 from app.services.sse.redis_bus import SSERedisBus
 from app.services.sse.sse_service import SSEService
-from app.services.sse.sse_shutdown_manager import SSEShutdownManager, create_sse_shutdown_manager
+from app.services.sse.sse_shutdown_manager import SSEShutdownManager
 from app.services.user_settings_service import UserSettingsService
 from app.settings import Settings
 
@@ -395,9 +395,16 @@ class SSEProvider(Provider):
 
     @provide(scope=Scope.REQUEST)
     def get_sse_shutdown_manager(
-            self, logger: logging.Logger, connection_metrics: ConnectionMetrics
+            self,
+            router: SSEKafkaRedisBridge,
+            logger: logging.Logger,
+            connection_metrics: ConnectionMetrics,
     ) -> SSEShutdownManager:
-        return create_sse_shutdown_manager(logger=logger, connection_metrics=connection_metrics)
+        return SSEShutdownManager(
+            router=router,
+            logger=logger,
+            connection_metrics=connection_metrics,
+        )
 
     @provide(scope=Scope.REQUEST)
     def get_sse_service(
@@ -410,7 +417,6 @@ class SSEProvider(Provider):
             logger: logging.Logger,
             connection_metrics: ConnectionMetrics,
     ) -> SSEService:
-        shutdown_manager.set_router(router)
         return SSEService(
             repository=sse_repository,
             router=router,

@@ -41,7 +41,7 @@ jobs:
           upload-artifact: false
 
       - name: Scan SBOM for Vulnerabilities
-        uses: anchore/scan-action@v6
+        uses: anchore/scan-action@v7
         id: scan
         with:
           sbom: ${{ matrix.component }}-sbom.spdx.json

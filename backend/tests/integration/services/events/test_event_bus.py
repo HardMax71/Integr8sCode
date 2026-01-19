@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 from aiokafka import AIOKafkaProducer
 from app.domain.enums.kafka import KafkaTopic
-from app.services.event_bus import EventBusEvent, EventBusManager
+from app.services.event_bus import EventBus, EventBusEvent
 from app.settings import Settings
 from dishka import AsyncContainer
 
@@ -15,8 +15,7 @@ pytestmark = pytest.mark.integration
 @pytest.mark.asyncio
 async def test_event_bus_publish_subscribe(scope: AsyncContainer, test_settings: Settings) -> None:
     """Test EventBus receives events from other instances (cross-instance communication)."""
-    manager: EventBusManager = await scope.get(EventBusManager)
-    bus = await manager.get_event_bus()
+    bus: EventBus = await scope.get(EventBus)
 
     # Future resolves when handler receives the event - no polling needed
     received_future: asyncio.Future[EventBusEvent] = asyncio.get_running_loop().create_future()

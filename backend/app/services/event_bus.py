@@ -9,7 +9,6 @@ from uuid import uuid4
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from aiokafka.errors import KafkaError
-from fastapi import Request
 from pydantic import BaseModel, ConfigDict
 
 from app.core.lifecycle import LifecycleEnabled
@@ -316,32 +315,3 @@ class EventBus(LifecycleEnabled):
             }
 
 
-class EventBusManager:
-    """Manages EventBus lifecycle as a singleton."""
-
-    def __init__(self, settings: Settings, logger: logging.Logger, connection_metrics: ConnectionMetrics) -> None:
-        self.settings = settings
-        self.logger = logger
-        self._connection_metrics = connection_metrics
-        self._event_bus: Optional[EventBus] = None
-        self._lock = asyncio.Lock()
-
-    async def get_event_bus(self) -> EventBus:
-        """Get or create the event bus instance."""
-        async with self._lock:
-            if self._event_bus is None:
-                self._event_bus = EventBus(self.settings, self.logger, self._connection_metrics)
-                await self._event_bus.__aenter__()
-            return self._event_bus
-
-    async def close(self) -> None:
-        """Stop and clean up the event bus."""
-        async with self._lock:
-            if self._event_bus:
-                await self._event_bus.aclose()
-                self._event_bus = None
-
-
-async def get_event_bus(request: Request) -> EventBus:
-    manager: EventBusManager = request.app.state.event_bus_manager
-    return await manager.get_event_bus()

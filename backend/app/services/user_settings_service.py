@@ -16,7 +16,7 @@ from app.domain.user import (
     DomainUserSettingsChangedEvent,
     DomainUserSettingsUpdate,
 )
-from app.services.event_bus import EventBusManager
+from app.services.event_bus import EventBus
 from app.services.kafka_event_service import KafkaEventService
 
 _settings_adapter = TypeAdapter(DomainUserSettings)
@@ -29,12 +29,12 @@ class UserSettingsService:
         repository: UserSettingsRepository,
         event_service: KafkaEventService,
         logger: logging.Logger,
-        event_bus_manager: EventBusManager,
+        event_bus: EventBus,
     ) -> None:
         self.repository = repository
         self.event_service = event_service
         self.logger = logger
-        self._event_bus_manager = event_bus_manager
+        self._event_bus = event_bus
         self._cache_ttl = timedelta(minutes=5)
         self._max_cache_size = 1000
         self._cache: TTLCache[str, DomainUserSettings] = TTLCache(
@@ -95,8 +95,7 @@ class UserSettingsService:
         changes_json = _update_adapter.dump_python(updates, exclude_none=True, mode="json")
         await self._publish_settings_event(user_id, changes_json, reason)
 
-        bus = await self._event_bus_manager.get_event_bus()
-        await bus.publish("user.settings.updated", {"user_id": user_id})
+        await self._event_bus.publish("user.settings.updated", {"user_id": user_id})
 
         self._add_to_cache(user_id, new_settings)
         if (await self.repository.count_events_since_snapshot(user_id)) >= 10:

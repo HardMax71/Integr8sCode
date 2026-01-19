@@ -523,7 +523,7 @@ class AdminServicesProvider(Provider):
             notification_metrics: NotificationMetrics,
             event_metrics: EventMetrics,
     ) -> NotificationService:
-        service = NotificationService(
+        return NotificationService(
             notification_repository=notification_repository,
             event_service=kafka_event_service,
             event_bus_manager=event_bus_manager,
@@ -534,8 +534,6 @@ class AdminServicesProvider(Provider):
             notification_metrics=notification_metrics,
             event_metrics=event_metrics,
         )
-        service.initialize()
-        return service
 
     @provide
     def get_grafana_alert_processor(

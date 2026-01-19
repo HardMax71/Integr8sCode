@@ -59,8 +59,6 @@ type SlackMessage = dict[str, object]
 class ServiceState(StringEnum):
     """Service lifecycle states."""
 
-    IDLE = auto()
-    INITIALIZING = auto()
     RUNNING = auto()
     STOPPING = auto()
     STOPPED = auto()
@@ -136,7 +134,7 @@ class NotificationService:
         self.logger = logger
 
         # State
-        self._state = ServiceState.IDLE
+        self._state = ServiceState.RUNNING
         self._throttle_cache = ThrottleCache()
 
         # Tasks
@@ -145,6 +143,16 @@ class NotificationService:
         self._consumer: UnifiedConsumer | None = None
         self._dispatcher: EventDispatcher | None = None
         self._consumer_task: asyncio.Task[None] | None = None
+
+        # Channel handlers mapping
+        self._channel_handlers: dict[NotificationChannel, ChannelHandler] = {
+            NotificationChannel.IN_APP: self._send_in_app,
+            NotificationChannel.WEBHOOK: self._send_webhook,
+            NotificationChannel.SLACK: self._send_slack,
+        }
+
+        # Start background processors
+        self._start_background_tasks()
 
         self.logger.info(
             "NotificationService initialized",
@@ -155,29 +163,9 @@ class NotificationService:
             },
         )
 
-        # Channel handlers mapping
-        self._channel_handlers: dict[NotificationChannel, ChannelHandler] = {
-            NotificationChannel.IN_APP: self._send_in_app,
-            NotificationChannel.WEBHOOK: self._send_webhook,
-            NotificationChannel.SLACK: self._send_slack,
-        }
-
     @property
     def state(self) -> ServiceState:
         return self._state
-
-    def initialize(self) -> None:
-        if self._state != ServiceState.IDLE:
-            self.logger.warning(f"Cannot initialize in state: {self._state}")
-            return
-
-        self._state = ServiceState.INITIALIZING
-
-        # Start processors
-        self._state = ServiceState.RUNNING
-        self._start_background_tasks()
-
-        self.logger.info("Notification service initialized (without Kafka consumer)")
 
     async def shutdown(self) -> None:
         """Shutdown notification service."""

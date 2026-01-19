@@ -50,7 +50,7 @@ from app.infrastructure.kafka.topics import get_all_topics
 from app.services.admin import AdminEventsService, AdminSettingsService, AdminUserService
 from app.services.auth_service import AuthService
 from app.services.coordinator.coordinator import ExecutionCoordinator
-from app.services.event_bus import EventBusManager
+from app.services.event_bus import EventBusEvent, EventBusManager
 from app.services.event_replay.replay_service import EventReplayService
 from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
@@ -473,8 +473,20 @@ class UserServicesProvider(Provider):
             event_bus_manager: EventBusManager,
             logger: logging.Logger,
     ) -> UserSettingsService:
-        service = UserSettingsService(repository, kafka_event_service, logger)
-        await service.initialize(event_bus_manager)
+        service = UserSettingsService(repository, kafka_event_service, logger, event_bus_manager)
+
+        # Subscribe to settings update events for cross-instance cache invalidation.
+        # EventBus filters out self-published messages, so this handler only
+        # runs for events from OTHER instances.
+        bus = await event_bus_manager.get_event_bus()
+
+        async def _handle_settings_update(evt: EventBusEvent) -> None:
+            uid = evt.payload.get("user_id")
+            if uid:
+                await service.invalidate_cache(str(uid))
+
+        await bus.subscribe("user.settings.updated*", _handle_settings_update)
+
         return service
 
 

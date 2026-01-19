@@ -100,11 +100,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Phase 3: Start Kafka consumers in parallel
     async with AsyncExitStack() as stack:
-        stack.push_async_callback(sse_bridge.aclose)
-        stack.push_async_callback(event_store_consumer.aclose)
         await asyncio.gather(
-            sse_bridge.__aenter__(),
-            event_store_consumer.__aenter__(),
+            stack.enter_async_context(sse_bridge),
+            stack.enter_async_context(event_store_consumer),
         )
         logger.info("SSE bridge and EventStoreConsumer started")
         yield

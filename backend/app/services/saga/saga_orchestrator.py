@@ -5,7 +5,6 @@ from uuid import uuid4
 
 from opentelemetry.trace import SpanKind
 
-from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics import EventMetrics
 from app.core.tracing import EventAttributes
 from app.core.tracing.utils import get_tracer
@@ -27,7 +26,7 @@ from .execution_saga import ExecutionSaga
 from .saga_step import SagaContext
 
 
-class SagaOrchestrator(LifecycleEnabled):
+class SagaOrchestrator:
     """Orchestrates saga execution and compensation"""
 
     def __init__(
@@ -43,7 +42,6 @@ class SagaOrchestrator(LifecycleEnabled):
         logger: logging.Logger,
         event_metrics: EventMetrics,
     ):
-        super().__init__()
         self.config = config
         self._sagas: dict[str, type[BaseSaga]] = {}
         self._running_instances: dict[str, Saga] = {}
@@ -67,7 +65,7 @@ class SagaOrchestrator(LifecycleEnabled):
         self.register_saga(ExecutionSaga)
         self.logger.info("Registered default sagas")
 
-    async def _on_start(self) -> None:
+    async def __aenter__(self) -> "SagaOrchestrator":
         """Start the saga orchestrator."""
         self.logger.info(f"Starting saga orchestrator: {self.config.name}")
 
@@ -79,8 +77,9 @@ class SagaOrchestrator(LifecycleEnabled):
         self._tasks.append(timeout_task)
 
         self.logger.info("Saga orchestrator started")
+        return self
 
-    async def _on_stop(self) -> None:
+    async def __aexit__(self, exc_type: object, exc: object, tb: object) -> None:
         """Stop the saga orchestrator."""
         self.logger.info("Stopping saga orchestrator...")
 
@@ -250,8 +249,6 @@ class SagaOrchestrator(LifecycleEnabled):
 
             # Execute each step
             for step in steps:
-                if not self.is_running:
-                    break
 
                 # Update current step
                 instance.current_step = step.name
@@ -363,8 +360,8 @@ class SagaOrchestrator(LifecycleEnabled):
 
     async def _check_timeouts(self) -> None:
         """Check for saga timeouts"""
-        while self.is_running:
-            try:
+        try:
+            while True:
                 # Check every 30 seconds
                 await asyncio.sleep(30)
 
@@ -382,8 +379,8 @@ class SagaOrchestrator(LifecycleEnabled):
                     await self._save_saga(instance)
                     self._running_instances.pop(instance.saga_id, None)
 
-            except Exception as e:
-                self.logger.error(f"Error checking timeouts: {e}")
+        except asyncio.CancelledError:
+            self.logger.info("Timeout checker cancelled")
 
     async def _save_saga(self, instance: Saga) -> None:
         """Persist saga through repository"""
@@ -534,46 +531,3 @@ class SagaOrchestrator(LifecycleEnabled):
 
         except Exception as e:
             self.logger.error(f"Failed to publish saga cancellation event: {e}")
-
-
-def create_saga_orchestrator(
-    saga_repository: SagaRepository,
-    producer: UnifiedProducer,
-    schema_registry_manager: SchemaRegistryManager,
-    settings: Settings,
-    event_store: EventStore,
-    idempotency_manager: IdempotencyManager,
-    resource_allocation_repository: ResourceAllocationRepository,
-    config: SagaConfig,
-    logger: logging.Logger,
-    event_metrics: EventMetrics,
-) -> SagaOrchestrator:
-    """Factory function to create a saga orchestrator.
-
-    Args:
-        saga_repository: Repository for saga persistence
-        producer: Kafka producer instance
-        schema_registry_manager: Schema registry manager for event serialization
-        settings: Application settings
-        event_store: Event store instance for event sourcing
-        idempotency_manager: Manager for idempotent event processing
-        resource_allocation_repository: Repository for resource allocations
-        config: Saga configuration
-        logger: Logger instance
-        event_metrics: Event metrics for tracking Kafka consumption
-
-    Returns:
-        A new saga orchestrator instance
-    """
-    return SagaOrchestrator(
-        config,
-        saga_repository=saga_repository,
-        producer=producer,
-        schema_registry_manager=schema_registry_manager,
-        settings=settings,
-        event_store=event_store,
-        idempotency_manager=idempotency_manager,
-        resource_allocation_repository=resource_allocation_repository,
-        logger=logger,
-        event_metrics=event_metrics,
-    )

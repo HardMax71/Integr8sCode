@@ -112,7 +112,6 @@ class ConsumerStatus(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     state: str
-    is_running: bool
     group_id: str
     client_id: str
     metrics: ConsumerMetricsSnapshot

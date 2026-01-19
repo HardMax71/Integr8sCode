@@ -58,31 +58,6 @@ class QueueManager:
         self._queue_lock = asyncio.Lock()
         self._user_execution_count: Dict[str, int] = defaultdict(int)
         self._execution_users: Dict[str, str] = {}
-        self._cleanup_task: asyncio.Task[None] | None = None
-        self._running = False
-
-    async def start(self) -> None:
-        if self._running:
-            return
-
-        self._running = True
-        self._cleanup_task = asyncio.create_task(self._cleanup_stale_executions())
-        self.logger.info("Queue manager started")
-
-    async def stop(self) -> None:
-        if not self._running:
-            return
-
-        self._running = False
-
-        if self._cleanup_task:
-            self._cleanup_task.cancel()
-            try:
-                await self._cleanup_task
-            except asyncio.CancelledError:
-                pass
-
-        self.logger.info(f"Queue manager stopped. Final queue size: {len(self._queue)}")
 
     async def add_execution(
         self, event: ExecutionRequestedEvent, priority: QueuePriority | None = None
@@ -240,32 +215,3 @@ class QueueManager:
 
     def _update_queue_size(self) -> None:
         self.metrics.update_execution_request_queue_size(len(self._queue))
-
-    async def _cleanup_stale_executions(self) -> None:
-        while self._running:
-            try:
-                await asyncio.sleep(300)
-
-                async with self._queue_lock:
-                    stale_executions = []
-                    active_executions = []
-
-                    for queued in self._queue:
-                        if self._is_stale(queued):
-                            stale_executions.append(queued)
-                        else:
-                            active_executions.append(queued)
-
-                    if stale_executions:
-                        self._queue = active_executions
-                        heapq.heapify(self._queue)
-
-                        for queued in stale_executions:
-                            self._untrack_execution(queued.execution_id)
-
-                        # Update metric after stale cleanup
-                        self.metrics.update_execution_request_queue_size(len(self._queue))
-                        self.logger.info(f"Cleaned {len(stale_executions)} stale executions from queue")
-
-            except Exception as e:
-                self.logger.error(f"Error in queue cleanup: {e}")

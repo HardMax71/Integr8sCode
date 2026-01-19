@@ -5,7 +5,6 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-from app.core import k8s_clients as k8s_clients_module
 from app.core.k8s_clients import K8sClients
 from app.core.metrics import EventMetrics, KubernetesMetrics
 from app.db.repositories.event_repository import EventRepository
@@ -16,12 +15,9 @@ from app.services.kafka_event_service import KafkaEventService
 from app.services.pod_monitor.config import PodMonitorConfig
 from app.services.pod_monitor.event_mapper import PodEventMapper
 from app.services.pod_monitor.monitor import (
-    MonitorState,
     PodEvent,
     PodMonitor,
-    ReconciliationResult,
     WatchEventType,
-    create_pod_monitor,
 )
 from app.settings import Settings
 from kubernetes.client.rest import ApiException
@@ -155,23 +151,21 @@ async def test_start_and_stop_lifecycle(event_metrics: EventMetrics, kubernetes_
     spy = SpyMapper()
     pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg, event_mapper=spy)  # type: ignore[arg-type]
 
-    # Replace _watch_pods to avoid real watch loop
+    # Replace _watch_loop to avoid real watch loop
     async def _quick_watch() -> None:
         return None
 
-    pm._watch_pods = _quick_watch  # type: ignore[method-assign]
+    pm._watch_loop = _quick_watch  # type: ignore[method-assign]
 
     await pm.__aenter__()
-    assert pm.state == MonitorState.RUNNING
+    assert pm._watch_task is not None
 
-    await pm.aclose()
-    final_state: MonitorState = pm.state
-    assert final_state == MonitorState.STOPPED
+    await pm.__aexit__(None, None, None)
     assert spy.cleared is True
 
 
 @pytest.mark.asyncio
-async def test_watch_pod_events_flow_and_publish(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
+async def test_run_watch_flow_and_publish(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
     cfg = PodMonitorConfig()
     cfg.enable_state_reconciliation = False
 
@@ -179,14 +173,15 @@ async def test_watch_pod_events_flow_and_publish(event_metrics: EventMetrics, ku
     k8s_clients = make_k8s_clients_di(events=[{"type": "MODIFIED", "object": pod}], resource_version="rv2")
 
     pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg, k8s_clients=k8s_clients)
-    pm._state = MonitorState.RUNNING
 
-    await pm._watch_pod_events()
+    await pm._run_watch()
     assert pm._last_resource_version == "rv2"
 
 
 @pytest.mark.asyncio
-async def test_process_raw_event_invalid_and_handle_watch_error(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
+async def test_process_raw_event_invalid_and_backoff(
+    event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics
+) -> None:
     cfg = PodMonitorConfig()
     pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg)
 
@@ -194,8 +189,8 @@ async def test_process_raw_event_invalid_and_handle_watch_error(event_metrics: E
 
     pm.config.watch_reconnect_delay = 0
     pm._reconnect_attempts = 0
-    await pm._handle_watch_error()
-    await pm._handle_watch_error()
+    await pm._backoff()
+    await pm._backoff()
     assert pm._reconnect_attempts >= 2
 
 
@@ -212,7 +207,6 @@ async def test_get_status(event_metrics: EventMetrics, kubernetes_metrics: Kuber
     pm._last_resource_version = "v123"
 
     status = await pm.get_status()
-    assert "idle" in status["state"].lower()
     assert status["tracked_pods"] == 2
     assert status["reconnect_attempts"] == 3
     assert status["last_resource_version"] == "v123"
@@ -222,41 +216,7 @@ async def test_get_status(event_metrics: EventMetrics, kubernetes_metrics: Kuber
 
 
 @pytest.mark.asyncio
-async def test_reconciliation_loop_and_state(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
-    cfg = PodMonitorConfig()
-    cfg.enable_state_reconciliation = True
-    cfg.reconcile_interval_seconds = 0  # sleep(0) yields control immediately
-
-    pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg)
-    pm._state = MonitorState.RUNNING
-
-    reconcile_called: list[bool] = []
-
-    async def mock_reconcile() -> ReconciliationResult:
-        reconcile_called.append(True)
-        return ReconciliationResult(missing_pods={"p1"}, extra_pods={"p2"}, duration_seconds=0.1, success=True)
-
-    evt = asyncio.Event()
-
-    async def wrapped_reconcile() -> ReconciliationResult:
-        res = await mock_reconcile()
-        evt.set()
-        return res
-
-    pm._reconcile_state = wrapped_reconcile  # type: ignore[method-assign]
-
-    task = asyncio.create_task(pm._reconciliation_loop())
-    await asyncio.wait_for(evt.wait(), timeout=1.0)
-    pm._state = MonitorState.STOPPED
-    task.cancel()
-    with pytest.raises(asyncio.CancelledError):
-        await task
-
-    assert len(reconcile_called) > 0
-
-
-@pytest.mark.asyncio
-async def test_reconcile_state_success(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
+async def test_reconcile_success(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
     cfg = PodMonitorConfig()
     cfg.namespace = "test"
     cfg.label_selector = "app=test"
@@ -275,17 +235,16 @@ async def test_reconcile_state_success(event_metrics: EventMetrics, kubernetes_m
 
     pm._process_pod_event = mock_process  # type: ignore[method-assign]
 
-    result = await pm._reconcile_state()
+    await pm._reconcile()
 
-    assert result.success is True
-    assert result.missing_pods == {"pod1"}
-    assert result.extra_pods == {"pod3"}
+    # pod1 was missing and should have been processed
     assert "pod1" in processed
+    # pod3 was extra and should have been removed from tracking
     assert "pod3" not in pm._tracked_pods
 
 
 @pytest.mark.asyncio
-async def test_reconcile_state_exception(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
+async def test_reconcile_exception(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
     cfg = PodMonitorConfig()
 
     class FailV1(FakeV1Api):
@@ -303,10 +262,8 @@ async def test_reconcile_state_exception(event_metrics: EventMetrics, kubernetes
 
     pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg, k8s_clients=k8s_clients)
 
-    result = await pm._reconcile_state()
-    assert result.success is False
-    assert result.error is not None
-    assert "API error" in result.error
+    # Should not raise - errors are caught and logged
+    await pm._reconcile()
 
 
 @pytest.mark.asyncio
@@ -368,7 +325,9 @@ async def test_process_pod_event_full_flow(event_metrics: EventMetrics, kubernet
 
 
 @pytest.mark.asyncio
-async def test_process_pod_event_exception_handling(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
+async def test_process_pod_event_exception_handling(
+    event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics
+) -> None:
     cfg = PodMonitorConfig()
 
     class FailMapper:
@@ -412,7 +371,9 @@ async def test_publish_event_full_flow(event_metrics: EventMetrics, kubernetes_m
 
 
 @pytest.mark.asyncio
-async def test_publish_event_exception_handling(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
+async def test_publish_event_exception_handling(
+    event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics
+) -> None:
     cfg = PodMonitorConfig()
 
     class FailingProducer(FakeUnifiedProducer):
@@ -449,132 +410,103 @@ async def test_publish_event_exception_handling(event_metrics: EventMetrics, kub
 
 
 @pytest.mark.asyncio
-async def test_handle_watch_error_max_attempts(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
+async def test_backoff_max_attempts(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
     cfg = PodMonitorConfig()
     cfg.max_reconnect_attempts = 2
 
     pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg)
-    pm._state = MonitorState.RUNNING
     pm._reconnect_attempts = 2
 
-    await pm._handle_watch_error()
-
-    assert pm._state == MonitorState.STOPPING
+    with pytest.raises(RuntimeError, match="Max reconnect attempts exceeded"):
+        await pm._backoff()
 
 
 @pytest.mark.asyncio
-async def test_watch_pods_main_loop(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
+async def test_watch_loop_with_cancellation(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
     cfg = PodMonitorConfig()
+    cfg.enable_state_reconciliation = False
     pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg)
-    pm._state = MonitorState.RUNNING
 
     watch_count: list[int] = []
 
-    async def mock_watch() -> None:
+    async def mock_run_watch() -> None:
         watch_count.append(1)
-        if len(watch_count) > 2:
-            pm._state = MonitorState.STOPPED
+        if len(watch_count) >= 3:
+            raise asyncio.CancelledError()
 
-    async def mock_handle_error() -> None:
+    pm._run_watch = mock_run_watch  # type: ignore[method-assign]
+
+    # watch_loop catches CancelledError and exits gracefully (doesn't propagate)
+    await pm._watch_loop()
+
+    assert len(watch_count) == 3
+
+
+@pytest.mark.asyncio
+async def test_watch_loop_api_exception_410(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
+    cfg = PodMonitorConfig()
+    cfg.enable_state_reconciliation = False
+    pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg)
+
+    pm._last_resource_version = "v123"
+    call_count = 0
+
+    async def mock_run_watch() -> None:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise ApiException(status=410)
+        raise asyncio.CancelledError()
+
+    async def mock_backoff() -> None:
         pass
 
-    pm._watch_pod_events = mock_watch  # type: ignore[method-assign]
-    pm._handle_watch_error = mock_handle_error  # type: ignore[method-assign]
+    pm._run_watch = mock_run_watch  # type: ignore[method-assign]
+    pm._backoff = mock_backoff  # type: ignore[method-assign]
 
-    await pm._watch_pods()
-    assert len(watch_count) > 2
+    # watch_loop catches CancelledError and exits gracefully
+    await pm._watch_loop()
 
-
-@pytest.mark.asyncio
-async def test_watch_pods_api_exception(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
-    cfg = PodMonitorConfig()
-    pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg)
-    pm._state = MonitorState.RUNNING
-
-    async def mock_watch() -> None:
-        raise ApiException(status=410)
-
-    error_handled: list[bool] = []
-
-    async def mock_handle() -> None:
-        error_handled.append(True)
-        pm._state = MonitorState.STOPPED
-
-    pm._watch_pod_events = mock_watch  # type: ignore[method-assign]
-    pm._handle_watch_error = mock_handle  # type: ignore[method-assign]
-
-    await pm._watch_pods()
-
+    # Resource version should be reset on 410
     assert pm._last_resource_version is None
-    assert len(error_handled) > 0
 
 
 @pytest.mark.asyncio
-async def test_watch_pods_generic_exception(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
+async def test_watch_loop_generic_exception(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
     cfg = PodMonitorConfig()
+    cfg.enable_state_reconciliation = False
     pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg)
-    pm._state = MonitorState.RUNNING
 
-    async def mock_watch() -> None:
-        raise RuntimeError("Unexpected error")
+    call_count = 0
+    backoff_count = 0
 
-    error_handled: list[bool] = []
+    async def mock_run_watch() -> None:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise RuntimeError("Unexpected error")
+        raise asyncio.CancelledError()
 
-    async def mock_handle() -> None:
-        error_handled.append(True)
-        pm._state = MonitorState.STOPPED
+    async def mock_backoff() -> None:
+        nonlocal backoff_count
+        backoff_count += 1
 
-    pm._watch_pod_events = mock_watch  # type: ignore[method-assign]
-    pm._handle_watch_error = mock_handle  # type: ignore[method-assign]
+    pm._run_watch = mock_run_watch  # type: ignore[method-assign]
+    pm._backoff = mock_backoff  # type: ignore[method-assign]
 
-    await pm._watch_pods()
-    assert len(error_handled) > 0
+    # watch_loop catches CancelledError and exits gracefully
+    await pm._watch_loop()
 
-
-@pytest.mark.asyncio
-async def test_create_pod_monitor_context_manager(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test create_pod_monitor factory with auto-created dependencies."""
-    # Mock create_k8s_clients to avoid real K8s connection
-    mock_v1 = FakeV1Api()
-    mock_watch = make_watch([])
-    mock_clients = K8sClients(
-        api_client=MagicMock(),
-        v1=mock_v1,
-        apps_v1=MagicMock(),
-        networking_v1=MagicMock(),
-        watch=mock_watch,
-    )
-
-    def mock_create_clients(
-            logger: logging.Logger,  # noqa: ARG001
-            kubeconfig_path: str | None = None,  # noqa: ARG001
-            in_cluster: bool | None = None,  # noqa: ARG001
-    ) -> K8sClients:
-        return mock_clients
-
-    monkeypatch.setattr(k8s_clients_module, "create_k8s_clients", mock_create_clients)
-    monkeypatch.setattr("app.services.pod_monitor.monitor.create_k8s_clients", mock_create_clients)
-
-    cfg = PodMonitorConfig()
-    cfg.enable_state_reconciliation = False
-
-    service, _ = create_test_kafka_event_service(event_metrics)
-
-    # Use the actual create_pod_monitor which will use our mocked create_k8s_clients
-    async with create_pod_monitor(cfg, service, _test_logger, kubernetes_metrics=kubernetes_metrics) as monitor:
-        assert monitor.state == MonitorState.RUNNING
-
-    final_state: MonitorState = monitor.state
-    assert final_state == MonitorState.STOPPED
+    assert backoff_count == 1
 
 
 @pytest.mark.asyncio
-async def test_create_pod_monitor_with_injected_k8s_clients(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
-    """Test create_pod_monitor with injected K8sClients (DI path)."""
+async def test_pod_monitor_context_manager_lifecycle(
+    event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics
+) -> None:
+    """Test PodMonitor lifecycle via async context manager."""
     cfg = PodMonitorConfig()
     cfg.enable_state_reconciliation = False
-
-    service, _ = create_test_kafka_event_service(event_metrics)
 
     mock_v1 = FakeV1Api()
     mock_watch = make_watch([])
@@ -586,60 +518,38 @@ async def test_create_pod_monitor_with_injected_k8s_clients(event_metrics: Event
         watch=mock_watch,
     )
 
-    async with create_pod_monitor(
-            cfg, service, _test_logger, k8s_clients=mock_k8s_clients, kubernetes_metrics=kubernetes_metrics
-    ) as monitor:
-        assert monitor.state == MonitorState.RUNNING
+    service, _ = create_test_kafka_event_service(event_metrics)
+    event_mapper = PodEventMapper(logger=_test_logger, k8s_api=mock_v1)
+
+    monitor = PodMonitor(
+        config=cfg,
+        kafka_event_service=service,
+        logger=_test_logger,
+        k8s_clients=mock_k8s_clients,
+        event_mapper=event_mapper,
+        kubernetes_metrics=kubernetes_metrics,
+    )
+
+    async with monitor:
+        assert monitor._watch_task is not None
         assert monitor._clients is mock_k8s_clients
         assert monitor._v1 is mock_v1
-
-    final_state: MonitorState = monitor.state
-    assert final_state == MonitorState.STOPPED
-
-
-@pytest.mark.asyncio
-async def test_start_already_running(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
-    """Test idempotent start via __aenter__."""
-    cfg = PodMonitorConfig()
-    pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg)
-
-    # Simulate already started state
-    pm._lifecycle_started = True
-    pm._state = MonitorState.RUNNING
-
-    # Should be idempotent - just return self
-    await pm.__aenter__()
-
-
-@pytest.mark.asyncio
-async def test_stop_already_stopped(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
-    """Test idempotent stop via aclose()."""
-    cfg = PodMonitorConfig()
-    pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg)
-    pm._state = MonitorState.STOPPED
-    # Not started, so aclose should be a no-op
-
-    await pm.aclose()
 
 
 @pytest.mark.asyncio
 async def test_stop_with_tasks(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
-    """Test cleanup of tasks on aclose()."""
+    """Test cleanup of tasks on __aexit__."""
     cfg = PodMonitorConfig()
     pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg)
-    pm._state = MonitorState.RUNNING
-    pm._lifecycle_started = True
 
     async def dummy_task() -> None:
         await asyncio.Event().wait()
 
     pm._watch_task = asyncio.create_task(dummy_task())
-    pm._reconcile_task = asyncio.create_task(dummy_task())
     pm._tracked_pods = {"pod1"}
 
-    await pm.aclose()
+    await pm.__aexit__(None, None, None)
 
-    assert pm._state == MonitorState.STOPPED
     assert len(pm._tracked_pods) == 0
 
 
@@ -660,7 +570,9 @@ def test_update_resource_version(event_metrics: EventMetrics, kubernetes_metrics
 
 
 @pytest.mark.asyncio
-async def test_process_raw_event_with_metadata(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
+async def test_process_raw_event_with_metadata(
+    event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics
+) -> None:
     cfg = PodMonitorConfig()
     pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg)
 
@@ -688,29 +600,40 @@ async def test_process_raw_event_with_metadata(event_metrics: EventMetrics, kube
 
 
 @pytest.mark.asyncio
-async def test_watch_pods_api_exception_other_status(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
+async def test_watch_loop_api_exception_other_status(
+    event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics
+) -> None:
     cfg = PodMonitorConfig()
+    cfg.enable_state_reconciliation = False
     pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg)
-    pm._state = MonitorState.RUNNING
 
-    async def mock_watch() -> None:
-        raise ApiException(status=500)
+    call_count = 0
+    backoff_count = 0
 
-    error_handled: list[bool] = []
+    async def mock_run_watch() -> None:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise ApiException(status=500)
+        raise asyncio.CancelledError()
 
-    async def mock_handle() -> None:
-        error_handled.append(True)
-        pm._state = MonitorState.STOPPED
+    async def mock_backoff() -> None:
+        nonlocal backoff_count
+        backoff_count += 1
 
-    pm._watch_pod_events = mock_watch  # type: ignore[method-assign]
-    pm._handle_watch_error = mock_handle  # type: ignore[method-assign]
+    pm._run_watch = mock_run_watch  # type: ignore[method-assign]
+    pm._backoff = mock_backoff  # type: ignore[method-assign]
 
-    await pm._watch_pods()
-    assert len(error_handled) > 0
+    # watch_loop catches CancelledError and exits gracefully
+    await pm._watch_loop()
+
+    assert backoff_count == 1
 
 
 @pytest.mark.asyncio
-async def test_watch_pod_events_with_field_selector(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
+async def test_run_watch_with_field_selector(
+    event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics
+) -> None:
     cfg = PodMonitorConfig()
     cfg.field_selector = "status.phase=Running"
     cfg.enable_state_reconciliation = False
@@ -736,56 +659,40 @@ async def test_watch_pod_events_with_field_selector(event_metrics: EventMetrics,
     )
 
     pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg, k8s_clients=k8s_clients)
-    pm._state = MonitorState.RUNNING
 
-    await pm._watch_pod_events()
+    await pm._run_watch()
 
     assert any("field_selector" in kw for kw in watch_kwargs)
 
 
 @pytest.mark.asyncio
-async def test_reconciliation_loop_exception(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
+async def test_watch_loop_with_reconciliation(
+    event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics
+) -> None:
+    """Test that reconciliation is called before each watch restart."""
     cfg = PodMonitorConfig()
     cfg.enable_state_reconciliation = True
-    cfg.reconcile_interval_seconds = 0  # sleep(0) yields control immediately
-
-    pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg)
-    pm._state = MonitorState.RUNNING
-
-    hit = asyncio.Event()
-
-    async def raising() -> ReconciliationResult:
-        hit.set()
-        raise RuntimeError("Reconcile error")
-
-    pm._reconcile_state = raising  # type: ignore[method-assign]
-
-    task = asyncio.create_task(pm._reconciliation_loop())
-    await asyncio.wait_for(hit.wait(), timeout=1.0)
-    pm._state = MonitorState.STOPPED
-    task.cancel()
-    with pytest.raises(asyncio.CancelledError):
-        await task
-
-
-@pytest.mark.asyncio
-async def test_start_with_reconciliation(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
-    cfg = PodMonitorConfig()
-    cfg.enable_state_reconciliation = True
-
     pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg)
 
-    async def mock_watch() -> None:
-        return None
+    reconcile_count = 0
+    watch_count = 0
 
     async def mock_reconcile() -> None:
-        return None
+        nonlocal reconcile_count
+        reconcile_count += 1
 
-    pm._watch_pods = mock_watch  # type: ignore[method-assign]
-    pm._reconciliation_loop = mock_reconcile  # type: ignore[method-assign]
+    async def mock_run_watch() -> None:
+        nonlocal watch_count
+        watch_count += 1
+        if watch_count >= 2:
+            raise asyncio.CancelledError()
 
-    await pm.__aenter__()
-    assert pm._watch_task is not None
-    assert pm._reconcile_task is not None
+    pm._reconcile = mock_reconcile  # type: ignore[method-assign]
+    pm._run_watch = mock_run_watch  # type: ignore[method-assign]
 
-    await pm.aclose()
+    # watch_loop catches CancelledError and exits gracefully
+    await pm._watch_loop()
+
+    # Reconcile should be called before each watch restart
+    assert reconcile_count == 2
+    assert watch_count == 2

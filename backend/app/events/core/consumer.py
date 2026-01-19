@@ -36,7 +36,6 @@ class UnifiedConsumer:
         self._dispatcher = event_dispatcher
         self._consumer: AIOKafkaConsumer | None = None
         self._state = ConsumerState.STOPPED
-        self._running = False
         self._metrics = ConsumerMetrics()
         self._event_metrics = event_metrics
         self._error_callback: "Callable[[Exception, DomainEvent], Awaitable[None]] | None" = None
@@ -64,7 +63,6 @@ class UnifiedConsumer:
         )
 
         await self._consumer.start()
-        self._running = True
         self._consume_task = asyncio.create_task(self._consume_loop())
 
         self._state = ConsumerState.RUNNING
@@ -77,8 +75,6 @@ class UnifiedConsumer:
             if self._state not in (ConsumerState.STOPPED, ConsumerState.STOPPING)
             else self._state
         )
-
-        self._running = False
 
         if self._consume_task:
             self._consume_task.cancel()
@@ -98,37 +94,39 @@ class UnifiedConsumer:
         poll_count = 0
         message_count = 0
 
-        while self._running and self._consumer:
-            poll_count += 1
-            if poll_count % 100 == 0:  # Log every 100 polls
-                self.logger.debug(f"Consumer loop active: polls={poll_count}, messages={message_count}")
+        try:
+            while True:
+                if not self._consumer:
+                    break
 
-            try:
-                # Use getone() with timeout for single message consumption
-                msg = await asyncio.wait_for(
-                    self._consumer.getone(),
-                    timeout=0.1
-                )
+                poll_count += 1
+                if poll_count % 100 == 0:  # Log every 100 polls
+                    self.logger.debug(f"Consumer loop active: polls={poll_count}, messages={message_count}")
 
-                message_count += 1
-                self.logger.debug(
-                    f"Message received from topic {msg.topic}, partition {msg.partition}, offset {msg.offset}"
-                )
-                await self._process_message(msg)
-                if not self._config.enable_auto_commit:
-                    await self._consumer.commit()
+                try:
+                    # Use getone() with timeout for single message consumption
+                    msg = await asyncio.wait_for(
+                        self._consumer.getone(),
+                        timeout=0.1
+                    )
 
-            except asyncio.TimeoutError:
-                # No message available within timeout, continue polling
-                await asyncio.sleep(0.01)
-            except KafkaError as e:
-                self.logger.error(f"Consumer error: {e}")
-                self._metrics.processing_errors += 1
+                    message_count += 1
+                    self.logger.debug(
+                        f"Message received from topic {msg.topic}, partition {msg.partition}, offset {msg.offset}"
+                    )
+                    await self._process_message(msg)
+                    if not self._config.enable_auto_commit:
+                        await self._consumer.commit()
 
-        self.logger.warning(
-            f"Consumer loop ended for group {self._config.group_id}: "
-            f"running={self._running}, consumer={self._consumer is not None}"
-        )
+                except asyncio.TimeoutError:
+                    # No message available within timeout, continue polling
+                    await asyncio.sleep(0.01)
+                except KafkaError as e:
+                    self.logger.error(f"Consumer error: {e}")
+                    self._metrics.processing_errors += 1
+
+        except asyncio.CancelledError:
+            self.logger.info(f"Consumer loop cancelled for group {self._config.group_id}")
 
     async def _process_message(self, message: Any) -> None:
         """Process a ConsumerRecord from aiokafka."""
@@ -204,17 +202,12 @@ class UnifiedConsumer:
         return self._metrics
 
     @property
-    def is_running(self) -> bool:
-        return self._state == ConsumerState.RUNNING
-
-    @property
     def consumer(self) -> AIOKafkaConsumer | None:
         return self._consumer
 
     def get_status(self) -> ConsumerStatus:
         return ConsumerStatus(
             state=self._state,
-            is_running=self.is_running,
             group_id=self._config.group_id,
             client_id=self._config.client_id,
             metrics=ConsumerMetricsSnapshot(

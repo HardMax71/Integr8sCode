@@ -61,4 +61,4 @@ async def test_register_and_route_events_without_kafka() -> None:
     assert fake_bus.published and fake_bus.published[-1][0] == "exec-123"
 
     s = bridge.get_stats()
-    assert s["num_consumers"] == 0 and s["is_running"] is False
+    assert s["num_consumers"] == 0

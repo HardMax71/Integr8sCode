@@ -201,7 +201,3 @@ class KafkaEventService:
             self.metrics.record_event_processing_duration(time.time() - start_time, event.event_type)
             self.logger.info("Domain event published", extra={"event_id": event.event_id})
             return event.event_id
-
-    async def close(self) -> None:
-        """Close event service resources"""
-        await self.kafka_producer.aclose()

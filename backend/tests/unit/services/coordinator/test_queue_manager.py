@@ -19,23 +19,19 @@ def ev(execution_id: str, priority: int = QueuePriority.NORMAL.value) -> Executi
 @pytest.mark.asyncio
 async def test_requeue_execution_increments_priority(coordinator_metrics: CoordinatorMetrics) -> None:
     qm = QueueManager(max_queue_size=10, logger=_test_logger, coordinator_metrics=coordinator_metrics)
-    await qm.start()
     # Use NORMAL priority which can be incremented to LOW
     e = ev("x", priority=QueuePriority.NORMAL.value)
     await qm.add_execution(e)
     await qm.requeue_execution(e, increment_retry=True)
     nxt = await qm.get_next_execution()
     assert nxt is not None
-    await qm.stop()
 
 
 @pytest.mark.asyncio
 async def test_queue_stats_empty_and_after_add(coordinator_metrics: CoordinatorMetrics) -> None:
     qm = QueueManager(max_queue_size=5, logger=_test_logger, coordinator_metrics=coordinator_metrics)
-    await qm.start()
     stats0 = await qm.get_queue_stats()
     assert stats0["total_size"] == 0
     await qm.add_execution(ev("a"))
     st = await qm.get_queue_stats()
     assert st["total_size"] == 1
-    await qm.stop()

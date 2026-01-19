@@ -2,9 +2,8 @@ import asyncio
 import logging
 import time
 from enum import Enum
-from typing import Dict, Set
+from typing import Any, Dict, Set
 
-from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics import ConnectionMetrics
 from app.domain.sse import ShutdownStatus
 
@@ -35,7 +34,7 @@ class SSEShutdownManager:
 
     def __init__(
         self,
-        router: LifecycleEnabled,
+        router: Any,
         logger: logging.Logger,
         connection_metrics: ConnectionMetrics,
         drain_timeout: float = 30.0,
@@ -255,8 +254,7 @@ class SSEShutdownManager:
             self._connection_callbacks.clear()
             self._draining_connections.clear()
 
-        # Tell router to stop accepting new subscriptions
-        await self._router.aclose()
+        # Router lifecycle is managed by DI container
 
         self.metrics.update_sse_draining_connections(0)
         self.logger.info("Force close phase complete")

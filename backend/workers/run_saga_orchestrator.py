@@ -28,7 +28,7 @@ async def run_saga_orchestrator(settings: Settings) -> None:
     await initialize_event_schemas(schema_registry)
 
     # Services are already started by the DI container providers
-    orchestrator = await container.get(SagaOrchestrator)
+    await container.get(SagaOrchestrator)
 
     # Shutdown event - signal handlers just set this
     shutdown_event = asyncio.Event()
@@ -39,8 +39,8 @@ async def run_saga_orchestrator(settings: Settings) -> None:
     logger.info("Saga orchestrator started and running")
 
     try:
-        # Wait for shutdown signal or service to stop
-        while orchestrator.is_running and not shutdown_event.is_set():
+        # Wait for shutdown signal
+        while not shutdown_event.is_set():
             await asyncio.sleep(1)
     finally:
         # Container cleanup stops everything

@@ -2,7 +2,6 @@ import asyncio
 import logging
 
 import pytest
-from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics import ConnectionMetrics
 from app.services.sse.sse_shutdown_manager import SSEShutdownManager
 
@@ -11,15 +10,16 @@ pytestmark = pytest.mark.unit
 _test_logger = logging.getLogger("test.services.sse.sse_shutdown_manager")
 
 
-class _FakeRouter(LifecycleEnabled):
-    """Fake router that tracks whether aclose was called."""
+class _FakeRouter:
+    """Fake router for testing."""
 
     def __init__(self) -> None:
-        super().__init__()
         self.stopped = False
-        self._lifecycle_started = True  # Simulate already-started router
 
-    async def _on_stop(self) -> None:
+    async def __aenter__(self) -> "_FakeRouter":
+        return self
+
+    async def __aexit__(self, exc_type: object, exc: object, tb: object) -> None:
         self.stopped = True
 
 

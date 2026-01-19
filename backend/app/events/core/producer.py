@@ -8,7 +8,6 @@ from typing import Any
 from aiokafka import AIOKafkaProducer
 from aiokafka.errors import KafkaError
 
-from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics import EventMetrics
 from app.dlq.models import DLQMessage, DLQMessageStatus
 from app.domain.enums.kafka import KafkaTopic
@@ -20,7 +19,7 @@ from app.settings import Settings
 from .types import ProducerMetrics, ProducerState
 
 
-class UnifiedProducer(LifecycleEnabled):
+class UnifiedProducer:
     """Fully async Kafka producer using aiokafka."""
 
     def __init__(
@@ -30,7 +29,6 @@ class UnifiedProducer(LifecycleEnabled):
         settings: Settings,
         event_metrics: EventMetrics,
     ):
-        super().__init__()
         self._settings = settings
         self._schema_registry = schema_registry_manager
         self.logger = logger
@@ -39,10 +37,6 @@ class UnifiedProducer(LifecycleEnabled):
         self._metrics = ProducerMetrics()
         self._event_metrics = event_metrics
         self._topic_prefix = settings.KAFKA_TOPIC_PREFIX
-
-    @property
-    def is_running(self) -> bool:
-        return self._state == ProducerState.RUNNING
 
     @property
     def state(self) -> ProducerState:
@@ -56,7 +50,7 @@ class UnifiedProducer(LifecycleEnabled):
     def producer(self) -> AIOKafkaProducer | None:
         return self._producer
 
-    async def _on_start(self) -> None:
+    async def __aenter__(self) -> "UnifiedProducer":
         """Start the Kafka producer."""
         self._state = ProducerState.STARTING
         self.logger.info("Starting producer...")
@@ -74,11 +68,23 @@ class UnifiedProducer(LifecycleEnabled):
         await self._producer.start()
         self._state = ProducerState.RUNNING
         self.logger.info(f"Producer started: {self._settings.KAFKA_BOOTSTRAP_SERVERS}")
+        return self
+
+    async def __aexit__(self, exc_type: object, exc: object, tb: object) -> None:
+        """Stop the Kafka producer."""
+        self._state = ProducerState.STOPPING
+        self.logger.info("Stopping producer...")
+
+        if self._producer:
+            await self._producer.stop()
+            self._producer = None
+
+        self._state = ProducerState.STOPPED
+        self.logger.info("Producer stopped")
 
     def get_status(self) -> dict[str, Any]:
         return {
             "state": self._state,
-            "running": self.is_running,
             "config": {
                 "bootstrap_servers": self._settings.KAFKA_BOOTSTRAP_SERVERS,
                 "client_id": f"{self._settings.SERVICE_NAME}-producer",
@@ -93,18 +99,6 @@ class UnifiedProducer(LifecycleEnabled):
                 "last_error_time": self._metrics.last_error_time.isoformat() if self._metrics.last_error_time else None,
             },
         }
-
-    async def _on_stop(self) -> None:
-        """Stop the Kafka producer."""
-        self._state = ProducerState.STOPPING
-        self.logger.info("Stopping producer...")
-
-        if self._producer:
-            await self._producer.stop()
-            self._producer = None
-
-        self._state = ProducerState.STOPPED
-        self.logger.info("Producer stopped")
 
     async def produce(
         self, event_to_produce: DomainEvent, key: str | None = None, headers: dict[str, str] | None = None

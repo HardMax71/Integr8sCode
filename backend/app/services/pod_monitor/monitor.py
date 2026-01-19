@@ -1,8 +1,6 @@
 import asyncio
 import logging
 import time
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from enum import auto
 from typing import Any
@@ -10,8 +8,7 @@ from typing import Any
 from kubernetes import client as k8s_client
 from kubernetes.client.rest import ApiException
 
-from app.core.k8s_clients import K8sClients, close_k8s_clients, create_k8s_clients
-from app.core.lifecycle import LifecycleEnabled
+from app.core.k8s_clients import K8sClients
 from app.core.metrics import KubernetesMetrics
 from app.core.utils import StringEnum
 from app.domain.events.typed import DomainEvent
@@ -28,7 +25,6 @@ type StatusDict = dict[str, Any]
 
 # Constants
 MAX_BACKOFF_SECONDS: int = 300  # 5 minutes
-RECONCILIATION_LOG_INTERVAL: int = 60  # 1 minute
 
 
 class WatchEventType(StringEnum):
@@ -37,15 +33,6 @@ class WatchEventType(StringEnum):
     ADDED = "ADDED"
     MODIFIED = "MODIFIED"
     DELETED = "DELETED"
-
-
-class MonitorState(StringEnum):
-    """Pod monitor states."""
-
-    IDLE = auto()
-    RUNNING = auto()
-    STOPPING = auto()
-    STOPPED = auto()
 
 
 class ErrorType(StringEnum):
@@ -77,24 +64,13 @@ class PodEvent:
     resource_version: ResourceVersion | None
 
 
-@dataclass(frozen=True, slots=True)
-class ReconciliationResult:
-    """Result of state reconciliation."""
-
-    missing_pods: set[PodName]
-    extra_pods: set[PodName]
-    duration_seconds: float
-    success: bool
-    error: str | None = None
-
-
-class PodMonitor(LifecycleEnabled):
+class PodMonitor:
     """
     Monitors Kubernetes pods and publishes lifecycle events.
 
-    This service watches pods with specific labels using the K8s watch API,
+    Watches pods with specific labels using the K8s watch API,
     maps Kubernetes events to application events, and publishes them to Kafka.
-    Events are stored in the events collection AND published to Kafka via KafkaEventService.
+    Reconciles state when watch restarts (every watch_timeout_seconds or on error).
     """
 
     def __init__(
@@ -106,148 +82,116 @@ class PodMonitor(LifecycleEnabled):
         event_mapper: PodEventMapper,
         kubernetes_metrics: KubernetesMetrics,
     ) -> None:
-        """Initialize the pod monitor with all required dependencies.
-
-        All dependencies must be provided - use create_pod_monitor() factory
-        for automatic dependency creation in production.
-        """
-        super().__init__()
         self.logger = logger
         self.config = config
 
-        # Kubernetes clients (required, no nullability)
+        # Kubernetes clients
         self._clients = k8s_clients
         self._v1 = k8s_clients.v1
         self._watch = k8s_clients.watch
 
-        # Components (required, no nullability)
+        # Components
         self._event_mapper = event_mapper
         self._kafka_event_service = kafka_event_service
 
         # State
-        self._state = MonitorState.IDLE
         self._tracked_pods: set[PodName] = set()
         self._reconnect_attempts: int = 0
         self._last_resource_version: ResourceVersion | None = None
 
-        # Tasks
+        # Task
         self._watch_task: asyncio.Task[None] | None = None
-        self._reconcile_task: asyncio.Task[None] | None = None
 
         # Metrics
         self._metrics = kubernetes_metrics
 
-    @property
-    def state(self) -> MonitorState:
-        """Get current monitor state."""
-        return self._state
-
-    async def _on_start(self) -> None:
+    async def __aenter__(self) -> "PodMonitor":
         """Start the pod monitor."""
         self.logger.info("Starting PodMonitor service...")
 
-        # Verify K8s connectivity (all clients already injected via __init__)
+        # Verify K8s connectivity
         await asyncio.to_thread(self._v1.get_api_resources)
         self.logger.info("Successfully connected to Kubernetes API")
 
-        # Start monitoring
-        self._state = MonitorState.RUNNING
-        self._watch_task = asyncio.create_task(self._watch_pods())
-
-        # Start reconciliation if enabled
-        if self.config.enable_state_reconciliation:
-            self._reconcile_task = asyncio.create_task(self._reconciliation_loop())
+        # Start watch task
+        self._watch_task = asyncio.create_task(self._watch_loop())
 
         self.logger.info("PodMonitor service started successfully")
+        return self
 
-    async def _on_stop(self) -> None:
+    async def __aexit__(self, exc_type: object, exc: object, tb: object) -> None:
         """Stop the pod monitor."""
         self.logger.info("Stopping PodMonitor service...")
-        self._state = MonitorState.STOPPING
 
-        # Cancel tasks
-        tasks = [t for t in [self._watch_task, self._reconcile_task] if t]
-        for task in tasks:
-            task.cancel()
+        if self._watch_task:
+            self._watch_task.cancel()
+            try:
+                await self._watch_task
+            except asyncio.CancelledError:
+                pass
 
-        # Wait for cancellation
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
-
-        # Close watch
         if self._watch:
             self._watch.stop()
 
-        # Clear state
         self._tracked_pods.clear()
         self._event_mapper.clear_cache()
-
-        self._state = MonitorState.STOPPED
         self.logger.info("PodMonitor service stopped")
 
-    async def _watch_pods(self) -> None:
-        """Main watch loop for pods."""
-        while self._state == MonitorState.RUNNING:
-            try:
-                self._reconnect_attempts = 0
-                await self._watch_pod_events()
+    async def _watch_loop(self) -> None:
+        """Main watch loop - reconciles on each restart."""
+        try:
+            while True:
+                try:
+                    # Reconcile before starting watch (catches missed events)
+                    if self.config.enable_state_reconciliation:
+                        await self._reconcile()
 
-            except ApiException as e:
-                match e.status:
-                    case 410:  # Gone - resource version too old
+                    self._reconnect_attempts = 0
+                    await self._run_watch()
+
+                except ApiException as e:
+                    if e.status == 410:  # Resource version expired
                         self.logger.warning("Resource version expired, resetting watch")
                         self._last_resource_version = None
                         self._metrics.record_pod_monitor_watch_error(ErrorType.RESOURCE_VERSION_EXPIRED)
-                    case _:
+                    else:
                         self.logger.error(f"API error in watch: {e}")
                         self._metrics.record_pod_monitor_watch_error(ErrorType.API_ERROR)
+                    await self._backoff()
 
-                await self._handle_watch_error()
+                except asyncio.CancelledError:
+                    raise
 
-            except Exception as e:
-                self.logger.error(f"Unexpected error in watch: {e}", exc_info=True)
-                self._metrics.record_pod_monitor_watch_error(ErrorType.UNEXPECTED)
-                await self._handle_watch_error()
+                except Exception as e:
+                    self.logger.error(f"Unexpected error in watch: {e}", exc_info=True)
+                    self._metrics.record_pod_monitor_watch_error(ErrorType.UNEXPECTED)
+                    await self._backoff()
 
-    async def _watch_pod_events(self) -> None:
-        """Watch for pod events."""
-        # self._v1 and self._watch are guaranteed initialized by start()
+        except asyncio.CancelledError:
+            self.logger.info("Watch loop cancelled")
 
-        context = WatchContext(
-            namespace=self.config.namespace,
-            label_selector=self.config.label_selector,
-            field_selector=self.config.field_selector,
-            timeout_seconds=self.config.watch_timeout_seconds,
-            resource_version=self._last_resource_version,
+    async def _run_watch(self) -> None:
+        """Run a single watch session."""
+        self.logger.info(
+            f"Starting pod watch: selector={self.config.label_selector}, namespace={self.config.namespace}"
         )
 
-        self.logger.info(f"Starting pod watch with selector: {context.label_selector}, namespace: {context.namespace}")
-
-        # Create watch stream
-        kwargs = {
-            "namespace": context.namespace,
-            "label_selector": context.label_selector,
-            "timeout_seconds": context.timeout_seconds,
+        kwargs: dict[str, Any] = {
+            "namespace": self.config.namespace,
+            "label_selector": self.config.label_selector,
+            "timeout_seconds": self.config.watch_timeout_seconds,
         }
+        if self.config.field_selector:
+            kwargs["field_selector"] = self.config.field_selector
+        if self._last_resource_version:
+            kwargs["resource_version"] = self._last_resource_version
 
-        if context.field_selector:
-            kwargs["field_selector"] = context.field_selector
-
-        if context.resource_version:
-            kwargs["resource_version"] = context.resource_version
-
-        # Watch stream (clients guaranteed by __init__)
         stream = self._watch.stream(self._v1.list_namespaced_pod, **kwargs)
 
         try:
             for event in stream:
-                if self._state != MonitorState.RUNNING:
-                    break
-
                 await self._process_raw_event(event)
-
         finally:
-            # Store resource version for next watch
             self._update_resource_version(stream)
 
     def _update_resource_version(self, stream: Any) -> None:
@@ -342,16 +286,15 @@ class PodMonitor(LifecycleEnabled):
         except Exception as e:
             self.logger.error(f"Error publishing event: {e}", exc_info=True)
 
-    async def _handle_watch_error(self) -> None:
+    async def _backoff(self) -> None:
         """Handle watch errors with exponential backoff."""
         self._reconnect_attempts += 1
 
         if self._reconnect_attempts > self.config.max_reconnect_attempts:
             self.logger.error(
-                f"Max reconnect attempts ({self.config.max_reconnect_attempts}) exceeded, stopping pod monitor"
+                f"Max reconnect attempts ({self.config.max_reconnect_attempts}) exceeded"
             )
-            self._state = MonitorState.STOPPING
-            return
+            raise RuntimeError("Max reconnect attempts exceeded")
 
         # Calculate exponential backoff
         backoff = min(self.config.watch_reconnect_delay * (2 ** (self._reconnect_attempts - 1)), MAX_BACKOFF_SECONDS)
@@ -364,27 +307,14 @@ class PodMonitor(LifecycleEnabled):
         self._metrics.increment_pod_monitor_watch_reconnects()
         await asyncio.sleep(backoff)
 
-    async def _reconciliation_loop(self) -> None:
-        """Periodically reconcile state with Kubernetes."""
-        while self._state == MonitorState.RUNNING:
-            try:
-                await asyncio.sleep(self.config.reconcile_interval_seconds)
-
-                if self._state == MonitorState.RUNNING:
-                    result = await self._reconcile_state()
-                    self._log_reconciliation_result(result)
-
-            except Exception as e:
-                self.logger.error(f"Error in reconciliation loop: {e}", exc_info=True)
-
-    async def _reconcile_state(self) -> ReconciliationResult:
+    async def _reconcile(self) -> None:
         """Reconcile tracked pods with actual state."""
         start_time = time.time()
 
         try:
             self.logger.info("Starting pod state reconciliation")
 
-            # List all pods matching selector (clients guaranteed by __init__)
+            # List all pods matching selector
             pods = await asyncio.to_thread(
                 self._v1.list_namespaced_pod, namespace=self.config.namespace, label_selector=self.config.label_selector
             )
@@ -415,90 +345,25 @@ class PodMonitor(LifecycleEnabled):
             self._metrics.record_pod_monitor_reconciliation_run("success")
 
             duration = time.time() - start_time
-
-            return ReconciliationResult(
-                missing_pods=missing_pods, extra_pods=extra_pods, duration_seconds=duration, success=True
+            self.logger.info(
+                f"Reconciliation completed in {duration:.2f}s. "
+                f"Found {len(missing_pods)} missing, {len(extra_pods)} extra pods"
             )
 
         except Exception as e:
             self.logger.error(f"Failed to reconcile state: {e}", exc_info=True)
             self._metrics.record_pod_monitor_reconciliation_run("failed")
 
-            return ReconciliationResult(
-                missing_pods=set(),
-                extra_pods=set(),
-                duration_seconds=time.time() - start_time,
-                success=False,
-                error=str(e),
-            )
-
-    def _log_reconciliation_result(self, result: ReconciliationResult) -> None:
-        """Log reconciliation result."""
-        if result.success:
-            self.logger.info(
-                f"Reconciliation completed in {result.duration_seconds:.2f}s. "
-                f"Found {len(result.missing_pods)} missing, "
-                f"{len(result.extra_pods)} extra pods"
-            )
-        else:
-            self.logger.error(f"Reconciliation failed after {result.duration_seconds:.2f}s: {result.error}")
-
     async def get_status(self) -> StatusDict:
         """Get monitor status."""
         return {
-            "state": self._state,
             "tracked_pods": len(self._tracked_pods),
             "reconnect_attempts": self._reconnect_attempts,
             "last_resource_version": self._last_resource_version,
+            "watch_task_active": self._watch_task is not None and not self._watch_task.done(),
             "config": {
                 "namespace": self.config.namespace,
                 "label_selector": self.config.label_selector,
                 "enable_reconciliation": self.config.enable_state_reconciliation,
             },
         }
-
-
-@asynccontextmanager
-async def create_pod_monitor(
-    config: PodMonitorConfig,
-    kafka_event_service: KafkaEventService,
-    logger: logging.Logger,
-    kubernetes_metrics: KubernetesMetrics,
-    k8s_clients: K8sClients | None = None,
-    event_mapper: PodEventMapper | None = None,
-) -> AsyncIterator[PodMonitor]:
-    """Create and manage a pod monitor instance.
-
-    This factory handles production dependency creation:
-    - Creates K8sClients if not provided (using config settings)
-    - Creates PodEventMapper if not provided
-    - Cleans up created K8sClients on exit
-    """
-    # Track whether we created clients (so we know to close them)
-    owns_clients = k8s_clients is None
-
-    if k8s_clients is None:
-        k8s_clients = create_k8s_clients(
-            logger=logger,
-            kubeconfig_path=config.kubeconfig_path,
-            in_cluster=config.in_cluster,
-        )
-
-    if event_mapper is None:
-        event_mapper = PodEventMapper(logger=logger, k8s_api=k8s_clients.v1)
-
-    monitor = PodMonitor(
-        config=config,
-        kafka_event_service=kafka_event_service,
-        logger=logger,
-        k8s_clients=k8s_clients,
-        event_mapper=event_mapper,
-        kubernetes_metrics=kubernetes_metrics,
-    )
-
-    try:
-        async with monitor:
-            yield monitor
-    finally:
-        if owns_clients:
-            close_k8s_clients(k8s_clients)

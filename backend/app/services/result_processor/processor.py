@@ -4,7 +4,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics import EventMetrics, ExecutionMetrics
 from app.core.utils import StringEnum
 from app.db.repositories.execution_repository import ExecutionRepository
@@ -51,7 +50,7 @@ class ResultProcessorConfig(BaseModel):
     processing_timeout: int = Field(default=300)
 
 
-class ResultProcessor(LifecycleEnabled):
+class ResultProcessor:
     """Service for processing execution completion events and storing results."""
 
     def __init__(
@@ -66,7 +65,6 @@ class ResultProcessor(LifecycleEnabled):
             event_metrics: EventMetrics,
     ) -> None:
         """Initialize the result processor."""
-        super().__init__()
         self.config = ResultProcessorConfig()
         self._execution_repo = execution_repo
         self._producer = producer
@@ -80,7 +78,7 @@ class ResultProcessor(LifecycleEnabled):
         self._dispatcher: EventDispatcher | None = None
         self.logger = logger
 
-    async def _on_start(self) -> None:
+    async def __aenter__(self) -> "ResultProcessor":
         """Start the result processor."""
         self.logger.info("Starting ResultProcessor...")
 
@@ -92,8 +90,9 @@ class ResultProcessor(LifecycleEnabled):
         self._consumer = await self._create_consumer()
         self._state = ProcessingState.PROCESSING
         self.logger.info("ResultProcessor started successfully with idempotency protection")
+        return self
 
-    async def _on_stop(self) -> None:
+    async def __aexit__(self, exc_type: object, exc: object, tb: object) -> None:
         """Stop the result processor."""
         self.logger.info("Stopping ResultProcessor...")
         self._state = ProcessingState.STOPPED

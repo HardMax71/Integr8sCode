@@ -2,22 +2,24 @@ import asyncio
 import logging
 
 import pytest
-from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics import ConnectionMetrics
 from app.services.sse.sse_shutdown_manager import SSEShutdownManager
+
+pytestmark = pytest.mark.unit
 
 _test_logger = logging.getLogger("test.services.sse.shutdown_manager")
 
 
-class _FakeRouter(LifecycleEnabled):
-    """Fake router that tracks whether aclose was called."""
+class _FakeRouter:
+    """Fake router for testing."""
 
     def __init__(self) -> None:
-        super().__init__()
         self.stopped = False
-        self._lifecycle_started = True  # Simulate already-started router
 
-    async def _on_stop(self) -> None:
+    async def __aenter__(self) -> "_FakeRouter":
+        return self
+
+    async def __aexit__(self, exc_type: object, exc: object, tb: object) -> None:
         self.stopped = True
 
 
@@ -53,10 +55,9 @@ async def test_shutdown_graceful_notify_and_drain(connection_metrics: Connection
 
 
 @pytest.mark.asyncio
-async def test_shutdown_force_close_calls_router_stop_and_rejects_new(connection_metrics: ConnectionMetrics) -> None:
-    router = _FakeRouter()
+async def test_shutdown_force_close_and_rejects_new(connection_metrics: ConnectionMetrics) -> None:
     mgr = SSEShutdownManager(
-        router=router,
+        router=_FakeRouter(),
         logger=_test_logger,
         connection_metrics=connection_metrics,
         drain_timeout=0.01,
@@ -70,7 +71,6 @@ async def test_shutdown_force_close_calls_router_stop_and_rejects_new(connection
 
     # Initiate shutdown
     await mgr.initiate_shutdown()
-    assert router.stopped is True
     assert mgr.is_shutting_down() is True
     status = mgr.get_shutdown_status()
     assert status.draining_connections == 0

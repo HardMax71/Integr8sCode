@@ -6,8 +6,7 @@ from datetime import datetime, timezone
 
 import pytest
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
-from app.core.metrics import DLQMetrics
-from app.dlq.manager import create_dlq_manager
+from app.dlq.manager import DLQManager
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.domain.events.typed import DLQMessageReceivedEvent
@@ -28,9 +27,8 @@ _test_logger = logging.getLogger("test.dlq.manager")
 @pytest.mark.asyncio
 async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_settings: Settings) -> None:
     """Test that DLQ manager persists messages and emits DLQMessageReceivedEvent."""
-    schema_registry = SchemaRegistryManager(test_settings, _test_logger)
-    dlq_metrics: DLQMetrics = await scope.get(DLQMetrics)
-    manager = create_dlq_manager(settings=test_settings, schema_registry=schema_registry, logger=_test_logger, dlq_metrics=dlq_metrics)
+    schema_registry = await scope.get(SchemaRegistryManager)
+    await scope.get(DLQManager)  # Ensure DI starts the manager
 
     prefix = test_settings.KAFKA_TOPIC_PREFIX
     ev = make_execution_requested_event(execution_id=f"exec-dlq-persist-{uuid.uuid4().hex[:8]}")
@@ -89,14 +87,12 @@ async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_
     consume_task = asyncio.create_task(consume_dlq_events())
 
     try:
-        # Start manager - it will consume from DLQ, persist, and emit DLQMessageReceivedEvent
-        async with manager:
-            # Await the DLQMessageReceivedEvent - true async, no polling
-            received = await asyncio.wait_for(received_future, timeout=15.0)
-            assert received.dlq_event_id == ev.event_id
-            assert received.event_type == EventType.DLQ_MESSAGE_RECEIVED
-            assert received.original_event_type == str(EventType.EXECUTION_REQUESTED)
-            assert received.error == "handler failed"
+        # Manager is already started by DI - just wait for the event
+        received = await asyncio.wait_for(received_future, timeout=15.0)
+        assert received.dlq_event_id == ev.event_id
+        assert received.event_type == EventType.DLQ_MESSAGE_RECEIVED
+        assert received.original_event_type == str(EventType.EXECUTION_REQUESTED)
+        assert received.error == "handler failed"
     finally:
         consume_task.cancel()
         try:

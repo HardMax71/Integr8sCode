@@ -2,6 +2,7 @@ import logging
 from typing import AsyncIterator
 
 import redis.asyncio as redis
+from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from dishka import Provider, Scope, from_context, provide
 from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
@@ -40,11 +41,13 @@ from app.db.repositories.dlq_repository import DLQRepository
 from app.db.repositories.replay_repository import ReplayRepository
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.db.repositories.user_settings_repository import UserSettingsRepository
-from app.dlq.manager import DLQManager, create_dlq_manager
+from app.dlq.manager import DLQManager
+from app.dlq.models import RetryPolicy, RetryStrategy
+from app.domain.enums.kafka import GroupId, KafkaTopic
 from app.domain.saga.models import SagaConfig
 from app.events.core import UnifiedProducer
 from app.events.event_store import EventStore, create_event_store
-from app.events.event_store_consumer import EventStoreConsumer, create_event_store_consumer
+from app.events.event_store_consumer import EventStoreConsumer
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.topics import get_all_topics
 from app.services.admin import AdminEventsService, AdminSettingsService, AdminUserService
@@ -67,10 +70,10 @@ from app.services.pod_monitor.event_mapper import PodEventMapper
 from app.services.pod_monitor.monitor import PodMonitor
 from app.services.rate_limit_service import RateLimitService
 from app.services.replay_service import ReplayService
-from app.services.saga import SagaOrchestrator, create_saga_orchestrator
+from app.services.saga import SagaOrchestrator
 from app.services.saga.saga_service import SagaService
 from app.services.saved_script_service import SavedScriptService
-from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge, create_sse_kafka_redis_bridge
+from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
 from app.services.sse.redis_bus import SSERedisBus
 from app.services.sse.sse_service import SSEService
 from app.services.sse.sse_shutdown_manager import SSEShutdownManager
@@ -171,7 +174,39 @@ class MessagingProvider(Provider):
             logger: logging.Logger,
             dlq_metrics: DLQMetrics,
     ) -> AsyncIterator[DLQManager]:
-        async with create_dlq_manager(settings, schema_registry, logger, dlq_metrics) as manager:
+        topic_name = f"{settings.KAFKA_TOPIC_PREFIX}{KafkaTopic.DEAD_LETTER_QUEUE}"
+        consumer = AIOKafkaConsumer(
+            topic_name,
+            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+            group_id=f"{GroupId.DLQ_MANAGER}.{settings.KAFKA_GROUP_SUFFIX}",
+            enable_auto_commit=False,
+            auto_offset_reset="earliest",
+            client_id="dlq-manager-consumer",
+            session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
+            heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+            max_poll_interval_ms=settings.KAFKA_MAX_POLL_INTERVAL_MS,
+            request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
+        )
+        producer = AIOKafkaProducer(
+            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+            client_id="dlq-manager-producer",
+            acks="all",
+            compression_type="gzip",
+            max_batch_size=16384,
+            linger_ms=10,
+            enable_idempotence=True,
+        )
+        manager = DLQManager(
+            settings=settings,
+            consumer=consumer,
+            producer=producer,
+            schema_registry=schema_registry,
+            logger=logger,
+            dlq_metrics=dlq_metrics,
+            dlq_topic=KafkaTopic.DEAD_LETTER_QUEUE,
+            default_retry_policy=RetryPolicy(topic="default", strategy=RetryStrategy.EXPONENTIAL_BACKOFF),
+        )
+        async with manager:
             yield manager
 
     @provide
@@ -218,7 +253,7 @@ class EventProvider(Provider):
             event_metrics: EventMetrics,
     ) -> AsyncIterator[EventStoreConsumer]:
         topics = get_all_topics()
-        async with create_event_store_consumer(
+        async with EventStoreConsumer(
                 event_store=event_store,
                 topics=list(topics),
                 schema_registry_manager=schema_registry,
@@ -384,7 +419,7 @@ class SSEProvider(Provider):
             sse_redis_bus: SSERedisBus,
             logger: logging.Logger,
     ) -> AsyncIterator[SSEKafkaRedisBridge]:
-        async with create_sse_kafka_redis_bridge(
+        async with SSEKafkaRedisBridge(
                 schema_registry=schema_registry,
                 settings=settings,
                 event_metrics=event_metrics,
@@ -571,7 +606,8 @@ async def _provide_saga_orchestrator(
         event_metrics: EventMetrics,
 ) -> AsyncIterator[SagaOrchestrator]:
     """Shared factory for SagaOrchestrator with lifecycle management."""
-    async with create_saga_orchestrator(
+    async with SagaOrchestrator(
+            config=_create_default_saga_config(),
             saga_repository=saga_repository,
             producer=kafka_producer,
             schema_registry_manager=schema_registry,
@@ -579,7 +615,6 @@ async def _provide_saga_orchestrator(
             event_store=event_store,
             idempotency_manager=idempotency_manager,
             resource_allocation_repository=resource_allocation_repository,
-            config=_create_default_saga_config(),
             logger=logger,
             event_metrics=event_metrics,
     ) as orchestrator:

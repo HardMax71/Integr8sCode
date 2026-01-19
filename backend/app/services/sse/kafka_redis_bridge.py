@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics import EventMetrics
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId
@@ -14,7 +13,7 @@ from app.services.sse.redis_bus import SSERedisBus
 from app.settings import Settings
 
 
-class SSEKafkaRedisBridge(LifecycleEnabled):
+class SSEKafkaRedisBridge:
     """
     Bridges Kafka events to Redis channels for SSE delivery.
 
@@ -31,7 +30,6 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
             sse_bus: SSERedisBus,
             logger: logging.Logger,
     ) -> None:
-        super().__init__()
         self.schema_registry = schema_registry
         self.settings = settings
         self.event_metrics = event_metrics
@@ -41,7 +39,7 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
         self.num_consumers = settings.SSE_CONSUMER_POOL_SIZE
         self.consumers: list[UnifiedConsumer] = []
 
-    async def _on_start(self) -> None:
+    async def __aenter__(self) -> "SSEKafkaRedisBridge":
         """Start the SSE Kafka→Redis bridge."""
         self.logger.info(f"Starting SSE Kafka→Redis bridge with {self.num_consumers} consumers")
 
@@ -53,8 +51,9 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
         await asyncio.gather(*[c.start(topics) for c in self.consumers])
 
         self.logger.info("SSE Kafka→Redis bridge started successfully")
+        return self
 
-    async def _on_stop(self) -> None:
+    async def __aexit__(self, exc_type: object, exc: object, tb: object) -> None:
         """Stop the SSE Kafka→Redis bridge."""
         self.logger.info("Stopping SSE Kafka→Redis bridge")
         await asyncio.gather(*[c.stop() for c in self.consumers], return_exceptions=True)
@@ -127,26 +126,9 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
         for et in relevant_events:
             dispatcher.register_handler(et, route_event)
 
-    def get_stats(self) -> dict[str, int | bool]:
+    def get_stats(self) -> dict[str, int]:
         return {
             "num_consumers": len(self.consumers),
             "active_executions": 0,
             "total_buffers": 0,
-            "is_running": self.is_running,
         }
-
-
-def create_sse_kafka_redis_bridge(
-        schema_registry: SchemaRegistryManager,
-        settings: Settings,
-        event_metrics: EventMetrics,
-        sse_bus: SSERedisBus,
-        logger: logging.Logger,
-) -> SSEKafkaRedisBridge:
-    return SSEKafkaRedisBridge(
-        schema_registry=schema_registry,
-        settings=settings,
-        event_metrics=event_metrics,
-        sse_bus=sse_bus,
-        logger=logger,
-    )

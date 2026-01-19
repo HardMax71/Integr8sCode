@@ -7,7 +7,6 @@ from typing import Any, Callable
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from opentelemetry.trace import SpanKind
 
-from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics import DLQMetrics
 from app.core.tracing import EventAttributes
 from app.core.tracing.utils import extract_trace_context, get_tracer, inject_trace_context
@@ -21,7 +20,7 @@ from app.dlq.models import (
     RetryPolicy,
     RetryStrategy,
 )
-from app.domain.enums.kafka import GroupId, KafkaTopic
+from app.domain.enums.kafka import KafkaTopic
 from app.domain.events.typed import (
     DLQMessageDiscardedEvent,
     DLQMessageReceivedEvent,
@@ -32,7 +31,7 @@ from app.events.schema.schema_registry import SchemaRegistryManager
 from app.settings import Settings
 
 
-class DLQManager(LifecycleEnabled):
+class DLQManager:
     def __init__(
         self,
         settings: Settings,
@@ -45,7 +44,6 @@ class DLQManager(LifecycleEnabled):
         retry_topic_suffix: str = "-retry",
         default_retry_policy: RetryPolicy | None = None,
     ):
-        super().__init__()
         self.settings = settings
         self.metrics = dlq_metrics
         self.schema_registry = schema_registry
@@ -76,7 +74,7 @@ class DLQManager(LifecycleEnabled):
         headers = {k: v.decode() for k, v in (msg.headers or [])}
         return DLQMessage(**data, dlq_offset=msg.offset, dlq_partition=msg.partition, headers=headers)
 
-    async def _on_start(self) -> None:
+    async def __aenter__(self) -> "DLQManager":
         """Start DLQ manager."""
         # Start producer and consumer in parallel for faster startup
         await asyncio.gather(self.producer.start(), self.consumer.start())
@@ -86,8 +84,9 @@ class DLQManager(LifecycleEnabled):
         self._monitor_task = asyncio.create_task(self._monitor_dlq())
 
         self.logger.info("DLQ Manager started")
+        return self
 
-    async def _on_stop(self) -> None:
+    async def __aexit__(self, exc_type: object, exc: object, tb: object) -> None:
         """Stop DLQ manager."""
         # Cancel tasks
         for task in [self._process_task, self._monitor_task]:
@@ -273,35 +272,40 @@ class DLQManager(LifecycleEnabled):
         self.logger.warning("Discarded message", extra={"event_id": message.event.event_id, "reason": reason})
 
     async def _monitor_dlq(self) -> None:
-        while self.is_running:
-            try:
-                # Find messages ready for retry using Beanie
-                now = datetime.now(timezone.utc)
+        try:
+            while True:
+                try:
+                    # Find messages ready for retry using Beanie
+                    now = datetime.now(timezone.utc)
 
-                docs = (
-                    await DLQMessageDocument.find(
-                        {
-                            "status": DLQMessageStatus.SCHEDULED,
-                            "next_retry_at": {"$lte": now},
-                        }
+                    docs = (
+                        await DLQMessageDocument.find(
+                            {
+                                "status": DLQMessageStatus.SCHEDULED,
+                                "next_retry_at": {"$lte": now},
+                            }
+                        )
+                        .limit(100)
+                        .to_list()
                     )
-                    .limit(100)
-                    .to_list()
-                )
 
-                for doc in docs:
-                    message = DLQMessage.model_validate(doc, from_attributes=True)
-                    await self._retry_message(message)
+                    for doc in docs:
+                        message = DLQMessage.model_validate(doc, from_attributes=True)
+                        await self._retry_message(message)
 
-                # Update queue size metrics
-                await self._update_queue_metrics()
+                    # Update queue size metrics
+                    await self._update_queue_metrics()
 
-                # Sleep before next check
-                await asyncio.sleep(10)
+                    # Sleep before next check
+                    await asyncio.sleep(10)
 
-            except Exception as e:
-                self.logger.error(f"Error in DLQ monitor: {e}")
-                await asyncio.sleep(60)
+                except asyncio.CancelledError:
+                    raise
+                except Exception as e:
+                    self.logger.error(f"Error in DLQ monitor: {e}")
+                    await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            self.logger.info("DLQ monitor cancelled")
 
     async def _update_queue_metrics(self) -> None:
         # Get counts by topic using Beanie aggregation
@@ -438,49 +442,3 @@ class DLQManager(LifecycleEnabled):
         message = DLQMessage.model_validate(doc, from_attributes=True)
         await self._discard_message(message, reason)
         return True
-
-
-def create_dlq_manager(
-    settings: Settings,
-    schema_registry: SchemaRegistryManager,
-    logger: logging.Logger,
-    dlq_metrics: DLQMetrics,
-    dlq_topic: KafkaTopic = KafkaTopic.DEAD_LETTER_QUEUE,
-    retry_topic_suffix: str = "-retry",
-    default_retry_policy: RetryPolicy | None = None,
-) -> DLQManager:
-    topic_name = f"{settings.KAFKA_TOPIC_PREFIX}{dlq_topic}"
-    consumer = AIOKafkaConsumer(
-        topic_name,
-        bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-        group_id=f"{GroupId.DLQ_MANAGER}.{settings.KAFKA_GROUP_SUFFIX}",
-        enable_auto_commit=False,
-        auto_offset_reset="earliest",
-        client_id="dlq-manager-consumer",
-        session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
-        heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,
-        max_poll_interval_ms=settings.KAFKA_MAX_POLL_INTERVAL_MS,
-        request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
-    )
-    producer = AIOKafkaProducer(
-        bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-        client_id="dlq-manager-producer",
-        acks="all",
-        compression_type="gzip",
-        max_batch_size=16384,
-        linger_ms=10,
-        enable_idempotence=True,
-    )
-    if default_retry_policy is None:
-        default_retry_policy = RetryPolicy(topic="default", strategy=RetryStrategy.EXPONENTIAL_BACKOFF)
-    return DLQManager(
-        settings=settings,
-        consumer=consumer,
-        producer=producer,
-        schema_registry=schema_registry,
-        logger=logger,
-        dlq_metrics=dlq_metrics,
-        dlq_topic=dlq_topic,
-        retry_topic_suffix=retry_topic_suffix,
-        default_retry_policy=default_retry_policy,
-    )

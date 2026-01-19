@@ -9,7 +9,6 @@ from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
 from kubernetes.client.rest import ApiException
 
-from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics import EventMetrics, ExecutionMetrics, KubernetesMetrics
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId
@@ -35,7 +34,7 @@ from app.services.k8s_worker.pod_builder import PodBuilder
 from app.settings import Settings
 
 
-class KubernetesWorker(LifecycleEnabled):
+class KubernetesWorker:
     """
     Worker service that creates Kubernetes pods from execution events.
 
@@ -58,7 +57,6 @@ class KubernetesWorker(LifecycleEnabled):
             logger: logging.Logger,
             event_metrics: EventMetrics,
     ):
-        super().__init__()
         self._event_metrics = event_metrics
         self.logger = logger
         self.metrics = KubernetesMetrics(settings)
@@ -87,7 +85,7 @@ class KubernetesWorker(LifecycleEnabled):
         self._creation_semaphore = asyncio.Semaphore(self.config.max_concurrent_pods)
         self._schema_registry_manager = schema_registry_manager
 
-    async def _on_start(self) -> None:
+    async def __aenter__(self) -> "KubernetesWorker":
         """Start the Kubernetes worker."""
         self.logger.info("Starting KubernetesWorker service...")
         self.logger.info("DEBUG: About to initialize Kubernetes client")
@@ -150,8 +148,9 @@ class KubernetesWorker(LifecycleEnabled):
         self.logger.info("Image pre-puller daemonset task scheduled")
 
         self.logger.info("KubernetesWorker service started successfully")
+        return self
 
-    async def _on_stop(self) -> None:
+    async def __aexit__(self, exc_type: object, exc: object, tb: object) -> None:
         """Stop the Kubernetes worker."""
         self.logger.info("Stopping KubernetesWorker service...")
 
@@ -431,7 +430,7 @@ exec "$@"
     async def get_status(self) -> dict[str, Any]:
         """Get worker status"""
         return {
-            "running": self.is_running,
+            "running": self.idempotent_consumer is not None,
             "active_creations": len(self._active_creations),
             "config": {
                 "namespace": self.config.namespace,

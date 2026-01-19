@@ -39,8 +39,8 @@ async def run_kubernetes_worker(settings: Settings) -> None:
     logger.info("KubernetesWorker started and running")
 
     try:
-        # Wait for shutdown signal or service to stop
-        while worker.is_running and not shutdown_event.is_set():
+        # Wait for shutdown signal
+        while not shutdown_event.is_set():
             await asyncio.sleep(60)
             status = await worker.get_status()
             logger.info(f"Kubernetes worker status: {status}")

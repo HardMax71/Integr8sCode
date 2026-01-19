@@ -3,7 +3,6 @@ import logging
 
 from opentelemetry.trace import SpanKind
 
-from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics import EventMetrics
 from app.core.tracing.utils import trace_span
 from app.domain.enums.events import EventType
@@ -15,7 +14,7 @@ from app.events.schema.schema_registry import SchemaRegistryManager
 from app.settings import Settings
 
 
-class EventStoreConsumer(LifecycleEnabled):
+class EventStoreConsumer:
     """Consumes events from Kafka and stores them in MongoDB."""
 
     def __init__(
@@ -31,7 +30,6 @@ class EventStoreConsumer(LifecycleEnabled):
         batch_size: int = 100,
         batch_timeout_seconds: float = 5.0,
     ):
-        super().__init__()
         self.event_store = event_store
         self.topics = topics
         self.settings = settings
@@ -49,7 +47,7 @@ class EventStoreConsumer(LifecycleEnabled):
         self._last_batch_time: float = 0.0
         self._batch_task: asyncio.Task[None] | None = None
 
-    async def _on_start(self) -> None:
+    async def __aenter__(self) -> "EventStoreConsumer":
         """Start consuming and storing events."""
         self._last_batch_time = asyncio.get_running_loop().time()
         config = ConsumerConfig(
@@ -95,8 +93,9 @@ class EventStoreConsumer(LifecycleEnabled):
         self._batch_task = asyncio.create_task(self._batch_processor())
 
         self.logger.info(f"Event store consumer started for topics: {self.topics}")
+        return self
 
-    async def _on_stop(self) -> None:
+    async def __aexit__(self, exc_type: object, exc: object, tb: object) -> None:
         """Stop consumer."""
         await self._flush_batch()
 
@@ -128,8 +127,8 @@ class EventStoreConsumer(LifecycleEnabled):
 
     async def _batch_processor(self) -> None:
         """Periodically flush batches based on timeout."""
-        while self.is_running:
-            try:
+        try:
+            while True:
                 await asyncio.sleep(1)
 
                 async with self._batch_lock:
@@ -138,8 +137,8 @@ class EventStoreConsumer(LifecycleEnabled):
                     if self._batch_buffer and time_since_last_batch >= self.batch_timeout:
                         await self._flush_batch()
 
-            except Exception as e:
-                self.logger.error(f"Error in batch processor: {e}")
+        except asyncio.CancelledError:
+            self.logger.info("Batch processor cancelled")
 
     async def _flush_batch(self) -> None:
         if not self._batch_buffer:
@@ -162,29 +161,3 @@ class EventStoreConsumer(LifecycleEnabled):
             f"stored={results['stored']}, duplicates={results['duplicates']}, "
             f"failed={results['failed']}"
         )
-
-
-def create_event_store_consumer(
-    event_store: EventStore,
-    topics: list[KafkaTopic],
-    schema_registry_manager: SchemaRegistryManager,
-    settings: Settings,
-    logger: logging.Logger,
-    event_metrics: EventMetrics,
-    producer: UnifiedProducer | None = None,
-    group_id: GroupId = GroupId.EVENT_STORE_CONSUMER,
-    batch_size: int = 100,
-    batch_timeout_seconds: float = 5.0,
-) -> EventStoreConsumer:
-    return EventStoreConsumer(
-        event_store=event_store,
-        topics=topics,
-        group_id=group_id,
-        batch_size=batch_size,
-        batch_timeout_seconds=batch_timeout_seconds,
-        schema_registry_manager=schema_registry_manager,
-        settings=settings,
-        logger=logger,
-        event_metrics=event_metrics,
-        producer=producer,
-    )

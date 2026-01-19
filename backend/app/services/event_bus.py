@@ -11,7 +11,6 @@ from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from aiokafka.errors import KafkaError
 from pydantic import BaseModel, ConfigDict
 
-from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics import ConnectionMetrics
 from app.domain.enums.kafka import KafkaTopic
 from app.settings import Settings
@@ -37,7 +36,7 @@ class Subscription:
     handler: Callable[[EventBusEvent], Any] = field(default=lambda _: None)
 
 
-class EventBus(LifecycleEnabled):
+class EventBus:
     """
     Distributed event bus for cross-instance communication via Kafka.
 
@@ -53,7 +52,6 @@ class EventBus(LifecycleEnabled):
     """
 
     def __init__(self, settings: Settings, logger: logging.Logger, connection_metrics: ConnectionMetrics) -> None:
-        super().__init__()
         self.logger = logger
         self.settings = settings
         self.metrics = connection_metrics
@@ -66,11 +64,12 @@ class EventBus(LifecycleEnabled):
         self._topic = f"{self.settings.KAFKA_TOPIC_PREFIX}{KafkaTopic.EVENT_BUS_STREAM}"
         self._instance_id = str(uuid4())  # Unique ID for filtering self-published messages
 
-    async def _on_start(self) -> None:
+    async def __aenter__(self) -> "EventBus":
         """Start the event bus with Kafka backing."""
         await self._initialize_kafka()
         self._consumer_task = asyncio.create_task(self._kafka_listener())
         self.logger.info("Event bus started with Kafka backing")
+        return self
 
     async def _initialize_kafka(self) -> None:
         """Initialize Kafka producer and consumer."""
@@ -100,7 +99,7 @@ class EventBus(LifecycleEnabled):
         # Start both in parallel for faster startup
         await asyncio.gather(self.producer.start(), self.consumer.start())
 
-    async def _on_stop(self) -> None:
+    async def __aexit__(self, exc_type: object, exc: object, tb: object) -> None:
         """Stop the event bus and clean up resources."""
         # Cancel consumer task
         if self._consumer_task and not self._consumer_task.done():
@@ -269,7 +268,7 @@ class EventBus(LifecycleEnabled):
         self.logger.info("Kafka listener started")
 
         try:
-            while self.is_running:
+            while True:
                 try:
                     msg = await asyncio.wait_for(self.consumer.getone(), timeout=0.1)
 
@@ -294,8 +293,6 @@ class EventBus(LifecycleEnabled):
 
         except asyncio.CancelledError:
             self.logger.info("Kafka listener cancelled")
-        except Exception as e:
-            self.logger.error(f"Fatal error in Kafka listener: {e}")
 
     def _update_metrics(self, pattern: str) -> None:
         """Update metrics for a pattern (must be called within lock)."""
@@ -311,7 +308,7 @@ class EventBus(LifecycleEnabled):
                 "total_patterns": len(self._pattern_index),
                 "total_subscriptions": len(self._subscriptions),
                 "kafka_enabled": self.producer is not None,
-                "running": self.is_running,
+                "consumer_task_active": self._consumer_task is not None and not self._consumer_task.done(),
             }
 
 

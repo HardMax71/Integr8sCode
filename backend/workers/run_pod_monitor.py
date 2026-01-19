@@ -9,7 +9,7 @@ from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.kafka import GroupId
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
-from app.services.pod_monitor.monitor import MonitorState, PodMonitor
+from app.services.pod_monitor.monitor import PodMonitor
 from app.settings import Settings
 from beanie import init_beanie
 
@@ -41,8 +41,8 @@ async def run_pod_monitor(settings: Settings) -> None:
     logger.info("PodMonitor started and running")
 
     try:
-        # Wait for shutdown signal or service to stop
-        while monitor.state == MonitorState.RUNNING and not shutdown_event.is_set():
+        # Wait for shutdown signal
+        while not shutdown_event.is_set():
             await asyncio.sleep(RECONCILIATION_LOG_INTERVAL)
             status = await monitor.get_status()
             logger.info(f"Pod monitor status: {status}")

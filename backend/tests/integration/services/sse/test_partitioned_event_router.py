@@ -72,10 +72,10 @@ async def test_router_start_and_stop(redis_client: redis.Redis, test_settings: S
     await router.__aenter__()
     stats = router.get_stats()
     assert stats["num_consumers"] == 1
-    await router.aclose()
+    await router.__aexit__(None, None, None)
     assert router.get_stats()["num_consumers"] == 0
     # idempotent start/stop
     await router.__aenter__()
     await router.__aenter__()
-    await router.aclose()
-    await router.aclose()
+    await router.__aexit__(None, None, None)
+    await router.__aexit__(None, None, None)

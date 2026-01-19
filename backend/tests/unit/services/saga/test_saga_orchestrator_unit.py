@@ -119,11 +119,10 @@ def _orch(event_metrics: EventMetrics) -> SagaOrchestrator:
 async def test_min_success_flow(event_metrics: EventMetrics) -> None:
     orch = _orch(event_metrics)
     orch.register_saga(_Saga)
-    # Set orchestrator running state via lifecycle property
-    orch._lifecycle_started = True
+    # Handle the event
     await orch._handle_event(make_execution_requested_event(execution_id="e"))
     # basic sanity; deep behavior covered by integration
-    assert orch.is_running is True
+    assert len(orch._sagas) > 0
 
 
 @pytest.mark.asyncio

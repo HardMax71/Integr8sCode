@@ -37,7 +37,7 @@ async def test_consumer_start_status_seek_and_stop(scope: AsyncContainer) -> Non
     await c.start([KafkaTopic.EXECUTION_EVENTS])
     try:
         st = c.get_status()
-        assert st.state == "running" and st.is_running is True
+        assert st.state == "running"
         # Exercise seek functions; don't force specific partition offsets
         await c.seek_to_beginning()
         await c.seek_to_end()

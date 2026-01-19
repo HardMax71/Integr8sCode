@@ -39,8 +39,8 @@ async def run_coordinator(settings: Settings) -> None:
     logger.info("ExecutionCoordinator started and running")
 
     try:
-        # Wait for shutdown signal or service to stop
-        while coordinator.is_running and not shutdown_event.is_set():
+        # Wait for shutdown signal
+        while not shutdown_event.is_set():
             await asyncio.sleep(60)
             status = await coordinator.get_status()
             logger.info(f"Coordinator status: {status}")

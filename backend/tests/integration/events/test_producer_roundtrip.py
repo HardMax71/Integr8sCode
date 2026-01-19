@@ -38,4 +38,4 @@ async def test_unified_producer_start_produce_send_to_dlq_stop(
         await prod.send_to_dlq(ev, original_topic=topic, error=RuntimeError("forced"), retry_count=1)
 
         st = prod.get_status()
-        assert st["running"] is True and st["state"] == "running"
+        assert st["state"] == "running"

@@ -3,7 +3,6 @@ import logging
 from uuid import uuid4
 
 import pytest
-import redis.asyncio as redis
 from app.core.metrics import EventMetrics
 from app.events.core import EventDispatcher
 from app.events.schema.schema_registry import SchemaRegistryManager
@@ -20,19 +19,17 @@ _test_logger = logging.getLogger("test.services.sse.partitioned_event_router_int
 
 
 @pytest.mark.asyncio
-async def test_router_bridges_to_redis(redis_client: redis.Redis, test_settings: Settings) -> None:
-    suffix = uuid4().hex[:6]
-    bus = SSERedisBus(
-        redis_client,
-        exec_prefix=f"sse:exec:{suffix}:",
-        notif_prefix=f"sse:notif:{suffix}:",
-        logger=_test_logger,
-    )
+async def test_router_bridges_to_redis(
+    sse_redis_bus: SSERedisBus,
+    schema_registry: SchemaRegistryManager,
+    event_metrics: EventMetrics,
+    test_settings: Settings,
+) -> None:
     router = SSEKafkaRedisBridge(
-        schema_registry=SchemaRegistryManager(settings=test_settings, logger=_test_logger),
+        schema_registry=schema_registry,
         settings=test_settings,
-        event_metrics=EventMetrics(test_settings),
-        sse_bus=bus,
+        event_metrics=event_metrics,
+        sse_bus=sse_redis_bus,
         logger=_test_logger,
     )
     disp = EventDispatcher(logger=_test_logger)
@@ -40,7 +37,7 @@ async def test_router_bridges_to_redis(redis_client: redis.Redis, test_settings:
 
     # Open Redis subscription for our execution id
     execution_id = f"e-{uuid4().hex[:8]}"
-    subscription = await bus.open_subscription(execution_id)
+    subscription = await sse_redis_bus.open_subscription(execution_id)
 
     ev = make_execution_requested_event(execution_id=execution_id)
     handler = disp.get_handlers(ev.event_type)[0]
@@ -53,29 +50,22 @@ async def test_router_bridges_to_redis(redis_client: redis.Redis, test_settings:
 
 
 @pytest.mark.asyncio
-async def test_router_start_and_stop(redis_client: redis.Redis, test_settings: Settings) -> None:
+async def test_router_start_and_stop(
+    sse_redis_bus: SSERedisBus,
+    schema_registry: SchemaRegistryManager,
+    event_metrics: EventMetrics,
+    test_settings: Settings,
+) -> None:
     test_settings.SSE_CONSUMER_POOL_SIZE = 1
-    suffix = uuid4().hex[:6]
     router = SSEKafkaRedisBridge(
-        schema_registry=SchemaRegistryManager(settings=test_settings, logger=_test_logger),
+        schema_registry=schema_registry,
         settings=test_settings,
-        event_metrics=EventMetrics(test_settings),
-        sse_bus=SSERedisBus(
-            redis_client,
-            exec_prefix=f"sse:exec:{suffix}:",
-            notif_prefix=f"sse:notif:{suffix}:",
-            logger=_test_logger,
-        ),
+        event_metrics=event_metrics,
+        sse_bus=sse_redis_bus,
         logger=_test_logger,
     )
 
-    await router.__aenter__()
-    stats = router.get_stats()
-    assert stats["num_consumers"] == 1
-    await router.__aexit__(None, None, None)
+    async with router:
+        assert router.get_stats()["num_consumers"] == 1
+
     assert router.get_stats()["num_consumers"] == 0
-    # idempotent start/stop
-    await router.__aenter__()
-    await router.__aenter__()
-    await router.__aexit__(None, None, None)
-    await router.__aexit__(None, None, None)

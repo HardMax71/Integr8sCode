@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import uuid
 
 import pytest
 from app.core.metrics import EventMetrics
@@ -30,12 +29,15 @@ _test_logger = logging.getLogger("test.idempotency.consumer_idempotent")
 
 
 @pytest.mark.asyncio
-async def test_consumer_idempotent_wrapper_blocks_duplicates(scope: AsyncContainer) -> None:
+async def test_consumer_idempotent_wrapper_blocks_duplicates(
+    scope: AsyncContainer,
+    schema_registry: SchemaRegistryManager,
+    event_metrics: EventMetrics,
+    consumer_config: ConsumerConfig,
+    test_settings: Settings,
+) -> None:
     producer: UnifiedProducer = await scope.get(UnifiedProducer)
     idm: IdempotencyManager = await scope.get(IdempotencyManager)
-    registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
-    settings: Settings = await scope.get(Settings)
-    event_metrics: EventMetrics = await scope.get(EventMetrics)
 
     # Future resolves when handler processes an event - no polling needed
     handled_future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
@@ -51,23 +53,17 @@ async def test_consumer_idempotent_wrapper_blocks_duplicates(scope: AsyncContain
             handled_future.set_result(None)
 
     # Produce messages BEFORE starting consumer (auto_offset_reset="earliest" will read them)
-    execution_id = f"e-{uuid.uuid4().hex[:8]}"
+    execution_id = f"e-{consumer_config.group_id}"
     ev = make_execution_requested_event(execution_id=execution_id)
     await producer.produce(ev, key=execution_id)
     await producer.produce(ev, key=execution_id)
 
     # Real consumer with idempotent wrapper
-    cfg = ConsumerConfig(
-        bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-        group_id=f"test-idem-consumer.{uuid.uuid4().hex[:6]}",
-        enable_auto_commit=True,
-        auto_offset_reset="earliest",
-    )
     base = UnifiedConsumer(
-        cfg,
+        consumer_config,
         event_dispatcher=disp,
-        schema_registry=registry,
-        settings=settings,
+        schema_registry=schema_registry,
+        settings=test_settings,
         logger=_test_logger,
         event_metrics=event_metrics,
     )

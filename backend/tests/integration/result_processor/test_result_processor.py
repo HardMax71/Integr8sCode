@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import uuid
 
 import pytest
 from app.core.database_context import Database
@@ -12,9 +11,8 @@ from app.domain.enums.kafka import KafkaTopic
 from app.domain.events.typed import EventMetadata, ExecutionCompletedEvent, ResultStoredEvent
 from app.domain.execution import DomainExecutionCreate
 from app.domain.execution.models import ResourceUsageDomain
-from app.events.core import UnifiedConsumer, UnifiedProducer
+from app.events.core import ConsumerConfig, UnifiedConsumer, UnifiedProducer
 from app.events.core.dispatcher import EventDispatcher
-from app.events.core.types import ConsumerConfig
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.services.idempotency import IdempotencyManager
 from app.services.result_processor.processor import ResultProcessor
@@ -34,13 +32,16 @@ _test_logger = logging.getLogger("test.result_processor.processor")
 
 
 @pytest.mark.asyncio
-async def test_result_processor_persists_and_emits(scope: AsyncContainer) -> None:
+async def test_result_processor_persists_and_emits(
+    scope: AsyncContainer,
+    schema_registry: SchemaRegistryManager,
+    event_metrics: EventMetrics,
+    consumer_config: ConsumerConfig,
+    test_settings: Settings,
+) -> None:
     # Ensure schemas
-    registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
-    settings: Settings = await scope.get(Settings)
-    event_metrics: EventMetrics = await scope.get(EventMetrics)
     execution_metrics: ExecutionMetrics = await scope.get(ExecutionMetrics)
-    await initialize_event_schemas(registry)
+    await initialize_event_schemas(schema_registry)
 
     # Dependencies
     db: Database = await scope.get(Database)
@@ -62,8 +63,8 @@ async def test_result_processor_persists_and_emits(scope: AsyncContainer) -> Non
     processor = ResultProcessor(
         execution_repo=repo,
         producer=producer,
-        schema_registry=registry,
-        settings=settings,
+        schema_registry=schema_registry,
+        settings=test_settings,
         idempotency_manager=idem,
         logger=_test_logger,
         execution_metrics=execution_metrics,
@@ -79,18 +80,11 @@ async def test_result_processor_persists_and_emits(scope: AsyncContainer) -> Non
         if event.execution_id == execution_id:
             stored_received.set()
 
-    group_id = f"rp-test.{uuid.uuid4().hex[:6]}"
-    cconf = ConsumerConfig(
-        bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-        group_id=group_id,
-        enable_auto_commit=True,
-        auto_offset_reset="earliest",
-    )
     stored_consumer = UnifiedConsumer(
-        cconf,
+        consumer_config,
         dispatcher,
-        schema_registry=registry,
-        settings=settings,
+        schema_registry=schema_registry,
+        settings=test_settings,
         logger=_test_logger,
         event_metrics=event_metrics,
     )

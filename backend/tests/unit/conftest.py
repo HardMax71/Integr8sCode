@@ -1,3 +1,4 @@
+import logging
 from typing import NoReturn
 
 import pytest
@@ -15,7 +16,11 @@ from app.core.metrics import (
     ReplayMetrics,
     SecurityMetrics,
 )
+from app.events.schema.schema_registry import SchemaRegistryManager
+from app.services.pod_monitor.config import PodMonitorConfig
 from app.settings import Settings
+
+_test_logger = logging.getLogger("test.unit")
 
 
 # Metrics fixtures - provided via DI, not global context
@@ -97,3 +102,15 @@ def client() -> NoReturn:
 @pytest.fixture
 def app() -> NoReturn:
     raise RuntimeError("Unit tests should not use full app - use mocks or move to integration/")
+
+
+# Config fixtures - fresh instance per test (can be customized by tests)
+@pytest.fixture
+def pod_monitor_config() -> PodMonitorConfig:
+    return PodMonitorConfig()
+
+
+@pytest.fixture
+def schema_registry(test_settings: Settings) -> SchemaRegistryManager:
+    """Provide SchemaRegistryManager for unit tests (no external connections)."""
+    return SchemaRegistryManager(test_settings, logger=_test_logger)

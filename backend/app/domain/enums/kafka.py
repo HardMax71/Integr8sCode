@@ -57,7 +57,6 @@ class KafkaTopic(StringEnum):
 class GroupId(StringEnum):
     """Kafka consumer group IDs."""
 
-    EXECUTION_COORDINATOR = "execution-coordinator"
     K8S_WORKER = "k8s-worker"
     POD_MONITOR = "pod-monitor"
     RESULT_PROCESSOR = "result-processor"
@@ -71,10 +70,6 @@ class GroupId(StringEnum):
 
 # Consumer group topic subscriptions
 CONSUMER_GROUP_SUBSCRIPTIONS: Dict[GroupId, Set[KafkaTopic]] = {
-    GroupId.EXECUTION_COORDINATOR: {
-        KafkaTopic.EXECUTION_EVENTS,
-        KafkaTopic.EXECUTION_RESULTS,
-    },
     GroupId.K8S_WORKER: {
         KafkaTopic.SAGA_COMMANDS,  # Receives CreatePodCommand/DeletePodCommand from coordinator
     },
@@ -108,12 +103,6 @@ CONSUMER_GROUP_SUBSCRIPTIONS: Dict[GroupId, Set[KafkaTopic]] = {
 
 # Consumer group event filters
 CONSUMER_GROUP_EVENTS: Dict[GroupId, Set[EventType]] = {
-    GroupId.EXECUTION_COORDINATOR: {
-        EventType.EXECUTION_REQUESTED,
-        EventType.EXECUTION_COMPLETED,
-        EventType.EXECUTION_FAILED,
-        EventType.EXECUTION_CANCELLED,
-    },
     GroupId.K8S_WORKER: {
         EventType.EXECUTION_STARTED,
     },

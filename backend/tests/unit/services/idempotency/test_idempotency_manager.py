@@ -64,7 +64,6 @@ class TestIdempotencyConfig:
         assert config.processing_timeout_seconds == 300
         assert config.enable_result_caching is True
         assert config.max_result_size_bytes == 1048576
-        assert config.enable_metrics is True
         assert config.collection_name == "idempotency_keys"
 
     def test_custom_config(self) -> None:
@@ -74,7 +73,6 @@ class TestIdempotencyConfig:
             processing_timeout_seconds=600,
             enable_result_caching=False,
             max_result_size_bytes=2048,
-            enable_metrics=False,
             collection_name="custom_keys",
         )
         assert config.key_prefix == "custom"
@@ -82,13 +80,13 @@ class TestIdempotencyConfig:
         assert config.processing_timeout_seconds == 600
         assert config.enable_result_caching is False
         assert config.max_result_size_bytes == 2048
-        assert config.enable_metrics is False
         assert config.collection_name == "custom_keys"
 
 
 def test_manager_generate_key_variants(database_metrics: DatabaseMetrics) -> None:
     repo = MagicMock()
-    mgr = IdempotencyManager(IdempotencyConfig(), repo, _test_logger, database_metrics=database_metrics)
+    config = IdempotencyConfig()
+    mgr = IdempotencyManager(repository=repo, logger=_test_logger, metrics=database_metrics, config=config)
     ev = MagicMock(spec=BaseEvent)
     ev.event_type = "t"
     ev.event_id = "e"

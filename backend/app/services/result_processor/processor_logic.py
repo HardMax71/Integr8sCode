@@ -15,7 +15,7 @@ from app.domain.events.typed import (
     ResultFailedEvent,
     ResultStoredEvent,
 )
-from app.domain.execution import ExecutionNotFoundError, ExecutionResultDomain
+from app.domain.execution import ExecutionNotFoundError, ExecutionResultDomain, ResourceUsageDomainAdapter
 from app.events.core import EventDispatcher, UnifiedProducer
 from app.settings import Settings
 
@@ -29,8 +29,6 @@ class ProcessorLogic:
     - Storing results in database
     - Publishing ResultStored/ResultFailed events
     - Recording metrics
-
-    This class is stateful and must be instantiated once per processor instance.
     """
 
     def __init__(
@@ -99,7 +97,7 @@ class ProcessorLogic:
             exit_code=event.exit_code,
             stdout=event.stdout,
             stderr=event.stderr,
-            resource_usage=event.resource_usage,
+            resource_usage=ResourceUsageDomainAdapter.validate_python(event.resource_usage),
             metadata=event.metadata.model_dump(),
         )
 
@@ -127,7 +125,7 @@ class ProcessorLogic:
             exit_code=event.exit_code or -1,
             stdout=event.stdout,
             stderr=event.stderr,
-            resource_usage=event.resource_usage,
+            resource_usage=ResourceUsageDomainAdapter.validate_python(event.resource_usage),
             metadata=event.metadata.model_dump(),
             error_type=event.error_type,
         )
@@ -157,7 +155,7 @@ class ProcessorLogic:
             exit_code=-1,
             stdout=event.stdout,
             stderr=event.stderr,
-            resource_usage=event.resource_usage,
+            resource_usage=ResourceUsageDomainAdapter.validate_python(event.resource_usage),
             metadata=event.metadata.model_dump(),
             error_type=ExecutionErrorType.TIMEOUT,
         )

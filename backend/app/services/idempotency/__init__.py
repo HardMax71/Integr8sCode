@@ -4,9 +4,7 @@ from app.services.idempotency.idempotency_manager import (
     IdempotencyKeyStrategy,
     IdempotencyManager,
     IdempotencyResult,
-    create_idempotency_manager,
 )
-from app.services.idempotency.middleware import IdempotentConsumerWrapper, IdempotentEventHandler
 
 __all__ = [
     "IdempotencyManager",
@@ -14,7 +12,4 @@ __all__ = [
     "IdempotencyResult",
     "IdempotencyStatus",
     "IdempotencyKeyStrategy",
-    "create_idempotency_manager",
-    "IdempotentEventHandler",
-    "IdempotentConsumerWrapper",
 ]

@@ -1,10 +1,31 @@
+"""
+Pod Monitor Worker (Simplified).
+
+Note: Unlike other workers, PodMonitor watches Kubernetes pods directly
+(not consuming Kafka messages), so FastStream's subscriber pattern doesn't apply.
+
+This version uses a minimal signal handling approach.
+"""
+
 import asyncio
 import logging
 import signal
+from contextlib import suppress
 
-from app.core.container import create_pod_monitor_container
 from app.core.database_context import Database
 from app.core.logging import setup_logger
+from app.core.providers import (
+    DatabaseProvider,
+    EventProvider,
+    KubernetesProvider,
+    LoggingProvider,
+    MessagingProvider,
+    MetricsProvider,
+    PodMonitorProvider,
+    RedisProvider,
+    RepositoryProvider,
+    SettingsProvider,
+)
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.kafka import GroupId
@@ -12,12 +33,25 @@ from app.events.schema.schema_registry import SchemaRegistryManager, initialize_
 from app.services.pod_monitor.monitor import PodMonitor
 from app.settings import Settings
 from beanie import init_beanie
+from dishka import make_async_container
 
 
 async def run_pod_monitor(settings: Settings) -> None:
     """Run the pod monitor service."""
+    container = make_async_container(
+        SettingsProvider(),
+        LoggingProvider(),
+        RedisProvider(),
+        DatabaseProvider(),
+        MetricsProvider(),
+        EventProvider(),
+        MessagingProvider(),
+        RepositoryProvider(),
+        KubernetesProvider(),
+        PodMonitorProvider(),
+        context={Settings: settings},
+    )
 
-    container = create_pod_monitor_container(settings)
     logger = await container.get(logging.Logger)
     logger.info("Starting PodMonitor with DI container...")
 
@@ -29,31 +63,28 @@ async def run_pod_monitor(settings: Settings) -> None:
 
     monitor = await container.get(PodMonitor)
 
-    # Shutdown event - signal handlers just set this
-    shutdown_event = asyncio.Event()
+    # Signal handling with minimal boilerplate
+    shutdown = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, shutdown_event.set)
+        loop.add_signal_handler(sig, shutdown.set)
 
     logger.info("PodMonitor initialized, starting run...")
 
     try:
-        # Run monitor until shutdown signal
-        run_task = asyncio.create_task(monitor.run())
-        shutdown_task = asyncio.create_task(shutdown_event.wait())
+        # Run monitor until shutdown
+        monitor_task = asyncio.create_task(monitor.run())
+        shutdown_task = asyncio.create_task(shutdown.wait())
 
         done, pending = await asyncio.wait(
-            [run_task, shutdown_task],
+            [monitor_task, shutdown_task],
             return_when=asyncio.FIRST_COMPLETED,
         )
 
-        # Cancel remaining tasks
         for task in pending:
             task.cancel()
-            try:
+            with suppress(asyncio.CancelledError):
                 await task
-            except asyncio.CancelledError:
-                pass
 
     finally:
         logger.info("Initiating graceful shutdown...")
@@ -61,12 +92,10 @@ async def run_pod_monitor(settings: Settings) -> None:
 
 
 def main() -> None:
-    """Main entry point for pod monitor worker"""
+    """Main entry point for pod monitor worker."""
     settings = Settings()
 
     logger = setup_logger(settings.LOG_LEVEL)
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-
     logger.info("Starting PodMonitor worker...")
 
     if settings.ENABLE_TRACING:
@@ -78,7 +107,6 @@ def main() -> None:
             enable_console_exporter=False,
             sampling_rate=settings.TRACING_SAMPLING_RATE,
         )
-        logger.info("Tracing initialized for PodMonitor Service")
 
     asyncio.run(run_pod_monitor(settings))
 

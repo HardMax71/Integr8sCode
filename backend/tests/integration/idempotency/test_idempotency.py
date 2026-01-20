@@ -1,18 +1,11 @@
 import asyncio
 import json
 import logging
-import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any
 
 import pytest
-import redis.asyncio as redis
-from app.core.metrics import DatabaseMetrics
-from app.domain.events.typed import DomainEvent
 from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus
-from app.services.idempotency.idempotency_manager import IdempotencyConfig, IdempotencyManager
-from app.services.idempotency.middleware import IdempotentEventHandler
-from app.services.idempotency.redis_repository import RedisIdempotencyRepository
+from app.services.idempotency.idempotency_manager import IdempotencyManager
 
 from tests.helpers import make_execution_requested_event
 
@@ -231,163 +224,8 @@ class TestIdempotencyManager:
         assert result2.is_duplicate is False
 
 
-class TestIdempotentEventHandlerIntegration:
-    """Test IdempotentEventHandler with real components"""
-
-    @pytest.mark.asyncio
-    async def test_handler_processes_new_event(self, idempotency_manager: IdempotencyManager) -> None:
-        """Test that handler processes new events"""
-        processed_events: list[DomainEvent] = []
-
-        async def actual_handler(event: DomainEvent) -> None:
-            processed_events.append(event)
-
-        # Create idempotent handler
-        handler = IdempotentEventHandler(
-            handler=actual_handler,
-            idempotency_manager=idempotency_manager,
-            key_strategy="event_based",
-            logger=_test_logger,
-        )
-
-        # Process event
-        real_event = make_execution_requested_event(execution_id="handler-test-123")
-        await handler(real_event)
-
-        # Verify event was processed
-        assert len(processed_events) == 1
-        assert processed_events[0] == real_event
-
-    @pytest.mark.asyncio
-    async def test_handler_blocks_duplicate(self, idempotency_manager: IdempotencyManager) -> None:
-        """Test that handler blocks duplicate events"""
-        processed_events: list[DomainEvent] = []
-
-        async def actual_handler(event: DomainEvent) -> None:
-            processed_events.append(event)
-
-        # Create idempotent handler
-        handler = IdempotentEventHandler(
-            handler=actual_handler,
-            idempotency_manager=idempotency_manager,
-            key_strategy="event_based",
-            logger=_test_logger,
-        )
-
-        # Process event twice
-        real_event = make_execution_requested_event(execution_id="handler-dup-123")
-        await handler(real_event)
-        await handler(real_event)
-
-        # Verify event was processed only once
-        assert len(processed_events) == 1
-
-    @pytest.mark.asyncio
-    async def test_handler_with_failure(self, idempotency_manager: IdempotencyManager) -> None:
-        """Test handler marks failure on exception"""
-
-        async def failing_handler(event: DomainEvent) -> None:  # noqa: ARG001
-            raise ValueError("Processing failed")
-
-        handler = IdempotentEventHandler(
-            handler=failing_handler,
-            idempotency_manager=idempotency_manager,
-            key_strategy="event_based",
-            logger=_test_logger,
-        )
-
-        # Process event (should raise)
-        real_event = make_execution_requested_event(execution_id="handler-fail-1")
-        with pytest.raises(ValueError, match="Processing failed"):
-            await handler(real_event)
-
-        # Verify marked as failed
-        key = f"{idempotency_manager.config.key_prefix}:{real_event.event_type}:{real_event.event_id}"
-        record = await idempotency_manager._repo.find_by_key(key)
-        assert record is not None
-        assert record.status == IdempotencyStatus.FAILED
-        assert record.error is not None
-        assert "Processing failed" in record.error
-
-    @pytest.mark.asyncio
-    async def test_handler_duplicate_callback(self, idempotency_manager: IdempotencyManager) -> None:
-        """Test duplicate callback is invoked"""
-        duplicate_events: list[tuple[DomainEvent, Any]] = []
-
-        async def actual_handler(event: DomainEvent) -> None:  # noqa: ARG001
-            pass  # Do nothing
-
-        async def on_duplicate(event: DomainEvent, result: Any) -> None:
-            duplicate_events.append((event, result))
-
-        handler = IdempotentEventHandler(
-            handler=actual_handler,
-            idempotency_manager=idempotency_manager,
-            key_strategy="event_based",
-            on_duplicate=on_duplicate,
-            logger=_test_logger,
-        )
-
-        # Process twice
-        real_event = make_execution_requested_event(execution_id="handler-dup-cb-1")
-        await handler(real_event)
-        await handler(real_event)
-
-        # Verify duplicate callback was called
-        assert len(duplicate_events) == 1
-        assert duplicate_events[0][0] == real_event
-        assert duplicate_events[0][1].is_duplicate is True
-
-    @pytest.mark.asyncio
-    async def test_custom_key_function(self, idempotency_manager: IdempotencyManager) -> None:
-        """Test handler with custom key function"""
-        processed_scripts: list[str] = []
-
-        async def process_script(event: DomainEvent) -> None:
-            script: str = getattr(event, "script", "")
-            processed_scripts.append(script)
-
-        def extract_script_key(event: DomainEvent) -> str:
-            # Custom key based on script content only
-            script: str = getattr(event, "script", "")
-            return f"script:{hash(script)}"
-
-        handler = IdempotentEventHandler(
-            handler=process_script,
-            idempotency_manager=idempotency_manager,
-            key_strategy="custom",
-            custom_key_func=extract_script_key,
-            logger=_test_logger,
-        )
-
-        # Events with same script
-        event1 = make_execution_requested_event(
-            execution_id="id1",
-            script="print('hello')",
-            service_name="test-service",
-        )
-
-        event2 = make_execution_requested_event(
-            execution_id="id2",
-            language="python",
-            language_version="3.9",  # Different version
-            runtime_image="python:3.9-slim",
-            runtime_command=("python",),
-            runtime_filename="main.py",
-            timeout_seconds=60,  # Different timeout
-            cpu_limit="200m",
-            memory_limit="256Mi",
-            cpu_request="100m",
-            memory_request="128Mi",
-            service_name="test-service",
-        )
-
-        await handler(event1)
-        await handler(event2)
-
-        # Should only process once (same script)
-        assert len(processed_scripts) == 1
-        assert processed_scripts[0] == "print('hello')"
+class TestIdempotencyManagerValidation:
+    """Test IdempotencyManager validation and edge cases"""
 
     @pytest.mark.asyncio
     async def test_invalid_key_strategy(self, idempotency_manager: IdempotencyManager) -> None:
@@ -444,20 +282,6 @@ class TestIdempotentEventHandlerIntegration:
         # Note: actual cleanup implementation depends on repository
         record = await idempotency_manager._repo.find_by_key(expired_key)
         assert record is not None  # Still exists until explicit cleanup
-
-    @pytest.mark.asyncio
-    async def test_metrics_enabled(self, redis_client: redis.Redis, database_metrics: DatabaseMetrics) -> None:
-        """Test manager with metrics enabled"""
-        config = IdempotencyConfig(key_prefix=f"metrics:{uuid.uuid4().hex[:6]}", enable_metrics=True)
-        repository = RedisIdempotencyRepository(redis_client, key_prefix=config.key_prefix)
-        manager = IdempotencyManager(config, repository, _test_logger, database_metrics=database_metrics)
-
-        # Initialize with metrics
-        await manager.initialize()
-        assert manager._stats_update_task is not None
-
-        # Cleanup
-        await manager.close()
 
     @pytest.mark.asyncio
     async def test_content_hash_with_fields(self, idempotency_manager: IdempotencyManager) -> None:

@@ -5,7 +5,6 @@ from app.core.providers import (
     AdminServicesProvider,
     AuthProvider,
     BusinessServicesProvider,
-    CoordinatorProvider,
     CoreServicesProvider,
     DatabaseProvider,
     EventProvider,
@@ -75,23 +74,6 @@ def create_result_processor_container(settings: Settings) -> AsyncContainer:
         EventProvider(),
         MessagingProvider(),
         ResultProcessorProvider(),
-        context={Settings: settings},
-    )
-
-
-def create_coordinator_container(settings: Settings) -> AsyncContainer:
-    """Create DI container for the ExecutionCoordinator worker."""
-    return make_async_container(
-        SettingsProvider(),
-        LoggingProvider(),
-        DatabaseProvider(),
-        RedisProvider(),
-        CoreServicesProvider(),
-        MetricsProvider(),
-        RepositoryProvider(),
-        MessagingProvider(),
-        EventProvider(),
-        CoordinatorProvider(),
         context={Settings: settings},
     )
 

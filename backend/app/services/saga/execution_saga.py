@@ -3,7 +3,13 @@ from typing import Any, Optional
 
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.domain.enums.events import EventType
-from app.domain.events.typed import CreatePodCommandEvent, DeletePodCommandEvent, EventMetadata, ExecutionRequestedEvent
+from app.domain.events.typed import (
+    CreatePodCommandEvent,
+    DeletePodCommandEvent,
+    EventMetadata,
+    ExecutionAcceptedEvent,
+    ExecutionRequestedEvent,
+)
 from app.domain.saga import DomainResourceAllocationCreate
 from app.events.core import UnifiedProducer
 
@@ -50,6 +56,51 @@ class ValidateExecutionStep(SagaStep[ExecutionRequestedEvent]):
 
     def get_compensation(self) -> CompensationStep | None:
         """No compensation needed for validation"""
+        return None
+
+
+class AcceptExecutionStep(SagaStep[ExecutionRequestedEvent]):
+    """Publish ExecutionAcceptedEvent to confirm request is being processed."""
+
+    def __init__(self, producer: Optional[UnifiedProducer] = None) -> None:
+        super().__init__("accept_execution")
+        self.producer: UnifiedProducer | None = producer
+
+    async def execute(self, context: SagaContext, event: ExecutionRequestedEvent) -> bool:
+        """Publish acceptance event."""
+        try:
+            execution_id = context.get("execution_id")
+            logger.info(f"Publishing ExecutionAcceptedEvent for {execution_id}")
+
+            if not self.producer:
+                raise RuntimeError("Producer dependency not injected")
+
+            accepted_event = ExecutionAcceptedEvent(
+                execution_id=execution_id,
+                queue_position=0,
+                estimated_wait_seconds=None,
+                priority=event.priority,
+                metadata=EventMetadata(
+                    service_name="saga-orchestrator",
+                    service_version="1.0.0",
+                    user_id=event.metadata.user_id,
+                    correlation_id=event.metadata.correlation_id,
+                ),
+            )
+
+            await self.producer.produce(event_to_produce=accepted_event)
+            context.set("accepted", True)
+            logger.info(f"ExecutionAcceptedEvent published for {execution_id}")
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to publish acceptance: {e}")
+            context.set_error(e)
+            return False
+
+    def get_compensation(self) -> CompensationStep | None:
+        """No compensation needed - acceptance is just a notification."""
         return None
 
 
@@ -347,6 +398,7 @@ class ExecutionSaga(BaseSaga):
         publish_commands = bool(getattr(self, "_publish_commands", False))
         return [
             ValidateExecutionStep(),
+            AcceptExecutionStep(producer=producer),
             AllocateResourcesStep(alloc_repo=alloc_repo),
             QueueExecutionStep(),
             CreatePodStep(producer=producer, publish_commands=publish_commands),

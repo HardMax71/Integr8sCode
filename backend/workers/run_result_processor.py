@@ -1,72 +1,71 @@
+"""
+Result Processor Worker using FastStream.
+
+This is the clean version:
+- No asyncio.get_running_loop()
+- No signal.SIGINT/SIGTERM handlers
+- No create_task()
+- No manual consumer loops
+- No TaskGroup management
+
+Everything is handled by FastStream + Dishka DI.
+"""
+
 import asyncio
 import logging
-import signal
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
-from app.core.container import create_result_processor_container
+from app.core.database_context import Database
 from app.core.logging import setup_logger
+from app.core.providers import (
+    DatabaseProvider,
+    EventProvider,
+    LoggingProvider,
+    MessagingProvider,
+    MetricsProvider,
+    RedisProvider,
+    RepositoryProvider,
+    ResultProcessorProvider,
+    SettingsProvider,
+)
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
-from app.domain.enums.kafka import GroupId
-from app.services.idempotency.middleware import IdempotentConsumerWrapper
+from app.domain.enums.events import EventType
+from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId
+from app.domain.events.typed import (
+    DomainEvent,
+    ExecutionCompletedEvent,
+    ExecutionFailedEvent,
+    ExecutionTimeoutEvent,
+)
+from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
+from app.services.idempotency.faststream_middleware import IdempotencyMiddleware
+from app.services.result_processor.processor_logic import ProcessorLogic
 from app.settings import Settings
 from beanie import init_beanie
-from pymongo.asynchronous.mongo_client import AsyncMongoClient
-
-
-async def run_result_processor(settings: Settings) -> None:
-    """Run the result processor service."""
-
-    db_client: AsyncMongoClient[dict[str, object]] = AsyncMongoClient(
-        settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000
-    )
-    await init_beanie(database=db_client[settings.DATABASE_NAME], document_models=ALL_DOCUMENTS)
-
-    container = create_result_processor_container(settings)
-    logger = await container.get(logging.Logger)
-
-    consumer = await container.get(IdempotentConsumerWrapper)
-
-    # Shutdown event - signal handlers just set this
-    shutdown_event = asyncio.Event()
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, shutdown_event.set)
-
-    logger.info("ResultProcessor consumer initialized, starting run...")
-
-    try:
-        # Run consumer until shutdown signal
-        run_task = asyncio.create_task(consumer.run())
-        shutdown_task = asyncio.create_task(shutdown_event.wait())
-
-        done, pending = await asyncio.wait(
-            [run_task, shutdown_task],
-            return_when=asyncio.FIRST_COMPLETED,
-        )
-
-        # Cancel remaining tasks
-        for task in pending:
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
-
-    finally:
-        logger.info("Initiating graceful shutdown...")
-        await container.close()
-        await db_client.close()
+from dishka import make_async_container
+from dishka.integrations.faststream import FromDishka, setup_dishka
+from faststream import FastStream
+from faststream.kafka import KafkaBroker
 
 
 def main() -> None:
-    """Main entry point for result processor worker"""
+    """
+    Entry point - minimal boilerplate.
+
+    FastStream handles:
+    - Signal handling (SIGINT/SIGTERM)
+    - Consumer loop
+    - Graceful shutdown
+    """
     settings = Settings()
 
+    # Setup logging
     logger = setup_logger(settings.LOG_LEVEL)
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    logger.info("Starting ResultProcessor (FastStream)...")
 
-    logger.info("Starting ResultProcessor worker...")
-
+    # Setup tracing
     if settings.ENABLE_TRACING:
         init_tracing(
             service_name=GroupId.RESULT_PROCESSOR,
@@ -76,9 +75,106 @@ def main() -> None:
             enable_console_exporter=False,
             sampling_rate=settings.TRACING_SAMPLING_RATE,
         )
-        logger.info("Tracing initialized for ResultProcessor Service")
 
-    asyncio.run(run_result_processor(settings))
+    # Create DI container with all providers
+    container = make_async_container(
+        SettingsProvider(),
+        LoggingProvider(),
+        RedisProvider(),
+        DatabaseProvider(),
+        MetricsProvider(),
+        EventProvider(),
+        MessagingProvider(),
+        RepositoryProvider(),
+        ResultProcessorProvider(),
+        context={Settings: settings},
+    )
+
+    # Build topic list and group ID from config
+    topics = [
+        f"{settings.KAFKA_TOPIC_PREFIX}{t}"
+        for t in CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.RESULT_PROCESSOR]
+    ]
+    group_id = f"{GroupId.RESULT_PROCESSOR}.{settings.KAFKA_GROUP_SUFFIX}"
+
+    # Create broker
+    broker = KafkaBroker(
+        settings.KAFKA_BOOTSTRAP_SERVERS,
+        request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
+    )
+
+    # Create lifespan for infrastructure initialization
+    @asynccontextmanager
+    async def lifespan(app: FastStream) -> AsyncIterator[None]:
+        """Initialize infrastructure before app starts."""
+        app_logger = await container.get(logging.Logger)
+        app_logger.info("ResultProcessor starting...")
+
+        # Initialize database
+        db = await container.get(Database)
+        await init_beanie(database=db, document_models=ALL_DOCUMENTS)
+
+        # Initialize schema registry
+        schema_registry = await container.get(SchemaRegistryManager)
+        await initialize_event_schemas(schema_registry)
+
+        # Decoder: Avro bytes → typed DomainEvent
+        async def decode_avro(body: bytes) -> DomainEvent:
+            return await schema_registry.deserialize_event(body, "result_processor")
+
+        # Create subscriber with Avro decoder
+        subscriber = broker.subscriber(
+            *topics,
+            group_id=group_id,
+            auto_commit=False,
+            decoder=decode_avro,
+        )
+
+        # Route by event_type header (producer sets this, Kafka stores as bytes)
+        @subscriber(filter=lambda msg: msg.headers.get("event_type") == EventType.EXECUTION_COMPLETED.encode())
+        async def handle_completed(
+            event: ExecutionCompletedEvent,
+            logic: FromDishka[ProcessorLogic],
+        ) -> None:
+            await logic._handle_completed(event)
+
+        @subscriber(filter=lambda msg: msg.headers.get("event_type") == EventType.EXECUTION_FAILED.encode())
+        async def handle_failed(
+            event: ExecutionFailedEvent,
+            logic: FromDishka[ProcessorLogic],
+        ) -> None:
+            await logic._handle_failed(event)
+
+        @subscriber(filter=lambda msg: msg.headers.get("event_type") == EventType.EXECUTION_TIMEOUT.encode())
+        async def handle_timeout(
+            event: ExecutionTimeoutEvent,
+            logic: FromDishka[ProcessorLogic],
+        ) -> None:
+            await logic._handle_timeout(event)
+
+        # Default handler for unmatched events (prevents message loss)
+        @subscriber()
+        async def handle_other(event: DomainEvent) -> None:
+            pass
+
+        app_logger.info("Infrastructure initialized, starting event processing...")
+
+        yield
+
+        app_logger.info("ResultProcessor shutting down...")
+        await container.close()
+
+    # Create FastStream app
+    app = FastStream(broker, lifespan=lifespan)
+
+    # Setup Dishka integration for automatic DI in handlers
+    setup_dishka(container=container, app=app, auto_inject=True)
+
+    # Add idempotency middleware (appends to end = most inner, runs after Dishka)
+    broker.add_middleware(IdempotencyMiddleware)
+
+    # Run! FastStream handles signal handling, consumer loops, graceful shutdown
+    asyncio.run(app.run())
 
 
 if __name__ == "__main__":

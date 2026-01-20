@@ -17,8 +17,8 @@ from app.domain.events.typed import (
     PodRunningEvent,
     PodScheduledEvent,
     PodTerminatedEvent,
+    ResourceUsageAvro,
 )
-from app.domain.execution import ResourceUsageDomain
 
 # Python 3.12 type aliases
 type PodPhase = str
@@ -43,7 +43,7 @@ class PodLogs:
     stdout: str
     stderr: str
     exit_code: int
-    resource_usage: ResourceUsageDomain
+    resource_usage: ResourceUsageAvro
 
 
 class EventMapper(Protocol):
@@ -498,7 +498,7 @@ class PodEventMapper:
             stdout=data.get("stdout", ""),
             stderr=data.get("stderr", ""),
             exit_code=data.get("exit_code", 0),
-            resource_usage=ResourceUsageDomain(**data.get("resource_usage", {})),
+            resource_usage=ResourceUsageAvro(**data.get("resource_usage", {})),
         )
 
     def _log_extraction_error(self, pod_name: str, error: str) -> None:

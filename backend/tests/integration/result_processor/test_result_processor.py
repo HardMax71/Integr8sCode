@@ -9,14 +9,11 @@ from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.kafka import GroupId, KafkaTopic
-from app.domain.events.typed import EventMetadata, ExecutionCompletedEvent, ResultStoredEvent
+from app.domain.events.typed import EventMetadata, ExecutionCompletedEvent, ResourceUsageAvro, ResultStoredEvent
 from app.domain.execution import DomainExecutionCreate
-from app.domain.execution.models import ResourceUsageDomain
 from app.events.core import ConsumerConfig, UnifiedConsumer, UnifiedProducer
 from app.events.core.dispatcher import EventDispatcher
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
-from app.services.idempotency import IdempotencyManager
-from app.services.idempotency.middleware import IdempotentConsumerWrapper
 from app.services.result_processor import ProcessorLogic
 from app.settings import Settings
 from dishka import AsyncContainer
@@ -38,7 +35,6 @@ async def test_result_processor_persists_and_emits(
     scope: AsyncContainer,
     schema_registry: SchemaRegistryManager,
     event_metrics: EventMetrics,
-    consumer_config: ConsumerConfig,
     test_settings: Settings,
 ) -> None:
     # Ensure schemas
@@ -49,7 +45,6 @@ async def test_result_processor_persists_and_emits(
     db: Database = await scope.get(Database)
     repo: ExecutionRepository = await scope.get(ExecutionRepository)
     producer: UnifiedProducer = await scope.get(UnifiedProducer)
-    idem: IdempotencyManager = await scope.get(IdempotencyManager)
 
     # Create a base execution to satisfy ProcessorLogic lookup
     created = await repo.create_execution(DomainExecutionCreate(
@@ -87,7 +82,7 @@ async def test_result_processor_persists_and_emits(
         request_timeout_ms=test_settings.KAFKA_REQUEST_TIMEOUT_MS,
     )
 
-    # Create processor consumer
+    # Create processor consumer (idempotency is now handled by FastStream middleware in production)
     processor_consumer = UnifiedConsumer(
         processor_consumer_config,
         dispatcher=processor_dispatcher,
@@ -96,17 +91,6 @@ async def test_result_processor_persists_and_emits(
         logger=_test_logger,
         event_metrics=event_metrics,
         topics=[KafkaTopic.EXECUTION_COMPLETED, KafkaTopic.EXECUTION_FAILED, KafkaTopic.EXECUTION_TIMEOUT],
-    )
-
-    # Wrap with idempotency
-    processor_wrapper = IdempotentConsumerWrapper(
-        consumer=processor_consumer,
-        dispatcher=processor_dispatcher,
-        idempotency_manager=idem,
-        logger=_test_logger,
-        default_key_strategy="content_hash",
-        default_ttl_seconds=7200,
-        enable_for_all_handlers=True,
     )
 
     # Setup a separate consumer to capture ResultStoredEvent
@@ -137,7 +121,7 @@ async def test_result_processor_persists_and_emits(
     )
 
     # Produce the event BEFORE starting consumers (auto_offset_reset="earliest" will read it)
-    usage = ResourceUsageDomain(
+    usage = ResourceUsageAvro(
         execution_time_wall_seconds=0.5,
         cpu_time_jiffies=100,
         clk_tck_hertz=100,
@@ -154,7 +138,7 @@ async def test_result_processor_persists_and_emits(
     await producer.produce(evt, key=execution_id)
 
     # Start consumers as background tasks
-    processor_task = asyncio.create_task(processor_wrapper.run())
+    processor_task = asyncio.create_task(processor_consumer.run())
     stored_task = asyncio.create_task(stored_consumer.run())
 
     try:

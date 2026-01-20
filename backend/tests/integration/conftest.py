@@ -95,12 +95,6 @@ async def idempotency_manager(
         processing_timeout_seconds=5,
         enable_result_caching=True,
         max_result_size_bytes=1024,
-        enable_metrics=False,
     )
     repo = RedisIdempotencyRepository(redis_client, key_prefix=prefix)
-    mgr = IdempotencyManager(cfg, repo, _test_logger, database_metrics=database_metrics)
-    await mgr.initialize()
-    try:
-        yield mgr
-    finally:
-        await mgr.close()
+    yield IdempotencyManager(repository=repo, logger=_test_logger, metrics=database_metrics, config=cfg)

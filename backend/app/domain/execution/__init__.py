@@ -11,6 +11,7 @@ from .models import (
     LanguageInfoDomain,
     ResourceLimitsDomain,
     ResourceUsageDomain,
+    ResourceUsageDomainAdapter,
 )
 
 __all__ = [
@@ -21,6 +22,7 @@ __all__ = [
     "LanguageInfoDomain",
     "ResourceLimitsDomain",
     "ResourceUsageDomain",
+    "ResourceUsageDomainAdapter",
     "RuntimeNotSupportedError",
     "EventPublishError",
     "ExecutionNotFoundError",

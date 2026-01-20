@@ -296,26 +296,29 @@ class SagaLogic:
 
         self.logger.error(f"Saga {instance.saga_id} failed: {error_message}")
 
+    async def check_timeouts_once(self) -> None:
+        """Check for saga timeouts (single check)."""
+        cutoff_time = datetime.now(UTC) - timedelta(seconds=self.config.timeout_seconds)
+
+        timed_out = await self._repo.find_timed_out_sagas(cutoff_time)
+
+        for instance in timed_out:
+            self.logger.warning(f"Saga {instance.saga_id} timed out")
+
+            instance.state = SagaState.TIMEOUT
+            instance.error_message = f"Saga timed out after {self.config.timeout_seconds} seconds"
+            instance.completed_at = datetime.now(UTC)
+
+            await self._save_saga(instance)
+            self._running_instances.pop(instance.saga_id, None)
+
     async def check_timeouts_loop(self) -> None:
         """Check for saga timeouts (runs until cancelled)."""
         try:
             while True:
                 # Check every 30 seconds
                 await asyncio.sleep(30)
-
-                cutoff_time = datetime.now(UTC) - timedelta(seconds=self.config.timeout_seconds)
-
-                timed_out = await self._repo.find_timed_out_sagas(cutoff_time)
-
-                for instance in timed_out:
-                    self.logger.warning(f"Saga {instance.saga_id} timed out")
-
-                    instance.state = SagaState.TIMEOUT
-                    instance.error_message = f"Saga timed out after {self.config.timeout_seconds} seconds"
-                    instance.completed_at = datetime.now(UTC)
-
-                    await self._save_saga(instance)
-                    self._running_instances.pop(instance.saga_id, None)
+                await self.check_timeouts_once()
 
         except asyncio.CancelledError:
             self.logger.info("Timeout checker cancelled")

@@ -113,7 +113,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         asyncio.create_task(event_store_consumer.run(), name="event_store_consumer"),
         asyncio.create_task(notification_service.run(), name="notification_service"),
     ]
-    logger.info(f"Background services started ({len(sse_consumers)} SSE consumers)")
+    logger.info(
+        "Background services started",
+        extra={"sse_consumer_count": len(sse_consumers)},
+    )
 
     try:
         yield

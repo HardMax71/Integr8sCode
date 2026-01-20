@@ -146,24 +146,36 @@ def make_pod_monitor(
 
 
 @pytest.mark.asyncio
-async def test_start_and_stop_lifecycle(
+async def test_run_and_cancel_lifecycle(
     event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics, test_settings: Settings,
     pod_monitor_config: PodMonitorConfig,
 ) -> None:
+    """Test that run() blocks until cancelled and cleans up on cancellation."""
     pod_monitor_config.enable_state_reconciliation = False
 
     spy = SpyMapper()
     pm = make_pod_monitor(event_metrics, kubernetes_metrics, test_settings, config=pod_monitor_config, event_mapper=spy)  # type: ignore[arg-type]
 
-    # Replace _watch_loop to avoid real watch loop
-    async def _quick_watch() -> None:
-        return None
+    # Track when watch_loop is entered
+    watch_started = asyncio.Event()
 
-    pm._watch_loop = _quick_watch  # type: ignore[method-assign]
+    async def _blocking_watch() -> None:
+        watch_started.set()
+        await asyncio.sleep(10)
 
-    async with pm:
-        assert pm._watch_task is not None
+    pm._watch_loop = _blocking_watch  # type: ignore[method-assign]
 
+    # Start run() as a task
+    task = asyncio.create_task(pm.run())
+
+    # Wait until we're actually in the watch loop
+    await asyncio.wait_for(watch_started.wait(), timeout=1.0)
+
+    # Cancel it - run() catches CancelledError and exits gracefully
+    task.cancel()
+    await task  # Should complete without raising (graceful shutdown)
+
+    # Verify cleanup happened
     assert spy.cleared is True
 
 
@@ -470,8 +482,9 @@ async def test_watch_loop_with_cancellation(
 
     pm._run_watch = mock_run_watch  # type: ignore[method-assign]
 
-    # watch_loop catches CancelledError and exits gracefully (doesn't propagate)
-    await pm._watch_loop()
+    # watch_loop propagates CancelledError (correct behavior for structured concurrency)
+    with pytest.raises(asyncio.CancelledError):
+        await pm._watch_loop()
 
     assert len(watch_count) == 3
 
@@ -500,8 +513,9 @@ async def test_watch_loop_api_exception_410(
     pm._run_watch = mock_run_watch  # type: ignore[method-assign]
     pm._backoff = mock_backoff  # type: ignore[method-assign]
 
-    # watch_loop catches CancelledError and exits gracefully
-    await pm._watch_loop()
+    # watch_loop propagates CancelledError
+    with pytest.raises(asyncio.CancelledError):
+        await pm._watch_loop()
 
     # Resource version should be reset on 410
     assert pm._last_resource_version is None
@@ -532,18 +546,19 @@ async def test_watch_loop_generic_exception(
     pm._run_watch = mock_run_watch  # type: ignore[method-assign]
     pm._backoff = mock_backoff  # type: ignore[method-assign]
 
-    # watch_loop catches CancelledError and exits gracefully
-    await pm._watch_loop()
+    # watch_loop propagates CancelledError
+    with pytest.raises(asyncio.CancelledError):
+        await pm._watch_loop()
 
     assert backoff_count == 1
 
 
 @pytest.mark.asyncio
-async def test_pod_monitor_context_manager_lifecycle(
+async def test_pod_monitor_run_lifecycle(
     event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics, test_settings: Settings,
     pod_monitor_config: PodMonitorConfig,
 ) -> None:
-    """Test PodMonitor lifecycle via async context manager."""
+    """Test PodMonitor lifecycle via run() method."""
     pod_monitor_config.enable_state_reconciliation = False
 
     mock_v1 = FakeV1Api()
@@ -568,29 +583,53 @@ async def test_pod_monitor_context_manager_lifecycle(
         kubernetes_metrics=kubernetes_metrics,
     )
 
-    async with monitor:
-        assert monitor._watch_task is not None
-        assert monitor._clients is mock_k8s_clients
-        assert monitor._v1 is mock_v1
+    # Verify DI wiring
+    assert monitor._clients is mock_k8s_clients
+    assert monitor._v1 is mock_v1
+
+    # Track when watch_loop is entered
+    watch_started = asyncio.Event()
+
+    async def _blocking_watch() -> None:
+        watch_started.set()
+        await asyncio.sleep(10)
+
+    monitor._watch_loop = _blocking_watch  # type: ignore[method-assign]
+
+    # Start and cancel - run() exits gracefully on cancel
+    task = asyncio.create_task(monitor.run())
+    await asyncio.wait_for(watch_started.wait(), timeout=1.0)
+    task.cancel()
+    await task  # Should complete without raising
 
 
 @pytest.mark.asyncio
-async def test_stop_with_tasks(
+async def test_cleanup_on_cancel(
     event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics, test_settings: Settings,
     pod_monitor_config: PodMonitorConfig,
 ) -> None:
-    """Test cleanup of tasks on context exit."""
+    """Test cleanup of tracked pods on cancellation."""
     pm = make_pod_monitor(event_metrics, kubernetes_metrics, test_settings, config=pod_monitor_config)
 
-    # Replace _watch_loop to avoid real watch and add tracked pods
-    async def _quick_watch() -> None:
+    watch_started = asyncio.Event()
+
+    # Replace _watch_loop to add tracked pods and wait
+    async def _blocking_watch() -> None:
         pm._tracked_pods = {"pod1"}
+        watch_started.set()
+        await asyncio.sleep(10)
 
-    pm._watch_loop = _quick_watch  # type: ignore[method-assign]
+    pm._watch_loop = _blocking_watch  # type: ignore[method-assign]
 
-    async with pm:
-        assert pm._watch_task is not None
+    task = asyncio.create_task(pm.run())
+    await asyncio.wait_for(watch_started.wait(), timeout=1.0)
+    assert "pod1" in pm._tracked_pods
 
+    # Cancel - run() exits gracefully
+    task.cancel()
+    await task  # Should complete without raising
+
+    # Cleanup should have cleared tracked pods
     assert len(pm._tracked_pods) == 0
 
 
@@ -667,8 +706,9 @@ async def test_watch_loop_api_exception_other_status(
     pm._run_watch = mock_run_watch  # type: ignore[method-assign]
     pm._backoff = mock_backoff  # type: ignore[method-assign]
 
-    # watch_loop catches CancelledError and exits gracefully
-    await pm._watch_loop()
+    # watch_loop propagates CancelledError
+    with pytest.raises(asyncio.CancelledError):
+        await pm._watch_loop()
 
     assert backoff_count == 1
 
@@ -735,8 +775,9 @@ async def test_watch_loop_with_reconciliation(
     pm._reconcile = mock_reconcile  # type: ignore[method-assign]
     pm._run_watch = mock_run_watch  # type: ignore[method-assign]
 
-    # watch_loop catches CancelledError and exits gracefully
-    await pm._watch_loop()
+    # watch_loop propagates CancelledError
+    with pytest.raises(asyncio.CancelledError):
+        await pm._watch_loop()
 
     # Reconcile should be called before each watch restart
     assert reconcile_count == 2

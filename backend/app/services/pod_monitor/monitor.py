@@ -71,6 +71,10 @@ class PodMonitor:
     Watches pods with specific labels using the K8s watch API,
     maps Kubernetes events to application events, and publishes them to Kafka.
     Reconciles state when watch restarts (every watch_timeout_seconds or on error).
+
+    Usage:
+        monitor = PodMonitor(...)
+        await monitor.run()  # Blocks until cancelled
     """
 
     def __init__(
@@ -82,6 +86,7 @@ class PodMonitor:
         event_mapper: PodEventMapper,
         kubernetes_metrics: KubernetesMetrics,
     ) -> None:
+        """Store dependencies. All work happens in run()."""
         self.logger = logger
         self.config = config
 
@@ -99,76 +104,59 @@ class PodMonitor:
         self._reconnect_attempts: int = 0
         self._last_resource_version: ResourceVersion | None = None
 
-        # Task
-        self._watch_task: asyncio.Task[None] | None = None
-
         # Metrics
         self._metrics = kubernetes_metrics
 
-    async def __aenter__(self) -> "PodMonitor":
-        """Start the pod monitor."""
-        self.logger.info("Starting PodMonitor service...")
+    async def run(self) -> None:
+        """Run the monitor. Blocks until cancelled.
+
+        Verifies K8s connectivity, runs watch loop, cleans up on exit.
+        """
+        self.logger.info("PodMonitor starting...")
 
         # Verify K8s connectivity
         await asyncio.to_thread(self._v1.get_api_resources)
         self.logger.info("Successfully connected to Kubernetes API")
 
-        # Start watch task
-        self._watch_task = asyncio.create_task(self._watch_loop())
-
-        self.logger.info("PodMonitor service started successfully")
-        return self
-
-    async def __aexit__(self, exc_type: object, exc: object, tb: object) -> None:
-        """Stop the pod monitor."""
-        self.logger.info("Stopping PodMonitor service...")
-
-        if self._watch_task:
-            self._watch_task.cancel()
-            try:
-                await self._watch_task
-            except asyncio.CancelledError:
-                pass
-
-        if self._watch:
-            self._watch.stop()
-
-        self._tracked_pods.clear()
-        self._event_mapper.clear_cache()
-        self.logger.info("PodMonitor service stopped")
+        try:
+            await self._watch_loop()
+        except asyncio.CancelledError:
+            self.logger.info("PodMonitor cancelled")
+        finally:
+            if self._watch:
+                self._watch.stop()
+            self._tracked_pods.clear()
+            self._event_mapper.clear_cache()
+            self.logger.info("PodMonitor stopped")
 
     async def _watch_loop(self) -> None:
         """Main watch loop - reconciles on each restart."""
-        try:
-            while True:
-                try:
-                    # Reconcile before starting watch (catches missed events)
-                    if self.config.enable_state_reconciliation:
-                        await self._reconcile()
+        while True:
+            try:
+                # Reconcile before starting watch (catches missed events)
+                if self.config.enable_state_reconciliation:
+                    await self._reconcile()
 
-                    self._reconnect_attempts = 0
-                    await self._run_watch()
+                self._reconnect_attempts = 0
+                await self._run_watch()
 
-                except ApiException as e:
-                    if e.status == 410:  # Resource version expired
-                        self.logger.warning("Resource version expired, resetting watch")
-                        self._last_resource_version = None
-                        self._metrics.record_pod_monitor_watch_error(ErrorType.RESOURCE_VERSION_EXPIRED)
-                    else:
-                        self.logger.error(f"API error in watch: {e}")
-                        self._metrics.record_pod_monitor_watch_error(ErrorType.API_ERROR)
-                    await self._backoff()
+            except ApiException as e:
+                if e.status == 410:  # Resource version expired
+                    self.logger.warning("Resource version expired, resetting watch")
+                    self._last_resource_version = None
+                    self._metrics.record_pod_monitor_watch_error(ErrorType.RESOURCE_VERSION_EXPIRED)
+                else:
+                    self.logger.error(f"API error in watch: {e}")
+                    self._metrics.record_pod_monitor_watch_error(ErrorType.API_ERROR)
+                await self._backoff()
 
-                except asyncio.CancelledError:
-                    raise
+            except asyncio.CancelledError:
+                raise
 
-                except Exception as e:
-                    self.logger.error(f"Unexpected error in watch: {e}", exc_info=True)
-                    self._metrics.record_pod_monitor_watch_error(ErrorType.UNEXPECTED)
-                    await self._backoff()
-
-        except asyncio.CancelledError:
-            self.logger.info("Watch loop cancelled")
+            except Exception as e:
+                self.logger.error(f"Unexpected error in watch: {e}", exc_info=True)
+                self._metrics.record_pod_monitor_watch_error(ErrorType.UNEXPECTED)
+                await self._backoff()
 
     async def _run_watch(self) -> None:
         """Run a single watch session."""
@@ -360,7 +348,6 @@ class PodMonitor:
             "tracked_pods": len(self._tracked_pods),
             "reconnect_attempts": self._reconnect_attempts,
             "last_resource_version": self._last_resource_version,
-            "watch_task_active": self._watch_task is not None and not self._watch_task.done(),
             "config": {
                 "namespace": self.config.namespace,
                 "label_selector": self.config.label_selector,

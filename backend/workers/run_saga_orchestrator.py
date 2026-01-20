@@ -9,7 +9,8 @@ from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.kafka import GroupId
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
-from app.services.saga import SagaOrchestrator
+from app.services.idempotency.middleware import IdempotentConsumerWrapper
+from app.services.saga.saga_logic import SagaLogic
 from app.settings import Settings
 from beanie import init_beanie
 
@@ -27,8 +28,14 @@ async def run_saga_orchestrator(settings: Settings) -> None:
     schema_registry = await container.get(SchemaRegistryManager)
     await initialize_event_schemas(schema_registry)
 
-    # Services are already started by the DI container providers
-    await container.get(SagaOrchestrator)
+    consumer = await container.get(IdempotentConsumerWrapper | None)
+    logic = await container.get(SagaLogic)
+
+    # Handle case where no sagas have triggers
+    if consumer is None:
+        logger.warning("No consumer provided (no saga triggers), exiting")
+        await container.close()
+        return
 
     # Shutdown event - signal handlers just set this
     shutdown_event = asyncio.Event()
@@ -36,14 +43,33 @@ async def run_saga_orchestrator(settings: Settings) -> None:
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, shutdown_event.set)
 
-    logger.info("Saga orchestrator started and running")
+    logger.info(f"SagaOrchestrator initialized for saga: {logic.config.name}, starting run...")
+
+    async def run_orchestrator_tasks() -> None:
+        """Run consumer and timeout checker using TaskGroup."""
+        async with asyncio.TaskGroup() as tg:
+            tg.create_task(consumer.run())
+            tg.create_task(logic.check_timeouts_loop())
 
     try:
-        # Wait for shutdown signal
-        while not shutdown_event.is_set():
-            await asyncio.sleep(1)
+        # Run orchestrator until shutdown signal
+        run_task = asyncio.create_task(run_orchestrator_tasks())
+        shutdown_task = asyncio.create_task(shutdown_event.wait())
+
+        done, pending = await asyncio.wait(
+            [run_task, shutdown_task],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+
+        # Cancel remaining tasks
+        for task in pending:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
     finally:
-        # Container cleanup stops everything
         logger.info("Initiating graceful shutdown...")
         await container.close()
 

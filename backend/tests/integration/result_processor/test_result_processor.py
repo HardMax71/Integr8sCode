@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import uuid
 
 import pytest
 from app.core.database_context import Database
@@ -7,7 +8,7 @@ from app.core.metrics import EventMetrics, ExecutionMetrics
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
-from app.domain.enums.kafka import KafkaTopic
+from app.domain.enums.kafka import GroupId, KafkaTopic
 from app.domain.events.typed import EventMetadata, ExecutionCompletedEvent, ResultStoredEvent
 from app.domain.execution import DomainExecutionCreate
 from app.domain.execution.models import ResourceUsageDomain
@@ -15,7 +16,8 @@ from app.events.core import ConsumerConfig, UnifiedConsumer, UnifiedProducer
 from app.events.core.dispatcher import EventDispatcher
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.services.idempotency import IdempotencyManager
-from app.services.result_processor.processor import ResultProcessor
+from app.services.idempotency.middleware import IdempotentConsumerWrapper
+from app.services.result_processor import ProcessorLogic
 from app.settings import Settings
 from dishka import AsyncContainer
 
@@ -49,7 +51,7 @@ async def test_result_processor_persists_and_emits(
     producer: UnifiedProducer = await scope.get(UnifiedProducer)
     idem: IdempotencyManager = await scope.get(IdempotencyManager)
 
-    # Create a base execution to satisfy ResultProcessor lookup
+    # Create a base execution to satisfy ProcessorLogic lookup
     created = await repo.create_execution(DomainExecutionCreate(
         script="print('x')",
         user_id="u1",
@@ -59,34 +61,79 @@ async def test_result_processor_persists_and_emits(
     ))
     execution_id = created.execution_id
 
-    # Build and start the processor
-    processor = ResultProcessor(
+    # Build the ProcessorLogic and wire up the consumer
+    logic = ProcessorLogic(
         execution_repo=repo,
         producer=producer,
-        schema_registry=schema_registry,
         settings=test_settings,
-        idempotency_manager=idem,
         logger=_test_logger,
         execution_metrics=execution_metrics,
-        event_metrics=event_metrics,
     )
 
-    # Setup a small consumer to capture ResultStoredEvent
-    dispatcher = EventDispatcher(logger=_test_logger)
+    # Create dispatcher and register handlers
+    processor_dispatcher = EventDispatcher(logger=_test_logger)
+    logic.register_handlers(processor_dispatcher)
+
+    # Create consumer config with unique group id
+    processor_consumer_config = ConsumerConfig(
+        bootstrap_servers=test_settings.KAFKA_BOOTSTRAP_SERVERS,
+        group_id=f"{GroupId.RESULT_PROCESSOR}.test.{uuid.uuid4().hex[:8]}",
+        max_poll_records=1,
+        enable_auto_commit=True,
+        auto_offset_reset="earliest",
+        session_timeout_ms=test_settings.KAFKA_SESSION_TIMEOUT_MS,
+        heartbeat_interval_ms=test_settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+        max_poll_interval_ms=test_settings.KAFKA_MAX_POLL_INTERVAL_MS,
+        request_timeout_ms=test_settings.KAFKA_REQUEST_TIMEOUT_MS,
+    )
+
+    # Create processor consumer
+    processor_consumer = UnifiedConsumer(
+        processor_consumer_config,
+        dispatcher=processor_dispatcher,
+        schema_registry=schema_registry,
+        settings=test_settings,
+        logger=_test_logger,
+        event_metrics=event_metrics,
+        topics=[KafkaTopic.EXECUTION_COMPLETED, KafkaTopic.EXECUTION_FAILED, KafkaTopic.EXECUTION_TIMEOUT],
+    )
+
+    # Wrap with idempotency
+    processor_wrapper = IdempotentConsumerWrapper(
+        consumer=processor_consumer,
+        dispatcher=processor_dispatcher,
+        idempotency_manager=idem,
+        logger=_test_logger,
+        default_key_strategy="content_hash",
+        default_ttl_seconds=7200,
+        enable_for_all_handlers=True,
+    )
+
+    # Setup a separate consumer to capture ResultStoredEvent
+    stored_dispatcher = EventDispatcher(logger=_test_logger)
     stored_received = asyncio.Event()
 
-    @dispatcher.register(EventType.RESULT_STORED)
+    @stored_dispatcher.register(EventType.RESULT_STORED)
     async def _stored(event: ResultStoredEvent) -> None:
         if event.execution_id == execution_id:
             stored_received.set()
 
+    stored_consumer_config = ConsumerConfig(
+        bootstrap_servers=test_settings.KAFKA_BOOTSTRAP_SERVERS,
+        group_id=f"test.result_stored.{uuid.uuid4().hex[:8]}",
+        max_poll_records=1,
+        enable_auto_commit=True,
+        auto_offset_reset="earliest",
+    )
+
     stored_consumer = UnifiedConsumer(
-        consumer_config,
-        dispatcher,
+        stored_consumer_config,
+        stored_dispatcher,
         schema_registry=schema_registry,
         settings=test_settings,
         logger=_test_logger,
         event_metrics=event_metrics,
+        topics=[KafkaTopic.EXECUTION_RESULTS],
     )
 
     # Produce the event BEFORE starting consumers (auto_offset_reset="earliest" will read it)
@@ -106,19 +153,29 @@ async def test_result_processor_persists_and_emits(
     )
     await producer.produce(evt, key=execution_id)
 
-    # Start consumers after producing
-    await stored_consumer.start([KafkaTopic.EXECUTION_RESULTS])
+    # Start consumers as background tasks
+    processor_task = asyncio.create_task(processor_wrapper.run())
+    stored_task = asyncio.create_task(stored_consumer.run())
 
     try:
-        async with processor:
-            # Await the ResultStoredEvent - signals that processing is complete
-            await asyncio.wait_for(stored_received.wait(), timeout=12.0)
+        # Await the ResultStoredEvent - signals that processing is complete
+        await asyncio.wait_for(stored_received.wait(), timeout=12.0)
 
-            # Now verify DB persistence - should be done since event was emitted
-            doc = await db.get_collection("executions").find_one({"execution_id": execution_id})
-            assert doc is not None, f"Execution {execution_id} not found in DB after ResultStoredEvent"
-            assert doc.get("status") == ExecutionStatus.COMPLETED, (
-                f"Expected COMPLETED status, got {doc.get('status')}"
-            )
+        # Now verify DB persistence - should be done since event was emitted
+        doc = await db.get_collection("executions").find_one({"execution_id": execution_id})
+        assert doc is not None, f"Execution {execution_id} not found in DB after ResultStoredEvent"
+        assert doc.get("status") == ExecutionStatus.COMPLETED, (
+            f"Expected COMPLETED status, got {doc.get('status')}"
+        )
     finally:
-        await stored_consumer.stop()
+        # Cancel and cleanup both consumers
+        processor_task.cancel()
+        stored_task.cancel()
+        try:
+            await processor_task
+        except asyncio.CancelledError:
+            pass
+        try:
+            await stored_task
+        except asyncio.CancelledError:
+            pass

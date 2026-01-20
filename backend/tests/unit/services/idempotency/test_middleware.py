@@ -42,7 +42,6 @@ class TestIdempotentEventHandler:
             idempotency_manager=mock_idempotency_manager,
             key_strategy="event_based",
             ttl_seconds=3600,
-            cache_result=True,
             logger=_test_logger
         )
 

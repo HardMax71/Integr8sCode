@@ -11,11 +11,10 @@ from app.db.repositories.sse_repository import SSERepository
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.execution import DomainExecution, ResourceUsageDomain
-from app.domain.sse import ShutdownStatus, SSEExecutionStatusDomain, SSEHealthDomain
-from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
+from app.domain.sse import SSEExecutionStatusDomain, SSEHealthDomain
 from app.services.sse.redis_bus import SSERedisBus, SSERedisSubscription
+from app.services.sse.sse_connection_registry import SSEConnectionRegistry
 from app.services.sse.sse_service import SSEService
-from app.services.sse.sse_shutdown_manager import SSEShutdownManager
 from app.settings import Settings
 from pydantic import BaseModel
 
@@ -77,45 +76,27 @@ class _FakeRepo(SSERepository):
         return self.exec_for_result
 
 
-class _FakeShutdown(SSEShutdownManager):
-    def __init__(self) -> None:
+class _FakeRegistry(SSEConnectionRegistry):
+    """Fake registry that tracks registrations without real metrics."""
+
+    def __init__(self, active_connections: int = 0, active_executions: int = 0) -> None:
         # Skip parent __init__
-        self._evt = asyncio.Event()
-        self._initiated = False
+        self._fake_connection_count = active_connections
+        self._fake_execution_count = active_executions
         self.registered: list[tuple[str, str]] = []
         self.unregistered: list[tuple[str, str]] = []
 
-    async def register_connection(self, execution_id: str, connection_id: str) -> asyncio.Event:
+    async def register_connection(self, execution_id: str, connection_id: str) -> None:
         self.registered.append((execution_id, connection_id))
-        return self._evt
 
     async def unregister_connection(self, execution_id: str, connection_id: str) -> None:
         self.unregistered.append((execution_id, connection_id))
 
-    def is_shutting_down(self) -> bool:
-        return self._initiated
+    def get_connection_count(self) -> int:
+        return self._fake_connection_count
 
-    def get_shutdown_status(self) -> ShutdownStatus:
-        return ShutdownStatus(
-            phase="ready",
-            initiated=self._initiated,
-            complete=False,
-            active_connections=0,
-            draining_connections=0,
-        )
-
-    def initiate(self) -> None:
-        self._initiated = True
-        self._evt.set()
-
-
-class _FakeRouter(SSEKafkaRedisBridge):
-    def __init__(self) -> None:
-        # Skip parent __init__
-        pass
-
-    def get_stats(self) -> dict[str, int | bool]:
-        return {"num_consumers": 3, "active_executions": 2, "is_running": True, "total_buffers": 0}
+    def get_execution_count(self) -> int:
+        return self._fake_execution_count
 
 
 def _make_fake_settings() -> Settings:
@@ -133,8 +114,8 @@ def _decode(evt: dict[str, Any]) -> dict[str, Any]:
 async def test_execution_stream_closes_on_failed_event(connection_metrics: ConnectionMetrics) -> None:
     repo = _FakeRepo()
     bus = _FakeBus()
-    sm = _FakeShutdown()
-    svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm,
+    registry = _FakeRegistry()
+    svc = SSEService(repository=repo, num_consumers=3, sse_bus=bus, connection_registry=registry,
                      settings=_make_fake_settings(), logger=_test_logger, connection_metrics=connection_metrics)
 
     agen = svc.create_execution_stream("exec-1", user_id="u1")
@@ -177,8 +158,8 @@ async def test_execution_stream_result_stored_includes_result_payload(connection
         exit_code=0,
     )
     bus = _FakeBus()
-    sm = _FakeShutdown()
-    svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm,
+    registry = _FakeRegistry()
+    svc = SSEService(repository=repo, num_consumers=3, sse_bus=bus, connection_registry=registry,
                      settings=_make_fake_settings(), logger=_test_logger, connection_metrics=connection_metrics)
 
     agen = svc.create_execution_stream("exec-2", user_id="u1")
@@ -200,10 +181,10 @@ async def test_execution_stream_result_stored_includes_result_payload(connection
 async def test_notification_stream_connected_and_heartbeat_and_message(connection_metrics: ConnectionMetrics) -> None:
     repo = _FakeRepo()
     bus = _FakeBus()
-    sm = _FakeShutdown()
+    registry = _FakeRegistry()
     settings = _make_fake_settings()
     settings.SSE_HEARTBEAT_INTERVAL = 0  # emit immediately
-    svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm, settings=settings,
+    svc = SSEService(repository=repo, num_consumers=3, sse_bus=bus, connection_registry=registry, settings=settings,
                      logger=_test_logger, connection_metrics=connection_metrics)
 
     agen = svc.create_notification_stream("u1")
@@ -232,19 +213,18 @@ async def test_notification_stream_connected_and_heartbeat_and_message(connectio
     notif = await agen.__anext__()
     assert _decode(notif)["event_type"] == "notification"
 
-    # Stop the stream by initiating shutdown and advancing once more (loop checks flag)
-    sm.initiate()
-    # It may loop until it sees the flag; push a None to release get(timeout)
-    await bus.notif_sub.push(None)
-    # Give the generator a chance to observe the flag and finish
-    with pytest.raises(StopAsyncIteration):
-        await asyncio.wait_for(agen.__anext__(), timeout=0.2)
+    # Stream runs until cancelled - cancel the generator
+    await agen.aclose()
 
 
 @pytest.mark.asyncio
 async def test_health_status_shape(connection_metrics: ConnectionMetrics) -> None:
-    svc = SSEService(repository=_FakeRepo(), router=_FakeRouter(), sse_bus=_FakeBus(), shutdown_manager=_FakeShutdown(),
+    # Create registry with 2 active connections and 2 executions for testing
+    registry = _FakeRegistry(active_connections=2, active_executions=2)
+    svc = SSEService(repository=_FakeRepo(), num_consumers=3, sse_bus=_FakeBus(), connection_registry=registry,
                      settings=_make_fake_settings(), logger=_test_logger, connection_metrics=connection_metrics)
     h = await svc.get_health_status()
     assert isinstance(h, SSEHealthDomain)
-    assert h.active_consumers == 3 and h.active_executions == 2
+    assert h.active_consumers == 3
+    assert h.active_connections == 2
+    assert h.active_executions == 2

@@ -61,11 +61,12 @@ async def test_consumer_idempotent_wrapper_blocks_duplicates(
     # Real consumer with idempotent wrapper
     base = UnifiedConsumer(
         consumer_config,
-        event_dispatcher=disp,
+        dispatcher=disp,
         schema_registry=schema_registry,
         settings=test_settings,
         logger=_test_logger,
         event_metrics=event_metrics,
+        topics=[KafkaTopic.EXECUTION_EVENTS],
     )
     wrapper = IdempotentConsumerWrapper(
         consumer=base,
@@ -76,10 +77,14 @@ async def test_consumer_idempotent_wrapper_blocks_duplicates(
         logger=_test_logger,
     )
 
-    await wrapper.start([KafkaTopic.EXECUTION_EVENTS])
+    # Start wrapper as background task
+    wrapper_task = asyncio.create_task(wrapper.run())
+
     try:
         # Await the future directly - true async, no polling
         await asyncio.wait_for(handled_future, timeout=10.0)
         assert seen["n"] >= 1
     finally:
-        await wrapper.stop()
+        wrapper_task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await wrapper_task

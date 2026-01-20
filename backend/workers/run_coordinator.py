@@ -9,7 +9,8 @@ from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.kafka import GroupId
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
-from app.services.coordinator.coordinator import ExecutionCoordinator
+from app.services.coordinator.coordinator_logic import CoordinatorLogic
+from app.services.idempotency.middleware import IdempotentConsumerWrapper
 from app.settings import Settings
 from beanie import init_beanie
 
@@ -27,8 +28,8 @@ async def run_coordinator(settings: Settings) -> None:
     schema_registry = await container.get(SchemaRegistryManager)
     await initialize_event_schemas(schema_registry)
 
-    # Services are already started by the DI container providers
-    coordinator = await container.get(ExecutionCoordinator)
+    consumer = await container.get(IdempotentConsumerWrapper)
+    logic = await container.get(CoordinatorLogic)
 
     # Shutdown event - signal handlers just set this
     shutdown_event = asyncio.Event()
@@ -36,16 +37,33 @@ async def run_coordinator(settings: Settings) -> None:
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, shutdown_event.set)
 
-    logger.info("ExecutionCoordinator started and running")
+    logger.info("ExecutionCoordinator initialized, starting run...")
+
+    async def run_coordinator_tasks() -> None:
+        """Run consumer and scheduling loop using TaskGroup."""
+        async with asyncio.TaskGroup() as tg:
+            tg.create_task(consumer.run())
+            tg.create_task(logic.scheduling_loop())
 
     try:
-        # Wait for shutdown signal
-        while not shutdown_event.is_set():
-            await asyncio.sleep(60)
-            status = await coordinator.get_status()
-            logger.info(f"Coordinator status: {status}")
+        # Run coordinator until shutdown signal
+        run_task = asyncio.create_task(run_coordinator_tasks())
+        shutdown_task = asyncio.create_task(shutdown_event.wait())
+
+        done, pending = await asyncio.wait(
+            [run_task, shutdown_task],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+
+        # Cancel remaining tasks
+        for task in pending:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
     finally:
-        # Container cleanup stops everything
         logger.info("Initiating graceful shutdown...")
         await container.close()
 

@@ -10,34 +10,37 @@ from app.core.tracing import EventAttributes
 from app.core.tracing.utils import get_tracer
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.db.repositories.saga_repository import SagaRepository
+from app.domain.enums.events import EventType
+from app.domain.enums.kafka import KafkaTopic
 from app.domain.enums.saga import SagaState
 from app.domain.events.typed import DomainEvent, EventMetadata, SagaCancelledEvent
 from app.domain.saga.models import Saga, SagaConfig
-from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
-from app.events.event_store import EventStore
-from app.events.schema.schema_registry import SchemaRegistryManager
+from app.events.core import EventDispatcher, UnifiedProducer
 from app.infrastructure.kafka.mappings import get_topic_for_event
-from app.services.idempotency import IdempotentConsumerWrapper
-from app.services.idempotency.idempotency_manager import IdempotencyManager
-from app.settings import Settings
 
 from .base_saga import BaseSaga
 from .execution_saga import ExecutionSaga
 from .saga_step import SagaContext
 
 
-class SagaOrchestrator:
-    """Orchestrates saga execution and compensation"""
+class SagaLogic:
+    """
+    Business logic for saga orchestration.
+
+    Handles:
+    - Saga registration and management
+    - Event handling and saga triggering
+    - Saga execution and compensation
+    - Timeout checking
+
+    This class is stateful and must be instantiated once per orchestrator instance.
+    """
 
     def __init__(
         self,
         config: SagaConfig,
         saga_repository: SagaRepository,
         producer: UnifiedProducer,
-        schema_registry_manager: SchemaRegistryManager,
-        settings: Settings,
-        event_store: EventStore,
-        idempotency_manager: IdempotencyManager,
         resource_allocation_repository: ResourceAllocationRepository,
         logger: logging.Logger,
         event_metrics: EventMetrics,
@@ -45,118 +48,49 @@ class SagaOrchestrator:
         self.config = config
         self._sagas: dict[str, type[BaseSaga]] = {}
         self._running_instances: dict[str, Saga] = {}
-        self._consumer: IdempotentConsumerWrapper | None = None
-        self._idempotency_manager: IdempotencyManager = idempotency_manager
         self._producer = producer
-        self._schema_registry_manager = schema_registry_manager
-        self._settings = settings
-        self._event_store = event_store
         self._repo: SagaRepository = saga_repository
         self._alloc_repo: ResourceAllocationRepository = resource_allocation_repository
-        self._tasks: list[asyncio.Task[None]] = []
         self.logger = logger
         self._event_metrics = event_metrics
 
     def register_saga(self, saga_class: type[BaseSaga]) -> None:
+        """Register a saga class."""
         self._sagas[saga_class.get_name()] = saga_class
         self.logger.info(f"Registered saga: {saga_class.get_name()}")
 
-    def _register_default_sagas(self) -> None:
+    def register_default_sagas(self) -> None:
+        """Register the default sagas."""
         self.register_saga(ExecutionSaga)
         self.logger.info("Registered default sagas")
 
-    async def __aenter__(self) -> "SagaOrchestrator":
-        """Start the saga orchestrator."""
-        self.logger.info(f"Starting saga orchestrator: {self.config.name}")
-
-        self._register_default_sagas()
-
-        await self._start_consumer()
-
-        timeout_task = asyncio.create_task(self._check_timeouts())
-        self._tasks.append(timeout_task)
-
-        self.logger.info("Saga orchestrator started")
-        return self
-
-    async def __aexit__(self, exc_type: object, exc: object, tb: object) -> None:
-        """Stop the saga orchestrator."""
-        self.logger.info("Stopping saga orchestrator...")
-
-        if self._consumer:
-            await self._consumer.stop()
-
-        await self._idempotency_manager.close()
-
-        for task in self._tasks:
-            if not task.done():
-                task.cancel()
-
-        if self._tasks:
-            await asyncio.gather(*self._tasks, return_exceptions=True)
-
-        self.logger.info("Saga orchestrator stopped")
-
-    async def _start_consumer(self) -> None:
-        self.logger.info(f"Registered sagas: {list(self._sagas.keys())}")
-        topics = set()
-        event_types_to_register = set()
-
+    def get_trigger_topics(self) -> set[KafkaTopic]:
+        """Get all topics that trigger sagas."""
+        topics: set[KafkaTopic] = set()
         for saga_class in self._sagas.values():
             trigger_event_types = saga_class.get_trigger_events()
-            self.logger.info(f"Saga {saga_class.get_name()} triggers on event types: {trigger_event_types}")
-
-            # Convert event types to topics for subscription
             for event_type in trigger_event_types:
                 topic = get_topic_for_event(event_type)
                 topics.add(topic)
-                event_types_to_register.add(event_type)
-                self.logger.debug(f"Event type {event_type} maps to topic {topic}")
+        return topics
 
-        if not topics:
-            self.logger.warning("No trigger events found in registered sagas")
-            return
+    def get_trigger_event_types(self) -> set[EventType]:
+        """Get all event types that trigger sagas."""
+        event_types: set[EventType] = set()
+        for saga_class in self._sagas.values():
+            trigger_event_types = saga_class.get_trigger_events()
+            event_types.update(trigger_event_types)
+        return event_types
 
-        consumer_config = ConsumerConfig(
-            bootstrap_servers=self._settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=f"saga-{self.config.name}.{self._settings.KAFKA_GROUP_SUFFIX}",
-            enable_auto_commit=False,
-            session_timeout_ms=self._settings.KAFKA_SESSION_TIMEOUT_MS,
-            heartbeat_interval_ms=self._settings.KAFKA_HEARTBEAT_INTERVAL_MS,
-            max_poll_interval_ms=self._settings.KAFKA_MAX_POLL_INTERVAL_MS,
-            request_timeout_ms=self._settings.KAFKA_REQUEST_TIMEOUT_MS,
-        )
-
-        dispatcher = EventDispatcher(logger=self.logger)
-        for event_type in event_types_to_register:
-            dispatcher.register_handler(event_type, self._handle_event)
+    def register_handlers(self, dispatcher: EventDispatcher) -> None:
+        """Register event handlers with the dispatcher."""
+        event_types = self.get_trigger_event_types()
+        for event_type in event_types:
+            dispatcher.register_handler(event_type, self.handle_event)
             self.logger.info(f"Registered handler for event type: {event_type}")
 
-        base_consumer = UnifiedConsumer(
-            config=consumer_config,
-            event_dispatcher=dispatcher,
-            schema_registry=self._schema_registry_manager,
-            settings=self._settings,
-            logger=self.logger,
-            event_metrics=self._event_metrics,
-        )
-        self._consumer = IdempotentConsumerWrapper(
-            consumer=base_consumer,
-            idempotency_manager=self._idempotency_manager,
-            dispatcher=dispatcher,
-            logger=self.logger,
-            default_key_strategy="event_based",
-            default_ttl_seconds=7200,
-            enable_for_all_handlers=False,
-        )
-
-        assert self._consumer is not None
-        await self._consumer.start(list(topics))
-
-        self.logger.info(f"Saga consumer started for topics: {topics}")
-
-    async def _handle_event(self, event: DomainEvent) -> None:
-        """Handle incoming event"""
+    async def handle_event(self, event: DomainEvent) -> None:
+        """Handle incoming event."""
         self.logger.info(f"Saga orchestrator handling event: type={event.event_type}, id={event.event_id}")
         try:
             saga_triggered = False
@@ -186,7 +120,7 @@ class SagaOrchestrator:
         return should_trigger
 
     async def _start_saga(self, saga_name: str, trigger_event: DomainEvent) -> str | None:
-        """Start a new saga instance"""
+        """Start a new saga instance."""
         self.logger.info(f"Starting saga {saga_name} for event {trigger_event.event_type}")
         saga_class = self._sagas.get(saga_name)
         if not saga_class:
@@ -241,7 +175,7 @@ class SagaOrchestrator:
         context: SagaContext,
         trigger_event: DomainEvent,
     ) -> None:
-        """Execute saga steps"""
+        """Execute saga steps."""
         tracer = get_tracer()
         try:
             # Get saga steps
@@ -302,7 +236,7 @@ class SagaOrchestrator:
                 await self._fail_saga(instance, str(e))
 
     async def _compensate_saga(self, instance: Saga, context: SagaContext) -> None:
-        """Execute compensation steps"""
+        """Execute compensation steps."""
         self.logger.info(f"Starting compensation for saga {instance.saga_id}")
 
         # Only update state if not already cancelled
@@ -313,14 +247,18 @@ class SagaOrchestrator:
         # Execute compensations in reverse order
         for compensation in reversed(context.compensations):
             try:
-                self.logger.info(f"Executing compensation: {compensation.name} for saga {instance.saga_id}")
+                self.logger.info(
+                    f"Executing compensation: {compensation.name} for saga {instance.saga_id}"
+                )
 
                 success = await compensation.compensate(context)
 
                 if success:
                     instance.compensated_steps.append(compensation.name)
                 else:
-                    self.logger.error(f"Compensation {compensation.name} failed for saga {instance.saga_id}")
+                    self.logger.error(
+                        f"Compensation {compensation.name} failed for saga {instance.saga_id}"
+                    )
 
             except Exception as e:
                 self.logger.error(f"Error in compensation {compensation.name}: {e}", exc_info=True)
@@ -336,7 +274,7 @@ class SagaOrchestrator:
             await self._fail_saga(instance, "Saga compensated due to failure")
 
     async def _complete_saga(self, instance: Saga) -> None:
-        """Mark saga as completed"""
+        """Mark saga as completed."""
         instance.state = SagaState.COMPLETED
         instance.completed_at = datetime.now(UTC)
         await self._save_saga(instance)
@@ -347,7 +285,7 @@ class SagaOrchestrator:
         self.logger.info(f"Saga {instance.saga_id} completed successfully")
 
     async def _fail_saga(self, instance: Saga, error_message: str) -> None:
-        """Mark saga as failed"""
+        """Mark saga as failed."""
         instance.state = SagaState.FAILED
         instance.error_message = error_message
         instance.completed_at = datetime.now(UTC)
@@ -358,8 +296,8 @@ class SagaOrchestrator:
 
         self.logger.error(f"Saga {instance.saga_id} failed: {error_message}")
 
-    async def _check_timeouts(self) -> None:
-        """Check for saga timeouts"""
+    async def check_timeouts_loop(self) -> None:
+        """Check for saga timeouts (runs until cancelled)."""
         try:
             while True:
                 # Check every 30 seconds
@@ -383,12 +321,12 @@ class SagaOrchestrator:
             self.logger.info("Timeout checker cancelled")
 
     async def _save_saga(self, instance: Saga) -> None:
-        """Persist saga through repository"""
+        """Persist saga through repository."""
         instance.updated_at = datetime.now(UTC)
         await self._repo.upsert_saga(instance)
 
     async def get_saga_status(self, saga_id: str) -> Saga | None:
-        """Get saga instance status"""
+        """Get saga instance status."""
         # Check memory first
         if saga_id in self._running_instances:
             return self._running_instances[saga_id]
@@ -396,19 +334,12 @@ class SagaOrchestrator:
         return await self._repo.get_saga(saga_id)
 
     async def get_execution_sagas(self, execution_id: str) -> list[Saga]:
-        """Get all sagas for an execution, sorted by created_at descending (newest first)"""
+        """Get all sagas for an execution, sorted by created_at descending (newest first)."""
         result = await self._repo.get_sagas_by_execution(execution_id)
         return result.sagas
 
     async def cancel_saga(self, saga_id: str) -> bool:
-        """Cancel a running saga and trigger compensation.
-
-        Args:
-            saga_id: The ID of the saga to cancel
-
-        Returns:
-            True if cancelled successfully, False otherwise
-        """
+        """Cancel a running saga and trigger compensation."""
         try:
             # Get saga instance
             saga_instance = await self.get_saga_status(saga_id)
@@ -499,11 +430,7 @@ class SagaOrchestrator:
             return False
 
     async def _publish_saga_cancelled_event(self, saga_instance: Saga) -> None:
-        """Publish saga cancelled event.
-
-        Args:
-            saga_instance: The cancelled saga instance
-        """
+        """Publish saga cancelled event."""
         try:
             cancelled_by = saga_instance.context_data.get("user_id") if saga_instance.context_data else None
             metadata = EventMetadata(

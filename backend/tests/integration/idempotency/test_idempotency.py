@@ -11,7 +11,7 @@ from app.core.metrics import DatabaseMetrics
 from app.domain.events.typed import DomainEvent
 from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus
 from app.services.idempotency.idempotency_manager import IdempotencyConfig, IdempotencyManager
-from app.services.idempotency.middleware import IdempotentEventHandler, idempotent_handler
+from app.services.idempotency.middleware import IdempotentEventHandler
 from app.services.idempotency.redis_repository import RedisIdempotencyRepository
 
 from tests.helpers import make_execution_requested_event
@@ -337,38 +337,6 @@ class TestIdempotentEventHandlerIntegration:
         assert len(duplicate_events) == 1
         assert duplicate_events[0][0] == real_event
         assert duplicate_events[0][1].is_duplicate is True
-
-    @pytest.mark.asyncio
-    async def test_decorator_integration(self, idempotency_manager: IdempotencyManager) -> None:
-        """Test the @idempotent_handler decorator"""
-        processed_events: list[DomainEvent] = []
-
-        @idempotent_handler(
-            idempotency_manager=idempotency_manager,
-            key_strategy="content_hash",
-            ttl_seconds=300,
-            logger=_test_logger,
-        )
-        async def my_handler(event: DomainEvent) -> None:
-            processed_events.append(event)
-
-        # Process same event twice
-        real_event = make_execution_requested_event(execution_id="decor-1")
-        await my_handler(real_event)
-        await my_handler(real_event)
-
-        # Should only process once
-        assert len(processed_events) == 1
-
-        # Create event with same ID and same content for content hash match
-        similar_event = make_execution_requested_event(
-            execution_id=real_event.execution_id,
-            script=real_event.script,
-        )
-
-        # Should still be blocked (content hash)
-        await my_handler(similar_event)
-        assert len(processed_events) == 1  # Still only one
 
     @pytest.mark.asyncio
     async def test_custom_key_function(self, idempotency_manager: IdempotencyManager) -> None:

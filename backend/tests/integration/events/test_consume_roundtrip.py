@@ -50,8 +50,11 @@ async def test_produce_consume_roundtrip(
         settings=test_settings,
         logger=_test_logger,
         event_metrics=event_metrics,
+        topics=[KafkaTopic.EXECUTION_EVENTS],
     )
-    await consumer.start([KafkaTopic.EXECUTION_EVENTS])
+
+    # Start consumer as background task
+    consumer_task = asyncio.create_task(consumer.run())
 
     try:
         # Produce a request event
@@ -62,4 +65,6 @@ async def test_produce_consume_roundtrip(
         # Wait for the handler to be called
         await asyncio.wait_for(received.wait(), timeout=10.0)
     finally:
-        await consumer.stop()
+        consumer_task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await consumer_task

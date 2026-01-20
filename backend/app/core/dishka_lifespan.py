@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from contextlib import AsyncExitStack, asynccontextmanager
+from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 import redis.asyncio as redis
@@ -13,9 +13,10 @@ from app.core.metrics import RateLimitMetrics
 from app.core.startup import initialize_rate_limits
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
+from app.events.core import UnifiedConsumer
 from app.events.event_store_consumer import EventStoreConsumer
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
-from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
+from app.services.notification_service import NotificationService
 from app.settings import Settings
 
 
@@ -24,10 +25,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     Application lifespan with dishka dependency injection.
 
-    This is much cleaner than the old lifespan.py:
-    - No dependency_overrides
-    - No manual service management
-    - Dishka handles all lifecycle automatically
+    Services are already initialized by their DI providers (which handle __aenter__/__aexit__).
+    Lifespan just starts the run() methods as background tasks.
     """
     # Get settings and logger from DI container (uses test settings in tests)
     container: AsyncContainer = app.state.dishka_container
@@ -79,15 +78,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         database,
         redis_client,
         rate_limit_metrics,
-        sse_bridge,
+        sse_consumers,
         event_store_consumer,
+        notification_service,
     ) = await asyncio.gather(
         container.get(SchemaRegistryManager),
         container.get(Database),
         container.get(redis.Redis),
         container.get(RateLimitMetrics),
-        container.get(SSEKafkaRedisBridge),
+        container.get(list[UnifiedConsumer]),
         container.get(EventStoreConsumer),
+        container.get(NotificationService),
     )
 
     # Phase 2: Initialize infrastructure in parallel (independent subsystems)
@@ -98,11 +99,30 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
     logger.info("Infrastructure initialized (schemas, beanie, rate limits)")
 
-    # Phase 3: Start Kafka consumers in parallel
-    async with AsyncExitStack() as stack:
-        await asyncio.gather(
-            stack.enter_async_context(sse_bridge),
-            stack.enter_async_context(event_store_consumer),
-        )
-        logger.info("SSE bridge and EventStoreConsumer started")
+    # Phase 3: Start run() methods as background tasks
+    # Note: Services are already initialized by their DI providers (which handle __aenter__/__aexit__)
+
+    async def run_sse_consumers() -> None:
+        """Run SSE consumers using TaskGroup."""
+        async with asyncio.TaskGroup() as tg:
+            for consumer in sse_consumers:
+                tg.create_task(consumer.run())
+
+    tasks = [
+        asyncio.create_task(run_sse_consumers(), name="sse_consumers"),
+        asyncio.create_task(event_store_consumer.run(), name="event_store_consumer"),
+        asyncio.create_task(notification_service.run(), name="notification_service"),
+    ]
+    logger.info(f"Background services started ({len(sse_consumers)} SSE consumers)")
+
+    try:
         yield
+    finally:
+        # Cancel all background tasks on shutdown
+        logger.info("Shutting down background services...")
+        for task in tasks:
+            task.cancel()
+
+        # Wait for tasks to finish cancellation
+        await asyncio.gather(*tasks, return_exceptions=True)
+        logger.info("Background services stopped")

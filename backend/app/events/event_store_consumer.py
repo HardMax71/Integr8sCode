@@ -1,21 +1,28 @@
 import asyncio
 import logging
 
+from aiokafka import AIOKafkaConsumer
 from opentelemetry.trace import SpanKind
 
 from app.core.metrics import EventMetrics
 from app.core.tracing.utils import trace_span
-from app.domain.enums.events import EventType
 from app.domain.enums.kafka import GroupId, KafkaTopic
 from app.domain.events.typed import DomainEvent
-from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer, create_dlq_error_handler
 from app.events.event_store import EventStore
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.settings import Settings
 
 
 class EventStoreConsumer:
-    """Consumes events from Kafka and stores them in MongoDB."""
+    """Consumes events from Kafka and stores them in MongoDB.
+
+    Uses Kafka's native batching via getmany() - no application-level buffering.
+    Kafka's fetch_max_wait_ms controls batch timing at the protocol level.
+
+    Usage:
+        consumer = EventStoreConsumer(...)
+        await consumer.run()  # Blocks until cancelled
+    """
 
     def __init__(
         self,
@@ -25,32 +32,33 @@ class EventStoreConsumer:
         settings: Settings,
         logger: logging.Logger,
         event_metrics: EventMetrics,
-        producer: UnifiedProducer | None = None,
         group_id: GroupId = GroupId.EVENT_STORE_CONSUMER,
         batch_size: int = 100,
-        batch_timeout_seconds: float = 5.0,
+        batch_timeout_ms: int = 5000,
     ):
+        """Store dependencies. All work happens in run()."""
         self.event_store = event_store
         self.topics = topics
         self.settings = settings
         self.group_id = group_id
         self.batch_size = batch_size
-        self.batch_timeout = batch_timeout_seconds
+        self.batch_timeout_ms = batch_timeout_ms
         self.logger = logger
         self.event_metrics = event_metrics
-        self.consumer: UnifiedConsumer | None = None
         self.schema_registry_manager = schema_registry_manager
-        self.dispatcher = EventDispatcher(logger)
-        self.producer = producer  # For DLQ handling
-        self._batch_buffer: list[DomainEvent] = []
-        self._batch_lock = asyncio.Lock()
-        self._last_batch_time: float = 0.0
-        self._batch_task: asyncio.Task[None] | None = None
 
-    async def __aenter__(self) -> "EventStoreConsumer":
-        """Start consuming and storing events."""
-        self._last_batch_time = asyncio.get_running_loop().time()
-        config = ConsumerConfig(
+    async def run(self) -> None:
+        """Run the consumer. Blocks until cancelled.
+
+        Creates consumer, starts it, runs batch loop, stops on cancellation.
+        Uses getmany() which blocks on Kafka's fetch - no polling, no timers.
+        """
+        self.logger.info("Event store consumer starting...")
+
+        topic_strings = [f"{self.settings.KAFKA_TOPIC_PREFIX}{topic}" for topic in self.topics]
+
+        consumer = AIOKafkaConsumer(
+            *topic_strings,
             bootstrap_servers=self.settings.KAFKA_BOOTSTRAP_SERVERS,
             group_id=f"{self.group_id}.{self.settings.KAFKA_GROUP_SUFFIX}",
             enable_auto_commit=False,
@@ -59,102 +67,58 @@ class EventStoreConsumer:
             heartbeat_interval_ms=self.settings.KAFKA_HEARTBEAT_INTERVAL_MS,
             max_poll_interval_ms=self.settings.KAFKA_MAX_POLL_INTERVAL_MS,
             request_timeout_ms=self.settings.KAFKA_REQUEST_TIMEOUT_MS,
+            fetch_max_wait_ms=self.batch_timeout_ms,
         )
 
-        self.consumer = UnifiedConsumer(
-            config,
-            event_dispatcher=self.dispatcher,
-            schema_registry=self.schema_registry_manager,
-            settings=self.settings,
-            logger=self.logger,
-            event_metrics=self.event_metrics,
-        )
+        await consumer.start()
+        self.logger.info(f"Event store consumer initialized for topics: {topic_strings}")
 
-        # Register handler for all event types - store everything
-        for event_type in EventType:
-            self.dispatcher.register(event_type)(self._handle_event)
-
-        # Register error callback - use DLQ if producer is available
-        if self.producer:
-            # Use DLQ handler with retry logic
-            dlq_handler = create_dlq_error_handler(
-                producer=self.producer,
-                original_topic="event-store",  # Generic topic name for event store
-                logger=self.logger,
-                max_retries=3,
-            )
-            self.consumer.register_error_callback(dlq_handler)
-        else:
-            # Fallback to simple logging
-            self.consumer.register_error_callback(self._handle_error_with_event)
-
-        await self.consumer.start(self.topics)
-
-        self._batch_task = asyncio.create_task(self._batch_processor())
-
-        self.logger.info(f"Event store consumer started for topics: {self.topics}")
-        return self
-
-    async def __aexit__(self, exc_type: object, exc: object, tb: object) -> None:
-        """Stop consumer."""
-        await self._flush_batch()
-
-        if self._batch_task:
-            self._batch_task.cancel()
-            try:
-                await self._batch_task
-            except asyncio.CancelledError:
-                pass
-
-        if self.consumer:
-            await self.consumer.stop()
-
-        self.logger.info("Event store consumer stopped")
-
-    async def _handle_event(self, event: DomainEvent) -> None:
-        """Handle incoming event from dispatcher."""
-        self.logger.info(f"Event store received event: {event.event_type} - {event.event_id}")
-
-        async with self._batch_lock:
-            self._batch_buffer.append(event)
-
-            if len(self._batch_buffer) >= self.batch_size:
-                await self._flush_batch()
-
-    async def _handle_error_with_event(self, error: Exception, event: DomainEvent) -> None:
-        """Handle processing errors with event context."""
-        self.logger.error(f"Error processing event {event.event_id} ({event.event_type}): {error}", exc_info=True)
-
-    async def _batch_processor(self) -> None:
-        """Periodically flush batches based on timeout."""
         try:
             while True:
-                await asyncio.sleep(1)
+                # getmany() blocks until Kafka has data OR fetch_max_wait_ms expires
+                # This is NOT polling - it's async waiting on the network socket
+                batch_data = await consumer.getmany(
+                    timeout_ms=self.batch_timeout_ms,
+                    max_records=self.batch_size,
+                )
 
-                async with self._batch_lock:
-                    time_since_last_batch = asyncio.get_running_loop().time() - self._last_batch_time
+                if not batch_data:
+                    continue
 
-                    if self._batch_buffer and time_since_last_batch >= self.batch_timeout:
-                        await self._flush_batch()
+                # Deserialize all messages in the batch
+                events: list[DomainEvent] = []
+                for tp, messages in batch_data.items():
+                    for msg in messages:
+                        try:
+                            event = await self.schema_registry_manager.deserialize_event(msg.value, msg.topic)
+                            events.append(event)
+                            self.event_metrics.record_kafka_message_consumed(
+                                topic=msg.topic,
+                                consumer_group=str(self.group_id),
+                            )
+                        except Exception as e:
+                            self.logger.error(f"Failed to deserialize message from {tp}: {e}", exc_info=True)
+
+                if events:
+                    await self._store_batch(events)
+                    await consumer.commit()
 
         except asyncio.CancelledError:
-            self.logger.info("Batch processor cancelled")
+            self.logger.info("Event store consumer cancelled")
+        finally:
+            await consumer.stop()
+            self.logger.info("Event store consumer stopped")
 
-    async def _flush_batch(self) -> None:
-        if not self._batch_buffer:
-            return
+    async def _store_batch(self, events: list[DomainEvent]) -> None:
+        """Store a batch of events."""
+        self.logger.info(f"Storing batch of {len(events)} events")
 
-        batch = self._batch_buffer.copy()
-        self._batch_buffer.clear()
-        self._last_batch_time = asyncio.get_running_loop().time()
-
-        self.logger.info(f"Event store flushing batch of {len(batch)} events")
         with trace_span(
-            name="event_store.flush_batch",
+            name="event_store.store_batch",
             kind=SpanKind.CONSUMER,
-            attributes={"events.batch.count": len(batch)},
+            attributes={"events.batch.count": len(events)},
         ):
-            results = await self.event_store.store_batch(batch)
+            results = await self.event_store.store_batch(events)
 
         self.logger.info(
             f"Stored event batch: total={results['total']}, "

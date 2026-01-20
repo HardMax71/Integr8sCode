@@ -2,29 +2,19 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from enum import auto
 from typing import Awaitable, Callable
 
 import httpx
 
-from app.core.metrics import EventMetrics, NotificationMetrics
+from app.core.metrics import NotificationMetrics
 from app.core.tracing.utils import add_span_attributes
-from app.core.utils import StringEnum
 from app.db.repositories.notification_repository import NotificationRepository
-from app.domain.enums.events import EventType
-from app.domain.enums.kafka import GroupId
 from app.domain.enums.notification import (
     NotificationChannel,
     NotificationSeverity,
     NotificationStatus,
 )
 from app.domain.enums.user import UserRole
-from app.domain.events.typed import (
-    DomainEvent,
-    ExecutionCompletedEvent,
-    ExecutionFailedEvent,
-    ExecutionTimeoutEvent,
-)
 from app.domain.notification import (
     DomainNotification,
     DomainNotificationCreate,
@@ -36,12 +26,8 @@ from app.domain.notification import (
     NotificationThrottledError,
     NotificationValidationError,
 )
-from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer
-from app.events.schema.schema_registry import SchemaRegistryManager
-from app.infrastructure.kafka.mappings import get_topic_for_event
 from app.schemas_pydantic.sse import RedisNotificationMessage
 from app.services.event_bus import EventBus
-from app.services.kafka_event_service import KafkaEventService
 from app.services.sse.redis_bus import SSERedisBus
 from app.settings import Settings
 
@@ -49,19 +35,10 @@ from app.settings import Settings
 ENTITY_EXECUTION_TAG = "entity:execution"
 
 # Type aliases
-type EventPayload = dict[str, object]
 type NotificationContext = dict[str, object]
 type ChannelHandler = Callable[[DomainNotification, DomainNotificationSubscription], Awaitable[None]]
 type SystemNotificationStats = dict[str, int]
 type SlackMessage = dict[str, object]
-
-
-class ServiceState(StringEnum):
-    """Service lifecycle states."""
-
-    RUNNING = auto()
-    STOPPING = auto()
-    STOPPED = auto()
 
 
 @dataclass
@@ -98,11 +75,6 @@ class ThrottleCache:
             self._entries[key].append(now)
             return False
 
-    async def clear(self) -> None:
-        """Clear all throttle entries."""
-        async with self._lock:
-            self._entries.clear()
-
 
 @dataclass(frozen=True)
 class SystemConfig:
@@ -111,38 +83,36 @@ class SystemConfig:
 
 
 class NotificationService:
+    """Service for creating and managing notifications.
+
+    This service handles:
+    - Creating notifications (user and system)
+    - Delivering notifications via channels (in-app, webhook, slack)
+    - Managing notification subscriptions
+    - Rate limiting via throttle cache
+
+    Background tasks (pending notification processing, cleanup) are started
+    via the run() method, which should be called from app lifespan.
+    """
+
     def __init__(
         self,
         notification_repository: NotificationRepository,
-        event_service: KafkaEventService,
         event_bus: EventBus,
-        schema_registry_manager: SchemaRegistryManager,
         sse_bus: SSERedisBus,
         settings: Settings,
         logger: logging.Logger,
         notification_metrics: NotificationMetrics,
-        event_metrics: EventMetrics,
     ) -> None:
         self.repository = notification_repository
-        self.event_service = event_service
         self.event_bus = event_bus
         self.metrics = notification_metrics
-        self._event_metrics = event_metrics
         self.settings = settings
-        self.schema_registry_manager = schema_registry_manager
         self.sse_bus = sse_bus
         self.logger = logger
 
-        # State
-        self._state = ServiceState.RUNNING
+        # Throttle cache for rate limiting
         self._throttle_cache = ThrottleCache()
-
-        # Tasks
-        self._tasks: set[asyncio.Task[None]] = set()
-
-        self._consumer: UnifiedConsumer | None = None
-        self._dispatcher: EventDispatcher | None = None
-        self._consumer_task: asyncio.Task[None] | None = None
 
         # Channel handlers mapping
         self._channel_handlers: dict[NotificationChannel, ChannelHandler] = {
@@ -151,105 +121,25 @@ class NotificationService:
             NotificationChannel.SLACK: self._send_slack,
         }
 
-        # Start background processors
-        self._start_background_tasks()
-
         self.logger.info(
             "NotificationService initialized",
-            extra={
-                "repository": type(notification_repository).__name__,
-                "event_service": type(event_service).__name__,
-                "schema_registry": type(schema_registry_manager).__name__,
-            },
+            extra={"repository": type(notification_repository).__name__},
         )
 
-    @property
-    def state(self) -> ServiceState:
-        return self._state
+    async def run(self) -> None:
+        """Run background tasks. Blocks until cancelled.
 
-    async def shutdown(self) -> None:
-        """Shutdown notification service."""
-        if self._state == ServiceState.STOPPED:
-            return
-
-        self.logger.info("Shutting down notification service...")
-        self._state = ServiceState.STOPPING
-
-        # Cancel all tasks
-        for task in self._tasks:
-            task.cancel()
-
-        # Wait for cancellation
-        if self._tasks:
-            await asyncio.gather(*self._tasks, return_exceptions=True)
-
-        # Stop consumer
-        if self._consumer:
-            await self._consumer.stop()
-
-        # Clear cache
-        await self._throttle_cache.clear()
-
-        self._state = ServiceState.STOPPED
-        self.logger.info("Notification service stopped")
-
-    def _start_background_tasks(self) -> None:
-        """Start background processing tasks."""
-        tasks = [
-            asyncio.create_task(self._process_pending_notifications()),
-            asyncio.create_task(self._cleanup_old_notifications()),
-        ]
-
-        for task in tasks:
-            self._tasks.add(task)
-            task.add_done_callback(self._tasks.discard)
-
-    async def _subscribe_to_events(self) -> None:
-        """Subscribe to relevant events for notifications."""
-        # Configure consumer for notification-relevant events
-        consumer_config = ConsumerConfig(
-            bootstrap_servers=self.settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=f"{GroupId.NOTIFICATION_SERVICE}.{self.settings.KAFKA_GROUP_SUFFIX}",
-            max_poll_records=10,
-            enable_auto_commit=True,
-            auto_offset_reset="latest",
-            session_timeout_ms=self.settings.KAFKA_SESSION_TIMEOUT_MS,
-            heartbeat_interval_ms=self.settings.KAFKA_HEARTBEAT_INTERVAL_MS,
-            max_poll_interval_ms=self.settings.KAFKA_MAX_POLL_INTERVAL_MS,
-            request_timeout_ms=self.settings.KAFKA_REQUEST_TIMEOUT_MS,
-        )
-
-        execution_results_topic = get_topic_for_event(EventType.EXECUTION_COMPLETED)
-
-        # Log topics for debugging
-        self.logger.info(f"Notification service will subscribe to topics: {execution_results_topic}")
-
-        # Create dispatcher and register handlers for specific event types
-        self._dispatcher = EventDispatcher(logger=self.logger)
-        # Use a single handler for execution result events (simpler and less brittle)
-        self._dispatcher.register_handler(EventType.EXECUTION_COMPLETED, self._handle_execution_event)
-        self._dispatcher.register_handler(EventType.EXECUTION_FAILED, self._handle_execution_event)
-        self._dispatcher.register_handler(EventType.EXECUTION_TIMEOUT, self._handle_execution_event)
-
-        # Create consumer with dispatcher
-        self._consumer = UnifiedConsumer(
-            consumer_config,
-            event_dispatcher=self._dispatcher,
-            schema_registry=self.schema_registry_manager,
-            settings=self.settings,
-            logger=self.logger,
-            event_metrics=self._event_metrics,
-        )
-
-        # Start consumer
-        await self._consumer.start([execution_results_topic])
-
-        # Start consumer task
-        self._consumer_task = asyncio.create_task(self._run_consumer())
-        self._tasks.add(self._consumer_task)
-        self._consumer_task.add_done_callback(self._tasks.discard)
-
-        self.logger.info("Notification service subscribed to execution events")
+        Runs:
+        - Pending notification processor (retries failed deliveries)
+        - Old notification cleanup (daily)
+        """
+        self.logger.info("Starting NotificationService background tasks...")
+        try:
+            async with asyncio.TaskGroup() as tg:
+                tg.create_task(self._process_pending_notifications())
+                tg.create_task(self._cleanup_old_notifications())
+        except* asyncio.CancelledError:
+            self.logger.info("NotificationService background tasks cancelled")
 
     async def create_notification(
         self,
@@ -544,7 +434,7 @@ class NotificationService:
 
     async def _process_pending_notifications(self) -> None:
         """Process pending notifications in background."""
-        while self._state == ServiceState.RUNNING:
+        while True:
             try:
                 # Find pending notifications
                 notifications = await self.repository.find_pending_notifications(
@@ -553,129 +443,34 @@ class NotificationService:
 
                 # Process each notification
                 for notification in notifications:
-                    if self._state != ServiceState.RUNNING:
-                        break
                     await self._deliver_notification(notification)
 
                 # Sleep between batches
                 await asyncio.sleep(5)
 
+            except asyncio.CancelledError:
+                raise
             except Exception as e:
                 self.logger.error(f"Error processing pending notifications: {e}")
                 await asyncio.sleep(10)
 
     async def _cleanup_old_notifications(self) -> None:
         """Cleanup old notifications periodically."""
-        while self._state == ServiceState.RUNNING:
+        while True:
             try:
                 # Run cleanup once per day
                 await asyncio.sleep(86400)  # 24 hours
-
-                if self._state != ServiceState.RUNNING:
-                    break
 
                 # Delete old notifications
                 deleted_count = await self.repository.cleanup_old_notifications(self.settings.NOTIF_OLD_DAYS)
 
                 self.logger.info(f"Cleaned up {deleted_count} old notifications")
 
+            except asyncio.CancelledError:
+                raise
             except Exception as e:
                 self.logger.error(f"Error cleaning up old notifications: {e}")
-
-    async def _run_consumer(self) -> None:
-        """Run the event consumer loop."""
-        while self._state == ServiceState.RUNNING:
-            try:
-                # Consumer handles polling internally
-                await asyncio.sleep(1)
-            except asyncio.CancelledError:
-                self.logger.info("Notification consumer task cancelled")
-                break
-            except Exception as e:
-                self.logger.error(f"Error in notification consumer loop: {e}")
                 await asyncio.sleep(5)
-
-    async def _handle_execution_timeout_typed(self, event: ExecutionTimeoutEvent) -> None:
-        """Handle typed execution timeout event."""
-        user_id = event.metadata.user_id
-        if not user_id:
-            self.logger.error("No user_id in event metadata")
-            return
-
-        title = f"Execution Timeout: {event.execution_id}"
-        body = f"Your execution timed out after {event.timeout_seconds}s."
-        await self.create_notification(
-            user_id=user_id,
-            subject=title,
-            body=body,
-            severity=NotificationSeverity.HIGH,
-            tags=["execution", "timeout", ENTITY_EXECUTION_TAG, f"exec:{event.execution_id}"],
-            metadata=event.model_dump(
-                exclude={"metadata", "event_type", "event_version", "timestamp", "aggregate_id", "topic"}
-            ),
-        )
-
-    async def _handle_execution_completed_typed(self, event: ExecutionCompletedEvent) -> None:
-        """Handle typed execution completed event."""
-        user_id = event.metadata.user_id
-        if not user_id:
-            self.logger.error("No user_id in event metadata")
-            return
-
-        title = f"Execution Completed: {event.execution_id}"
-        duration = event.resource_usage.execution_time_wall_seconds if event.resource_usage else 0.0
-        body = f"Your execution completed successfully. Duration: {duration:.2f}s."
-        await self.create_notification(
-            user_id=user_id,
-            subject=title,
-            body=body,
-            severity=NotificationSeverity.MEDIUM,
-            tags=["execution", "completed", ENTITY_EXECUTION_TAG, f"exec:{event.execution_id}"],
-            metadata=event.model_dump(
-                exclude={"metadata", "event_type", "event_version", "timestamp", "aggregate_id", "topic"}
-            ),
-        )
-
-    async def _handle_execution_event(self, event: DomainEvent) -> None:
-        """Unified handler for execution result events."""
-        try:
-            if isinstance(event, ExecutionCompletedEvent):
-                await self._handle_execution_completed_typed(event)
-            elif isinstance(event, ExecutionFailedEvent):
-                await self._handle_execution_failed_typed(event)
-            elif isinstance(event, ExecutionTimeoutEvent):
-                await self._handle_execution_timeout_typed(event)
-            else:
-                self.logger.warning(f"Unhandled execution event type: {event.event_type}")
-        except Exception as e:
-            self.logger.error(f"Error handling execution event: {e}", exc_info=True)
-
-    async def _handle_execution_failed_typed(self, event: ExecutionFailedEvent) -> None:
-        """Handle typed execution failed event."""
-        user_id = event.metadata.user_id
-        if not user_id:
-            self.logger.error("No user_id in event metadata")
-            return
-
-        # Use model_dump to get all event data
-        event_data = event.model_dump(
-            exclude={"metadata", "event_type", "event_version", "timestamp", "aggregate_id", "topic"}
-        )
-
-        # Truncate stdout/stderr for notification context
-        event_data["stdout"] = event_data["stdout"][:200]
-        event_data["stderr"] = event_data["stderr"][:200]
-
-        title = f"Execution Failed: {event.execution_id}"
-        body = f"Your execution failed: {event.error_message}"
-        await self.create_notification(
-            user_id=user_id,
-            subject=title,
-            body=body,
-            severity=NotificationSeverity.HIGH,
-            tags=["execution", "failed", ENTITY_EXECUTION_TAG, f"exec:{event.execution_id}"],
-            metadata=event_data,
-        )
 
     async def mark_as_read(self, user_id: str, notification_id: str) -> bool:
         """Mark notification as read."""

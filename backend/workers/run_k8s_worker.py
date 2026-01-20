@@ -9,7 +9,8 @@ from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.kafka import GroupId
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
-from app.services.k8s_worker.worker import KubernetesWorker
+from app.services.idempotency.middleware import IdempotentConsumerWrapper
+from app.services.k8s_worker.worker_logic import K8sWorkerLogic
 from app.settings import Settings
 from beanie import init_beanie
 
@@ -27,8 +28,8 @@ async def run_kubernetes_worker(settings: Settings) -> None:
     schema_registry = await container.get(SchemaRegistryManager)
     await initialize_event_schemas(schema_registry)
 
-    # Services are already started by the DI container providers
-    worker = await container.get(KubernetesWorker)
+    consumer = await container.get(IdempotentConsumerWrapper)
+    logic = await container.get(K8sWorkerLogic)
 
     # Shutdown event - signal handlers just set this
     shutdown_event = asyncio.Event()
@@ -36,17 +37,36 @@ async def run_kubernetes_worker(settings: Settings) -> None:
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, shutdown_event.set)
 
-    logger.info("KubernetesWorker started and running")
+    logger.info("KubernetesWorker initialized, starting run...")
+
+    async def run_worker_tasks() -> None:
+        """Run consumer and daemonset setup using TaskGroup."""
+        async with asyncio.TaskGroup() as tg:
+            tg.create_task(consumer.run())
+            tg.create_task(logic.ensure_daemonset_task())
 
     try:
-        # Wait for shutdown signal
-        while not shutdown_event.is_set():
-            await asyncio.sleep(60)
-            status = await worker.get_status()
-            logger.info(f"Kubernetes worker status: {status}")
+        # Run worker until shutdown signal
+        run_task = asyncio.create_task(run_worker_tasks())
+        shutdown_task = asyncio.create_task(shutdown_event.wait())
+
+        done, pending = await asyncio.wait(
+            [run_task, shutdown_task],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+
+        # Cancel remaining tasks
+        for task in pending:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
     finally:
-        # Container cleanup stops everything
         logger.info("Initiating graceful shutdown...")
+        # Wait for active pod creations to complete
+        await logic.wait_for_active_creations()
         await container.close()
 
 

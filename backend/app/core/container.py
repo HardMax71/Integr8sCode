@@ -19,6 +19,7 @@ from app.core.providers import (
     PodMonitorProvider,
     RedisProvider,
     RepositoryProvider,
+    ResultProcessorProvider,
     SagaOrchestratorProvider,
     SettingsProvider,
     SSEProvider,
@@ -73,6 +74,7 @@ def create_result_processor_container(settings: Settings) -> AsyncContainer:
         RepositoryProvider(),
         EventProvider(),
         MessagingProvider(),
+        ResultProcessorProvider(),
         context={Settings: settings},
     )
 

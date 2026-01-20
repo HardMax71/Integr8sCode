@@ -43,16 +43,16 @@ from app.db.repositories.resource_allocation_repository import ResourceAllocatio
 from app.db.repositories.user_settings_repository import UserSettingsRepository
 from app.dlq.manager import DLQManager
 from app.dlq.models import RetryPolicy, RetryStrategy
-from app.domain.enums.kafka import GroupId, KafkaTopic
+from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId, KafkaTopic
 from app.domain.saga.models import SagaConfig
-from app.events.core import UnifiedProducer
+from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
 from app.events.event_store import EventStore, create_event_store
 from app.events.event_store_consumer import EventStoreConsumer
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.topics import get_all_topics
 from app.services.admin import AdminEventsService, AdminSettingsService, AdminUserService
 from app.services.auth_service import AuthService
-from app.services.coordinator.coordinator import ExecutionCoordinator
+from app.services.coordinator.coordinator_logic import CoordinatorLogic
 from app.services.event_bus import EventBus, EventBusEvent
 from app.services.event_replay.replay_service import EventReplayService
 from app.services.event_service import EventService
@@ -60,9 +60,10 @@ from app.services.execution_service import ExecutionService
 from app.services.grafana_alert_processor import GrafanaAlertProcessor
 from app.services.idempotency import IdempotencyConfig, IdempotencyManager
 from app.services.idempotency.idempotency_manager import create_idempotency_manager
+from app.services.idempotency.middleware import IdempotentConsumerWrapper
 from app.services.idempotency.redis_repository import RedisIdempotencyRepository
 from app.services.k8s_worker.config import K8sWorkerConfig
-from app.services.k8s_worker.worker import KubernetesWorker
+from app.services.k8s_worker.worker_logic import K8sWorkerLogic
 from app.services.kafka_event_service import KafkaEventService
 from app.services.notification_service import NotificationService
 from app.services.pod_monitor.config import PodMonitorConfig
@@ -70,13 +71,14 @@ from app.services.pod_monitor.event_mapper import PodEventMapper
 from app.services.pod_monitor.monitor import PodMonitor
 from app.services.rate_limit_service import RateLimitService
 from app.services.replay_service import ReplayService
-from app.services.saga import SagaOrchestrator
+from app.services.result_processor.processor_logic import ProcessorLogic
+from app.services.saga.saga_logic import SagaLogic
 from app.services.saga.saga_service import SagaService
 from app.services.saved_script_service import SavedScriptService
-from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
+from app.services.sse.event_router import SSEEventRouter
 from app.services.sse.redis_bus import SSERedisBus
+from app.services.sse.sse_connection_registry import SSEConnectionRegistry
 from app.services.sse.sse_service import SSEService
-from app.services.sse.sse_shutdown_manager import SSEShutdownManager
 from app.services.user_settings_service import UserSettingsService
 from app.settings import Settings
 
@@ -243,26 +245,23 @@ class EventProvider(Provider):
         )
 
     @provide
-    async def get_event_store_consumer(
+    def get_event_store_consumer(
             self,
             event_store: EventStore,
             schema_registry: SchemaRegistryManager,
             settings: Settings,
-            kafka_producer: UnifiedProducer,
             logger: logging.Logger,
             event_metrics: EventMetrics,
-    ) -> AsyncIterator[EventStoreConsumer]:
+    ) -> EventStoreConsumer:
         topics = get_all_topics()
-        async with EventStoreConsumer(
-                event_store=event_store,
-                topics=list(topics),
-                schema_registry_manager=schema_registry,
-                settings=settings,
-                producer=kafka_producer,
-                logger=logger,
-                event_metrics=event_metrics,
-        ) as consumer:
-            yield consumer
+        return EventStoreConsumer(
+            event_store=event_store,
+            topics=list(topics),
+            schema_registry_manager=schema_registry,
+            settings=settings,
+            logger=logger,
+            event_metrics=event_metrics,
+        )
 
     @provide
     async def get_event_bus(
@@ -411,32 +410,63 @@ class SSEProvider(Provider):
         yield bus
 
     @provide
-    async def get_sse_kafka_redis_bridge(
+    def get_sse_event_router(
             self,
+            sse_redis_bus: SSERedisBus,
+            logger: logging.Logger,
+    ) -> SSEEventRouter:
+        return SSEEventRouter(sse_bus=sse_redis_bus, logger=logger)
+
+    @provide
+    def get_sse_consumers(
+            self,
+            router: SSEEventRouter,
             schema_registry: SchemaRegistryManager,
             settings: Settings,
             event_metrics: EventMetrics,
-            sse_redis_bus: SSERedisBus,
             logger: logging.Logger,
-    ) -> AsyncIterator[SSEKafkaRedisBridge]:
-        async with SSEKafkaRedisBridge(
+    ) -> list[UnifiedConsumer]:
+        """Create SSE consumer pool with routing handlers wired to SSEEventRouter."""
+        topics = list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.WEBSOCKET_GATEWAY])
+        suffix = settings.KAFKA_GROUP_SUFFIX
+        consumers: list[UnifiedConsumer] = []
+
+        for i in range(settings.SSE_CONSUMER_POOL_SIZE):
+            dispatcher = EventDispatcher(logger=logger)
+            router.register_handlers(dispatcher)
+
+            config = ConsumerConfig(
+                bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+                group_id=f"sse-bridge-pool.{suffix}",
+                client_id=f"sse-bridge-{i}.{suffix}",
+                enable_auto_commit=True,
+                auto_offset_reset="latest",
+                max_poll_interval_ms=settings.KAFKA_MAX_POLL_INTERVAL_MS,
+                session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
+                heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+                request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
+            )
+
+            consumer = UnifiedConsumer(
+                config=config,
+                dispatcher=dispatcher,
                 schema_registry=schema_registry,
                 settings=settings,
-                event_metrics=event_metrics,
-                sse_bus=sse_redis_bus,
                 logger=logger,
-        ) as bridge:
-            yield bridge
+                event_metrics=event_metrics,
+                topics=topics,
+            )
+            consumers.append(consumer)
+
+        return consumers
 
     @provide(scope=Scope.REQUEST)
-    def get_sse_shutdown_manager(
+    def get_sse_connection_registry(
             self,
-            router: SSEKafkaRedisBridge,
             logger: logging.Logger,
             connection_metrics: ConnectionMetrics,
-    ) -> SSEShutdownManager:
-        return SSEShutdownManager(
-            router=router,
+    ) -> SSEConnectionRegistry:
+        return SSEConnectionRegistry(
             logger=logger,
             connection_metrics=connection_metrics,
         )
@@ -445,18 +475,18 @@ class SSEProvider(Provider):
     def get_sse_service(
             self,
             sse_repository: SSERepository,
-            router: SSEKafkaRedisBridge,
+            consumers: list[UnifiedConsumer],
             sse_redis_bus: SSERedisBus,
-            shutdown_manager: SSEShutdownManager,
+            connection_registry: SSEConnectionRegistry,
             settings: Settings,
             logger: logging.Logger,
             connection_metrics: ConnectionMetrics,
     ) -> SSEService:
         return SSEService(
             repository=sse_repository,
-            router=router,
+            num_consumers=len(consumers),
             sse_bus=sse_redis_bus,
-            shutdown_manager=shutdown_manager,
+            connection_registry=connection_registry,
             settings=settings,
             logger=logger,
             connection_metrics=connection_metrics,
@@ -550,25 +580,19 @@ class AdminServicesProvider(Provider):
     def get_notification_service(
             self,
             notification_repository: NotificationRepository,
-            kafka_event_service: KafkaEventService,
             event_bus: EventBus,
-            schema_registry: SchemaRegistryManager,
             sse_redis_bus: SSERedisBus,
             settings: Settings,
             logger: logging.Logger,
             notification_metrics: NotificationMetrics,
-            event_metrics: EventMetrics,
     ) -> NotificationService:
         return NotificationService(
             notification_repository=notification_repository,
-            event_service=kafka_event_service,
             event_bus=event_bus,
-            schema_registry_manager=schema_registry,
             sse_bus=sse_redis_bus,
             settings=settings,
             logger=logger,
             notification_metrics=notification_metrics,
-            event_metrics=event_metrics,
         )
 
     @provide
@@ -593,80 +617,26 @@ def _create_default_saga_config() -> SagaConfig:
     )
 
 
-# Standalone factory functions for lifecycle-managed services (eliminates duplication)
-async def _provide_saga_orchestrator(
-        saga_repository: SagaRepository,
-        kafka_producer: UnifiedProducer,
-        schema_registry: SchemaRegistryManager,
-        settings: Settings,
-        event_store: EventStore,
-        idempotency_manager: IdempotencyManager,
-        resource_allocation_repository: ResourceAllocationRepository,
-        logger: logging.Logger,
-        event_metrics: EventMetrics,
-) -> AsyncIterator[SagaOrchestrator]:
-    """Shared factory for SagaOrchestrator with lifecycle management."""
-    async with SagaOrchestrator(
-            config=_create_default_saga_config(),
-            saga_repository=saga_repository,
-            producer=kafka_producer,
-            schema_registry_manager=schema_registry,
-            settings=settings,
-            event_store=event_store,
-            idempotency_manager=idempotency_manager,
-            resource_allocation_repository=resource_allocation_repository,
-            logger=logger,
-            event_metrics=event_metrics,
-    ) as orchestrator:
-        yield orchestrator
+# Standalone factory functions for services (no lifecycle - run() handles everything)
 
 
-async def _provide_execution_coordinator(
-        kafka_producer: UnifiedProducer,
-        schema_registry: SchemaRegistryManager,
-        settings: Settings,
-        event_store: EventStore,
-        execution_repository: ExecutionRepository,
-        idempotency_manager: IdempotencyManager,
-        logger: logging.Logger,
-        coordinator_metrics: CoordinatorMetrics,
-        event_metrics: EventMetrics,
-) -> AsyncIterator[ExecutionCoordinator]:
-    """Shared factory for ExecutionCoordinator with lifecycle management."""
-    async with ExecutionCoordinator(
-            producer=kafka_producer,
-            schema_registry_manager=schema_registry,
-            settings=settings,
-            event_store=event_store,
-            execution_repository=execution_repository,
-            idempotency_manager=idempotency_manager,
-            logger=logger,
-            coordinator_metrics=coordinator_metrics,
-            event_metrics=event_metrics,
-    ) as coordinator:
-        yield coordinator
 
 
 class BusinessServicesProvider(Provider):
     scope = Scope.REQUEST
-
-    def __init__(self) -> None:
-        super().__init__()
-        # Register shared factory functions on instance (avoids warning about missing self)
-        self.provide(_provide_execution_coordinator)
 
     @provide
     def get_saga_service(
             self,
             saga_repository: SagaRepository,
             execution_repository: ExecutionRepository,
-            saga_orchestrator: SagaOrchestrator,
+            saga_logic: SagaLogic,
             logger: logging.Logger,
     ) -> SagaService:
         return SagaService(
             saga_repo=saga_repository,
             execution_repo=execution_repository,
-            orchestrator=saga_orchestrator,
+            saga_logic=saga_logic,
             logger=logger,
         )
 
@@ -736,37 +706,141 @@ class BusinessServicesProvider(Provider):
 class CoordinatorProvider(Provider):
     scope = Scope.APP
 
-    def __init__(self) -> None:
-        super().__init__()
-        self.provide(_provide_execution_coordinator)
+    @provide
+    def get_coordinator_logic(
+            self,
+            kafka_producer: UnifiedProducer,
+            execution_repository: ExecutionRepository,
+            logger: logging.Logger,
+            coordinator_metrics: CoordinatorMetrics,
+    ) -> CoordinatorLogic:
+        return CoordinatorLogic(
+            producer=kafka_producer,
+            execution_repository=execution_repository,
+            logger=logger,
+            coordinator_metrics=coordinator_metrics,
+        )
+
+    @provide
+    def get_coordinator_consumer(
+            self,
+            logic: CoordinatorLogic,
+            schema_registry: SchemaRegistryManager,
+            settings: Settings,
+            idempotency_manager: IdempotencyManager,
+            logger: logging.Logger,
+            event_metrics: EventMetrics,
+    ) -> IdempotentConsumerWrapper:
+        """Create consumer with handlers wired to CoordinatorLogic."""
+        # Create dispatcher and register handlers from logic
+        dispatcher = EventDispatcher(logger=logger)
+        logic.register_handlers(dispatcher)
+
+        # Build consumer
+        consumer_config = ConsumerConfig(
+            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+            group_id=f"{GroupId.EXECUTION_COORDINATOR}.{settings.KAFKA_GROUP_SUFFIX}",
+            enable_auto_commit=False,
+            session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
+            heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+            max_poll_interval_ms=settings.KAFKA_MAX_POLL_INTERVAL_MS,
+            request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
+            max_poll_records=100,
+            fetch_max_wait_ms=500,
+            fetch_min_bytes=1,
+        )
+
+        topics = list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.EXECUTION_COORDINATOR])
+        consumer = UnifiedConsumer(
+            consumer_config,
+            dispatcher=dispatcher,
+            schema_registry=schema_registry,
+            settings=settings,
+            logger=logger,
+            event_metrics=event_metrics,
+            topics=topics,
+        )
+
+        return IdempotentConsumerWrapper(
+            consumer=consumer,
+            dispatcher=dispatcher,
+            idempotency_manager=idempotency_manager,
+            logger=logger,
+            default_key_strategy="event_based",
+            default_ttl_seconds=7200,
+            enable_for_all_handlers=True,
+        )
 
 
 class K8sWorkerProvider(Provider):
     scope = Scope.APP
 
     @provide
-    async def get_kubernetes_worker(
+    def get_k8s_worker_logic(
             self,
             kafka_producer: UnifiedProducer,
+            settings: Settings,
+            logger: logging.Logger,
+            event_metrics: EventMetrics,
+    ) -> K8sWorkerLogic:
+        config = K8sWorkerConfig()
+        logic = K8sWorkerLogic(
+            config=config,
+            producer=kafka_producer,
+            settings=settings,
+            logger=logger,
+            event_metrics=event_metrics,
+        )
+        # Initialize K8s clients synchronously (safe during DI setup)
+        logic.initialize()
+        return logic
+
+    @provide
+    def get_k8s_worker_consumer(
+            self,
+            logic: K8sWorkerLogic,
             schema_registry: SchemaRegistryManager,
             settings: Settings,
-            event_store: EventStore,
             idempotency_manager: IdempotencyManager,
             logger: logging.Logger,
             event_metrics: EventMetrics,
-    ) -> AsyncIterator[KubernetesWorker]:
-        config = K8sWorkerConfig()
-        async with KubernetesWorker(
-                config=config,
-                producer=kafka_producer,
-                schema_registry_manager=schema_registry,
-                settings=settings,
-                event_store=event_store,
-                idempotency_manager=idempotency_manager,
-                logger=logger,
-                event_metrics=event_metrics,
-        ) as worker:
-            yield worker
+    ) -> IdempotentConsumerWrapper:
+        """Create consumer with handlers wired to K8sWorkerLogic."""
+        # Create dispatcher and register handlers from logic
+        dispatcher = EventDispatcher(logger=logger)
+        logic.register_handlers(dispatcher)
+
+        # Build consumer
+        consumer_config = ConsumerConfig(
+            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+            group_id=f"{logic.config.consumer_group}.{settings.KAFKA_GROUP_SUFFIX}",
+            enable_auto_commit=False,
+            session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
+            heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+            max_poll_interval_ms=settings.KAFKA_MAX_POLL_INTERVAL_MS,
+            request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
+        )
+
+        topics = list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.K8S_WORKER])
+        consumer = UnifiedConsumer(
+            consumer_config,
+            dispatcher=dispatcher,
+            schema_registry=schema_registry,
+            settings=settings,
+            logger=logger,
+            event_metrics=event_metrics,
+            topics=topics,
+        )
+
+        return IdempotentConsumerWrapper(
+            consumer=consumer,
+            dispatcher=dispatcher,
+            idempotency_manager=idempotency_manager,
+            logger=logger,
+            default_key_strategy="content_hash",
+            default_ttl_seconds=3600,
+            enable_for_all_handlers=True,
+        )
 
 
 class PodMonitorProvider(Provider):
@@ -781,32 +855,102 @@ class PodMonitorProvider(Provider):
         return PodEventMapper(logger=logger, k8s_api=k8s_clients.v1)
 
     @provide
-    async def get_pod_monitor(
+    def get_pod_monitor(
             self,
             kafka_event_service: KafkaEventService,
             k8s_clients: K8sClients,
             logger: logging.Logger,
             event_mapper: PodEventMapper,
             kubernetes_metrics: KubernetesMetrics,
-    ) -> AsyncIterator[PodMonitor]:
+    ) -> PodMonitor:
         config = PodMonitorConfig()
-        async with PodMonitor(
-                config=config,
-                kafka_event_service=kafka_event_service,
-                logger=logger,
-                k8s_clients=k8s_clients,
-                event_mapper=event_mapper,
-                kubernetes_metrics=kubernetes_metrics,
-        ) as monitor:
-            yield monitor
+        return PodMonitor(
+            config=config,
+            kafka_event_service=kafka_event_service,
+            logger=logger,
+            k8s_clients=k8s_clients,
+            event_mapper=event_mapper,
+            kubernetes_metrics=kubernetes_metrics,
+        )
 
 
 class SagaOrchestratorProvider(Provider):
     scope = Scope.APP
 
-    def __init__(self) -> None:
-        super().__init__()
-        self.provide(_provide_saga_orchestrator)
+    @provide
+    def get_saga_logic(
+            self,
+            saga_repository: SagaRepository,
+            kafka_producer: UnifiedProducer,
+            resource_allocation_repository: ResourceAllocationRepository,
+            logger: logging.Logger,
+            event_metrics: EventMetrics,
+    ) -> SagaLogic:
+        logic = SagaLogic(
+            config=_create_default_saga_config(),
+            saga_repository=saga_repository,
+            producer=kafka_producer,
+            resource_allocation_repository=resource_allocation_repository,
+            logger=logger,
+            event_metrics=event_metrics,
+        )
+        # Register default sagas
+        logic.register_default_sagas()
+        return logic
+
+    @provide
+    def get_saga_consumer(
+            self,
+            logic: SagaLogic,
+            schema_registry: SchemaRegistryManager,
+            settings: Settings,
+            idempotency_manager: IdempotencyManager,
+            logger: logging.Logger,
+            event_metrics: EventMetrics,
+    ) -> IdempotentConsumerWrapper | None:
+        """Create consumer with handlers wired to SagaLogic."""
+        # Get topics from registered sagas
+        topics = logic.get_trigger_topics()
+        if not topics:
+            logger.warning("No trigger events found in registered sagas")
+            return None
+
+        # Create dispatcher and register handlers from logic
+        dispatcher = EventDispatcher(logger=logger)
+        logic.register_handlers(dispatcher)
+
+        # Build consumer
+        consumer_config = ConsumerConfig(
+            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+            group_id=f"saga-{logic.config.name}.{settings.KAFKA_GROUP_SUFFIX}",
+            enable_auto_commit=False,
+            session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
+            heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+            max_poll_interval_ms=settings.KAFKA_MAX_POLL_INTERVAL_MS,
+            request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
+        )
+
+        consumer = UnifiedConsumer(
+            config=consumer_config,
+            dispatcher=dispatcher,
+            schema_registry=schema_registry,
+            settings=settings,
+            logger=logger,
+            event_metrics=event_metrics,
+            topics=list(topics),
+        )
+
+        logger.info(f"Saga consumer configured for topics: {topics}")
+
+        return IdempotentConsumerWrapper(
+            consumer=consumer,
+            dispatcher=dispatcher,
+            idempotency_manager=idempotency_manager,
+            logger=logger,
+            default_key_strategy="event_based",
+            default_ttl_seconds=7200,
+            enable_for_all_handlers=False,
+        )
 
 
 class EventReplayProvider(Provider):
@@ -827,4 +971,74 @@ class EventReplayProvider(Provider):
             event_store=event_store,
             settings=settings,
             logger=logger,
+        )
+
+
+class ResultProcessorProvider(Provider):
+    scope = Scope.APP
+
+    @provide
+    def get_processor_logic(
+            self,
+            execution_repo: ExecutionRepository,
+            kafka_producer: UnifiedProducer,
+            settings: Settings,
+            logger: logging.Logger,
+            execution_metrics: ExecutionMetrics,
+    ) -> ProcessorLogic:
+        return ProcessorLogic(
+            execution_repo=execution_repo,
+            producer=kafka_producer,
+            settings=settings,
+            logger=logger,
+            execution_metrics=execution_metrics,
+        )
+
+    @provide
+    def get_processor_consumer(
+            self,
+            logic: ProcessorLogic,
+            schema_registry: SchemaRegistryManager,
+            settings: Settings,
+            idempotency_manager: IdempotencyManager,
+            logger: logging.Logger,
+            event_metrics: EventMetrics,
+    ) -> IdempotentConsumerWrapper:
+        """Create consumer with handlers wired to ProcessorLogic."""
+        # Create dispatcher and register handlers from logic
+        dispatcher = EventDispatcher(logger=logger)
+        logic.register_handlers(dispatcher)
+
+        # Build consumer
+        consumer_config = ConsumerConfig(
+            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+            group_id=f"{GroupId.RESULT_PROCESSOR}.{settings.KAFKA_GROUP_SUFFIX}",
+            max_poll_records=1,
+            enable_auto_commit=True,
+            auto_offset_reset="earliest",
+            session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
+            heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+            max_poll_interval_ms=settings.KAFKA_MAX_POLL_INTERVAL_MS,
+            request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
+        )
+
+        topics = list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.RESULT_PROCESSOR])
+        consumer = UnifiedConsumer(
+            consumer_config,
+            dispatcher=dispatcher,
+            schema_registry=schema_registry,
+            settings=settings,
+            logger=logger,
+            event_metrics=event_metrics,
+            topics=topics,
+        )
+
+        return IdempotentConsumerWrapper(
+            consumer=consumer,
+            dispatcher=dispatcher,
+            idempotency_manager=idempotency_manager,
+            logger=logger,
+            default_key_strategy="content_hash",
+            default_ttl_seconds=7200,
+            enable_for_all_handlers=True,
         )

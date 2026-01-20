@@ -13,8 +13,6 @@ from app.services.pod_monitor.monitor import PodMonitor
 from app.settings import Settings
 from beanie import init_beanie
 
-RECONCILIATION_LOG_INTERVAL: int = 60
-
 
 async def run_pod_monitor(settings: Settings) -> None:
     """Run the pod monitor service."""
@@ -29,7 +27,6 @@ async def run_pod_monitor(settings: Settings) -> None:
     schema_registry = await container.get(SchemaRegistryManager)
     await initialize_event_schemas(schema_registry)
 
-    # Services are already started by the DI container providers
     monitor = await container.get(PodMonitor)
 
     # Shutdown event - signal handlers just set this
@@ -38,16 +35,27 @@ async def run_pod_monitor(settings: Settings) -> None:
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, shutdown_event.set)
 
-    logger.info("PodMonitor started and running")
+    logger.info("PodMonitor initialized, starting run...")
 
     try:
-        # Wait for shutdown signal
-        while not shutdown_event.is_set():
-            await asyncio.sleep(RECONCILIATION_LOG_INTERVAL)
-            status = await monitor.get_status()
-            logger.info(f"Pod monitor status: {status}")
+        # Run monitor until shutdown signal
+        run_task = asyncio.create_task(monitor.run())
+        shutdown_task = asyncio.create_task(shutdown_event.wait())
+
+        done, pending = await asyncio.wait(
+            [run_task, shutdown_task],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+
+        # Cancel remaining tasks
+        for task in pending:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
     finally:
-        # Container cleanup stops everything
         logger.info("Initiating graceful shutdown...")
         await container.close()
 

@@ -1,25 +1,20 @@
 import asyncio
 import logging
 import signal
-from contextlib import AsyncExitStack
 
 from app.core.container import create_result_processor_container
 from app.core.logging import setup_logger
-from app.core.metrics import EventMetrics, ExecutionMetrics
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
-from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.kafka import GroupId
-from app.events.core import UnifiedProducer
-from app.events.schema.schema_registry import SchemaRegistryManager
-from app.services.idempotency import IdempotencyManager
-from app.services.result_processor.processor import ProcessingState, ResultProcessor
+from app.services.idempotency.middleware import IdempotentConsumerWrapper
 from app.settings import Settings
 from beanie import init_beanie
 from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 
 async def run_result_processor(settings: Settings) -> None:
+    """Run the result processor service."""
 
     db_client: AsyncMongoClient[dict[str, object]] = AsyncMongoClient(
         settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000
@@ -27,26 +22,9 @@ async def run_result_processor(settings: Settings) -> None:
     await init_beanie(database=db_client[settings.DATABASE_NAME], document_models=ALL_DOCUMENTS)
 
     container = create_result_processor_container(settings)
-    producer = await container.get(UnifiedProducer)
-    schema_registry = await container.get(SchemaRegistryManager)
-    idempotency_manager = await container.get(IdempotencyManager)
-    execution_repo = await container.get(ExecutionRepository)
-    execution_metrics = await container.get(ExecutionMetrics)
-    event_metrics = await container.get(EventMetrics)
     logger = await container.get(logging.Logger)
-    logger.info(f"Beanie ODM initialized with {len(ALL_DOCUMENTS)} document models")
 
-    # ResultProcessor is manually created (not from DI), so we own its lifecycle
-    processor = ResultProcessor(
-        execution_repo=execution_repo,
-        producer=producer,
-        schema_registry=schema_registry,
-        settings=settings,
-        idempotency_manager=idempotency_manager,
-        logger=logger,
-        execution_metrics=execution_metrics,
-        event_metrics=event_metrics,
-    )
+    consumer = await container.get(IdempotentConsumerWrapper)
 
     # Shutdown event - signal handlers just set this
     shutdown_event = asyncio.Event()
@@ -54,21 +32,30 @@ async def run_result_processor(settings: Settings) -> None:
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, shutdown_event.set)
 
-    # We own the processor, so we use async with to manage its lifecycle
-    async with AsyncExitStack() as stack:
-        stack.callback(db_client.close)
-        stack.push_async_callback(container.close)
-        await stack.enter_async_context(processor)
+    logger.info("ResultProcessor consumer initialized, starting run...")
 
-        logger.info("ResultProcessor started and running")
+    try:
+        # Run consumer until shutdown signal
+        run_task = asyncio.create_task(consumer.run())
+        shutdown_task = asyncio.create_task(shutdown_event.wait())
 
-        # Wait for shutdown signal or service to stop
-        while processor._state == ProcessingState.PROCESSING and not shutdown_event.is_set():
-            await asyncio.sleep(60)
-            status = await processor.get_status()
-            logger.info(f"ResultProcessor status: {status}")
+        done, pending = await asyncio.wait(
+            [run_task, shutdown_task],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
 
+        # Cancel remaining tasks
+        for task in pending:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+    finally:
         logger.info("Initiating graceful shutdown...")
+        await container.close()
+        await db_client.close()
 
 
 def main() -> None:

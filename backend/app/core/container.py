@@ -145,17 +145,3 @@ def create_event_replay_container(settings: Settings) -> AsyncContainer:
     )
 
 
-def create_dlq_processor_container(settings: Settings) -> AsyncContainer:
-    """Create DI container for the DLQ processor worker."""
-    return make_async_container(
-        SettingsProvider(),
-        LoggingProvider(),
-        BoundaryClientProvider(),
-        RedisServicesProvider(),
-        CoreServicesProvider(),
-        MetricsProvider(),
-        RepositoryProvider(),
-        MessagingProvider(),
-        EventProvider(),
-        context={Settings: settings},
-    )

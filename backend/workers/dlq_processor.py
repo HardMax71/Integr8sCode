@@ -1,19 +1,48 @@
+"""
+DLQ Processor Worker using FastStream.
+
+Processes Dead Letter Queue messages with:
+- FastStream subscriber for message consumption (push-based, not polling)
+- Timer task in lifespan for scheduled retries
+- Dishka DI for dependencies
+"""
+
 import asyncio
+import json
 import logging
-import signal
-from contextlib import AsyncExitStack
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-from app.core.container import create_dlq_processor_container
+from app.core.logging import setup_logger
+from app.core.providers import (
+    BoundaryClientProvider,
+    EventProvider,
+    LoggingProvider,
+    MessagingProvider,
+    MetricsProvider,
+    RedisServicesProvider,
+    RepositoryProvider,
+    SettingsProvider,
+)
+from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
 from app.dlq import DLQMessage, RetryPolicy, RetryStrategy
 from app.dlq.manager import DLQManager
+from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId
+from app.events.core import UnifiedProducer
+from app.events.schema.schema_registry import SchemaRegistryManager
 from app.settings import Settings
 from beanie import init_beanie
+from dishka import make_async_container
+from dishka.integrations.faststream import FromDishka, setup_dishka
+from faststream import FastStream
+from faststream.kafka import KafkaBroker
 from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 
 def _configure_retry_policies(manager: DLQManager, logger: logging.Logger) -> None:
+    """Configure topic-specific retry policies."""
     manager.set_retry_policy(
         "execution-requests",
         RetryPolicy(
@@ -57,6 +86,7 @@ def _configure_retry_policies(manager: DLQManager, logger: logging.Logger) -> No
 
 
 def _configure_filters(manager: DLQManager, testing: bool, logger: logging.Logger) -> None:
+    """Configure message filters."""
     if not testing:
 
         def filter_test_events(message: DLQMessage) -> bool:
@@ -73,42 +103,127 @@ def _configure_filters(manager: DLQManager, testing: bool, logger: logging.Logge
     manager.add_filter(filter_old_messages)
 
 
-async def main(settings: Settings) -> None:
-    """Run the DLQ processor.
+def main() -> None:
+    """Entry point for DLQ processor worker.
 
-    DLQ lifecycle events (received, retried, discarded) are emitted to the
-    dlq_events Kafka topic for external observability. Logging is handled
-    internally by the DLQ manager.
+    FastStream handles:
+    - Signal handling (SIGINT/SIGTERM)
+    - Consumer loop
+    - Graceful shutdown
     """
-    container = create_dlq_processor_container(settings)
-    logger = await container.get(logging.Logger)
-    logger.info("Starting DLQ Processor with DI container...")
+    settings = Settings()
 
-    mongo_client: AsyncMongoClient[dict[str, object]] = AsyncMongoClient(
-        settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000
+    logger = setup_logger(settings.LOG_LEVEL)
+    logger.info("Starting DLQ Processor (FastStream)...")
+
+    if settings.ENABLE_TRACING:
+        init_tracing(
+            service_name=GroupId.DLQ_PROCESSOR,
+            settings=settings,
+            logger=logger,
+            service_version=settings.TRACING_SERVICE_VERSION,
+            enable_console_exporter=False,
+            sampling_rate=settings.TRACING_SAMPLING_RATE,
+        )
+
+    # Create DI container
+    container = make_async_container(
+        SettingsProvider(),
+        LoggingProvider(),
+        BoundaryClientProvider(),
+        RedisServicesProvider(),
+        MetricsProvider(),
+        EventProvider(),
+        MessagingProvider(),
+        RepositoryProvider(),
+        context={Settings: settings},
     )
-    await init_beanie(database=mongo_client[settings.DATABASE_NAME], document_models=ALL_DOCUMENTS)
 
-    manager = await container.get(DLQManager)
+    # Build topic and group ID from config
+    topics = [f"{settings.KAFKA_TOPIC_PREFIX}{t}" for t in CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.DLQ_PROCESSOR]]
+    group_id = f"{GroupId.DLQ_PROCESSOR}.{settings.KAFKA_GROUP_SUFFIX}"
 
-    _configure_retry_policies(manager, logger)
-    _configure_filters(manager, testing=settings.TESTING, logger=logger)
+    broker = KafkaBroker(
+        settings.KAFKA_BOOTSTRAP_SERVERS,
+        request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
+    )
 
-    stop_event = asyncio.Event()
-    loop = asyncio.get_running_loop()
+    @asynccontextmanager
+    async def lifespan(app: FastStream) -> AsyncIterator[None]:
+        """Initialize infrastructure and start scheduled retry timer."""
+        app_logger = await container.get(logging.Logger)
+        app_logger.info("DLQ Processor starting...")
 
-    def signal_handler() -> None:
-        logger.info("Received signal, initiating shutdown...")
-        stop_event.set()
+        # Initialize MongoDB + Beanie
+        mongo_client: AsyncMongoClient[dict[str, object]] = AsyncMongoClient(
+            settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000
+        )
+        await init_beanie(database=mongo_client[settings.DATABASE_NAME], document_models=ALL_DOCUMENTS)
 
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, signal_handler)
+        # Resolve schema registry (initialization handled by provider)
+        await container.get(SchemaRegistryManager)
 
-    async with AsyncExitStack() as stack:
-        stack.push_async_callback(container.close)
-        stack.push_async_callback(mongo_client.close)
-        await stop_event.wait()
+        # Resolve Kafka producer (lifecycle managed by DI - BoundaryClientProvider starts it)
+        await container.get(UnifiedProducer)
+        app_logger.info("Kafka producer ready")
+
+        # Get DLQ manager and configure policies
+        manager = await container.get(DLQManager)
+        _configure_retry_policies(manager, app_logger)
+        _configure_filters(manager, testing=settings.TESTING, logger=app_logger)
+        app_logger.info("DLQ Manager configured")
+
+        # Decoder: JSON bytes → typed DLQMessage
+        def decode_dlq_json(body: bytes) -> DLQMessage:
+            data = json.loads(body)
+            return DLQMessage.model_validate(data)
+
+        # Register subscriber for DLQ messages
+        @broker.subscriber(
+            *topics,
+            group_id=group_id,
+            auto_commit=False,
+            decoder=decode_dlq_json,
+        )
+        async def handle_dlq_message(
+            message: DLQMessage,
+            dlq_manager: FromDishka[DLQManager],
+        ) -> None:
+            """Handle incoming DLQ messages - invoked by FastStream when message arrives."""
+            await dlq_manager.process_message(message)
+
+        # Background task: periodic check for scheduled retries
+        async def retry_checker() -> None:
+            while True:
+                try:
+                    await asyncio.sleep(10)
+                    await manager.check_scheduled_retries()
+                except asyncio.CancelledError:
+                    break
+                except Exception:
+                    app_logger.exception("Error checking scheduled retries")
+
+        retry_task = asyncio.create_task(retry_checker())
+        app_logger.info("DLQ Processor ready, starting event processing...")
+
+        try:
+            yield
+        finally:
+            app_logger.info("DLQ Processor shutting down...")
+            retry_task.cancel()
+            try:
+                await retry_task
+            except asyncio.CancelledError:
+                pass
+            await mongo_client.close()
+            await container.close()
+            app_logger.info("DLQ Processor shutdown complete")
+
+    app = FastStream(broker, lifespan=lifespan)
+    setup_dishka(container=container, app=app, auto_inject=True)
+
+    asyncio.run(app.run())
 
 
 if __name__ == "__main__":
-    asyncio.run(main(Settings()))
+    main()

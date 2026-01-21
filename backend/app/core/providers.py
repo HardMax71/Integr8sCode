@@ -1,9 +1,8 @@
-import asyncio
 import logging
 from collections.abc import AsyncIterable
 
 import redis.asyncio as redis
-from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
+from aiokafka import AIOKafkaProducer
 from dishka import Provider, Scope, from_context, provide
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
@@ -43,16 +42,14 @@ from app.db.repositories.resource_allocation_repository import ResourceAllocatio
 from app.db.repositories.user_settings_repository import UserSettingsRepository
 from app.dlq.manager import DLQManager
 from app.dlq.models import RetryPolicy, RetryStrategy
-from app.domain.enums.kafka import GroupId, KafkaTopic
+from app.domain.enums.kafka import KafkaTopic
 from app.domain.saga.models import SagaConfig
 from app.events.core import ProducerMetrics, UnifiedProducer
 from app.events.event_store import EventStore, create_event_store
-from app.events.event_store_consumer import EventStoreConsumer
+from app.events.event_store_consumer import EventStoreService
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.infrastructure.kafka.topics import get_all_topics
 from app.services.admin import AdminEventsService, AdminSettingsService, AdminUserService
 from app.services.auth_service import AuthService
-from app.services.event_bus import EventBus, EventBusEvent
 from app.services.event_replay.replay_service import EventReplayService
 from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
@@ -209,38 +206,22 @@ class MessagingProvider(Provider):
         )
 
     @provide
-    async def get_dlq_manager(
+    def get_dlq_manager(
             self,
             kafka_producer: AIOKafkaProducer,
             settings: Settings,
             schema_registry: SchemaRegistryManager,
             logger: logging.Logger,
             dlq_metrics: DLQMetrics,
-    ) -> AsyncIterable[DLQManager]:
-        """Provide DLQManager with DI-managed lifecycle.
+    ) -> DLQManager:
+        """Provide DLQManager instance.
 
-        Producer lifecycle managed by BoundaryClientProvider. This provider
-        manages the consumer and background tasks.
+        Message consumption handled by FastStream subscriber in dlq_processor worker.
+        Scheduled retries handled by timer in worker lifespan.
+        Producer lifecycle managed by BoundaryClientProvider.
         """
-        topic_name = f"{settings.KAFKA_TOPIC_PREFIX}{KafkaTopic.DEAD_LETTER_QUEUE}"
-        consumer = AIOKafkaConsumer(
-            topic_name,
-            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=f"{GroupId.DLQ_MANAGER}.{settings.KAFKA_GROUP_SUFFIX}",
-            enable_auto_commit=False,
-            auto_offset_reset="earliest",
-            client_id="dlq-manager-consumer",
-            session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
-            heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,
-            max_poll_interval_ms=settings.KAFKA_MAX_POLL_INTERVAL_MS,
-            request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
-        )
-
-        await consumer.start()
-
-        dlq_manager = DLQManager(
+        return DLQManager(
             settings=settings,
-            consumer=consumer,
             producer=kafka_producer,
             schema_registry=schema_registry,
             logger=logger,
@@ -248,31 +229,6 @@ class MessagingProvider(Provider):
             dlq_topic=KafkaTopic.DEAD_LETTER_QUEUE,
             default_retry_policy=RetryPolicy(topic="default", strategy=RetryStrategy.EXPONENTIAL_BACKOFF),
         )
-
-        # Background task: process incoming DLQ messages
-        async def process_messages_loop() -> None:
-            async for msg in consumer:
-                await dlq_manager.process_consumer_message(msg)
-
-        # Background task: periodic check for scheduled retries
-        async def monitor_loop() -> None:
-            while True:
-                await dlq_manager.check_scheduled_retries()
-                await asyncio.sleep(10)
-
-        process_task = asyncio.create_task(process_messages_loop())
-        monitor_task = asyncio.create_task(monitor_loop())
-        logger.info("DLQ Manager started")
-
-        yield dlq_manager
-
-        # Cleanup
-        process_task.cancel()
-        monitor_task.cancel()
-        await asyncio.gather(process_task, monitor_task, return_exceptions=True)
-
-        await consumer.stop()
-        logger.info("DLQ Manager stopped")
 
     @provide
     def get_idempotency_config(self) -> IdempotencyConfig:
@@ -320,116 +276,22 @@ class EventProvider(Provider):
         )
 
     @provide
-    async def get_event_store_consumer(
+    def get_event_store_service(
             self,
             event_store: EventStore,
-            schema_registry: SchemaRegistryManager,
-            settings: Settings,
             logger: logging.Logger,
             event_metrics: EventMetrics,
-    ) -> AsyncIterable[EventStoreConsumer]:
-        """Provide EventStoreConsumer with DI-managed lifecycle."""
-        topics = get_all_topics()
-        topic_strings = [f"{settings.KAFKA_TOPIC_PREFIX}{topic}" for topic in topics]
+    ) -> EventStoreService:
+        """Provide EventStoreService for event archival.
 
-        consumer = AIOKafkaConsumer(
-            *topic_strings,
-            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=f"{GroupId.EVENT_STORE_CONSUMER}.{settings.KAFKA_GROUP_SUFFIX}",
-            enable_auto_commit=False,
-            max_poll_records=100,
-            session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
-            heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,
-            max_poll_interval_ms=settings.KAFKA_MAX_POLL_INTERVAL_MS,
-            request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
-            fetch_max_wait_ms=5000,
-        )
-
-        await consumer.start()
-        logger.info(f"Event store consumer started for topics: {topic_strings}")
-
-        event_store_consumer = EventStoreConsumer(
+        Pure storage service - no consumer, no loops.
+        FastStream subscribers call store_event() to archive events.
+        """
+        return EventStoreService(
             event_store=event_store,
-            consumer=consumer,
-            schema_registry_manager=schema_registry,
             logger=logger,
             event_metrics=event_metrics,
         )
-
-        async def batch_loop() -> None:
-            while True:
-                await event_store_consumer.process_batch()
-
-        task = asyncio.create_task(batch_loop())
-
-        yield event_store_consumer
-
-        task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
-
-        await consumer.stop()
-        logger.info("Event store consumer stopped")
-
-    @provide
-    async def get_event_bus(
-            self,
-            kafka_producer: AIOKafkaProducer,
-            settings: Settings,
-            logger: logging.Logger,
-            connection_metrics: ConnectionMetrics,
-    ) -> AsyncIterable[EventBus]:
-        """Provide EventBus with DI-managed lifecycle.
-
-        Producer lifecycle managed by BoundaryClientProvider. This provider
-        manages the consumer and background listener task.
-        """
-        topic = f"{settings.KAFKA_TOPIC_PREFIX}{KafkaTopic.EVENT_BUS_STREAM}"
-        consumer = AIOKafkaConsumer(
-            topic,
-            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=f"event-bus-{settings.SERVICE_NAME}",
-            auto_offset_reset="latest",
-            enable_auto_commit=True,
-            client_id=f"event-bus-consumer-{settings.SERVICE_NAME}",
-            session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
-            heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,
-            max_poll_interval_ms=settings.KAFKA_MAX_POLL_INTERVAL_MS,
-            request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
-        )
-
-        await consumer.start()
-
-        event_bus = EventBus(
-            producer=kafka_producer,
-            consumer=consumer,
-            settings=settings,
-            logger=logger,
-            connection_metrics=connection_metrics,
-        )
-
-        # Create background listener task
-        async def listener_loop() -> None:
-            while True:
-                await event_bus.process_kafka_message()
-
-        listener_task = asyncio.create_task(listener_loop())
-        logger.info("Event bus started with Kafka backing")
-
-        yield event_bus
-
-        # Cleanup
-        listener_task.cancel()
-        try:
-            await listener_task
-        except asyncio.CancelledError:
-            pass
-
-        await consumer.stop()
-        logger.info("Event bus stopped")
-
 
 class MetricsProvider(Provider):
     """Provides all metrics instances via DI (no contextvars needed)."""
@@ -632,22 +494,27 @@ class UserServicesProvider(Provider):
             self,
             repository: UserSettingsRepository,
             kafka_event_service: KafkaEventService,
-            event_bus: EventBus,
+            sse_redis_bus: SSERedisBus,
             logger: logging.Logger,
-    ) -> UserSettingsService:
-        service = UserSettingsService(repository, kafka_event_service, logger, event_bus)
+    ) -> AsyncIterable[UserSettingsService]:
+        service = UserSettingsService(repository, kafka_event_service, logger, sse_redis_bus)
 
         # Subscribe to settings update events for cross-instance cache invalidation.
-        # EventBus filters out self-published messages, so this handler only
-        # runs for events from OTHER instances.
-        async def _handle_settings_update(evt: EventBusEvent) -> None:
-            uid = evt.payload.get("user_id")
+        # Redis pub/sub delivers messages to ALL subscribers including self,
+        # but cache invalidation is idempotent so that's fine.
+        async def _handle_settings_update(data: dict[str, object]) -> None:
+            uid = data.get("user_id")
             if uid:
                 await service.invalidate_cache(str(uid))
 
-        await event_bus.subscribe("user.settings.updated*", _handle_settings_update)
+        subscription = await sse_redis_bus.subscribe_internal("user.settings.updated", _handle_settings_update)
+        await subscription.start()
+        logger.info("UserSettingsService cache invalidation subscription started")
 
-        return service
+        yield service
+
+        await subscription.close()
+        logger.info("UserSettingsService cache invalidation subscription stopped")
 
 
 class AdminServicesProvider(Provider):
@@ -671,45 +538,25 @@ class AdminServicesProvider(Provider):
         return AdminSettingsService(admin_settings_repository, logger)
 
     @provide
-    async def get_notification_service(
+    def get_notification_service(
             self,
             notification_repository: NotificationRepository,
-            event_bus: EventBus,
             sse_redis_bus: SSERedisBus,
             settings: Settings,
             logger: logging.Logger,
             notification_metrics: NotificationMetrics,
-    ) -> AsyncIterable[NotificationService]:
-        """Provide NotificationService with DI-managed background tasks."""
-        service = NotificationService(
+    ) -> NotificationService:
+        """Provide NotificationService instance.
+
+        Background tasks (pending batch processing, cleanup) managed by app lifespan.
+        """
+        return NotificationService(
             notification_repository=notification_repository,
-            event_bus=event_bus,
             sse_bus=sse_redis_bus,
             settings=settings,
             logger=logger,
             notification_metrics=notification_metrics,
         )
-
-        async def pending_loop() -> None:
-            while True:
-                await service.process_pending_batch()
-                await asyncio.sleep(5)
-
-        async def cleanup_loop() -> None:
-            while True:
-                await asyncio.sleep(86400)  # 24 hours
-                await service.cleanup_old()
-
-        pending_task = asyncio.create_task(pending_loop())
-        cleanup_task = asyncio.create_task(cleanup_loop())
-        logger.info("NotificationService background tasks started")
-
-        yield service
-
-        pending_task.cancel()
-        cleanup_task.cancel()
-        await asyncio.gather(pending_task, cleanup_task, return_exceptions=True)
-        logger.info("NotificationService background tasks stopped")
 
     @provide
     def get_grafana_alert_processor(

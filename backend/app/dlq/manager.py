@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Callable
 
-from aiokafka import AIOKafkaConsumer, AIOKafkaProducer, ConsumerRecord
+from aiokafka import AIOKafkaProducer
 from opentelemetry.trace import SpanKind
 
 from app.core.metrics import DLQMetrics
@@ -34,13 +34,13 @@ from app.settings import Settings
 class DLQManager:
     """Dead Letter Queue manager - pure logic class.
 
-    Lifecycle (start/stop consumer, background tasks) managed by DI provider.
+    Message consumption handled by FastStream subscriber.
+    Scheduled retries handled by timer in worker lifespan.
     """
 
     def __init__(
         self,
         settings: Settings,
-        consumer: AIOKafkaConsumer,
         producer: AIOKafkaProducer,
         schema_registry: SchemaRegistryManager,
         logger: logging.Logger,
@@ -58,7 +58,6 @@ class DLQManager:
         self.default_retry_policy = default_retry_policy or RetryPolicy(
             topic="default", strategy=RetryStrategy.EXPONENTIAL_BACKOFF
         )
-        self.consumer: AIOKafkaConsumer = consumer
         self.producer: AIOKafkaProducer = producer
 
         # Topic-specific retry policies
@@ -70,42 +69,35 @@ class DLQManager:
         self._dlq_events_topic = f"{settings.KAFKA_TOPIC_PREFIX}{KafkaTopic.DLQ_EVENTS}"
         self._event_metadata = EventMetadata(service_name="dlq-manager", service_version="1.0.0")
 
-    def _kafka_msg_to_message(self, msg: ConsumerRecord[bytes, bytes]) -> DLQMessage:
-        """Parse Kafka ConsumerRecord into DLQMessage."""
-        data = json.loads(msg.value)
-        headers = {k: v.decode() for k, v in (msg.headers or [])}
-        return DLQMessage(**data, dlq_offset=msg.offset, dlq_partition=msg.partition, headers=headers)
+    async def process_message(self, message: DLQMessage) -> None:
+        """Process a typed DLQ message.
 
-    async def process_consumer_message(self, msg: ConsumerRecord[bytes, bytes]) -> None:
-        """Process a single DLQ message. Called by DI provider's background task."""
-        try:
-            start = asyncio.get_running_loop().time()
-            dlq_msg = self._kafka_msg_to_message(msg)
+        Called by FastStream subscriber handler. Commit handled by FastStream.
 
-            # Record metrics
-            self.metrics.record_dlq_message_received(dlq_msg.original_topic, dlq_msg.event.event_type)
-            self.metrics.record_dlq_message_age((datetime.now(timezone.utc) - dlq_msg.failed_at).total_seconds())
+        Args:
+            message: Typed DLQMessage (deserialized by FastStream/Avro)
+        """
+        start = asyncio.get_running_loop().time()
 
-            # Process with tracing
-            ctx = extract_trace_context(dlq_msg.headers)
-            with get_tracer().start_as_current_span(
-                name="dlq.consume",
-                context=ctx,
-                kind=SpanKind.CONSUMER,
-                attributes={
-                    EventAttributes.KAFKA_TOPIC: self.dlq_topic,
-                    EventAttributes.EVENT_TYPE: dlq_msg.event.event_type,
-                    EventAttributes.EVENT_ID: dlq_msg.event.event_id,
-                },
-            ):
-                await self._process_dlq_message(dlq_msg)
+        # Record metrics
+        self.metrics.record_dlq_message_received(message.original_topic, message.event.event_type)
+        self.metrics.record_dlq_message_age((datetime.now(timezone.utc) - message.failed_at).total_seconds())
 
-            # Commit and record duration
-            await self.consumer.commit()
-            self.metrics.record_dlq_processing_duration(asyncio.get_running_loop().time() - start, "process")
+        # Process with tracing
+        ctx = extract_trace_context(message.headers)
+        with get_tracer().start_as_current_span(
+            name="dlq.consume",
+            context=ctx,
+            kind=SpanKind.CONSUMER,
+            attributes={
+                EventAttributes.KAFKA_TOPIC: self.dlq_topic,
+                EventAttributes.EVENT_TYPE: message.event.event_type,
+                EventAttributes.EVENT_ID: message.event.event_id,
+            },
+        ):
+            await self._process_dlq_message(message)
 
-        except Exception as e:
-            self.logger.error(f"Error processing DLQ message: {e}")
+        self.metrics.record_dlq_processing_duration(asyncio.get_running_loop().time() - start, "process")
 
     async def _process_dlq_message(self, message: DLQMessage) -> None:
         # Apply filters

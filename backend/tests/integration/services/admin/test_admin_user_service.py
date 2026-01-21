@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 import pytest
-from app.core.database_context import Database
+from app.db.docs.user import UserDocument
 from app.domain.enums.user import UserRole
 from app.services.admin import AdminUserService
 from dishka import AsyncContainer
@@ -12,18 +12,18 @@ pytestmark = [pytest.mark.integration, pytest.mark.mongodb]
 @pytest.mark.asyncio
 async def test_get_user_overview_basic(scope: AsyncContainer) -> None:
     svc: AdminUserService = await scope.get(AdminUserService)
-    db: Database = await scope.get(Database)
-    await db.get_collection("users").insert_one({
-        "user_id": "u1",
-        "username": "bob",
-        "email": "b@b.com",
-        "role": UserRole.USER,
-        "is_active": True,
-        "is_superuser": False,
-        "hashed_password": "h",
-        "created_at": datetime.now(timezone.utc),
-        "updated_at": datetime.now(timezone.utc),
-    })
+    user = UserDocument(
+        user_id="u1",
+        username="bob",
+        email="b@b.com",
+        role=UserRole.USER,
+        is_active=True,
+        is_superuser=False,
+        hashed_password="h",
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+    )
+    await user.insert()
 
     overview = await svc.get_user_overview("u1", hours=1)
     assert overview.user.username == "bob"

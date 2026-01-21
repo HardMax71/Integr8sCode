@@ -27,7 +27,6 @@ from app.domain.notification import (
     NotificationValidationError,
 )
 from app.schemas_pydantic.sse import RedisNotificationMessage
-from app.services.event_bus import EventBus
 from app.services.sse.redis_bus import SSERedisBus
 from app.settings import Settings
 
@@ -98,14 +97,12 @@ class NotificationService:
     def __init__(
         self,
         notification_repository: NotificationRepository,
-        event_bus: EventBus,
         sse_bus: SSERedisBus,
         settings: Settings,
         logger: logging.Logger,
         notification_metrics: NotificationMetrics,
     ) -> None:
         self.repository = notification_repository
-        self.event_bus = event_bus
         self.metrics = notification_metrics
         self.settings = settings
         self.sse_bus = sse_bus
@@ -210,17 +207,6 @@ class NotificationService:
 
         # Save to database
         notification = await self.repository.create_notification(create_data)
-
-        # Publish event
-        await self.event_bus.publish(
-            "notifications.created",
-            {
-                "notification_id": str(notification.notification_id),
-                "user_id": user_id,
-                "severity": str(severity),
-                "tags": notification.tags,
-            },
-        )
 
         await self._deliver_notification(notification)
 
@@ -446,12 +432,7 @@ class NotificationService:
         """Mark notification as read."""
         success = await self.repository.mark_as_read(notification_id, user_id)
 
-        if success:
-            await self.event_bus.publish(
-                "notifications.read",
-                {"notification_id": str(notification_id), "user_id": user_id, "read_at": datetime.now(UTC).isoformat()},
-            )
-        else:
+        if not success:
             raise NotificationNotFoundError(notification_id)
 
         return True
@@ -527,14 +508,7 @@ class NotificationService:
 
     async def mark_all_as_read(self, user_id: str) -> int:
         """Mark all notifications as read for a user."""
-        count = await self.repository.mark_all_as_read(user_id)
-
-        if count > 0:
-            await self.event_bus.publish(
-                "notifications.all_read", {"user_id": user_id, "count": count, "read_at": datetime.now(UTC).isoformat()}
-            )
-
-        return count
+        return await self.repository.mark_all_as_read(user_id)
 
     async def get_subscriptions(self, user_id: str) -> dict[NotificationChannel, DomainNotificationSubscription]:
         """Get all notification subscriptions for a user."""

@@ -1,16 +1,13 @@
 """
-Pod Monitor Worker (Simplified).
+Pod Monitor Worker.
 
-Note: Unlike other workers, PodMonitor watches Kubernetes pods directly
+Unlike other workers, PodMonitor watches Kubernetes pods directly
 (not consuming Kafka messages), so FastStream's subscriber pattern doesn't apply.
-
-This version uses a minimal signal handling approach.
 """
 
 import asyncio
 import logging
 import signal
-from contextlib import suppress
 
 from app.core.logging import setup_logger
 from app.core.providers import (
@@ -54,44 +51,27 @@ async def run_pod_monitor(settings: Settings) -> None:
     logger = await container.get(logging.Logger)
     logger.info("Starting PodMonitor with DI container...")
 
-    # Initialize MongoDB + Beanie
     mongo_client: AsyncMongoClient[dict[str, object]] = AsyncMongoClient(
         settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000
     )
     await init_beanie(database=mongo_client[settings.DATABASE_NAME], document_models=ALL_DOCUMENTS)
 
-    # Resolve schema registry (initialization handled by provider)
     await container.get(SchemaRegistryManager)
-
-    # Resolve Kafka producer (lifecycle managed by DI - BoundaryClientProvider starts it)
     await container.get(UnifiedProducer)
     logger.info("Kafka producer ready")
 
     monitor = await container.get(PodMonitor)
 
-    # Signal handling with minimal boilerplate
-    shutdown = asyncio.Event()
+    # Signal cancels current task - monitor.run() handles CancelledError gracefully
+    task = asyncio.current_task()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, shutdown.set)
+        loop.add_signal_handler(sig, task.cancel)  # type: ignore[union-attr]
 
     logger.info("PodMonitor initialized, starting run...")
 
     try:
-        # Run monitor until shutdown
-        monitor_task = asyncio.create_task(monitor.run())
-        shutdown_task = asyncio.create_task(shutdown.wait())
-
-        done, pending = await asyncio.wait(
-            [monitor_task, shutdown_task],
-            return_when=asyncio.FIRST_COMPLETED,
-        )
-
-        for task in pending:
-            task.cancel()
-            with suppress(asyncio.CancelledError):
-                await task
-
+        await monitor.run()
     finally:
         logger.info("Initiating graceful shutdown...")
         await mongo_client.close()

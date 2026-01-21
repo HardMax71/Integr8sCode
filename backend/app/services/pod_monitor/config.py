@@ -26,7 +26,6 @@ class PodMonitorConfig:
     field_selector: str | None = None
     watch_timeout_seconds: int = 300  # 5 minutes
     watch_reconnect_delay: int = 5
-    max_reconnect_attempts: int = 10
 
     # Monitoring settings
     enable_metrics: bool = True

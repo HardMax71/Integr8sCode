@@ -40,10 +40,13 @@ class SSEConnectionRegistry:
     async def unregister_connection(self, execution_id: str, connection_id: str) -> None:
         """Unregister an SSE connection."""
         async with self._lock:
-            if execution_id in self._active_connections:
-                self._active_connections[execution_id].discard(connection_id)
-                if not self._active_connections[execution_id]:
-                    del self._active_connections[execution_id]
+            connections = self._active_connections.get(execution_id)
+            if connections is None or connection_id not in connections:
+                return
+
+            connections.remove(connection_id)
+            if not connections:
+                del self._active_connections[execution_id]
 
             self.logger.debug("Unregistered SSE connection", extra={"connection_id": connection_id})
             self.metrics.decrement_sse_connections("executions")

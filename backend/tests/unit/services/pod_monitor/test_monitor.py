@@ -57,15 +57,6 @@ async def test_process_raw_event_invalid_and_backoff(pod_monitor: PodMonitor) ->
 
 
 @pytest.mark.asyncio
-async def test_backoff_max_attempts(pod_monitor: PodMonitor) -> None:
-    pod_monitor.config.max_reconnect_attempts = 2
-    pod_monitor._reconnect_attempts = 2
-
-    with pytest.raises(RuntimeError, match="Max reconnect attempts exceeded"):
-        await pod_monitor._backoff()
-
-
-@pytest.mark.asyncio
 async def test_watch_loop_with_cancellation(pod_monitor: PodMonitor) -> None:
     pod_monitor.config.enable_state_reconciliation = False
     watch_count: list[int] = []

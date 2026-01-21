@@ -274,22 +274,12 @@ class PodMonitor:
             self.logger.error(f"Error publishing event: {e}", exc_info=True)
 
     async def _backoff(self) -> None:
-        """Handle watch errors with exponential backoff."""
+        """Handle watch errors with exponential backoff (capped, infinite retry)."""
         self._reconnect_attempts += 1
 
-        if self._reconnect_attempts > self.config.max_reconnect_attempts:
-            self.logger.error(
-                f"Max reconnect attempts ({self.config.max_reconnect_attempts}) exceeded"
-            )
-            raise RuntimeError("Max reconnect attempts exceeded")
-
-        # Calculate exponential backoff
         backoff = min(self.config.watch_reconnect_delay * (2 ** (self._reconnect_attempts - 1)), MAX_BACKOFF_SECONDS)
 
-        self.logger.info(
-            f"Reconnecting watch in {backoff}s "
-            f"(attempt {self._reconnect_attempts}/{self.config.max_reconnect_attempts})"
-        )
+        self.logger.info(f"Reconnecting watch in {backoff}s (attempt {self._reconnect_attempts})")
 
         self._metrics.increment_pod_monitor_watch_reconnects()
         await asyncio.sleep(backoff)

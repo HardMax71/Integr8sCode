@@ -490,31 +490,18 @@ class UserServicesProvider(Provider):
     scope = Scope.APP
 
     @provide
-    async def get_user_settings_service(
+    def get_user_settings_service(
             self,
             repository: UserSettingsRepository,
             kafka_event_service: KafkaEventService,
-            sse_redis_bus: SSERedisBus,
+            redis_client: redis.Redis,
             logger: logging.Logger,
-    ) -> AsyncIterable[UserSettingsService]:
-        service = UserSettingsService(repository, kafka_event_service, logger, sse_redis_bus)
+    ) -> UserSettingsService:
+        """Provide UserSettingsService with Redis-backed cache.
 
-        # Subscribe to settings update events for cross-instance cache invalidation.
-        # Redis pub/sub delivers messages to ALL subscribers including self,
-        # but cache invalidation is idempotent so that's fine.
-        async def _handle_settings_update(data: dict[str, object]) -> None:
-            uid = data.get("user_id")
-            if uid:
-                await service.invalidate_cache(str(uid))
-
-        subscription = await sse_redis_bus.subscribe_internal("user.settings.updated", _handle_settings_update)
-        await subscription.start()
-        logger.info("UserSettingsService cache invalidation subscription started")
-
-        yield service
-
-        await subscription.close()
-        logger.info("UserSettingsService cache invalidation subscription stopped")
+        No pub/sub subscription needed - Redis cache is shared across all instances.
+        """
+        return UserSettingsService(repository, kafka_event_service, logger, redis_client)
 
 
 class AdminServicesProvider(Provider):

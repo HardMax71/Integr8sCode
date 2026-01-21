@@ -2,6 +2,7 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any
 
 import redis.asyncio as redis
 from app.core.logging import setup_logger
@@ -24,6 +25,7 @@ from dishka import Provider, Scope, make_async_container, provide
 from dishka.integrations.faststream import FromDishka, setup_dishka
 from faststream import FastStream
 from faststream.kafka import KafkaBroker
+from faststream.message import StreamMessage
 
 
 class SSEBridgeProvider(Provider):
@@ -97,9 +99,9 @@ def main() -> None:
         # Resolve schema registry (initialization handled by provider)
         schema_registry = await container.get(SchemaRegistryManager)
 
-        # Decoder: Avro bytes → typed DomainEvent
-        async def decode_avro(body: bytes) -> DomainEvent:
-            return await schema_registry.deserialize_event(body, "sse_bridge")
+        # Decoder: Avro message → typed DomainEvent
+        async def decode_avro(msg: StreamMessage[Any]) -> DomainEvent:
+            return await schema_registry.deserialize_event(msg.body, "sse_bridge")
 
         # Single handler for all SSE-relevant events
         # No filter needed - we check event_type in handler since route_event handles all types

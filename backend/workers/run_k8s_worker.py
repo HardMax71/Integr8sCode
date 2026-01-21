@@ -15,6 +15,7 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any
 
 from app.core.logging import setup_logger
 from app.core.providers import (
@@ -43,6 +44,7 @@ from dishka import make_async_container
 from dishka.integrations.faststream import FromDishka, setup_dishka
 from faststream import FastStream
 from faststream.kafka import KafkaBroker
+from faststream.message import StreamMessage
 
 
 def main() -> None:
@@ -112,9 +114,9 @@ def main() -> None:
         schema_registry = await container.get(SchemaRegistryManager)
         await logic.ensure_image_pre_puller_daemonset()
 
-        # Decoder: Avro bytes → typed DomainEvent
-        async def decode_avro(body: bytes) -> DomainEvent:
-            return await schema_registry.deserialize_event(body, "k8s_worker")
+        # Decoder: Avro message → typed DomainEvent
+        async def decode_avro(msg: StreamMessage[Any]) -> DomainEvent:
+            return await schema_registry.deserialize_event(msg.body, "k8s_worker")
 
         # Create subscriber with Avro decoder
         subscriber = broker.subscriber(

@@ -16,6 +16,7 @@ import logging
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any
 
 from app.core.logging import setup_logger
 from app.core.providers import (
@@ -44,6 +45,7 @@ from dishka import make_async_container
 from dishka.integrations.faststream import FromDishka, setup_dishka
 from faststream import FastStream
 from faststream.kafka import KafkaBroker
+from faststream.message import StreamMessage
 from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 
@@ -135,9 +137,9 @@ def main() -> None:
         topics = [f"{settings.KAFKA_TOPIC_PREFIX}{t}" for t in trigger_topics]
         group_id = f"{GroupId.SAGA_ORCHESTRATOR}.{settings.KAFKA_GROUP_SUFFIX}"
 
-        # Decoder: Avro bytes → typed DomainEvent
-        async def decode_avro(body: bytes) -> DomainEvent:
-            return await schema_registry.deserialize_event(body, "saga_orchestrator")
+        # Decoder: Avro message → typed DomainEvent
+        async def decode_avro(msg: StreamMessage[Any]) -> DomainEvent:
+            return await schema_registry.deserialize_event(msg.body, "saga_orchestrator")
 
         # Register handler dynamically after determining topics
         # Saga orchestrator uses single handler - routing is internal to SagaLogic

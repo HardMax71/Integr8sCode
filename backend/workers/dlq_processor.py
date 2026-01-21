@@ -13,6 +13,7 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from typing import Any
 
 from app.core.logging import setup_logger
 from app.core.providers import (
@@ -39,6 +40,7 @@ from dishka import make_async_container
 from dishka.integrations.faststream import FromDishka, setup_dishka
 from faststream import FastStream
 from faststream.kafka import KafkaBroker
+from faststream.message import StreamMessage
 from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 
@@ -175,9 +177,9 @@ def main() -> None:
         _configure_filters(manager, testing=settings.TESTING, logger=app_logger)
         app_logger.info("DLQ Manager configured")
 
-        # Decoder: JSON bytes → typed DLQMessage
-        def decode_dlq_json(body: bytes) -> DLQMessage:
-            data = json.loads(body)
+        # Decoder: JSON message → typed DLQMessage
+        def decode_dlq_json(msg: StreamMessage[Any]) -> DLQMessage:
+            data = json.loads(msg.body)
             return DLQMessage.model_validate(data)
 
         # Register subscriber for DLQ messages

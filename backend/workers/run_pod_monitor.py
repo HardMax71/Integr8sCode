@@ -12,7 +12,9 @@ import signal
 from app.core.logging import setup_logger
 from app.core.providers import (
     BoundaryClientProvider,
+    CoreServicesProvider,
     EventProvider,
+    KafkaServicesProvider,
     LoggingProvider,
     MessagingProvider,
     MetricsProvider,
@@ -38,11 +40,13 @@ async def run_pod_monitor(settings: Settings) -> None:
     container = make_async_container(
         SettingsProvider(),
         LoggingProvider(),
+        CoreServicesProvider(),
         BoundaryClientProvider(),
         RedisServicesProvider(),
         MetricsProvider(),
         EventProvider(),
         MessagingProvider(),
+        KafkaServicesProvider(),
         RepositoryProvider(),
         PodMonitorProvider(),
         context={Settings: settings},

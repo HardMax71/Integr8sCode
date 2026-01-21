@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from app.core.logging import setup_logger
 from app.core.providers import (
     BoundaryClientProvider,
+    CoreServicesProvider,
     EventProvider,
     LoggingProvider,
     MessagingProvider,
@@ -130,6 +131,7 @@ def main() -> None:
     container = make_async_container(
         SettingsProvider(),
         LoggingProvider(),
+        CoreServicesProvider(),
         BoundaryClientProvider(),
         RedisServicesProvider(),
         MetricsProvider(),

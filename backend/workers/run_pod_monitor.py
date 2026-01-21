@@ -27,13 +27,11 @@ from app.core.providers import (
     SettingsProvider,
 )
 from app.core.tracing import init_tracing
-from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.kafka import GroupId
 from app.events.core import UnifiedProducer
-from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
+from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.pod_monitor.monitor import PodMonitor
 from app.settings import Settings
-from beanie import init_beanie
 from dishka import make_async_container
 
 
@@ -56,11 +54,9 @@ async def run_pod_monitor(settings: Settings) -> None:
     logger = await container.get(logging.Logger)
     logger.info("Starting PodMonitor with DI container...")
 
-    db = await container.get(Database)
-    await init_beanie(database=db, document_models=ALL_DOCUMENTS)
-
-    schema_registry = await container.get(SchemaRegistryManager)
-    await initialize_event_schemas(schema_registry)
+    # Resolve dependencies (initialization handled by providers)
+    await container.get(Database)  # Triggers init_beanie via DatabaseProvider
+    await container.get(SchemaRegistryManager)  # Triggers initialize_schemas
 
     # Resolve Kafka producer (lifecycle managed by DI - BoundaryClientProvider starts it)
     await container.get(UnifiedProducer)

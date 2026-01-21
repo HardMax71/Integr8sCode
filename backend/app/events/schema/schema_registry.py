@@ -146,8 +146,3 @@ class SchemaRegistryManager:
             await self.set_compatibility(subject, "FORWARD")
             await self._ensure_schema_registered(event_class)
         self.logger.info(f"Initialized {len(_get_all_event_classes())} event schemas")
-
-
-async def initialize_event_schemas(registry: SchemaRegistryManager) -> None:
-    """Initialize all event schemas in the registry."""
-    await registry.initialize_schemas()

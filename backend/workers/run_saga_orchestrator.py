@@ -32,15 +32,13 @@ from app.core.providers import (
     SettingsProvider,
 )
 from app.core.tracing import init_tracing
-from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.kafka import GroupId
 from app.domain.events.typed import DomainEvent
 from app.events.core import UnifiedProducer
-from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
+from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.idempotency.faststream_middleware import IdempotencyMiddleware
 from app.services.saga.saga_logic import SagaLogic
 from app.settings import Settings
-from beanie import init_beanie
 from dishka import make_async_container
 from dishka.integrations.faststream import FromDishka, setup_dishka
 from faststream import FastStream
@@ -107,13 +105,9 @@ def main() -> None:
         app_logger = await container.get(logging.Logger)
         app_logger.info("SagaOrchestrator starting...")
 
-        # Initialize database
-        db = await container.get(Database)
-        await init_beanie(database=db, document_models=ALL_DOCUMENTS)
-
-        # Initialize schema registry
-        schema_registry = await container.get(SchemaRegistryManager)
-        await initialize_event_schemas(schema_registry)
+        # Resolve dependencies (initialization handled by providers)
+        await container.get(Database)  # Triggers init_beanie via DatabaseProvider
+        schema_registry = await container.get(SchemaRegistryManager)  # Triggers initialize_schemas
 
         # Resolve Kafka producer (lifecycle managed by DI - BoundaryClientProvider starts it)
         await container.get(UnifiedProducer)

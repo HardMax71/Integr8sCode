@@ -4,6 +4,7 @@ from collections.abc import AsyncIterable
 
 import redis.asyncio as redis
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
+from beanie import init_beanie
 from dishka import Provider, Scope, from_context, provide
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
@@ -27,6 +28,7 @@ from app.core.metrics import (
 )
 from app.core.security import SecurityService
 from app.core.tracing import TracerManager
+from app.db.docs import ALL_DOCUMENTS
 from app.db.repositories import (
     EventRepository,
     ExecutionRepository,
@@ -180,12 +182,14 @@ class DatabaseProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_database(self, settings: Settings, logger: logging.Logger) -> Database:
+    async def get_database(self, settings: Settings, logger: logging.Logger) -> AsyncIterable[Database]:
         client: AsyncMongoClient[dict[str, object]] = AsyncMongoClient(
             settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000
         )
-        logger.info(f"MongoDB configured: {settings.DATABASE_NAME}")
-        return client[settings.DATABASE_NAME]
+        db = client[settings.DATABASE_NAME]
+        await init_beanie(database=db, document_models=ALL_DOCUMENTS)
+        logger.info(f"MongoDB + Beanie initialized: {settings.DATABASE_NAME}")
+        yield db
 
 
 class CoreServicesProvider(Provider):
@@ -316,8 +320,14 @@ class EventProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_schema_registry(self, settings: Settings, logger: logging.Logger) -> SchemaRegistryManager:
-        return SchemaRegistryManager(settings, logger)
+    async def get_schema_registry(
+        self, settings: Settings, logger: logging.Logger
+    ) -> AsyncIterable[SchemaRegistryManager]:
+        """Provide SchemaRegistryManager with DI-managed initialization."""
+        registry = SchemaRegistryManager(settings, logger)
+        await registry.initialize_schemas()
+        logger.info("Schema registry initialized")
+        yield registry
 
     @provide
     def get_event_store(

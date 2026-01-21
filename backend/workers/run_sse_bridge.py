@@ -16,7 +16,7 @@ from app.core.providers import (
 from app.core.tracing import init_tracing
 from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId
 from app.domain.events.typed import DomainEvent
-from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
+from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.sse.event_router import SSE_RELEVANT_EVENTS, SSEEventRouter
 from app.services.sse.redis_bus import SSERedisBus
 from app.settings import Settings
@@ -94,9 +94,8 @@ def main() -> None:
         app_logger = await container.get(logging.Logger)
         app_logger.info("SSE Bridge starting...")
 
-        # Initialize schema registry
+        # Resolve schema registry (initialization handled by provider)
         schema_registry = await container.get(SchemaRegistryManager)
-        await initialize_event_schemas(schema_registry)
 
         # Decoder: Avro bytes → typed DomainEvent
         async def decode_avro(body: bytes) -> DomainEvent:

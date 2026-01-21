@@ -36,7 +36,7 @@ from app.domain.events.typed import (
     DomainEvent,
 )
 from app.events.core import UnifiedProducer
-from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
+from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.idempotency.faststream_middleware import IdempotencyMiddleware
 from app.services.k8s_worker.worker_logic import K8sWorkerLogic
 from app.settings import Settings
@@ -105,9 +105,8 @@ def main() -> None:
         app_logger = await container.get(logging.Logger)
         app_logger.info("KubernetesWorker starting...")
 
-        # Initialize schema registry
+        # Resolve schema registry (initialization handled by provider)
         schema_registry = await container.get(SchemaRegistryManager)
-        await initialize_event_schemas(schema_registry)
 
         # Resolve Kafka producer (lifecycle managed by DI - BoundaryClientProvider starts it)
         await container.get(UnifiedProducer)

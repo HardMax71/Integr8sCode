@@ -140,7 +140,6 @@ nav:
       - K8s Worker: components/workers/k8s_worker.md
       - Pod Monitor: components/workers/pod_monitor.md
       - Result Processor: components/workers/result_processor.md
-      - Coordinator: components/workers/coordinator.md
       - Event Replay: components/workers/event_replay.md
       - DLQ Processor: components/workers/dlq_processor.md
     - Saga:

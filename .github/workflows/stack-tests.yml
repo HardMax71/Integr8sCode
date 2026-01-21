@@ -139,7 +139,6 @@ jobs:
       - name: Build all images
         run: |
           docker build -t integr8scode-backend:latest --build-context base=docker-image://integr8scode-base:latest -f ./backend/Dockerfile ./backend
-          docker build -t integr8scode-coordinator:latest -f backend/workers/Dockerfile.coordinator --build-context base=docker-image://integr8scode-base:latest ./backend
           docker build -t integr8scode-k8s-worker:latest -f backend/workers/Dockerfile.k8s_worker --build-context base=docker-image://integr8scode-base:latest ./backend
           docker build -t integr8scode-pod-monitor:latest -f backend/workers/Dockerfile.pod_monitor --build-context base=docker-image://integr8scode-base:latest ./backend
           docker build -t integr8scode-result-processor:latest -f backend/workers/Dockerfile.result_processor --build-context base=docker-image://integr8scode-base:latest ./backend
@@ -169,7 +168,6 @@ jobs:
         run: |
           docker save \
             integr8scode-backend:latest \
-            integr8scode-coordinator:latest \
             integr8scode-k8s-worker:latest \
             integr8scode-pod-monitor:latest \
             integr8scode-result-processor:latest \
@@ -319,7 +317,6 @@ jobs:
           docker compose logs > logs/docker-compose.log 2>&1
           docker compose logs backend > logs/backend.log 2>&1
           docker compose logs kafka > logs/kafka.log 2>&1
-          docker compose logs coordinator > logs/coordinator.log 2>&1 || true
           docker compose logs k8s-worker > logs/k8s-worker.log 2>&1 || true
           kubectl get events --sort-by='.metadata.creationTimestamp' -A > logs/k8s-events.log 2>&1 || true
 

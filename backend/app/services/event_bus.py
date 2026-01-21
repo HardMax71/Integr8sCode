@@ -4,7 +4,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 from uuid import uuid4
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
@@ -37,8 +37,9 @@ class Subscription:
 
 
 class EventBus:
-    """
-    Distributed event bus for cross-instance communication via Kafka.
+    """Distributed event bus for cross-instance communication via Kafka.
+
+    Pure logic class - lifecycle managed by DI provider.
 
     Publishers send events to Kafka. Subscribers receive events from OTHER instances
     only - self-published messages are filtered out. This design means:
@@ -51,79 +52,49 @@ class EventBus:
     - *.completed - matches all completed events
     """
 
-    def __init__(self, settings: Settings, logger: logging.Logger, connection_metrics: ConnectionMetrics) -> None:
+    def __init__(
+        self,
+        producer: AIOKafkaProducer,
+        consumer: AIOKafkaConsumer,
+        settings: Settings,
+        logger: logging.Logger,
+        connection_metrics: ConnectionMetrics,
+    ) -> None:
+        self.producer = producer
+        self.consumer = consumer
         self.logger = logger
         self.settings = settings
         self.metrics = connection_metrics
-        self.producer: Optional[AIOKafkaProducer] = None
-        self.consumer: Optional[AIOKafkaConsumer] = None
         self._subscriptions: dict[str, Subscription] = {}  # id -> Subscription
         self._pattern_index: dict[str, set[str]] = {}  # pattern -> set of subscription ids
-        self._consumer_task: Optional[asyncio.Task[None]] = None
         self._lock = asyncio.Lock()
         self._topic = f"{self.settings.KAFKA_TOPIC_PREFIX}{KafkaTopic.EVENT_BUS_STREAM}"
         self._instance_id = str(uuid4())  # Unique ID for filtering self-published messages
 
-    async def __aenter__(self) -> "EventBus":
-        """Start the event bus with Kafka backing."""
-        await self._initialize_kafka()
-        self._consumer_task = asyncio.create_task(self._kafka_listener())
-        self.logger.info("Event bus started with Kafka backing")
-        return self
+    async def process_kafka_message(self) -> None:
+        """Process a single message from Kafka consumer.
 
-    async def _initialize_kafka(self) -> None:
-        """Initialize Kafka producer and consumer."""
-        # Producer setup
-        self.producer = AIOKafkaProducer(
-            bootstrap_servers=self.settings.KAFKA_BOOTSTRAP_SERVERS,
-            client_id=f"event-bus-producer-{uuid4()}",
-            linger_ms=10,
-            max_batch_size=16384,
-            enable_idempotence=True,
-        )
+        Called by DI provider's background task. Filters out self-published messages.
+        """
+        try:
+            msg = await asyncio.wait_for(self.consumer.getone(), timeout=0.1)
 
-        # Consumer setup
-        self.consumer = AIOKafkaConsumer(
-            self._topic,
-            bootstrap_servers=self.settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=f"event-bus-{uuid4()}",
-            auto_offset_reset="latest",
-            enable_auto_commit=True,
-            client_id=f"event-bus-consumer-{uuid4()}",
-            session_timeout_ms=self.settings.KAFKA_SESSION_TIMEOUT_MS,
-            heartbeat_interval_ms=self.settings.KAFKA_HEARTBEAT_INTERVAL_MS,
-            max_poll_interval_ms=self.settings.KAFKA_MAX_POLL_INTERVAL_MS,
-            request_timeout_ms=self.settings.KAFKA_REQUEST_TIMEOUT_MS,
-        )
+            # Skip messages from this instance - publisher handles its own state
+            headers = dict(msg.headers) if msg.headers else {}
+            source = headers.get("source_instance", b"").decode("utf-8")
+            if source == self._instance_id:
+                return
 
-        # Start both in parallel for faster startup
-        await asyncio.gather(self.producer.start(), self.consumer.start())
+            event_dict = json.loads(msg.value.decode("utf-8"))
+            event = EventBusEvent.model_validate(event_dict)
+            await self._distribute_event(event.event_type, event)
 
-    async def __aexit__(self, exc_type: object, exc: object, tb: object) -> None:
-        """Stop the event bus and clean up resources."""
-        # Cancel consumer task
-        if self._consumer_task and not self._consumer_task.done():
-            self._consumer_task.cancel()
-            try:
-                await self._consumer_task
-            except asyncio.CancelledError:
-                pass
-
-        # Stop Kafka components
-        if self.consumer:
-            await self.consumer.stop()
-            self.consumer = None
-
-        if self.producer:
-            await self.producer.stop()
-            self.producer = None
-
-        # Clear subscriptions
-        async with self._lock:
-            self._subscriptions.clear()
-            self._pattern_index.clear()
-
-        self.logger.info("Event bus stopped")
+        except asyncio.TimeoutError:
+            pass
+        except KafkaError as e:
+            self.logger.error(f"Consumer error: {e}")
+        except Exception as e:
+            self.logger.error(f"Error processing Kafka message: {e}")
 
     async def publish(self, event_type: str, data: dict[str, Any]) -> None:
         """
@@ -137,21 +108,19 @@ class EventBus:
             data: Event data payload
         """
         event = self._create_event(event_type, data)
+        try:
+            value = event.model_dump_json().encode("utf-8")
+            key = event_type.encode("utf-8") if event_type else None
+            headers = [("source_instance", self._instance_id.encode("utf-8"))]
 
-        if self.producer:
-            try:
-                value = event.model_dump_json().encode("utf-8")
-                key = event_type.encode("utf-8") if event_type else None
-                headers = [("source_instance", self._instance_id.encode("utf-8"))]
-
-                await self.producer.send_and_wait(
-                    topic=self._topic,
-                    value=value,
-                    key=key,
-                    headers=headers,
-                )
-            except Exception as e:
-                self.logger.error(f"Failed to publish to Kafka: {e}")
+            await self.producer.send_and_wait(
+                topic=self._topic,
+                value=value,
+                key=key,
+                headers=headers,
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to publish to Kafka: {e}")
 
     def _create_event(self, event_type: str, data: dict[str, Any]) -> EventBusEvent:
         """Create a standardized event object."""
@@ -186,6 +155,7 @@ class EventBus:
 
             # Update metrics
             self._update_metrics(pattern)
+            self.metrics.increment_event_bus_subscriptions()
 
         self.logger.debug(f"Created subscription {subscription.id} for pattern: {pattern}")
         return subscription.id
@@ -221,6 +191,7 @@ class EventBus:
 
         # Update metrics
         self._update_metrics(pattern)
+        self.metrics.decrement_event_bus_subscriptions()
 
         self.logger.debug(f"Removed subscription {subscription_id} for pattern: {pattern}")
 
@@ -260,55 +231,10 @@ class EventBus:
         else:
             await asyncio.to_thread(handler, event)
 
-    async def _kafka_listener(self) -> None:
-        """Listen for Kafka messages from OTHER instances and distribute to local subscribers."""
-        if not self.consumer:
-            return
-
-        self.logger.info("Kafka listener started")
-
-        try:
-            while True:
-                try:
-                    msg = await asyncio.wait_for(self.consumer.getone(), timeout=0.1)
-
-                    # Skip messages from this instance - publisher handles its own state
-                    headers = dict(msg.headers) if msg.headers else {}
-                    source = headers.get("source_instance", b"").decode("utf-8")
-                    if source == self._instance_id:
-                        continue
-
-                    try:
-                        event_dict = json.loads(msg.value.decode("utf-8"))
-                        event = EventBusEvent.model_validate(event_dict)
-                        await self._distribute_event(event.event_type, event)
-                    except Exception as e:
-                        self.logger.error(f"Error processing Kafka message: {e}")
-
-                except asyncio.TimeoutError:
-                    continue
-                except KafkaError as e:
-                    self.logger.error(f"Consumer error: {e}")
-                    continue
-
-        except asyncio.CancelledError:
-            self.logger.info("Kafka listener cancelled")
-
     def _update_metrics(self, pattern: str) -> None:
         """Update metrics for a pattern (must be called within lock)."""
         if self.metrics:
             count = len(self._pattern_index.get(pattern, set()))
             self.metrics.update_event_bus_subscribers(count, pattern)
-
-    async def get_statistics(self) -> dict[str, Any]:
-        """Get event bus statistics."""
-        async with self._lock:
-            return {
-                "patterns": list(self._pattern_index.keys()),
-                "total_patterns": len(self._pattern_index),
-                "total_subscriptions": len(self._subscriptions),
-                "kafka_enabled": self.producer is not None,
-                "consumer_task_active": self._consumer_task is not None and not self._consumer_task.done(),
-            }
 
 

@@ -33,7 +33,6 @@ class SSEService:
     def __init__(
             self,
             repository: SSERepository,
-            num_consumers: int,
             sse_bus: SSERedisBus,
             connection_registry: SSEConnectionRegistry,
             settings: Settings,
@@ -41,7 +40,6 @@ class SSEService:
             connection_metrics: ConnectionMetrics,
     ) -> None:
         self.repository = repository
-        self._num_consumers = num_consumers
         self.sse_bus = sse_bus
         self.connection_registry = connection_registry
         self.settings = settings
@@ -243,7 +241,7 @@ class SSEService:
             kafka_enabled=True,
             active_connections=active_connections,
             active_executions=self.connection_registry.get_execution_count(),
-            active_consumers=self._num_consumers,
+            active_consumers=0,  # Consumers run in separate SSE bridge worker
             max_connections_per_user=5,
             shutdown=ShutdownStatus(
                 phase="ready",

@@ -20,12 +20,13 @@ from contextlib import asynccontextmanager
 from app.core.database_context import Database
 from app.core.logging import setup_logger
 from app.core.providers import (
+    BoundaryClientProvider,
     DatabaseProvider,
     EventProvider,
     LoggingProvider,
     MessagingProvider,
     MetricsProvider,
-    RedisProvider,
+    RedisServicesProvider,
     RepositoryProvider,
     SagaOrchestratorProvider,
     SettingsProvider,
@@ -34,6 +35,7 @@ from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.kafka import GroupId
 from app.domain.events.typed import DomainEvent
+from app.events.core import UnifiedProducer
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.services.idempotency.faststream_middleware import IdempotencyMiddleware
 from app.services.saga.saga_logic import SagaLogic
@@ -75,7 +77,8 @@ def main() -> None:
     container = make_async_container(
         SettingsProvider(),
         LoggingProvider(),
-        RedisProvider(),
+        BoundaryClientProvider(),
+        RedisServicesProvider(),
         DatabaseProvider(),
         MetricsProvider(),
         EventProvider(),
@@ -111,6 +114,10 @@ def main() -> None:
         # Initialize schema registry
         schema_registry = await container.get(SchemaRegistryManager)
         await initialize_event_schemas(schema_registry)
+
+        # Resolve Kafka producer (lifecycle managed by DI - BoundaryClientProvider starts it)
+        await container.get(UnifiedProducer)
+        app_logger.info("Kafka producer ready")
 
         # Get saga logic to determine topics
         logic = await container.get(SagaLogic)
@@ -160,10 +167,13 @@ def main() -> None:
         app_logger.info(f"Subscribing to topics: {topics}")
         app_logger.info("Infrastructure initialized, starting event processing...")
 
-        yield
-
-        app_logger.info("SagaOrchestrator shutting down...")
-        await container.close()
+        try:
+            yield
+        finally:
+            app_logger.info("SagaOrchestrator shutting down...")
+            # Container close stops Kafka producer via DI provider
+            await container.close()
+            app_logger.info("SagaOrchestrator shutdown complete")
 
     # Create FastStream app
     app = FastStream(broker, lifespan=lifespan)

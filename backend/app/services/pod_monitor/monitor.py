@@ -6,9 +6,9 @@ from enum import auto
 from typing import Any
 
 from kubernetes import client as k8s_client
+from kubernetes import watch as k8s_watch
 from kubernetes.client.rest import ApiException
 
-from app.core.k8s_clients import K8sClients
 from app.core.metrics import KubernetesMetrics
 from app.core.utils import StringEnum
 from app.domain.events.typed import DomainEvent
@@ -21,7 +21,6 @@ type PodName = str
 type ResourceVersion = str
 type EventType = str
 type KubeEvent = dict[str, Any]
-type StatusDict = dict[str, Any]
 
 # Constants
 MAX_BACKOFF_SECONDS: int = 300  # 5 minutes
@@ -82,7 +81,8 @@ class PodMonitor:
         config: PodMonitorConfig,
         kafka_event_service: KafkaEventService,
         logger: logging.Logger,
-        k8s_clients: K8sClients,
+        k8s_v1: k8s_client.CoreV1Api,
+        k8s_watch: k8s_watch.Watch,
         event_mapper: PodEventMapper,
         kubernetes_metrics: KubernetesMetrics,
     ) -> None:
@@ -91,9 +91,8 @@ class PodMonitor:
         self.config = config
 
         # Kubernetes clients
-        self._clients = k8s_clients
-        self._v1 = k8s_clients.v1
-        self._watch = k8s_clients.watch
+        self._v1 = k8s_v1
+        self._watch = k8s_watch
 
         # Components
         self._event_mapper = event_mapper
@@ -342,15 +341,3 @@ class PodMonitor:
             self.logger.error(f"Failed to reconcile state: {e}", exc_info=True)
             self._metrics.record_pod_monitor_reconciliation_run("failed")
 
-    async def get_status(self) -> StatusDict:
-        """Get monitor status."""
-        return {
-            "tracked_pods": len(self._tracked_pods),
-            "reconnect_attempts": self._reconnect_attempts,
-            "last_resource_version": self._last_resource_version,
-            "config": {
-                "namespace": self.config.namespace,
-                "label_selector": self.config.label_selector,
-                "enable_reconciliation": self.config.enable_state_reconciliation,
-            },
-        }

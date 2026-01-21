@@ -15,7 +15,7 @@ from app.domain.enums.kafka import KafkaTopic
 from app.domain.enums.saga import SagaState
 from app.domain.events.typed import DomainEvent, EventMetadata, SagaCancelledEvent
 from app.domain.saga.models import Saga, SagaConfig
-from app.events.core import EventDispatcher, UnifiedProducer
+from app.events.core import UnifiedProducer
 from app.infrastructure.kafka.mappings import get_topic_for_event
 
 from .base_saga import BaseSaga
@@ -81,13 +81,6 @@ class SagaLogic:
             trigger_event_types = saga_class.get_trigger_events()
             event_types.update(trigger_event_types)
         return event_types
-
-    def register_handlers(self, dispatcher: EventDispatcher) -> None:
-        """Register event handlers with the dispatcher."""
-        event_types = self.get_trigger_event_types()
-        for event_type in event_types:
-            dispatcher.register_handler(event_type, self.handle_event)
-            self.logger.info(f"Registered handler for event type: {event_type}")
 
     async def handle_event(self, event: DomainEvent) -> None:
         """Handle incoming event."""

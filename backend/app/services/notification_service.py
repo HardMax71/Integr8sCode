@@ -126,20 +126,30 @@ class NotificationService:
             extra={"repository": type(notification_repository).__name__},
         )
 
-    async def run(self) -> None:
-        """Run background tasks. Blocks until cancelled.
+    async def process_pending_batch(self) -> None:
+        """Process one batch of pending notifications.
 
-        Runs:
-        - Pending notification processor (retries failed deliveries)
-        - Old notification cleanup (daily)
+        Called periodically by DI provider's background task.
         """
-        self.logger.info("Starting NotificationService background tasks...")
         try:
-            async with asyncio.TaskGroup() as tg:
-                tg.create_task(self._process_pending_notifications())
-                tg.create_task(self._cleanup_old_notifications())
-        except* asyncio.CancelledError:
-            self.logger.info("NotificationService background tasks cancelled")
+            notifications = await self.repository.find_pending_notifications(
+                batch_size=self.settings.NOTIF_PENDING_BATCH_SIZE
+            )
+            for notification in notifications:
+                await self._deliver_notification(notification)
+        except Exception as e:
+            self.logger.error(f"Error processing pending notifications: {e}")
+
+    async def cleanup_old(self) -> None:
+        """Cleanup old notifications once.
+
+        Called periodically by DI provider's background task.
+        """
+        try:
+            deleted_count = await self.repository.cleanup_old_notifications(self.settings.NOTIF_OLD_DAYS)
+            self.logger.info(f"Cleaned up {deleted_count} old notifications")
+        except Exception as e:
+            self.logger.error(f"Error cleaning up old notifications: {e}")
 
     async def create_notification(
         self,
@@ -431,46 +441,6 @@ class NotificationService:
             NotificationSeverity.HIGH: "#ff0000",  # Red
             NotificationSeverity.URGENT: "#990000",  # Dark Red
         }.get(priority, "#808080")  # Default gray
-
-    async def _process_pending_notifications(self) -> None:
-        """Process pending notifications in background."""
-        while True:
-            try:
-                # Find pending notifications
-                notifications = await self.repository.find_pending_notifications(
-                    batch_size=self.settings.NOTIF_PENDING_BATCH_SIZE
-                )
-
-                # Process each notification
-                for notification in notifications:
-                    await self._deliver_notification(notification)
-
-                # Sleep between batches
-                await asyncio.sleep(5)
-
-            except asyncio.CancelledError:
-                raise
-            except Exception as e:
-                self.logger.error(f"Error processing pending notifications: {e}")
-                await asyncio.sleep(10)
-
-    async def _cleanup_old_notifications(self) -> None:
-        """Cleanup old notifications periodically."""
-        while True:
-            try:
-                # Run cleanup once per day
-                await asyncio.sleep(86400)  # 24 hours
-
-                # Delete old notifications
-                deleted_count = await self.repository.cleanup_old_notifications(self.settings.NOTIF_OLD_DAYS)
-
-                self.logger.info(f"Cleaned up {deleted_count} old notifications")
-
-            except asyncio.CancelledError:
-                raise
-            except Exception as e:
-                self.logger.error(f"Error cleaning up old notifications: {e}")
-                await asyncio.sleep(5)
 
     async def mark_as_read(self, user_id: str, notification_id: str) -> bool:
         """Mark notification as read."""

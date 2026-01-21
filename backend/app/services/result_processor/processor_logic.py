@@ -2,12 +2,10 @@ import logging
 
 from app.core.metrics import ExecutionMetrics
 from app.db.repositories.execution_repository import ExecutionRepository
-from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.kafka import GroupId
 from app.domain.enums.storage import ExecutionErrorType, StorageType
 from app.domain.events.typed import (
-    DomainEvent,
     EventMetadata,
     ExecutionCompletedEvent,
     ExecutionFailedEvent,
@@ -16,19 +14,20 @@ from app.domain.events.typed import (
     ResultStoredEvent,
 )
 from app.domain.execution import ExecutionNotFoundError, ExecutionResultDomain, ResourceUsageDomainAdapter
-from app.events.core import EventDispatcher, UnifiedProducer
+from app.events.core import UnifiedProducer
 from app.settings import Settings
 
 
 class ProcessorLogic:
-    """
-    Business logic for result processing.
+    """Business logic for result processing.
 
     Handles:
     - Processing execution completion events
     - Storing results in database
     - Publishing ResultStored/ResultFailed events
     - Recording metrics
+
+    Used by the result processor FastStream worker (run_result_processor.py).
     """
 
     def __init__(
@@ -44,26 +43,6 @@ class ProcessorLogic:
         self._settings = settings
         self._metrics = execution_metrics
         self.logger = logger
-
-    def register_handlers(self, dispatcher: EventDispatcher) -> None:
-        """Register event handlers with the dispatcher."""
-        dispatcher.register_handler(EventType.EXECUTION_COMPLETED, self._handle_completed_wrapper)
-        dispatcher.register_handler(EventType.EXECUTION_FAILED, self._handle_failed_wrapper)
-        dispatcher.register_handler(EventType.EXECUTION_TIMEOUT, self._handle_timeout_wrapper)
-
-    # Wrappers accepting DomainEvent to satisfy dispatcher typing
-
-    async def _handle_completed_wrapper(self, event: DomainEvent) -> None:
-        assert isinstance(event, ExecutionCompletedEvent)
-        await self._handle_completed(event)
-
-    async def _handle_failed_wrapper(self, event: DomainEvent) -> None:
-        assert isinstance(event, ExecutionFailedEvent)
-        await self._handle_failed(event)
-
-    async def _handle_timeout_wrapper(self, event: DomainEvent) -> None:
-        assert isinstance(event, ExecutionTimeoutEvent)
-        await self._handle_timeout(event)
 
     async def _handle_completed(self, event: ExecutionCompletedEvent) -> None:
         """Handle execution completed event."""

@@ -115,7 +115,7 @@ async def test_execution_stream_closes_on_failed_event(connection_metrics: Conne
     repo = _FakeRepo()
     bus = _FakeBus()
     registry = _FakeRegistry()
-    svc = SSEService(repository=repo, num_consumers=3, sse_bus=bus, connection_registry=registry,
+    svc = SSEService(repository=repo, sse_bus=bus, connection_registry=registry,
                      settings=_make_fake_settings(), logger=_test_logger, connection_metrics=connection_metrics)
 
     agen = svc.create_execution_stream("exec-1", user_id="u1")
@@ -159,7 +159,7 @@ async def test_execution_stream_result_stored_includes_result_payload(connection
     )
     bus = _FakeBus()
     registry = _FakeRegistry()
-    svc = SSEService(repository=repo, num_consumers=3, sse_bus=bus, connection_registry=registry,
+    svc = SSEService(repository=repo, sse_bus=bus, connection_registry=registry,
                      settings=_make_fake_settings(), logger=_test_logger, connection_metrics=connection_metrics)
 
     agen = svc.create_execution_stream("exec-2", user_id="u1")
@@ -184,7 +184,7 @@ async def test_notification_stream_connected_and_heartbeat_and_message(connectio
     registry = _FakeRegistry()
     settings = _make_fake_settings()
     settings.SSE_HEARTBEAT_INTERVAL = 0  # emit immediately
-    svc = SSEService(repository=repo, num_consumers=3, sse_bus=bus, connection_registry=registry, settings=settings,
+    svc = SSEService(repository=repo, sse_bus=bus, connection_registry=registry, settings=settings,
                      logger=_test_logger, connection_metrics=connection_metrics)
 
     agen = svc.create_notification_stream("u1")
@@ -221,10 +221,11 @@ async def test_notification_stream_connected_and_heartbeat_and_message(connectio
 async def test_health_status_shape(connection_metrics: ConnectionMetrics) -> None:
     # Create registry with 2 active connections and 2 executions for testing
     registry = _FakeRegistry(active_connections=2, active_executions=2)
-    svc = SSEService(repository=_FakeRepo(), num_consumers=3, sse_bus=_FakeBus(), connection_registry=registry,
+    svc = SSEService(repository=_FakeRepo(), sse_bus=_FakeBus(), connection_registry=registry,
                      settings=_make_fake_settings(), logger=_test_logger, connection_metrics=connection_metrics)
     h = await svc.get_health_status()
     assert isinstance(h, SSEHealthDomain)
-    assert h.active_consumers == 3
+    # Consumers now run in separate SSE bridge worker
+    assert h.active_consumers == 0
     assert h.active_connections == 2
     assert h.active_executions == 2

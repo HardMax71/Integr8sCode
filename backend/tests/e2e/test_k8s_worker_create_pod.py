@@ -2,13 +2,14 @@ import logging
 import uuid
 
 import pytest
-from app.core.metrics import EventMetrics
+from app.core.metrics import EventMetrics, ExecutionMetrics, KubernetesMetrics
 from app.domain.events.typed import CreatePodCommandEvent, EventMetadata
 from app.events.core import UnifiedProducer
 from app.services.k8s_worker.config import K8sWorkerConfig
 from app.services.k8s_worker.worker_logic import K8sWorkerLogic
 from app.settings import Settings
 from dishka import AsyncContainer
+from kubernetes import client as k8s_client
 from kubernetes.client.rest import ApiException
 
 pytestmark = [pytest.mark.e2e, pytest.mark.k8s]
@@ -22,8 +23,15 @@ async def test_worker_creates_configmap_and_pod(
 ) -> None:
     ns = test_settings.K8S_NAMESPACE
 
+    if ns == "default":
+        pytest.fail("K8S_NAMESPACE is set to 'default', which is forbidden")
+
     producer: UnifiedProducer = await scope.get(UnifiedProducer)
     event_metrics: EventMetrics = await scope.get(EventMetrics)
+    kubernetes_metrics: KubernetesMetrics = await scope.get(KubernetesMetrics)
+    execution_metrics: ExecutionMetrics = await scope.get(ExecutionMetrics)
+    k8s_v1: k8s_client.CoreV1Api = await scope.get(k8s_client.CoreV1Api)
+    k8s_apps_v1: k8s_client.AppsV1Api = await scope.get(k8s_client.AppsV1Api)
 
     cfg = K8sWorkerConfig(namespace=ns, max_concurrent_pods=1)
     logic = K8sWorkerLogic(
@@ -32,18 +40,11 @@ async def test_worker_creates_configmap_and_pod(
         settings=test_settings,
         logger=_test_logger,
         event_metrics=event_metrics,
+        kubernetes_metrics=kubernetes_metrics,
+        execution_metrics=execution_metrics,
+        k8s_v1=k8s_v1,
+        k8s_apps_v1=k8s_apps_v1,
     )
-
-    # Initialize k8s clients using logic's own method
-    try:
-        logic.initialize()
-    except RuntimeError as e:
-        if "default" in str(e):
-            pytest.skip("K8S_NAMESPACE is set to 'default', which is forbidden")
-        raise
-
-    if logic.v1 is None:
-        pytest.skip("Kubernetes cluster not available")
 
     exec_id = uuid.uuid4().hex[:8]
     cmd = CreatePodCommandEvent(

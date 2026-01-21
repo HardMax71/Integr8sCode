@@ -19,12 +19,13 @@ from contextlib import asynccontextmanager
 from app.core.database_context import Database
 from app.core.logging import setup_logger
 from app.core.providers import (
+    BoundaryClientProvider,
     DatabaseProvider,
     EventProvider,
     LoggingProvider,
     MessagingProvider,
     MetricsProvider,
-    RedisProvider,
+    RedisServicesProvider,
     RepositoryProvider,
     ResultProcessorProvider,
     SettingsProvider,
@@ -39,6 +40,7 @@ from app.domain.events.typed import (
     ExecutionFailedEvent,
     ExecutionTimeoutEvent,
 )
+from app.events.core import UnifiedProducer
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.services.idempotency.faststream_middleware import IdempotencyMiddleware
 from app.services.result_processor.processor_logic import ProcessorLogic
@@ -80,7 +82,8 @@ def main() -> None:
     container = make_async_container(
         SettingsProvider(),
         LoggingProvider(),
-        RedisProvider(),
+        BoundaryClientProvider(),
+        RedisServicesProvider(),
         DatabaseProvider(),
         MetricsProvider(),
         EventProvider(),
@@ -117,6 +120,10 @@ def main() -> None:
         # Initialize schema registry
         schema_registry = await container.get(SchemaRegistryManager)
         await initialize_event_schemas(schema_registry)
+
+        # Resolve Kafka producer (lifecycle managed by DI - BoundaryClientProvider starts it)
+        await container.get(UnifiedProducer)
+        app_logger.info("Kafka producer ready")
 
         # Decoder: Avro bytes → typed DomainEvent
         async def decode_avro(body: bytes) -> DomainEvent:
@@ -159,10 +166,13 @@ def main() -> None:
 
         app_logger.info("Infrastructure initialized, starting event processing...")
 
-        yield
-
-        app_logger.info("ResultProcessor shutting down...")
-        await container.close()
+        try:
+            yield
+        finally:
+            app_logger.info("ResultProcessor shutting down...")
+            # Container close stops Kafka producer via DI provider
+            await container.close()
+            app_logger.info("ResultProcessor shutdown complete")
 
     # Create FastStream app
     app = FastStream(broker, lifespan=lifespan)

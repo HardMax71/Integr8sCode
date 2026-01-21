@@ -15,20 +15,21 @@ from contextlib import suppress
 from app.core.database_context import Database
 from app.core.logging import setup_logger
 from app.core.providers import (
+    BoundaryClientProvider,
     DatabaseProvider,
     EventProvider,
-    KubernetesProvider,
     LoggingProvider,
     MessagingProvider,
     MetricsProvider,
     PodMonitorProvider,
-    RedisProvider,
+    RedisServicesProvider,
     RepositoryProvider,
     SettingsProvider,
 )
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.kafka import GroupId
+from app.events.core import UnifiedProducer
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.services.pod_monitor.monitor import PodMonitor
 from app.settings import Settings
@@ -41,13 +42,13 @@ async def run_pod_monitor(settings: Settings) -> None:
     container = make_async_container(
         SettingsProvider(),
         LoggingProvider(),
-        RedisProvider(),
+        BoundaryClientProvider(),
+        RedisServicesProvider(),
         DatabaseProvider(),
         MetricsProvider(),
         EventProvider(),
         MessagingProvider(),
         RepositoryProvider(),
-        KubernetesProvider(),
         PodMonitorProvider(),
         context={Settings: settings},
     )
@@ -60,6 +61,10 @@ async def run_pod_monitor(settings: Settings) -> None:
 
     schema_registry = await container.get(SchemaRegistryManager)
     await initialize_event_schemas(schema_registry)
+
+    # Resolve Kafka producer (lifecycle managed by DI - BoundaryClientProvider starts it)
+    await container.get(UnifiedProducer)
+    logger.info("Kafka producer ready")
 
     monitor = await container.get(PodMonitor)
 
@@ -88,7 +93,9 @@ async def run_pod_monitor(settings: Settings) -> None:
 
     finally:
         logger.info("Initiating graceful shutdown...")
+        # Container close stops Kafka producer via DI provider
         await container.close()
+        logger.info("PodMonitor shutdown complete")
 
 
 def main() -> None:

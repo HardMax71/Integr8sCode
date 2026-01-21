@@ -18,12 +18,13 @@ from contextlib import asynccontextmanager
 
 from app.core.logging import setup_logger
 from app.core.providers import (
+    BoundaryClientProvider,
     EventProvider,
     K8sWorkerProvider,
     LoggingProvider,
     MessagingProvider,
     MetricsProvider,
-    RedisProvider,
+    RedisServicesProvider,
     SettingsProvider,
 )
 from app.core.tracing import init_tracing
@@ -34,6 +35,7 @@ from app.domain.events.typed import (
     DeletePodCommandEvent,
     DomainEvent,
 )
+from app.events.core import UnifiedProducer
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.services.idempotency.faststream_middleware import IdempotencyMiddleware
 from app.services.k8s_worker.worker_logic import K8sWorkerLogic
@@ -74,7 +76,8 @@ def main() -> None:
     container = make_async_container(
         SettingsProvider(),
         LoggingProvider(),
-        RedisProvider(),
+        BoundaryClientProvider(),
+        RedisServicesProvider(),
         MetricsProvider(),
         EventProvider(),
         MessagingProvider(),
@@ -106,6 +109,10 @@ def main() -> None:
         schema_registry = await container.get(SchemaRegistryManager)
         await initialize_event_schemas(schema_registry)
 
+        # Resolve Kafka producer (lifecycle managed by DI - BoundaryClientProvider starts it)
+        await container.get(UnifiedProducer)
+        app_logger.info("Kafka producer ready")
+
         # Get worker logic and ensure daemonset (one-time initialization)
         logic = await container.get(K8sWorkerLogic)
         await logic.ensure_image_pre_puller_daemonset()
@@ -128,14 +135,14 @@ def main() -> None:
             event: CreatePodCommandEvent,
             worker_logic: FromDishka[K8sWorkerLogic],
         ) -> None:
-            await worker_logic._handle_create_pod_command(event)
+            await worker_logic.handle_create_pod_command(event)
 
         @subscriber(filter=lambda msg: msg.headers.get("event_type") == EventType.DELETE_POD_COMMAND.encode())
         async def handle_delete_pod_command(
             event: DeletePodCommandEvent,
             worker_logic: FromDishka[K8sWorkerLogic],
         ) -> None:
-            await worker_logic._handle_delete_pod_command(event)
+            await worker_logic.handle_delete_pod_command(event)
 
         # Default handler for unmatched events (prevents message loss)
         @subscriber()
@@ -144,12 +151,15 @@ def main() -> None:
 
         app_logger.info("Infrastructure initialized, starting event processing...")
 
-        yield
-
-        # Graceful shutdown: wait for active pod creations
-        app_logger.info("KubernetesWorker shutting down...")
-        await logic.wait_for_active_creations()
-        await container.close()
+        try:
+            yield
+        finally:
+            # Graceful shutdown: wait for active pod creations
+            app_logger.info("KubernetesWorker shutting down...")
+            await logic.wait_for_active_creations()
+            # Container close stops Kafka producer via DI provider
+            await container.close()
+            app_logger.info("KubernetesWorker shutdown complete")
 
     # Create FastStream app
     app = FastStream(broker, lifespan=lifespan)

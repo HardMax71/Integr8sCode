@@ -1,7 +1,7 @@
 import asyncio
 import logging
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
 import redis.asyncio as redis
 from beanie import init_beanie
@@ -13,22 +13,26 @@ from app.core.metrics import RateLimitMetrics
 from app.core.startup import initialize_rate_limits
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
-from app.events.core import UnifiedConsumer
+from app.events.core import UnifiedProducer
 from app.events.event_store_consumer import EventStoreConsumer
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
+from app.services.event_bus import EventBus
 from app.services.notification_service import NotificationService
 from app.settings import Settings
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """
-    Application lifespan with dishka dependency injection.
+    """Application lifespan with dishka dependency injection.
 
-    Services are already initialized by their DI providers (which handle __aenter__/__aexit__).
-    Lifespan just starts the run() methods as background tasks.
+    All service lifecycle (start/stop, background tasks) is managed by DI providers.
+    Lifespan only:
+    1. Resolves dependencies (triggers provider lifecycle setup)
+    2. Initializes schemas and beanie
+    3. On shutdown, container cleanup handles everything
+
+    Note: SSE Kafka consumers are now in the separate SSE bridge worker (run_sse_bridge.py).
     """
-    # Get settings and logger from DI container (uses test settings in tests)
     container: AsyncContainer = app.state.dishka_container
     settings = await container.get(Settings)
     logger = await container.get(logging.Logger)
@@ -41,10 +45,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         },
     )
 
-    # Metrics setup moved to app creation to allow middleware registration
-    logger.info("Lifespan start: tracing and services initialization")
-
-    # Initialize tracing only when enabled (avoid exporter retries in tests)
+    # Initialize tracing only when enabled
     if settings.ENABLE_TRACING and not settings.TESTING:
         instrumentation_report = init_tracing(
             service_name=settings.TRACING_SERVICE_NAME,
@@ -73,59 +74,37 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         )
 
     # Phase 1: Resolve all DI dependencies in parallel
+    # This triggers async generator providers which start services and background tasks
     (
         schema_registry,
         database,
         redis_client,
         rate_limit_metrics,
-        sse_consumers,
-        event_store_consumer,
-        notification_service,
+        _event_store_consumer,
+        _notification_service,
+        _kafka_producer,
+        _event_bus,
     ) = await asyncio.gather(
         container.get(SchemaRegistryManager),
         container.get(Database),
         container.get(redis.Redis),
         container.get(RateLimitMetrics),
-        container.get(list[UnifiedConsumer]),
         container.get(EventStoreConsumer),
         container.get(NotificationService),
+        container.get(UnifiedProducer),
+        container.get(EventBus),
     )
 
-    # Phase 2: Initialize infrastructure in parallel (independent subsystems)
+    # Phase 2: Initialize infrastructure
     await asyncio.gather(
         initialize_event_schemas(schema_registry),
         init_beanie(database=database, document_models=ALL_DOCUMENTS),
         initialize_rate_limits(redis_client, settings, logger, rate_limit_metrics),
     )
-    logger.info("Infrastructure initialized (schemas, beanie, rate limits)")
-
-    # Phase 3: Start run() methods as background tasks
-    # Note: Services are already initialized by their DI providers (which handle __aenter__/__aexit__)
-
-    async def run_sse_consumers() -> None:
-        """Run SSE consumers using TaskGroup."""
-        async with asyncio.TaskGroup() as tg:
-            for consumer in sse_consumers:
-                tg.create_task(consumer.run())
-
-    tasks = [
-        asyncio.create_task(run_sse_consumers(), name="sse_consumers"),
-        asyncio.create_task(event_store_consumer.run(), name="event_store_consumer"),
-        asyncio.create_task(notification_service.run(), name="notification_service"),
-    ]
-    logger.info(
-        "Background services started",
-        extra={"sse_consumer_count": len(sse_consumers)},
-    )
+    logger.info("Application started - all services running")
 
     try:
         yield
     finally:
-        # Cancel all background tasks on shutdown
-        logger.info("Shutting down background services...")
-        for task in tasks:
-            task.cancel()
-
-        # Wait for tasks to finish cancellation
-        await asyncio.gather(*tasks, return_exceptions=True)
-        logger.info("Background services stopped")
+        # Container cleanup handles all service shutdown via async generator cleanup
+        logger.info("Application shutting down - container cleanup will stop all services")

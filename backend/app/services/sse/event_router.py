@@ -4,7 +4,6 @@ import logging
 
 from app.domain.enums.events import EventType
 from app.domain.events.typed import DomainEvent
-from app.events.core import EventDispatcher
 from app.services.sse.redis_bus import SSERedisBus
 
 # Events that should be routed to SSE clients
@@ -33,6 +32,8 @@ class SSEEventRouter:
 
     Stateless service that extracts execution_id from events and publishes
     them to Redis via SSERedisBus. Each execution_id has its own channel.
+
+    Used by the SSE bridge worker (run_sse_bridge.py) via FastStream.
     """
 
     def __init__(self, sse_bus: SSERedisBus, logger: logging.Logger) -> None:
@@ -56,8 +57,3 @@ class SSEEventRouter:
                 f"Failed to publish {event.event_type} to Redis for {execution_id}: {e}",
                 exc_info=True,
             )
-
-    def register_handlers(self, dispatcher: EventDispatcher) -> None:
-        """Register routing handlers for all relevant event types."""
-        for event_type in SSE_RELEVANT_EVENTS:
-            dispatcher.register_handler(event_type, self.route_event)

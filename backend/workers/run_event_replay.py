@@ -34,14 +34,15 @@ async def run_replay_service(settings: Settings) -> None:
     db = await container.get(Database)
     await init_beanie(database=db, document_models=ALL_DOCUMENTS)
 
-    producer = await container.get(UnifiedProducer)
+    # Resolve Kafka producer (lifecycle managed by DI - BoundaryClientProvider starts it)
+    await container.get(UnifiedProducer)
     replay_service = await container.get(EventReplayService)
 
     logger.info("Event replay service initialized")
 
     async with AsyncExitStack() as stack:
+        # Container close stops Kafka producer via DI provider
         stack.push_async_callback(container.close)
-        await stack.enter_async_context(producer)
 
         task = asyncio.create_task(cleanup_task(replay_service, logger))
 

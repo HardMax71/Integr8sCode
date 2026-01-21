@@ -1,5 +1,3 @@
-from .consumer import UnifiedConsumer
-from .dispatcher import EventDispatcher
 from .dlq_handler import (
     create_dlq_error_handler,
     create_immediate_dlq_handler,
@@ -22,8 +20,6 @@ __all__ = [
     "ConsumerMetrics",
     # Core components
     "UnifiedProducer",
-    "UnifiedConsumer",
-    "EventDispatcher",
     # Helpers
     "create_dlq_error_handler",
     "create_immediate_dlq_handler",

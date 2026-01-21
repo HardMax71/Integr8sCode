@@ -1,7 +1,8 @@
 import pytest
+from aiokafka import AIOKafkaProducer
+from app.db.docs import ResourceAllocationDocument
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
-from app.domain.events.typed import DomainEvent, ExecutionRequestedEvent
-from app.domain.saga import DomainResourceAllocation, DomainResourceAllocationCreate
+from app.domain.events.typed import ExecutionRequestedEvent
 from app.events.core import UnifiedProducer
 from app.services.saga.execution_saga import (
     AllocateResourcesStep,
@@ -14,14 +15,15 @@ from app.services.saga.execution_saga import (
     ValidateExecutionStep,
 )
 from app.services.saga.saga_step import SagaContext
+from dishka import AsyncContainer
 
 from tests.helpers import make_execution_requested_event
 
 pytestmark = pytest.mark.unit
 
 
-def _req(timeout: int = 30, script: str = "print('x')") -> ExecutionRequestedEvent:
-    return make_execution_requested_event(execution_id="e1", script=script, timeout_seconds=timeout)
+def _req(timeout: int = 30, script: str = "print('x')", execution_id: str = "e1") -> ExecutionRequestedEvent:
+    return make_execution_requested_event(execution_id=execution_id, script=script, timeout_seconds=timeout)
 
 
 @pytest.mark.asyncio
@@ -42,50 +44,41 @@ async def test_validate_execution_step_success_and_failures() -> None:
     assert ok3 is False and ctx3.error is not None
 
 
-class _FakeAllocRepo(ResourceAllocationRepository):
-    """Fake ResourceAllocationRepository for testing."""
-
-    def __init__(self, active: int = 0, alloc_id: str = "alloc-1") -> None:
-        self.active = active
-        self.alloc_id = alloc_id
-        self.released: list[str] = []
-
-    async def count_active(self, language: str) -> int:
-        return self.active
-
-    async def create_allocation(self, create_data: DomainResourceAllocationCreate) -> DomainResourceAllocation:
-        return DomainResourceAllocation(
-            allocation_id=self.alloc_id,
-            execution_id=create_data.execution_id,
-            language=create_data.language,
-            cpu_request=create_data.cpu_request,
-            memory_request=create_data.memory_request,
-            cpu_limit=create_data.cpu_limit,
-            memory_limit=create_data.memory_limit,
-        )
-
-    async def release_allocation(self, allocation_id: str) -> bool:
-        self.released.append(allocation_id)
-        return True
-
-
 @pytest.mark.asyncio
-async def test_allocate_resources_step_paths() -> None:
-    ctx = SagaContext("s1", "e1")
-    ctx.set("execution_id", "e1")
-    ok = await AllocateResourcesStep(alloc_repo=_FakeAllocRepo(active=0, alloc_id="alloc-1")).execute(ctx, _req())
-    assert ok is True and ctx.get("resources_allocated") is True and ctx.get("allocation_id") == "alloc-1"
+async def test_allocate_resources_step_paths(unit_container: AsyncContainer) -> None:
+    alloc_repo = await unit_container.get(ResourceAllocationRepository)
 
-    # Limit exceeded
-    ctx2 = SagaContext("s2", "e2")
-    ctx2.set("execution_id", "e2")
-    ok2 = await AllocateResourcesStep(alloc_repo=_FakeAllocRepo(active=100)).execute(ctx2, _req())
+    # Test 1: Success path with clean repo
+    ctx = SagaContext("s1", "alloc-test-1")
+    ctx.set("execution_id", "alloc-test-1")
+    ok = await AllocateResourcesStep(alloc_repo=alloc_repo).execute(ctx, _req(execution_id="alloc-test-1"))
+    assert ok is True
+    assert ctx.get("resources_allocated") is True
+    assert ctx.get("allocation_id") is not None
+
+    # Test 2: Limit exceeded (insert 100 active allocations)
+    for i in range(100):
+        doc = ResourceAllocationDocument(
+            allocation_id=f"limit-test-alloc-{i}",
+            execution_id=f"limit-test-exec-{i}",
+            language="python",
+            cpu_request="100m",
+            memory_request="128Mi",
+            cpu_limit="500m",
+            memory_limit="512Mi",
+            status="active",
+        )
+        await doc.insert()
+
+    ctx2 = SagaContext("s2", "limit-test-main")
+    ctx2.set("execution_id", "limit-test-main")
+    ok2 = await AllocateResourcesStep(alloc_repo=alloc_repo).execute(ctx2, _req(execution_id="limit-test-main"))
     assert ok2 is False
 
-    # Missing repo
+    # Test 3: Missing repo
     ctx3 = SagaContext("s3", "e3")
     ctx3.set("execution_id", "e3")
-    ok3 = await AllocateResourcesStep(alloc_repo=None).execute(ctx3, _req())
+    ok3 = await AllocateResourcesStep(alloc_repo=None).execute(ctx3, _req(execution_id="e3"))
     assert ok3 is False
 
 
@@ -109,80 +102,105 @@ async def test_queue_and_monitor_steps() -> None:
     assert await MonitorExecutionStep().execute(bad, _req()) is False
 
 
-class _FakeProducer(UnifiedProducer):
-    """Fake UnifiedProducer for testing."""
-
-    def __init__(self) -> None:
-        self.events: list[DomainEvent] = []
-
-    async def produce(self, event_to_produce: DomainEvent, key: str | None = None,
-                      headers: dict[str, str] | None = None) -> None:
-        self.events.append(event_to_produce)
-
-
 @pytest.mark.asyncio
-async def test_create_pod_step_publish_flag_and_compensation() -> None:
-    ctx = SagaContext("s1", "e1")
-    ctx.set("execution_id", "e1")
+async def test_create_pod_step_publish_flag_and_compensation(unit_container: AsyncContainer) -> None:
+    producer = await unit_container.get(UnifiedProducer)
+    kafka_producer = await unit_container.get(AIOKafkaProducer)
+
     # Skip publish path
+    ctx = SagaContext("s1", "skip-publish-test")
+    ctx.set("execution_id", "skip-publish-test")
     s1 = CreatePodStep(producer=None, publish_commands=False)
-    ok1 = await s1.execute(ctx, _req())
+    ok1 = await s1.execute(ctx, _req(execution_id="skip-publish-test"))
     assert ok1 is True and ctx.get("pod_creation_triggered") is False
 
     # Publish path succeeds
-    ctx2 = SagaContext("s2", "e2")
-    ctx2.set("execution_id", "e2")
-    prod = _FakeProducer()
-    s2 = CreatePodStep(producer=prod, publish_commands=True)
-    ok2 = await s2.execute(ctx2, _req())
-    assert ok2 is True and ctx2.get("pod_creation_triggered") is True and prod.events
+    ctx2 = SagaContext("s2", "publish-test")
+    ctx2.set("execution_id", "publish-test")
+    initial_count = len(kafka_producer.sent_messages)
+    s2 = CreatePodStep(producer=producer, publish_commands=True)
+    ok2 = await s2.execute(ctx2, _req(execution_id="publish-test"))
+    assert ok2 is True
+    assert ctx2.get("pod_creation_triggered") is True
+    assert len(kafka_producer.sent_messages) > initial_count
 
     # Missing producer -> failure
-    ctx3 = SagaContext("s3", "e3")
-    ctx3.set("execution_id", "e3")
+    ctx3 = SagaContext("s3", "missing-producer-test")
+    ctx3.set("execution_id", "missing-producer-test")
     s3 = CreatePodStep(producer=None, publish_commands=True)
-    ok3 = await s3.execute(ctx3, _req())
+    ok3 = await s3.execute(ctx3, _req(execution_id="missing-producer-test"))
     assert ok3 is False and ctx3.error is not None
 
     # DeletePod compensation triggers only when flagged and producer exists
-    comp = DeletePodCompensation(producer=prod)
+    comp = DeletePodCompensation(producer=producer)
     ctx2.set("pod_creation_triggered", True)
     assert await comp.compensate(ctx2) is True
 
 
 @pytest.mark.asyncio
-async def test_release_resources_compensation() -> None:
-    repo = _FakeAllocRepo()
-    comp = ReleaseResourcesCompensation(alloc_repo=repo)
-    ctx = SagaContext("s1", "e1")
-    ctx.set("allocation_id", "alloc-1")
-    assert await comp.compensate(ctx) is True and repo.released == ["alloc-1"]
+async def test_release_resources_compensation(unit_container: AsyncContainer) -> None:
+    alloc_repo = await unit_container.get(ResourceAllocationRepository)
+
+    # Create an allocation via repo
+    from app.domain.saga import DomainResourceAllocationCreate
+
+    create_data = DomainResourceAllocationCreate(
+        execution_id="release-comp-test",
+        language="python",
+        cpu_request="100m",
+        memory_request="128Mi",
+        cpu_limit="500m",
+        memory_limit="512Mi",
+    )
+    allocation = await alloc_repo.create_allocation(create_data)
+
+    # Verify allocation was created with status="active"
+    doc = await ResourceAllocationDocument.find_one(
+        ResourceAllocationDocument.allocation_id == allocation.allocation_id
+    )
+    assert doc is not None
+    assert doc.status == "active"
+
+    # Release via compensation
+    comp = ReleaseResourcesCompensation(alloc_repo=alloc_repo)
+    ctx = SagaContext("s1", "release-comp-test")
+    ctx.set("allocation_id", allocation.allocation_id)
+    assert await comp.compensate(ctx) is True
+
+    # Verify allocation was released
+    doc_after = await ResourceAllocationDocument.find_one(
+        ResourceAllocationDocument.allocation_id == allocation.allocation_id
+    )
+    assert doc_after is not None
+    assert doc_after.status == "released"
 
     # Missing repo -> failure
     comp2 = ReleaseResourcesCompensation(alloc_repo=None)
     assert await comp2.compensate(ctx) is False
+
     # Missing allocation_id -> True short-circuit
     ctx2 = SagaContext("sX", "eX")
-    assert await ReleaseResourcesCompensation(alloc_repo=repo).compensate(ctx2) is True
+    assert await ReleaseResourcesCompensation(alloc_repo=alloc_repo).compensate(ctx2) is True
 
 
 @pytest.mark.asyncio
-async def test_delete_pod_compensation_variants() -> None:
+async def test_delete_pod_compensation_variants(unit_container: AsyncContainer) -> None:
     # Not triggered -> True early
     comp_none = DeletePodCompensation(producer=None)
-    ctx = SagaContext("s", "e")
+    ctx = SagaContext("s", "delete-pod-test-1")
     ctx.set("pod_creation_triggered", False)
     assert await comp_none.compensate(ctx) is True
 
     # Triggered but missing producer -> False
-    ctx2 = SagaContext("s2", "e2")
+    ctx2 = SagaContext("s2", "delete-pod-test-2")
     ctx2.set("pod_creation_triggered", True)
-    ctx2.set("execution_id", "e2")
+    ctx2.set("execution_id", "delete-pod-test-2")
     assert await comp_none.compensate(ctx2) is False
 
     # Exercise get_compensation methods return types (coverage for lines returning comps/None)
+    alloc_repo = await unit_container.get(ResourceAllocationRepository)
     assert ValidateExecutionStep().get_compensation() is None
-    assert isinstance(AllocateResourcesStep(_FakeAllocRepo()).get_compensation(), ReleaseResourcesCompensation)
+    assert isinstance(AllocateResourcesStep(alloc_repo).get_compensation(), ReleaseResourcesCompensation)
     assert isinstance(QueueExecutionStep().get_compensation(), type(DeletePodCompensation(None)).__bases__[0]) or True
     assert CreatePodStep(None, publish_commands=False).get_compensation() is not None
     assert MonitorExecutionStep().get_compensation() is None

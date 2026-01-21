@@ -95,9 +95,11 @@ class SchemaRegistryManager:
         payload: dict[str, Any] = event.model_dump(mode="python", by_alias=False, exclude_unset=False)
         payload.pop("event_type", None)
 
-        # Convert datetime to microseconds for Avro logical type
-        if "timestamp" in payload and payload["timestamp"] is not None:
-            payload["timestamp"] = int(payload["timestamp"].timestamp() * 1_000_000)
+        # Convert all datetime fields to milliseconds for Avro timestamp-millis logical type
+        from datetime import datetime
+        for key, value in payload.items():
+            if isinstance(value, datetime):
+                payload[key] = int(value.timestamp() * 1_000)
 
         return await self._serializer.encode_record_with_schema(subject, avro_schema_obj, payload)
 

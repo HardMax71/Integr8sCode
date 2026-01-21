@@ -78,6 +78,8 @@ async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_
 
     # Start consumer BEFORE processing (auto_offset_reset="latest")
     await consumer.start()
+    # Small delay to ensure consumer is fully subscribed and ready
+    await asyncio.sleep(0.5)
     consume_task = asyncio.create_task(consume_dlq_events())
 
     try:

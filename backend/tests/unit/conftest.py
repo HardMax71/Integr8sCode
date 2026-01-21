@@ -4,7 +4,6 @@ from typing import AsyncGenerator, NoReturn
 import pytest
 import pytest_asyncio
 from aiokafka import AIOKafkaProducer
-from app.core.database_context import Database
 from app.core.metrics import (
     ConnectionMetrics,
     CoordinatorMetrics,
@@ -47,8 +46,9 @@ from app.services.pod_monitor.monitor import PodMonitor
 from app.settings import Settings
 from beanie import init_beanie
 from dishka import AsyncContainer, make_async_container
+from mongomock_motor import AsyncMongoMockClient
 
-from tests.helpers.fakes import FakeBoundaryClientProvider, FakeDatabaseProvider, FakeSchemaRegistryProvider
+from tests.helpers.fakes import FakeBoundaryClientProvider, FakeSchemaRegistryProvider
 from tests.helpers.fakes.kafka import FakeAIOKafkaProducer
 from tests.helpers.k8s_fakes import FakeApi, FakeV1Api, FakeWatch, make_k8s_clients
 
@@ -60,18 +60,18 @@ async def unit_container(test_settings: Settings) -> AsyncGenerator[AsyncContain
     """DI container for unit tests with fake boundary clients.
 
     Provides:
-    - Fake Redis, Kafka, K8s, MongoDB (boundary clients)
+    - Fake Redis, Kafka, K8s (boundary clients)
     - Real metrics, repositories, services (internal)
+    - Real MongoDB via init_beanie
     """
     container = make_async_container(
         SettingsProvider(),
         LoggingProvider(),
         FakeBoundaryClientProvider(),
-        FakeDatabaseProvider(),
         RedisServicesProvider(),
         MetricsProvider(),
         EventProvider(),
-        FakeSchemaRegistryProvider(),  # Override real schema registry with fake
+        FakeSchemaRegistryProvider(),
         MessagingProvider(),
         CoreServicesProvider(),
         KafkaServicesProvider(),
@@ -79,10 +79,14 @@ async def unit_container(test_settings: Settings) -> AsyncGenerator[AsyncContain
         context={Settings: test_settings},
     )
 
-    db = await container.get(Database)
-    await init_beanie(database=db, document_models=ALL_DOCUMENTS)
+    mongo_client: AsyncMongoMockClient[dict[str, object]] = AsyncMongoMockClient()
+    await init_beanie(
+        database=mongo_client[test_settings.DATABASE_NAME],  # type: ignore[arg-type]
+        document_models=ALL_DOCUMENTS,
+    )
 
     yield container
+
     await container.close()
 
 

@@ -4,14 +4,11 @@ from collections.abc import AsyncIterable
 
 import redis.asyncio as redis
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
-from beanie import init_beanie
 from dishka import Provider, Scope, from_context, provide
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
 from kubernetes import watch as k8s_watch
-from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
-from app.core.database_context import Database
 from app.core.logging import setup_logger
 from app.core.metrics import (
     ConnectionMetrics,
@@ -28,7 +25,6 @@ from app.core.metrics import (
 )
 from app.core.security import SecurityService
 from app.core.tracing import TracerManager
-from app.db.docs import ALL_DOCUMENTS
 from app.db.repositories import (
     EventRepository,
     ExecutionRepository,
@@ -176,20 +172,6 @@ class RedisServicesProvider(Provider):
             self, redis_client: redis.Redis, settings: Settings, rate_limit_metrics: RateLimitMetrics
     ) -> RateLimitService:
         return RateLimitService(redis_client, settings, rate_limit_metrics)
-
-
-class DatabaseProvider(Provider):
-    scope = Scope.APP
-
-    @provide
-    async def get_database(self, settings: Settings, logger: logging.Logger) -> AsyncIterable[Database]:
-        client: AsyncMongoClient[dict[str, object]] = AsyncMongoClient(
-            settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000
-        )
-        db = client[settings.DATABASE_NAME]
-        await init_beanie(database=db, document_models=ALL_DOCUMENTS)
-        logger.info(f"MongoDB + Beanie initialized: {settings.DATABASE_NAME}")
-        yield db
 
 
 class CoreServicesProvider(Provider):

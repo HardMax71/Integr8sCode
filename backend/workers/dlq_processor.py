@@ -5,12 +5,12 @@ from contextlib import AsyncExitStack
 from datetime import datetime, timezone
 
 from app.core.container import create_dlq_processor_container
-from app.core.database_context import Database
 from app.db.docs import ALL_DOCUMENTS
 from app.dlq import DLQMessage, RetryPolicy, RetryStrategy
 from app.dlq.manager import DLQManager
 from app.settings import Settings
 from beanie import init_beanie
+from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 
 def _configure_retry_policies(manager: DLQManager, logger: logging.Logger) -> None:
@@ -84,8 +84,10 @@ async def main(settings: Settings) -> None:
     logger = await container.get(logging.Logger)
     logger.info("Starting DLQ Processor with DI container...")
 
-    db = await container.get(Database)
-    await init_beanie(database=db, document_models=ALL_DOCUMENTS)
+    mongo_client: AsyncMongoClient[dict[str, object]] = AsyncMongoClient(
+        settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000
+    )
+    await init_beanie(database=mongo_client[settings.DATABASE_NAME], document_models=ALL_DOCUMENTS)
 
     manager = await container.get(DLQManager)
 
@@ -104,6 +106,7 @@ async def main(settings: Settings) -> None:
 
     async with AsyncExitStack() as stack:
         stack.push_async_callback(container.close)
+        stack.push_async_callback(mongo_client.close)
         await stop_event.wait()
 
 

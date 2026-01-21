@@ -35,7 +35,6 @@ from app.domain.events.typed import (
     DeletePodCommandEvent,
     DomainEvent,
 )
-from app.events.core import UnifiedProducer
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.idempotency.faststream_middleware import IdempotencyMiddleware
 from app.services.k8s_worker.worker_logic import K8sWorkerLogic
@@ -105,15 +104,12 @@ def main() -> None:
         app_logger = await container.get(logging.Logger)
         app_logger.info("KubernetesWorker starting...")
 
-        # Resolve schema registry (initialization handled by provider)
-        schema_registry = await container.get(SchemaRegistryManager)
-
-        # Resolve Kafka producer (lifecycle managed by DI - BoundaryClientProvider starts it)
-        await container.get(UnifiedProducer)
-        app_logger.info("Kafka producer ready")
-
-        # Get worker logic and ensure daemonset (one-time initialization)
+        # Get worker logic - triggers full dependency chain:
+        # K8sWorkerLogic -> UnifiedProducer -> SchemaRegistryManager (init)
         logic = await container.get(K8sWorkerLogic)
+
+        # Get schema registry for decoder (already initialized via chain above)
+        schema_registry = await container.get(SchemaRegistryManager)
         await logic.ensure_image_pre_puller_daemonset()
 
         # Decoder: Avro bytes → typed DomainEvent

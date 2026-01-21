@@ -7,7 +7,6 @@ from app.core.providers import (
     BoundaryClientProvider,
     BusinessServicesProvider,
     CoreServicesProvider,
-    DatabaseProvider,
     EventProvider,
     EventReplayProvider,
     K8sWorkerProvider,
@@ -37,7 +36,6 @@ def create_app_container(settings: Settings) -> AsyncContainer:
     return make_async_container(
         SettingsProvider(),
         LoggingProvider(),
-        DatabaseProvider(),
         BoundaryClientProvider(),
         RedisServicesProvider(),
         CoreServicesProvider(),
@@ -67,7 +65,6 @@ def create_result_processor_container(settings: Settings) -> AsyncContainer:
     return make_async_container(
         SettingsProvider(),
         LoggingProvider(),
-        DatabaseProvider(),
         BoundaryClientProvider(),
         RedisServicesProvider(),
         CoreServicesProvider(),
@@ -85,12 +82,10 @@ def create_k8s_worker_container(settings: Settings) -> AsyncContainer:
     return make_async_container(
         SettingsProvider(),
         LoggingProvider(),
-        DatabaseProvider(),
         BoundaryClientProvider(),
         RedisServicesProvider(),
         CoreServicesProvider(),
         MetricsProvider(),
-        RepositoryProvider(),
         MessagingProvider(),
         EventProvider(),
         K8sWorkerProvider(),
@@ -103,7 +98,6 @@ def create_pod_monitor_container(settings: Settings) -> AsyncContainer:
     return make_async_container(
         SettingsProvider(),
         LoggingProvider(),
-        DatabaseProvider(),
         BoundaryClientProvider(),
         RedisServicesProvider(),
         CoreServicesProvider(),
@@ -122,7 +116,6 @@ def create_saga_orchestrator_container(settings: Settings) -> AsyncContainer:
     return make_async_container(
         SettingsProvider(),
         LoggingProvider(),
-        DatabaseProvider(),
         BoundaryClientProvider(),
         RedisServicesProvider(),
         CoreServicesProvider(),
@@ -140,7 +133,6 @@ def create_event_replay_container(settings: Settings) -> AsyncContainer:
     return make_async_container(
         SettingsProvider(),
         LoggingProvider(),
-        DatabaseProvider(),
         BoundaryClientProvider(),
         RedisServicesProvider(),
         CoreServicesProvider(),
@@ -158,7 +150,6 @@ def create_dlq_processor_container(settings: Settings) -> AsyncContainer:
     return make_async_container(
         SettingsProvider(),
         LoggingProvider(),
-        DatabaseProvider(),
         BoundaryClientProvider(),
         RedisServicesProvider(),
         CoreServicesProvider(),

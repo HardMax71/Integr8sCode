@@ -5,7 +5,6 @@ from collections.abc import AsyncGenerator
 import pytest
 import pytest_asyncio
 import redis.asyncio as redis
-from app.core.database_context import Database
 from app.core.metrics import DatabaseMetrics, EventMetrics
 from app.events.core import ConsumerConfig
 from app.events.schema.schema_registry import SchemaRegistryManager
@@ -21,13 +20,13 @@ _test_logger = logging.getLogger("test.integration")
 
 
 @pytest_asyncio.fixture(autouse=True)
-async def _cleanup(db: Database, redis_client: redis.Redis) -> AsyncGenerator[None, None]:
+async def _cleanup(redis_client: redis.Redis) -> AsyncGenerator[None, None]:
     """Clean DB and Redis before each integration test.
 
     Only pre-test cleanup - post-test cleanup causes event loop issues
     when SSE/streaming tests hold connections across loop boundaries.
     """
-    await cleanup_db_and_redis(db, redis_client)
+    await cleanup_db_and_redis(redis_client)
     yield
     # No post-test cleanup to avoid "Event loop is closed" errors
 

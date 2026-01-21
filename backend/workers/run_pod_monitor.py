@@ -12,11 +12,9 @@ import logging
 import signal
 from contextlib import suppress
 
-from app.core.database_context import Database
 from app.core.logging import setup_logger
 from app.core.providers import (
     BoundaryClientProvider,
-    DatabaseProvider,
     EventProvider,
     LoggingProvider,
     MessagingProvider,
@@ -27,12 +25,15 @@ from app.core.providers import (
     SettingsProvider,
 )
 from app.core.tracing import init_tracing
+from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.kafka import GroupId
 from app.events.core import UnifiedProducer
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.pod_monitor.monitor import PodMonitor
 from app.settings import Settings
+from beanie import init_beanie
 from dishka import make_async_container
+from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 
 async def run_pod_monitor(settings: Settings) -> None:
@@ -42,7 +43,6 @@ async def run_pod_monitor(settings: Settings) -> None:
         LoggingProvider(),
         BoundaryClientProvider(),
         RedisServicesProvider(),
-        DatabaseProvider(),
         MetricsProvider(),
         EventProvider(),
         MessagingProvider(),
@@ -54,9 +54,14 @@ async def run_pod_monitor(settings: Settings) -> None:
     logger = await container.get(logging.Logger)
     logger.info("Starting PodMonitor with DI container...")
 
-    # Resolve dependencies (initialization handled by providers)
-    await container.get(Database)  # Triggers init_beanie via DatabaseProvider
-    await container.get(SchemaRegistryManager)  # Triggers initialize_schemas
+    # Initialize MongoDB + Beanie
+    mongo_client: AsyncMongoClient[dict[str, object]] = AsyncMongoClient(
+        settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000
+    )
+    await init_beanie(database=mongo_client[settings.DATABASE_NAME], document_models=ALL_DOCUMENTS)
+
+    # Resolve schema registry (initialization handled by provider)
+    await container.get(SchemaRegistryManager)
 
     # Resolve Kafka producer (lifecycle managed by DI - BoundaryClientProvider starts it)
     await container.get(UnifiedProducer)
@@ -89,7 +94,7 @@ async def run_pod_monitor(settings: Settings) -> None:
 
     finally:
         logger.info("Initiating graceful shutdown...")
-        # Container close stops Kafka producer via DI provider
+        await mongo_client.close()
         await container.close()
         logger.info("PodMonitor shutdown complete")
 

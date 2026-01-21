@@ -1,18 +1,14 @@
 """Fake providers for unit testing with DI container."""
 
 import logging
-from typing import Any
 
 import fakeredis.aioredis
 import redis.asyncio as redis
 from aiokafka import AIOKafkaProducer
-from app.core.database_context import Database
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.settings import Settings
 from dishka import Provider, Scope, provide
 from kubernetes import client as k8s_client
 from kubernetes import watch as k8s_watch
-from mongomock_motor import AsyncMongoMockClient
 
 from tests.helpers.fakes.kafka import FakeAIOKafkaProducer
 from tests.helpers.fakes.kubernetes import (
@@ -58,19 +54,6 @@ class FakeBoundaryClientProvider(Provider):
     @provide
     def get_k8s_watch(self) -> k8s_watch.Watch:
         return FakeK8sWatch()
-
-
-class FakeDatabaseProvider(Provider):
-    """Fake MongoDB database for unit testing using mongomock-motor."""
-
-    scope = Scope.APP
-
-    @provide
-    def get_database(self, settings: Settings, logger: logging.Logger) -> Database:
-        logger.info(f"Using AsyncMongoMockClient for testing: {settings.DATABASE_NAME}")
-        client: AsyncMongoMockClient[dict[str, Any]] = AsyncMongoMockClient()
-        # mongomock_motor returns AsyncIOMotorDatabase which is API-compatible with AsyncDatabase
-        return client[settings.DATABASE_NAME]  # type: ignore[return-value]
 
 
 class FakeSchemaRegistryProvider(Provider):

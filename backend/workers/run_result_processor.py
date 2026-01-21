@@ -16,11 +16,9 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from app.core.database_context import Database
 from app.core.logging import setup_logger
 from app.core.providers import (
     BoundaryClientProvider,
-    DatabaseProvider,
     EventProvider,
     LoggingProvider,
     MessagingProvider,
@@ -31,6 +29,7 @@ from app.core.providers import (
     SettingsProvider,
 )
 from app.core.tracing import init_tracing
+from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId
 from app.domain.events.typed import (
@@ -44,10 +43,12 @@ from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.idempotency.faststream_middleware import IdempotencyMiddleware
 from app.services.result_processor.processor_logic import ProcessorLogic
 from app.settings import Settings
+from beanie import init_beanie
 from dishka import make_async_container
 from dishka.integrations.faststream import FromDishka, setup_dishka
 from faststream import FastStream
 from faststream.kafka import KafkaBroker
+from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 
 def main() -> None:
@@ -82,7 +83,6 @@ def main() -> None:
         LoggingProvider(),
         BoundaryClientProvider(),
         RedisServicesProvider(),
-        DatabaseProvider(),
         MetricsProvider(),
         EventProvider(),
         MessagingProvider(),
@@ -111,9 +111,14 @@ def main() -> None:
         app_logger = await container.get(logging.Logger)
         app_logger.info("ResultProcessor starting...")
 
-        # Resolve dependencies (initialization handled by providers)
-        await container.get(Database)  # Triggers init_beanie via DatabaseProvider
-        schema_registry = await container.get(SchemaRegistryManager)  # Triggers initialize_schemas
+        # Initialize MongoDB + Beanie
+        mongo_client: AsyncMongoClient[dict[str, object]] = AsyncMongoClient(
+            settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000
+        )
+        await init_beanie(database=mongo_client[settings.DATABASE_NAME], document_models=ALL_DOCUMENTS)
+
+        # Resolve schema registry (initialization handled by provider)
+        schema_registry = await container.get(SchemaRegistryManager)
 
         # Resolve Kafka producer (lifecycle managed by DI - BoundaryClientProvider starts it)
         await container.get(UnifiedProducer)
@@ -164,7 +169,7 @@ def main() -> None:
             yield
         finally:
             app_logger.info("ResultProcessor shutting down...")
-            # Container close stops Kafka producer via DI provider
+            await mongo_client.close()
             await container.close()
             app_logger.info("ResultProcessor shutdown complete")
 

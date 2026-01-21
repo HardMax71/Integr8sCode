@@ -99,7 +99,7 @@ def main() -> None:
 
     # Create lifespan for infrastructure initialization
     @asynccontextmanager
-    async def lifespan(app: FastStream) -> AsyncIterator[None]:
+    async def lifespan() -> AsyncIterator[None]:
         """Initialize infrastructure before app starts."""
         app_logger = await container.get(logging.Logger)
         app_logger.info("KubernetesWorker starting...")

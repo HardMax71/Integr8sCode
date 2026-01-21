@@ -90,7 +90,7 @@ def main() -> None:
     )
 
     @asynccontextmanager
-    async def lifespan(app: FastStream) -> AsyncIterator[None]:
+    async def lifespan() -> AsyncIterator[None]:
         app_logger = await container.get(logging.Logger)
         app_logger.info("SSE Bridge starting...")
 

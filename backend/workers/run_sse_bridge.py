@@ -103,21 +103,27 @@ def main() -> None:
         async def decode_avro(msg: StreamMessage[Any]) -> DomainEvent:
             return await schema_registry.deserialize_event(msg.body, "sse_bridge")
 
-        # Single handler for all SSE-relevant events
-        # No filter needed - we check event_type in handler since route_event handles all types
-        @broker.subscriber(
+        # Create subscriber with Avro decoder (two-step pattern)
+        subscriber = broker.subscriber(
             *topics,
             group_id=group_id,
             ack_policy=AckPolicy.ACK_FIRST,  # SSE bridge is idempotent (Redis pubsub)
             decoder=decode_avro,
         )
+
+        # Filter for SSE-relevant events (FastStream decodes headers as strings, not bytes)
+        @subscriber(filter=lambda msg: msg.headers.get("event_type", "") in SSE_RELEVANT_EVENTS)
         async def handle_sse_event(
             event: DomainEvent,
             router: FromDishka[SSEEventRouter],
         ) -> None:
             """Route domain events to Redis for SSE delivery."""
-            if event.event_type in SSE_RELEVANT_EVENTS:
-                await router.route_event(event)
+            await router.route_event(event)
+
+        # Default handler for non-SSE events (prevents message loss)
+        @subscriber()
+        async def handle_other(event: DomainEvent) -> None:
+            pass
 
         app_logger.info(f"Subscribing to topics: {topics}")
         app_logger.info("SSE Bridge ready")

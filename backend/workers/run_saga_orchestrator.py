@@ -33,11 +33,11 @@ from app.core.providers import (
 )
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
+from app.domain.enums.events import EventType
 from app.domain.enums.kafka import GroupId
 from app.domain.events.typed import DomainEvent
 from app.events.core import UnifiedProducer
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.services.idempotency.faststream_middleware import IdempotencyMiddleware
 from app.services.saga.saga_logic import SagaLogic
 from app.settings import Settings
 from beanie import init_beanie
@@ -141,32 +141,35 @@ def main() -> None:
         async def decode_avro(msg: StreamMessage[Any]) -> DomainEvent:
             return await schema_registry.deserialize_event(msg.body, "saga_orchestrator")
 
-        # Register handler dynamically after determining topics
-        # Saga orchestrator uses single handler - routing is internal to SagaLogic
-        @broker.subscriber(
+        # Create subscriber with Avro decoder (two-step pattern like result_processor)
+        subscriber = broker.subscriber(
             *topics,
             group_id=group_id,
             ack_policy=AckPolicy.ACK,
             decoder=decode_avro,
         )
-        async def handle_saga_event(
-            event: DomainEvent,
-            saga_logic: FromDishka[SagaLogic],
-        ) -> None:
-            """
-            Handle saga trigger events.
 
-            Dependencies are automatically injected via Dishka.
-            Routing is handled internally by SagaLogic based on saga configuration.
-            """
-            # Handle the event through saga logic (internal routing)
-            await saga_logic.handle_event(event)
-
-            # Opportunistic timeout check (replaces background loop)
+        # Helper for opportunistic timeout check
+        async def _maybe_check_timeouts(saga_logic: SagaLogic) -> None:
             now = time.monotonic()
             if now - timeout_check_state["last_check"] >= timeout_check_state["interval"]:
                 await saga_logic.check_timeouts_once()
                 timeout_check_state["last_check"] = now
+
+        # Route by event_type header (FastStream decodes headers as strings, not bytes)
+        @subscriber(filter=lambda msg: msg.headers.get("event_type") == EventType.EXECUTION_REQUESTED)
+        async def handle_execution_requested(
+            event: DomainEvent,
+            saga_logic: FromDishka[SagaLogic],
+        ) -> None:
+            """Handle execution_requested events that trigger ExecutionSaga."""
+            await saga_logic.handle_event(event)
+            await _maybe_check_timeouts(saga_logic)
+
+        # Default handler for other events on subscribed topics (execution_accepted, etc.)
+        @subscriber()
+        async def handle_other(event: DomainEvent) -> None:
+            pass
 
         app_logger.info(f"Subscribing to topics: {topics}")
         app_logger.info("Infrastructure initialized, starting event processing...")
@@ -185,8 +188,10 @@ def main() -> None:
     # Setup Dishka integration for automatic DI in handlers
     setup_dishka(container=container, app=app, auto_inject=True)
 
-    # Add idempotency middleware (appends to end = most inner, runs after Dishka)
-    broker.add_middleware(IdempotencyMiddleware)
+    # NOTE: IdempotencyMiddleware disabled for saga-orchestrator.
+    # The saga pattern provides its own idempotency via saga_id, and the middleware
+    # was causing duplicate detection issues with FastStream's filter evaluation timing.
+    # broker.add_middleware(IdempotencyMiddleware)
 
     # Run! FastStream handles signal handling, consumer loops, graceful shutdown
     asyncio.run(app.run())

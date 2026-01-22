@@ -182,19 +182,27 @@ def main() -> None:
             data = json.loads(msg.body)
             return DLQMessage.model_validate(data)
 
-        # Register subscriber for DLQ messages
-        @broker.subscriber(
+        # Create subscriber with JSON decoder (two-step pattern)
+        subscriber = broker.subscriber(
             *topics,
             group_id=group_id,
             ack_policy=AckPolicy.ACK,
             decoder=decode_dlq_json,
         )
+
+        # DLQ messages have "original_topic" header set by producer
+        @subscriber(filter=lambda msg: msg.headers.get("original_topic") is not None)
         async def handle_dlq_message(
             message: DLQMessage,
             dlq_manager: FromDishka[DLQManager],
         ) -> None:
             """Handle incoming DLQ messages - invoked by FastStream when message arrives."""
             await dlq_manager.process_message(message)
+
+        # Default handler for any other messages (shouldn't happen, but prevents message loss)
+        @subscriber()
+        async def handle_other(message: DLQMessage) -> None:
+            pass
 
         # Background task: periodic check for scheduled retries
         async def retry_checker() -> None:

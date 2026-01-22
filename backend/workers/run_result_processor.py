@@ -140,29 +140,29 @@ def main() -> None:
             decoder=decode_avro,
         )
 
-        # Route by event_type header (producer sets this, Kafka stores as bytes)
-        @subscriber(filter=lambda msg: msg.headers.get("event_type") == EventType.EXECUTION_COMPLETED.encode())
+        # Route by event_type header
+        @subscriber(filter=lambda msg: msg.headers.get("event_type") == EventType.EXECUTION_COMPLETED)
         async def handle_completed(
             event: ExecutionCompletedEvent,
             logic: FromDishka[ProcessorLogic],
         ) -> None:
             await logic._handle_completed(event)
 
-        @subscriber(filter=lambda msg: msg.headers.get("event_type") == EventType.EXECUTION_FAILED.encode())
+        @subscriber(filter=lambda msg: msg.headers.get("event_type") == EventType.EXECUTION_FAILED)
         async def handle_failed(
             event: ExecutionFailedEvent,
             logic: FromDishka[ProcessorLogic],
         ) -> None:
             await logic._handle_failed(event)
 
-        @subscriber(filter=lambda msg: msg.headers.get("event_type") == EventType.EXECUTION_TIMEOUT.encode())
+        @subscriber(filter=lambda msg: msg.headers.get("event_type") == EventType.EXECUTION_TIMEOUT)
         async def handle_timeout(
             event: ExecutionTimeoutEvent,
             logic: FromDishka[ProcessorLogic],
         ) -> None:
             await logic._handle_timeout(event)
 
-        # Default handler for unmatched events (prevents message loss)
+        # Default handler for unmatched events (preserves ordering, acks non-terminal events)
         @subscriber()
         async def handle_other(event: DomainEvent) -> None:
             pass

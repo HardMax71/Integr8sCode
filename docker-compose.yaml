@@ -458,6 +458,7 @@ services:
       - TRACING_SERVICE_NAME=pod-monitor
       - KAFKA_CONSUMER_GROUP_ID=pod-monitor
       - KUBECONFIG=/app/kubeconfig.yaml
+      - LOG_LEVEL=WARNING
     volumes:
       - ./backend/app:/app/app:ro
       - ./backend/workers:/app/workers:ro
@@ -565,6 +566,7 @@ services:
     environment:
       - TRACING_SERVICE_NAME=event-replay
       - KAFKA_CONSUMER_GROUP_ID=event-replay
+      - LOG_LEVEL=WARNING
     volumes:
       - ./backend/app:/app/app:ro
       - ./backend/workers:/app/workers:ro

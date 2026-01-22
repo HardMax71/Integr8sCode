@@ -77,7 +77,7 @@ CONSUMER_GROUP_SUBSCRIPTIONS: Dict[GroupId, Set[KafkaTopic]] = {
         KafkaTopic.POD_STATUS_UPDATES,
     },
     GroupId.RESULT_PROCESSOR: {
-        KafkaTopic.EXECUTION_EVENTS,  # Listens for COMPLETED/FAILED/TIMEOUT, publishes to EXECUTION_RESULTS
+        KafkaTopic.EXECUTION_EVENTS,
     },
     GroupId.SAGA_ORCHESTRATOR: {
         # Orchestrator is triggered by domain events, specifically EXECUTION_REQUESTED,

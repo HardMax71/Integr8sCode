@@ -126,15 +126,15 @@ def main() -> None:
             decoder=decode_avro,
         )
 
-        # Route by event_type header (producer sets this, Kafka stores as bytes)
-        @subscriber(filter=lambda msg: msg.headers.get("event_type") == EventType.CREATE_POD_COMMAND.encode())
+        # Route by event_type header (FastStream decodes headers as strings, not bytes)
+        @subscriber(filter=lambda msg: msg.headers.get("event_type") == EventType.CREATE_POD_COMMAND)
         async def handle_create_pod_command(
             event: CreatePodCommandEvent,
             worker_logic: FromDishka[K8sWorkerLogic],
         ) -> None:
             await worker_logic.handle_create_pod_command(event)
 
-        @subscriber(filter=lambda msg: msg.headers.get("event_type") == EventType.DELETE_POD_COMMAND.encode())
+        @subscriber(filter=lambda msg: msg.headers.get("event_type") == EventType.DELETE_POD_COMMAND)
         async def handle_delete_pod_command(
             event: DeletePodCommandEvent,
             worker_logic: FromDishka[K8sWorkerLogic],

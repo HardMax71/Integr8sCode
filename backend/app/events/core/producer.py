@@ -49,8 +49,13 @@ class UnifiedProducer:
             serialized_value = await self._schema_registry.serialize_event(event_to_produce)
             topic = f"{self._topic_prefix}{EVENT_TYPE_TO_TOPIC[event_to_produce.event_type]}"
 
+            # Always include event_type header for routing, merge with any additional headers
+            all_headers = {"event_type": str(event_to_produce.event_type)}
+            if headers:
+                all_headers.update(headers)
+
             # Convert headers to list of tuples format
-            header_list = [(k, v.encode()) for k, v in headers.items()] if headers else None
+            header_list = [(k, v.encode()) for k, v in all_headers.items()]
 
             await self._producer.send_and_wait(
                 topic=topic,

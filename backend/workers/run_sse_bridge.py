@@ -24,6 +24,7 @@ from app.settings import Settings
 from dishka import Provider, Scope, make_async_container, provide
 from dishka.integrations.faststream import FromDishka, setup_dishka
 from faststream import FastStream
+from faststream.broker.message import AckPolicy
 from faststream.kafka import KafkaBroker
 from faststream.message import StreamMessage
 
@@ -108,7 +109,7 @@ def main() -> None:
         @broker.subscriber(
             *topics,
             group_id=group_id,
-            auto_commit=True,  # SSE bridge is idempotent (Redis pubsub)
+            ack_policy=AckPolicy.ACK_FIRST,  # SSE bridge is idempotent (Redis pubsub)
             decoder=decode_avro,
         )
         async def handle_sse_event(

@@ -43,6 +43,7 @@ from app.settings import Settings
 from dishka import make_async_container
 from dishka.integrations.faststream import FromDishka, setup_dishka
 from faststream import FastStream
+from faststream.broker.message import AckPolicy
 from faststream.kafka import KafkaBroker
 from faststream.message import StreamMessage
 
@@ -122,7 +123,7 @@ def main() -> None:
         subscriber = broker.subscriber(
             *topics,
             group_id=group_id,
-            auto_commit=False,
+            ack_policy=AckPolicy.ACK,
             decoder=decode_avro,
         )
 

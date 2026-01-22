@@ -111,7 +111,6 @@ nav:
     - Authentication: architecture/authentication.md
     - Rate Limiting: architecture/rate-limiting.md
     - Idempotency: architecture/idempotency.md
-    - Execution Queue: architecture/execution-queue.md
     - Runtime Registry: architecture/runtime-registry.md
     - Middleware: architecture/middleware.md
     - Domain Exceptions: architecture/domain-exceptions.md

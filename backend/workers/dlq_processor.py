@@ -39,6 +39,7 @@ from beanie import init_beanie
 from dishka import make_async_container
 from dishka.integrations.faststream import FromDishka, setup_dishka
 from faststream import FastStream
+from faststream.broker.message import AckPolicy
 from faststream.kafka import KafkaBroker
 from faststream.message import StreamMessage
 from pymongo.asynchronous.mongo_client import AsyncMongoClient
@@ -186,7 +187,7 @@ def main() -> None:
         @broker.subscriber(
             *topics,
             group_id=group_id,
-            auto_commit=False,
+            ack_policy=AckPolicy.ACK,
             decoder=decode_dlq_json,
         )
         async def handle_dlq_message(

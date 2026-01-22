@@ -9,7 +9,7 @@ from app.domain.saga.exceptions import (
 )
 from app.domain.saga.models import Saga, SagaFilter, SagaListResult
 from app.schemas_pydantic.user import User
-from app.services.saga import SagaOrchestrator
+from app.services.saga.saga_logic import SagaLogic
 
 
 class SagaService:
@@ -19,12 +19,12 @@ class SagaService:
         self,
         saga_repo: SagaRepository,
         execution_repo: ExecutionRepository,
-        orchestrator: SagaOrchestrator,
+        saga_logic: SagaLogic,
         logger: logging.Logger,
     ):
         self.saga_repo = saga_repo
         self.execution_repo = execution_repo
-        self.orchestrator = orchestrator
+        self._saga_logic = saga_logic
         self.logger = logger
 
         self.logger.info(
@@ -32,7 +32,7 @@ class SagaService:
             extra={
                 "saga_repo": type(saga_repo).__name__,
                 "execution_repo": type(execution_repo).__name__,
-                "orchestrator": type(orchestrator).__name__,
+                "saga_logic": type(saga_logic).__name__,
             },
         )
 
@@ -137,8 +137,8 @@ class SagaService:
         if saga.state not in [SagaState.RUNNING, SagaState.CREATED]:
             raise SagaInvalidStateError(saga_id, str(saga.state), "cancel")
 
-        # Use orchestrator to cancel
-        success = await self.orchestrator.cancel_saga(saga_id)
+        # Use saga logic to cancel
+        success = await self._saga_logic.cancel_saga(saga_id)
         if success:
             self.logger.info(
                 "User cancelled saga",
@@ -163,8 +163,8 @@ class SagaService:
         """Get saga status from orchestrator with fallback to database."""
         self.logger.debug("Getting live saga status", extra={"saga_id": saga_id})
 
-        # Try orchestrator first for live status
-        saga = await self.orchestrator.get_saga_status(saga_id)
+        # Try saga logic first for live status
+        saga = await self._saga_logic.get_saga_status(saga_id)
         if saga:
             # Check access
             if not await self.check_execution_access(saga.execution_id, user):

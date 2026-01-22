@@ -1,16 +1,16 @@
 import logging
-from typing import AsyncIterator
+from collections.abc import AsyncIterable
 
 import redis.asyncio as redis
+from aiokafka import AIOKafkaProducer
 from dishka import Provider, Scope, from_context, provide
-from pymongo.asynchronous.mongo_client import AsyncMongoClient
+from kubernetes import client as k8s_client
+from kubernetes import config as k8s_config
+from kubernetes import watch as k8s_watch
 
-from app.core.database_context import Database
-from app.core.k8s_clients import K8sClients, close_k8s_clients, create_k8s_clients
 from app.core.logging import setup_logger
 from app.core.metrics import (
     ConnectionMetrics,
-    CoordinatorMetrics,
     DatabaseMetrics,
     DLQMetrics,
     EventMetrics,
@@ -40,26 +40,24 @@ from app.db.repositories.dlq_repository import DLQRepository
 from app.db.repositories.replay_repository import ReplayRepository
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.db.repositories.user_settings_repository import UserSettingsRepository
-from app.dlq.manager import DLQManager, create_dlq_manager
+from app.dlq.manager import DLQManager
+from app.dlq.models import RetryPolicy, RetryStrategy
+from app.domain.enums.kafka import KafkaTopic
 from app.domain.saga.models import SagaConfig
-from app.events.core import UnifiedProducer
+from app.events.core import ProducerMetrics, UnifiedProducer
 from app.events.event_store import EventStore, create_event_store
-from app.events.event_store_consumer import EventStoreConsumer, create_event_store_consumer
+from app.events.event_store_consumer import EventStoreService
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.infrastructure.kafka.topics import get_all_topics
 from app.services.admin import AdminEventsService, AdminSettingsService, AdminUserService
 from app.services.auth_service import AuthService
-from app.services.coordinator.coordinator import ExecutionCoordinator
-from app.services.event_bus import EventBusManager
 from app.services.event_replay.replay_service import EventReplayService
 from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
 from app.services.grafana_alert_processor import GrafanaAlertProcessor
 from app.services.idempotency import IdempotencyConfig, IdempotencyManager
-from app.services.idempotency.idempotency_manager import create_idempotency_manager
 from app.services.idempotency.redis_repository import RedisIdempotencyRepository
 from app.services.k8s_worker.config import K8sWorkerConfig
-from app.services.k8s_worker.worker import KubernetesWorker
+from app.services.k8s_worker.worker_logic import K8sWorkerLogic
 from app.services.kafka_event_service import KafkaEventService
 from app.services.notification_service import NotificationService
 from app.services.pod_monitor.config import PodMonitorConfig
@@ -67,13 +65,13 @@ from app.services.pod_monitor.event_mapper import PodEventMapper
 from app.services.pod_monitor.monitor import PodMonitor
 from app.services.rate_limit_service import RateLimitService
 from app.services.replay_service import ReplayService
-from app.services.saga import SagaOrchestrator, create_saga_orchestrator
+from app.services.result_processor.processor_logic import ProcessorLogic
+from app.services.saga.saga_logic import SagaLogic
 from app.services.saga.saga_service import SagaService
 from app.services.saved_script_service import SavedScriptService
-from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge, create_sse_kafka_redis_bridge
 from app.services.sse.redis_bus import SSERedisBus
+from app.services.sse.sse_connection_registry import SSEConnectionRegistry
 from app.services.sse.sse_service import SSEService
-from app.services.sse.sse_shutdown_manager import SSEShutdownManager, create_sse_shutdown_manager
 from app.services.user_settings_service import UserSettingsService
 from app.settings import Settings
 
@@ -92,13 +90,20 @@ class LoggingProvider(Provider):
         return setup_logger(settings.LOG_LEVEL)
 
 
-class RedisProvider(Provider):
+class BoundaryClientProvider(Provider):
+    """Provides all external boundary clients (Redis, Kafka, K8s).
+
+    These are the ONLY places that create connections to external systems.
+    Override this provider in tests with fakes to test without external deps.
+    """
+
     scope = Scope.APP
 
+    # Redis
     @provide
-    async def get_redis_client(self, settings: Settings, logger: logging.Logger) -> AsyncIterator[redis.Redis]:
-        # Create Redis client - it will automatically use the current event loop
-        client = redis.Redis(
+    def get_redis_client(self, settings: Settings, logger: logging.Logger) -> redis.Redis:
+        logger.info(f"Redis configured: {settings.REDIS_HOST}:{settings.REDIS_PORT}/{settings.REDIS_DB}")
+        return redis.Redis(
             host=settings.REDIS_HOST,
             port=settings.REDIS_PORT,
             db=settings.REDIS_DB,
@@ -109,35 +114,61 @@ class RedisProvider(Provider):
             socket_connect_timeout=5,
             socket_timeout=5,
         )
-        # Test connection
-        await client.ping()  # type: ignore[misc]  # redis-py dual sync/async return type
-        logger.info(f"Redis connected: {settings.REDIS_HOST}:{settings.REDIS_PORT}/{settings.REDIS_DB}")
-        try:
-            yield client
-        finally:
-            await client.aclose()
+
+    # Kafka - one shared producer for all services
+    @provide
+    async def get_kafka_producer_client(
+            self, settings: Settings, logger: logging.Logger
+    ) -> AsyncIterable[AIOKafkaProducer]:
+        """Provide AIOKafkaProducer with DI-managed lifecycle."""
+        producer = AIOKafkaProducer(
+            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+            client_id=f"{settings.SERVICE_NAME}-producer",
+            acks="all",
+            compression_type="gzip",
+            max_batch_size=16384,
+            linger_ms=10,
+            enable_idempotence=True,
+        )
+        await producer.start()
+        logger.info("Kafka producer started")
+
+        yield producer
+
+        await producer.stop()
+        logger.info("Kafka producer stopped")
+
+    # Kubernetes
+    @provide
+    def get_k8s_api_client(self, settings: Settings, logger: logging.Logger) -> k8s_client.ApiClient:
+        k8s_config.load_kube_config(config_file=settings.KUBERNETES_CONFIG_PATH)
+        configuration = k8s_client.Configuration.get_default_copy()
+        logger.info(f"Kubernetes API host: {configuration.host}")
+        return k8s_client.ApiClient(configuration)
+
+    @provide
+    def get_k8s_core_v1_api(self, api_client: k8s_client.ApiClient) -> k8s_client.CoreV1Api:
+        return k8s_client.CoreV1Api(api_client)
+
+    @provide
+    def get_k8s_apps_v1_api(self, api_client: k8s_client.ApiClient) -> k8s_client.AppsV1Api:
+        return k8s_client.AppsV1Api(api_client)
+
+    @provide
+    def get_k8s_watch(self) -> k8s_watch.Watch:
+        return k8s_watch.Watch()
+
+
+class RedisServicesProvider(Provider):
+    """Services that depend on Redis."""
+
+    scope = Scope.APP
 
     @provide
     def get_rate_limit_service(
             self, redis_client: redis.Redis, settings: Settings, rate_limit_metrics: RateLimitMetrics
     ) -> RateLimitService:
         return RateLimitService(redis_client, settings, rate_limit_metrics)
-
-
-class DatabaseProvider(Provider):
-    scope = Scope.APP
-
-    @provide
-    async def get_database(self, settings: Settings, logger: logging.Logger) -> AsyncIterator[Database]:
-        client: AsyncMongoClient[dict[str, object]] = AsyncMongoClient(
-            settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000
-        )
-        database = client[settings.DATABASE_NAME]
-        logger.info(f"MongoDB connected: {settings.DATABASE_NAME}")
-        try:
-            yield database
-        finally:
-            await client.close()
 
 
 class CoreServicesProvider(Provider):
@@ -156,51 +187,88 @@ class MessagingProvider(Provider):
     scope = Scope.APP
 
     @provide
-    async def get_kafka_producer(
-            self, settings: Settings, schema_registry: SchemaRegistryManager, logger: logging.Logger,
-            event_metrics: EventMetrics
-    ) -> AsyncIterator[UnifiedProducer]:
-        async with UnifiedProducer(schema_registry, logger, settings, event_metrics) as producer:
-            yield producer
+    def get_kafka_producer(
+            self,
+            kafka_producer: AIOKafkaProducer,
+            schema_registry: SchemaRegistryManager,
+            settings: Settings,
+            logger: logging.Logger,
+            event_metrics: EventMetrics,
+    ) -> UnifiedProducer:
+        """Provide UnifiedProducer. Kafka producer lifecycle managed by BoundaryClientProvider."""
+        return UnifiedProducer(
+            producer=kafka_producer,
+            metrics=ProducerMetrics(),
+            schema_registry=schema_registry,
+            settings=settings,
+            logger=logger,
+            event_metrics=event_metrics,
+        )
 
     @provide
-    async def get_dlq_manager(
+    def get_dlq_manager(
             self,
+            kafka_producer: AIOKafkaProducer,
             settings: Settings,
             schema_registry: SchemaRegistryManager,
             logger: logging.Logger,
             dlq_metrics: DLQMetrics,
-    ) -> AsyncIterator[DLQManager]:
-        async with create_dlq_manager(settings, schema_registry, logger, dlq_metrics) as manager:
-            yield manager
+    ) -> DLQManager:
+        """Provide DLQManager instance.
+
+        Message consumption handled by FastStream subscriber in dlq_processor worker.
+        Scheduled retries handled by timer in worker lifespan.
+        Producer lifecycle managed by BoundaryClientProvider.
+        """
+        return DLQManager(
+            settings=settings,
+            producer=kafka_producer,
+            schema_registry=schema_registry,
+            logger=logger,
+            dlq_metrics=dlq_metrics,
+            dlq_topic=KafkaTopic.DEAD_LETTER_QUEUE,
+            default_retry_policy=RetryPolicy(topic="default", strategy=RetryStrategy.EXPONENTIAL_BACKOFF),
+        )
+
+    @provide
+    def get_idempotency_config(self) -> IdempotencyConfig:
+        return IdempotencyConfig()
 
     @provide
     def get_idempotency_repository(self, redis_client: redis.Redis) -> RedisIdempotencyRepository:
         return RedisIdempotencyRepository(redis_client, key_prefix="idempotency")
 
     @provide
-    async def get_idempotency_manager(
-            self, repo: RedisIdempotencyRepository, logger: logging.Logger, database_metrics: DatabaseMetrics
-    ) -> AsyncIterator[IdempotencyManager]:
-        manager = create_idempotency_manager(
-            repository=repo, config=IdempotencyConfig(), logger=logger, database_metrics=database_metrics
+    def get_idempotency_manager(
+            self,
+            repository: RedisIdempotencyRepository,
+            logger: logging.Logger,
+            metrics: DatabaseMetrics,
+            config: IdempotencyConfig,
+    ) -> IdempotencyManager:
+        return IdempotencyManager(
+            repository=repository,
+            logger=logger,
+            metrics=metrics,
+            config=config,
         )
-        await manager.initialize()
-        try:
-            yield manager
-        finally:
-            await manager.close()
 
 
 class EventProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_schema_registry(self, settings: Settings, logger: logging.Logger) -> SchemaRegistryManager:
-        return SchemaRegistryManager(settings, logger)
+    async def get_schema_registry(
+        self, settings: Settings, logger: logging.Logger
+    ) -> AsyncIterable[SchemaRegistryManager]:
+        """Provide SchemaRegistryManager with DI-managed initialization."""
+        registry = SchemaRegistryManager(settings, logger)
+        await registry.initialize_schemas()
+        logger.info("Schema registry initialized")
+        yield registry
 
     @provide
-    async def get_event_store(
+    def get_event_store(
             self, schema_registry: SchemaRegistryManager, logger: logging.Logger, event_metrics: EventMetrics
     ) -> EventStore:
         return create_event_store(
@@ -208,49 +276,22 @@ class EventProvider(Provider):
         )
 
     @provide
-    async def get_event_store_consumer(
+    def get_event_store_service(
             self,
             event_store: EventStore,
-            schema_registry: SchemaRegistryManager,
-            settings: Settings,
-            kafka_producer: UnifiedProducer,
             logger: logging.Logger,
             event_metrics: EventMetrics,
-    ) -> AsyncIterator[EventStoreConsumer]:
-        topics = get_all_topics()
-        async with create_event_store_consumer(
-                event_store=event_store,
-                topics=list(topics),
-                schema_registry_manager=schema_registry,
-                settings=settings,
-                producer=kafka_producer,
-                logger=logger,
-                event_metrics=event_metrics,
-        ) as consumer:
-            yield consumer
+    ) -> EventStoreService:
+        """Provide EventStoreService for event archival.
 
-    @provide
-    async def get_event_bus_manager(
-            self, settings: Settings, logger: logging.Logger, connection_metrics: ConnectionMetrics
-    ) -> AsyncIterator[EventBusManager]:
-        manager = EventBusManager(settings, logger, connection_metrics)
-        try:
-            yield manager
-        finally:
-            await manager.close()
-
-
-class KubernetesProvider(Provider):
-    scope = Scope.APP
-
-    @provide
-    async def get_k8s_clients(self, settings: Settings, logger: logging.Logger) -> AsyncIterator[K8sClients]:
-        clients = create_k8s_clients(logger, kubeconfig_path=settings.KUBERNETES_CONFIG_PATH)
-        try:
-            yield clients
-        finally:
-            close_k8s_clients(clients)
-
+        Pure storage service - no consumer, no loops.
+        FastStream subscribers call store_event() to archive events.
+        """
+        return EventStoreService(
+            event_store=event_store,
+            logger=logger,
+            event_metrics=event_metrics,
+        )
 
 class MetricsProvider(Provider):
     """Provides all metrics instances via DI (no contextvars needed)."""
@@ -284,10 +325,6 @@ class MetricsProvider(Provider):
     @provide
     def get_kubernetes_metrics(self, settings: Settings) -> KubernetesMetrics:
         return KubernetesMetrics(settings)
-
-    @provide
-    def get_coordinator_metrics(self, settings: Settings) -> CoordinatorMetrics:
-        return CoordinatorMetrics(settings)
 
     @provide
     def get_dlq_metrics(self, settings: Settings) -> DLQMetrics:
@@ -369,56 +406,43 @@ class RepositoryProvider(Provider):
 
 
 class SSEProvider(Provider):
-    """Provides SSE (Server-Sent Events) related services."""
+    """Provides SSE (Server-Sent Events) related services.
+
+    Note: Kafka consumers for SSE are now in the separate SSE bridge worker
+    (run_sse_bridge.py). This provider only handles Redis pub/sub and SSE service.
+    """
 
     scope = Scope.APP
 
     @provide
-    async def get_sse_redis_bus(self, redis_client: redis.Redis, logger: logging.Logger) -> AsyncIterator[SSERedisBus]:
-        bus = SSERedisBus(redis_client, logger)
-        yield bus
-
-    @provide
-    async def get_sse_kafka_redis_bridge(
-            self,
-            schema_registry: SchemaRegistryManager,
-            settings: Settings,
-            event_metrics: EventMetrics,
-            sse_redis_bus: SSERedisBus,
-            logger: logging.Logger,
-    ) -> AsyncIterator[SSEKafkaRedisBridge]:
-        async with create_sse_kafka_redis_bridge(
-                schema_registry=schema_registry,
-                settings=settings,
-                event_metrics=event_metrics,
-                sse_bus=sse_redis_bus,
-                logger=logger,
-        ) as bridge:
-            yield bridge
+    def get_sse_redis_bus(self, redis_client: redis.Redis, logger: logging.Logger) -> SSERedisBus:
+        return SSERedisBus(redis_client, logger)
 
     @provide(scope=Scope.REQUEST)
-    def get_sse_shutdown_manager(
-            self, logger: logging.Logger, connection_metrics: ConnectionMetrics
-    ) -> SSEShutdownManager:
-        return create_sse_shutdown_manager(logger=logger, connection_metrics=connection_metrics)
+    def get_sse_connection_registry(
+            self,
+            logger: logging.Logger,
+            connection_metrics: ConnectionMetrics,
+    ) -> SSEConnectionRegistry:
+        return SSEConnectionRegistry(
+            logger=logger,
+            connection_metrics=connection_metrics,
+        )
 
     @provide(scope=Scope.REQUEST)
     def get_sse_service(
             self,
             sse_repository: SSERepository,
-            router: SSEKafkaRedisBridge,
             sse_redis_bus: SSERedisBus,
-            shutdown_manager: SSEShutdownManager,
+            connection_registry: SSEConnectionRegistry,
             settings: Settings,
             logger: logging.Logger,
             connection_metrics: ConnectionMetrics,
     ) -> SSEService:
-        shutdown_manager.set_router(router)
         return SSEService(
             repository=sse_repository,
-            router=router,
             sse_bus=sse_redis_bus,
-            shutdown_manager=shutdown_manager,
+            connection_registry=connection_registry,
             settings=settings,
             logger=logger,
             connection_metrics=connection_metrics,
@@ -466,16 +490,18 @@ class UserServicesProvider(Provider):
     scope = Scope.APP
 
     @provide
-    async def get_user_settings_service(
+    def get_user_settings_service(
             self,
             repository: UserSettingsRepository,
             kafka_event_service: KafkaEventService,
-            event_bus_manager: EventBusManager,
+            redis_client: redis.Redis,
             logger: logging.Logger,
     ) -> UserSettingsService:
-        service = UserSettingsService(repository, kafka_event_service, logger)
-        await service.initialize(event_bus_manager)
-        return service
+        """Provide UserSettingsService with Redis-backed cache.
+
+        No pub/sub subscription needed - Redis cache is shared across all instances.
+        """
+        return UserSettingsService(repository, kafka_event_service, logger, redis_client)
 
 
 class AdminServicesProvider(Provider):
@@ -502,28 +528,22 @@ class AdminServicesProvider(Provider):
     def get_notification_service(
             self,
             notification_repository: NotificationRepository,
-            kafka_event_service: KafkaEventService,
-            event_bus_manager: EventBusManager,
-            schema_registry: SchemaRegistryManager,
             sse_redis_bus: SSERedisBus,
             settings: Settings,
             logger: logging.Logger,
             notification_metrics: NotificationMetrics,
-            event_metrics: EventMetrics,
     ) -> NotificationService:
-        service = NotificationService(
+        """Provide NotificationService instance.
+
+        Background tasks (pending batch processing, cleanup) managed by app lifespan.
+        """
+        return NotificationService(
             notification_repository=notification_repository,
-            event_service=kafka_event_service,
-            event_bus_manager=event_bus_manager,
-            schema_registry_manager=schema_registry,
             sse_bus=sse_redis_bus,
             settings=settings,
             logger=logger,
             notification_metrics=notification_metrics,
-            event_metrics=event_metrics,
         )
-        service.initialize()
-        return service
 
     @provide
     def get_grafana_alert_processor(
@@ -547,80 +567,21 @@ def _create_default_saga_config() -> SagaConfig:
     )
 
 
-# Standalone factory functions for lifecycle-managed services (eliminates duplication)
-async def _provide_saga_orchestrator(
-        saga_repository: SagaRepository,
-        kafka_producer: UnifiedProducer,
-        schema_registry: SchemaRegistryManager,
-        settings: Settings,
-        event_store: EventStore,
-        idempotency_manager: IdempotencyManager,
-        resource_allocation_repository: ResourceAllocationRepository,
-        logger: logging.Logger,
-        event_metrics: EventMetrics,
-) -> AsyncIterator[SagaOrchestrator]:
-    """Shared factory for SagaOrchestrator with lifecycle management."""
-    async with create_saga_orchestrator(
-            saga_repository=saga_repository,
-            producer=kafka_producer,
-            schema_registry_manager=schema_registry,
-            settings=settings,
-            event_store=event_store,
-            idempotency_manager=idempotency_manager,
-            resource_allocation_repository=resource_allocation_repository,
-            config=_create_default_saga_config(),
-            logger=logger,
-            event_metrics=event_metrics,
-    ) as orchestrator:
-        yield orchestrator
-
-
-async def _provide_execution_coordinator(
-        kafka_producer: UnifiedProducer,
-        schema_registry: SchemaRegistryManager,
-        settings: Settings,
-        event_store: EventStore,
-        execution_repository: ExecutionRepository,
-        idempotency_manager: IdempotencyManager,
-        logger: logging.Logger,
-        coordinator_metrics: CoordinatorMetrics,
-        event_metrics: EventMetrics,
-) -> AsyncIterator[ExecutionCoordinator]:
-    """Shared factory for ExecutionCoordinator with lifecycle management."""
-    async with ExecutionCoordinator(
-            producer=kafka_producer,
-            schema_registry_manager=schema_registry,
-            settings=settings,
-            event_store=event_store,
-            execution_repository=execution_repository,
-            idempotency_manager=idempotency_manager,
-            logger=logger,
-            coordinator_metrics=coordinator_metrics,
-            event_metrics=event_metrics,
-    ) as coordinator:
-        yield coordinator
-
-
 class BusinessServicesProvider(Provider):
     scope = Scope.REQUEST
-
-    def __init__(self) -> None:
-        super().__init__()
-        # Register shared factory functions on instance (avoids warning about missing self)
-        self.provide(_provide_execution_coordinator)
 
     @provide
     def get_saga_service(
             self,
             saga_repository: SagaRepository,
             execution_repository: ExecutionRepository,
-            saga_orchestrator: SagaOrchestrator,
+            saga_logic: SagaLogic,
             logger: logging.Logger,
     ) -> SagaService:
         return SagaService(
             saga_repo=saga_repository,
             execution_repo=execution_repository,
-            orchestrator=saga_orchestrator,
+            saga_logic=saga_logic,
             logger=logger,
         )
 
@@ -650,7 +611,7 @@ class BusinessServicesProvider(Provider):
         return SavedScriptService(saved_script_repository, logger)
 
     @provide
-    async def get_replay_service(
+    def get_replay_service(
             self,
             replay_repository: ReplayRepository,
             kafka_producer: UnifiedProducer,
@@ -687,40 +648,33 @@ class BusinessServicesProvider(Provider):
         )
 
 
-class CoordinatorProvider(Provider):
-    scope = Scope.APP
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.provide(_provide_execution_coordinator)
-
-
 class K8sWorkerProvider(Provider):
     scope = Scope.APP
 
     @provide
-    async def get_kubernetes_worker(
+    def get_k8s_worker_logic(
             self,
             kafka_producer: UnifiedProducer,
-            schema_registry: SchemaRegistryManager,
             settings: Settings,
-            event_store: EventStore,
-            idempotency_manager: IdempotencyManager,
             logger: logging.Logger,
             event_metrics: EventMetrics,
-    ) -> AsyncIterator[KubernetesWorker]:
+            kubernetes_metrics: KubernetesMetrics,
+            execution_metrics: ExecutionMetrics,
+            k8s_v1: k8s_client.CoreV1Api,
+            k8s_apps_v1: k8s_client.AppsV1Api,
+    ) -> K8sWorkerLogic:
         config = K8sWorkerConfig()
-        async with KubernetesWorker(
-                config=config,
-                producer=kafka_producer,
-                schema_registry_manager=schema_registry,
-                settings=settings,
-                event_store=event_store,
-                idempotency_manager=idempotency_manager,
-                logger=logger,
-                event_metrics=event_metrics,
-        ) as worker:
-            yield worker
+        return K8sWorkerLogic(
+            config=config,
+            producer=kafka_producer,
+            settings=settings,
+            logger=logger,
+            event_metrics=event_metrics,
+            kubernetes_metrics=kubernetes_metrics,
+            execution_metrics=execution_metrics,
+            k8s_v1=k8s_v1,
+            k8s_apps_v1=k8s_apps_v1,
+        )
 
 
 class PodMonitorProvider(Provider):
@@ -730,37 +684,55 @@ class PodMonitorProvider(Provider):
     def get_event_mapper(
             self,
             logger: logging.Logger,
-            k8s_clients: K8sClients,
+            k8s_v1: k8s_client.CoreV1Api,
     ) -> PodEventMapper:
-        return PodEventMapper(logger=logger, k8s_api=k8s_clients.v1)
+        return PodEventMapper(logger=logger, k8s_api=k8s_v1)
 
     @provide
-    async def get_pod_monitor(
+    def get_pod_monitor(
             self,
             kafka_event_service: KafkaEventService,
-            k8s_clients: K8sClients,
+            k8s_v1: k8s_client.CoreV1Api,
+            k8s_watch: k8s_watch.Watch,
             logger: logging.Logger,
             event_mapper: PodEventMapper,
             kubernetes_metrics: KubernetesMetrics,
-    ) -> AsyncIterator[PodMonitor]:
+    ) -> PodMonitor:
         config = PodMonitorConfig()
-        async with PodMonitor(
-                config=config,
-                kafka_event_service=kafka_event_service,
-                logger=logger,
-                k8s_clients=k8s_clients,
-                event_mapper=event_mapper,
-                kubernetes_metrics=kubernetes_metrics,
-        ) as monitor:
-            yield monitor
+        return PodMonitor(
+            config=config,
+            kafka_event_service=kafka_event_service,
+            logger=logger,
+            k8s_v1=k8s_v1,
+            k8s_watch=k8s_watch,
+            event_mapper=event_mapper,
+            kubernetes_metrics=kubernetes_metrics,
+        )
 
 
 class SagaOrchestratorProvider(Provider):
     scope = Scope.APP
 
-    def __init__(self) -> None:
-        super().__init__()
-        self.provide(_provide_saga_orchestrator)
+    @provide
+    def get_saga_logic(
+            self,
+            saga_repository: SagaRepository,
+            kafka_producer: UnifiedProducer,
+            resource_allocation_repository: ResourceAllocationRepository,
+            logger: logging.Logger,
+            event_metrics: EventMetrics,
+    ) -> SagaLogic:
+        logic = SagaLogic(
+            config=_create_default_saga_config(),
+            saga_repository=saga_repository,
+            producer=kafka_producer,
+            resource_allocation_repository=resource_allocation_repository,
+            logger=logger,
+            event_metrics=event_metrics,
+        )
+        # Register default sagas
+        logic.register_default_sagas()
+        return logic
 
 
 class EventReplayProvider(Provider):
@@ -781,4 +753,25 @@ class EventReplayProvider(Provider):
             event_store=event_store,
             settings=settings,
             logger=logger,
+        )
+
+
+class ResultProcessorProvider(Provider):
+    scope = Scope.APP
+
+    @provide
+    def get_processor_logic(
+            self,
+            execution_repo: ExecutionRepository,
+            kafka_producer: UnifiedProducer,
+            settings: Settings,
+            logger: logging.Logger,
+            execution_metrics: ExecutionMetrics,
+    ) -> ProcessorLogic:
+        return ProcessorLogic(
+            execution_repo=execution_repo,
+            producer=kafka_producer,
+            settings=settings,
+            logger=logger,
+            execution_metrics=execution_metrics,
         )

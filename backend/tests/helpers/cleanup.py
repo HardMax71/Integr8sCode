@@ -1,8 +1,8 @@
 import redis.asyncio as redis
-from app.core.database_context import Database
+from app.db.docs import ALL_DOCUMENTS
 
 
-async def cleanup_db_and_redis(db: Database, redis_client: redis.Redis) -> None:
+async def cleanup_db_and_redis(redis_client: redis.Redis) -> None:
     """Clean DB and Redis before a test.
 
     Beanie is already initialized once during app lifespan (dishka_lifespan.py).
@@ -13,9 +13,7 @@ async def cleanup_db_and_redis(db: Database, redis_client: redis.Redis) -> None:
     is safe and only affects that worker's database. See tests/conftest.py
     for REDIS_DB setup.
     """
-    collections = await db.list_collection_names(filter={"type": "collection"})
-    for name in collections:
-        if not name.startswith("system."):
-            await db[name].delete_many({})
+    for doc_class in ALL_DOCUMENTS:
+        await doc_class.delete_all()
 
     await redis_client.flushdb()

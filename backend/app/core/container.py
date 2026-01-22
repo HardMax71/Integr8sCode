@@ -4,21 +4,20 @@ from dishka.integrations.fastapi import FastapiProvider
 from app.core.providers import (
     AdminServicesProvider,
     AuthProvider,
+    BoundaryClientProvider,
     BusinessServicesProvider,
-    CoordinatorProvider,
     CoreServicesProvider,
-    DatabaseProvider,
     EventProvider,
     EventReplayProvider,
     K8sWorkerProvider,
     KafkaServicesProvider,
-    KubernetesProvider,
     LoggingProvider,
     MessagingProvider,
     MetricsProvider,
     PodMonitorProvider,
-    RedisProvider,
+    RedisServicesProvider,
     RepositoryProvider,
+    ResultProcessorProvider,
     SagaOrchestratorProvider,
     SettingsProvider,
     SSEProvider,
@@ -37,8 +36,8 @@ def create_app_container(settings: Settings) -> AsyncContainer:
     return make_async_container(
         SettingsProvider(),
         LoggingProvider(),
-        DatabaseProvider(),
-        RedisProvider(),
+        BoundaryClientProvider(),
+        RedisServicesProvider(),
         CoreServicesProvider(),
         MetricsProvider(),
         RepositoryProvider(),
@@ -66,30 +65,14 @@ def create_result_processor_container(settings: Settings) -> AsyncContainer:
     return make_async_container(
         SettingsProvider(),
         LoggingProvider(),
-        DatabaseProvider(),
-        RedisProvider(),
+        BoundaryClientProvider(),
+        RedisServicesProvider(),
         CoreServicesProvider(),
         MetricsProvider(),
         RepositoryProvider(),
         EventProvider(),
         MessagingProvider(),
-        context={Settings: settings},
-    )
-
-
-def create_coordinator_container(settings: Settings) -> AsyncContainer:
-    """Create DI container for the ExecutionCoordinator worker."""
-    return make_async_container(
-        SettingsProvider(),
-        LoggingProvider(),
-        DatabaseProvider(),
-        RedisProvider(),
-        CoreServicesProvider(),
-        MetricsProvider(),
-        RepositoryProvider(),
-        MessagingProvider(),
-        EventProvider(),
-        CoordinatorProvider(),
+        ResultProcessorProvider(),
         context={Settings: settings},
     )
 
@@ -99,14 +82,12 @@ def create_k8s_worker_container(settings: Settings) -> AsyncContainer:
     return make_async_container(
         SettingsProvider(),
         LoggingProvider(),
-        DatabaseProvider(),
-        RedisProvider(),
+        BoundaryClientProvider(),
+        RedisServicesProvider(),
         CoreServicesProvider(),
         MetricsProvider(),
-        RepositoryProvider(),
         MessagingProvider(),
         EventProvider(),
-        KubernetesProvider(),
         K8sWorkerProvider(),
         context={Settings: settings},
     )
@@ -117,15 +98,14 @@ def create_pod_monitor_container(settings: Settings) -> AsyncContainer:
     return make_async_container(
         SettingsProvider(),
         LoggingProvider(),
-        DatabaseProvider(),
-        RedisProvider(),
+        BoundaryClientProvider(),
+        RedisServicesProvider(),
         CoreServicesProvider(),
         MetricsProvider(),
         RepositoryProvider(),
         MessagingProvider(),
         EventProvider(),
         KafkaServicesProvider(),
-        KubernetesProvider(),
         PodMonitorProvider(),
         context={Settings: settings},
     )
@@ -136,8 +116,8 @@ def create_saga_orchestrator_container(settings: Settings) -> AsyncContainer:
     return make_async_container(
         SettingsProvider(),
         LoggingProvider(),
-        DatabaseProvider(),
-        RedisProvider(),
+        BoundaryClientProvider(),
+        RedisServicesProvider(),
         CoreServicesProvider(),
         MetricsProvider(),
         RepositoryProvider(),
@@ -153,8 +133,8 @@ def create_event_replay_container(settings: Settings) -> AsyncContainer:
     return make_async_container(
         SettingsProvider(),
         LoggingProvider(),
-        DatabaseProvider(),
-        RedisProvider(),
+        BoundaryClientProvider(),
+        RedisServicesProvider(),
         CoreServicesProvider(),
         MetricsProvider(),
         RepositoryProvider(),
@@ -165,17 +145,3 @@ def create_event_replay_container(settings: Settings) -> AsyncContainer:
     )
 
 
-def create_dlq_processor_container(settings: Settings) -> AsyncContainer:
-    """Create DI container for the DLQ processor worker."""
-    return make_async_container(
-        SettingsProvider(),
-        LoggingProvider(),
-        DatabaseProvider(),
-        RedisProvider(),
-        CoreServicesProvider(),
-        MetricsProvider(),
-        RepositoryProvider(),
-        MessagingProvider(),
-        EventProvider(),
-        context={Settings: settings},
-    )

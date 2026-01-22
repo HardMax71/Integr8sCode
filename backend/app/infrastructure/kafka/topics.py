@@ -190,14 +190,6 @@ def get_topic_configs() -> dict[KafkaTopic, dict[str, Any]]:
                 "compression.type": "gzip",
             },
         },
-        KafkaTopic.EVENT_BUS_STREAM: {
-            "num_partitions": 10,
-            "replication_factor": 1,
-            "config": {
-                "retention.ms": "86400000",  # 1 day
-                "compression.type": "gzip",
-            },
-        },
         KafkaTopic.WEBSOCKET_EVENTS: {
             "num_partitions": 5,
             "replication_factor": 1,

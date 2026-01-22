@@ -1,4 +1,3 @@
-import asyncio
 import hashlib
 import json
 import logging
@@ -30,7 +29,6 @@ class IdempotencyConfig(BaseModel):
     processing_timeout_seconds: int = 300
     enable_result_caching: bool = True
     max_result_size_bytes: int = 1048576
-    enable_metrics: bool = True
     collection_name: str = "idempotency_keys"
 
 
@@ -69,30 +67,15 @@ class IdempotencyRepoProtocol(Protocol):
 class IdempotencyManager:
     def __init__(
         self,
-        config: IdempotencyConfig,
         repository: IdempotencyRepoProtocol,
         logger: logging.Logger,
-        database_metrics: DatabaseMetrics,
+        metrics: DatabaseMetrics,
+        config: IdempotencyConfig,
     ) -> None:
-        self.config = config
-        self.metrics = database_metrics
-        self._repo: IdempotencyRepoProtocol = repository
-        self._stats_update_task: asyncio.Task[None] | None = None
+        self._repo = repository
         self.logger = logger
-
-    async def initialize(self) -> None:
-        if self.config.enable_metrics and self._stats_update_task is None:
-            self._stats_update_task = asyncio.create_task(self._update_stats_loop())
-        self.logger.info("Idempotency manager ready")
-
-    async def close(self) -> None:
-        if self._stats_update_task:
-            self._stats_update_task.cancel()
-            try:
-                await self._stats_update_task
-            except asyncio.CancelledError:
-                pass
-        self.logger.info("Closed idempotency manager")
+        self.metrics = metrics
+        self.config = config
 
     def _generate_key(
         self, event: BaseEvent, key_strategy: str, custom_key: str | None = None, fields: set[str] | None = None
@@ -307,25 +290,3 @@ class IdempotencyManager:
         }
         total = sum(status_counts.values())
         return IdempotencyStats(total_keys=total, status_counts=status_counts, prefix=self.config.key_prefix)
-
-    async def _update_stats_loop(self) -> None:
-        while True:
-            try:
-                stats = await self.get_stats()
-                self.metrics.update_idempotency_keys_active(stats.total_keys, self.config.key_prefix)
-                await asyncio.sleep(60)
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                self.logger.error(f"Failed to update idempotency stats: {e}")
-                await asyncio.sleep(300)
-
-
-def create_idempotency_manager(
-    *,
-    repository: IdempotencyRepoProtocol,
-    config: IdempotencyConfig | None = None,
-    logger: logging.Logger,
-    database_metrics: DatabaseMetrics,
-) -> IdempotencyManager:
-    return IdempotencyManager(config or IdempotencyConfig(), repository, logger, database_metrics)

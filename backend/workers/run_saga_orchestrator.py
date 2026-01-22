@@ -1,64 +1,70 @@
+"""
+Saga Orchestrator Worker using FastStream.
+
+This is the clean version:
+- No asyncio.get_running_loop()
+- No signal.SIGINT/SIGTERM handlers
+- No create_task()
+- No manual consumer loops
+- No TaskGroup management
+
+Everything is handled by FastStream + Dishka DI.
+"""
+
 import asyncio
 import logging
-import signal
+import time
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from typing import Any
 
-from app.core.container import create_saga_orchestrator_container
-from app.core.database_context import Database
 from app.core.logging import setup_logger
+from app.core.providers import (
+    BoundaryClientProvider,
+    CoreServicesProvider,
+    EventProvider,
+    LoggingProvider,
+    MessagingProvider,
+    MetricsProvider,
+    RedisServicesProvider,
+    RepositoryProvider,
+    SagaOrchestratorProvider,
+    SettingsProvider,
+)
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
+from app.domain.enums.events import EventType
 from app.domain.enums.kafka import GroupId
-from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
-from app.services.saga import SagaOrchestrator
+from app.domain.events.typed import DomainEvent
+from app.events.core import UnifiedProducer
+from app.events.schema.schema_registry import SchemaRegistryManager
+from app.services.saga.saga_logic import SagaLogic
 from app.settings import Settings
 from beanie import init_beanie
-
-
-async def run_saga_orchestrator(settings: Settings) -> None:
-    """Run the saga orchestrator."""
-
-    container = create_saga_orchestrator_container(settings)
-    logger = await container.get(logging.Logger)
-    logger.info("Starting SagaOrchestrator with DI container...")
-
-    db = await container.get(Database)
-    await init_beanie(database=db, document_models=ALL_DOCUMENTS)
-
-    schema_registry = await container.get(SchemaRegistryManager)
-    await initialize_event_schemas(schema_registry)
-
-    # Services are already started by the DI container providers
-    orchestrator = await container.get(SagaOrchestrator)
-
-    # Shutdown event - signal handlers just set this
-    shutdown_event = asyncio.Event()
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, shutdown_event.set)
-
-    logger.info("Saga orchestrator started and running")
-
-    try:
-        # Wait for shutdown signal or service to stop
-        while orchestrator.is_running and not shutdown_event.is_set():
-            await asyncio.sleep(1)
-    finally:
-        # Container cleanup stops everything
-        logger.info("Initiating graceful shutdown...")
-        await container.close()
-
-    logger.warning("Saga orchestrator stopped")
+from dishka import make_async_container
+from dishka.integrations.faststream import FromDishka, setup_dishka
+from faststream import AckPolicy, FastStream
+from faststream.kafka import KafkaBroker
+from faststream.message import StreamMessage
+from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 
 def main() -> None:
-    """Main entry point for saga orchestrator worker"""
+    """
+    Entry point - minimal boilerplate.
+
+    FastStream handles:
+    - Signal handling (SIGINT/SIGTERM)
+    - Consumer loop
+    - Graceful shutdown
+    """
     settings = Settings()
 
+    # Setup logging
     logger = setup_logger(settings.LOG_LEVEL)
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    logger.info("Starting SagaOrchestrator (FastStream)...")
 
-    logger.info("Starting Saga Orchestrator worker...")
-
+    # Setup tracing
     if settings.ENABLE_TRACING:
         init_tracing(
             service_name=GroupId.SAGA_ORCHESTRATOR,
@@ -68,9 +74,127 @@ def main() -> None:
             enable_console_exporter=False,
             sampling_rate=settings.TRACING_SAMPLING_RATE,
         )
-        logger.info("Tracing initialized for Saga Orchestrator Service")
 
-    asyncio.run(run_saga_orchestrator(settings))
+    # Create DI container with all providers
+    container = make_async_container(
+        SettingsProvider(),
+        LoggingProvider(),
+        CoreServicesProvider(),
+        BoundaryClientProvider(),
+        RedisServicesProvider(),
+        MetricsProvider(),
+        EventProvider(),
+        MessagingProvider(),
+        RepositoryProvider(),
+        SagaOrchestratorProvider(),
+        context={Settings: settings},
+    )
+
+    # We need to determine topics dynamically based on registered sagas
+    # This will be done in lifespan after SagaLogic is initialized
+
+    # Create broker
+    broker = KafkaBroker(
+        settings.KAFKA_BOOTSTRAP_SERVERS,
+        request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
+    )
+
+    # Track timeout checking state for opportunistic checking
+    timeout_check_state = {"last_check": 0.0, "interval": 30.0}
+
+    # Create lifespan for infrastructure initialization
+    @asynccontextmanager
+    async def lifespan() -> AsyncIterator[None]:
+        """Initialize infrastructure before app starts."""
+        app_logger = await container.get(logging.Logger)
+        app_logger.info("SagaOrchestrator starting...")
+
+        # Initialize MongoDB + Beanie
+        mongo_client: AsyncMongoClient[dict[str, object]] = AsyncMongoClient(
+            settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000
+        )
+        await init_beanie(database=mongo_client[settings.DATABASE_NAME], document_models=ALL_DOCUMENTS)
+
+        # Resolve schema registry (initialization handled by provider)
+        schema_registry = await container.get(SchemaRegistryManager)
+
+        # Resolve Kafka producer (lifecycle managed by DI - BoundaryClientProvider starts it)
+        await container.get(UnifiedProducer)
+        app_logger.info("Kafka producer ready")
+
+        # Get saga logic to determine topics
+        logic = await container.get(SagaLogic)
+        trigger_topics = logic.get_trigger_topics()
+
+        if not trigger_topics:
+            app_logger.warning("No saga triggers configured, shutting down")
+            yield
+            await mongo_client.close()
+            await container.close()
+            return
+
+        # Build topic list with prefix
+        topics = [f"{settings.KAFKA_TOPIC_PREFIX}{t}" for t in trigger_topics]
+        group_id = f"{GroupId.SAGA_ORCHESTRATOR}.{settings.KAFKA_GROUP_SUFFIX}"
+
+        # Decoder: Avro message → typed DomainEvent
+        async def decode_avro(msg: StreamMessage[Any]) -> DomainEvent:
+            return await schema_registry.deserialize_event(msg.body, "saga_orchestrator")
+
+        # Create subscriber with Avro decoder (two-step pattern like result_processor)
+        subscriber = broker.subscriber(
+            *topics,
+            group_id=group_id,
+            ack_policy=AckPolicy.ACK,
+            decoder=decode_avro,
+        )
+
+        # Helper for opportunistic timeout check
+        async def _maybe_check_timeouts(saga_logic: SagaLogic) -> None:
+            now = time.monotonic()
+            if now - timeout_check_state["last_check"] >= timeout_check_state["interval"]:
+                await saga_logic.check_timeouts_once()
+                timeout_check_state["last_check"] = now
+
+        # Route by event_type header (FastStream decodes headers as strings, not bytes)
+        @subscriber(filter=lambda msg: msg.headers.get("event_type") == EventType.EXECUTION_REQUESTED)
+        async def handle_execution_requested(
+            event: DomainEvent,
+            saga_logic: FromDishka[SagaLogic],
+        ) -> None:
+            """Handle execution_requested events that trigger ExecutionSaga."""
+            await saga_logic.handle_event(event)
+            await _maybe_check_timeouts(saga_logic)
+
+        # Default handler for other events on subscribed topics (execution_accepted, etc.)
+        @subscriber()
+        async def handle_other(event: DomainEvent) -> None:
+            pass
+
+        app_logger.info(f"Subscribing to topics: {topics}")
+        app_logger.info("Infrastructure initialized, starting event processing...")
+
+        try:
+            yield
+        finally:
+            app_logger.info("SagaOrchestrator shutting down...")
+            await mongo_client.close()
+            await container.close()
+            app_logger.info("SagaOrchestrator shutdown complete")
+
+    # Create FastStream app
+    app = FastStream(broker, lifespan=lifespan)
+
+    # Setup Dishka integration for automatic DI in handlers
+    setup_dishka(container=container, app=app, auto_inject=True)
+
+    # NOTE: IdempotencyMiddleware disabled for saga-orchestrator.
+    # The saga pattern provides its own idempotency via saga_id, and the middleware
+    # was causing duplicate detection issues with FastStream's filter evaluation timing.
+    # broker.add_middleware(IdempotencyMiddleware)
+
+    # Run! FastStream handles signal handling, consumer loops, graceful shutdown
+    asyncio.run(app.run())
 
 
 if __name__ == "__main__":

@@ -12,11 +12,11 @@ from app.services.saga.execution_saga import (
     RemoveFromQueueCompensation,
     ValidateExecutionStep,
 )
-from app.services.saga.saga_orchestrator import SagaOrchestrator, create_saga_orchestrator
+from app.services.saga.saga_logic import SagaLogic
 from app.services.saga.saga_step import CompensationStep, SagaContext, SagaStep
 
 __all__ = [
-    "SagaOrchestrator",
+    "SagaLogic",
     "SagaConfig",
     "SagaState",
     "SagaInstance",
@@ -34,5 +34,4 @@ __all__ = [
     "ReleaseResourcesCompensation",
     "RemoveFromQueueCompensation",
     "DeletePodCompensation",
-    "create_saga_orchestrator",
 ]

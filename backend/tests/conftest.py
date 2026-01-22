@@ -8,7 +8,7 @@ import httpx
 import pytest
 import pytest_asyncio
 import redis.asyncio as redis
-from app.core.database_context import Database
+from app.db.docs import ALL_DOCUMENTS
 from app.main import create_app
 from app.settings import Settings
 from dishka import AsyncContainer
@@ -88,18 +88,15 @@ async def app(test_settings: Settings) -> AsyncGenerator[FastAPI, None]:
     Uses lifespan_context to trigger startup/shutdown events, which initializes
     Beanie, metrics, and other services through the normal DI flow.
 
-    Cleanup: Best-effort drop of test database. May not always succeed due to
-    known MongoDB driver behavior when client stays connected, but ulimits on
-    MongoDB container (65536) prevent file descriptor exhaustion regardless.
+    Cleanup: Delete all documents via Beanie models. Preserves indexes and avoids
+    file descriptor exhaustion issues from dropping/recreating databases.
     """
     application = create_app(settings=test_settings)
 
     async with application.router.lifespan_context(application):
         yield application
-        # Best-effort cleanup (may fail silently due to MongoDB driver behavior)
-        container: AsyncContainer = application.state.dishka_container
-        db: Database = await container.get(Database)
-        await db.client.drop_database(test_settings.DATABASE_NAME)
+        for doc_class in ALL_DOCUMENTS:
+            await doc_class.delete_all()
 
 
 @pytest_asyncio.fixture(scope="session")
@@ -131,12 +128,6 @@ async def _container_scope(container: AsyncContainer) -> AsyncGenerator[AsyncCon
 async def scope(app_container: AsyncContainer) -> AsyncGenerator[AsyncContainer, None]:
     async with _container_scope(app_container) as s:
         yield s
-
-
-@pytest_asyncio.fixture
-async def db(scope: AsyncContainer) -> AsyncGenerator[Database, None]:
-    database: Database = await scope.get(Database)
-    yield database
 
 
 @pytest_asyncio.fixture

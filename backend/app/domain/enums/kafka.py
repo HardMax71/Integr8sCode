@@ -50,14 +50,12 @@ class KafkaTopic(StringEnum):
     # Infrastructure topics
     DEAD_LETTER_QUEUE = "dead_letter_queue"
     DLQ_EVENTS = "dlq_events"
-    EVENT_BUS_STREAM = "event_bus_stream"
     WEBSOCKET_EVENTS = "websocket_events"
 
 
 class GroupId(StringEnum):
     """Kafka consumer group IDs."""
 
-    EXECUTION_COORDINATOR = "execution-coordinator"
     K8S_WORKER = "k8s-worker"
     POD_MONITOR = "pod-monitor"
     RESULT_PROCESSOR = "result-processor"
@@ -71,10 +69,6 @@ class GroupId(StringEnum):
 
 # Consumer group topic subscriptions
 CONSUMER_GROUP_SUBSCRIPTIONS: Dict[GroupId, Set[KafkaTopic]] = {
-    GroupId.EXECUTION_COORDINATOR: {
-        KafkaTopic.EXECUTION_EVENTS,
-        KafkaTopic.EXECUTION_RESULTS,
-    },
     GroupId.K8S_WORKER: {
         KafkaTopic.SAGA_COMMANDS,  # Receives CreatePodCommand/DeletePodCommand from coordinator
     },
@@ -83,7 +77,7 @@ CONSUMER_GROUP_SUBSCRIPTIONS: Dict[GroupId, Set[KafkaTopic]] = {
         KafkaTopic.POD_STATUS_UPDATES,
     },
     GroupId.RESULT_PROCESSOR: {
-        KafkaTopic.EXECUTION_EVENTS,  # Listens for COMPLETED/FAILED/TIMEOUT, publishes to EXECUTION_RESULTS
+        KafkaTopic.EXECUTION_EVENTS,
     },
     GroupId.SAGA_ORCHESTRATOR: {
         # Orchestrator is triggered by domain events, specifically EXECUTION_REQUESTED,
@@ -108,12 +102,6 @@ CONSUMER_GROUP_SUBSCRIPTIONS: Dict[GroupId, Set[KafkaTopic]] = {
 
 # Consumer group event filters
 CONSUMER_GROUP_EVENTS: Dict[GroupId, Set[EventType]] = {
-    GroupId.EXECUTION_COORDINATOR: {
-        EventType.EXECUTION_REQUESTED,
-        EventType.EXECUTION_COMPLETED,
-        EventType.EXECUTION_FAILED,
-        EventType.EXECUTION_CANCELLED,
-    },
     GroupId.K8S_WORKER: {
         EventType.EXECUTION_STARTED,
     },

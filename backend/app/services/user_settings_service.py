@@ -1,8 +1,8 @@
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any
 
-from cachetools import TTLCache
+import redis.asyncio as redis
 from pydantic import TypeAdapter
 
 from app.db.repositories.user_settings_repository import UserSettingsRepository
@@ -16,7 +16,6 @@ from app.domain.user import (
     DomainUserSettingsChangedEvent,
     DomainUserSettingsUpdate,
 )
-from app.services.event_bus import EventBusEvent, EventBusManager
 from app.services.kafka_event_service import KafkaEventService
 
 _settings_adapter = TypeAdapter(DomainUserSettings)
@@ -24,50 +23,44 @@ _update_adapter = TypeAdapter(DomainUserSettingsUpdate)
 
 
 class UserSettingsService:
+    """User settings service with Redis-backed cache.
+
+    Uses Redis directly as cache (single source of truth across all instances).
+    No pub/sub invalidation needed - all instances read/write same Redis keys.
+    """
+
+    _CACHE_KEY_PREFIX = "user_settings:"
+    _CACHE_TTL_SECONDS = 300  # 5 minutes
+
     def __init__(
-        self, repository: UserSettingsRepository, event_service: KafkaEventService, logger: logging.Logger
+        self,
+        repository: UserSettingsRepository,
+        event_service: KafkaEventService,
+        logger: logging.Logger,
+        redis_client: redis.Redis,
     ) -> None:
         self.repository = repository
         self.event_service = event_service
         self.logger = logger
-        self._cache_ttl = timedelta(minutes=5)
-        self._max_cache_size = 1000
-        self._cache: TTLCache[str, DomainUserSettings] = TTLCache(
-            maxsize=self._max_cache_size,
-            ttl=self._cache_ttl.total_seconds(),
-        )
-        self._event_bus_manager: EventBusManager | None = None
-        self._subscription_id: str | None = None
+        self._redis = redis_client
 
         self.logger.info(
             "UserSettingsService initialized",
-            extra={"cache_ttl_seconds": self._cache_ttl.total_seconds(), "max_cache_size": self._max_cache_size},
+            extra={"cache_ttl_seconds": self._CACHE_TTL_SECONDS, "cache_backend": "redis"},
         )
 
+    def _cache_key(self, user_id: str) -> str:
+        return f"{self._CACHE_KEY_PREFIX}{user_id}"
+
     async def get_user_settings(self, user_id: str) -> DomainUserSettings:
-        """Get settings with cache; rebuild and cache on miss."""
-        if user_id in self._cache:
-            cached = self._cache[user_id]
-            self.logger.debug(f"Settings cache hit for user {user_id}", extra={"cache_size": len(self._cache)})
-            return cached
+        """Get settings with Redis cache; rebuild and cache on miss."""
+        cache_key = self._cache_key(user_id)
+        cached = await self._redis.get(cache_key)
+        if cached:
+            self.logger.debug(f"Settings cache hit for user {user_id}")
+            return DomainUserSettings.model_validate_json(cached)
 
         return await self.get_user_settings_fresh(user_id)
-
-    async def initialize(self, event_bus_manager: EventBusManager) -> None:
-        """Subscribe to settings update events for cross-instance cache invalidation.
-
-        Note: EventBus filters out self-published messages, so this handler only
-        runs for events from OTHER instances.
-        """
-        self._event_bus_manager = event_bus_manager
-        bus = await event_bus_manager.get_event_bus()
-
-        async def _handle(evt: EventBusEvent) -> None:
-            uid = evt.payload.get("user_id")
-            if uid:
-                await self.invalidate_cache(str(uid))
-
-        self._subscription_id = await bus.subscribe("user.settings.updated*", _handle)
 
     async def get_user_settings_fresh(self, user_id: str) -> DomainUserSettings:
         """Bypass cache and rebuild settings from snapshot + events."""
@@ -85,13 +78,13 @@ class UserSettingsService:
         for event in events:
             settings = self._apply_event(settings, event)
 
-        self._add_to_cache(user_id, settings)
+        await self._set_cache(user_id, settings)
         return settings
 
     async def update_user_settings(
         self, user_id: str, updates: DomainUserSettingsUpdate, reason: str | None = None
     ) -> DomainUserSettings:
-        """Upsert provided fields into current settings, publish minimal event, and cache."""
+        """Upsert provided fields into current settings, publish event, and update Redis cache."""
         current = await self.get_user_settings(user_id)
 
         changes = _update_adapter.dump_python(updates, exclude_none=True)
@@ -108,11 +101,9 @@ class UserSettingsService:
         changes_json = _update_adapter.dump_python(updates, exclude_none=True, mode="json")
         await self._publish_settings_event(user_id, changes_json, reason)
 
-        if self._event_bus_manager is not None:
-            bus = await self._event_bus_manager.get_event_bus()
-            await bus.publish("user.settings.updated", {"user_id": user_id})
+        # Update Redis cache directly - all instances see same cache
+        await self._set_cache(user_id, new_settings)
 
-        self._add_to_cache(user_id, new_settings)
         if (await self.repository.count_events_since_snapshot(user_id)) >= 10:
             await self.repository.create_snapshot(new_settings)
         return new_settings
@@ -192,7 +183,7 @@ class UserSettingsService:
             settings = self._apply_event(settings, event)
 
         await self.repository.create_snapshot(settings)
-        self._add_to_cache(user_id, settings)
+        await self._set_cache(user_id, settings)
 
         await self.event_service.publish_event(
             event_type=EventType.USER_SETTINGS_UPDATED,
@@ -224,22 +215,16 @@ class UserSettingsService:
 
     async def invalidate_cache(self, user_id: str) -> None:
         """Invalidate cached settings for a user."""
-        if self._cache.pop(user_id, None) is not None:
-            self.logger.debug(f"Invalidated cache for user {user_id}", extra={"cache_size": len(self._cache)})
+        cache_key = self._cache_key(user_id)
+        deleted = await self._redis.delete(cache_key)
+        if deleted:
+            self.logger.debug(f"Invalidated cache for user {user_id}")
 
-    def _add_to_cache(self, user_id: str, settings: DomainUserSettings) -> None:
-        """Add settings to TTL+LRU cache."""
-        self._cache[user_id] = settings
-        self.logger.debug(f"Cached settings for user {user_id}", extra={"cache_size": len(self._cache)})
-
-    def get_cache_stats(self) -> dict[str, Any]:
-        """Get cache statistics for monitoring."""
-        return {
-            "cache_size": len(self._cache),
-            "max_cache_size": self._max_cache_size,
-            "expired_entries": 0,
-            "cache_ttl_seconds": self._cache_ttl.total_seconds(),
-        }
+    async def _set_cache(self, user_id: str, settings: DomainUserSettings) -> None:
+        """Set settings in Redis cache with TTL."""
+        cache_key = self._cache_key(user_id)
+        await self._redis.setex(cache_key, self._CACHE_TTL_SECONDS, settings.model_dump_json())
+        self.logger.debug(f"Cached settings for user {user_id}")
 
     async def reset_user_settings(self, user_id: str) -> None:
         """Reset user settings by deleting all data and cache."""

@@ -36,11 +36,8 @@ async def test_get_update_and_history(scope: AsyncContainer) -> None:
     # Restore to current point (no-op but tests snapshot + event publish path)
     _ = await svc.restore_settings_to_point(user_id, datetime.now(timezone.utc))
 
-    # Update wrappers + cache stats
+    # Update wrappers
     await svc.update_theme(user_id, Theme.DARK)
     await svc.update_notification_settings(user_id, DomainNotificationSettings())
     await svc.update_editor_settings(user_id, DomainEditorSettings(tab_size=2))
     await svc.update_custom_setting(user_id, "k", "v")
-    stats = svc.get_cache_stats()
-    # Cache size may be 0 due to event bus self-invalidation race condition
-    assert "cache_size" in stats and stats["cache_size"] >= 0

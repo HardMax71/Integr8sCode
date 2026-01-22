@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.storage import ExecutionErrorType
@@ -17,6 +17,10 @@ class ResourceUsageDomain(BaseModel):
     cpu_time_jiffies: int = 0
     clk_tck_hertz: int = 0
     peak_memory_kb: int = 0
+
+
+# TypeAdapter for Avro -> Domain conversion (handles None)
+ResourceUsageDomainAdapter: TypeAdapter[ResourceUsageDomain | None] = TypeAdapter(ResourceUsageDomain | None)
 
 
 class DomainExecution(BaseModel):

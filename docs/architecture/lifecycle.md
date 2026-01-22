@@ -8,11 +8,11 @@ The pattern that actually fits Python and asyncio is the language's own RAII: as
 
 ## What changed
 
-Services with long-running background work now implement the async context manager protocol. Coordinator, KubernetesWorker, PodMonitor, SSE Kafka→Redis bridge, EventStoreConsumer, ResultProcessor, DLQManager, EventBus, and the Kafka producer all expose `__aenter__`/`__aexit__` that call `start`/`stop`.
+Services with long-running background work now implement the async context manager protocol. KubernetesWorker, PodMonitor, SSE Kafka→Redis bridge, EventStoreConsumer, ResultProcessor, DLQManager, EventBus, and the Kafka producer all expose `__aenter__`/`__aexit__` that call `start`/`stop`.
 
 DI providers return unstarted instances for these services. The FastAPI lifespan acquires them and uses an `AsyncExitStack` to start/stop them in a single place. That removed scattered start/stop logic from providers and made shutdown order explicit.
 
-Worker entrypoints (coordinator, k8s-worker, pod-monitor, event-replay, result-processor, dlq-processor) use `AsyncExitStack` as well. No more `if 'x' in locals()` cleanups or nested with statements. Each runner acquires the services it needs, enters them in the stack, and blocks. When it's time to exit, everything stops in reverse order.
+Worker entrypoints (saga-orchestrator, k8s-worker, pod-monitor, event-replay, result-processor, dlq-processor, sse-bridge) use `AsyncExitStack` as well. No more `if 'x' in locals()` cleanups or nested with statements. Each runner acquires the services it needs, enters them in the stack, and blocks. When it's time to exit, everything stops in reverse order.
 
 ## Why this is better
 
@@ -29,7 +29,7 @@ Use an `AsyncExitStack` at the call site:
 ```python
 async with AsyncExitStack() as stack:
     await stack.enter_async_context(producer)
-    await stack.enter_async_context(coordinator)
+    await stack.enter_async_context(consumer)
     # add more services as needed
     await asyncio.Event().wait()
 ```

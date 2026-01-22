@@ -31,22 +31,6 @@ Track script execution performance and resource usage.
 | `execution.queue.depth`     | UpDownCounter | -                        | Queued executions            |
 | `execution.queue.wait_time` | Histogram     | lang_and_version         | Queue wait time (seconds)    |
 
-### Coordinator Metrics
-
-Track scheduling and resource allocation.
-
-| Metric                                   | Type          | Labels              | Description               |
-|------------------------------------------|---------------|---------------------|---------------------------|
-| `coordinator.processing.time`            | Histogram     | -                   | Event processing time     |
-| `coordinator.scheduling.duration`        | Histogram     | -                   | Scheduling time           |
-| `coordinator.executions.active`          | UpDownCounter | -                   | Active managed executions |
-| `coordinator.queue.wait_time`            | Histogram     | priority, queue     | Queue wait by priority    |
-| `coordinator.executions.scheduled.total` | Counter       | status              | Scheduled executions      |
-| `coordinator.rate_limited.total`         | Counter       | limit_type, user_id | Rate limited requests     |
-| `coordinator.resource.allocations.total` | Counter       | resource_type       | Resource allocations      |
-| `coordinator.resource.utilization`       | UpDownCounter | resource_type       | Current utilization       |
-| `coordinator.scheduling.decisions.total` | Counter       | decision, reason    | Scheduling decisions      |
-
 ### Rate Limit Metrics
 
 Track rate-limiting behavior.
@@ -161,8 +145,7 @@ avg_over_time(execution_queue_depth[1h])
 
 | File                                                                                                                         | Purpose                              |
 |------------------------------------------------------------------------------------------------------------------------------|--------------------------------------|
-| [`core/metrics/base.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/metrics/base.py)               | Base metrics class and configuration |
-| [`core/metrics/execution.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/metrics/execution.py)     | Execution metrics                    |
-| [`core/metrics/coordinator.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/metrics/coordinator.py) | Coordinator metrics                  |
-| [`core/metrics/rate_limit.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/metrics/rate_limit.py)   | Rate limit metrics                   |
+| [`core/metrics/base.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/metrics/base.py)             | Base metrics class and configuration |
+| [`core/metrics/execution.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/metrics/execution.py)   | Execution metrics                    |
+| [`core/metrics/rate_limit.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/metrics/rate_limit.py) | Rate limit metrics                   |
 | [`core/metrics/`](https://github.com/HardMax71/Integr8sCode/tree/main/backend/app/core/metrics)                              | All metrics modules                  |

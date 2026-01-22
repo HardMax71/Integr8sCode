@@ -15,21 +15,21 @@ The system uses *two separate Kafka topics* for execution flow: `execution_event
 
 Multiple services consume this topic: SSE streams updates to users, projection service maintains read-optimized views, saga orchestrator manages workflows, monitoring tracks health. These consumers care about *completeness and ordering* because they're building a comprehensive picture of system state.
 
-**execution_tasks** is a *work queue*. It contains only events representing actual work to be done — executions that have been validated, authorized, rate-limited, and scheduled. When the coordinator publishes to `execution_tasks`, it's saying "this needs to be done now" rather than "this happened." The Kubernetes worker, the *sole consumer* of this topic, just needs to know what pods to create.
+**execution_tasks** is a *work queue*. It contains only events representing actual work to be done — executions that have been validated, authorized, rate-limited, and scheduled. When the saga orchestrator publishes to `execution_tasks`, it's saying "this needs to be done now" rather than "this happened." The Kubernetes worker, the *sole consumer* of this topic, just needs to know what pods to create.
 
 ## Request flow
 
 When a user submits code, the API creates an `ExecutionRequestedEvent` and publishes it to `execution_events`. This acknowledges the request and makes it part of the permanent record.
 
-The coordinator subscribes to `execution_events` and begins validation:
+The saga orchestrator subscribes to `execution_events` and begins processing:
 
-- Has the user exceeded their rate limit?
+- Has the execution passed rate limiting (handled at API level)?
 - Are sufficient resources available?
-- Should this execution be prioritized or queued?
+- What state is the execution workflow in?
 
-Some requests get rejected immediately. Others sit in a priority queue waiting for resources. Still others get cancelled before starting.
+Some requests get rejected at the API level. Others proceed through the saga workflow. The saga orchestrator tracks state transitions and issues commands.
 
-Only when the coordinator determines an execution is *ready to proceed* does it republish to `execution_tasks`. This represents a state transition — the event has moved from being a request to being *scheduled work*.
+Only when the saga orchestrator determines an execution is *ready to proceed* does it publish to `execution_tasks`. This represents a state transition — the event has moved from being a request to being *scheduled work*.
 
 The Kubernetes worker then consumes from `execution_tasks`, creates resources (ConfigMaps, Pods), and publishes a `PodCreatedEvent` back to `execution_events`. It doesn't need to know about rate limits or queuing — all that complexity has been handled upstream.
 
@@ -62,11 +62,11 @@ Monitoring becomes more precise. Different SLAs for different stages:
 
 ## Failure handling
 
-If the Kubernetes worker crashes, `execution_tasks` accumulates messages but the rest of the system continues normally. Users can submit executions, the coordinator validates and queues them, other services process `execution_events`. When the worker recovers, it picks up where it left off.
+If the Kubernetes worker crashes, `execution_tasks` accumulates messages but the rest of the system continues normally. Users can submit executions, the saga orchestrator processes events, other services consume `execution_events`. When the worker recovers, it picks up where it left off.
 
 In a single-topic architecture, a slow worker would cause backpressure affecting *all* consumers. SSE might delay updates. Projections might fall behind. The entire system degrades because one component can't keep up.
 
-The coordinator acts as a *shock absorber* between user requests and pod creation. It can implement queuing, prioritization, and resource management without affecting upstream producers or downstream workers. During cluster capacity issues, the coordinator holds executions in its internal queue while still acknowledging receipt.
+The saga orchestrator acts as a *shock absorber* between user requests and pod creation. It manages workflow state and resource coordination without affecting upstream producers or downstream workers. Kafka provides natural backpressure and queuing, while Redis-backed rate limiting handles capacity management at the API level.
 
 ## Extensibility
 

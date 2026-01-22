@@ -2,18 +2,33 @@ from datetime import datetime, timezone
 from typing import Annotated, Literal
 from uuid import uuid4
 
+from dataclasses_avroschema.pydantic import AvroBaseModel
 from pydantic import ConfigDict, Discriminator, Field, TypeAdapter
-from pydantic_avro.to_avro.base import AvroBase
 
 from app.domain.enums.auth import LoginMethod
 from app.domain.enums.common import Environment
 from app.domain.enums.events import EventType
 from app.domain.enums.notification import NotificationChannel, NotificationSeverity
 from app.domain.enums.storage import ExecutionErrorType, StorageType
-from app.domain.execution import ResourceUsageDomain
+
+# --- Avro-compatible nested models ---
 
 
-class EventMetadata(AvroBase):
+class ResourceUsageAvro(AvroBaseModel):
+    """Resource usage data - Avro-compatible version for events."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    execution_time_wall_seconds: float = 0.0
+    cpu_time_jiffies: int = 0
+    clk_tck_hertz: int = 0
+    peak_memory_kb: int = 0
+
+    class Meta:
+        namespace = "com.integr8scode.events"
+
+
+class EventMetadata(AvroBaseModel):
     """Event metadata - embedded in all events."""
 
     model_config = ConfigDict(from_attributes=True, use_enum_values=True)
@@ -26,8 +41,11 @@ class EventMetadata(AvroBase):
     user_agent: str | None = None
     environment: Environment = Environment.PRODUCTION
 
+    class Meta:
+        namespace = "com.integr8scode.events"
 
-class BaseEvent(AvroBase):
+
+class BaseEvent(AvroBaseModel):
     """Base fields for all domain events."""
 
     model_config = ConfigDict(from_attributes=True)
@@ -38,6 +56,9 @@ class BaseEvent(AvroBase):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     aggregate_id: str | None = None
     metadata: EventMetadata
+
+    class Meta:
+        namespace = "com.integr8scode.events"
 
 
 # --- Execution Events ---
@@ -94,7 +115,7 @@ class ExecutionCompletedEvent(BaseEvent):
     event_type: Literal[EventType.EXECUTION_COMPLETED] = EventType.EXECUTION_COMPLETED
     execution_id: str
     exit_code: int
-    resource_usage: ResourceUsageDomain | None = None
+    resource_usage: ResourceUsageAvro | None = None
     stdout: str = ""
     stderr: str = ""
 
@@ -105,7 +126,7 @@ class ExecutionFailedEvent(BaseEvent):
     exit_code: int
     error_type: ExecutionErrorType | None = None
     error_message: str = ""
-    resource_usage: ResourceUsageDomain | None = None
+    resource_usage: ResourceUsageAvro | None = None
     stdout: str = ""
     stderr: str = ""
 
@@ -114,7 +135,7 @@ class ExecutionTimeoutEvent(BaseEvent):
     event_type: Literal[EventType.EXECUTION_TIMEOUT] = EventType.EXECUTION_TIMEOUT
     execution_id: str
     timeout_seconds: int
-    resource_usage: ResourceUsageDomain | None = None
+    resource_usage: ResourceUsageAvro | None = None
     stdout: str = ""
     stderr: str = ""
 
@@ -555,7 +576,7 @@ class DLQMessageDiscardedEvent(BaseEvent):
 # --- Archived Event (for deleted events) ---
 
 
-class ArchivedEvent(AvroBase):
+class ArchivedEvent(AvroBaseModel):
     """Archived event with deletion metadata. Wraps the original event data."""
 
     model_config = ConfigDict(from_attributes=True)
@@ -572,6 +593,9 @@ class ArchivedEvent(AvroBase):
     deleted_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     deleted_by: str | None = None
     deletion_reason: str | None = None
+
+    class Meta:
+        namespace = "com.integr8scode.events"
 
 
 # --- Discriminated Union: TYPE SYSTEM handles dispatch ---

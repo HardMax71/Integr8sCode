@@ -60,8 +60,7 @@ Svelte frontend → FastAPI backend (MongoDB, Kafka, Redis) → Kubernetes pods 
 flowchart TB
     User:::userStyle --> Frontend
     Frontend --> API
-    API --> Coordinator
-    Coordinator --> Saga
+    API --> Saga[Saga Orchestrator]
     Saga --> K8sWorker[K8s Worker]
     K8sWorker --> Pod
     K8sWorker --> ResultProcessor[Result Processor]

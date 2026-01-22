@@ -111,7 +111,6 @@ nav:
     - Authentication: architecture/authentication.md
     - Rate Limiting: architecture/rate-limiting.md
     - Idempotency: architecture/idempotency.md
-    - Execution Queue: architecture/execution-queue.md
     - Runtime Registry: architecture/runtime-registry.md
     - Middleware: architecture/middleware.md
     - Domain Exceptions: architecture/domain-exceptions.md
@@ -140,7 +139,6 @@ nav:
       - K8s Worker: components/workers/k8s_worker.md
       - Pod Monitor: components/workers/pod_monitor.md
       - Result Processor: components/workers/result_processor.md
-      - Coordinator: components/workers/coordinator.md
       - Event Replay: components/workers/event_replay.md
       - DLQ Processor: components/workers/dlq_processor.md
     - Saga:

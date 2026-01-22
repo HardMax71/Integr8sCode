@@ -1,64 +1,93 @@
+"""
+Pod Monitor Worker.
+
+Unlike other workers, PodMonitor watches Kubernetes pods directly
+(not consuming Kafka messages), so FastStream's subscriber pattern doesn't apply.
+"""
+
 import asyncio
 import logging
 import signal
 
-from app.core.container import create_pod_monitor_container
-from app.core.database_context import Database
 from app.core.logging import setup_logger
+from app.core.providers import (
+    BoundaryClientProvider,
+    CoreServicesProvider,
+    EventProvider,
+    KafkaServicesProvider,
+    LoggingProvider,
+    MessagingProvider,
+    MetricsProvider,
+    PodMonitorProvider,
+    RedisServicesProvider,
+    RepositoryProvider,
+    SettingsProvider,
+)
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.kafka import GroupId
-from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
-from app.services.pod_monitor.monitor import MonitorState, PodMonitor
+from app.events.core import UnifiedProducer
+from app.events.schema.schema_registry import SchemaRegistryManager
+from app.services.pod_monitor.monitor import PodMonitor
 from app.settings import Settings
 from beanie import init_beanie
-
-RECONCILIATION_LOG_INTERVAL: int = 60
+from dishka import make_async_container
+from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 
 async def run_pod_monitor(settings: Settings) -> None:
     """Run the pod monitor service."""
+    container = make_async_container(
+        SettingsProvider(),
+        LoggingProvider(),
+        CoreServicesProvider(),
+        BoundaryClientProvider(),
+        RedisServicesProvider(),
+        MetricsProvider(),
+        EventProvider(),
+        MessagingProvider(),
+        KafkaServicesProvider(),
+        RepositoryProvider(),
+        PodMonitorProvider(),
+        context={Settings: settings},
+    )
 
-    container = create_pod_monitor_container(settings)
     logger = await container.get(logging.Logger)
     logger.info("Starting PodMonitor with DI container...")
 
-    db = await container.get(Database)
-    await init_beanie(database=db, document_models=ALL_DOCUMENTS)
+    mongo_client: AsyncMongoClient[dict[str, object]] = AsyncMongoClient(
+        settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000
+    )
+    await init_beanie(database=mongo_client[settings.DATABASE_NAME], document_models=ALL_DOCUMENTS)
 
-    schema_registry = await container.get(SchemaRegistryManager)
-    await initialize_event_schemas(schema_registry)
+    await container.get(SchemaRegistryManager)
+    await container.get(UnifiedProducer)
+    logger.info("Kafka producer ready")
 
-    # Services are already started by the DI container providers
     monitor = await container.get(PodMonitor)
 
-    # Shutdown event - signal handlers just set this
-    shutdown_event = asyncio.Event()
+    # Signal cancels current task - monitor.run() handles CancelledError gracefully
+    task = asyncio.current_task()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, shutdown_event.set)
+        loop.add_signal_handler(sig, task.cancel)  # type: ignore[union-attr]
 
-    logger.info("PodMonitor started and running")
+    logger.info("PodMonitor initialized, starting run...")
 
     try:
-        # Wait for shutdown signal or service to stop
-        while monitor.state == MonitorState.RUNNING and not shutdown_event.is_set():
-            await asyncio.sleep(RECONCILIATION_LOG_INTERVAL)
-            status = await monitor.get_status()
-            logger.info(f"Pod monitor status: {status}")
+        await monitor.run()
     finally:
-        # Container cleanup stops everything
         logger.info("Initiating graceful shutdown...")
+        await mongo_client.close()
         await container.close()
+        logger.info("PodMonitor shutdown complete")
 
 
 def main() -> None:
-    """Main entry point for pod monitor worker"""
+    """Main entry point for pod monitor worker."""
     settings = Settings()
 
     logger = setup_logger(settings.LOG_LEVEL)
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-
     logger.info("Starting PodMonitor worker...")
 
     if settings.ENABLE_TRACING:
@@ -70,7 +99,6 @@ def main() -> None:
             enable_console_exporter=False,
             sampling_rate=settings.TRACING_SAMPLING_RATE,
         )
-        logger.info("Tracing initialized for PodMonitor Service")
 
     asyncio.run(run_pod_monitor(settings))
 

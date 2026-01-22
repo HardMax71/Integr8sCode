@@ -284,7 +284,7 @@ Check pod status and logs using standard kubectl commands.
 ```bash
 kubectl get pods -n integr8scode
 kubectl logs -n integr8scode -l app.kubernetes.io/component=backend
-kubectl logs -n integr8scode -l app.kubernetes.io/component=coordinator
+kubectl logs -n integr8scode -l app.kubernetes.io/component=saga-orchestrator
 ```
 
 The deploy script's `status` command shows both Docker Compose and Kubernetes status in one view.

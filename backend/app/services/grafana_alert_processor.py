@@ -1,5 +1,3 @@
-"""Grafana alert processing service."""
-
 import logging
 from typing import Any
 

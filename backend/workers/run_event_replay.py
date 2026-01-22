@@ -3,7 +3,6 @@ import logging
 from contextlib import AsyncExitStack
 
 from app.core.container import create_event_replay_container
-from app.core.database_context import Database
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
@@ -11,6 +10,7 @@ from app.events.core import UnifiedProducer
 from app.services.event_replay.replay_service import EventReplayService
 from app.settings import Settings
 from beanie import init_beanie
+from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 
 async def cleanup_task(replay_service: EventReplayService, logger: logging.Logger, interval_hours: int = 6) -> None:
@@ -31,17 +31,20 @@ async def run_replay_service(settings: Settings) -> None:
     logger = await container.get(logging.Logger)
     logger.info("Starting EventReplayService with DI container...")
 
-    db = await container.get(Database)
-    await init_beanie(database=db, document_models=ALL_DOCUMENTS)
+    mongo_client: AsyncMongoClient[dict[str, object]] = AsyncMongoClient(
+        settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000
+    )
+    await init_beanie(database=mongo_client[settings.DATABASE_NAME], document_models=ALL_DOCUMENTS)
 
-    producer = await container.get(UnifiedProducer)
+    # Resolve Kafka producer (lifecycle managed by DI - BoundaryClientProvider starts it)
+    await container.get(UnifiedProducer)
     replay_service = await container.get(EventReplayService)
 
     logger.info("Event replay service initialized")
 
     async with AsyncExitStack() as stack:
         stack.push_async_callback(container.close)
-        await stack.enter_async_context(producer)
+        stack.push_async_callback(mongo_client.close)
 
         task = asyncio.create_task(cleanup_task(replay_service, logger))
 

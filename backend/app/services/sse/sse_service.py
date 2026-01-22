@@ -8,7 +8,7 @@ from app.core.metrics import ConnectionMetrics
 from app.db.repositories.sse_repository import SSERepository
 from app.domain.enums.events import EventType
 from app.domain.enums.sse import SSEControlEvent, SSENotificationEvent
-from app.domain.sse import SSEHealthDomain
+from app.domain.sse import ShutdownStatus, SSEHealthDomain
 from app.schemas_pydantic.execution import ExecutionResult
 from app.schemas_pydantic.sse import (
     RedisNotificationMessage,
@@ -16,9 +16,8 @@ from app.schemas_pydantic.sse import (
     SSEExecutionEventData,
     SSENotificationEventData,
 )
-from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
 from app.services.sse.redis_bus import SSERedisBus
-from app.services.sse.sse_shutdown_manager import SSEShutdownManager
+from app.services.sse.sse_connection_registry import SSEConnectionRegistry
 from app.settings import Settings
 
 
@@ -32,38 +31,26 @@ class SSEService:
     }
 
     def __init__(
-        self,
-        repository: SSERepository,
-        router: SSEKafkaRedisBridge,
-        sse_bus: SSERedisBus,
-        shutdown_manager: SSEShutdownManager,
-        settings: Settings,
-        logger: logging.Logger,
-        connection_metrics: ConnectionMetrics,
+            self,
+            repository: SSERepository,
+            sse_bus: SSERedisBus,
+            connection_registry: SSEConnectionRegistry,
+            settings: Settings,
+            logger: logging.Logger,
+            connection_metrics: ConnectionMetrics,
     ) -> None:
         self.repository = repository
-        self.router = router
         self.sse_bus = sse_bus
-        self.shutdown_manager = shutdown_manager
+        self.connection_registry = connection_registry
         self.settings = settings
         self.logger = logger
         self.metrics = connection_metrics
-        self.heartbeat_interval = getattr(settings, "SSE_HEARTBEAT_INTERVAL", 30)
+        self.heartbeat_interval = settings.SSE_HEARTBEAT_INTERVAL
 
     async def create_execution_stream(self, execution_id: str, user_id: str) -> AsyncGenerator[Dict[str, Any], None]:
         connection_id = f"sse_{execution_id}_{datetime.now(timezone.utc).timestamp()}"
 
-        shutdown_event = await self.shutdown_manager.register_connection(execution_id, connection_id)
-        if shutdown_event is None:
-            yield self._format_sse_event(
-                SSEExecutionEventData(
-                    event_type=SSEControlEvent.ERROR,
-                    execution_id=execution_id,
-                    timestamp=datetime.now(timezone.utc),
-                    error="Server is shutting down",
-                )
-            )
-            return
+        await self.connection_registry.register_connection(execution_id, connection_id)
 
         subscription = None
         try:
@@ -106,40 +93,27 @@ class SSEService:
                 self.metrics.record_sse_message_sent("executions", "status")
 
             async for event_data in self._stream_events_redis(
-                execution_id,
-                subscription,
-                shutdown_event,
-                include_heartbeat=False,
+                    execution_id,
+                    subscription,
+                    include_heartbeat=False,
             ):
                 yield event_data
 
         finally:
             if subscription is not None:
                 await asyncio.shield(subscription.close())
-            await asyncio.shield(self.shutdown_manager.unregister_connection(execution_id, connection_id))
+            await asyncio.shield(self.connection_registry.unregister_connection(execution_id, connection_id))
             self.logger.info("SSE connection closed", extra={"execution_id": execution_id})
 
     async def _stream_events_redis(
-        self,
-        execution_id: str,
-        subscription: Any,
-        shutdown_event: asyncio.Event,
-        include_heartbeat: bool = True,
+            self,
+            execution_id: str,
+            subscription: Any,
+            include_heartbeat: bool = True,
     ) -> AsyncGenerator[Dict[str, Any], None]:
+        """Stream events from Redis subscription until terminal event or cancellation."""
         last_heartbeat = datetime.now(timezone.utc)
         while True:
-            if shutdown_event.is_set():
-                yield self._format_sse_event(
-                    SSEExecutionEventData(
-                        event_type=SSEControlEvent.SHUTDOWN,
-                        execution_id=execution_id,
-                        timestamp=datetime.now(timezone.utc),
-                        message="Server is shutting down",
-                        grace_period=30,
-                    )
-                )
-                break
-
             now = datetime.now(timezone.utc)
             if include_heartbeat and (now - last_heartbeat).total_seconds() >= self.heartbeat_interval:
                 yield self._format_sse_event(
@@ -196,6 +170,7 @@ class SSEService:
         )
 
     async def create_notification_stream(self, user_id: str) -> AsyncGenerator[Dict[str, Any], None]:
+        """Stream notifications until cancelled."""
         subscription = None
 
         try:
@@ -224,7 +199,7 @@ class SSEService:
             )
 
             last_heartbeat = datetime.now(timezone.utc)
-            while not self.shutdown_manager.is_shutting_down():
+            while True:
                 # Heartbeat
                 now = datetime.now(timezone.utc)
                 if (now - last_heartbeat).total_seconds() >= self.heartbeat_interval:
@@ -259,15 +234,22 @@ class SSEService:
                 await asyncio.shield(subscription.close())
 
     async def get_health_status(self) -> SSEHealthDomain:
-        router_stats = self.router.get_stats()
+        """Get SSE service health status."""
+        active_connections = self.connection_registry.get_connection_count()
         return SSEHealthDomain(
-            status="draining" if self.shutdown_manager.is_shutting_down() else "healthy",
+            status="healthy",
             kafka_enabled=True,
-            active_connections=router_stats["active_executions"],
-            active_executions=router_stats["active_executions"],
-            active_consumers=router_stats["num_consumers"],
+            active_connections=active_connections,
+            active_executions=self.connection_registry.get_execution_count(),
+            active_consumers=0,  # Consumers run in separate SSE bridge worker
             max_connections_per_user=5,
-            shutdown=self.shutdown_manager.get_shutdown_status(),
+            shutdown=ShutdownStatus(
+                phase="ready",
+                initiated=False,
+                complete=False,
+                active_connections=active_connections,
+                draining_connections=0,
+            ),
             timestamp=datetime.now(timezone.utc),
         )
 

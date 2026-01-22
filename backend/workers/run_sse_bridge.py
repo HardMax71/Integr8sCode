@@ -23,8 +23,7 @@ from app.services.sse.redis_bus import SSERedisBus
 from app.settings import Settings
 from dishka import Provider, Scope, make_async_container, provide
 from dishka.integrations.faststream import FromDishka, setup_dishka
-from faststream import FastStream
-from faststream.broker.message import AckPolicy
+from faststream import AckPolicy, FastStream
 from faststream.kafka import KafkaBroker
 from faststream.message import StreamMessage
 

@@ -81,7 +81,7 @@ Each worker uses the policy best suited to its reliability requirements:
 Example subscriber configuration:
 
 ```python
-from faststream.broker.message import AckPolicy
+from faststream import AckPolicy
 
 @broker.subscriber(
     *topics,

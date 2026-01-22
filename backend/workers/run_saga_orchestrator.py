@@ -43,8 +43,7 @@ from app.settings import Settings
 from beanie import init_beanie
 from dishka import make_async_container
 from dishka.integrations.faststream import FromDishka, setup_dishka
-from faststream import FastStream
-from faststream.broker.message import AckPolicy
+from faststream import AckPolicy, FastStream
 from faststream.kafka import KafkaBroker
 from faststream.message import StreamMessage
 from pymongo.asynchronous.mongo_client import AsyncMongoClient

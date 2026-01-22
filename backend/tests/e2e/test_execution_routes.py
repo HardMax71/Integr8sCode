@@ -4,9 +4,15 @@ from uuid import UUID
 import pytest
 from app.domain.enums.execution import ExecutionStatus as ExecutionStatusEnum
 from app.schemas_pydantic.execution import (
+    CancelExecutionRequest,
+    DeleteResponse,
+    ExecutionEventResponse,
+    ExecutionListResponse,
+    ExecutionRequest,
     ExecutionResponse,
     ExecutionResult,
     ResourceUsage,
+    RetryExecutionRequest,
 )
 from httpx import AsyncClient
 
@@ -34,16 +40,13 @@ class TestExecution:
                    for word in ["not authenticated", "unauthorized", "login"])
 
     @pytest.mark.asyncio
-    async def test_execute_simple_python_script(self, test_user: AsyncClient) -> None:
+    async def test_execute_simple_python_script(
+        self, test_user: AsyncClient, simple_execution_request: ExecutionRequest
+    ) -> None:
         """Test executing a simple Python script."""
-        # Execute script
-        execution_request = {
-            "script": "print('Hello from real backend!')",
-            "lang": "python",
-            "lang_version": "3.11"
-        }
-
-        response = await test_user.post("/api/v1/execute", json=execution_request)
+        response = await test_user.post(
+            "/api/v1/execute", json=simple_execution_request.model_dump()
+        )
         assert response.status_code == 200
 
         # Validate response structure
@@ -72,13 +75,13 @@ class TestExecution:
     async def test_get_execution_result(self, test_user: AsyncClient) -> None:
         """Test getting execution result after completion using SSE (event-driven)."""
         # Execute a simple script
-        execution_request = {
-            "script": "print('Test output')\nprint('Line 2')",
-            "lang": "python",
-            "lang_version": "3.11"
-        }
+        request = ExecutionRequest(
+            script="print('Test output')\nprint('Line 2')",
+            lang="python",
+            lang_version="3.11",
+        )
 
-        exec_response = await test_user.post("/api/v1/execute", json=execution_request)
+        exec_response = await test_user.post("/api/v1/execute", json=request.model_dump())
         assert exec_response.status_code == 200
 
         execution_id = exec_response.json()["execution_id"]
@@ -104,13 +107,13 @@ class TestExecution:
     async def test_execute_with_error(self, test_user: AsyncClient) -> None:
         """Test executing a script that produces an error."""
         # Execute script with intentional error
-        execution_request = {
-            "script": "print('Before error')\nraise ValueError('Test error')\nprint('After error')",
-            "lang": "python",
-            "lang_version": "3.11"
-        }
+        request = ExecutionRequest(
+            script="print('Before error')\nraise ValueError('Test error')\nprint('After error')",
+            lang="python",
+            lang_version="3.11",
+        )
 
-        exec_response = await test_user.post("/api/v1/execute", json=execution_request)
+        exec_response = await test_user.post("/api/v1/execute", json=request.model_dump())
         assert exec_response.status_code == 200
 
         exec_response.json()["execution_id"]
@@ -121,8 +124,8 @@ class TestExecution:
     async def test_execute_with_resource_tracking(self, test_user: AsyncClient) -> None:
         """Test that execution tracks resource usage."""
         # Execute script that uses some resources
-        execution_request = {
-            "script": """
+        request = ExecutionRequest(
+            script="""
 import time
 # Create some memory usage
 data = [i for i in range(10000)]
@@ -130,11 +133,11 @@ print(f'Created list with {len(data)} items')
 time.sleep(0.1)  # Small delay to ensure measurable execution time
 print('Done')
 """,
-            "lang": "python",
-            "lang_version": "3.11"
-        }
+            lang="python",
+            lang_version="3.11",
+        )
 
-        exec_response = await test_user.post("/api/v1/execute", json=execution_request)
+        exec_response = await test_user.post("/api/v1/execute", json=request.model_dump())
         assert exec_response.status_code == 200
 
         execution_id = exec_response.json()["execution_id"]
@@ -179,18 +182,18 @@ print('Done')
     async def test_execute_with_large_output(self, test_user: AsyncClient) -> None:
         """Test execution with large output."""
         # Script that produces large output
-        execution_request = {
-            "script": """
+        request = ExecutionRequest(
+            script="""
 # Generate large output
 for i in range(1000):
     print(f'Line {i}: ' + 'x' * 50)
 print('End of output')
 """,
-            "lang": "python",
-            "lang_version": "3.11"
-        }
+            lang="python",
+            lang_version="3.11",
+        )
 
-        exec_response = await test_user.post("/api/v1/execute", json=execution_request)
+        exec_response = await test_user.post("/api/v1/execute", json=request.model_dump())
         assert exec_response.status_code == 200
 
         execution_id = exec_response.json()["execution_id"]
@@ -206,35 +209,23 @@ print('End of output')
                 assert "End of output" in result_data["stdout"] or len(result_data["stdout"]) > 10000
 
     @pytest.mark.asyncio
-    async def test_cancel_running_execution(self, test_user: AsyncClient) -> None:
+    async def test_cancel_running_execution(
+        self, test_user: AsyncClient, long_running_execution_request: ExecutionRequest
+    ) -> None:
         """Test cancelling a running execution."""
-        # Start a long-running script
-        execution_request = {
-            "script": """
-import time
-print('Starting long task...')
-for i in range(30):
-    print(f'Iteration {i}')
-    time.sleep(1)
-print('Should not reach here if cancelled')
-""",
-            "lang": "python",
-            "lang_version": "3.11"
-        }
-
-        exec_response = await test_user.post("/api/v1/execute", json=execution_request)
+        exec_response = await test_user.post(
+            "/api/v1/execute", json=long_running_execution_request.model_dump()
+        )
         assert exec_response.status_code == 200
 
         execution_id = exec_response.json()["execution_id"]
 
         # Try to cancel immediately - no waiting
-        cancel_request = {
-            "reason": "Test cancellation"
-        }
+        cancel_req = CancelExecutionRequest(reason="Test cancellation")
 
         try:
             cancel_response = await test_user.post(
-                f"/api/v1/{execution_id}/cancel", json=cancel_request
+                f"/api/v1/{execution_id}/cancel", json=cancel_req.model_dump()
             )
         except Exception:
             pytest.skip("Cancel endpoint not available or connection dropped")
@@ -254,19 +245,19 @@ print('Should not reach here if cancelled')
         running or has transitioned to a terminal state due to platform limits.
         """
         # Script that would run forever
-        execution_request = {
-            "script": """
+        request = ExecutionRequest(
+            script="""
 import time
 print('Starting infinite loop...')
 while True:
     time.sleep(1)
     print('Still running...')
 """,
-            "lang": "python",
-            "lang_version": "3.11"
-        }
+            lang="python",
+            lang_version="3.11",
+        )
 
-        exec_response = await test_user.post("/api/v1/execute", json=execution_request)
+        exec_response = await test_user.post("/api/v1/execute", json=request.model_dump())
         assert exec_response.status_code == 200
 
         exec_response.json()["execution_id"]
@@ -323,18 +314,13 @@ while True:
                 assert exec_response.status_code in [400, 422]
 
     @pytest.mark.asyncio
-    async def test_concurrent_executions_by_same_user(self, test_user: AsyncClient) -> None:
+    async def test_concurrent_executions_by_same_user(
+        self, test_user: AsyncClient, simple_execution_request: ExecutionRequest
+    ) -> None:
         """Test running multiple executions concurrently."""
-        # Submit multiple executions
-        execution_request = {
-            "script": "import time; time.sleep(1); print('Concurrent test')",
-            "lang": "python",
-            "lang_version": "3.11"
-        }
-
         tasks = []
         for _ in range(3):
-            task = test_user.post("/api/v1/execute", json=execution_request)
+            task = test_user.post("/api/v1/execute", json=simple_execution_request.model_dump())
             tasks.append(task)
 
         responses = await asyncio.gather(*tasks)
@@ -395,23 +381,217 @@ while True:
         self, test_user: AsyncClient
     ) -> None:
         """Submitting the same request with the same Idempotency-Key yields the same execution_id."""
-        execution_request = {
-            "script": "print('Idempotency integration test')",
-            "lang": "python",
-            "lang_version": "3.11",
-        }
+        request = ExecutionRequest(
+            script="print('Idempotency integration test')",
+            lang="python",
+            lang_version="3.11",
+        )
 
         # Add idempotency key header (CSRF is already set on test_user)
         headers = {"Idempotency-Key": "it-idem-key-123"}
 
         # Use idempotency header on both requests to guarantee keying
-        r1 = await test_user.post("/api/v1/execute", json=execution_request, headers=headers)
+        r1 = await test_user.post("/api/v1/execute", json=request.model_dump(), headers=headers)
         assert r1.status_code == 200
         e1 = r1.json()["execution_id"]
 
         # Second request with same key must return the same execution id
-        r2 = await test_user.post("/api/v1/execute", json=execution_request, headers=headers)
+        r2 = await test_user.post("/api/v1/execute", json=request.model_dump(), headers=headers)
         assert r2.status_code == 200
         e2 = r2.json()["execution_id"]
 
         assert e1 == e2
+
+
+class TestExecutionRetry:
+    """Tests for POST /api/v1/{execution_id}/retry."""
+
+    @pytest.mark.asyncio
+    async def test_retry_execution_creates_new_execution(
+        self, test_user: AsyncClient, created_execution: ExecutionResponse
+    ) -> None:
+        """Retry an execution creates a new execution with same script."""
+        original = created_execution
+
+        # Retry
+        retry_req = RetryExecutionRequest()
+        retry_response = await test_user.post(
+            f"/api/v1/{original.execution_id}/retry",
+            json=retry_req.model_dump(),
+        )
+
+        # May fail if still running - that's expected behavior
+        if retry_response.status_code == 400:
+            # Cannot retry running execution
+            assert "RUNNING" in retry_response.json().get("detail", "") or \
+                   "QUEUED" in retry_response.json().get("detail", "")
+        elif retry_response.status_code == 200:
+            retried = ExecutionResponse.model_validate(retry_response.json())
+            # New execution should have different ID
+            assert retried.execution_id != original.execution_id
+            assert retried.status in list(ExecutionStatusEnum)
+
+    @pytest.mark.asyncio
+    async def test_retry_other_users_execution_forbidden(
+        self, test_user: AsyncClient, another_user: AsyncClient,
+        created_execution: ExecutionResponse
+    ) -> None:
+        """Cannot retry another user's execution."""
+        # Try to retry as another_user
+        retry_req = RetryExecutionRequest()
+        retry_response = await another_user.post(
+            f"/api/v1/{created_execution.execution_id}/retry",
+            json=retry_req.model_dump(),
+        )
+
+        assert retry_response.status_code == 403
+
+
+class TestExecutionEvents:
+    """Tests for GET /api/v1/executions/{execution_id}/events."""
+
+    @pytest.mark.asyncio
+    async def test_get_execution_events(
+        self, test_user: AsyncClient, created_execution: ExecutionResponse
+    ) -> None:
+        """Get events for an execution returns list of events."""
+        events_response = await test_user.get(
+            f"/api/v1/executions/{created_execution.execution_id}/events"
+        )
+
+        assert events_response.status_code == 200
+        events = [
+            ExecutionEventResponse.model_validate(e)
+            for e in events_response.json()
+        ]
+
+        # Should have at least the initial event
+        assert isinstance(events, list)
+        if events:
+            event = events[0]
+            assert event.event_id is not None
+            assert event.event_type is not None
+            assert event.timestamp is not None
+
+    @pytest.mark.asyncio
+    async def test_get_execution_events_with_filter(
+        self, test_user: AsyncClient, created_execution: ExecutionResponse
+    ) -> None:
+        """Filter events by event_types query param."""
+        events_response = await test_user.get(
+            f"/api/v1/executions/{created_execution.execution_id}/events",
+            params={"event_types": ["EXECUTION_REQUESTED"]},
+        )
+
+        assert events_response.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_get_execution_events_access_denied(
+        self, test_user: AsyncClient, another_user: AsyncClient,
+        created_execution: ExecutionResponse
+    ) -> None:
+        """Cannot access another user's execution events."""
+        events_response = await another_user.get(
+            f"/api/v1/executions/{created_execution.execution_id}/events"
+        )
+
+        assert events_response.status_code == 403
+
+
+class TestExecutionDelete:
+    """Tests for DELETE /api/v1/{execution_id} (admin only)."""
+
+    @pytest.mark.asyncio
+    async def test_admin_delete_execution(
+        self, test_user: AsyncClient, test_admin: AsyncClient,
+        created_execution: ExecutionResponse
+    ) -> None:
+        """Admin can delete an execution."""
+        # Admin deletes
+        delete_response = await test_admin.delete(
+            f"/api/v1/{created_execution.execution_id}"
+        )
+
+        assert delete_response.status_code == 200
+        result = DeleteResponse.model_validate(delete_response.json())
+        assert result.message == "Execution deleted successfully"
+        assert result.execution_id == created_execution.execution_id
+
+        # Verify execution is gone
+        get_response = await test_admin.get(
+            f"/api/v1/result/{created_execution.execution_id}"
+        )
+        assert get_response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_user_cannot_delete_execution(
+        self, test_user: AsyncClient, created_execution: ExecutionResponse
+    ) -> None:
+        """Regular user cannot delete execution (admin only)."""
+        delete_response = await test_user.delete(
+            f"/api/v1/{created_execution.execution_id}"
+        )
+
+        assert delete_response.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_delete_nonexistent_execution(
+        self, test_admin: AsyncClient
+    ) -> None:
+        """Deleting nonexistent execution returns 404."""
+        delete_response = await test_admin.delete("/api/v1/nonexistent-id-xyz")
+
+        assert delete_response.status_code == 404
+
+
+class TestExecutionListFiltering:
+    """Tests for GET /api/v1/user/executions with filters."""
+
+    @pytest.mark.asyncio
+    async def test_list_executions_pagination(
+        self, test_user: AsyncClient
+    ) -> None:
+        """Pagination works correctly for user executions."""
+        # Create a few executions
+        for i in range(3):
+            request = ExecutionRequest(
+                script=f"print('pagination test {i}')",
+                lang="python",
+                lang_version="3.11",
+            )
+            await test_user.post("/api/v1/execute", json=request.model_dump())
+
+        # Get page 1
+        response1 = await test_user.get(
+            "/api/v1/user/executions",
+            params={"limit": 2, "skip": 0},
+        )
+        assert response1.status_code == 200
+        result1 = ExecutionListResponse.model_validate(response1.json())
+        assert result1.limit == 2
+        assert result1.skip == 0
+
+        # Get page 2
+        response2 = await test_user.get(
+            "/api/v1/user/executions",
+            params={"limit": 2, "skip": 2},
+        )
+        assert response2.status_code == 200
+        result2 = ExecutionListResponse.model_validate(response2.json())
+        assert result2.skip == 2
+
+    @pytest.mark.asyncio
+    async def test_list_executions_filter_by_language(
+        self, test_user: AsyncClient
+    ) -> None:
+        """Filter executions by language."""
+        response = await test_user.get(
+            "/api/v1/user/executions",
+            params={"lang": "python"},
+        )
+        assert response.status_code == 200
+        result = ExecutionListResponse.model_validate(response.json())
+
+        # All returned executions should be Python
+        for execution in result.executions:
+            assert execution.lang == "python"

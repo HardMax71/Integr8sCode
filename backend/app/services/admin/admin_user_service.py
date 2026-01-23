@@ -9,7 +9,7 @@ from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.user import UserRole
 from app.domain.rate_limit import RateLimitUpdateResult, UserRateLimit, UserRateLimitsResult
-from app.domain.user import DomainUserCreate, PasswordReset, User, UserListResult, UserUpdate
+from app.domain.user import DomainUserCreate, PasswordReset, User, UserDeleteResult, UserListResult, UserUpdate
 from app.schemas_pydantic.user import UserCreate
 from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
@@ -170,17 +170,17 @@ class AdminUserService:
         )
         return await self._users.update_user(user_id, update)
 
-    async def delete_user(self, *, admin_username: str, user_id: str, cascade: bool) -> dict[str, int]:
+    async def delete_user(self, *, admin_username: str, user_id: str, cascade: bool) -> UserDeleteResult:
         self.logger.info(
             "Admin deleting user",
             extra={"admin_username": admin_username, "target_user_id": user_id, "cascade": cascade},
         )
         # Reset rate limits prior to deletion
         await self._rate_limits.reset_user_limits(user_id)
-        deleted_counts = await self._users.delete_user(user_id, cascade=cascade)
-        if deleted_counts.get("user", 0) > 0:
+        result = await self._users.delete_user(user_id, cascade=cascade)
+        if result.user_deleted:
             self.logger.info("User deleted successfully", extra={"target_user_id": user_id})
-        return deleted_counts
+        return result
 
     async def reset_user_password(self, *, admin_username: str, user_id: str, new_password: str) -> bool:
         self.logger.info(

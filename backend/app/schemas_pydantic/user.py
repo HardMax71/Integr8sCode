@@ -139,7 +139,13 @@ class DeleteUserResponse(BaseModel):
     """Response model for user deletion."""
 
     message: str
-    deleted_counts: dict[str, int]
+    user_deleted: bool
+    executions: int = 0
+    saved_scripts: int = 0
+    notifications: int = 0
+    user_settings: int = 0
+    events: int = 0
+    sagas: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -501,7 +501,7 @@ class TestDeleteUser:
         assert response.status_code == 200
         result = DeleteUserResponse.model_validate(response.json())
         assert user_id in result.message
-        assert result.deleted_counts.get("user", 0) >= 1
+        assert result.user_deleted is True
 
         # Verify deleted
         get_response = await test_admin.get(f"/api/v1/admin/users/{user_id}")
@@ -531,7 +531,7 @@ class TestDeleteUser:
 
         assert response.status_code == 200
         result = DeleteUserResponse.model_validate(response.json())
-        assert isinstance(result.deleted_counts, dict)
+        assert result.user_deleted is True
 
     @pytest.mark.asyncio
     async def test_delete_user_not_found(

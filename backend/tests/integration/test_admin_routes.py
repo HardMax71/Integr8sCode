@@ -1,6 +1,7 @@
 from uuid import uuid4
 
 import pytest
+from app.domain.enums.events import EventType
 from app.schemas_pydantic.admin_settings import (
     ExecutionLimitsSchema,
     MonitoringSettingsSchema,
@@ -224,7 +225,7 @@ class TestAdminEvents:
         # Browse events
         browse_payload = {
             "filters": {
-                "event_types": ["user_registered", "user_logged_in"]
+                "event_types": [EventType.USER_REGISTERED, EventType.USER_LOGGED_IN]
             },
             "skip": 0,
             "limit": 20,

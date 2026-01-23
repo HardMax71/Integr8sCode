@@ -84,8 +84,8 @@ class TestEventsRoutes:
         assert exec_response.status_code == 200
 
         # Filter by event types
-        event_types = ["execution.requested", "execution.completed"]
-        params: dict[str, str | int | list[str]] = {
+        event_types = [EventType.EXECUTION_REQUESTED, EventType.EXECUTION_COMPLETED]
+        params: dict[str, str | int | list[EventType]] = {
             "event_types": event_types,
             "limit": 20,
             "sort_order": "desc"

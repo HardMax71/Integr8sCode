@@ -153,3 +153,17 @@ class DomainUserUpdate(BaseModel):
     role: UserRole | None = None
     is_active: bool | None = None
     hashed_password: str | None = None
+
+
+class UserDeleteResult(BaseModel):
+    """Result of deleting a user and optionally cascading to related data."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    user_deleted: bool
+    executions: int = 0
+    saved_scripts: int = 0
+    notifications: int = 0
+    user_settings: int = 0
+    events: int = 0
+    sagas: int = 0

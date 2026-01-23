@@ -333,10 +333,10 @@ class TestReplayRoutes:
             "description": "Testing complex event filters",
             "filters": {
                 "event_types": [
-                    "execution.requested",
-                    "execution.started",
-                    "execution.completed",
-                    "execution.failed"
+                    EventType.EXECUTION_REQUESTED,
+                    EventType.EXECUTION_STARTED,
+                    EventType.EXECUTION_COMPLETED,
+                    EventType.EXECUTION_FAILED,
                 ],
                 "start_time": (datetime.now(timezone.utc) - timedelta(days=30)).isoformat(),
                 "end_time": datetime.now(timezone.utc).isoformat(),

@@ -148,13 +148,19 @@ async def delete_user(
     if admin.user_id == user_id:
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
 
-    deleted_counts = await admin_user_service.delete_user(
+    result = await admin_user_service.delete_user(
         admin_username=admin.username, user_id=user_id, cascade=cascade
     )
-    if deleted_counts.get("user", 0) == 0:
-        raise HTTPException(status_code=500, detail="Failed to delete user")
-
-    return DeleteUserResponse(message=f"User {user_id} deleted successfully", deleted_counts=deleted_counts)
+    return DeleteUserResponse(
+        message=f"User {user_id} deleted successfully",
+        user_deleted=result.user_deleted,
+        executions=result.executions,
+        saved_scripts=result.saved_scripts,
+        notifications=result.notifications,
+        user_settings=result.user_settings,
+        events=result.events,
+        sagas=result.sagas,
+    )
 
 
 @router.post("/{user_id}/reset-password", response_model=MessageResponse)

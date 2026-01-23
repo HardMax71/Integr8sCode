@@ -1,9 +1,3 @@
-"""Event-related schemas for REST API endpoints.
-
-This module contains Pydantic models for event-related API requests and responses.
-For Avro-based event schemas used in Kafka streaming, see app.schemas_avro.event_schemas.
-"""
-
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 from uuid import uuid4
@@ -302,7 +296,7 @@ class ReplayAggregateResponse(BaseModel):
     dry_run: bool
     aggregate_id: str
     event_count: int | None = None
-    event_types: List[str] | None = None
+    event_types: List[EventType] | None = None
     start_time: datetime | None = None
     end_time: datetime | None = None
     replayed_count: int | None = None

@@ -19,7 +19,7 @@ class TestExecutionEvents:
 
     @pytest.mark.asyncio
     async def test_get_execution_events(
-        self, test_user: AsyncClient, created_execution: ExecutionResponse
+            self, test_user: AsyncClient, created_execution: ExecutionResponse
     ) -> None:
         """Get events for a specific execution."""
         response = await test_user.get(
@@ -37,7 +37,7 @@ class TestExecutionEvents:
 
     @pytest.mark.asyncio
     async def test_get_execution_events_pagination(
-        self, test_user: AsyncClient, created_execution: ExecutionResponse
+            self, test_user: AsyncClient, created_execution: ExecutionResponse
     ) -> None:
         """Pagination works for execution events."""
         response = await test_user.get(
@@ -52,8 +52,8 @@ class TestExecutionEvents:
 
     @pytest.mark.asyncio
     async def test_get_execution_events_access_denied(
-        self, test_user: AsyncClient, another_user: AsyncClient,
-        created_execution: ExecutionResponse
+            self, test_user: AsyncClient, another_user: AsyncClient,
+            created_execution: ExecutionResponse
     ) -> None:
         """Cannot access another user's execution events."""
         response = await another_user.get(
@@ -79,7 +79,7 @@ class TestUserEvents:
 
     @pytest.mark.asyncio
     async def test_get_user_events_with_filters(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Filter user events by event types."""
         response = await test_user.get(
@@ -96,7 +96,7 @@ class TestUserEvents:
 
     @pytest.mark.asyncio
     async def test_get_user_events_unauthenticated(
-        self, client: AsyncClient
+            self, client: AsyncClient
     ) -> None:
         """Unauthenticated request returns 401."""
         response = await client.get("/api/v1/events/user")
@@ -124,7 +124,7 @@ class TestQueryEvents:
 
     @pytest.mark.asyncio
     async def test_query_events_with_correlation_id(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Query events by correlation ID."""
         response = await test_user.post(
@@ -146,7 +146,7 @@ class TestCorrelationEvents:
 
     @pytest.mark.asyncio
     async def test_get_events_by_correlation(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Get events by correlation ID."""
         # This will return empty unless we have events with this correlation
@@ -164,7 +164,7 @@ class TestCurrentRequestEvents:
 
     @pytest.mark.asyncio
     async def test_get_current_request_events(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Get events for current request correlation."""
         response = await test_user.get("/api/v1/events/current-request")
@@ -191,7 +191,7 @@ class TestEventStatistics:
 
     @pytest.mark.asyncio
     async def test_get_event_statistics_with_time_range(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Get event statistics with time range."""
         response = await test_user.get(
@@ -244,14 +244,18 @@ class TestPublishEvent:
 
     @pytest.mark.asyncio
     async def test_publish_event_admin_only(
-        self, test_admin: AsyncClient
+            self, test_admin: AsyncClient
     ) -> None:
         """Admin can publish custom events."""
         response = await test_admin.post(
             "/api/v1/events/publish",
             json={
-                "event_type": "CUSTOM_TEST_EVENT",
-                "payload": {"test_key": "test_value"},
+                "event_type": EventType.SYSTEM_ERROR,
+                "payload": {
+                    "error_type": "test_error",
+                    "message": "Test error message",
+                    "service_name": "test-service",
+                },
                 "aggregate_id": "test-aggregate-123",
             },
         )
@@ -264,14 +268,18 @@ class TestPublishEvent:
 
     @pytest.mark.asyncio
     async def test_publish_event_forbidden_for_user(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Regular user cannot publish events."""
         response = await test_user.post(
             "/api/v1/events/publish",
             json={
-                "event_type": "CUSTOM_EVENT",
-                "payload": {},
+                "event_type": EventType.SYSTEM_ERROR,
+                "payload": {
+                    "error_type": "test_error",
+                    "message": "Test error message",
+                    "service_name": "test-service",
+                },
             },
         )
 
@@ -317,35 +325,39 @@ class TestDeleteEvent:
 
     @pytest.mark.asyncio
     async def test_delete_event_admin_only(
-        self, test_admin: AsyncClient
+            self, test_admin: AsyncClient
     ) -> None:
         """Admin can delete events."""
-        # First publish an event to delete
+        # First publish an event to delete (must use valid EventType)
         publish_response = await test_admin.post(
             "/api/v1/events/publish",
             json={
-                "event_type": "TEST_EVENT_TO_DELETE",
-                "payload": {"delete_me": True},
+                "event_type": EventType.SYSTEM_ERROR,
+                "payload": {
+                    "error_type": "test_delete_error",
+                    "message": "Event to be deleted",
+                    "service_name": "test-service",
+                },
                 "aggregate_id": "delete-test-agg",
             },
         )
 
-        if publish_response.status_code == 200:
-            event_id = publish_response.json()["event_id"]
+        assert publish_response.status_code == 200
+        event_id = publish_response.json()["event_id"]
 
-            # Delete it
-            delete_response = await test_admin.delete(
-                f"/api/v1/events/{event_id}"
-            )
+        # Delete it
+        delete_response = await test_admin.delete(
+            f"/api/v1/events/{event_id}"
+        )
 
-            assert delete_response.status_code == 200
-            result = DeleteEventResponse.model_validate(delete_response.json())
-            assert result.event_id == event_id
-            assert "deleted" in result.message.lower()
+        assert delete_response.status_code == 200
+        result = DeleteEventResponse.model_validate(delete_response.json())
+        assert result.event_id == event_id
+        assert "deleted" in result.message.lower()
 
     @pytest.mark.asyncio
     async def test_delete_event_forbidden_for_user(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Regular user cannot delete events."""
         response = await test_user.delete("/api/v1/events/some-event-id")
@@ -358,7 +370,7 @@ class TestReplayAggregateEvents:
 
     @pytest.mark.asyncio
     async def test_replay_events_dry_run(
-        self, test_admin: AsyncClient, created_execution_admin: ExecutionResponse
+            self, test_admin: AsyncClient, created_execution_admin: ExecutionResponse
     ) -> None:
         """Replay events in dry run mode."""
         response = await test_admin.post(
@@ -374,7 +386,7 @@ class TestReplayAggregateEvents:
 
     @pytest.mark.asyncio
     async def test_replay_events_not_found(
-        self, test_admin: AsyncClient
+            self, test_admin: AsyncClient
     ) -> None:
         """Replay nonexistent aggregate returns 404."""
         response = await test_admin.post(
@@ -386,7 +398,7 @@ class TestReplayAggregateEvents:
 
     @pytest.mark.asyncio
     async def test_replay_events_forbidden_for_user(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Regular user cannot replay events."""
         response = await test_user.post(

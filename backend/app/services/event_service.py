@@ -89,7 +89,7 @@ class EventService:
     async def get_user_events_paginated(
         self,
         user_id: str,
-        event_types: list[str] | None = None,
+        event_types: list[EventType] | None = None,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
         limit: int = 100,

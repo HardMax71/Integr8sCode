@@ -1,7 +1,5 @@
-"""E2E tests for Dead Letter Queue routes."""
-
 import pytest
-from app.dlq.models import DLQMessageStatus
+from app.dlq.models import DLQMessageStatus, RetryStrategy
 from app.domain.enums.events import EventType
 from app.schemas_pydantic.dlq import (
     DLQBatchRetryResponse,
@@ -35,7 +33,7 @@ class TestGetDLQStats:
 
     @pytest.mark.asyncio
     async def test_get_dlq_stats_unauthenticated(
-        self, client: AsyncClient
+            self, client: AsyncClient
     ) -> None:
         """Unauthenticated request returns 401."""
         response = await client.get("/api/v1/dlq/stats")
@@ -60,7 +58,7 @@ class TestGetDLQMessages:
 
     @pytest.mark.asyncio
     async def test_get_dlq_messages_with_pagination(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Pagination parameters work correctly."""
         response = await test_user.get(
@@ -75,7 +73,7 @@ class TestGetDLQMessages:
 
     @pytest.mark.asyncio
     async def test_get_dlq_messages_by_status(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Filter DLQ messages by status."""
         response = await test_user.get(
@@ -91,7 +89,7 @@ class TestGetDLQMessages:
 
     @pytest.mark.asyncio
     async def test_get_dlq_messages_by_topic(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Filter DLQ messages by topic."""
         response = await test_user.get(
@@ -105,7 +103,7 @@ class TestGetDLQMessages:
 
     @pytest.mark.asyncio
     async def test_get_dlq_messages_by_event_type(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Filter DLQ messages by event type."""
         response = await test_user.get(
@@ -123,7 +121,7 @@ class TestGetDLQMessage:
 
     @pytest.mark.asyncio
     async def test_get_dlq_message_not_found(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Get nonexistent DLQ message returns 404."""
         response = await test_user.get(
@@ -133,7 +131,7 @@ class TestGetDLQMessage:
 
     @pytest.mark.asyncio
     async def test_get_dlq_message_detail(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Get DLQ message detail if messages exist."""
         # First list messages to find one
@@ -197,7 +195,7 @@ class TestRetryDLQMessages:
 
     @pytest.mark.asyncio
     async def test_retry_dlq_messages_empty_list(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Retry with empty event IDs list."""
         response = await test_user.post(
@@ -211,7 +209,7 @@ class TestRetryDLQMessages:
 
     @pytest.mark.asyncio
     async def test_retry_dlq_messages_nonexistent(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Retry nonexistent messages."""
         response = await test_user.post(
@@ -235,7 +233,7 @@ class TestSetRetryPolicy:
             "/api/v1/dlq/retry-policy",
             json={
                 "topic": "execution-events",
-                "strategy": "exponential",
+                "strategy": RetryStrategy.EXPONENTIAL_BACKOFF,
                 "max_retries": 5,
                 "base_delay_seconds": 60.0,
                 "max_delay_seconds": 3600.0,
@@ -249,14 +247,14 @@ class TestSetRetryPolicy:
 
     @pytest.mark.asyncio
     async def test_set_retry_policy_fixed_strategy(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Set retry policy with fixed strategy."""
         response = await test_user.post(
             "/api/v1/dlq/retry-policy",
             json={
                 "topic": "test-topic",
-                "strategy": "fixed",
+                "strategy": RetryStrategy.FIXED_INTERVAL,
                 "max_retries": 3,
                 "base_delay_seconds": 30.0,
                 "max_delay_seconds": 300.0,
@@ -269,15 +267,15 @@ class TestSetRetryPolicy:
         assert "test-topic" in result.message
 
     @pytest.mark.asyncio
-    async def test_set_retry_policy_linear_strategy(
-        self, test_user: AsyncClient
+    async def test_set_retry_policy_scheduled_strategy(
+            self, test_user: AsyncClient
     ) -> None:
-        """Set retry policy with linear strategy."""
+        """Set retry policy with scheduled strategy."""
         response = await test_user.post(
             "/api/v1/dlq/retry-policy",
             json={
                 "topic": "notifications-topic",
-                "strategy": "linear",
+                "strategy": RetryStrategy.SCHEDULED,
                 "max_retries": 10,
                 "base_delay_seconds": 120.0,
                 "max_delay_seconds": 7200.0,
@@ -295,7 +293,7 @@ class TestDiscardDLQMessage:
 
     @pytest.mark.asyncio
     async def test_discard_dlq_message_not_found(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Discard nonexistent message returns 404."""
         response = await test_user.delete(
@@ -333,7 +331,7 @@ class TestDiscardDLQMessage:
 
     @pytest.mark.asyncio
     async def test_discard_dlq_message_requires_reason(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Discard requires reason parameter."""
         response = await test_user.delete(
@@ -366,7 +364,7 @@ class TestGetDLQTopics:
 
     @pytest.mark.asyncio
     async def test_get_dlq_topics_unauthenticated(
-        self, client: AsyncClient
+            self, client: AsyncClient
     ) -> None:
         """Unauthenticated request returns 401."""
         response = await client.get("/api/v1/dlq/topics")

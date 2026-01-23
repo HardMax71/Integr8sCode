@@ -1,5 +1,5 @@
 import pytest
-from app.domain.enums.notification import NotificationChannel
+from app.domain.enums.notification import NotificationChannel, NotificationSeverity, NotificationStatus
 from app.schemas_pydantic.notification import (
     DeleteNotificationResponse,
     NotificationListResponse,
@@ -29,7 +29,7 @@ class TestGetNotifications:
 
     @pytest.mark.asyncio
     async def test_get_notifications_pagination(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Pagination parameters work correctly."""
         response = await test_user.get(
@@ -44,12 +44,12 @@ class TestGetNotifications:
 
     @pytest.mark.asyncio
     async def test_get_notifications_with_status_filter(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Filter notifications by status."""
         response = await test_user.get(
             "/api/v1/notifications",
-            params={"status": "unread"},
+            params={"status": NotificationStatus.DELIVERED},
         )
 
         assert response.status_code == 200
@@ -58,7 +58,7 @@ class TestGetNotifications:
 
     @pytest.mark.asyncio
     async def test_get_notifications_with_tag_filters(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Filter notifications by tags."""
         response = await test_user.get(
@@ -75,7 +75,7 @@ class TestGetNotifications:
 
     @pytest.mark.asyncio
     async def test_get_notifications_unauthenticated(
-        self, client: AsyncClient
+            self, client: AsyncClient
     ) -> None:
         """Unauthenticated request returns 401."""
         response = await client.get("/api/v1/notifications")
@@ -87,7 +87,7 @@ class TestMarkNotificationRead:
 
     @pytest.mark.asyncio
     async def test_mark_nonexistent_notification_read(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Marking nonexistent notification returns 404."""
         response = await test_user.put(
@@ -110,7 +110,7 @@ class TestMarkAllRead:
 
     @pytest.mark.asyncio
     async def test_mark_all_read_idempotent(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Mark all read is idempotent."""
         # Call twice
@@ -144,7 +144,7 @@ class TestSubscriptions:
             f"/api/v1/notifications/subscriptions/{NotificationChannel.IN_APP}",
             json={
                 "enabled": True,
-                "severities": ["info", "warning", "error"],
+                "severities": [NotificationSeverity.LOW, NotificationSeverity.MEDIUM, NotificationSeverity.HIGH],
             },
         )
 
@@ -156,7 +156,7 @@ class TestSubscriptions:
 
     @pytest.mark.asyncio
     async def test_update_subscription_disable(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Disable a subscription channel."""
         response = await test_user.put(
@@ -170,7 +170,7 @@ class TestSubscriptions:
 
     @pytest.mark.asyncio
     async def test_update_subscription_with_tags(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Update subscription with tag filters."""
         response = await test_user.put(
@@ -207,7 +207,7 @@ class TestDeleteNotification:
 
     @pytest.mark.asyncio
     async def test_delete_nonexistent_notification(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Deleting nonexistent notification returns 404."""
         response = await test_user.delete(
@@ -218,7 +218,7 @@ class TestDeleteNotification:
 
     @pytest.mark.asyncio
     async def test_delete_notification_response_format(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Delete response has correct format (when notification exists)."""
         # Get notifications first

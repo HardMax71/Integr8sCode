@@ -74,7 +74,7 @@ class EventRepository:
 
     async def get_events_by_type(
             self,
-            event_type: str,
+            event_type: EventType,
             start_time: datetime | None = None,
             end_time: datetime | None = None,
             limit: int = 100,
@@ -122,7 +122,7 @@ class EventRepository:
     async def get_events_by_user(
             self,
             user_id: str,
-            event_types: list[str] | None = None,
+            event_types: list[EventType] | None = None,
             start_time: datetime | None = None,
             end_time: datetime | None = None,
             limit: int = 100,
@@ -240,7 +240,7 @@ class EventRepository:
         return EventStatistics(total_events=0, events_by_type={}, events_by_service={}, events_by_hour=[])
 
     async def cleanup_old_events(
-            self, older_than_days: int = 30, event_types: list[str] | None = None, dry_run: bool = False
+            self, older_than_days: int = 30, event_types: list[EventType] | None = None, dry_run: bool = False
     ) -> int:
         cutoff_dt = datetime.now(timezone.utc) - timedelta(days=older_than_days)
         conditions: list[Any] = [
@@ -262,7 +262,7 @@ class EventRepository:
     async def get_user_events_paginated(
             self,
             user_id: str,
-            event_types: list[str] | None = None,
+            event_types: list[EventType] | None = None,
             start_time: datetime | None = None,
             end_time: datetime | None = None,
             limit: int = 100,

@@ -84,7 +84,7 @@ class AdminUserService:
         ]
         recent_result = await self._events.get_user_events_paginated(
             user_id=user_id,
-            event_types=[str(et) for et in event_types],
+            event_types=event_types,
             start_time=start,
             end_time=now,
             limit=10,

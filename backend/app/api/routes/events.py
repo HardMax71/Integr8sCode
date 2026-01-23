@@ -11,6 +11,7 @@ from app.api.dependencies import admin_user, current_user
 from app.core.correlation import CorrelationContext
 from app.core.utils import get_client_ip
 from app.domain.enums.common import SortOrder
+from app.domain.enums.events import EventType
 from app.domain.enums.user import UserRole
 from app.domain.events.event_models import EventFilter
 from app.domain.events.typed import BaseEvent, EventMetadata
@@ -76,7 +77,7 @@ async def get_execution_events(
 async def get_user_events(
     current_user: Annotated[UserResponse, Depends(current_user)],
     event_service: FromDishka[EventService],
-    event_types: List[str] | None = Query(None),
+    event_types: List[EventType] | None = Query(None),
     start_time: datetime | None = Query(None),
     end_time: datetime | None = Query(None),
     limit: int = Query(100, ge=1, le=1000),
@@ -108,7 +109,7 @@ async def query_events(
     event_service: FromDishka[EventService],
 ) -> EventListResponse:
     event_filter = EventFilter(
-        event_types=[str(et) for et in filter_request.event_types] if filter_request.event_types else None,
+        event_types=filter_request.event_types,
         aggregate_id=filter_request.aggregate_id,
         correlation_id=filter_request.correlation_id,
         user_id=filter_request.user_id,

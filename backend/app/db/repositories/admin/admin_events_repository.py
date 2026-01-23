@@ -75,7 +75,7 @@ class AdminEventsRepository:
         related_events = [
             EventSummary(
                 event_id=d.event_id,
-                event_type=str(d.event_type),
+                event_type=d.event_type,
                 timestamp=d.timestamp,
                 aggregate_id=d.aggregate_id,
             )
@@ -203,7 +203,7 @@ class AdminEventsRepository:
         return [
             EventExportRow(
                 event_id=doc.event_id,
-                event_type=str(doc.event_type),
+                event_type=doc.event_type,
                 timestamp=doc.timestamp,
                 correlation_id=doc.metadata.correlation_id or "",
                 aggregate_id=doc.aggregate_id or "",
@@ -324,7 +324,7 @@ class AdminEventsRepository:
         return [
             EventSummary(
                 event_id=doc.event_id,
-                event_type=str(doc.event_type),
+                event_type=doc.event_type,
                 timestamp=doc.timestamp,
                 aggregate_id=doc.aggregate_id,
             )

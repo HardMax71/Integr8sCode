@@ -1,9 +1,12 @@
 import pytest
 from app.domain.enums.events import EventType
 from app.schemas_pydantic.admin_events import (
+    EventBrowseRequest,
     EventBrowseResponse,
     EventDeleteResponse,
     EventDetailResponse,
+    EventFilter,
+    EventReplayRequest,
     EventReplayResponse,
     EventReplayStatusResponse,
     EventStatsResponse,
@@ -20,15 +23,15 @@ class TestBrowseEvents:
     @pytest.mark.asyncio
     async def test_browse_events(self, test_admin: AsyncClient) -> None:
         """Admin can browse events."""
+        request = EventBrowseRequest(
+            filters=EventFilter(),
+            skip=0,
+            limit=50,
+            sort_by="timestamp",
+            sort_order=-1,
+        )
         response = await test_admin.post(
-            "/api/v1/admin/events/browse",
-            json={
-                "filters": {},
-                "skip": 0,
-                "limit": 50,
-                "sort_by": "timestamp",
-                "sort_order": -1,
-            },
+            "/api/v1/admin/events/browse", json=request.model_dump()
         )
 
         assert response.status_code == 200
@@ -44,15 +47,13 @@ class TestBrowseEvents:
         self, test_admin: AsyncClient
     ) -> None:
         """Browse events filtered by event type."""
+        request = EventBrowseRequest(
+            filters=EventFilter(event_types=[EventType.EXECUTION_REQUESTED]),
+            skip=0,
+            limit=20,
+        )
         response = await test_admin.post(
-            "/api/v1/admin/events/browse",
-            json={
-                "filters": {
-                    "event_types": [EventType.EXECUTION_REQUESTED],
-                },
-                "skip": 0,
-                "limit": 20,
-            },
+            "/api/v1/admin/events/browse", json=request.model_dump()
         )
 
         assert response.status_code == 200
@@ -64,13 +65,13 @@ class TestBrowseEvents:
         self, test_admin: AsyncClient
     ) -> None:
         """Pagination works for event browsing."""
+        request = EventBrowseRequest(
+            filters=EventFilter(),
+            skip=10,
+            limit=25,
+        )
         response = await test_admin.post(
-            "/api/v1/admin/events/browse",
-            json={
-                "filters": {},
-                "skip": 10,
-                "limit": 25,
-            },
+            "/api/v1/admin/events/browse", json=request.model_dump()
         )
 
         assert response.status_code == 200
@@ -87,12 +88,12 @@ class TestBrowseEvents:
         me_response = await test_admin.get("/api/v1/auth/me")
         user_id = me_response.json()["user_id"]
 
+        request = EventBrowseRequest(
+            filters=EventFilter(user_id=user_id),
+            limit=50,
+        )
         response = await test_admin.post(
-            "/api/v1/admin/events/browse",
-            json={
-                "filters": {"user_id": user_id},
-                "limit": 50,
-            },
+            "/api/v1/admin/events/browse", json=request.model_dump()
         )
 
         assert response.status_code == 200
@@ -104,12 +105,12 @@ class TestBrowseEvents:
         self, test_admin: AsyncClient
     ) -> None:
         """Browse events with text search."""
+        request = EventBrowseRequest(
+            filters=EventFilter(search_text="execution"),
+            limit=20,
+        )
         response = await test_admin.post(
-            "/api/v1/admin/events/browse",
-            json={
-                "filters": {"search_text": "execution"},
-                "limit": 20,
-            },
+            "/api/v1/admin/events/browse", json=request.model_dump()
         )
 
         assert response.status_code == 200
@@ -281,12 +282,12 @@ class TestGetEventDetail:
     ) -> None:
         """Admin can get event details."""
         # Browse to find an event
+        request = EventBrowseRequest(
+            filters=EventFilter(aggregate_id=created_execution_admin.execution_id),
+            limit=10,
+        )
         browse_response = await test_admin.post(
-            "/api/v1/admin/events/browse",
-            json={
-                "filters": {"aggregate_id": created_execution_admin.execution_id},
-                "limit": 10,
-            },
+            "/api/v1/admin/events/browse", json=request.model_dump()
         )
 
         if browse_response.status_code == 200:
@@ -335,12 +336,12 @@ class TestReplayEvents:
         self, test_admin: AsyncClient, created_execution_admin: ExecutionResponse
     ) -> None:
         """Admin can replay events in dry run mode."""
+        request = EventReplayRequest(
+            aggregate_id=created_execution_admin.execution_id,
+            dry_run=True,
+        )
         response = await test_admin.post(
-            "/api/v1/admin/events/replay",
-            json={
-                "aggregate_id": created_execution_admin.execution_id,
-                "dry_run": True,
-            },
+            "/api/v1/admin/events/replay", json=request.model_dump()
         )
 
         # May be 200, 400, or 404 depending on events availability
@@ -356,12 +357,12 @@ class TestReplayEvents:
         self, test_admin: AsyncClient
     ) -> None:
         """Replay specific events by ID."""
+        request = EventReplayRequest(
+            event_ids=["event-id-1", "event-id-2"],
+            dry_run=True,
+        )
         response = await test_admin.post(
-            "/api/v1/admin/events/replay",
-            json={
-                "event_ids": ["event-id-1", "event-id-2"],
-                "dry_run": True,
-            },
+            "/api/v1/admin/events/replay", json=request.model_dump()
         )
 
         # 404 if events don't exist
@@ -372,12 +373,12 @@ class TestReplayEvents:
         self, test_admin: AsyncClient
     ) -> None:
         """Replay with non-matching filter returns 404."""
+        request = EventReplayRequest(
+            correlation_id="nonexistent-correlation-id",
+            dry_run=True,
+        )
         response = await test_admin.post(
-            "/api/v1/admin/events/replay",
-            json={
-                "correlation_id": "nonexistent-correlation-id",
-                "dry_run": True,
-            },
+            "/api/v1/admin/events/replay", json=request.model_dump()
         )
 
         assert response.status_code == 404
@@ -418,12 +419,12 @@ class TestGetReplayStatus:
         execution_id = exec_response.json()["execution_id"]
 
         # Start replay (not dry run)
+        request = EventReplayRequest(
+            aggregate_id=execution_id,
+            dry_run=False,
+        )
         replay_response = await test_admin.post(
-            "/api/v1/admin/events/replay",
-            json={
-                "aggregate_id": execution_id,
-                "dry_run": False,
-            },
+            "/api/v1/admin/events/replay", json=request.model_dump()
         )
 
         if replay_response.status_code == 200:
@@ -468,12 +469,12 @@ class TestDeleteEvent:
     ) -> None:
         """Admin can delete an event."""
         # Browse to find an event
+        request = EventBrowseRequest(
+            filters=EventFilter(aggregate_id=created_execution_admin.execution_id),
+            limit=10,
+        )
         browse_response = await test_admin.post(
-            "/api/v1/admin/events/browse",
-            json={
-                "filters": {"aggregate_id": created_execution_admin.execution_id},
-                "limit": 10,
-            },
+            "/api/v1/admin/events/browse", json=request.model_dump()
         )
 
         if browse_response.status_code == 200:

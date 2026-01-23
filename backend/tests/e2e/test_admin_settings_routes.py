@@ -76,28 +76,28 @@ class TestUpdateSystemSettings:
         self, test_admin: AsyncClient
     ) -> None:
         """Admin can update all system settings."""
+        request = SystemSettings(
+            execution_limits=ExecutionLimitsSchema(
+                max_timeout_seconds=600,
+                max_memory_mb=1024,
+                max_cpu_cores=4,
+                max_concurrent_executions=20,
+            ),
+            security_settings=SecuritySettingsSchema(
+                password_min_length=10,
+                session_timeout_minutes=120,
+                max_login_attempts=5,
+                lockout_duration_minutes=30,
+            ),
+            monitoring_settings=MonitoringSettingsSchema(
+                metrics_retention_days=60,
+                log_level="WARNING",
+                enable_tracing=True,
+                sampling_rate=0.2,
+            ),
+        )
         response = await test_admin.put(
-            "/api/v1/admin/settings/",
-            json={
-                "execution_limits": {
-                    "max_timeout_seconds": 600,
-                    "max_memory_mb": 1024,
-                    "max_cpu_cores": 4,
-                    "max_concurrent_executions": 20,
-                },
-                "security_settings": {
-                    "password_min_length": 10,
-                    "session_timeout_minutes": 120,
-                    "max_login_attempts": 5,
-                    "lockout_duration_minutes": 30,
-                },
-                "monitoring_settings": {
-                    "metrics_retention_days": 60,
-                    "log_level": "WARNING",
-                    "enable_tracing": True,
-                    "sampling_rate": 0.2,
-                },
-            },
+            "/api/v1/admin/settings/", json=request.model_dump()
         )
 
         assert response.status_code == 200
@@ -125,18 +125,19 @@ class TestUpdateSystemSettings:
         current = SystemSettings.model_validate(get_response.json())
 
         # Update only execution limits
+        new_execution_limits = ExecutionLimitsSchema(
+            max_timeout_seconds=300,
+            max_memory_mb=512,
+            max_cpu_cores=2,
+            max_concurrent_executions=15,
+        )
+        request = SystemSettings(
+            execution_limits=new_execution_limits,
+            security_settings=current.security_settings,
+            monitoring_settings=current.monitoring_settings,
+        )
         response = await test_admin.put(
-            "/api/v1/admin/settings/",
-            json={
-                "execution_limits": {
-                    "max_timeout_seconds": 300,
-                    "max_memory_mb": 512,
-                    "max_cpu_cores": 2,
-                    "max_concurrent_executions": 15,
-                },
-                "security_settings": current.security_settings.model_dump(),
-                "monitoring_settings": current.monitoring_settings.model_dump(),
-            },
+            "/api/v1/admin/settings/", json=request.model_dump()
         )
 
         assert response.status_code == 200
@@ -154,18 +155,19 @@ class TestUpdateSystemSettings:
         current = SystemSettings.model_validate(get_response.json())
 
         # Update only security settings
+        new_security = SecuritySettingsSchema(
+            password_min_length=12,
+            session_timeout_minutes=90,
+            max_login_attempts=3,
+            lockout_duration_minutes=20,
+        )
+        request = SystemSettings(
+            execution_limits=current.execution_limits,
+            security_settings=new_security,
+            monitoring_settings=current.monitoring_settings,
+        )
         response = await test_admin.put(
-            "/api/v1/admin/settings/",
-            json={
-                "execution_limits": current.execution_limits.model_dump(),
-                "security_settings": {
-                    "password_min_length": 12,
-                    "session_timeout_minutes": 90,
-                    "max_login_attempts": 3,
-                    "lockout_duration_minutes": 20,
-                },
-                "monitoring_settings": current.monitoring_settings.model_dump(),
-            },
+            "/api/v1/admin/settings/", json=request.model_dump()
         )
 
         assert response.status_code == 200
@@ -183,18 +185,19 @@ class TestUpdateSystemSettings:
         current = SystemSettings.model_validate(get_response.json())
 
         # Update only monitoring settings
+        new_monitoring = MonitoringSettingsSchema(
+            metrics_retention_days=45,
+            log_level="DEBUG",
+            enable_tracing=False,
+            sampling_rate=0.5,
+        )
+        request = SystemSettings(
+            execution_limits=current.execution_limits,
+            security_settings=current.security_settings,
+            monitoring_settings=new_monitoring,
+        )
         response = await test_admin.put(
-            "/api/v1/admin/settings/",
-            json={
-                "execution_limits": current.execution_limits.model_dump(),
-                "security_settings": current.security_settings.model_dump(),
-                "monitoring_settings": {
-                    "metrics_retention_days": 45,
-                    "log_level": "DEBUG",
-                    "enable_tracing": False,
-                    "sampling_rate": 0.5,
-                },
-            },
+            "/api/v1/admin/settings/", json=request.model_dump()
         )
 
         assert response.status_code == 200

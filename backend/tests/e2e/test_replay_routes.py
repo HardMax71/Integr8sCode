@@ -1,8 +1,10 @@
 import pytest
 from app.domain.enums.events import EventType
 from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
+from app.domain.replay import ReplayFilter
 from app.schemas_pydantic.replay import (
     CleanupResponse,
+    ReplayRequest,
     ReplayResponse,
     SessionSummary,
 )
@@ -20,18 +22,18 @@ class TestCreateReplaySession:
         self, test_admin: AsyncClient
     ) -> None:
         """Admin can create a replay session."""
+        request = ReplayRequest(
+            replay_type=ReplayType.QUERY,
+            target=ReplayTarget.KAFKA,
+            filter=ReplayFilter(),
+            speed_multiplier=1.0,
+            preserve_timestamps=False,
+            batch_size=100,
+            skip_errors=True,
+            enable_progress_tracking=True,
+        )
         response = await test_admin.post(
-            "/api/v1/replay/sessions",
-            json={
-                "replay_type": ReplayType.QUERY,
-                "target": ReplayTarget.KAFKA,
-                "filter": {},
-                "speed_multiplier": 1.0,
-                "preserve_timestamps": False,
-                "batch_size": 100,
-                "skip_errors": True,
-                "enable_progress_tracking": True,
-            },
+            "/api/v1/replay/sessions", json=request.model_dump()
         )
 
         assert response.status_code == 200
@@ -46,17 +48,15 @@ class TestCreateReplaySession:
         self, test_admin: AsyncClient
     ) -> None:
         """Create replay session with event filter."""
+        request = ReplayRequest(
+            replay_type=ReplayType.QUERY,
+            target=ReplayTarget.KAFKA,
+            filter=ReplayFilter(event_types=[EventType.EXECUTION_REQUESTED]),
+            batch_size=50,
+            max_events=1000,
+        )
         response = await test_admin.post(
-            "/api/v1/replay/sessions",
-            json={
-                "replay_type": ReplayType.QUERY,
-                "target": ReplayTarget.KAFKA,
-                "filter": {
-                    "event_types": [EventType.EXECUTION_REQUESTED],
-                },
-                "batch_size": 50,
-                "max_events": 1000,
-            },
+            "/api/v1/replay/sessions", json=request.model_dump()
         )
 
         assert response.status_code == 200
@@ -68,14 +68,14 @@ class TestCreateReplaySession:
         self, test_admin: AsyncClient
     ) -> None:
         """Create replay session with file target."""
+        request = ReplayRequest(
+            replay_type=ReplayType.QUERY,
+            target=ReplayTarget.FILE,
+            filter=ReplayFilter(),
+            target_file_path="/tmp/replay_export.json",
+        )
         response = await test_admin.post(
-            "/api/v1/replay/sessions",
-            json={
-                "replay_type": ReplayType.QUERY,
-                "target": ReplayTarget.FILE,
-                "filter": {},
-                "target_file_path": "/tmp/replay_export.json",
-            },
+            "/api/v1/replay/sessions", json=request.model_dump()
         )
 
         assert response.status_code == 200
@@ -122,14 +122,14 @@ class TestStartReplaySession:
     ) -> None:
         """Start a created replay session."""
         # Create session first
+        request = ReplayRequest(
+            replay_type=ReplayType.TIME_RANGE,
+            target=ReplayTarget.KAFKA,
+            filter=ReplayFilter(),
+            batch_size=10,
+        )
         create_response = await test_admin.post(
-            "/api/v1/replay/sessions",
-            json={
-                "replay_type": ReplayType.TIME_RANGE,
-                "target": ReplayTarget.KAFKA,
-                "filter": {},
-                "batch_size": 10,
-            },
+            "/api/v1/replay/sessions", json=request.model_dump()
         )
 
         if create_response.status_code == 200:
@@ -170,13 +170,13 @@ class TestPauseReplaySession:
     ) -> None:
         """Pause a running replay session."""
         # Create and start session
+        request = ReplayRequest(
+            replay_type=ReplayType.TIME_RANGE,
+            target=ReplayTarget.KAFKA,
+            filter=ReplayFilter(),
+        )
         create_response = await test_admin.post(
-            "/api/v1/replay/sessions",
-            json={
-                "replay_type": ReplayType.TIME_RANGE,
-                "target": ReplayTarget.KAFKA,
-                "filter": {},
-            },
+            "/api/v1/replay/sessions", json=request.model_dump()
         )
 
         if create_response.status_code == 200:
@@ -216,13 +216,13 @@ class TestResumeReplaySession:
         self, test_admin: AsyncClient
     ) -> None:
         """Resume a replay session."""
+        request = ReplayRequest(
+            replay_type=ReplayType.TIME_RANGE,
+            target=ReplayTarget.KAFKA,
+            filter=ReplayFilter(),
+        )
         create_response = await test_admin.post(
-            "/api/v1/replay/sessions",
-            json={
-                "replay_type": ReplayType.TIME_RANGE,
-                "target": ReplayTarget.KAFKA,
-                "filter": {},
-            },
+            "/api/v1/replay/sessions", json=request.model_dump()
         )
         assert create_response.status_code == 200
         session = ReplayResponse.model_validate(create_response.json())
@@ -254,13 +254,13 @@ class TestCancelReplaySession:
     ) -> None:
         """Cancel a replay session."""
         # Create session
+        request = ReplayRequest(
+            replay_type=ReplayType.TIME_RANGE,
+            target=ReplayTarget.KAFKA,
+            filter=ReplayFilter(),
+        )
         create_response = await test_admin.post(
-            "/api/v1/replay/sessions",
-            json={
-                "replay_type": ReplayType.TIME_RANGE,
-                "target": ReplayTarget.KAFKA,
-                "filter": {},
-            },
+            "/api/v1/replay/sessions", json=request.model_dump()
         )
 
         if create_response.status_code == 200:
@@ -363,13 +363,13 @@ class TestGetReplaySession:
     @pytest.mark.asyncio
     async def test_get_replay_session(self, test_admin: AsyncClient) -> None:
         """Get a specific replay session."""
+        request = ReplayRequest(
+            replay_type=ReplayType.QUERY,
+            target=ReplayTarget.KAFKA,
+            filter=ReplayFilter(),
+        )
         create_response = await test_admin.post(
-            "/api/v1/replay/sessions",
-            json={
-                "replay_type": ReplayType.QUERY,
-                "target": ReplayTarget.KAFKA,
-                "filter": {},
-            },
+            "/api/v1/replay/sessions", json=request.model_dump()
         )
         assert create_response.status_code == 200
         created = ReplayResponse.model_validate(create_response.json())

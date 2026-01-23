@@ -1,6 +1,8 @@
 import pytest
 from app.domain.enums.common import Theme
 from app.schemas_pydantic.user_settings import (
+    EditorSettings,
+    NotificationSettings,
     RestoreSettingsRequest,
     SettingsHistoryResponse,
     ThemeUpdateRequest,
@@ -45,28 +47,31 @@ class TestUpdateUserSettings:
         self, test_user: AsyncClient
     ) -> None:
         """Update all user settings."""
+        request = UserSettingsUpdate(
+            theme=Theme.DARK,
+            timezone="America/New_York",
+            notifications=NotificationSettings(
+                execution_completed=True,
+                execution_failed=True,
+                system_updates=False,
+                security_alerts=True,
+            ),
+            editor=EditorSettings(
+                tab_size=4,
+                font_size=14,
+                show_line_numbers=True,
+                word_wrap=False,
+            ),
+        )
         response = await test_user.put(
             "/api/v1/user/settings/",
-            json={
-                "theme": "dark",
-                "timezone": "America/New_York",
-                "notifications": {
-                    "email_enabled": True,
-                    "push_enabled": False,
-                },
-                "editor": {
-                    "tab_size": 4,
-                    "font_size": 14,
-                    "line_numbers": True,
-                    "word_wrap": False,
-                },
-            },
+            json=request.model_dump(exclude_unset=True),
         )
 
         assert response.status_code == 200
         settings = UserSettings.model_validate(response.json())
 
-        assert settings.theme == "dark"
+        assert settings.theme == Theme.DARK
         assert settings.timezone == "America/New_York"
 
     @pytest.mark.asyncio
@@ -136,12 +141,15 @@ class TestUpdateNotificationSettings:
         self, test_user: AsyncClient
     ) -> None:
         """Update notification settings."""
+        request = NotificationSettings(
+            execution_completed=True,
+            execution_failed=True,
+            system_updates=True,
+            security_alerts=True,
+        )
         response = await test_user.put(
             "/api/v1/user/settings/notifications",
-            json={
-                "email_enabled": True,
-                "push_enabled": True,
-            },
+            json=request.model_dump(),
         )
 
         assert response.status_code == 200
@@ -157,14 +165,15 @@ class TestUpdateEditorSettings:
         self, test_user: AsyncClient
     ) -> None:
         """Update editor settings."""
+        request = EditorSettings(
+            tab_size=2,
+            font_size=16,
+            show_line_numbers=True,
+            word_wrap=True,
+        )
         response = await test_user.put(
             "/api/v1/user/settings/editor",
-            json={
-                "tab_size": 2,
-                "font_size": 16,
-                "line_numbers": True,
-                "word_wrap": True,
-            },
+            json=request.model_dump(),
         )
 
         assert response.status_code == 200

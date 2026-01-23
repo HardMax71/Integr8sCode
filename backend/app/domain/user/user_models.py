@@ -55,6 +55,10 @@ class User(BaseModel):
     hashed_password: str
     created_at: datetime
     updated_at: datetime
+    # Rate limit summary (optional, populated by admin service)
+    bypass_rate_limit: bool | None = None
+    global_multiplier: float | None = None
+    has_custom_limits: bool | None = None
 
 
 class UserUpdate(BaseModel):

@@ -2,6 +2,7 @@
 
 import pytest
 from app.dlq.models import DLQMessageStatus
+from app.domain.enums.events import EventType
 from app.schemas_pydantic.dlq import (
     DLQBatchRetryResponse,
     DLQMessageDetail,
@@ -109,7 +110,7 @@ class TestGetDLQMessages:
         """Filter DLQ messages by event type."""
         response = await test_user.get(
             "/api/v1/dlq/messages",
-            params={"event_type": "EXECUTION_REQUESTED"},
+            params={"event_type": EventType.EXECUTION_REQUESTED},
         )
 
         assert response.status_code == 200

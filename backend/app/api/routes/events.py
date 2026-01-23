@@ -11,6 +11,7 @@ from app.api.dependencies import admin_user, current_user
 from app.core.correlation import CorrelationContext
 from app.core.utils import get_client_ip
 from app.domain.enums.common import SortOrder
+from app.domain.enums.user import UserRole
 from app.domain.events.event_models import EventFilter
 from app.domain.events.typed import BaseEvent, EventMetadata
 from app.schemas_pydantic.events import (
@@ -26,6 +27,7 @@ from app.schemas_pydantic.events import (
 )
 from app.schemas_pydantic.user import UserResponse
 from app.services.event_service import EventService
+from app.services.execution_service import ExecutionService
 from app.services.kafka_event_service import KafkaEventService
 from app.settings import Settings
 
@@ -37,10 +39,16 @@ async def get_execution_events(
     execution_id: str,
     current_user: Annotated[UserResponse, Depends(current_user)],
     event_service: FromDishka[EventService],
+    execution_service: FromDishka[ExecutionService],
     include_system_events: bool = Query(False, description="Include system-generated events"),
     limit: int = Query(100, ge=1, le=1000),
     skip: int = Query(0, ge=0),
 ) -> EventListResponse:
+    # Check execution ownership first (before checking events)
+    execution = await execution_service.get_execution_result(execution_id)
+    if execution.user_id and execution.user_id != current_user.user_id and current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Access denied")
+
     result = await event_service.get_execution_events(
         execution_id=execution_id,
         user_id=current_user.user_id,

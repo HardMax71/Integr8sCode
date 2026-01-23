@@ -2,6 +2,7 @@ import asyncio
 from uuid import UUID
 
 import pytest
+from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus as ExecutionStatusEnum
 from app.schemas_pydantic.execution import (
     CancelExecutionRequest,
@@ -203,7 +204,7 @@ print('End of output')
         result_response = await test_user.get(f"/api/v1/result/{execution_id}")
         if result_response.status_code == 200:
             result_data = result_response.json()
-            if result_data.get("status") == "COMPLETED":
+            if result_data.get("status") == ExecutionStatusEnum.COMPLETED:
                 assert result_data.get("stdout") is not None
                 assert len(result_data["stdout"]) > 0
                 assert "End of output" in result_data["stdout"] or len(result_data["stdout"]) > 10000
@@ -301,11 +302,11 @@ while True:
                     # 1. Be in queued/running state (not yet executed)
                     # 2. Have failed/errored if sandbox blocked them
                     # 3. Have output showing permission denied
-                    if result_data.get("status") == "COMPLETED":
+                    if result_data.get("status") == ExecutionStatusEnum.COMPLETED:
                         output = result_data.get("stdout", "").lower()
                         # Should have been blocked
                         assert "denied" in output or "permission" in output or "error" in output
-                    elif result_data.get("status") == "FAILED":
+                    elif result_data.get("status") == ExecutionStatusEnum.FAILED:
                         # Good - sandbox blocked it
                         pass
                     # Otherwise it's still queued/running which is fine
@@ -422,9 +423,9 @@ class TestExecutionRetry:
 
         # May fail if still running - that's expected behavior
         if retry_response.status_code == 400:
-            # Cannot retry running execution
-            assert "RUNNING" in retry_response.json().get("detail", "") or \
-                   "QUEUED" in retry_response.json().get("detail", "")
+            # Cannot retry running/queued execution
+            detail = retry_response.json().get("detail", "").lower()
+            assert "running" in detail or "queued" in detail
         elif retry_response.status_code == 200:
             retried = ExecutionResponse.model_validate(retry_response.json())
             # New execution should have different ID
@@ -480,7 +481,7 @@ class TestExecutionEvents:
         """Filter events by event_types query param."""
         events_response = await test_user.get(
             f"/api/v1/executions/{created_execution.execution_id}/events",
-            params={"event_types": ["EXECUTION_REQUESTED"]},
+            params={"event_types": [EventType.EXECUTION_REQUESTED]},
         )
 
         assert events_response.status_code == 200

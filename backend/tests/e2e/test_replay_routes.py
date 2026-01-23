@@ -1,4 +1,5 @@
 import pytest
+from app.domain.enums.events import EventType
 from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
 from app.schemas_pydantic.replay import (
     CleanupResponse,
@@ -51,7 +52,7 @@ class TestCreateReplaySession:
                 "replay_type": ReplayType.QUERY,
                 "target": ReplayTarget.KAFKA,
                 "filter": {
-                    "event_types": ["EXECUTION_REQUESTED"],
+                    "event_types": [EventType.EXECUTION_REQUESTED],
                 },
                 "batch_size": 50,
                 "max_events": 1000,

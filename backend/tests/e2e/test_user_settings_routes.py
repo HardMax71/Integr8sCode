@@ -23,7 +23,7 @@ class TestGetUserSettings:
         assert response.status_code == 200
         settings = UserSettings.model_validate(response.json())
 
-        assert settings.theme in ["light", "dark", "system"]
+        assert settings.theme in [Theme.LIGHT, Theme.DARK, Theme.AUTO]
         assert settings.timezone is not None
         assert settings.notifications is not None
         assert settings.editor is not None

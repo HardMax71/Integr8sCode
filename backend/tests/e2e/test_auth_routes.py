@@ -33,7 +33,7 @@ class TestAuthLogin:
         result = LoginResponse.model_validate(response.json())
 
         assert result.username == new_user_request.username
-        assert result.role in ["user", "admin"]
+        assert result.role in [UserRole.USER, UserRole.ADMIN]
         assert result.csrf_token and len(result.csrf_token) > 0
         assert result.message == "Login successful"
         assert "access_token" in response.cookies
@@ -172,7 +172,7 @@ class TestAuthMe:
         assert result.user_id is not None
         assert result.username is not None
         assert result.email is not None
-        assert result.role in ["user", "admin"]
+        assert result.role in [UserRole.USER, UserRole.ADMIN]
         assert response.headers.get("Cache-Control") == "no-store"
 
     @pytest.mark.asyncio
@@ -196,7 +196,7 @@ class TestAuthVerifyToken:
 
         assert result.valid is True
         assert result.username is not None
-        assert result.role in ["user", "admin"]
+        assert result.role in [UserRole.USER, UserRole.ADMIN]
         assert result.csrf_token is not None
 
     @pytest.mark.asyncio

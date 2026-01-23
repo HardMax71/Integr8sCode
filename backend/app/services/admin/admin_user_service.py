@@ -115,7 +115,20 @@ class AdminUserService:
             },
         )
 
-        return await self._users.list_users(limit=limit, offset=offset, search=search, role=role)
+        result = await self._users.list_users(limit=limit, offset=offset, search=search, role=role)
+
+        # Enrich users with rate limit summaries
+        summaries = await self._rate_limits.get_user_rate_limit_summaries([u.user_id for u in result.users])
+        enriched_users = [
+            user.model_copy(update={
+                "bypass_rate_limit": s.bypass_rate_limit,
+                "global_multiplier": s.global_multiplier,
+                "has_custom_limits": s.has_custom_limits,
+            }) if (s := summaries.get(user.user_id)) else user
+            for user in result.users
+        ]
+
+        return UserListResult(users=enriched_users, total=result.total, offset=result.offset, limit=result.limit)
 
     async def create_user(self, *, admin_username: str, user_data: UserCreate) -> User:
         """Create a new user and return domain user."""

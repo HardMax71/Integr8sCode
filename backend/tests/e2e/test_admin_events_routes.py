@@ -1,4 +1,5 @@
 import pytest
+from app.domain.enums.events import EventType
 from app.schemas_pydantic.admin_events import (
     EventBrowseResponse,
     EventDeleteResponse,
@@ -47,7 +48,7 @@ class TestBrowseEvents:
             "/api/v1/admin/events/browse",
             json={
                 "filters": {
-                    "event_types": ["EXECUTION_REQUESTED"],
+                    "event_types": [EventType.EXECUTION_REQUESTED],
                 },
                 "skip": 0,
                 "limit": 20,
@@ -216,7 +217,7 @@ class TestExportEventsCSV:
         response = await test_admin.get(
             "/api/v1/admin/events/export/csv",
             params={
-                "event_types": ["EXECUTION_REQUESTED"],
+                "event_types": [EventType.EXECUTION_REQUESTED],
                 "limit": 100,
             },
         )
@@ -255,7 +256,7 @@ class TestExportEventsJSON:
         response = await test_admin.get(
             "/api/v1/admin/events/export/json",
             params={
-                "event_types": ["EXECUTION_REQUESTED", "EXECUTION_STARTED"],
+                "event_types": [EventType.EXECUTION_REQUESTED, EventType.EXECUTION_STARTED],
                 "limit": 500,
             },
         )

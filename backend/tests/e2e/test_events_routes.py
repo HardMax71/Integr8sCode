@@ -1,4 +1,5 @@
 import pytest
+from app.domain.enums.events import EventType
 from app.schemas_pydantic.events import (
     DeleteEventResponse,
     EventListResponse,
@@ -84,7 +85,7 @@ class TestUserEvents:
         response = await test_user.get(
             "/api/v1/events/user",
             params={
-                "event_types": ["EXECUTION_REQUESTED"],
+                "event_types": [EventType.EXECUTION_REQUESTED],
                 "limit": 10,
             },
         )
@@ -111,7 +112,7 @@ class TestQueryEvents:
         response = await test_user.post(
             "/api/v1/events/query",
             json={
-                "event_types": ["EXECUTION_REQUESTED"],
+                "event_types": [EventType.EXECUTION_REQUESTED],
                 "limit": 50,
                 "skip": 0,
             },

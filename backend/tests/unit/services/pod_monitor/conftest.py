@@ -1,12 +1,10 @@
-"""Lightweight K8s pod/watch stubs for unit tests.
-
-These provide only the attributes PodEventMapper/PodMonitor touch, keeping
-tests fast and self-contained without importing heavy Kubernetes models.
-"""
-
 from __future__ import annotations
 
 from typing import Any, Iterable
+
+
+# ===== Pod data model stubs =====
+# These create test data, not "fakes" - they're test data factories
 
 
 class Meta:
@@ -105,6 +103,9 @@ class Pod:
         self.spec = Spec(adl)
 
 
+# ===== Factory functions =====
+
+
 def make_pod(
     *,
     name: str,
@@ -119,6 +120,7 @@ def make_pod(
     node_name: str | None = None,
     resource_version: str | None = None,
 ) -> Pod:
+    """Create a test Pod with sensible defaults."""
     cs: list[ContainerStatus] = []
     if waiting_reason is not None:
         cs.append(ContainerStatus(State(waiting=Waiting(waiting_reason, waiting_message))))
@@ -138,23 +140,18 @@ def make_pod(
     return pod
 
 
-class FakeApi:
-    def __init__(self, logs: str) -> None:
-        self._logs = logs
-
-    def read_namespaced_pod_log(self, name: str, namespace: str, tail_lines: int = 10000) -> str:  # noqa: ARG002
-        return self._logs
+# ===== Watch stream helpers =====
 
 
 class StopEvent:
-    """Fake stop event for FakeWatch - holds resource_version."""
+    """Stop event for watch stream - holds resource_version."""
 
     def __init__(self, resource_version: str) -> None:
         self.resource_version = resource_version
 
 
-class FakeWatchStream:
-    """Fake watch stream object returned by FakeWatch.stream().
+class MockWatchStream:
+    """Mock watch stream that yields events from a list.
 
     The real kubernetes watch stream has a _stop_event attribute that
     holds the resource_version for use by _update_resource_version.
@@ -165,7 +162,7 @@ class FakeWatchStream:
         self._stop_event = StopEvent(resource_version)
         self._index = 0
 
-    def __iter__(self) -> "FakeWatchStream":
+    def __iter__(self) -> "MockWatchStream":
         return self
 
     def __next__(self) -> dict[str, Any]:
@@ -176,61 +173,36 @@ class FakeWatchStream:
         return event
 
 
-class FakeWatch:
-    """Fake kubernetes Watch for testing."""
+def make_mock_watch(events: list[dict[str, Any]], resource_version: str = "rv2") -> Any:
+    """Create a mock Watch that returns the given events.
 
-    def __init__(self, events: list[dict[str, Any]], resource_version: str) -> None:
-        self._events = events
-        self._rv = resource_version
-
-    def stream(
-        self, func: Any, **kwargs: Any  # noqa: ARG002
-    ) -> FakeWatchStream:
-        return FakeWatchStream(self._events, self._rv)
-
-    def stop(self) -> None:
-        return None
-
-
-def make_watch(events: list[dict[str, Any]], resource_version: str = "rv2") -> FakeWatch:
-    return FakeWatch(events, resource_version)
-
-
-class FakeV1Api:
-    """Fake CoreV1Api for testing PodMonitor."""
-
-    def __init__(self, logs: str = "{}", pods: list[Pod] | None = None) -> None:
-        self._logs = logs
-        self._pods = pods or []
-
-    def read_namespaced_pod_log(self, name: str, namespace: str, tail_lines: int = 10000) -> str:  # noqa: ARG002
-        return self._logs
-
-    def get_api_resources(self) -> None:
-        """Stub for connectivity check."""
-        return None
-
-    def list_namespaced_pod(self, namespace: str, label_selector: str) -> Any:  # noqa: ARG002
-        """Return configured pods for reconciliation tests."""
-
-        class PodList:
-            def __init__(self, items: list[Pod]) -> None:
-                self.items = items
-
-        return PodList(list(self._pods))
-
-
-def make_k8s_clients(
-    logs: str = "{}",
-    events: list[dict[str, Any]] | None = None,
-    resource_version: str = "rv1",
-    pods: list[Pod] | None = None,
-) -> tuple[FakeV1Api, FakeWatch]:
-    """Create fake K8s clients for testing.
-
-    Returns (v1_api, watch) tuple for pure DI into PodMonitor.
+    Usage:
+        mock_watch = make_mock_watch([{"type": "MODIFIED", "object": pod}])
+        mock_watch.stream.return_value = MockWatchStream(events, "rv2")
     """
-    v1 = FakeV1Api(logs=logs, pods=pods)
-    watch = make_watch(events or [], resource_version)
-    return v1, watch
+    from unittest.mock import MagicMock
 
+    mock = MagicMock()
+    mock.stream.return_value = MockWatchStream(events, resource_version)
+    mock.stop.return_value = None
+    return mock
+
+
+def make_mock_v1_api(logs: str = "{}", pods: list[Pod] | None = None) -> Any:
+    """Create a mock CoreV1Api with configurable responses.
+
+    Usage:
+        mock_api = make_mock_v1_api(logs='{"stdout":"ok","stderr":"","exit_code":0}')
+    """
+    from unittest.mock import MagicMock
+
+    mock = MagicMock()
+    mock.read_namespaced_pod_log.return_value = logs
+    mock.get_api_resources.return_value = None
+
+    class PodList:
+        def __init__(self, items: list[Pod]) -> None:
+            self.items = items
+
+    mock.list_namespaced_pod.return_value = PodList(list(pods or []))
+    return mock

@@ -15,7 +15,7 @@ from app.events.schema.schema_registry import SchemaRegistryManager
 from app.settings import Settings
 from dishka import AsyncContainer
 
-from tests.helpers import make_execution_requested_event
+from tests.conftest import make_execution_requested_event
 
 # xdist_group: DLQ tests share a Kafka consumer group. When running in parallel,
 # different workers' managers consume each other's messages and apply wrong policies.

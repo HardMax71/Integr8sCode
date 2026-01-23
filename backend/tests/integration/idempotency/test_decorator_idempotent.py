@@ -6,7 +6,7 @@ from app.services.idempotency.idempotency_manager import IdempotencyManager
 from app.services.idempotency.middleware import idempotent_handler
 from dishka import AsyncContainer
 
-from tests.helpers import make_execution_requested_event
+from tests.conftest import make_execution_requested_event
 
 _test_logger = logging.getLogger("test.idempotency.decorator_idempotent")
 

@@ -14,7 +14,7 @@ from app.events.schema.schema_registry import SchemaRegistryManager, initialize_
 from app.settings import Settings
 from dishka import AsyncContainer
 
-from tests.helpers import make_execution_requested_event
+from tests.conftest import make_execution_requested_event
 
 # xdist_group: Kafka consumer creation can crash librdkafka when multiple workers
 # instantiate Consumer() objects simultaneously. Serial execution prevents this.

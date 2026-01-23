@@ -16,7 +16,7 @@ from app.services.idempotency.middleware import IdempotentEventHandler, idempote
 from app.services.idempotency.redis_repository import RedisIdempotencyRepository
 from app.settings import Settings
 
-from tests.helpers import make_execution_requested_event
+from tests.conftest import make_execution_requested_event
 
 pytestmark = [pytest.mark.integration, pytest.mark.redis]
 

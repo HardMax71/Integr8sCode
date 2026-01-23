@@ -15,7 +15,7 @@ from app.services.saga.execution_saga import (
 )
 from app.services.saga.saga_step import SagaContext
 
-from tests.helpers import make_execution_requested_event
+from tests.conftest import make_execution_requested_event
 
 pytestmark = pytest.mark.unit
 

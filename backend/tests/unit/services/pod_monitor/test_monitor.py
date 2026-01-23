@@ -26,14 +26,12 @@ from app.services.pod_monitor.monitor import (
 from app.settings import Settings
 from kubernetes.client.rest import ApiException
 
-from tests.helpers.k8s_fakes import (
-    FakeApi,
-    FakeV1Api,
-    FakeWatch,
-    FakeWatchStream,
-    make_k8s_clients,
+from tests.unit.services.pod_monitor.conftest import (
+    MockWatchStream,
+    Pod,
+    make_mock_v1_api,
+    make_mock_watch,
     make_pod,
-    make_watch,
 )
 
 pytestmark = pytest.mark.unit
@@ -108,10 +106,12 @@ class SpyMapper:
 def make_k8s_clients_di(
         events: list[dict[str, Any]] | None = None,
         resource_version: str = "rv1",
-        pods: list[Any] | None = None,
+        pods: list[Pod] | None = None,
+        logs: str = "{}",
 ) -> K8sClients:
-    """Create K8sClients for DI with fakes."""
-    v1, watch = make_k8s_clients(events=events, resource_version=resource_version, pods=pods)
+    """Create K8sClients for DI with mocks."""
+    v1 = make_mock_v1_api(logs=logs, pods=pods)
+    watch = make_mock_watch(events or [], resource_version)
     return K8sClients(
         api_client=MagicMock(),
         v1=v1,
@@ -132,7 +132,7 @@ def make_pod_monitor(
     """Create PodMonitor with sensible test defaults."""
     cfg = config or PodMonitorConfig()
     clients = k8s_clients or make_k8s_clients_di()
-    mapper = event_mapper or PodEventMapper(logger=_test_logger, k8s_api=FakeApi("{}"))
+    mapper = event_mapper or PodEventMapper(logger=_test_logger, k8s_api=make_mock_v1_api("{}"))
     service = kafka_service or create_test_kafka_event_service(event_metrics)[0]
     return PodMonitor(
         config=cfg,
@@ -288,17 +288,15 @@ async def test_reconcile_state_success(event_metrics: EventMetrics, kubernetes_m
 async def test_reconcile_state_exception(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
     cfg = PodMonitorConfig()
 
-    class FailV1(FakeV1Api):
-        def list_namespaced_pod(self, namespace: str, label_selector: str) -> Any:
-            raise RuntimeError("API error")
+    fail_v1 = MagicMock()
+    fail_v1.list_namespaced_pod.side_effect = RuntimeError("API error")
 
-    fail_v1 = FailV1()
     k8s_clients = K8sClients(
         api_client=MagicMock(),
         v1=fail_v1,
         apps_v1=MagicMock(),
         networking_v1=MagicMock(),
-        watch=make_watch([]),
+        watch=make_mock_watch([]),
     )
 
     pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg, k8s_clients=k8s_clients)
@@ -535,8 +533,8 @@ async def test_watch_pods_generic_exception(event_metrics: EventMetrics, kuberne
 async def test_create_pod_monitor_context_manager(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test create_pod_monitor factory with auto-created dependencies."""
     # Mock create_k8s_clients to avoid real K8s connection
-    mock_v1 = FakeV1Api()
-    mock_watch = make_watch([])
+    mock_v1 = make_mock_v1_api()
+    mock_watch = make_mock_watch([])
     mock_clients = K8sClients(
         api_client=MagicMock(),
         v1=mock_v1,
@@ -576,8 +574,8 @@ async def test_create_pod_monitor_with_injected_k8s_clients(event_metrics: Event
 
     service, _ = create_test_kafka_event_service(event_metrics)
 
-    mock_v1 = FakeV1Api()
-    mock_watch = make_watch([])
+    mock_v1 = make_mock_v1_api()
+    mock_watch = make_mock_watch([])
     mock_k8s_clients = K8sClients(
         api_client=MagicMock(),
         v1=mock_v1,
@@ -717,22 +715,29 @@ async def test_watch_pod_events_with_field_selector(event_metrics: EventMetrics,
 
     watch_kwargs: list[dict[str, Any]] = []
 
-    class TrackingV1(FakeV1Api):
-        def list_namespaced_pod(self, namespace: str, label_selector: str) -> Any:
-            watch_kwargs.append({"namespace": namespace, "label_selector": label_selector})
-            return None
+    tracking_v1 = MagicMock()
 
-    class TrackingWatch(FakeWatch):
-        def stream(self, func: Any, **kwargs: Any) -> FakeWatchStream:
-            watch_kwargs.append(kwargs)
-            return FakeWatchStream([], "rv1")
+    def track_list(namespace: str, label_selector: str) -> None:
+        watch_kwargs.append({"namespace": namespace, "label_selector": label_selector})
+        return None
+
+    tracking_v1.list_namespaced_pod.side_effect = track_list
+
+    tracking_watch = MagicMock()
+
+    def track_stream(func: Any, **kwargs: Any) -> MockWatchStream:  # noqa: ARG001
+        watch_kwargs.append(kwargs)
+        return MockWatchStream([], "rv1")
+
+    tracking_watch.stream.side_effect = track_stream
+    tracking_watch.stop.return_value = None
 
     k8s_clients = K8sClients(
         api_client=MagicMock(),
-        v1=TrackingV1(),
+        v1=tracking_v1,
         apps_v1=MagicMock(),
         networking_v1=MagicMock(),
-        watch=TrackingWatch([], "rv1"),
+        watch=tracking_watch,
     )
 
     pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg, k8s_clients=k8s_clients)

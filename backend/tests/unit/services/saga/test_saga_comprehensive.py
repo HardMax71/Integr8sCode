@@ -13,7 +13,7 @@ from app.domain.saga.models import Saga
 from app.services.saga.execution_saga import ExecutionSaga
 from app.services.saga.saga_step import CompensationStep, SagaContext, SagaStep
 
-from tests.helpers import make_execution_requested_event
+from tests.conftest import make_execution_requested_event
 
 pytestmark = pytest.mark.unit
 

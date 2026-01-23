@@ -6,7 +6,7 @@ from app.infrastructure.kafka.mappings import get_topic_for_event
 from app.settings import Settings
 from dishka import AsyncContainer
 
-from tests.helpers import make_execution_requested_event
+from tests.conftest import make_execution_requested_event
 
 pytestmark = [pytest.mark.integration]
 

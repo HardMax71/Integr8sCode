@@ -9,7 +9,7 @@ from app.domain.events.typed import DomainEvent
 from app.events.event_store import EventStore
 from dishka import AsyncContainer
 
-from tests.helpers import make_execution_requested_event
+from tests.conftest import make_execution_requested_event
 
 pytestmark = [pytest.mark.integration, pytest.mark.mongodb]
 

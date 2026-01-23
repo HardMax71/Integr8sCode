@@ -9,7 +9,7 @@ from app.dlq.models import DLQMessageStatus
 from app.domain.enums.kafka import KafkaTopic
 from dishka import AsyncContainer
 
-from tests.helpers import make_execution_requested_event
+from tests.conftest import make_execution_requested_event
 
 pytestmark = [pytest.mark.integration, pytest.mark.mongodb]
 

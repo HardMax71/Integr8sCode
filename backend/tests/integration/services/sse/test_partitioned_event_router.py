@@ -12,7 +12,7 @@ from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
 from app.services.sse.redis_bus import SSERedisBus
 from app.settings import Settings
 
-from tests.helpers import make_execution_requested_event
+from tests.conftest import make_execution_requested_event
 
 pytestmark = [pytest.mark.integration, pytest.mark.redis]
 

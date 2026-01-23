@@ -50,6 +50,7 @@ def create_app_container(settings: Settings) -> AsyncContainer:
         AuthProvider(),
         UserServicesProvider(),
         AdminServicesProvider(),
+        EventReplayProvider(),
         BusinessServicesProvider(),
         FastapiProvider(),
         context={Settings: settings},

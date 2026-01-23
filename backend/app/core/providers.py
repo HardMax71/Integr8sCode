@@ -650,21 +650,12 @@ class BusinessServicesProvider(Provider):
         return SavedScriptService(saved_script_repository, logger)
 
     @provide
-    async def get_replay_service(
+    def get_replay_service(
             self,
             replay_repository: ReplayRepository,
-            kafka_producer: UnifiedProducer,
-            event_store: EventStore,
-            settings: Settings,
+            event_replay_service: EventReplayService,
             logger: logging.Logger,
     ) -> ReplayService:
-        event_replay_service = EventReplayService(
-            repository=replay_repository,
-            producer=kafka_producer,
-            event_store=event_store,
-            settings=settings,
-            logger=logger,
-        )
         return ReplayService(replay_repository, event_replay_service, logger)
 
     @provide

@@ -93,9 +93,7 @@ class TestMarkNotificationRead:
         response = await test_user.put(
             "/api/v1/notifications/nonexistent-id/read"
         )
-
-        # Should be 404 or similar error
-        assert response.status_code in [404, 400]
+        assert response.status_code == 404
 
 
 class TestMarkAllRead:

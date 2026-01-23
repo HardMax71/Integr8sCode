@@ -541,8 +541,7 @@ class TestDeleteUser:
         response = await test_admin.delete(
             "/api/v1/admin/users/nonexistent-user-id"
         )
-        # Could be 404 or 500 depending on implementation
-        assert response.status_code in [404, 500]
+        assert response.status_code == 404
 
     @pytest.mark.asyncio
     async def test_delete_self_forbidden(

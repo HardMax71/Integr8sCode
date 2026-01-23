@@ -154,12 +154,11 @@ class TestStartReplaySession:
     async def test_start_nonexistent_session(
         self, test_admin: AsyncClient
     ) -> None:
-        """Start nonexistent session returns error."""
+        """Start nonexistent session returns 404."""
         response = await test_admin.post(
             "/api/v1/replay/sessions/nonexistent-session/start"
         )
-        # May be 404 or 500 depending on implementation
-        assert response.status_code in [404, 500]
+        assert response.status_code == 404
 
 
 class TestPauseReplaySession:
@@ -202,11 +201,11 @@ class TestPauseReplaySession:
     async def test_pause_nonexistent_session(
         self, test_admin: AsyncClient
     ) -> None:
-        """Pause nonexistent session returns error."""
+        """Pause nonexistent session returns 404."""
         response = await test_admin.post(
             "/api/v1/replay/sessions/nonexistent-session/pause"
         )
-        assert response.status_code in [404, 500]
+        assert response.status_code == 404
 
 
 class TestResumeReplaySession:
@@ -216,8 +215,7 @@ class TestResumeReplaySession:
     async def test_resume_replay_session(
         self, test_admin: AsyncClient
     ) -> None:
-        """Resume a paused replay session."""
-        # Create session
+        """Resume a replay session."""
         create_response = await test_admin.post(
             "/api/v1/replay/sessions",
             json={
@@ -226,27 +224,25 @@ class TestResumeReplaySession:
                 "filter": {},
             },
         )
+        assert create_response.status_code == 200
+        session = ReplayResponse.model_validate(create_response.json())
 
-        if create_response.status_code == 200:
-            session = ReplayResponse.model_validate(create_response.json())
-
-            # Try to resume (even if not paused, validates endpoint)
-            response = await test_admin.post(
-                f"/api/v1/replay/sessions/{session.session_id}/resume"
-            )
-
-            # May succeed or fail depending on session state
-            assert response.status_code in [200, 400, 500]
+        response = await test_admin.post(
+            f"/api/v1/replay/sessions/{session.session_id}/resume"
+        )
+        assert response.status_code == 200
+        result = ReplayResponse.model_validate(response.json())
+        assert result.session_id == session.session_id
 
     @pytest.mark.asyncio
     async def test_resume_nonexistent_session(
         self, test_admin: AsyncClient
     ) -> None:
-        """Resume nonexistent session returns error."""
+        """Resume nonexistent session returns 404."""
         response = await test_admin.post(
             "/api/v1/replay/sessions/nonexistent-session/resume"
         )
-        assert response.status_code in [404, 500]
+        assert response.status_code == 404
 
 
 class TestCancelReplaySession:
@@ -287,11 +283,11 @@ class TestCancelReplaySession:
     async def test_cancel_nonexistent_session(
         self, test_admin: AsyncClient
     ) -> None:
-        """Cancel nonexistent session returns error."""
+        """Cancel nonexistent session returns 404."""
         response = await test_admin.post(
             "/api/v1/replay/sessions/nonexistent-session/cancel"
         )
-        assert response.status_code in [404, 500]
+        assert response.status_code == 404
 
 
 class TestListReplaySessions:
@@ -367,7 +363,6 @@ class TestGetReplaySession:
     @pytest.mark.asyncio
     async def test_get_replay_session(self, test_admin: AsyncClient) -> None:
         """Get a specific replay session."""
-        # Create session first
         create_response = await test_admin.post(
             "/api/v1/replay/sessions",
             json={
@@ -376,36 +371,32 @@ class TestGetReplaySession:
                 "filter": {},
             },
         )
+        assert create_response.status_code == 200
+        created = ReplayResponse.model_validate(create_response.json())
 
-        if create_response.status_code == 200:
-            created = ReplayResponse.model_validate(create_response.json())
+        response = await test_admin.get(
+            f"/api/v1/replay/sessions/{created.session_id}"
+        )
+        assert response.status_code == 200
+        session = ReplaySession.model_validate(response.json())
 
-            # Get session
-            response = await test_admin.get(
-                f"/api/v1/replay/sessions/{created.session_id}"
-            )
-
-            assert response.status_code == 200
-            session = ReplaySession.model_validate(response.json())
-
-            assert session.session_id == created.session_id
-            assert session.config is not None
-            assert session.status in list(ReplayStatus)
-            assert session.total_events >= 0
-            assert session.replayed_events >= 0
-            assert session.failed_events >= 0
-            assert session.created_at is not None
+        assert session.session_id == created.session_id
+        assert session.config is not None
+        assert session.status in list(ReplayStatus)
+        assert session.total_events >= 0
+        assert session.replayed_events >= 0
+        assert session.failed_events >= 0
+        assert session.created_at is not None
 
     @pytest.mark.asyncio
     async def test_get_replay_session_not_found(
         self, test_admin: AsyncClient
     ) -> None:
-        """Get nonexistent session returns error."""
+        """Get nonexistent session returns 404."""
         response = await test_admin.get(
             "/api/v1/replay/sessions/nonexistent-session"
         )
-        # May be 404 or 500 depending on implementation
-        assert response.status_code in [404, 500]
+        assert response.status_code == 404
 
     @pytest.mark.asyncio
     async def test_get_replay_session_forbidden_for_regular_user(

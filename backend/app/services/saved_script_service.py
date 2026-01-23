@@ -94,7 +94,13 @@ class SavedScriptService:
             },
         )
 
-        await self.saved_script_repo.delete_saved_script(script_id, user_id)
+        deleted = await self.saved_script_repo.delete_saved_script(script_id, user_id)
+        if not deleted:
+            self.logger.warning(
+                "Script not found for user",
+                extra={"user_id": user_id, "script_id": script_id},
+            )
+            raise SavedScriptNotFoundError(script_id)
 
         self.logger.info(
             "Successfully deleted script",

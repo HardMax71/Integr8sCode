@@ -337,8 +337,7 @@ class TestDiscardDLQMessage:
         response = await test_user.delete(
             "/api/v1/dlq/messages/some-event-id"
         )
-        # 422 if reason is required but not provided
-        assert response.status_code in [404, 422]
+        assert response.status_code == 422
 
 
 class TestGetDLQTopics:

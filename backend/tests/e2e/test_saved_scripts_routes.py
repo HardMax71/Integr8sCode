@@ -138,7 +138,7 @@ class TestGetSavedScript:
         script_id = create_response.json()["script_id"]
 
         response = await another_user.get(f"/api/v1/scripts/{script_id}")
-        assert response.status_code in [403, 404]
+        assert response.status_code == 404
 
 
 class TestUpdateSavedScript:
@@ -185,7 +185,7 @@ class TestUpdateSavedScript:
             f"/api/v1/scripts/{script_id}",
             json=update_request.model_dump(exclude_unset=True),
         )
-        assert response.status_code in [403, 404]
+        assert response.status_code == 404
 
 
 class TestDeleteSavedScript:
@@ -216,10 +216,11 @@ class TestDeleteSavedScript:
         create_response = await test_user.post(
             "/api/v1/scripts", json=new_script_request.model_dump()
         )
+        assert create_response.status_code == 200
         script_id = create_response.json()["script_id"]
 
         response = await another_user.delete(f"/api/v1/scripts/{script_id}")
-        assert response.status_code in [403, 404]
+        assert response.status_code == 404
 
     @pytest.mark.asyncio
     async def test_delete_nonexistent_script(

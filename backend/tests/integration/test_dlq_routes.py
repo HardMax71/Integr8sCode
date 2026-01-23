@@ -143,7 +143,7 @@ class TestDLQRoutes:
         messages_data = list_response.json()
         if messages_data["total"] > 0 and messages_data["messages"]:
             # Get details for the first message
-            event_id = messages_data["messages"][0]["event_id"]
+            event_id = messages_data["messages"][0]["event"]["event_id"]
 
             detail_response = await test_user.get(f"/api/v1/dlq/messages/{event_id}")
             assert detail_response.status_code == 200
@@ -219,7 +219,7 @@ class TestDLQRoutes:
         messages_data = list_response.json()
         if messages_data["total"] > 0 and messages_data["messages"]:
             # Collect event IDs to retry
-            event_ids = [msg["event_id"] for msg in messages_data["messages"][:2]]
+            event_ids = [msg["event"]["event_id"] for msg in messages_data["messages"][:2]]
 
             # Retry the messages
             retry_request = {
@@ -244,7 +244,7 @@ class TestDLQRoutes:
                 for detail in batch_result.details:
                     assert isinstance(detail, dict)
                     assert "event_id" in detail
-                    assert "success" in detail
+                    assert "status" in detail  # status: "success" or "failed"
 
     @pytest.mark.asyncio
     async def test_discard_dlq_message(self, test_user: AsyncClient) -> None:
@@ -255,7 +255,7 @@ class TestDLQRoutes:
 
         messages_data = list_response.json()
         if messages_data["total"] > 0 and messages_data["messages"]:
-            event_id = messages_data["messages"][0]["event_id"]
+            event_id = messages_data["messages"][0]["event"]["event_id"]
 
             # Discard the message
             discard_reason = "Test discard - message unrecoverable"

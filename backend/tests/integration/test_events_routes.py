@@ -3,14 +3,18 @@ from uuid import uuid4
 
 import pytest
 from app.domain.enums.events import EventType
+from pydantic import TypeAdapter
+
+from app.domain.events.typed import BaseEvent, DomainEvent
 from app.schemas_pydantic.events import (
     EventListResponse,
-    EventResponse,
     EventStatistics,
     PublishEventResponse,
     ReplayAggregateResponse,
 )
 from httpx import AsyncClient
+
+DomainEventAdapter: TypeAdapter[DomainEvent] = TypeAdapter(DomainEvent)
 
 
 @pytest.mark.integration
@@ -54,7 +58,7 @@ class TestEventsRoutes:
 
             # If there are events, validate their structure
             for event in events_response.events:
-                assert isinstance(event, EventResponse)
+                assert isinstance(event, BaseEvent)
                 assert event.event_id is not None
                 assert event.event_type is not None
                 assert event.aggregate_id is not None
@@ -63,11 +67,9 @@ class TestEventsRoutes:
                 assert event.metadata is not None
                 assert event.metadata.user_id is not None
 
-                # Optional fields
-                if event.payload:
-                    assert isinstance(event.payload, dict)
-                if event.correlation_id:
-                    assert isinstance(event.correlation_id, str)
+                # Check correlation_id in metadata
+                if event.metadata.correlation_id:
+                    assert isinstance(event.metadata.correlation_id, str)
 
     @pytest.mark.asyncio
     async def test_get_user_events_with_filters(self, test_user: AsyncClient) -> None:
@@ -200,8 +202,8 @@ class TestEventsRoutes:
 
             # All events should have the same correlation ID
             for event in events_response.events:
-                if event.correlation_id:
-                    assert event.correlation_id == correlation_id
+                if event.metadata.correlation_id:
+                    assert event.metadata.correlation_id == correlation_id
 
     @pytest.mark.asyncio
     async def test_get_current_request_events(self, test_user: AsyncClient) -> None:
@@ -259,7 +261,7 @@ class TestEventsRoutes:
             assert response.status_code == 200
 
             event_data = response.json()
-            event = EventResponse(**event_data)
+            event = DomainEventAdapter.validate_python(event_data)
 
             # Verify it's the correct event
             assert event.event_id == event_id

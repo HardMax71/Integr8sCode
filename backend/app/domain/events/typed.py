@@ -648,5 +648,19 @@ DomainEvent = Annotated[
     Discriminator("event_type"),
 ]
 
+# Focused union for execution-related events only (for API response typing)
+ExecutionDomainEvent = Annotated[
+    ExecutionRequestedEvent
+    | ExecutionAcceptedEvent
+    | ExecutionQueuedEvent
+    | ExecutionStartedEvent
+    | ExecutionRunningEvent
+    | ExecutionCompletedEvent
+    | ExecutionFailedEvent
+    | ExecutionTimeoutEvent
+    | ExecutionCancelledEvent,
+    Discriminator("event_type"),
+]
+
 # TypeAdapter for polymorphic loading - validates raw data to correct typed event
 domain_event_adapter: TypeAdapter[DomainEvent] = TypeAdapter(DomainEvent)

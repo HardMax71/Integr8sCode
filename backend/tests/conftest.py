@@ -16,14 +16,9 @@ from fastapi import FastAPI
 from httpx import ASGITransport
 from scripts.create_topics import create_topics
 
-# ===== Worker-specific isolation for pytest-xdist =====
-# Supports both xdist workers AND multiple independent pytest processes.
-#
-# TEST_RUN_ID: Unique identifier for this pytest process (set by CI or auto-generated).
-#              Allows running backend-integration, backend-e2e, frontend-e2e in parallel.
-# PYTEST_XDIST_WORKER: Worker ID within a single pytest-xdist run (gw0, gw1, etc.)
-#
-# Combined, these give full isolation: each test worker in each pytest process is unique.
+# ===== Worker-specific identifiers for pytest-xdist =====
+# Used only for Kafka consumer group isolation (technical requirement).
+# Database isolation is NOT needed - tests use unique IDs (UUIDs) for all entities.
 _RUN_ID = os.environ.get("TEST_RUN_ID") or uuid.uuid4().hex[:8]
 _WORKER_ID = os.environ.get("PYTEST_XDIST_WORKER", "gw0")
 _WORKER_NUM = int(_WORKER_ID.removeprefix("gw") or "0")
@@ -46,31 +41,35 @@ def pytest_configure() -> None:
 # ===== Settings fixture =====
 @pytest.fixture(scope="session")
 def test_settings() -> Settings:
-    """Provide test settings with per-worker isolation where needed.
+    """Provide test settings - single shared database, per-worker Kafka groups.
 
-    Uses pydantic-settings _env_file parameter to load .env.test at instantiation,
-    overriding the class-level default of .env.
+    Tests use unique IDs (UUIDs) for all entities:
+      - Users: test_user_{uuid}@example.com
+      - Executions: UUID-based execution_id
+      - Events: UUID-based event_id
 
-    What gets isolated per worker (to prevent interference):
-      - DATABASE_NAME: Each worker gets its own MongoDB database
-      - REDIS_DB: Each worker gets its own Redis database (0-15, hash-distributed)
-      - KAFKA_GROUP_SUFFIX: Each worker gets unique consumer groups
+    This means tests don't conflict even when sharing a database.
 
-    What's SHARED (from env, no per-worker suffix):
+    What's SHARED (all workers + external services like k8s-worker):
+      - DATABASE_NAME: From .env.test (integr8scode_db)
       - KAFKA_TOPIC_PREFIX: Topics created once by CI/scripts
       - SCHEMA_SUBJECT_PREFIX: Schemas shared across workers
 
-    Isolation works across:
-      - xdist workers within a single pytest process (gw0, gw1, ...)
-      - Multiple independent pytest processes (via TEST_RUN_ID or auto-UUID)
+    What's per-worker (technical requirements):
+      - KAFKA_GROUP_SUFFIX: Each worker needs unique consumer groups
+      - REDIS_DB: Avoid key collisions for rate limiting, caching
+
+    This allows:
+      - Parallel test execution with -n auto
+      - E2E tests with real workers (same database)
+      - No duplicate test_settings fixtures
     """
     base = Settings(_env_file=".env.test")
     # Deterministic Redis DB: worker number + ASCII sum of RUN_ID (no hash randomization)
     redis_db = (_WORKER_NUM + sum(ord(c) for c in _RUN_ID)) % 16
     return base.model_copy(
         update={
-            # Per-worker isolation - uses _ISOLATION_KEY which includes RUN_ID + WORKER_ID
-            "DATABASE_NAME": f"integr8scode_test_{_ISOLATION_KEY}",
+            # Per-worker isolation for technical reasons only
             "REDIS_DB": redis_db,
             "KAFKA_GROUP_SUFFIX": _ISOLATION_KEY,
         }
@@ -88,18 +87,14 @@ async def app(test_settings: Settings) -> AsyncGenerator[FastAPI, None]:
     Uses lifespan_context to trigger startup/shutdown events, which initializes
     Beanie, metrics, and other services through the normal DI flow.
 
-    Cleanup: Best-effort drop of test database. May not always succeed due to
-    known MongoDB driver behavior when client stays connected, but ulimits on
-    MongoDB container (65536) prevent file descriptor exhaustion regardless.
+    Note: Database is shared across all tests and workers. Tests use unique IDs
+    so they don't conflict. Periodic cleanup of stale test data can be done
+    outside of tests if needed.
     """
     application = create_app(settings=test_settings)
 
     async with application.router.lifespan_context(application):
         yield application
-        # Best-effort cleanup (may fail silently due to MongoDB driver behavior)
-        container: AsyncContainer = application.state.dishka_container
-        db: Database = await container.get(Database)
-        await db.client.drop_database(test_settings.DATABASE_NAME)
 
 
 @pytest_asyncio.fixture(scope="session")

@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.domain.enums.common import SortOrder
 from app.domain.enums.events import EventType
+from app.domain.events.typed import DomainEvent
 
 
 class HourlyEventCountSchema(BaseModel):
@@ -31,25 +32,10 @@ class EventMetadataResponse(BaseModel):
     environment: str = "production"
 
 
-class EventResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    event_id: str
-    event_type: EventType
-    event_version: str
-    timestamp: datetime
-    aggregate_id: str | None = None
-    correlation_id: str | None = None
-    causation_id: str | None = None
-    metadata: EventMetadataResponse
-    payload: Dict[str, Any]
-    stored_at: datetime | None = None
-
-
 class EventListResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    events: List[EventResponse]
+    events: List[DomainEvent]
     total: int
     limit: int
     skip: int

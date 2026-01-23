@@ -12,14 +12,13 @@ from app.core.utils import get_client_ip
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.user import UserRole
-from app.domain.events.typed import BaseEvent, EventMetadata
+from app.domain.events.typed import BaseEvent, DomainEvent, EventMetadata, ExecutionDomainEvent
 from app.domain.exceptions import DomainError
 from app.schemas_pydantic.execution import (
     CancelExecutionRequest,
     CancelResponse,
     DeleteResponse,
     ExampleScripts,
-    ExecutionEventResponse,
     ExecutionInDB,
     ExecutionListResponse,
     ExecutionRequest,
@@ -231,18 +230,18 @@ async def retry_execution(
     return ExecutionResponse.model_validate(new_result)
 
 
-@router.get("/executions/{execution_id}/events", response_model=list[ExecutionEventResponse])
+@router.get("/executions/{execution_id}/events", response_model=list[ExecutionDomainEvent])
 async def get_execution_events(
         execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
         event_service: FromDishka[EventService],
         event_types: list[EventType] | None = Query(None, description="Event types to filter"),
         limit: int = Query(100, ge=1, le=1000),
-) -> list[ExecutionEventResponse]:
+) -> list[DomainEvent]:
     """Get all events for an execution."""
     events = await event_service.get_events_by_aggregate(
         aggregate_id=execution.execution_id, event_types=event_types, limit=limit
     )
-    return [ExecutionEventResponse.model_validate(e) for e in events]
+    return events
 
 
 @router.get("/user/executions", response_model=ExecutionListResponse)

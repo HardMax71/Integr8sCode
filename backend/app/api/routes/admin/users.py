@@ -14,7 +14,7 @@ from app.schemas_pydantic.admin_user_overview import (
     DerivedCounts,
     RateLimitSummary,
 )
-from app.schemas_pydantic.events import EventResponse, EventStatistics
+from app.schemas_pydantic.events import EventStatistics
 from app.schemas_pydantic.user import (
     DeleteUserResponse,
     MessageResponse,
@@ -102,7 +102,7 @@ async def get_user_overview(
         stats=EventStatistics.model_validate(domain.stats),
         derived_counts=DerivedCounts.model_validate(domain.derived_counts),
         rate_limit_summary=RateLimitSummary.model_validate(domain.rate_limit_summary),
-        recent_events=[EventResponse.model_validate(e).model_dump() for e in domain.recent_events],
+        recent_events=domain.recent_events,
     )
 
 

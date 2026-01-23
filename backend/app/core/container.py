@@ -19,6 +19,7 @@ from app.core.providers import (
     PodMonitorProvider,
     RedisProvider,
     RepositoryProvider,
+    ResourceCleanerProvider,
     SagaOrchestratorProvider,
     SettingsProvider,
     SSEProvider,
@@ -52,6 +53,8 @@ def create_app_container(settings: Settings) -> AsyncContainer:
         AdminServicesProvider(),
         EventReplayProvider(),
         BusinessServicesProvider(),
+        KubernetesProvider(),
+        ResourceCleanerProvider(),
         FastapiProvider(),
         context={Settings: settings},
     )

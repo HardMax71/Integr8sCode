@@ -1,25 +1,11 @@
 import uuid
-from collections.abc import AsyncGenerator
 
 import pytest
-import pytest_asyncio
-import redis.asyncio as redis
-from app.core.database_context import Database
 from app.domain.enums.user import UserRole
 from app.schemas_pydantic.execution import ExecutionRequest, ExecutionResponse
 from app.schemas_pydantic.saved_script import SavedScriptCreateRequest
 from app.schemas_pydantic.user import UserCreate
 from httpx import AsyncClient
-
-from tests.helpers.cleanup import cleanup_db_and_redis
-
-
-@pytest_asyncio.fixture(autouse=True)
-async def _cleanup(db: Database, redis_client: redis.Redis) -> AsyncGenerator[None, None]:
-    """Clean DB and Redis before each E2E test."""
-    await cleanup_db_and_redis(db, redis_client)
-    yield
-
 
 # --- Request fixtures ---
 

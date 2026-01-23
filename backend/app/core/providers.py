@@ -67,6 +67,7 @@ from app.services.pod_monitor.event_mapper import PodEventMapper
 from app.services.pod_monitor.monitor import PodMonitor
 from app.services.rate_limit_service import RateLimitService
 from app.services.replay_service import ReplayService
+from app.services.result_processor.resource_cleaner import ResourceCleaner
 from app.services.saga import SagaOrchestrator, create_saga_orchestrator
 from app.services.saga.saga_service import SagaService
 from app.services.saved_script_service import SavedScriptService
@@ -250,6 +251,14 @@ class KubernetesProvider(Provider):
             yield clients
         finally:
             close_k8s_clients(clients)
+
+
+class ResourceCleanerProvider(Provider):
+    scope = Scope.APP
+
+    @provide
+    def get_resource_cleaner(self, k8s_clients: K8sClients, logger: logging.Logger) -> ResourceCleaner:
+        return ResourceCleaner(k8s_clients=k8s_clients, logger=logger)
 
 
 class MetricsProvider(Provider):

@@ -1,15 +1,19 @@
 import pytest
+from pydantic import TypeAdapter
+
 from app.domain.enums.events import EventType
+from app.domain.events.typed import DomainEvent
 from app.schemas_pydantic.events import (
     DeleteEventResponse,
     EventListResponse,
-    EventResponse,
     EventStatistics,
     PublishEventResponse,
     ReplayAggregateResponse,
 )
 from app.schemas_pydantic.execution import ExecutionResponse
 from httpx import AsyncClient
+
+DomainEventAdapter: TypeAdapter[DomainEvent] = TypeAdapter(DomainEvent)
 
 pytestmark = [pytest.mark.e2e, pytest.mark.kafka]
 
@@ -235,7 +239,7 @@ class TestSingleEvent:
                 response = await test_user.get(f"/api/v1/events/{event_id}")
 
                 assert response.status_code == 200
-                event = EventResponse.model_validate(response.json())
+                event = DomainEventAdapter.validate_python(response.json())
                 assert event.event_id == event_id
 
 

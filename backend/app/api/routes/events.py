@@ -14,13 +14,12 @@ from app.domain.enums.common import SortOrder
 from app.domain.enums.events import EventType
 from app.domain.enums.user import UserRole
 from app.domain.events.event_models import EventFilter
-from app.domain.events.typed import BaseEvent, EventMetadata
+from app.domain.events.typed import BaseEvent, DomainEvent, EventMetadata
 from app.schemas_pydantic.events import (
     DeleteEventResponse,
     EventAggregationRequest,
     EventFilterRequest,
     EventListResponse,
-    EventResponse,
     EventStatistics,
     PublishEventRequest,
     PublishEventResponse,
@@ -62,10 +61,8 @@ async def get_execution_events(
     if result is None:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    event_responses = [EventResponse.model_validate(event) for event in result.events]
-
     return EventListResponse(
-        events=event_responses,
+        events=result.events,
         total=result.total,
         limit=limit,
         skip=skip,
@@ -95,10 +92,8 @@ async def get_user_events(
         sort_order=sort_order,
     )
 
-    event_responses = [EventResponse.model_validate(event) for event in result.events]
-
     return EventListResponse(
-        events=event_responses, total=result.total, limit=limit, skip=skip, has_more=result.has_more
+        events=result.events, total=result.total, limit=limit, skip=skip, has_more=result.has_more
     )
 
 
@@ -130,10 +125,8 @@ async def query_events(
     if result is None:
         raise HTTPException(status_code=403, detail="Cannot query other users' events")
 
-    event_responses = [EventResponse.model_validate(event) for event in result.events]
-
     return EventListResponse(
-        events=event_responses, total=result.total, limit=result.limit, skip=result.skip, has_more=result.has_more
+        events=result.events, total=result.total, limit=result.limit, skip=result.skip, has_more=result.has_more
     )
 
 
@@ -155,10 +148,8 @@ async def get_events_by_correlation(
         skip=skip,
     )
 
-    event_responses = [EventResponse.model_validate(event) for event in result.events]
-
     return EventListResponse(
-        events=event_responses,
+        events=result.events,
         total=result.total,
         limit=limit,
         skip=skip,
@@ -186,10 +177,8 @@ async def get_current_request_events(
         skip=skip,
     )
 
-    event_responses = [EventResponse.model_validate(event) for event in result.events]
-
     return EventListResponse(
-        events=event_responses,
+        events=result.events,
         total=result.total,
         limit=limit,
         skip=skip,
@@ -221,15 +210,15 @@ async def get_event_statistics(
     return EventStatistics.model_validate(stats)
 
 
-@router.get("/{event_id}", response_model=EventResponse)
+@router.get("/{event_id}", response_model=DomainEvent)
 async def get_event(
     event_id: str, current_user: Annotated[UserResponse, Depends(current_user)], event_service: FromDishka[EventService]
-) -> EventResponse:
+) -> DomainEvent:
     """Get a specific event by ID"""
     event = await event_service.get_event(event_id=event_id, user_id=current_user.user_id, user_role=current_user.role)
     if event is None:
         raise HTTPException(status_code=404, detail="Event not found")
-    return EventResponse.model_validate(event)
+    return event
 
 
 @router.post("/publish", response_model=PublishEventResponse)

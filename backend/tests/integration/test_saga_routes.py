@@ -187,28 +187,31 @@ class TestSagaRoutes:
     @pytest.mark.asyncio
     async def test_list_sagas_with_offset(self, test_user: AsyncClient) -> None:
         """Test listing sagas with offset for pagination."""
-        # Get first page
-        response1 = await test_user.get(
-            "/api/v1/sagas/",
-            params={"limit": 5, "offset": 0}
-        )
+        # Create 6 executions (each creates a saga)
+        created_ids: list[str] = []
+        for i in range(6):
+            resp = await test_user.post("/api/v1/execute", json={
+                "script": f"print({i})",
+                "lang": "python",
+                "lang_version": "3.11",
+            })
+            assert resp.status_code == 200
+            created_ids.append(resp.json()["execution_id"])
+
+        # Get first page (3 items)
+        response1 = await test_user.get("/api/v1/sagas/", params={"limit": 3, "offset": 0})
         assert response1.status_code == 200
         page1 = SagaListResponse(**response1.json())
 
-        # Get second page
-        response2 = await test_user.get(
-            "/api/v1/sagas/",
-            params={"limit": 5, "offset": 5}
-        )
+        # Get second page (3 items)
+        response2 = await test_user.get("/api/v1/sagas/", params={"limit": 3, "offset": 3})
         assert response2.status_code == 200
         page2 = SagaListResponse(**response2.json())
 
-        # If there are sagas, verify pagination works
-        if page1.sagas and page2.sagas:
-            # Saga IDs should be different between pages
-            page1_ids = {s.saga_id for s in page1.sagas}
-            page2_ids = {s.saga_id for s in page2.sagas}
-            assert len(page1_ids.intersection(page2_ids)) == 0
+        # Verify no overlap between pages
+        page1_ids = {s.saga_id for s in page1.sagas}
+        page2_ids = {s.saga_id for s in page2.sagas}
+        assert len(page1_ids.intersection(page2_ids)) == 0
 
     @pytest.mark.asyncio
     async def test_cancel_saga_invalid_state(self, test_user: AsyncClient) -> None:

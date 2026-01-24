@@ -733,7 +733,14 @@ class NotificationService:
 
         # Get counts
         total, unread_count = await asyncio.gather(
-            self.repository.count_notifications(user_id), self.get_unread_count(user_id)
+            self.repository.count_notifications(
+                user_id=user_id,
+                status=status,
+                include_tags=include_tags,
+                exclude_tags=exclude_tags,
+                tag_prefix=tag_prefix,
+            ),
+            self.get_unread_count(user_id),
         )
 
         return DomainNotificationListResult(notifications=notifications, total=total, unread_count=unread_count)

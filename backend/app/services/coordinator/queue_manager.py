@@ -206,7 +206,7 @@ class QueueManager:
         return await self.add_execution(event, priority=new_priority)
 
     def _get_queue_position(self, execution_id: str) -> int | None:
-        for position, queued in enumerate(self._queue, 1):
+        for position, queued in enumerate(self._queue):
             if queued.execution_id == execution_id:
                 return position
         return None

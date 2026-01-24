@@ -4,7 +4,7 @@ from typing import Any, Mapping
 
 from beanie.odm.enums import SortDirection
 from beanie.operators import GTE, LT, LTE, In, Not, Or, RegEx
-from monggregate import S
+from monggregate import Pipeline, S
 
 from app.core.tracing import EventAttributes
 from app.core.tracing.utils import add_span_attributes
@@ -358,23 +358,25 @@ class EventRepository:
         return await self.get_events_by_aggregate(aggregate_id=aggregate_id, limit=limit)
 
     async def get_aggregate_replay_info(self, aggregate_id: str) -> EventReplayInfo | None:
-        pipeline = [
-            {"$match": {EventDocument.aggregate_id: aggregate_id}},
-            {"$sort": {EventDocument.timestamp: 1}},
-            {
-                "$group": {
-                    "_id": None,
+        # Match on both aggregate_id and execution_id (consistent with get_execution_events)
+        pipeline = (
+            Pipeline()
+            .match({"$or": [{EventDocument.aggregate_id: aggregate_id}, {EventDocument.execution_id: aggregate_id}]})
+            .sort(by=EventDocument.timestamp)
+            .group(
+                by=None,
+                query={
                     "events": {"$push": "$$ROOT"},
-                    "event_count": {"$sum": 1},
+                    "event_count": S.sum(1),
                     "event_types": {"$addToSet": S.field(EventDocument.event_type)},
-                    "start_time": {"$min": S.field(EventDocument.timestamp)},
-                    "end_time": {"$max": S.field(EventDocument.timestamp)},
-                }
-            },
-            {"$project": {"_id": 0}},
-        ]
+                    "start_time": S.min(S.field(EventDocument.timestamp)),
+                    "end_time": S.max(S.field(EventDocument.timestamp)),
+                },
+            )
+            .project(_id=0)
+        )
 
-        async for doc in EventDocument.aggregate(pipeline):
+        async for doc in EventDocument.aggregate(pipeline.export()):
             events = [domain_event_adapter.validate_python(e) for e in doc["events"]]
             return EventReplayInfo(
                 events=events,

@@ -115,6 +115,18 @@ class SagaOrchestrator(LifecycleEnabled):
                 event_types_to_register.add(event_type)
                 self.logger.debug(f"Event type {event_type} maps to topic {topic}")
 
+        # Also register handlers for completion events so execution sagas can complete
+        completion_event_types = {
+            EventType.EXECUTION_COMPLETED,
+            EventType.EXECUTION_FAILED,
+            EventType.EXECUTION_TIMEOUT,
+        }
+        for event_type in completion_event_types:
+            topic = get_topic_for_event(event_type)
+            topics.add(topic)
+            event_types_to_register.add(event_type)
+            self.logger.debug(f"Completion event type {event_type} maps to topic {topic}")
+
         if not topics:
             self.logger.warning("No trigger events found in registered sagas")
             return

@@ -508,7 +508,7 @@ class AdminServicesProvider(Provider):
         return AdminSettingsService(admin_settings_repository, logger)
 
     @provide
-    def get_notification_service(
+    async def get_notification_service(
             self,
             notification_repository: NotificationRepository,
             kafka_event_service: KafkaEventService,
@@ -519,7 +519,7 @@ class AdminServicesProvider(Provider):
             logger: logging.Logger,
             notification_metrics: NotificationMetrics,
             event_metrics: EventMetrics,
-    ) -> NotificationService:
+    ) -> AsyncIterator[NotificationService]:
         service = NotificationService(
             notification_repository=notification_repository,
             event_service=kafka_event_service,
@@ -531,8 +531,8 @@ class AdminServicesProvider(Provider):
             notification_metrics=notification_metrics,
             event_metrics=event_metrics,
         )
-        service.initialize()
-        return service
+        async with service:
+            yield service
 
     @provide
     def get_grafana_alert_processor(

@@ -396,14 +396,16 @@ class TestListEventTypes:
     """Tests for GET /api/v1/events/types/list."""
 
     @pytest.mark.asyncio
-    async def test_list_event_types(self, test_user: AsyncClient) -> None:
+    async def test_list_event_types(
+        self, test_user: AsyncClient, test_admin: AsyncClient
+    ) -> None:
         """List available event types."""
-        # First create an event so there's at least one type
+        # First create an event so there's at least one type (requires admin)
         request = PublishEventRequest(
             event_type=EventType.SCRIPT_SAVED,
             payload={"script_id": "test-script", "name": "test_list_types"},
         )
-        await test_user.post("/api/v1/events/publish", json=request.model_dump())
+        await test_admin.post("/api/v1/events/publish", json=request.model_dump())
 
         response = await test_user.get("/api/v1/events/types/list")
 

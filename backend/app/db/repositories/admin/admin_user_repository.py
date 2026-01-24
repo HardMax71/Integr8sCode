@@ -2,7 +2,7 @@ import re
 from datetime import datetime, timezone
 
 from beanie.odm.operators.find import BaseFindOperator
-from beanie.operators import Or, RegEx
+from beanie.operators import Eq, Or, RegEx
 
 from app.core.security import SecurityService
 from app.db.docs import (
@@ -50,7 +50,7 @@ class AdminUserRepository:
             )
 
         if role:
-            conditions.append(UserDocument.role == role)
+            conditions.append(Eq(UserDocument.role, role))
 
         query = UserDocument.find(*conditions)
         total = await query.count()

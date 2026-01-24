@@ -3,7 +3,7 @@ from typing import Any
 
 from beanie.odm.enums import SortDirection
 from beanie.odm.operators.find import BaseFindOperator
-from beanie.operators import GT, LT, In
+from beanie.operators import GT, LT, NE, Eq, In
 from monggregate import Pipeline, S
 
 from app.db.docs import ExecutionDocument, SagaDocument
@@ -14,19 +14,24 @@ from app.domain.saga import Saga, SagaFilter, SagaListResult
 class SagaRepository:
     def _filter_conditions(self, saga_filter: SagaFilter) -> list[BaseFindOperator]:
         """Build Beanie query conditions from SagaFilter."""
-        conditions = [
-            SagaDocument.state == saga_filter.state if saga_filter.state else None,
-            In(SagaDocument.execution_id, saga_filter.execution_ids) if saga_filter.execution_ids else None,
-            SagaDocument.context_data["user_id"] == saga_filter.user_id if saga_filter.user_id else None,
-            SagaDocument.saga_name == saga_filter.saga_name if saga_filter.saga_name else None,
-            GT(SagaDocument.created_at, saga_filter.created_after) if saga_filter.created_after else None,
-            LT(SagaDocument.created_at, saga_filter.created_before) if saga_filter.created_before else None,
-        ]
+        conditions: list[BaseFindOperator] = []
+        if saga_filter.state:
+            conditions.append(Eq(SagaDocument.state, saga_filter.state))
+        if saga_filter.execution_ids:
+            conditions.append(In(SagaDocument.execution_id, saga_filter.execution_ids))
+        if saga_filter.user_id:
+            conditions.append(Eq(SagaDocument.context_data["user_id"], saga_filter.user_id))
+        if saga_filter.saga_name:
+            conditions.append(Eq(SagaDocument.saga_name, saga_filter.saga_name))
+        if saga_filter.created_after:
+            conditions.append(GT(SagaDocument.created_at, saga_filter.created_after))
+        if saga_filter.created_before:
+            conditions.append(LT(SagaDocument.created_at, saga_filter.created_before))
         if saga_filter.error_status is True:
-            conditions.append(SagaDocument.error_message != None)  # noqa: E711
+            conditions.append(NE(SagaDocument.error_message, None))
         elif saga_filter.error_status is False:
-            conditions.append(SagaDocument.error_message == None)  # noqa: E711
-        return [c for c in conditions if c is not None]
+            conditions.append(Eq(SagaDocument.error_message, None))
+        return conditions
 
     async def upsert_saga(self, saga: Saga) -> bool:
         existing = await SagaDocument.find_one(SagaDocument.saga_id == saga.saga_id)
@@ -55,11 +60,9 @@ class SagaRepository:
     async def get_sagas_by_execution(
             self, execution_id: str, state: SagaState | None = None, limit: int = 100, skip: int = 0
     ) -> SagaListResult:
-        conditions = [
-            SagaDocument.execution_id == execution_id,
-            SagaDocument.state == state if state else None,
-        ]
-        conditions = [c for c in conditions if c is not None]
+        conditions: list[BaseFindOperator] = [Eq(SagaDocument.execution_id, execution_id)]
+        if state:
+            conditions.append(Eq(SagaDocument.state, state))
 
         query = SagaDocument.find(*conditions)
         total = await query.count()
@@ -135,10 +138,10 @@ class SagaRepository:
             states[doc["_id"]] = doc["count"]
 
         # Average duration for completed sagas
-        completed_conditions = [
+        completed_conditions: list[BaseFindOperator] = [
             *conditions,
-            SagaDocument.state == SagaState.COMPLETED,
-            SagaDocument.completed_at != None,  # noqa: E711
+            Eq(SagaDocument.state, SagaState.COMPLETED),
+            NE(SagaDocument.completed_at, None),
         ]
         duration_pipeline = (
             Pipeline()

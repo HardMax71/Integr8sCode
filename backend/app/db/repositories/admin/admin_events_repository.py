@@ -170,13 +170,13 @@ class AdminEventsRepository:
         top_users = [UserEventCount(**doc) for doc in top_users_result if doc["user_id"]]
 
         # Execution duration pipeline
-        exec_time_field = S.field(ExecutionDocument.resource_usage.execution_time_wall_seconds)
+        exec_time_field = S.field(ExecutionDocument.resource_usage.execution_time_wall_seconds)  # type: ignore[union-attr]
         exec_pipeline = (
             Pipeline()
             .match({
                 ExecutionDocument.created_at: {"$gte": start_time},
                 ExecutionDocument.status: "completed",
-                ExecutionDocument.resource_usage.execution_time_wall_seconds: {"$exists": True},
+                ExecutionDocument.resource_usage.execution_time_wall_seconds: {"$exists": True},  # type: ignore[union-attr]
             })
             .group(by=None, query={"avg_duration": S.avg(exec_time_field)})
         )

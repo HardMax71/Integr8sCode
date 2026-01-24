@@ -2,7 +2,8 @@ import logging
 from datetime import datetime
 
 from beanie.odm.enums import SortDirection
-from beanie.operators import GT, LTE, In
+from beanie.odm.operators.find import BaseFindOperator
+from beanie.operators import GT, LTE, Eq, In
 
 from app.db.docs import EventDocument, UserSettingsDocument, UserSettingsSnapshotDocument
 from app.domain.enums.events import EventType
@@ -37,13 +38,14 @@ class UserSettingsRepository:
         sort_order: SortDirection = SortDirection.ASCENDING,
     ) -> list[DomainUserSettingsChangedEvent]:
         aggregate_id = f"user_settings_{user_id}"
-        conditions = [
-            EventDocument.aggregate_id == aggregate_id,
+        conditions: list[BaseFindOperator] = [
+            Eq(EventDocument.aggregate_id, aggregate_id),
             In(EventDocument.event_type, [str(et) for et in event_types]),
-            GT(EventDocument.timestamp, since) if since else None,
-            LTE(EventDocument.timestamp, until) if until else None,
         ]
-        conditions = [c for c in conditions if c is not None]
+        if since:
+            conditions.append(GT(EventDocument.timestamp, since))
+        if until:
+            conditions.append(LTE(EventDocument.timestamp, until))
 
         find_query = EventDocument.find(*conditions).sort([("timestamp", sort_order)])
         if limit:

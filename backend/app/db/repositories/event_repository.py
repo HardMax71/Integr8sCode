@@ -3,7 +3,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping
 
 from beanie.odm.enums import SortDirection
-from beanie.operators import GTE, LT, LTE, In, Not, Or, RegEx
+from beanie.odm.operators.find import BaseFindOperator
+from beanie.operators import GTE, LT, LTE, Eq, In, Not, Or, RegEx
 from monggregate import Pipeline, S
 
 from app.core.tracing import EventAttributes
@@ -96,11 +97,9 @@ class EventRepository:
     async def get_events_by_aggregate(
             self, aggregate_id: str, event_types: list[EventType] | None = None, limit: int = 100
     ) -> list[DomainEvent]:
-        conditions = [
-            EventDocument.aggregate_id == aggregate_id,
-            In(EventDocument.event_type, list(event_types)) if event_types else None,
-        ]
-        conditions = [c for c in conditions if c is not None]
+        conditions: list[BaseFindOperator] = [Eq(EventDocument.aggregate_id, aggregate_id)]
+        if event_types:
+            conditions.append(In(EventDocument.event_type, list(event_types)))
         docs = (
             await EventDocument.find(*conditions).sort([("timestamp", SortDirection.ASCENDING)]).limit(limit).to_list()
         )

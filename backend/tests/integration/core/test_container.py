@@ -7,11 +7,8 @@ pytestmark = [pytest.mark.integration, pytest.mark.mongodb]
 
 
 @pytest.mark.asyncio
-async def test_container_resolves_services(app_container: AsyncContainer, scope: AsyncContainer) -> None:
-    # Container is the real Dishka container
-    assert isinstance(app_container, AsyncContainer)
-
-    # Can resolve core dependencies from DI
+async def test_container_resolves_services(scope: AsyncContainer) -> None:
+    """Verify DI container resolves core services correctly."""
     db: Database = await scope.get(Database)
     assert db.name and isinstance(db.name, str)
 

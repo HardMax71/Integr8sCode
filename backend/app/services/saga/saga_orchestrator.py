@@ -120,7 +120,7 @@ class SagaOrchestrator(LifecycleEnabled):
 
         consumer_config = ConsumerConfig(
             bootstrap_servers=self._settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=f"saga-{self.config.name}.{self._settings.KAFKA_GROUP_SUFFIX}",
+            group_id=f"saga-{self.config.name}",
             enable_auto_commit=False,
             session_timeout_ms=self._settings.KAFKA_SESSION_TIMEOUT_MS,
             heartbeat_interval_ms=self._settings.KAFKA_HEARTBEAT_INTERVAL_MS,

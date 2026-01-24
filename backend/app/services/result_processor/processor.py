@@ -120,7 +120,7 @@ class ResultProcessor(LifecycleEnabled):
         """Create and configure idempotent Kafka consumer."""
         consumer_config = ConsumerConfig(
             bootstrap_servers=self._settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=f"{self.config.consumer_group}.{self._settings.KAFKA_GROUP_SUFFIX}",
+            group_id=self.config.consumer_group,
             max_poll_records=1,
             enable_auto_commit=True,
             auto_offset_reset="earliest",

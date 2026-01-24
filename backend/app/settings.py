@@ -51,7 +51,6 @@ class Settings(BaseSettings):
 
     # Event-Driven Design Configuration
     KAFKA_BOOTSTRAP_SERVERS: str = "kafka:29092"
-    KAFKA_GROUP_SUFFIX: str = "suff"  # Suffix to append to consumer group IDs for test/parallel isolation
     SCHEMA_REGISTRY_URL: str = "http://schema-registry:8081"
     SCHEMA_REGISTRY_AUTH: str = Field(
         default="",

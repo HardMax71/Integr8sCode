@@ -121,7 +121,7 @@ class ExecutionCoordinator(LifecycleEnabled):
 
         consumer_config = ConsumerConfig(
             bootstrap_servers=self.kafka_servers,
-            group_id=f"{self.consumer_group}.{self._settings.KAFKA_GROUP_SUFFIX}",
+            group_id=self.consumer_group,
             enable_auto_commit=False,
             session_timeout_ms=self._settings.KAFKA_SESSION_TIMEOUT_MS,
             heartbeat_interval_ms=self._settings.KAFKA_HEARTBEAT_INTERVAL_MS,

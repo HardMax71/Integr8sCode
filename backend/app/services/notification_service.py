@@ -221,7 +221,7 @@ class NotificationService:
         # Configure consumer for notification-relevant events
         consumer_config = ConsumerConfig(
             bootstrap_servers=self.settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=f"{GroupId.NOTIFICATION_SERVICE}.{self.settings.KAFKA_GROUP_SUFFIX}",
+            group_id=GroupId.NOTIFICATION_SERVICE,
             max_poll_records=10,
             enable_auto_commit=True,
             auto_offset_reset="latest",

@@ -1,8 +1,6 @@
-import asyncio
 import os
 import uuid
 from collections.abc import Iterable
-from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 import httpx
@@ -16,66 +14,24 @@ from app.settings import Settings
 from dishka import AsyncContainer
 from fastapi import FastAPI
 from httpx import ASGITransport
-from scripts.create_topics import create_topics
-
-# ===== Worker-specific identifiers for pytest-xdist =====
-# Used only for Kafka consumer group isolation (technical requirement).
-# Database isolation is NOT needed - tests use unique IDs (UUIDs) for all entities.
-_RUN_ID = os.environ.get("TEST_RUN_ID") or uuid.uuid4().hex[:8]
-_WORKER_ID = os.environ.get("PYTEST_XDIST_WORKER", "gw0")
-_WORKER_NUM = int(_WORKER_ID.removeprefix("gw") or "0")
-_ISOLATION_KEY = f"{_RUN_ID}_{_WORKER_ID}"
 
 
-# ===== Pytest hooks =====
-@pytest.hookimpl(trylast=True)
-def pytest_configure() -> None:
-    """Create Kafka topics once in master process before xdist workers spawn."""
-    # PYTEST_XDIST_WORKER is only set in workers, not master
-    if os.environ.get("PYTEST_XDIST_WORKER"):
-        return
-    try:
-        asyncio.run(create_topics(Settings(_env_file=".env.test")))
-    except Exception:
-        pass  # Kafka unavailable (unit tests)
+def _get_worker_num() -> int:
+    """Get numeric pytest-xdist worker ID for Redis DB selection (0-15)."""
+    wid = os.environ.get("PYTEST_XDIST_WORKER", "main")
+    return 0 if wid == "main" else int(wid.removeprefix("gw"))
 
 
-# ===== Settings fixture =====
 @pytest.fixture(scope="session")
 def test_settings() -> Settings:
-    """Provide test settings - single shared database, per-worker Kafka groups.
+    """Test settings with per-worker Redis DB isolation.
 
-    Tests use unique IDs (UUIDs) for all entities:
-      - Users: test_user_{uuid}@example.com
-      - Executions: UUID-based execution_id
-      - Events: UUID-based event_id
-
-    This means tests don't conflict even when sharing a database.
-
-    What's SHARED (all workers + external services like k8s-worker):
-      - DATABASE_NAME: From .env.test (integr8scode_db)
-      - KAFKA_TOPIC_PREFIX: Topics created once by CI/scripts
-      - SCHEMA_SUBJECT_PREFIX: Schemas shared across workers
-
-    What's per-worker (technical requirements):
-      - KAFKA_GROUP_SUFFIX: Each worker needs unique consumer groups
-      - REDIS_DB: Avoid key collisions for rate limiting, caching
-
-    This allows:
-      - Parallel test execution with -n auto
-      - E2E tests with real workers (same database)
-      - No duplicate test_settings fixtures
+    - MongoDB: Shared database, tests use UUIDs for entity isolation
+    - Kafka: Tests with consumers use xdist_group markers for serial execution
+    - Redis: Per-worker DB number (0-15) to avoid key collisions
     """
     base = Settings(_env_file=".env.test")
-    # Deterministic Redis DB: worker number + ASCII sum of RUN_ID (no hash randomization)
-    redis_db = (_WORKER_NUM + sum(ord(c) for c in _RUN_ID)) % 16
-    return base.model_copy(
-        update={
-            # Per-worker isolation for technical reasons only
-            "REDIS_DB": redis_db,
-            "KAFKA_GROUP_SUFFIX": _ISOLATION_KEY,
-        }
-    )
+    return base.model_copy(update={"REDIS_DB": _get_worker_num() % 16})
 
 
 # ===== App fixture =====
@@ -99,13 +55,6 @@ async def app(test_settings: Settings) -> AsyncGenerator[FastAPI, None]:
         yield application
 
 
-@pytest_asyncio.fixture(scope="session")
-async def app_container(app: FastAPI) -> AsyncContainer:
-    """Expose the Dishka container attached to the app."""
-    container: AsyncContainer = app.state.dishka_container
-    return container
-
-
 @pytest_asyncio.fixture
 async def client(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
     """HTTP client for testing API endpoints."""
@@ -118,15 +67,11 @@ async def client(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
         yield c
 
 
-@asynccontextmanager
-async def _container_scope(container: AsyncContainer) -> AsyncGenerator[AsyncContainer, None]:
-    async with container() as scope:
-        yield scope
-
-
 @pytest_asyncio.fixture
-async def scope(app_container: AsyncContainer) -> AsyncGenerator[AsyncContainer, None]:
-    async with _container_scope(app_container) as s:
+async def scope(app: FastAPI) -> AsyncGenerator[AsyncContainer, None]:
+    """Create a Dishka scope for resolving dependencies in tests."""
+    container: AsyncContainer = app.state.dishka_container
+    async with container() as s:
         yield s
 
 

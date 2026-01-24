@@ -575,9 +575,9 @@ class TestExecutionConcurrency:
         # All IDs should be unique
         assert len(execution_ids) == 3
 
-        # Wait for all to complete (longer timeout for concurrent pod scheduling)
+        # Wait for all to complete
         for exec_id in execution_ids:
-            result = await wait_for_terminal_state(test_user, exec_id, timeout=120.0)
+            result = await wait_for_terminal_state(test_user, exec_id)
             assert result.status == ExecutionStatus.COMPLETED
 
 

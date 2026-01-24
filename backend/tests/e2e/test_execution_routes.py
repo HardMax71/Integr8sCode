@@ -556,6 +556,7 @@ class TestExecutionConcurrency:
     """Tests for concurrent executions."""
 
     @pytest.mark.asyncio
+    @pytest.mark.xdist_group("execution_concurrency")
     async def test_concurrent_executions(self, test_user: AsyncClient) -> None:
         """Multiple concurrent executions work correctly."""
         tasks = []

@@ -51,16 +51,22 @@ async def test_cleanup_nonexistent_pod(
     namespace = test_settings.K8S_NAMESPACE
     nonexistent_pod = "integr8s-test-nonexistent-pod"
 
+    # Use a local timeout variable with buffer for scheduler jitter
+    timeout = 2  # Reduced from 5s since non-existent resources return immediately (404)
+    jitter_buffer = 0.5  # Account for scheduler/GC pauses
+
     start_time = asyncio.get_running_loop().time()
     await resource_cleaner.cleanup_pod_resources(
         pod_name=nonexistent_pod,
         namespace=namespace,
         execution_id="test-exec-nonexistent",
-        timeout=5,
+        timeout=timeout,
     )
     elapsed = asyncio.get_running_loop().time() - start_time
 
-    assert elapsed < 5, f"Cleanup took {elapsed}s, should be quick for non-existent resources"
+    assert elapsed < timeout + jitter_buffer, (
+        f"Cleanup took {elapsed:.2f}s, expected < {timeout + jitter_buffer}s for non-existent resources"
+    )
 
     usage = await resource_cleaner.get_resource_usage(namespace=namespace)
     assert isinstance(usage.get("pods", 0), int)

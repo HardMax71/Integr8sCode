@@ -86,7 +86,9 @@ class TestGetStatus:
         new_status = await coord.get_status()
         new_active = new_status.get("active_executions", 0)
 
-        assert new_active >= initial_active
+        assert new_active == initial_active + 1, (
+            f"Expected exactly one more active execution: {initial_active} -> {new_active}"
+        )
 
 
 class TestQueueManager:

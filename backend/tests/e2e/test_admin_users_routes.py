@@ -158,27 +158,32 @@ class TestCreateUser:
     ) -> None:
         """Cannot create user with duplicate username."""
         uid = uuid.uuid4().hex[:8]
-
-        # Create first user
-        await test_admin.post(
-            "/api/v1/admin/users/",
-            json={
-                "username": f"duplicate_{uid}",
-                "email": f"first_{uid}@example.com",
-                "password": "password123",
-                "role": UserRole.USER,
-            },
+        first_user = UserCreate(
+            username=f"duplicate_{uid}",
+            email=f"first_{uid}@example.com",
+            password="password123",
+            role=UserRole.USER,
         )
 
+        # Create first user and verify success
+        first_response = await test_admin.post(
+            "/api/v1/admin/users/",
+            json=first_user.model_dump(),
+        )
+        assert first_response.status_code == 200
+        created_user = UserResponse.model_validate(first_response.json())
+        assert created_user.username == first_user.username
+
         # Try to create second user with same username
+        duplicate_user = UserCreate(
+            username=f"duplicate_{uid}",
+            email=f"second_{uid}@example.com",
+            password="password123",
+            role=UserRole.USER,
+        )
         response = await test_admin.post(
             "/api/v1/admin/users/",
-            json={
-                "username": f"duplicate_{uid}",
-                "email": f"second_{uid}@example.com",
-                "password": "password123",
-                "role": UserRole.USER,
-            },
+            json=duplicate_user.model_dump(),
         )
 
         assert response.status_code == 400

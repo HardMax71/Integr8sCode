@@ -1,3 +1,6 @@
+import asyncio
+from typing import Any
+
 import pytest
 from app.domain.enums.events import EventType
 from app.schemas_pydantic.admin_events import (
@@ -15,6 +18,48 @@ from app.schemas_pydantic.execution import ExecutionRequest, ExecutionResponse
 from httpx import AsyncClient
 
 pytestmark = [pytest.mark.e2e, pytest.mark.admin, pytest.mark.kafka]
+
+
+async def wait_for_events(
+    client: AsyncClient,
+    aggregate_id: str,
+    timeout: float = 30.0,
+    poll_interval: float = 0.5,
+) -> list[dict[str, Any]]:
+    """Poll until at least one event exists for the aggregate.
+
+    Args:
+        client: Admin HTTP client
+        aggregate_id: Execution ID to get events for
+        timeout: Maximum time to wait in seconds
+        poll_interval: Time between polls in seconds
+
+    Returns:
+        List of events for the aggregate
+
+    Raises:
+        TimeoutError: If no events appear within timeout
+        AssertionError: If API returns unexpected status code
+    """
+    deadline = asyncio.get_event_loop().time() + timeout
+
+    while asyncio.get_event_loop().time() < deadline:
+        request = EventBrowseRequest(
+            filters=EventFilter(aggregate_id=aggregate_id),
+            limit=10,
+        )
+        response = await client.post(
+            "/api/v1/admin/events/browse", json=request.model_dump()
+        )
+        assert response.status_code == 200, f"Unexpected: {response.status_code} - {response.text}"
+
+        result = EventBrowseResponse.model_validate(response.json())
+        if result.events:
+            return result.events
+
+        await asyncio.sleep(poll_interval)
+
+    raise TimeoutError(f"No events appeared for aggregate {aggregate_id} within {timeout}s")
 
 
 class TestBrowseEvents:
@@ -44,9 +89,11 @@ class TestBrowseEvents:
 
     @pytest.mark.asyncio
     async def test_browse_events_with_event_type_filter(
-        self, test_admin: AsyncClient
+        self, test_admin: AsyncClient, created_execution_admin: ExecutionResponse
     ) -> None:
         """Browse events filtered by event type."""
+        await wait_for_events(test_admin, created_execution_admin.execution_id)
+
         request = EventBrowseRequest(
             filters=EventFilter(event_types=[EventType.EXECUTION_REQUESTED]),
             skip=0,
@@ -59,6 +106,7 @@ class TestBrowseEvents:
         assert response.status_code == 200
         result = EventBrowseResponse.model_validate(response.json())
         assert isinstance(result.events, list)
+        assert result.total >= 1
 
     @pytest.mark.asyncio
     async def test_browse_events_with_pagination(
@@ -80,16 +128,14 @@ class TestBrowseEvents:
         assert result.limit == 25
 
     @pytest.mark.asyncio
-    async def test_browse_events_with_user_filter(
-        self, test_admin: AsyncClient
+    async def test_browse_events_with_aggregate_filter(
+        self, test_admin: AsyncClient, created_execution_admin: ExecutionResponse
     ) -> None:
-        """Browse events filtered by user ID."""
-        # Get admin's user_id
-        me_response = await test_admin.get("/api/v1/auth/me")
-        user_id = me_response.json()["user_id"]
+        """Browse events filtered by aggregate ID."""
+        await wait_for_events(test_admin, created_execution_admin.execution_id)
 
         request = EventBrowseRequest(
-            filters=EventFilter(user_id=user_id),
+            filters=EventFilter(aggregate_id=created_execution_admin.execution_id),
             limit=50,
         )
         response = await test_admin.post(
@@ -98,7 +144,8 @@ class TestBrowseEvents:
 
         assert response.status_code == 200
         result = EventBrowseResponse.model_validate(response.json())
-        assert isinstance(result.events, list)
+        assert result.total >= 1
+        assert len(result.events) >= 1
 
     @pytest.mark.asyncio
     async def test_browse_events_with_search_text(
@@ -126,6 +173,7 @@ class TestBrowseEvents:
             "/api/v1/admin/events/browse",
             json={"filters": {}, "limit": 10},
         )
+
         assert response.status_code == 403
 
     @pytest.mark.asyncio
@@ -137,6 +185,7 @@ class TestBrowseEvents:
             "/api/v1/admin/events/browse",
             json={"filters": {}, "limit": 10},
         )
+
         assert response.status_code == 401
 
 
@@ -192,6 +241,7 @@ class TestEventStats:
     ) -> None:
         """Regular user cannot get event stats."""
         response = await test_user.get("/api/v1/admin/events/stats")
+
         assert response.status_code == 403
 
 
@@ -210,9 +260,9 @@ class TestExportEventsCSV:
         assert "attachment" in content_disposition
         assert ".csv" in content_disposition
 
-        # Verify CSV structure - header line should be present
         body_csv = response.text
-        assert "Event ID" in body_csv and "Timestamp" in body_csv
+        assert "Event ID" in body_csv
+        assert "Timestamp" in body_csv
 
     @pytest.mark.asyncio
     async def test_export_events_csv_with_filters(
@@ -235,6 +285,7 @@ class TestExportEventsCSV:
     ) -> None:
         """Regular user cannot export events."""
         response = await test_user.get("/api/v1/admin/events/export/csv")
+
         assert response.status_code == 403
 
 
@@ -253,9 +304,9 @@ class TestExportEventsJSON:
         assert "attachment" in content_disposition
         assert ".json" in content_disposition
 
-        # Verify JSON structure
         data = response.json()
-        assert "export_metadata" in data and "events" in data
+        assert "export_metadata" in data
+        assert "events" in data
         assert isinstance(data["events"], list)
         assert "exported_at" in data["export_metadata"]
 
@@ -280,6 +331,7 @@ class TestExportEventsJSON:
     ) -> None:
         """Regular user cannot export events."""
         response = await test_user.get("/api/v1/admin/events/export/json")
+
         assert response.status_code == 403
 
 
@@ -291,33 +343,17 @@ class TestGetEventDetail:
         self, test_admin: AsyncClient, created_execution_admin: ExecutionResponse
     ) -> None:
         """Admin can get event details."""
-        # Browse to find an event
-        request = EventBrowseRequest(
-            filters=EventFilter(aggregate_id=created_execution_admin.execution_id),
-            limit=10,
-        )
-        browse_response = await test_admin.post(
-            "/api/v1/admin/events/browse", json=request.model_dump()
-        )
+        events = await wait_for_events(test_admin, created_execution_admin.execution_id)
+        event_id = events[0].get("event_id")
 
-        if browse_response.status_code == 200:
-            browse_result = EventBrowseResponse.model_validate(
-                browse_response.json()
-            )
-            if browse_result.events:
-                event_id = browse_result.events[0].get("event_id")
+        response = await test_admin.get(f"/api/v1/admin/events/{event_id}")
 
-                # Get event detail
-                response = await test_admin.get(
-                    f"/api/v1/admin/events/{event_id}"
-                )
+        assert response.status_code == 200
+        detail = EventDetailResponse.model_validate(response.json())
 
-                assert response.status_code == 200
-                detail = EventDetailResponse.model_validate(response.json())
-
-                assert detail.event is not None
-                assert isinstance(detail.related_events, list)
-                assert isinstance(detail.timeline, list)
+        assert detail.event is not None
+        assert isinstance(detail.related_events, list)
+        assert isinstance(detail.timeline, list)
 
     @pytest.mark.asyncio
     async def test_get_event_detail_not_found(
@@ -327,6 +363,7 @@ class TestGetEventDetail:
         response = await test_admin.get(
             "/api/v1/admin/events/nonexistent-event-id"
         )
+
         assert response.status_code == 404
 
     @pytest.mark.asyncio
@@ -335,6 +372,7 @@ class TestGetEventDetail:
     ) -> None:
         """Regular user cannot get event details."""
         response = await test_user.get("/api/v1/admin/events/some-event-id")
+
         assert response.status_code == 403
 
 
@@ -346,6 +384,8 @@ class TestReplayEvents:
         self, test_admin: AsyncClient, created_execution_admin: ExecutionResponse
     ) -> None:
         """Admin can replay events in dry run mode."""
+        await wait_for_events(test_admin, created_execution_admin.execution_id)
+
         request = EventReplayRequest(
             aggregate_id=created_execution_admin.execution_id,
             dry_run=True,
@@ -354,29 +394,12 @@ class TestReplayEvents:
             "/api/v1/admin/events/replay", json=request.model_dump()
         )
 
-        # May be 200, 400, or 404 depending on events availability
-        if response.status_code == 200:
-            result = EventReplayResponse.model_validate(response.json())
-            assert result.dry_run is True
-            assert result.total_events >= 0
-            assert result.replay_correlation_id is not None
-            assert result.status in ["preview", "completed", "scheduled"]
-
-    @pytest.mark.asyncio
-    async def test_replay_events_with_event_ids(
-        self, test_admin: AsyncClient
-    ) -> None:
-        """Replay specific events by ID."""
-        request = EventReplayRequest(
-            event_ids=["event-id-1", "event-id-2"],
-            dry_run=True,
-        )
-        response = await test_admin.post(
-            "/api/v1/admin/events/replay", json=request.model_dump()
-        )
-
-        # 404 if events don't exist
-        assert response.status_code in [200, 404]
+        assert response.status_code == 200
+        result = EventReplayResponse.model_validate(response.json())
+        assert result.dry_run is True
+        assert result.total_events >= 1
+        assert result.replay_correlation_id is not None
+        assert result.status in ["preview", "completed", "scheduled"]
 
     @pytest.mark.asyncio
     async def test_replay_events_no_events_found(
@@ -384,7 +407,7 @@ class TestReplayEvents:
     ) -> None:
         """Replay with non-matching filter returns 404."""
         request = EventReplayRequest(
-            correlation_id="nonexistent-correlation-id",
+            correlation_id="nonexistent-correlation-id-12345",
             dry_run=True,
         )
         response = await test_admin.post(
@@ -402,6 +425,7 @@ class TestReplayEvents:
             "/api/v1/admin/events/replay",
             json={"aggregate_id": "test", "dry_run": True},
         )
+
         assert response.status_code == 403
 
 
@@ -416,6 +440,7 @@ class TestGetReplayStatus:
         response = await test_admin.get(
             "/api/v1/admin/events/replay/nonexistent-session/status"
         )
+
         assert response.status_code == 404
 
     @pytest.mark.asyncio
@@ -426,38 +451,34 @@ class TestGetReplayStatus:
         exec_response = await test_admin.post(
             "/api/v1/execute", json=simple_execution_request.model_dump()
         )
-        execution_id = exec_response.json()["execution_id"]
+        assert exec_response.status_code == 200
 
-        # Start replay (not dry run)
+        execution = ExecutionResponse.model_validate(exec_response.json())
+        await wait_for_events(test_admin, execution.execution_id)
+
         request = EventReplayRequest(
-            aggregate_id=execution_id,
+            aggregate_id=execution.execution_id,
             dry_run=False,
         )
         replay_response = await test_admin.post(
             "/api/v1/admin/events/replay", json=request.model_dump()
         )
+        assert replay_response.status_code == 200
 
-        if replay_response.status_code == 200:
-            replay_result = EventReplayResponse.model_validate(
-                replay_response.json()
-            )
-            if replay_result.session_id:
-                # Get status
-                status_response = await test_admin.get(
-                    f"/api/v1/admin/events/replay/{replay_result.session_id}/status"
-                )
+        replay_result = EventReplayResponse.model_validate(replay_response.json())
+        assert replay_result.session_id is not None
 
-                if status_response.status_code == 200:
-                    status = EventReplayStatusResponse.model_validate(
-                        status_response.json()
-                    )
-                    assert status.session_id == replay_result.session_id
-                    assert status.status in [
-                        "pending", "in_progress", "completed", "failed"
-                    ]
-                    assert status.total_events >= 0
-                    assert status.replayed_events >= 0
-                    assert status.progress_percentage >= 0.0
+        status_response = await test_admin.get(
+            f"/api/v1/admin/events/replay/{replay_result.session_id}/status"
+        )
+
+        assert status_response.status_code == 200
+        status = EventReplayStatusResponse.model_validate(status_response.json())
+        assert status.session_id == replay_result.session_id
+        assert status.status in ["pending", "in_progress", "completed", "failed"]
+        assert status.total_events >= 1
+        assert status.replayed_events >= 0
+        assert status.progress_percentage >= 0.0
 
     @pytest.mark.asyncio
     async def test_get_replay_status_forbidden_for_regular_user(
@@ -467,6 +488,7 @@ class TestGetReplayStatus:
         response = await test_user.get(
             "/api/v1/admin/events/replay/some-session/status"
         )
+
         assert response.status_code == 403
 
 
@@ -475,36 +497,27 @@ class TestDeleteEvent:
 
     @pytest.mark.asyncio
     async def test_delete_event(
-        self, test_admin: AsyncClient, created_execution_admin: ExecutionResponse
+        self, test_admin: AsyncClient, simple_execution_request: ExecutionRequest
     ) -> None:
         """Admin can delete an event."""
-        # Browse to find an event
-        request = EventBrowseRequest(
-            filters=EventFilter(aggregate_id=created_execution_admin.execution_id),
-            limit=10,
+        exec_response = await test_admin.post(
+            "/api/v1/execute", json=simple_execution_request.model_dump()
         )
-        browse_response = await test_admin.post(
-            "/api/v1/admin/events/browse", json=request.model_dump()
-        )
+        assert exec_response.status_code == 200
 
-        if browse_response.status_code == 200:
-            browse_result = EventBrowseResponse.model_validate(
-                browse_response.json()
-            )
-            if browse_result.events:
-                event_id = browse_result.events[0].get("event_id")
+        execution = ExecutionResponse.model_validate(exec_response.json())
+        events = await wait_for_events(test_admin, execution.execution_id)
+        event_id = events[0].get("event_id")
 
-                # Delete event
-                response = await test_admin.delete(
-                    f"/api/v1/admin/events/{event_id}"
-                )
+        response = await test_admin.delete(f"/api/v1/admin/events/{event_id}")
 
-                if response.status_code == 200:
-                    result = EventDeleteResponse.model_validate(
-                        response.json()
-                    )
-                    assert result.event_id == event_id
-                    assert "deleted" in result.message.lower()
+        assert response.status_code == 200
+        result = EventDeleteResponse.model_validate(response.json())
+        assert result.event_id == event_id
+        assert "deleted" in result.message.lower()
+
+        verify_response = await test_admin.get(f"/api/v1/admin/events/{event_id}")
+        assert verify_response.status_code == 404
 
     @pytest.mark.asyncio
     async def test_delete_event_forbidden_for_regular_user(
@@ -514,6 +527,7 @@ class TestDeleteEvent:
         response = await test_user.delete(
             "/api/v1/admin/events/some-event-id"
         )
+
         assert response.status_code == 403
 
     @pytest.mark.asyncio
@@ -522,4 +536,5 @@ class TestDeleteEvent:
     ) -> None:
         """Unauthenticated request returns 401."""
         response = await client.delete("/api/v1/admin/events/some-event-id")
+
         assert response.status_code == 401

@@ -112,13 +112,21 @@ class TestUpdateUserSettings:
         svc: UserSettingsService = await scope.get(UserSettingsService)
         user_id = _unique_user_id()
 
+        reason_text = "User preference"
         updates = DomainUserSettingsUpdate(theme=Theme.DARK)
-        await svc.update_user_settings(user_id, updates, reason="User preference")
+        await svc.update_user_settings(user_id, updates, reason=reason_text)
 
-        # History should contain the reason
+        # Verify reason was persisted in history
         history = await svc.get_settings_history(user_id)
-        # May have a history entry with the reason
         assert isinstance(history, list)
+        assert len(history) > 0, "Expected at least one history entry after update"
+
+        # Find entry with our reason
+        reasons_found = [entry.reason for entry in history if entry.reason == reason_text]
+        assert len(reasons_found) > 0, (
+            f"Expected history to contain entry with reason '{reason_text}', "
+            f"found reasons: {[e.reason for e in history]}"
+        )
 
     @pytest.mark.asyncio
     async def test_update_increments_version(self, scope: AsyncContainer) -> None:
@@ -355,18 +363,32 @@ class TestGetSettingsHistory:
     async def test_get_settings_history_with_limit(
         self, scope: AsyncContainer
     ) -> None:
-        """History respects limit parameter."""
+        """History respects limit parameter and returns most recent entries."""
         svc: UserSettingsService = await scope.get(UserSettingsService)
         user_id = _unique_user_id()
 
-        # Make multiple updates
+        # Make 5 updates sequentially
         for i in range(5):
             await svc.update_custom_setting(user_id, f"key_{i}", f"value_{i}")
 
+        # Request only 3 entries
         history = await svc.get_settings_history(user_id, limit=3)
 
         assert isinstance(history, list)
-        # May have up to 3 entries or more depending on implementation
+        assert len(history) == 3, f"Expected 3 history entries, got {len(history)}"
+
+        # History should return most recent entries first (key_4, key_3, key_2)
+        # Each entry's field contains the custom setting key path
+        expected_keys = ["key_4", "key_3", "key_2"]
+        for i, entry in enumerate(history):
+            assert isinstance(entry, DomainSettingsHistoryEntry)
+            # The field for custom settings includes the key name
+            assert expected_keys[i] in entry.field, (
+                f"Entry {i} field '{entry.field}' should contain '{expected_keys[i]}'"
+            )
+            assert entry.new_value == f"value_{4 - i}", (
+                f"Entry {i} new_value should be 'value_{4 - i}', got '{entry.new_value}'"
+            )
 
 
 class TestRestoreSettingsToPoint:
@@ -392,22 +414,34 @@ class TestRestoreSettingsToPoint:
 
     @pytest.mark.asyncio
     async def test_restore_settings_to_past(self, scope: AsyncContainer) -> None:
-        """Restore settings to a past point."""
+        """Restore settings to a past point reverts changes."""
         svc: UserSettingsService = await scope.get(UserSettingsService)
         user_id = _unique_user_id()
 
-        # Initial state - get default settings
-        await svc.get_user_settings(user_id)
+        # Capture initial default settings
+        initial = await svc.get_user_settings(user_id)
+        assert initial.theme == Theme.AUTO, "Initial theme should be AUTO (default)"
 
-        # Make changes
+        # Make changes that alter the settings
         await svc.update_theme(user_id, Theme.DARK)
         await svc.update_theme(user_id, Theme.LIGHT)
+
+        # Verify settings changed
+        current = await svc.get_user_settings(user_id)
+        assert current.theme == Theme.LIGHT, "Theme should be LIGHT after updates"
 
         # Restore to before all changes (epoch)
         past = datetime.now(timezone.utc) - timedelta(days=365)
         restored = await svc.restore_settings_to_point(user_id, past)
 
+        # Verify restore actually reverted to initial defaults
         assert isinstance(restored, DomainUserSettings)
+        assert restored.theme == initial.theme, (
+            f"Restored theme should match initial ({initial.theme}), got {restored.theme}"
+        )
+        assert restored.timezone == initial.timezone, (
+            f"Restored timezone should match initial ({initial.timezone}), got {restored.timezone}"
+        )
 
 
 class TestCacheManagement:

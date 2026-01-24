@@ -203,12 +203,13 @@ class TestSettingsHistory:
     @pytest.mark.asyncio
     async def test_get_settings_history(self, test_user: AsyncClient) -> None:
         """Get settings change history."""
-        # Make a change first
+        # Make a change first to ensure history exists
         request = ThemeUpdateRequest(theme=Theme.DARK)
-        await test_user.put(
+        update_response = await test_user.put(
             "/api/v1/user/settings/theme",
             json=request.model_dump(),
         )
+        assert update_response.status_code == 200
 
         response = await test_user.get(
             "/api/v1/user/settings/history",
@@ -219,6 +220,7 @@ class TestSettingsHistory:
         history = SettingsHistoryResponse.model_validate(response.json())
         assert history.limit == 10
         assert isinstance(history.history, list)
+        assert len(history.history) >= 1
 
     @pytest.mark.asyncio
     async def test_get_settings_history_default_limit(
@@ -238,26 +240,31 @@ class TestRestoreSettings:
     @pytest.mark.asyncio
     async def test_restore_settings(self, test_user: AsyncClient) -> None:
         """Restore settings to a previous point."""
-        # Get history first
+        # Make a change first to ensure history exists
+        request = ThemeUpdateRequest(theme=Theme.DARK)
+        update_response = await test_user.put(
+            "/api/v1/user/settings/theme",
+            json=request.model_dump(),
+        )
+        assert update_response.status_code == 200
+
+        # Get history
         history_response = await test_user.get("/api/v1/user/settings/history")
+        assert history_response.status_code == 200
 
-        if history_response.status_code == 200:
-            history = SettingsHistoryResponse.model_validate(
-                history_response.json()
-            )
+        history = SettingsHistoryResponse.model_validate(history_response.json())
+        assert len(history.history) >= 1, "No history entries found after settings update"
 
-            if history.history:
-                # Try to restore to first entry
-                restore_req = RestoreSettingsRequest(
-                    timestamp=history.history[0].timestamp
-                )
-                restore_response = await test_user.post(
-                    "/api/v1/user/settings/restore",
-                    json=restore_req.model_dump(mode="json"),
-                )
+        # Restore to first entry
+        restore_req = RestoreSettingsRequest(timestamp=history.history[0].timestamp)
+        restore_response = await test_user.post(
+            "/api/v1/user/settings/restore",
+            json=restore_req.model_dump(mode="json"),
+        )
 
-                # May succeed or fail depending on implementation
-                assert restore_response.status_code in [200, 400, 404]
+        assert restore_response.status_code == 200
+        restored = UserSettings.model_validate(restore_response.json())
+        assert restored.theme is not None
 
 
 class TestCustomSettings:
@@ -281,18 +288,20 @@ class TestCustomSettings:
     ) -> None:
         """Update multiple custom settings."""
         # First setting
-        await test_user.put(
+        first_response = await test_user.put(
             "/api/v1/user/settings/custom/setting_one",
             json={"value": 1},
         )
+        assert first_response.status_code == 200
+        first_settings = UserSettings.model_validate(first_response.json())
+        assert "setting_one" in first_settings.custom_settings
 
         # Second setting
-        response = await test_user.put(
+        second_response = await test_user.put(
             "/api/v1/user/settings/custom/setting_two",
             json={"value": 2},
         )
-
-        assert response.status_code == 200
-        settings = UserSettings.model_validate(response.json())
-        assert "setting_one" in settings.custom_settings
-        assert "setting_two" in settings.custom_settings
+        assert second_response.status_code == 200
+        second_settings = UserSettings.model_validate(second_response.json())
+        assert "setting_one" in second_settings.custom_settings
+        assert "setting_two" in second_settings.custom_settings

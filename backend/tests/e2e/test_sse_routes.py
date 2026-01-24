@@ -1,12 +1,13 @@
 import anyio
 import pytest
+from app.domain.enums.sse import SSEHealthStatus
 from app.schemas_pydantic.execution import ExecutionResponse
 from app.schemas_pydantic.sse import SSEHealthResponse
 from httpx import AsyncClient
 
 pytestmark = [pytest.mark.e2e]
 
-SSE_TIMEOUT_SECONDS = 2.0  # Short timeout for SSE header checks
+SSE_TIMEOUT_SECONDS = 5.0  # Timeout for SSE connection establishment
 
 
 class TestSSEHealth:
@@ -20,7 +21,7 @@ class TestSSEHealth:
         assert response.status_code == 200
         result = SSEHealthResponse.model_validate(response.json())
 
-        assert result.status in ["healthy", "degraded", "unhealthy"]
+        assert result.status == SSEHealthStatus.HEALTHY
         assert isinstance(result.kafka_enabled, bool)
         assert result.active_connections >= 0
         assert result.active_executions >= 0
@@ -45,9 +46,7 @@ class TestNotificationStream:
             self, test_user: AsyncClient
     ) -> None:
         """Notification stream returns SSE content type."""
-        # Note: httpx doesn't fully support SSE streaming in tests,
-        # but we can verify the content type and initial response
-        with anyio.move_on_after(SSE_TIMEOUT_SECONDS):
+        with anyio.fail_after(SSE_TIMEOUT_SECONDS):
             async with test_user.stream(
                     "GET", "/api/v1/events/notifications/stream"
             ) as response:
@@ -69,25 +68,12 @@ class TestExecutionStream:
 
     @pytest.mark.asyncio
     async def test_execution_stream_returns_event_stream(
-            self, test_user: AsyncClient
+            self, test_user: AsyncClient, created_execution: ExecutionResponse
     ) -> None:
         """Execution events stream returns SSE content type."""
-        # Create an execution first
-        exec_response = await test_user.post(
-            "/api/v1/execute",
-            json={
-                "script": "print('sse test')",
-                "lang": "python",
-                "lang_version": "3.11",
-            },
-        )
-        assert exec_response.status_code == 200
-        execution = ExecutionResponse.model_validate(exec_response.json())
-
-        # Stream execution events with timeout
-        with anyio.move_on_after(SSE_TIMEOUT_SECONDS):
+        with anyio.fail_after(SSE_TIMEOUT_SECONDS):
             async with test_user.stream(
-                    "GET", f"/api/v1/events/executions/{execution.execution_id}"
+                    "GET", f"/api/v1/events/executions/{created_execution.execution_id}"
             ) as response:
                 assert response.status_code == 200
                 content_type = response.headers.get("content-type", "")
@@ -103,28 +89,17 @@ class TestExecutionStream:
 
     @pytest.mark.asyncio
     async def test_execution_stream_other_users_execution(
-            self, test_user: AsyncClient, another_user: AsyncClient
+            self, test_user: AsyncClient, another_user: AsyncClient,
+            created_execution: ExecutionResponse
     ) -> None:
-        """Cannot stream another user's execution events."""
-        # Create execution as test_user
-        exec_response = await test_user.post(
-            "/api/v1/execute",
-            json={
-                "script": "print('private')",
-                "lang": "python",
-                "lang_version": "3.11",
-            },
-        )
-        execution_id = exec_response.json()["execution_id"]
-
-        # Try to stream as another_user with timeout
-        with anyio.move_on_after(SSE_TIMEOUT_SECONDS):
+        """Streaming another user's execution opens but events are filtered."""
+        # SSE endpoints return 200 and start streaming - authorization
+        # happens at event level (user won't receive events for executions
+        # they don't own). We verify the stream opens with correct content-type.
+        with anyio.fail_after(SSE_TIMEOUT_SECONDS):
             async with another_user.stream(
-                    "GET", f"/api/v1/events/executions/{execution_id}"
+                    "GET", f"/api/v1/events/executions/{created_execution.execution_id}"
             ) as response:
-                # Should be forbidden or return empty stream
-                assert response.status_code in [200, 403]
-                if response.status_code == 200:
-                    # If 200, content type should still be event-stream
-                    content_type = response.headers.get("content-type", "")
-                    assert "text/event-stream" in content_type
+                assert response.status_code == 200
+                content_type = response.headers.get("content-type", "")
+                assert "text/event-stream" in content_type

@@ -7,7 +7,7 @@ from typing import Any, Dict
 from app.core.metrics import ConnectionMetrics
 from app.db.repositories.sse_repository import SSERepository
 from app.domain.enums.events import EventType
-from app.domain.enums.sse import SSEControlEvent, SSENotificationEvent
+from app.domain.enums.sse import SSEControlEvent, SSEHealthStatus, SSENotificationEvent
 from app.domain.sse import SSEHealthDomain
 from app.schemas_pydantic.execution import ExecutionResult
 from app.schemas_pydantic.sse import (
@@ -261,7 +261,7 @@ class SSEService:
     async def get_health_status(self) -> SSEHealthDomain:
         router_stats = self.router.get_stats()
         return SSEHealthDomain(
-            status="draining" if self.shutdown_manager.is_shutting_down() else "healthy",
+            status=SSEHealthStatus.DRAINING if self.shutdown_manager.is_shutting_down() else SSEHealthStatus.HEALTHY,
             kafka_enabled=True,
             active_connections=router_stats["active_executions"],
             active_executions=router_stats["active_executions"],

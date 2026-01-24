@@ -5,6 +5,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
 from app.domain.enums.execution import ExecutionStatus
+from app.domain.enums.sse import SSEHealthStatus
 
 
 class ShutdownStatus(BaseModel):
@@ -23,7 +24,7 @@ class ShutdownStatus(BaseModel):
 class SSEHealthDomain(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    status: str
+    status: SSEHealthStatus
     kafka_enabled: bool
     active_connections: int
     active_executions: int

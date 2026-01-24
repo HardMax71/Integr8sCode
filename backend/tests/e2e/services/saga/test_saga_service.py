@@ -1,10 +1,13 @@
 from datetime import datetime, timezone
+from uuid import uuid4
 
 import pytest
+from app.db.repositories import ExecutionRepository, SagaRepository
 from app.domain.enums import SagaState
 from app.domain.enums.user import UserRole
+from app.domain.execution import DomainExecutionCreate
 from app.domain.saga.exceptions import SagaAccessDeniedError, SagaNotFoundError
-from app.domain.saga.models import SagaListResult
+from app.domain.saga.models import Saga, SagaListResult
 from app.schemas_pydantic.user import User
 from app.services.execution_service import ExecutionService
 from app.services.saga.saga_service import SagaService
@@ -30,6 +33,45 @@ def make_test_user(
     )
 
 
+async def create_execution_for_user(
+    exec_repo: ExecutionRepository,
+    user_id: str,
+) -> str:
+    """Create an execution record for a user and return its ID."""
+    execution = await exec_repo.create_execution(
+        DomainExecutionCreate(
+            script="print('test')",
+            lang="python",
+            lang_version="3.11",
+            user_id=user_id,
+        )
+    )
+    return execution.execution_id
+
+
+async def create_saga_for_execution(
+    saga_repo: SagaRepository,
+    execution_id: str,
+    state: SagaState = SagaState.CREATED,
+    saga_name: str = "test_saga",
+) -> Saga:
+    """Create a saga for an execution with the given state."""
+    saga = Saga(
+        saga_id=str(uuid4()),
+        saga_name=saga_name,
+        execution_id=execution_id,
+        state=state,
+        current_step="step1",
+        completed_steps=[],
+        compensated_steps=[],
+        context_data={},
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+    )
+    await saga_repo.upsert_saga(saga)
+    return saga
+
+
 class TestListUserSagas:
     """Tests for list_user_sagas method."""
 
@@ -37,47 +79,100 @@ class TestListUserSagas:
     async def test_list_user_sagas_empty(self, scope: AsyncContainer) -> None:
         """List sagas for user with no sagas returns empty list."""
         svc: SagaService = await scope.get(SagaService)
-        user = make_test_user(user_id="no_sagas_user")
+        # Use a unique user ID that has never been used
+        user = make_test_user(user_id=f"empty_user_{uuid4().hex[:8]}")
 
         result = await svc.list_user_sagas(user)
 
         assert isinstance(result, SagaListResult)
-        assert isinstance(result.sagas, list)
-        assert result.total >= 0
+        assert result.total == 0
+        assert len(result.sagas) == 0
 
     @pytest.mark.asyncio
     async def test_list_user_sagas_with_limit(self, scope: AsyncContainer) -> None:
         """List sagas respects limit parameter."""
         svc: SagaService = await scope.get(SagaService)
-        user = make_test_user()
+        exec_repo: ExecutionRepository = await scope.get(ExecutionRepository)
+        saga_repo: SagaRepository = await scope.get(SagaRepository)
+
+        # Create unique user
+        user_id = f"limit_user_{uuid4().hex[:8]}"
+        user = make_test_user(user_id=user_id)
+
+        # Create 7 sagas for this user (more than limit of 5)
+        created_count = 7
+        for i in range(created_count):
+            exec_id = await create_execution_for_user(exec_repo, user_id)
+            await create_saga_for_execution(saga_repo, exec_id, saga_name=f"saga_{i}")
 
         result = await svc.list_user_sagas(user, limit=5)
 
         assert isinstance(result, SagaListResult)
-        assert len(result.sagas) <= 5
+        assert len(result.sagas) == 5
+        assert result.total == created_count
 
     @pytest.mark.asyncio
     async def test_list_user_sagas_with_skip(self, scope: AsyncContainer) -> None:
         """List sagas respects skip parameter."""
         svc: SagaService = await scope.get(SagaService)
-        user = make_test_user()
+        exec_repo: ExecutionRepository = await scope.get(ExecutionRepository)
+        saga_repo: SagaRepository = await scope.get(SagaRepository)
 
-        result = await svc.list_user_sagas(user, skip=0, limit=10)
+        # Create unique user
+        user_id = f"skip_user_{uuid4().hex[:8]}"
+        user = make_test_user(user_id=user_id)
 
-        assert isinstance(result, SagaListResult)
-        assert isinstance(result.sagas, list)
+        # Create 5 sagas for this user
+        created_count = 5
+        for i in range(created_count):
+            exec_id = await create_execution_for_user(exec_repo, user_id)
+            await create_saga_for_execution(saga_repo, exec_id, saga_name=f"saga_{i}")
+
+        # Get all sagas (skip=0)
+        result_all = await svc.list_user_sagas(user, skip=0, limit=10)
+        assert result_all.total == created_count
+        assert len(result_all.sagas) == created_count
+
+        # Skip first 2 sagas
+        result_skip = await svc.list_user_sagas(user, skip=2, limit=10)
+        assert result_skip.total == created_count
+        assert len(result_skip.sagas) == created_count - 2
 
     @pytest.mark.asyncio
     async def test_list_user_sagas_filter_by_state(
         self, scope: AsyncContainer
     ) -> None:
-        """List sagas filtered by state."""
+        """List sagas filtered by state returns only matching state."""
         svc: SagaService = await scope.get(SagaService)
-        user = make_test_user()
+        exec_repo: ExecutionRepository = await scope.get(ExecutionRepository)
+        saga_repo: SagaRepository = await scope.get(SagaRepository)
 
+        # Create unique user
+        user_id = f"state_user_{uuid4().hex[:8]}"
+        user = make_test_user(user_id=user_id)
+
+        # Create sagas with different states
+        created_count = 3
+        for i in range(created_count):
+            exec_id = await create_execution_for_user(exec_repo, user_id)
+            await create_saga_for_execution(
+                saga_repo, exec_id, state=SagaState.CREATED, saga_name=f"created_{i}"
+            )
+
+        # Create 2 sagas with RUNNING state
+        running_count = 2
+        for i in range(running_count):
+            exec_id = await create_execution_for_user(exec_repo, user_id)
+            await create_saga_for_execution(
+                saga_repo, exec_id, state=SagaState.RUNNING, saga_name=f"running_{i}"
+            )
+
+        # Filter by CREATED state
         result = await svc.list_user_sagas(user, state=SagaState.CREATED)
 
         assert isinstance(result, SagaListResult)
+        assert result.total == created_count
+        assert len(result.sagas) == created_count
         for saga in result.sagas:
             assert saga.state == SagaState.CREATED
 

@@ -136,22 +136,28 @@ graph TD
         C[Build Images]
     end
 
-    subgraph "E2E Tests (parallel)"
-        D[Setup k3s + Stack]
-        E[Backend E2E]
-        F[Frontend E2E]
-        D --> E
-        D --> F
+    subgraph "Backend E2E (own runner)"
+        D1[Setup k3s + Stack]
+        E[Backend E2E Tests]
+        D1 --> E
+    end
+
+    subgraph "Frontend E2E (own runner)"
+        D2[Setup k3s + Stack]
+        F[Frontend E2E Tests]
+        D2 --> F
     end
 
     A --> C
     B --> C
-    C --> D
+    C --> D1
+    C --> D2
 
     style A fill:#e8f5e9
     style B fill:#e8f5e9
     style C fill:#e1f5fe
-    style D fill:#e1f5fe
+    style D1 fill:#e1f5fe
+    style D2 fill:#e1f5fe
     style E fill:#fff3e0
     style F fill:#fff3e0
 ```
@@ -163,7 +169,8 @@ graph TD
 
 2. **Image build**: After unit tests pass, all Docker images are built with GHA layer caching.
 
-3. **E2E tests (parallel)**: Backend and frontend E2E tests run in parallel, each setting up their own stack:
+3. **E2E tests (parallel)**: Backend and frontend E2E tests run in parallel on separate runners, each with its own
+   isolated stack (k3s + docker compose):
     - Backend E2E tests (pytest with k8s)
     - Frontend E2E tests (Playwright)
 

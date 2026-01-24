@@ -1,6 +1,7 @@
 import uuid
 
 import pytest
+import pytest_asyncio
 from app.domain.enums.user import UserRole
 from app.schemas_pydantic.execution import ExecutionRequest, ExecutionResponse
 from app.schemas_pydantic.saved_script import SavedScriptCreateRequest
@@ -75,7 +76,7 @@ def new_script_request() -> SavedScriptCreateRequest:
 # --- Created resource fixtures ---
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def created_execution(
     test_user: AsyncClient, simple_execution_request: ExecutionRequest
 ) -> ExecutionResponse:
@@ -87,7 +88,7 @@ async def created_execution(
     return ExecutionResponse.model_validate(resp.json())
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def created_execution_admin(
     test_admin: AsyncClient, simple_execution_request: ExecutionRequest
 ) -> ExecutionResponse:

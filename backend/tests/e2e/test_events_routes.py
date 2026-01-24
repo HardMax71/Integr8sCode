@@ -396,9 +396,7 @@ class TestListEventTypes:
     """Tests for GET /api/v1/events/types/list."""
 
     @pytest.mark.asyncio
-    async def test_list_event_types(
-        self, test_user: AsyncClient, test_admin: AsyncClient
-    ) -> None:
+    async def test_list_event_types(self, test_admin: AsyncClient) -> None:
         """List available event types."""
         # First create an event so there's at least one type (requires admin)
         request = PublishEventRequest(
@@ -412,7 +410,8 @@ class TestListEventTypes:
         )
         await test_admin.post("/api/v1/events/publish", json=request.model_dump())
 
-        response = await test_user.get("/api/v1/events/types/list")
+        # Query with admin (admins can see all events, users only see their own)
+        response = await test_admin.get("/api/v1/events/types/list")
 
         assert response.status_code == 200
         result = response.json()

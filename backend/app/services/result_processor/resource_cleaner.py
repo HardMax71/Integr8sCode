@@ -5,10 +5,10 @@ from functools import partial
 from typing import Any
 
 from kubernetes import client as k8s_client
-from kubernetes import config as k8s_config
 from kubernetes.client.rest import ApiException
 
-from app.domain.exceptions import InfrastructureError, InvalidStateError
+from app.core.k8s_clients import K8sClients
+from app.domain.exceptions import InfrastructureError
 
 # Python 3.12 type aliases
 type ResourceDict = dict[str, list[str]]
@@ -16,34 +16,15 @@ type CountDict = dict[str, int]
 
 
 class ResourceCleaner:
-    """Service for cleaning up Kubernetes resources"""
+    """Service for cleaning up Kubernetes resources.
 
-    def __init__(self, logger: logging.Logger) -> None:
-        self.v1: k8s_client.CoreV1Api | None = None
-        self.networking_v1: k8s_client.NetworkingV1Api | None = None
-        self._initialized = False
+    Accepts K8sClients via dependency injection for proper configuration management.
+    """
+
+    def __init__(self, k8s_clients: K8sClients, logger: logging.Logger) -> None:
+        self.v1: k8s_client.CoreV1Api = k8s_clients.v1
+        self.networking_v1: k8s_client.NetworkingV1Api = k8s_clients.networking_v1
         self.logger = logger
-
-    async def initialize(self) -> None:
-        """Initialize Kubernetes clients"""
-        if self._initialized:
-            return
-
-        try:
-            try:
-                k8s_config.load_incluster_config()
-                self.logger.info("Using in-cluster Kubernetes config")
-            except k8s_config.ConfigException:
-                k8s_config.load_kube_config()
-                self.logger.info("Using kubeconfig")
-
-            self.v1 = k8s_client.CoreV1Api()
-            self.networking_v1 = k8s_client.NetworkingV1Api()
-            self._initialized = True
-
-        except Exception as e:
-            self.logger.error(f"Failed to initialize Kubernetes client: {e}")
-            raise InfrastructureError(f"Kubernetes initialization failed: {e}") from e
 
     async def cleanup_pod_resources(
         self,
@@ -54,7 +35,6 @@ class ResourceCleaner:
         delete_pvcs: bool = False,
     ) -> None:
         """Clean up all resources associated with a pod"""
-        await self.initialize()
         self.logger.info(f"Cleaning up resources for pod: {pod_name}")
 
         try:
@@ -83,9 +63,6 @@ class ResourceCleaner:
 
     async def _delete_pod(self, pod_name: str, namespace: str) -> None:
         """Delete a pod"""
-        if not self.v1:
-            raise InvalidStateError("Kubernetes client not initialized")
-
         try:
             loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, self.v1.read_namespaced_pod, pod_name, namespace)
@@ -105,9 +82,6 @@ class ResourceCleaner:
 
     async def _delete_configmaps(self, execution_id: str, namespace: str) -> None:
         """Delete ConfigMaps for an execution"""
-        if not self.v1:
-            raise InvalidStateError("Kubernetes client not initialized")
-
         await self._delete_labeled_resources(
             execution_id,
             namespace,
@@ -118,9 +92,6 @@ class ResourceCleaner:
 
     async def _delete_pvcs(self, execution_id: str, namespace: str) -> None:
         """Delete PersistentVolumeClaims for an execution"""
-        if not self.v1:
-            raise InvalidStateError("Kubernetes client not initialized")
-
         await self._delete_labeled_resources(
             execution_id,
             namespace,
@@ -153,8 +124,6 @@ class ResourceCleaner:
         dry_run: bool = False,
     ) -> ResourceDict:
         """Clean up orphaned resources older than specified age"""
-        await self.initialize()
-
         cutoff_time = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
         cleaned: ResourceDict = {
             "pods": [],
@@ -176,9 +145,6 @@ class ResourceCleaner:
         self, namespace: str, cutoff_time: datetime, cleaned: ResourceDict, dry_run: bool
     ) -> None:
         """Clean up orphaned pods"""
-        if not self.v1:
-            raise InvalidStateError("Kubernetes client not initialized")
-
         loop = asyncio.get_running_loop()
         pods = await loop.run_in_executor(
             None, partial(self.v1.list_namespaced_pod, namespace, label_selector="app=integr8s")
@@ -203,9 +169,6 @@ class ResourceCleaner:
         self, namespace: str, cutoff_time: datetime, cleaned: ResourceDict, dry_run: bool
     ) -> None:
         """Clean up orphaned ConfigMaps"""
-        if not self.v1:
-            raise InvalidStateError("Kubernetes client not initialized")
-
         loop = asyncio.get_running_loop()
         configmaps = await loop.run_in_executor(
             None, partial(self.v1.list_namespaced_config_map, namespace, label_selector="app=integr8s")
@@ -225,8 +188,6 @@ class ResourceCleaner:
 
     async def get_resource_usage(self, namespace: str = "default") -> CountDict:
         """Get current resource usage counts"""
-        await self.initialize()
-
         loop = asyncio.get_running_loop()
         label_selector = "app=integr8s"
 
@@ -235,9 +196,6 @@ class ResourceCleaner:
         try:
             # Get pods count
             try:
-                if not self.v1:
-                    raise InvalidStateError("Kubernetes client not initialized")
-
                 pods = await loop.run_in_executor(
                     None, partial(self.v1.list_namespaced_pod, namespace, label_selector=label_selector)
                 )
@@ -248,9 +206,6 @@ class ResourceCleaner:
 
             # Get configmaps count
             try:
-                if not self.v1:
-                    raise InvalidStateError("Kubernetes client not initialized")
-
                 configmaps = await loop.run_in_executor(
                     None, partial(self.v1.list_namespaced_config_map, namespace, label_selector=label_selector)
                 )
@@ -261,9 +216,6 @@ class ResourceCleaner:
 
             # Get network policies count
             try:
-                if not self.networking_v1:
-                    raise InvalidStateError("Kubernetes networking client not initialized")
-
                 policies = await loop.run_in_executor(
                     None,
                     partial(

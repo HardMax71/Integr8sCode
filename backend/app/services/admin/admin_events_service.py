@@ -47,7 +47,7 @@ class AdminReplayResult:
         dry_run: bool,
         total_events: int,
         replay_correlation_id: str,
-        status: str,
+        status: ReplayStatus,
         session_id: str | None = None,
         events_preview: List[Dict[str, Any]] | None = None,
     ) -> None:
@@ -135,7 +135,7 @@ class AdminEventsService:
                 dry_run=True,
                 total_events=session_data.total_events,
                 replay_correlation_id=replay_correlation_id,
-                status="Preview",
+                status=ReplayStatus.PREVIEW,
                 events_preview=previews,
             )
             self.logger.info(
@@ -178,7 +178,7 @@ class AdminEventsService:
             total_events=session_data.total_events,
             replay_correlation_id=replay_correlation_id,
             session_id=session_id,
-            status="Replay scheduled",
+            status=ReplayStatus.SCHEDULED,
         )
         self.logger.info(
             "Replay scheduled",

@@ -7,18 +7,19 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from app.api.dependencies import admin_user
 from app.db.repositories.admin.admin_user_repository import AdminUserRepository
 from app.domain.enums.user import UserRole
-from app.domain.rate_limit import UserRateLimit
+from app.domain.rate_limit import RateLimitRule, UserRateLimit
 from app.domain.user import UserUpdate as DomainUserUpdate
 from app.schemas_pydantic.admin_user_overview import (
     AdminUserOverview,
     DerivedCounts,
     RateLimitSummary,
 )
-from app.schemas_pydantic.events import EventResponse, EventStatistics
+from app.schemas_pydantic.events import EventStatistics
 from app.schemas_pydantic.user import (
     DeleteUserResponse,
     MessageResponse,
     PasswordResetRequest,
+    RateLimitUpdateRequest,
     RateLimitUpdateResponse,
     UserCreate,
     UserListResponse,
@@ -27,7 +28,6 @@ from app.schemas_pydantic.user import (
     UserUpdate,
 )
 from app.services.admin import AdminUserService
-from app.services.rate_limit_service import RateLimitService
 
 router = APIRouter(
     prefix="/admin/users", tags=["admin", "users"], route_class=DishkaRoute, dependencies=[Depends(admin_user)]
@@ -38,7 +38,6 @@ router = APIRouter(
 async def list_users(
     admin: Annotated[UserResponse, Depends(admin_user)],
     admin_user_service: FromDishka[AdminUserService],
-    rate_limit_service: FromDishka[RateLimitService],
     limit: int = Query(default=100, le=1000),
     offset: int = Query(default=0, ge=0),
     search: str | None = None,
@@ -51,24 +50,8 @@ async def list_users(
         search=search,
         role=role,
     )
-
-    summaries = await rate_limit_service.get_user_rate_limit_summaries([u.user_id for u in result.users])
-    user_responses: list[UserResponse] = []
-    for user in result.users:
-        user_response = UserResponse.model_validate(user)
-        summary = summaries.get(user.user_id)
-        if summary:
-            user_response = user_response.model_copy(
-                update={
-                    "bypass_rate_limit": summary.bypass_rate_limit,
-                    "global_multiplier": summary.global_multiplier,
-                    "has_custom_limits": summary.has_custom_limits,
-                }
-            )
-        user_responses.append(user_response)
-
     return UserListResponse(
-        users=user_responses,
+        users=[UserResponse.model_validate(u) for u in result.users],
         total=result.total,
         offset=result.offset,
         limit=result.limit,
@@ -119,7 +102,7 @@ async def get_user_overview(
         stats=EventStatistics.model_validate(domain.stats),
         derived_counts=DerivedCounts.model_validate(domain.derived_counts),
         rate_limit_summary=RateLimitSummary.model_validate(domain.rate_limit_summary),
-        recent_events=[EventResponse.model_validate(e).model_dump() for e in domain.recent_events],
+        recent_events=domain.recent_events,
     )
 
 
@@ -165,13 +148,19 @@ async def delete_user(
     if admin.user_id == user_id:
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
 
-    deleted_counts = await admin_user_service.delete_user(
+    result = await admin_user_service.delete_user(
         admin_username=admin.username, user_id=user_id, cascade=cascade
     )
-    if deleted_counts.get("user", 0) == 0:
-        raise HTTPException(status_code=500, detail="Failed to delete user")
-
-    return DeleteUserResponse(message=f"User {user_id} deleted successfully", deleted_counts=deleted_counts)
+    return DeleteUserResponse(
+        message=f"User {user_id} deleted successfully",
+        user_deleted=result.user_deleted,
+        executions=result.executions,
+        saved_scripts=result.saved_scripts,
+        notifications=result.notifications,
+        user_settings=result.user_settings,
+        events=result.events,
+        sagas=result.sagas,
+    )
 
 
 @router.post("/{user_id}/reset-password", response_model=MessageResponse)
@@ -204,10 +193,15 @@ async def update_user_rate_limits(
     admin: Annotated[UserResponse, Depends(admin_user)],
     admin_user_service: FromDishka[AdminUserService],
     user_id: str,
-    rate_limit_config: UserRateLimit,
+    request: RateLimitUpdateRequest,
 ) -> RateLimitUpdateResponse:
+    config = UserRateLimit(
+        user_id=user_id,
+        rules=[RateLimitRule(**r.model_dump()) for r in request.rules],
+        **request.model_dump(exclude={"rules"}),
+    )
     result = await admin_user_service.update_user_rate_limits(
-        admin_username=admin.username, user_id=user_id, config=rate_limit_config
+        admin_username=admin.username, user_id=user_id, config=config
     )
     return RateLimitUpdateResponse.model_validate(result)
 

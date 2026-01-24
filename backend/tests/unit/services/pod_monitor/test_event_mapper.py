@@ -1,5 +1,6 @@
 import json
 import logging
+from unittest.mock import MagicMock
 
 import pytest
 from app.domain.enums.events import EventType
@@ -13,9 +14,8 @@ from app.domain.events.typed import (
 )
 from app.services.pod_monitor.event_mapper import PodContext, PodEventMapper
 
-from tests.helpers.k8s_fakes import (
+from tests.unit.services.pod_monitor.conftest import (
     ContainerStatus,
-    FakeApi,
     Pod,
     State,
     Terminated,
@@ -37,6 +37,13 @@ def _ctx(pod: Pod, event_type: str = "ADDED") -> PodContext:
     )
 
 
+def _make_mock_api(logs: str = "{}") -> MagicMock:
+    """Create a mock API that returns the given logs."""
+    mock = MagicMock()
+    mock.read_namespaced_pod_log.return_value = logs
+    return mock
+
+
 def test_pending_running_and_succeeded_mapping() -> None:
     logs_json = json.dumps({
         "stdout": "ok",
@@ -49,7 +56,7 @@ def test_pending_running_and_succeeded_mapping() -> None:
             "peak_memory_kb": 0,
         },
     })
-    pem = PodEventMapper(k8s_api=FakeApi(logs_json), logger=_test_logger)
+    pem = PodEventMapper(k8s_api=_make_mock_api(logs_json), logger=_test_logger)
 
     # Pending -> scheduled (set execution-id label and PodScheduled condition)
     pend = Pod("p", "Pending")
@@ -91,7 +98,7 @@ def test_pending_running_and_succeeded_mapping() -> None:
 
 def test_failed_timeout_and_deleted() -> None:
     valid_logs = json.dumps({"stdout": "", "stderr": "", "exit_code": 137, "resource_usage": {}})
-    pem = PodEventMapper(k8s_api=FakeApi(valid_logs), logger=_test_logger)
+    pem = PodEventMapper(k8s_api=_make_mock_api(valid_logs), logger=_test_logger)
 
     # Timeout via DeadlineExceeded
     pod_to = Pod(
@@ -105,7 +112,7 @@ def test_failed_timeout_and_deleted() -> None:
 
     # Failed: terminated exit_code nonzero, message used as stderr, error type defaults to SCRIPT_ERROR
     # Note: ExecutionFailedEvent can have None resource_usage when logs extraction fails
-    pem_no_logs = PodEventMapper(k8s_api=FakeApi(""), logger=_test_logger)
+    pem_no_logs = PodEventMapper(k8s_api=_make_mock_api(""), logger=_test_logger)
     pod_fail = Pod("p2", "Failed", cs=[ContainerStatus(State(terminated=Terminated(2, message="boom")))])
     pod_fail.metadata.labels = {"execution-id": "e2"}
     evf = pem_no_logs.map_pod_event(pod_fail, "MODIFIED")[0]
@@ -114,7 +121,7 @@ def test_failed_timeout_and_deleted() -> None:
 
     # Deleted -> terminated when container terminated present (exit code 0 returns completed for DELETED)
     valid_logs_0 = json.dumps({"stdout": "", "stderr": "", "exit_code": 0, "resource_usage": {}})
-    pem_completed = PodEventMapper(k8s_api=FakeApi(valid_logs_0), logger=_test_logger)
+    pem_completed = PodEventMapper(k8s_api=_make_mock_api(valid_logs_0), logger=_test_logger)
     pod_del = Pod("p3", "Failed", cs=[ContainerStatus(State(terminated=Terminated(0, reason="Completed")))])
     pod_del.metadata.labels = {"execution-id": "e3"}
     evd = pem_completed.map_pod_event(pod_del, "DELETED")[0]
@@ -123,7 +130,7 @@ def test_failed_timeout_and_deleted() -> None:
 
 
 def test_extract_id_and_metadata_priority_and_duplicates() -> None:
-    pem = PodEventMapper(k8s_api=FakeApi(""), logger=_test_logger)
+    pem = PodEventMapper(k8s_api=_make_mock_api(""), logger=_test_logger)
 
     # From label
     p = Pod("any", "Pending")
@@ -154,7 +161,7 @@ def test_scheduled_requires_condition() -> None:
             self.type = t
             self.status = s
 
-    pem = PodEventMapper(k8s_api=FakeApi(""), logger=_test_logger)
+    pem = PodEventMapper(k8s_api=_make_mock_api(""), logger=_test_logger)
     pod = Pod("p", "Pending")
     # No conditions -> None
     assert pem._map_scheduled(_ctx(pod)) is None
@@ -170,7 +177,7 @@ def test_scheduled_requires_condition() -> None:
 def test_parse_and_log_paths_and_analyze_failure_variants(caplog: pytest.LogCaptureFixture) -> None:
     # _parse_executor_output line-by-line
     line_json = '{"stdout":"x","stderr":"","exit_code":3,"resource_usage":{}}'
-    pem = PodEventMapper(k8s_api=FakeApi("junk\n" + line_json), logger=_test_logger)
+    pem = PodEventMapper(k8s_api=_make_mock_api("junk\n" + line_json), logger=_test_logger)
     pod = Pod("p", "Succeeded", cs=[ContainerStatus(State(terminated=Terminated(0)))])
     logs = pem._extract_logs(pod)
     assert logs is not None
@@ -181,23 +188,20 @@ def test_parse_and_log_paths_and_analyze_failure_variants(caplog: pytest.LogCapt
     assert pem2._extract_logs(pod) is None
 
     # _extract_logs exceptions -> 404/400/generic branches, all return None
-    class _API404(FakeApi):
-        def read_namespaced_pod_log(self, name: str, namespace: str, tail_lines: int = 10000) -> str:  # noqa: ARG002
-            raise Exception("404 Not Found")
+    mock_404 = MagicMock()
+    mock_404.read_namespaced_pod_log.side_effect = Exception("404 Not Found")
 
-    class _API400(FakeApi):
-        def read_namespaced_pod_log(self, name: str, namespace: str, tail_lines: int = 10000) -> str:  # noqa: ARG002
-            raise Exception("400 Bad Request")
+    mock_400 = MagicMock()
+    mock_400.read_namespaced_pod_log.side_effect = Exception("400 Bad Request")
 
-    class _APIGen(FakeApi):
-        def read_namespaced_pod_log(self, name: str, namespace: str, tail_lines: int = 10000) -> str:  # noqa: ARG002
-            raise Exception("boom")
+    mock_gen = MagicMock()
+    mock_gen.read_namespaced_pod_log.side_effect = Exception("boom")
 
-    pem404 = PodEventMapper(k8s_api=_API404(""), logger=_test_logger)
+    pem404 = PodEventMapper(k8s_api=mock_404, logger=_test_logger)
     assert pem404._extract_logs(pod) is None
-    pem400 = PodEventMapper(k8s_api=_API400(""), logger=_test_logger)
+    pem400 = PodEventMapper(k8s_api=mock_400, logger=_test_logger)
     assert pem400._extract_logs(pod) is None
-    pemg = PodEventMapper(k8s_api=_APIGen(""), logger=_test_logger)
+    pemg = PodEventMapper(k8s_api=mock_gen, logger=_test_logger)
     assert pemg._extract_logs(pod) is None
 
     # _analyze_failure: Evicted
@@ -221,7 +225,7 @@ def test_parse_and_log_paths_and_analyze_failure_variants(caplog: pytest.LogCapt
 
 def test_all_containers_succeeded_and_cache_behavior() -> None:
     valid_logs = json.dumps({"stdout": "", "stderr": "", "exit_code": 0, "resource_usage": {}})
-    pem = PodEventMapper(k8s_api=FakeApi(valid_logs), logger=_test_logger)
+    pem = PodEventMapper(k8s_api=_make_mock_api(valid_logs), logger=_test_logger)
     term0 = ContainerStatus(State(terminated=Terminated(0)))
     term0b = ContainerStatus(State(terminated=Terminated(0)))
     pod = Pod("p", "Failed", cs=[term0, term0b])

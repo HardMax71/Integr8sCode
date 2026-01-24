@@ -54,7 +54,7 @@ class EventStoreConsumer(LifecycleEnabled):
         self._last_batch_time = asyncio.get_running_loop().time()
         config = ConsumerConfig(
             bootstrap_servers=self.settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=f"{self.group_id}.{self.settings.KAFKA_GROUP_SUFFIX}",
+            group_id=self.group_id,
             enable_auto_commit=False,
             max_poll_records=self.batch_size,
             session_timeout_ms=self.settings.KAFKA_SESSION_TIMEOUT_MS,

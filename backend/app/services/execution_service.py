@@ -195,6 +195,7 @@ class ExecutionService:
             timeout = timeout_override or self.settings.K8S_POD_EXECUTION_TIMEOUT
             event = ExecutionRequestedEvent(
                 execution_id=created_execution.execution_id,
+                aggregate_id=created_execution.execution_id,
                 script=script,
                 language=lang,
                 language_version=lang_version,

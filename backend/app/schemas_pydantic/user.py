@@ -5,6 +5,7 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.domain.enums.user import UserRole
+from app.domain.rate_limit import EndpointGroup, RateLimitAlgorithm
 
 
 class UserBase(BaseModel):
@@ -138,7 +139,13 @@ class DeleteUserResponse(BaseModel):
     """Response model for user deletion."""
 
     message: str
-    deleted_counts: dict[str, int]
+    user_deleted: bool
+    executions: int = 0
+    saved_scripts: int = 0
+    notifications: int = 0
+    user_settings: int = 0
+    events: int = 0
+    sagas: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -156,6 +163,28 @@ class RateLimitRuleResponse(BaseModel):
     enabled: bool = True
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class RateLimitRuleRequest(BaseModel):
+    """Request model for rate limit rule."""
+
+    endpoint_pattern: str
+    group: EndpointGroup
+    requests: int
+    window_seconds: int
+    algorithm: RateLimitAlgorithm = RateLimitAlgorithm.SLIDING_WINDOW
+    burst_multiplier: float = 1.5
+    priority: int = 0
+    enabled: bool = True
+
+
+class RateLimitUpdateRequest(BaseModel):
+    """Request model for updating user rate limits."""
+
+    bypass_rate_limit: bool = False
+    global_multiplier: float = 1.0
+    rules: list[RateLimitRuleRequest] = []
+    notes: Optional[str] = None
 
 
 class UserRateLimitConfigResponse(BaseModel):

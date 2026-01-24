@@ -7,13 +7,17 @@ webhook, Slack) with throttling, retries, and user subscription preferences.
 
 ```mermaid
 flowchart LR
-    Event[Execution Event] --> NS[NotificationService]
+    Kafka[(Kafka)] --> NS[NotificationService]
     NS --> DB[(MongoDB)]
     NS --> SSE[SSE Bus]
     NS --> Webhook[Webhook]
     NS --> Slack[Slack]
     SSE --> Browser
 ```
+
+The NotificationService implements `LifecycleEnabled` and starts its Kafka consumer during application startup.
+It subscribes to execution result events (`EXECUTION_COMPLETED`, `EXECUTION_FAILED`, `EXECUTION_TIMEOUT`) and
+automatically creates notifications for users when their executions complete.
 
 ## Core fields
 

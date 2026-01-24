@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import List
 
 from pydantic import BaseModel, ConfigDict
 
+from app.domain.events.typed import DomainEvent
 from app.schemas_pydantic.events import EventStatistics
 from app.schemas_pydantic.user import UserResponse
 
@@ -31,6 +32,6 @@ class AdminUserOverview(BaseModel):
     stats: EventStatistics
     derived_counts: DerivedCounts
     rate_limit_summary: RateLimitSummary
-    recent_events: List[Dict[str, Any]] = []
+    recent_events: List[DomainEvent] = []
 
     model_config = ConfigDict(from_attributes=True)

@@ -26,6 +26,10 @@ class UserDocument(Document):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+    # Activity tracking
+    last_login: datetime | None = None
+    last_activity: datetime | None = None
+
     model_config = ConfigDict(from_attributes=True, arbitrary_types_allowed=True)
 
     class Settings:

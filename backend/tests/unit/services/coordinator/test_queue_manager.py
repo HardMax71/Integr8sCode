@@ -5,7 +5,7 @@ from app.core.metrics import CoordinatorMetrics
 from app.domain.events.typed import ExecutionRequestedEvent
 from app.services.coordinator.queue_manager import QueueManager, QueuePriority
 
-from tests.helpers import make_execution_requested_event
+from tests.conftest import make_execution_requested_event
 
 _test_logger = logging.getLogger("test.services.coordinator.queue_manager")
 

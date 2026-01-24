@@ -11,6 +11,7 @@ from app.core.tracing import EventAttributes
 from app.core.tracing.utils import get_tracer
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.db.repositories.saga_repository import SagaRepository
+from app.domain.enums.events import EventType
 from app.domain.enums.saga import SagaState
 from app.domain.events.typed import DomainEvent, EventMetadata, SagaCancelledEvent
 from app.domain.saga.models import Saga, SagaConfig
@@ -114,13 +115,25 @@ class SagaOrchestrator(LifecycleEnabled):
                 event_types_to_register.add(event_type)
                 self.logger.debug(f"Event type {event_type} maps to topic {topic}")
 
+        # Also register handlers for completion events so execution sagas can complete
+        completion_event_types = {
+            EventType.EXECUTION_COMPLETED,
+            EventType.EXECUTION_FAILED,
+            EventType.EXECUTION_TIMEOUT,
+        }
+        for event_type in completion_event_types:
+            topic = get_topic_for_event(event_type)
+            topics.add(topic)
+            event_types_to_register.add(event_type)
+            self.logger.debug(f"Completion event type {event_type} maps to topic {topic}")
+
         if not topics:
             self.logger.warning("No trigger events found in registered sagas")
             return
 
         consumer_config = ConsumerConfig(
             bootstrap_servers=self._settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=f"saga-{self.config.name}.{self._settings.KAFKA_GROUP_SUFFIX}",
+            group_id=f"saga-{self.config.name}",
             enable_auto_commit=False,
             session_timeout_ms=self._settings.KAFKA_SESSION_TIMEOUT_MS,
             heartbeat_interval_ms=self._settings.KAFKA_HEARTBEAT_INTERVAL_MS,
@@ -160,6 +173,17 @@ class SagaOrchestrator(LifecycleEnabled):
         """Handle incoming event"""
         self.logger.info(f"Saga orchestrator handling event: type={event.event_type}, id={event.event_id}")
         try:
+            # Check if this is a completion event that should update an existing saga
+            completion_events = {
+                EventType.EXECUTION_COMPLETED,
+                EventType.EXECUTION_FAILED,
+                EventType.EXECUTION_TIMEOUT,
+            }
+            if event.event_type in completion_events:
+                await self._handle_completion_event(event)
+                return
+
+            # Check if this event should trigger a new saga
             saga_triggered = False
             for saga_name, saga_class in self._sagas.items():
                 self.logger.debug(f"Checking if {saga_name} should be triggered by {event.event_type}")
@@ -176,6 +200,46 @@ class SagaOrchestrator(LifecycleEnabled):
         except Exception as e:
             self.logger.error(f"Error handling event {event.event_id}: {e}", exc_info=True)
             raise
+
+    async def _handle_completion_event(self, event: DomainEvent) -> None:
+        """Handle execution completion events to update saga state."""
+        execution_id = getattr(event, "execution_id", None)
+        if not execution_id:
+            self.logger.warning(f"Completion event {event.event_type} has no execution_id")
+            return
+
+        # Find the execution saga specifically (not other saga types)
+        saga = await self._repo.get_saga_by_execution_and_name(execution_id, ExecutionSaga.get_name())
+        if not saga:
+            self.logger.debug(f"No execution_saga found for execution {execution_id}")
+            return
+
+        # Only update if saga is still in a running state
+        if saga.state not in (SagaState.RUNNING, SagaState.CREATED):
+            self.logger.debug(f"Saga {saga.saga_id} already in terminal state {saga.state}")
+            return
+
+        # Update saga state based on completion event type
+        if event.event_type == EventType.EXECUTION_COMPLETED:
+            self.logger.info(f"Marking saga {saga.saga_id} as COMPLETED due to execution completion")
+            saga.state = SagaState.COMPLETED
+            saga.completed_at = datetime.now(UTC)
+        elif event.event_type == EventType.EXECUTION_TIMEOUT:
+            timeout_seconds = getattr(event, "timeout_seconds", None)
+            self.logger.info(f"Marking saga {saga.saga_id} as TIMEOUT after {timeout_seconds}s")
+            saga.state = SagaState.TIMEOUT
+            saga.error_message = f"Execution timed out after {timeout_seconds} seconds"
+            saga.completed_at = datetime.now(UTC)
+        else:
+            # EXECUTION_FAILED
+            error_msg = getattr(event, "error_message", None) or f"Execution {event.event_type}"
+            self.logger.info(f"Marking saga {saga.saga_id} as FAILED: {error_msg}")
+            saga.state = SagaState.FAILED
+            saga.error_message = error_msg
+            saga.completed_at = datetime.now(UTC)
+
+        await self._save_saga(saga)
+        self._running_instances.pop(saga.saga_id, None)
 
     def _should_trigger_saga(self, saga_class: type[BaseSaga], event: DomainEvent) -> bool:
         trigger_event_types = saga_class.get_trigger_events()
@@ -294,7 +358,11 @@ class SagaOrchestrator(LifecycleEnabled):
                     return
 
             # All steps completed successfully
-            await self._complete_saga(instance)
+            # Execution saga waits for external completion events (EXECUTION_COMPLETED/FAILED)
+            if instance.saga_name == ExecutionSaga.get_name():
+                self.logger.info(f"Saga {instance.saga_id} steps done, waiting for execution completion event")
+            else:
+                await self._complete_saga(instance)
 
         except Exception as e:
             self.logger.error(f"Error executing saga {instance.saga_id}: {e}", exc_info=True)

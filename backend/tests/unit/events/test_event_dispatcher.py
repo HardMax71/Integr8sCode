@@ -4,7 +4,7 @@ from app.domain.enums.events import EventType
 from app.domain.events.typed import DomainEvent
 from app.events.core import EventDispatcher
 
-from tests.helpers import make_execution_requested_event
+from tests.conftest import make_execution_requested_event
 
 _test_logger = logging.getLogger("test.events.event_dispatcher")
 

@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.storage import ExecutionErrorType
 from app.runtime_registry import SUPPORTED_RUNTIMES
@@ -147,17 +145,6 @@ class RetryExecutionRequest(BaseModel):
 
     reason: str | None = Field(None, description="Reason for retry")
     preserve_output: bool = Field(False, description="Keep output from previous attempt")
-
-
-class ExecutionEventResponse(BaseModel):
-    """Model for execution event response."""
-
-    event_id: str
-    event_type: EventType
-    timestamp: datetime
-    payload: dict[str, Any]
-
-    model_config = ConfigDict(from_attributes=True)
 
 
 class ExecutionListResponse(BaseModel):

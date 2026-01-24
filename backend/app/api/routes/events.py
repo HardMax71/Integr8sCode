@@ -6,13 +6,16 @@ from typing import Annotated, Any, Dict, List
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import TypeAdapter
 
 from app.api.dependencies import admin_user, current_user
 from app.core.correlation import CorrelationContext
 from app.core.utils import get_client_ip
 from app.domain.enums.common import SortOrder
+from app.domain.enums.events import EventType
+from app.domain.enums.user import UserRole
 from app.domain.events.event_models import EventFilter
-from app.domain.events.typed import BaseEvent, EventMetadata
+from app.domain.events.typed import BaseEvent, DomainEvent, EventMetadata
 from app.schemas_pydantic.events import (
     DeleteEventResponse,
     EventAggregationRequest,
@@ -26,8 +29,11 @@ from app.schemas_pydantic.events import (
 )
 from app.schemas_pydantic.user import UserResponse
 from app.services.event_service import EventService
+from app.services.execution_service import ExecutionService
 from app.services.kafka_event_service import KafkaEventService
 from app.settings import Settings
+
+_event_response_list_adapter: TypeAdapter[list[EventResponse]] = TypeAdapter(list[EventResponse])
 
 router = APIRouter(prefix="/events", tags=["events"], route_class=DishkaRoute)
 
@@ -37,10 +43,16 @@ async def get_execution_events(
     execution_id: str,
     current_user: Annotated[UserResponse, Depends(current_user)],
     event_service: FromDishka[EventService],
+    execution_service: FromDishka[ExecutionService],
     include_system_events: bool = Query(False, description="Include system-generated events"),
     limit: int = Query(100, ge=1, le=1000),
     skip: int = Query(0, ge=0),
 ) -> EventListResponse:
+    # Check execution ownership first (before checking events)
+    execution = await execution_service.get_execution_result(execution_id)
+    if execution.user_id and execution.user_id != current_user.user_id and current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Access denied")
+
     result = await event_service.get_execution_events(
         execution_id=execution_id,
         user_id=current_user.user_id,
@@ -53,10 +65,8 @@ async def get_execution_events(
     if result is None:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    event_responses = [EventResponse.model_validate(event) for event in result.events]
-
     return EventListResponse(
-        events=event_responses,
+        events=_event_response_list_adapter.validate_python(result.events, from_attributes=True),
         total=result.total,
         limit=limit,
         skip=skip,
@@ -68,7 +78,7 @@ async def get_execution_events(
 async def get_user_events(
     current_user: Annotated[UserResponse, Depends(current_user)],
     event_service: FromDishka[EventService],
-    event_types: List[str] | None = Query(None),
+    event_types: List[EventType] | None = Query(None),
     start_time: datetime | None = Query(None),
     end_time: datetime | None = Query(None),
     limit: int = Query(100, ge=1, le=1000),
@@ -86,10 +96,12 @@ async def get_user_events(
         sort_order=sort_order,
     )
 
-    event_responses = [EventResponse.model_validate(event) for event in result.events]
-
     return EventListResponse(
-        events=event_responses, total=result.total, limit=limit, skip=skip, has_more=result.has_more
+        events=_event_response_list_adapter.validate_python(result.events, from_attributes=True),
+        total=result.total,
+        limit=limit,
+        skip=skip,
+        has_more=result.has_more,
     )
 
 
@@ -100,7 +112,7 @@ async def query_events(
     event_service: FromDishka[EventService],
 ) -> EventListResponse:
     event_filter = EventFilter(
-        event_types=[str(et) for et in filter_request.event_types] if filter_request.event_types else None,
+        event_types=filter_request.event_types,
         aggregate_id=filter_request.aggregate_id,
         correlation_id=filter_request.correlation_id,
         user_id=filter_request.user_id,
@@ -121,10 +133,12 @@ async def query_events(
     if result is None:
         raise HTTPException(status_code=403, detail="Cannot query other users' events")
 
-    event_responses = [EventResponse.model_validate(event) for event in result.events]
-
     return EventListResponse(
-        events=event_responses, total=result.total, limit=result.limit, skip=result.skip, has_more=result.has_more
+        events=_event_response_list_adapter.validate_python(result.events, from_attributes=True),
+        total=result.total,
+        limit=result.limit,
+        skip=result.skip,
+        has_more=result.has_more,
     )
 
 
@@ -146,10 +160,8 @@ async def get_events_by_correlation(
         skip=skip,
     )
 
-    event_responses = [EventResponse.model_validate(event) for event in result.events]
-
     return EventListResponse(
-        events=event_responses,
+        events=_event_response_list_adapter.validate_python(result.events, from_attributes=True),
         total=result.total,
         limit=limit,
         skip=skip,
@@ -177,10 +189,8 @@ async def get_current_request_events(
         skip=skip,
     )
 
-    event_responses = [EventResponse.model_validate(event) for event in result.events]
-
     return EventListResponse(
-        events=event_responses,
+        events=_event_response_list_adapter.validate_python(result.events, from_attributes=True),
         total=result.total,
         limit=limit,
         skip=skip,
@@ -212,15 +222,15 @@ async def get_event_statistics(
     return EventStatistics.model_validate(stats)
 
 
-@router.get("/{event_id}", response_model=EventResponse)
+@router.get("/{event_id}", response_model=DomainEvent)
 async def get_event(
     event_id: str, current_user: Annotated[UserResponse, Depends(current_user)], event_service: FromDishka[EventService]
-) -> EventResponse:
+) -> DomainEvent:
     """Get a specific event by ID"""
     event = await event_service.get_event(event_id=event_id, user_id=current_user.user_id, user_role=current_user.role)
     if event is None:
         raise HTTPException(status_code=404, detail="Event not found")
-    return EventResponse.model_validate(event)
+    return event
 
 
 @router.post("/publish", response_model=PublishEventResponse)

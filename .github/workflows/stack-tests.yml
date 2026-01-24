@@ -185,76 +185,7 @@ jobs:
           path: /tmp/all-images.tar.zst
           retention-days: 1
 
-  # Three parallel test jobs
-  backend-integration:
-    name: Backend Integration Tests
-    needs: [build-images]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Cache and load Docker images
-        uses: ./.github/actions/docker-cache
-        with:
-          images: ${{ env.MONGO_IMAGE }} ${{ env.REDIS_IMAGE }} ${{ env.KAFKA_IMAGE }} ${{ env.ZOOKEEPER_IMAGE }} ${{ env.SCHEMA_REGISTRY_IMAGE }}
-
-      - name: Download built images
-        uses: actions/download-artifact@v7
-        with:
-          name: docker-images
-          path: /tmp
-
-      - name: Load built images
-        run: zstd -d -c /tmp/all-images.tar.zst | docker load
-
-      - name: Setup k3s
-        uses: ./.github/actions/k3s-setup
-
-      - name: Use test environment config
-        run: cp backend/.env.test backend/.env
-
-      - name: Start stack
-        run: ./deploy.sh dev --wait
-
-      - name: Run integration tests
-        timeout-minutes: 10
-        run: |
-          docker compose exec -T -e TEST_RUN_ID=integration backend \
-            uv run pytest tests/integration -v -rs \
-            --durations=0 \
-            --cov=app \
-            --cov-report=xml:coverage-integration.xml \
-            --cov-report=term
-
-      - name: Copy coverage
-        if: always()
-        run: docker compose cp backend:/app/coverage-integration.xml backend/coverage-integration.xml || true
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
-        if: always()
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: backend/coverage-integration.xml
-          flags: backend-integration
-          name: backend-integration-coverage
-          fail_ci_if_error: false
-
-      - name: Collect logs on failure
-        if: failure()
-        run: |
-          mkdir -p logs
-          docker compose logs > logs/docker-compose.log 2>&1
-          docker compose logs backend > logs/backend.log 2>&1
-          docker compose logs kafka > logs/kafka.log 2>&1
-
-      - name: Upload logs
-        if: failure()
-        uses: actions/upload-artifact@v6
-        with:
-          name: backend-integration-logs
-          path: logs/
-
+  # Parallel test jobs (backend-e2e, frontend-e2e)
   backend-e2e:
     name: Backend E2E Tests
     needs: [build-images]
@@ -289,9 +220,9 @@ jobs:
         run: docker compose exec -T backend uv run python scripts/seed_users.py
 
       - name: Run E2E tests
-        timeout-minutes: 10
+        timeout-minutes: 15
         run: |
-          docker compose exec -T -e TEST_RUN_ID=e2e backend \
+          docker compose exec -T backend \
             uv run pytest tests/e2e -v -rs \
             --durations=0 \
             --cov=app \

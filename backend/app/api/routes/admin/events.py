@@ -77,7 +77,7 @@ async def export_events_csv(
 ) -> StreamingResponse:
     try:
         export_filter = EventFilter(
-            event_types=[str(et) for et in event_types] if event_types else None,
+            event_types=event_types,
             start_time=start_time,
             end_time=end_time,
         )
@@ -107,7 +107,7 @@ async def export_events_json(
     """Export events as JSON with comprehensive filtering."""
     try:
         export_filter = EventFilter(
-            event_types=[str(et) for et in event_types] if event_types else None,
+            event_types=event_types,
             aggregate_id=aggregate_id,
             correlation_id=correlation_id,
             user_id=user_id,

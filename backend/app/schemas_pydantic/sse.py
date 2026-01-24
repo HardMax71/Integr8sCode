@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.notification import NotificationSeverity, NotificationStatus
-from app.domain.enums.sse import SSEControlEvent, SSENotificationEvent
+from app.domain.enums.sse import SSEControlEvent, SSEHealthStatus, SSENotificationEvent
 from app.schemas_pydantic.execution import ExecutionResult, ResourceUsage
 
 # Type variable for generic Redis message parsing
@@ -115,7 +115,7 @@ class ShutdownStatusResponse(BaseModel):
 class SSEHealthResponse(BaseModel):
     """Response model for SSE health check."""
 
-    status: str = Field(description="Health status: healthy or draining")
+    status: SSEHealthStatus = Field(description="Health status: healthy or draining")
     kafka_enabled: bool = Field(True, description="Whether Kafka features are enabled")
     active_connections: int = Field(description="Total number of active SSE connections")
     active_executions: int = Field(description="Number of executions being monitored")

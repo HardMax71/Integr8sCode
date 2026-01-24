@@ -15,7 +15,15 @@ from app.db.docs import (
     UserSettingsDocument,
 )
 from app.domain.enums import UserRole
-from app.domain.user import DomainUserCreate, PasswordReset, User, UserListResult, UserUpdate
+from app.domain.user import (
+    DomainUserCreate,
+    PasswordReset,
+    User,
+    UserDeleteResult,
+    UserListResult,
+    UserNotFoundError,
+    UserUpdate,
+)
 
 
 class AdminUserRepository:
@@ -69,39 +77,33 @@ class AdminUserRepository:
             await doc.set(update_dict)
         return User.model_validate(doc, from_attributes=True)
 
-    async def delete_user(self, user_id: str, cascade: bool = True) -> dict[str, int]:
-        deleted_counts = {}
-
+    async def delete_user(self, user_id: str, cascade: bool = True) -> UserDeleteResult:
         doc = await UserDocument.find_one(UserDocument.user_id == user_id)
-        if doc:
-            await doc.delete()
-            deleted_counts["user"] = 1
-        else:
-            deleted_counts["user"] = 0
+        if not doc:
+            raise UserNotFoundError(user_id)
+
+        await doc.delete()
 
         if not cascade:
-            return deleted_counts
+            return UserDeleteResult(user_deleted=True)
 
         # Cascade delete related data
         exec_result = await ExecutionDocument.find(ExecutionDocument.user_id == user_id).delete()
-        deleted_counts["executions"] = exec_result.deleted_count if exec_result else 0
-
         scripts_result = await SavedScriptDocument.find(SavedScriptDocument.user_id == user_id).delete()
-        deleted_counts["saved_scripts"] = scripts_result.deleted_count if scripts_result else 0
-
         notif_result = await NotificationDocument.find(NotificationDocument.user_id == user_id).delete()
-        deleted_counts["notifications"] = notif_result.deleted_count if notif_result else 0
-
         settings_result = await UserSettingsDocument.find(UserSettingsDocument.user_id == user_id).delete()
-        deleted_counts["user_settings"] = settings_result.deleted_count if settings_result else 0
-
         events_result = await EventDocument.find(EventDocument.metadata.user_id == user_id).delete()
-        deleted_counts["events"] = events_result.deleted_count if events_result else 0
-
         sagas_result = await SagaDocument.find(SagaDocument.context_data["user_id"] == user_id).delete()
-        deleted_counts["sagas"] = sagas_result.deleted_count if sagas_result else 0
 
-        return deleted_counts
+        return UserDeleteResult(
+            user_deleted=True,
+            executions=exec_result.deleted_count if exec_result else 0,
+            saved_scripts=scripts_result.deleted_count if scripts_result else 0,
+            notifications=notif_result.deleted_count if notif_result else 0,
+            user_settings=settings_result.deleted_count if settings_result else 0,
+            events=events_result.deleted_count if events_result else 0,
+            sagas=sagas_result.deleted_count if sagas_result else 0,
+        )
 
     async def reset_user_password(self, reset_data: PasswordReset) -> bool:
         doc = await UserDocument.find_one(UserDocument.user_id == reset_data.user_id)

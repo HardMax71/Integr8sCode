@@ -1,16 +1,10 @@
-"""Event-related schemas for REST API endpoints.
-
-This module contains Pydantic models for event-related API requests and responses.
-For Avro-based event schemas used in Kafka streaming, see app.schemas_avro.event_schemas.
-"""
-
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.domain.enums.common import SortOrder
+from app.domain.enums.common import Environment, SortOrder
 from app.domain.enums.events import EventType
 
 
@@ -34,22 +28,20 @@ class EventMetadataResponse(BaseModel):
     user_id: str | None = None
     ip_address: str | None = None
     user_agent: str | None = None
-    environment: str = "production"
+    environment: Environment = Environment.PRODUCTION
 
 
 class EventResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    """API response schema for events. Captures all event-specific fields via extra='allow'."""
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
 
     event_id: str
     event_type: EventType
-    event_version: str
+    event_version: str = "1.0"
     timestamp: datetime
     aggregate_id: str | None = None
-    correlation_id: str | None = None
-    causation_id: str | None = None
     metadata: EventMetadataResponse
-    payload: Dict[str, Any]
-    stored_at: datetime | None = None
 
 
 class EventListResponse(BaseModel):
@@ -302,7 +294,7 @@ class ReplayAggregateResponse(BaseModel):
     dry_run: bool
     aggregate_id: str
     event_count: int | None = None
-    event_types: List[str] | None = None
+    event_types: List[EventType] | None = None
     start_time: datetime | None = None
     end_time: datetime | None = None
     replayed_count: int | None = None

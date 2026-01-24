@@ -96,7 +96,7 @@ class DLQRepository:
         conditions: list[Any] = [
             DLQMessageDocument.status == status if status else None,
             DLQMessageDocument.original_topic == topic if topic else None,
-            DLQMessageDocument.event_type == event_type if event_type else None,
+            DLQMessageDocument.event.event_type == event_type if event_type else None,
         ]
         conditions = [c for c in conditions if c is not None]
 

@@ -4,7 +4,7 @@ from typing import Any, Mapping
 
 from beanie.odm.enums import SortDirection
 from beanie.operators import GTE, LT, LTE, In, Not, Or, RegEx
-from monggregate import S
+from monggregate import Pipeline, S
 
 from app.core.tracing import EventAttributes
 from app.core.tracing.utils import add_span_attributes
@@ -74,7 +74,7 @@ class EventRepository:
 
     async def get_events_by_type(
             self,
-            event_type: str,
+            event_type: EventType,
             start_time: datetime | None = None,
             end_time: datetime | None = None,
             limit: int = 100,
@@ -107,9 +107,13 @@ class EventRepository:
         return [domain_event_adapter.validate_python(d, from_attributes=True) for d in docs]
 
     async def get_events_by_correlation(self, correlation_id: str, limit: int = 100, skip: int = 0) -> EventListResult:
-        query = EventDocument.find(EventDocument.metadata.correlation_id == correlation_id)
-        total_count = await query.count()
-        docs = await query.sort([("timestamp", SortDirection.ASCENDING)]).skip(skip).limit(limit).to_list()
+        condition = EventDocument.metadata.correlation_id == correlation_id
+        total_count = await EventDocument.find(condition).count()
+        docs = (
+            await EventDocument.find(condition)
+            .sort([("timestamp", SortDirection.ASCENDING)])
+            .skip(skip).limit(limit).to_list()
+        )
         events = [domain_event_adapter.validate_python(d, from_attributes=True) for d in docs]
         return EventListResult(
             events=events,
@@ -122,7 +126,7 @@ class EventRepository:
     async def get_events_by_user(
             self,
             user_id: str,
-            event_types: list[str] | None = None,
+            event_types: list[EventType] | None = None,
             start_time: datetime | None = None,
             end_time: datetime | None = None,
             limit: int = 100,
@@ -154,9 +158,13 @@ class EventRepository:
             Not(RegEx(EventDocument.metadata.service_name, "^system-")) if exclude_system_events else None,
         ]
         conditions = [c for c in conditions if c is not None]
-        query = EventDocument.find(*conditions)
-        total_count = await query.count()
-        docs = await query.sort([("timestamp", SortDirection.ASCENDING)]).skip(skip).limit(limit).to_list()
+        # Use separate queries for count and fetch to avoid Beanie query object mutation issues
+        total_count = await EventDocument.find(*conditions).count()
+        docs = (
+            await EventDocument.find(*conditions)
+            .sort([("timestamp", SortDirection.ASCENDING)])
+            .skip(skip).limit(limit).to_list()
+        )
         events = [domain_event_adapter.validate_python(d, from_attributes=True) for d in docs]
         return EventListResult(
             events=events,
@@ -240,7 +248,7 @@ class EventRepository:
         return EventStatistics(total_events=0, events_by_type={}, events_by_service={}, events_by_hour=[])
 
     async def cleanup_old_events(
-            self, older_than_days: int = 30, event_types: list[str] | None = None, dry_run: bool = False
+            self, older_than_days: int = 30, event_types: list[EventType] | None = None, dry_run: bool = False
     ) -> int:
         cutoff_dt = datetime.now(timezone.utc) - timedelta(days=older_than_days)
         conditions: list[Any] = [
@@ -262,7 +270,7 @@ class EventRepository:
     async def get_user_events_paginated(
             self,
             user_id: str,
-            event_types: list[str] | None = None,
+            event_types: list[EventType] | None = None,
             start_time: datetime | None = None,
             end_time: datetime | None = None,
             limit: int = 100,
@@ -276,10 +284,14 @@ class EventRepository:
         ]
         conditions = [c for c in conditions if c is not None]
 
-        query = EventDocument.find(*conditions)
-        total_count = await query.count()
+        # Use separate queries for count and fetch to avoid Beanie query object mutation issues
+        total_count = await EventDocument.find(*conditions).count()
         sort_direction = SortDirection.DESCENDING if sort_order == "desc" else SortDirection.ASCENDING
-        docs = await query.sort([("timestamp", sort_direction)]).skip(skip).limit(limit).to_list()
+        docs = (
+            await EventDocument.find(*conditions)
+            .sort([("timestamp", sort_direction)])
+            .skip(skip).limit(limit).to_list()
+        )
         events = [domain_event_adapter.validate_python(d, from_attributes=True) for d in docs]
         return EventListResult(
             events=events,
@@ -346,23 +358,25 @@ class EventRepository:
         return await self.get_events_by_aggregate(aggregate_id=aggregate_id, limit=limit)
 
     async def get_aggregate_replay_info(self, aggregate_id: str) -> EventReplayInfo | None:
-        pipeline = [
-            {"$match": {EventDocument.aggregate_id: aggregate_id}},
-            {"$sort": {EventDocument.timestamp: 1}},
-            {
-                "$group": {
-                    "_id": None,
+        # Match on both aggregate_id and execution_id (consistent with get_execution_events)
+        pipeline = (
+            Pipeline()
+            .match({"$or": [{EventDocument.aggregate_id: aggregate_id}, {EventDocument.execution_id: aggregate_id}]})
+            .sort(by=EventDocument.timestamp)
+            .group(
+                by=None,
+                query={
                     "events": {"$push": "$$ROOT"},
-                    "event_count": {"$sum": 1},
+                    "event_count": S.sum(1),
                     "event_types": {"$addToSet": S.field(EventDocument.event_type)},
-                    "start_time": {"$min": S.field(EventDocument.timestamp)},
-                    "end_time": {"$max": S.field(EventDocument.timestamp)},
-                }
-            },
-            {"$project": {"_id": 0}},
-        ]
+                    "start_time": S.min(S.field(EventDocument.timestamp)),
+                    "end_time": S.max(S.field(EventDocument.timestamp)),
+                },
+            )
+            .project(_id=0)
+        )
 
-        async for doc in EventDocument.aggregate(pipeline):
+        async for doc in EventDocument.aggregate(pipeline.export()):
             events = [domain_event_adapter.validate_python(e) for e in doc["events"]]
             return EventReplayInfo(
                 events=events,

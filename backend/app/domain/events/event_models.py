@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict
 from pydantic.dataclasses import dataclass
 
 from app.core.utils import StringEnum
+from app.domain.enums.events import EventType
 from app.domain.events.typed import DomainEvent
 
 MongoQueryValue = str | dict[str, str | list[str] | float | datetime]
@@ -45,7 +46,7 @@ class EventSummary:
     """Lightweight event summary for lists and previews."""
 
     event_id: str
-    event_type: str
+    event_type: EventType
     timestamp: datetime
     aggregate_id: str | None = None
 
@@ -55,7 +56,7 @@ class EventFilter(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    event_types: list[str] | None = None
+    event_types: list[EventType] | None = None
     aggregate_id: str | None = None
     correlation_id: str | None = None
     user_id: str | None = None
@@ -156,7 +157,7 @@ class EventReplayInfo:
 
     events: list[DomainEvent]
     event_count: int
-    event_types: list[str]
+    event_types: list[EventType]
     start_time: datetime
     end_time: datetime
 
@@ -187,7 +188,7 @@ class EventExportRow(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     event_id: str
-    event_type: str
+    event_type: EventType
     timestamp: datetime
     correlation_id: str
     aggregate_id: str

@@ -67,6 +67,7 @@ from app.services.pod_monitor.event_mapper import PodEventMapper
 from app.services.pod_monitor.monitor import PodMonitor
 from app.services.rate_limit_service import RateLimitService
 from app.services.replay_service import ReplayService
+from app.services.result_processor.resource_cleaner import ResourceCleaner
 from app.services.saga import SagaOrchestrator, create_saga_orchestrator
 from app.services.saga.saga_service import SagaService
 from app.services.saved_script_service import SavedScriptService
@@ -250,6 +251,14 @@ class KubernetesProvider(Provider):
             yield clients
         finally:
             close_k8s_clients(clients)
+
+
+class ResourceCleanerProvider(Provider):
+    scope = Scope.APP
+
+    @provide
+    def get_resource_cleaner(self, k8s_clients: K8sClients, logger: logging.Logger) -> ResourceCleaner:
+        return ResourceCleaner(k8s_clients=k8s_clients, logger=logger)
 
 
 class MetricsProvider(Provider):
@@ -499,7 +508,7 @@ class AdminServicesProvider(Provider):
         return AdminSettingsService(admin_settings_repository, logger)
 
     @provide
-    def get_notification_service(
+    async def get_notification_service(
             self,
             notification_repository: NotificationRepository,
             kafka_event_service: KafkaEventService,
@@ -510,7 +519,7 @@ class AdminServicesProvider(Provider):
             logger: logging.Logger,
             notification_metrics: NotificationMetrics,
             event_metrics: EventMetrics,
-    ) -> NotificationService:
+    ) -> AsyncIterator[NotificationService]:
         service = NotificationService(
             notification_repository=notification_repository,
             event_service=kafka_event_service,
@@ -522,8 +531,8 @@ class AdminServicesProvider(Provider):
             notification_metrics=notification_metrics,
             event_metrics=event_metrics,
         )
-        service.initialize()
-        return service
+        async with service:
+            yield service
 
     @provide
     def get_grafana_alert_processor(
@@ -535,7 +544,12 @@ class AdminServicesProvider(Provider):
 
 
 def _create_default_saga_config() -> SagaConfig:
-    """Factory for default SagaConfig used by orchestrators."""
+    """Factory for default SagaConfig used by orchestrators.
+
+    Note: publish_commands=False because the coordinator worker handles
+    publishing CreatePodCommand events. The saga orchestrator tracks state
+    and handles completion events without duplicating command publishing.
+    """
     return SagaConfig(
         name="main-orchestrator",
         timeout_seconds=300,
@@ -543,7 +557,7 @@ def _create_default_saga_config() -> SagaConfig:
         retry_delay_seconds=5,
         enable_compensation=True,
         store_events=True,
-        publish_commands=True,
+        publish_commands=False,
     )
 
 
@@ -650,21 +664,12 @@ class BusinessServicesProvider(Provider):
         return SavedScriptService(saved_script_repository, logger)
 
     @provide
-    async def get_replay_service(
+    def get_replay_service(
             self,
             replay_repository: ReplayRepository,
-            kafka_producer: UnifiedProducer,
-            event_store: EventStore,
-            settings: Settings,
+            event_replay_service: EventReplayService,
             logger: logging.Logger,
     ) -> ReplayService:
-        event_replay_service = EventReplayService(
-            repository=replay_repository,
-            producer=kafka_producer,
-            event_store=event_store,
-            settings=settings,
-            logger=logger,
-        )
         return ReplayService(replay_repository, event_replay_service, logger)
 
     @provide

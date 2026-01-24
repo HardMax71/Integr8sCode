@@ -34,6 +34,7 @@ class UserSettingsRepository:
         since: datetime | None = None,
         until: datetime | None = None,
         limit: int | None = None,
+        sort_order: SortDirection = SortDirection.ASCENDING,
     ) -> list[DomainUserSettingsChangedEvent]:
         aggregate_id = f"user_settings_{user_id}"
         conditions = [
@@ -44,7 +45,7 @@ class UserSettingsRepository:
         ]
         conditions = [c for c in conditions if c is not None]
 
-        find_query = EventDocument.find(*conditions).sort([("timestamp", SortDirection.ASCENDING)])
+        find_query = EventDocument.find(*conditions).sort([("timestamp", sort_order)])
         if limit:
             find_query = find_query.limit(limit)
 

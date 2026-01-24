@@ -18,7 +18,7 @@ from app.services.saga.saga_orchestrator import SagaOrchestrator
 from app.services.saga.saga_step import CompensationStep, SagaContext, SagaStep
 from app.settings import Settings
 
-from tests.helpers import make_execution_requested_event
+from tests.conftest import make_execution_requested_event
 
 pytestmark = pytest.mark.unit
 

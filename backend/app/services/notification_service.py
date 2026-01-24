@@ -2,14 +2,13 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from enum import auto
 from typing import Awaitable, Callable
 
 import httpx
 
+from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics import EventMetrics, NotificationMetrics
 from app.core.tracing.utils import add_span_attributes
-from app.core.utils import StringEnum
 from app.db.repositories.notification_repository import NotificationRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import GroupId
@@ -54,16 +53,6 @@ type NotificationContext = dict[str, object]
 type ChannelHandler = Callable[[DomainNotification, DomainNotificationSubscription], Awaitable[None]]
 type SystemNotificationStats = dict[str, int]
 type SlackMessage = dict[str, object]
-
-
-class ServiceState(StringEnum):
-    """Service lifecycle states."""
-
-    IDLE = auto()
-    INITIALIZING = auto()
-    RUNNING = auto()
-    STOPPING = auto()
-    STOPPED = auto()
 
 
 @dataclass
@@ -112,7 +101,7 @@ class SystemConfig:
     throttle_exempt: bool
 
 
-class NotificationService:
+class NotificationService(LifecycleEnabled):
     def __init__(
         self,
         notification_repository: NotificationRepository,
@@ -125,6 +114,7 @@ class NotificationService:
         notification_metrics: NotificationMetrics,
         event_metrics: EventMetrics,
     ) -> None:
+        super().__init__()
         self.repository = notification_repository
         self.event_service = event_service
         self.event_bus_manager = event_bus_manager
@@ -136,7 +126,6 @@ class NotificationService:
         self.logger = logger
 
         # State
-        self._state = ServiceState.IDLE
         self._throttle_cache = ThrottleCache()
 
         # Tasks
@@ -162,30 +151,16 @@ class NotificationService:
             NotificationChannel.SLACK: self._send_slack,
         }
 
-    @property
-    def state(self) -> ServiceState:
-        return self._state
-
-    def initialize(self) -> None:
-        if self._state != ServiceState.IDLE:
-            self.logger.warning(f"Cannot initialize in state: {self._state}")
-            return
-
-        self._state = ServiceState.INITIALIZING
-
-        # Start processors
-        self._state = ServiceState.RUNNING
+    async def _on_start(self) -> None:
+        """Start the notification service with Kafka consumer."""
+        self.logger.info("Starting notification service...")
         self._start_background_tasks()
+        await self._subscribe_to_events()
+        self.logger.info("Notification service started with Kafka consumer")
 
-        self.logger.info("Notification service initialized (without Kafka consumer)")
-
-    async def shutdown(self) -> None:
-        """Shutdown notification service."""
-        if self._state == ServiceState.STOPPED:
-            return
-
-        self.logger.info("Shutting down notification service...")
-        self._state = ServiceState.STOPPING
+    async def _on_stop(self) -> None:
+        """Stop the notification service."""
+        self.logger.info("Stopping notification service...")
 
         # Cancel all tasks
         for task in self._tasks:
@@ -202,7 +177,6 @@ class NotificationService:
         # Clear cache
         await self._throttle_cache.clear()
 
-        self._state = ServiceState.STOPPED
         self.logger.info("Notification service stopped")
 
     def _start_background_tasks(self) -> None:
@@ -221,7 +195,7 @@ class NotificationService:
         # Configure consumer for notification-relevant events
         consumer_config = ConsumerConfig(
             bootstrap_servers=self.settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=f"{GroupId.NOTIFICATION_SERVICE}.{self.settings.KAFKA_GROUP_SUFFIX}",
+            group_id=GroupId.NOTIFICATION_SERVICE,
             max_poll_records=10,
             enable_auto_commit=True,
             auto_offset_reset="latest",
@@ -395,7 +369,7 @@ class NotificationService:
         target_users: list[str] | None,
         target_roles: list[UserRole] | None,
     ) -> list[str]:
-        if target_users:
+        if target_users is not None:
             return target_users
         if target_roles:
             return await self.repository.get_users_by_roles(target_roles)
@@ -557,7 +531,7 @@ class NotificationService:
 
     async def _process_pending_notifications(self) -> None:
         """Process pending notifications in background."""
-        while self._state == ServiceState.RUNNING:
+        while self.is_running:
             try:
                 # Find pending notifications
                 notifications = await self.repository.find_pending_notifications(
@@ -566,7 +540,7 @@ class NotificationService:
 
                 # Process each notification
                 for notification in notifications:
-                    if self._state != ServiceState.RUNNING:
+                    if not self.is_running:
                         break
                     await self._deliver_notification(notification)
 
@@ -579,12 +553,12 @@ class NotificationService:
 
     async def _cleanup_old_notifications(self) -> None:
         """Cleanup old notifications periodically."""
-        while self._state == ServiceState.RUNNING:
+        while self.is_running:
             try:
                 # Run cleanup once per day
                 await asyncio.sleep(86400)  # 24 hours
 
-                if self._state != ServiceState.RUNNING:
+                if not self.is_running:
                     break
 
                 # Delete old notifications
@@ -597,7 +571,7 @@ class NotificationService:
 
     async def _run_consumer(self) -> None:
         """Run the event consumer loop."""
-        while self._state == ServiceState.RUNNING:
+        while self.is_running:
             try:
                 # Consumer handles polling internally
                 await asyncio.sleep(1)
@@ -733,7 +707,14 @@ class NotificationService:
 
         # Get counts
         total, unread_count = await asyncio.gather(
-            self.repository.count_notifications(user_id, {"status": status}), self.get_unread_count(user_id)
+            self.repository.count_notifications(
+                user_id=user_id,
+                status=status,
+                include_tags=include_tags,
+                exclude_tags=exclude_tags,
+                tag_prefix=tag_prefix,
+            ),
+            self.get_unread_count(user_id),
         )
 
         return DomainNotificationListResult(notifications=notifications, total=total, unread_count=unread_count)

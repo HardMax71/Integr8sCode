@@ -1,6 +1,5 @@
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import Any
 
 from beanie.odm.enums import SortDirection
 from beanie.operators import GTE, LT, LTE, ElemMatch, In, NotIn, Or
@@ -103,8 +102,22 @@ class NotificationRepository:
         )
         return [DomainNotification.model_validate(doc, from_attributes=True) for doc in docs]
 
-    async def count_notifications(self, user_id: str, *additional_conditions: Any) -> int:
-        conditions = [NotificationDocument.user_id == user_id, *additional_conditions]
+    async def count_notifications(
+        self,
+        user_id: str,
+        status: NotificationStatus | None = None,
+        include_tags: list[str] | None = None,
+        exclude_tags: list[str] | None = None,
+        tag_prefix: str | None = None,
+    ) -> int:
+        conditions = [
+            NotificationDocument.user_id == user_id,
+            NotificationDocument.status == status if status else None,
+            In(NotificationDocument.tags, include_tags) if include_tags else None,
+            NotIn(NotificationDocument.tags, exclude_tags) if exclude_tags else None,
+            ElemMatch(NotificationDocument.tags, {"$regex": f"^{tag_prefix}"}) if tag_prefix else None,
+        ]
+        conditions = [c for c in conditions if c is not None]
         return await NotificationDocument.find(*conditions).count()
 
     async def get_unread_count(self, user_id: str) -> int:

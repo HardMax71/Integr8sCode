@@ -102,12 +102,20 @@ class SagaService:
         # Non-admin users can only see their own sagas
         if user.role != UserRole.ADMIN:
             user_execution_ids = await self.saga_repo.get_user_execution_ids(user.user_id)
+            # If user has no executions, return empty result immediately
+            # (empty list would bypass the filter in repository)
+            if not user_execution_ids:
+                self.logger.debug(
+                    "User has no executions, returning empty saga list",
+                    extra={"user_id": user.user_id},
+                )
+                return SagaListResult(sagas=[], total=0, skip=skip, limit=limit)
             saga_filter.execution_ids = user_execution_ids
             self.logger.debug(
                 "Filtering sagas for user",
                 extra={
                     "user_id": user.user_id,
-                    "execution_count": len(user_execution_ids) if user_execution_ids else 0,
+                    "execution_count": len(user_execution_ids),
                 },
             )
 

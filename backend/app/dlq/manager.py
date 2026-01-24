@@ -453,7 +453,7 @@ def create_dlq_manager(
     consumer = AIOKafkaConsumer(
         topic_name,
         bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-        group_id=f"{GroupId.DLQ_MANAGER}.{settings.KAFKA_GROUP_SUFFIX}",
+        group_id=GroupId.DLQ_MANAGER,
         enable_auto_commit=False,
         auto_offset_reset="earliest",
         client_id="dlq-manager-consumer",

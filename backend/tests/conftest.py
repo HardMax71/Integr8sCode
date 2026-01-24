@@ -1,7 +1,6 @@
-import asyncio
 import os
 import uuid
-from contextlib import asynccontextmanager
+from collections.abc import Iterable
 from typing import AsyncGenerator
 
 import httpx
@@ -9,72 +8,30 @@ import pytest
 import pytest_asyncio
 import redis.asyncio as redis
 from app.core.database_context import Database
+from app.domain.events.typed import EventMetadata, ExecutionRequestedEvent
 from app.main import create_app
 from app.settings import Settings
 from dishka import AsyncContainer
 from fastapi import FastAPI
 from httpx import ASGITransport
-from scripts.create_topics import create_topics
-
-# ===== Worker-specific isolation for pytest-xdist =====
-# Supports both xdist workers AND multiple independent pytest processes.
-#
-# TEST_RUN_ID: Unique identifier for this pytest process (set by CI or auto-generated).
-#              Allows running backend-integration, backend-e2e, frontend-e2e in parallel.
-# PYTEST_XDIST_WORKER: Worker ID within a single pytest-xdist run (gw0, gw1, etc.)
-#
-# Combined, these give full isolation: each test worker in each pytest process is unique.
-_RUN_ID = os.environ.get("TEST_RUN_ID") or uuid.uuid4().hex[:8]
-_WORKER_ID = os.environ.get("PYTEST_XDIST_WORKER", "gw0")
-_WORKER_NUM = int(_WORKER_ID.removeprefix("gw") or "0")
-_ISOLATION_KEY = f"{_RUN_ID}_{_WORKER_ID}"
 
 
-# ===== Pytest hooks =====
-@pytest.hookimpl(trylast=True)
-def pytest_configure() -> None:
-    """Create Kafka topics once in master process before xdist workers spawn."""
-    # PYTEST_XDIST_WORKER is only set in workers, not master
-    if os.environ.get("PYTEST_XDIST_WORKER"):
-        return
-    try:
-        asyncio.run(create_topics(Settings(_env_file=".env.test")))
-    except Exception:
-        pass  # Kafka unavailable (unit tests)
+def _get_worker_num() -> int:
+    """Get numeric pytest-xdist worker ID for Redis DB selection (0-15)."""
+    wid = os.environ.get("PYTEST_XDIST_WORKER", "main")
+    return 0 if wid == "main" else int(wid.removeprefix("gw"))
 
 
-# ===== Settings fixture =====
 @pytest.fixture(scope="session")
 def test_settings() -> Settings:
-    """Provide test settings with per-worker isolation where needed.
+    """Test settings with per-worker Redis DB isolation.
 
-    Uses pydantic-settings _env_file parameter to load .env.test at instantiation,
-    overriding the class-level default of .env.
-
-    What gets isolated per worker (to prevent interference):
-      - DATABASE_NAME: Each worker gets its own MongoDB database
-      - REDIS_DB: Each worker gets its own Redis database (0-15, hash-distributed)
-      - KAFKA_GROUP_SUFFIX: Each worker gets unique consumer groups
-
-    What's SHARED (from env, no per-worker suffix):
-      - KAFKA_TOPIC_PREFIX: Topics created once by CI/scripts
-      - SCHEMA_SUBJECT_PREFIX: Schemas shared across workers
-
-    Isolation works across:
-      - xdist workers within a single pytest process (gw0, gw1, ...)
-      - Multiple independent pytest processes (via TEST_RUN_ID or auto-UUID)
+    - MongoDB: Shared database, tests use UUIDs for entity isolation
+    - Kafka: Tests with consumers use xdist_group markers for serial execution
+    - Redis: Per-worker DB number (0-15) to avoid key collisions
     """
     base = Settings(_env_file=".env.test")
-    # Deterministic Redis DB: worker number + ASCII sum of RUN_ID (no hash randomization)
-    redis_db = (_WORKER_NUM + sum(ord(c) for c in _RUN_ID)) % 16
-    return base.model_copy(
-        update={
-            # Per-worker isolation - uses _ISOLATION_KEY which includes RUN_ID + WORKER_ID
-            "DATABASE_NAME": f"integr8scode_test_{_ISOLATION_KEY}",
-            "REDIS_DB": redis_db,
-            "KAFKA_GROUP_SUFFIX": _ISOLATION_KEY,
-        }
-    )
+    return base.model_copy(update={"REDIS_DB": _get_worker_num() % 16})
 
 
 # ===== App fixture =====
@@ -88,25 +45,14 @@ async def app(test_settings: Settings) -> AsyncGenerator[FastAPI, None]:
     Uses lifespan_context to trigger startup/shutdown events, which initializes
     Beanie, metrics, and other services through the normal DI flow.
 
-    Cleanup: Best-effort drop of test database. May not always succeed due to
-    known MongoDB driver behavior when client stays connected, but ulimits on
-    MongoDB container (65536) prevent file descriptor exhaustion regardless.
+    Note: Database is shared across all tests and workers. Tests use unique IDs
+    so they don't conflict. Periodic cleanup of stale test data can be done
+    outside of tests if needed.
     """
     application = create_app(settings=test_settings)
 
     async with application.router.lifespan_context(application):
         yield application
-        # Best-effort cleanup (may fail silently due to MongoDB driver behavior)
-        container: AsyncContainer = application.state.dishka_container
-        db: Database = await container.get(Database)
-        await db.client.drop_database(test_settings.DATABASE_NAME)
-
-
-@pytest_asyncio.fixture(scope="session")
-async def app_container(app: FastAPI) -> AsyncContainer:
-    """Expose the Dishka container attached to the app."""
-    container: AsyncContainer = app.state.dishka_container
-    return container
 
 
 @pytest_asyncio.fixture
@@ -121,15 +67,11 @@ async def client(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
         yield c
 
 
-@asynccontextmanager
-async def _container_scope(container: AsyncContainer) -> AsyncGenerator[AsyncContainer, None]:
-    async with container() as scope:
-        yield scope
-
-
 @pytest_asyncio.fixture
-async def scope(app_container: AsyncContainer) -> AsyncGenerator[AsyncContainer, None]:
-    async with _container_scope(app_container) as s:
+async def scope(app: FastAPI) -> AsyncGenerator[AsyncContainer, None]:
+    """Create a Dishka scope for resolving dependencies in tests."""
+    container: AsyncContainer = app.state.dishka_container
+    async with container() as s:
         yield s
 
 
@@ -235,3 +177,52 @@ async def another_user(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
     )
     yield c
     await c.aclose()
+
+
+# ===== Event factories =====
+
+
+def make_execution_requested_event(
+    *,
+    execution_id: str | None = None,
+    script: str = "print('hello')",
+    language: str = "python",
+    language_version: str = "3.11",
+    runtime_image: str = "python:3.11-slim",
+    runtime_command: Iterable[str] = ("python",),
+    runtime_filename: str = "main.py",
+    timeout_seconds: int = 5,
+    cpu_limit: str = "100m",
+    memory_limit: str = "128Mi",
+    cpu_request: str = "50m",
+    memory_request: str = "64Mi",
+    priority: int = 5,
+    service_name: str = "tests",
+    service_version: str = "1.0.0",
+    user_id: str | None = None,
+) -> ExecutionRequestedEvent:
+    """Factory for ExecutionRequestedEvent with sensible defaults.
+
+    Override any field via keyword args. If no execution_id is provided, a random one is generated.
+    """
+    if execution_id is None:
+        execution_id = f"exec-{uuid.uuid4().hex[:8]}"
+
+    metadata = EventMetadata(service_name=service_name, service_version=service_version, user_id=user_id)
+    return ExecutionRequestedEvent(
+        execution_id=execution_id,
+        aggregate_id=execution_id,  # Match production: aggregate_id == execution_id for execution events
+        script=script,
+        language=language,
+        language_version=language_version,
+        runtime_image=runtime_image,
+        runtime_command=list(runtime_command),
+        runtime_filename=runtime_filename,
+        timeout_seconds=timeout_seconds,
+        cpu_limit=cpu_limit,
+        memory_limit=memory_limit,
+        cpu_request=cpu_request,
+        memory_request=memory_request,
+        priority=priority,
+        metadata=metadata,
+    )

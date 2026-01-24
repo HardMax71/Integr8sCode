@@ -63,11 +63,10 @@ class SSEKafkaRedisBridge(LifecycleEnabled):
 
     def _build_consumer(self, consumer_index: int) -> UnifiedConsumer:
         """Build a consumer instance without starting it."""
-        suffix = self.settings.KAFKA_GROUP_SUFFIX
         config = ConsumerConfig(
             bootstrap_servers=self.settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=f"sse-bridge-pool.{suffix}",
-            client_id=f"sse-bridge-{consumer_index}.{suffix}",
+            group_id="sse-bridge-pool",
+            client_id=f"sse-bridge-{consumer_index}",
             enable_auto_commit=True,
             auto_offset_reset="latest",
             max_poll_interval_ms=self.settings.KAFKA_MAX_POLL_INTERVAL_MS,

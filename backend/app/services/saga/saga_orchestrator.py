@@ -224,8 +224,14 @@ class SagaOrchestrator(LifecycleEnabled):
             self.logger.info(f"Marking saga {saga.saga_id} as COMPLETED due to execution completion")
             saga.state = SagaState.COMPLETED
             saga.completed_at = datetime.now(UTC)
+        elif event.event_type == EventType.EXECUTION_TIMEOUT:
+            timeout_seconds = getattr(event, "timeout_seconds", None)
+            self.logger.info(f"Marking saga {saga.saga_id} as TIMEOUT after {timeout_seconds}s")
+            saga.state = SagaState.TIMEOUT
+            saga.error_message = f"Execution timed out after {timeout_seconds} seconds"
+            saga.completed_at = datetime.now(UTC)
         else:
-            # EXECUTION_FAILED or EXECUTION_TIMEOUT
+            # EXECUTION_FAILED
             error_msg = getattr(event, "error_message", None) or f"Execution {event.event_type}"
             self.logger.info(f"Marking saga {saga.saga_id} as FAILED: {error_msg}")
             saga.state = SagaState.FAILED

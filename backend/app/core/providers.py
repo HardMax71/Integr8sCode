@@ -544,7 +544,12 @@ class AdminServicesProvider(Provider):
 
 
 def _create_default_saga_config() -> SagaConfig:
-    """Factory for default SagaConfig used by orchestrators."""
+    """Factory for default SagaConfig used by orchestrators.
+
+    Note: publish_commands=False because the coordinator worker handles
+    publishing CreatePodCommand events. The saga orchestrator tracks state
+    and handles completion events without duplicating command publishing.
+    """
     return SagaConfig(
         name="main-orchestrator",
         timeout_seconds=300,
@@ -552,7 +557,7 @@ def _create_default_saga_config() -> SagaConfig:
         retry_delay_seconds=5,
         enable_compensation=True,
         store_events=True,
-        publish_commands=True,
+        publish_commands=False,
     )
 
 

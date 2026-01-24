@@ -208,10 +208,10 @@ class SagaOrchestrator(LifecycleEnabled):
             self.logger.warning(f"Completion event {event.event_type} has no execution_id")
             return
 
-        # Find saga by execution_id
-        saga = await self._repo.get_saga_by_execution_id(execution_id)
+        # Find the execution saga specifically (not other saga types)
+        saga = await self._repo.get_saga_by_execution_and_name(execution_id, ExecutionSaga.get_name())
         if not saga:
-            self.logger.debug(f"No saga found for execution {execution_id}")
+            self.logger.debug(f"No execution_saga found for execution {execution_id}")
             return
 
         # Only update if saga is still in a running state
@@ -359,7 +359,7 @@ class SagaOrchestrator(LifecycleEnabled):
 
             # All steps completed successfully
             # Execution saga waits for external completion events (EXECUTION_COMPLETED/FAILED)
-            if instance.saga_name == "execution_saga":
+            if instance.saga_name == ExecutionSaga.get_name():
                 self.logger.info(f"Saga {instance.saga_id} steps done, waiting for execution completion event")
             else:
                 await self._complete_saga(instance)

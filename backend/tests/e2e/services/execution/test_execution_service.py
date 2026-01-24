@@ -26,7 +26,7 @@ class TestGetResourceLimits:
         assert limits.cpu_request is not None
         assert limits.memory_request is not None
         assert limits.execution_timeout > 0
-        assert isinstance(limits.supported_runtimes, list)
+        assert isinstance(limits.supported_runtimes, dict)
         assert "python" in limits.supported_runtimes
 
 
@@ -364,11 +364,11 @@ class TestDeleteExecution:
     async def test_delete_nonexistent_execution(
         self, scope: AsyncContainer
     ) -> None:
-        """Delete nonexistent execution returns False."""
+        """Delete nonexistent execution raises error."""
         svc: ExecutionService = await scope.get(ExecutionService)
 
-        deleted = await svc.delete_execution("nonexistent-id")
-        assert deleted is False
+        with pytest.raises(ExecutionNotFoundError):
+            await svc.delete_execution("nonexistent-id")
 
 
 class TestGetExecutionStats:
@@ -395,5 +395,7 @@ class TestGetExecutionStats:
         stats = await svc.get_execution_stats(user_id=user_id)
 
         assert isinstance(stats, dict)
-        assert "total_executions" in stats
-        assert stats["total_executions"] >= 2
+        assert "total" in stats
+        assert stats["total"] >= 2
+        assert "by_status" in stats
+        assert "by_language" in stats

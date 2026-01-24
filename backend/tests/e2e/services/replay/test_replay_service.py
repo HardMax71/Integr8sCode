@@ -132,12 +132,11 @@ class TestGetSession:
 
     @pytest.mark.asyncio
     async def test_get_session_not_found(self, scope: AsyncContainer) -> None:
-        """Get nonexistent session returns None."""
+        """Get nonexistent session raises error."""
         svc: ReplayService = await scope.get(ReplayService)
 
-        session = svc.get_session("nonexistent-session-id")
-
-        assert session is None
+        with pytest.raises(ReplaySessionNotFoundError):
+            svc.get_session("nonexistent-session-id")
 
 
 class TestCancelSession:

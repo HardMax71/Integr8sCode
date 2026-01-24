@@ -64,10 +64,10 @@ class TestGetStatus:
         status = await coord.get_status()
 
         assert isinstance(status, dict)
-        assert "is_running" in status
+        assert "running" in status
         assert "active_executions" in status
-        assert "queue_size" in status
-        assert "total_processed" in status
+        assert "queue_stats" in status
+        assert "resource_stats" in status
 
     @pytest.mark.asyncio
     async def test_get_status_tracks_active_executions(
@@ -98,8 +98,8 @@ class TestQueueManager:
         coord: ExecutionCoordinator = await scope.get(ExecutionCoordinator)
 
         assert coord.queue_manager is not None
-        assert hasattr(coord.queue_manager, "enqueue")
-        assert hasattr(coord.queue_manager, "dequeue")
+        assert hasattr(coord.queue_manager, "add_execution")
+        assert hasattr(coord.queue_manager, "get_next_execution")
 
 
 class TestResourceManager:
@@ -113,8 +113,8 @@ class TestResourceManager:
         coord: ExecutionCoordinator = await scope.get(ExecutionCoordinator)
 
         assert coord.resource_manager is not None
-        assert hasattr(coord.resource_manager, "allocate")
-        assert hasattr(coord.resource_manager, "release")
+        assert hasattr(coord.resource_manager, "request_allocation")
+        assert hasattr(coord.resource_manager, "release_allocation")
 
     @pytest.mark.asyncio
     async def test_resource_manager_has_pool(

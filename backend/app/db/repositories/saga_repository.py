@@ -43,6 +43,11 @@ class SagaRepository:
         )
         return Saga.model_validate(doc, from_attributes=True) if doc else None
 
+    async def get_saga_by_execution_id(self, execution_id: str) -> Saga | None:
+        """Get the first saga for an execution (typically there's only one)."""
+        doc = await SagaDocument.find_one(SagaDocument.execution_id == execution_id)
+        return Saga.model_validate(doc, from_attributes=True) if doc else None
+
     async def get_saga(self, saga_id: str) -> Saga | None:
         doc = await SagaDocument.find_one(SagaDocument.saga_id == saga_id)
         return Saga.model_validate(doc, from_attributes=True) if doc else None

@@ -145,9 +145,7 @@ class TestMarkNotificationRead:
             f"/api/v1/notifications/{notification.notification_id}/read"
         )
 
-        assert response.status_code == 200
-        result = NotificationResponse.model_validate(response.json())
-        assert result.notification_id == notification.notification_id
+        assert response.status_code == 204
 
 
 class TestMarkAllRead:

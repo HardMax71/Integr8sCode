@@ -107,9 +107,13 @@ class EventRepository:
         return [domain_event_adapter.validate_python(d, from_attributes=True) for d in docs]
 
     async def get_events_by_correlation(self, correlation_id: str, limit: int = 100, skip: int = 0) -> EventListResult:
-        query = EventDocument.find(EventDocument.metadata.correlation_id == correlation_id)
-        total_count = await query.count()
-        docs = await query.sort([("timestamp", SortDirection.ASCENDING)]).skip(skip).limit(limit).to_list()
+        condition = EventDocument.metadata.correlation_id == correlation_id
+        total_count = await EventDocument.find(condition).count()
+        docs = (
+            await EventDocument.find(condition)
+            .sort([("timestamp", SortDirection.ASCENDING)])
+            .skip(skip).limit(limit).to_list()
+        )
         events = [domain_event_adapter.validate_python(d, from_attributes=True) for d in docs]
         return EventListResult(
             events=events,
@@ -154,9 +158,13 @@ class EventRepository:
             Not(RegEx(EventDocument.metadata.service_name, "^system-")) if exclude_system_events else None,
         ]
         conditions = [c for c in conditions if c is not None]
-        query = EventDocument.find(*conditions)
-        total_count = await query.count()
-        docs = await query.sort([("timestamp", SortDirection.ASCENDING)]).skip(skip).limit(limit).to_list()
+        # Use separate queries for count and fetch to avoid Beanie query object mutation issues
+        total_count = await EventDocument.find(*conditions).count()
+        docs = (
+            await EventDocument.find(*conditions)
+            .sort([("timestamp", SortDirection.ASCENDING)])
+            .skip(skip).limit(limit).to_list()
+        )
         events = [domain_event_adapter.validate_python(d, from_attributes=True) for d in docs]
         return EventListResult(
             events=events,
@@ -276,10 +284,14 @@ class EventRepository:
         ]
         conditions = [c for c in conditions if c is not None]
 
-        query = EventDocument.find(*conditions)
-        total_count = await query.count()
+        # Use separate queries for count and fetch to avoid Beanie query object mutation issues
+        total_count = await EventDocument.find(*conditions).count()
         sort_direction = SortDirection.DESCENDING if sort_order == "desc" else SortDirection.ASCENDING
-        docs = await query.sort([("timestamp", sort_direction)]).skip(skip).limit(limit).to_list()
+        docs = (
+            await EventDocument.find(*conditions)
+            .sort([("timestamp", sort_direction)])
+            .skip(skip).limit(limit).to_list()
+        )
         events = [domain_event_adapter.validate_python(d, from_attributes=True) for d in docs]
         return EventListResult(
             events=events,

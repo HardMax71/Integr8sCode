@@ -40,7 +40,8 @@ class TestCreateReplaySession:
         result = ReplayResponse.model_validate(response.json())
 
         assert result.session_id is not None
-        assert result.status in list(ReplayStatus)
+        # Newly created session has CREATED status
+        assert result.status == ReplayStatus.CREATED
         assert result.message is not None
 
     @pytest.mark.asyncio
@@ -131,24 +132,18 @@ class TestStartReplaySession:
         create_response = await test_admin.post(
             "/api/v1/replay/sessions", json=request.model_dump()
         )
+        assert create_response.status_code == 200
+        session = ReplayResponse.model_validate(create_response.json())
 
-        if create_response.status_code == 200:
-            session = ReplayResponse.model_validate(create_response.json())
-
-            # Start session
-            response = await test_admin.post(
-                f"/api/v1/replay/sessions/{session.session_id}/start"
-            )
-
-            # May be 200 or error depending on session state
-            if response.status_code == 200:
-                result = ReplayResponse.model_validate(response.json())
-                assert result.session_id == session.session_id
-                assert result.status in [
-                    ReplayStatus.RUNNING,
-                    ReplayStatus.COMPLETED,
-                    ReplayStatus.FAILED,
-                ]
+        # Start session
+        response = await test_admin.post(
+            f"/api/v1/replay/sessions/{session.session_id}/start"
+        )
+        assert response.status_code == 200
+        result = ReplayResponse.model_validate(response.json())
+        assert result.session_id == session.session_id
+        # After starting, session transitions to RUNNING
+        assert result.status == ReplayStatus.RUNNING
 
     @pytest.mark.asyncio
     async def test_start_nonexistent_session(
@@ -178,24 +173,23 @@ class TestPauseReplaySession:
         create_response = await test_admin.post(
             "/api/v1/replay/sessions", json=request.model_dump()
         )
+        assert create_response.status_code == 200
+        session = ReplayResponse.model_validate(create_response.json())
 
-        if create_response.status_code == 200:
-            session = ReplayResponse.model_validate(create_response.json())
+        # Start
+        start_response = await test_admin.post(
+            f"/api/v1/replay/sessions/{session.session_id}/start"
+        )
+        assert start_response.status_code == 200
 
-            # Start
-            await test_admin.post(
-                f"/api/v1/replay/sessions/{session.session_id}/start"
-            )
-
-            # Pause
-            response = await test_admin.post(
-                f"/api/v1/replay/sessions/{session.session_id}/pause"
-            )
-
-            # May succeed or fail depending on session state
-            if response.status_code == 200:
-                result = ReplayResponse.model_validate(response.json())
-                assert result.session_id == session.session_id
+        # Pause
+        response = await test_admin.post(
+            f"/api/v1/replay/sessions/{session.session_id}/pause"
+        )
+        assert response.status_code == 200
+        result = ReplayResponse.model_validate(response.json())
+        assert result.session_id == session.session_id
+        assert result.status == ReplayStatus.PAUSED
 
     @pytest.mark.asyncio
     async def test_pause_nonexistent_session(
@@ -262,22 +256,18 @@ class TestCancelReplaySession:
         create_response = await test_admin.post(
             "/api/v1/replay/sessions", json=request.model_dump()
         )
+        assert create_response.status_code == 200
+        session = ReplayResponse.model_validate(create_response.json())
 
-        if create_response.status_code == 200:
-            session = ReplayResponse.model_validate(create_response.json())
-
-            # Cancel
-            response = await test_admin.post(
-                f"/api/v1/replay/sessions/{session.session_id}/cancel"
-            )
-
-            if response.status_code == 200:
-                result = ReplayResponse.model_validate(response.json())
-                assert result.session_id == session.session_id
-                assert result.status in [
-                    ReplayStatus.CANCELLED,
-                    ReplayStatus.COMPLETED,
-                ]
+        # Cancel
+        response = await test_admin.post(
+            f"/api/v1/replay/sessions/{session.session_id}/cancel"
+        )
+        assert response.status_code == 200
+        result = ReplayResponse.model_validate(response.json())
+        assert result.session_id == session.session_id
+        # After cancelling, status is CANCELLED
+        assert result.status == ReplayStatus.CANCELLED
 
     @pytest.mark.asyncio
     async def test_cancel_nonexistent_session(
@@ -382,7 +372,8 @@ class TestGetReplaySession:
 
         assert session.session_id == created.session_id
         assert session.config is not None
-        assert session.status in list(ReplayStatus)
+        # We just created this session, so status is CREATED
+        assert session.status == ReplayStatus.CREATED
         assert session.total_events >= 0
         assert session.replayed_events >= 0
         assert session.failed_events >= 0

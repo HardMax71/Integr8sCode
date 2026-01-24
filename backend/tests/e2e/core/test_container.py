@@ -11,7 +11,7 @@ from app.services.notification_service import NotificationService
 from app.services.rate_limit_service import RateLimitService
 from app.services.replay_service import ReplayService
 from app.services.saved_script_service import SavedScriptService
-from app.services.user_service import UserService
+from app.services.admin import AdminUserService
 from app.services.user_settings_service import UserSettingsService
 from app.settings import Settings
 from dishka import AsyncContainer
@@ -105,11 +105,11 @@ class TestBusinessServices:
         assert isinstance(service, ExecutionService)
 
     @pytest.mark.asyncio
-    async def test_resolves_user_service(self, scope: AsyncContainer) -> None:
-        """Container resolves UserService."""
-        service = await scope.get(UserService)
+    async def test_resolves_admin_user_service(self, scope: AsyncContainer) -> None:
+        """Container resolves AdminUserService."""
+        service = await scope.get(AdminUserService)
 
-        assert isinstance(service, UserService)
+        assert isinstance(service, AdminUserService)
 
     @pytest.mark.asyncio
     async def test_resolves_saved_script_service(

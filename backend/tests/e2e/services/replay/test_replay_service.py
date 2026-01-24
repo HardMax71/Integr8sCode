@@ -27,11 +27,8 @@ class TestCreateSession:
         result = await svc.create_session_from_config(cfg)
 
         assert result.session_id is not None
-        assert result.status in [
-            ReplayStatus.CREATED,
-            ReplayStatus.RUNNING,
-            ReplayStatus.COMPLETED,
-        ]
+        # Newly created session has CREATED status
+        assert result.status == ReplayStatus.CREATED
         assert result.message is not None
 
     @pytest.mark.asyncio

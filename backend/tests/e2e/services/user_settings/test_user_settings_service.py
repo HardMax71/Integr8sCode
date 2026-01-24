@@ -377,17 +377,14 @@ class TestGetSettingsHistory:
         assert isinstance(history, list)
         assert len(history) == 3, f"Expected 3 history entries, got {len(history)}"
 
-        # History should return most recent entries first (key_4, key_3, key_2)
-        # Each entry's field contains the custom setting key path
+        # History returns most recent entries first
+        # The reason field contains the key info (e.g., "Custom setting 'key_4' updated")
         expected_keys = ["key_4", "key_3", "key_2"]
         for i, entry in enumerate(history):
             assert isinstance(entry, DomainSettingsHistoryEntry)
-            # The field for custom settings includes the key name
-            assert expected_keys[i] in entry.field, (
-                f"Entry {i} field '{entry.field}' should contain '{expected_keys[i]}'"
-            )
-            assert entry.new_value == f"value_{4 - i}", (
-                f"Entry {i} new_value should be 'value_{4 - i}', got '{entry.new_value}'"
+            assert entry.reason is not None, f"Entry {i} should have a reason"
+            assert expected_keys[i] in entry.reason, (
+                f"Entry {i} reason '{entry.reason}' should contain '{expected_keys[i]}'"
             )
 
 

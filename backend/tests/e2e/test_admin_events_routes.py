@@ -3,6 +3,7 @@ from typing import Any
 
 import pytest
 from app.domain.enums.events import EventType
+from app.domain.enums.replay import ReplayStatus
 from app.schemas_pydantic.admin_events import (
     EventBrowseRequest,
     EventBrowseResponse,
@@ -399,7 +400,7 @@ class TestReplayEvents:
         assert result.dry_run is True
         assert result.total_events >= 1
         assert result.replay_correlation_id is not None
-        assert result.status in ["preview", "completed", "scheduled"]
+        assert result.status == ReplayStatus.PREVIEW
 
     @pytest.mark.asyncio
     async def test_replay_events_no_events_found(
@@ -475,7 +476,8 @@ class TestGetReplayStatus:
         assert status_response.status_code == 200
         status = EventReplayStatusResponse.model_validate(status_response.json())
         assert status.session_id == replay_result.session_id
-        assert status.status in ["pending", "in_progress", "completed", "failed"]
+        # After scheduling a replay (dry_run=False), status is SCHEDULED
+        assert status.status == ReplayStatus.SCHEDULED
         assert status.total_events >= 1
         assert status.replayed_events >= 0
         assert status.progress_percentage >= 0.0

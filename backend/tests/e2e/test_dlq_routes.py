@@ -139,25 +139,24 @@ class TestGetDLQMessage:
             "/api/v1/dlq/messages",
             params={"limit": 1},
         )
+        assert list_response.status_code == 200
+        result = DLQMessagesResponse.model_validate(list_response.json())
 
-        if list_response.status_code == 200:
-            result = DLQMessagesResponse.model_validate(list_response.json())
-            if result.messages:
-                event_id = result.messages[0].event.event_id
+        if result.messages:
+            event_id = result.messages[0].event.event_id
 
-                # Get detail
-                response = await test_user.get(
-                    f"/api/v1/dlq/messages/{event_id}"
-                )
-
-                if response.status_code == 200:
-                    detail = DLQMessageDetail.model_validate(response.json())
-                    assert detail.event is not None
-                    assert detail.original_topic is not None
-                    assert detail.error is not None
-                    assert detail.retry_count >= 0
-                    assert detail.failed_at is not None
-                    assert detail.status is not None
+            # Get detail
+            response = await test_user.get(
+                f"/api/v1/dlq/messages/{event_id}"
+            )
+            assert response.status_code == 200
+            detail = DLQMessageDetail.model_validate(response.json())
+            assert detail.event is not None
+            assert detail.original_topic is not None
+            assert detail.error is not None
+            assert detail.retry_count >= 0
+            assert detail.failed_at is not None
+            assert detail.status is not None
 
 
 class TestRetryDLQMessages:
@@ -171,27 +170,26 @@ class TestRetryDLQMessages:
             "/api/v1/dlq/messages",
             params={"status": DLQMessageStatus.PENDING, "limit": 5},
         )
+        assert list_response.status_code == 200
+        result = DLQMessagesResponse.model_validate(list_response.json())
 
-        if list_response.status_code == 200:
-            result = DLQMessagesResponse.model_validate(list_response.json())
-            if result.messages:
-                event_ids = [msg.event.event_id for msg in result.messages[:2]]
+        if result.messages:
+            event_ids = [msg.event.event_id for msg in result.messages[:2]]
 
-                # Retry
-                response = await test_user.post(
-                    "/api/v1/dlq/retry",
-                    json={"event_ids": event_ids},
-                )
+            # Retry
+            response = await test_user.post(
+                "/api/v1/dlq/retry",
+                json={"event_ids": event_ids},
+            )
+            assert response.status_code == 200
+            retry_result = DLQBatchRetryResponse.model_validate(
+                response.json()
+            )
 
-                assert response.status_code == 200
-                retry_result = DLQBatchRetryResponse.model_validate(
-                    response.json()
-                )
-
-                assert retry_result.total >= 0
-                assert retry_result.successful >= 0
-                assert retry_result.failed >= 0
-                assert isinstance(retry_result.details, list)
+            assert retry_result.total >= 0
+            assert retry_result.successful >= 0
+            assert retry_result.failed >= 0
+            assert isinstance(retry_result.details, list)
 
     @pytest.mark.asyncio
     async def test_retry_dlq_messages_empty_list(
@@ -310,24 +308,23 @@ class TestDiscardDLQMessage:
             "/api/v1/dlq/messages",
             params={"limit": 1},
         )
+        assert list_response.status_code == 200
+        result = DLQMessagesResponse.model_validate(list_response.json())
 
-        if list_response.status_code == 200:
-            result = DLQMessagesResponse.model_validate(list_response.json())
-            if result.messages:
-                event_id = result.messages[0].event.event_id
+        if result.messages:
+            event_id = result.messages[0].event.event_id
 
-                # Discard
-                response = await test_user.delete(
-                    f"/api/v1/dlq/messages/{event_id}",
-                    params={"reason": "Test discard for E2E testing"},
-                )
-
-                if response.status_code == 200:
-                    msg_result = MessageResponse.model_validate(
-                        response.json()
-                    )
-                    assert event_id in msg_result.message
-                    assert "discarded" in msg_result.message.lower()
+            # Discard
+            response = await test_user.delete(
+                f"/api/v1/dlq/messages/{event_id}",
+                params={"reason": "Test discard for E2E testing"},
+            )
+            assert response.status_code == 200
+            msg_result = MessageResponse.model_validate(
+                response.json()
+            )
+            assert event_id in msg_result.message
+            assert "discarded" in msg_result.message.lower()
 
     @pytest.mark.asyncio
     async def test_discard_dlq_message_requires_reason(

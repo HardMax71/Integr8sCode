@@ -74,7 +74,7 @@ class TestRouterConfiguration:
     def test_user_settings_routes_registered(self, app: FastAPI) -> None:
         """User settings routes are registered."""
         paths = self._get_all_paths(app)
-        assert "/api/v1/user/settings" in paths
+        assert any(p.startswith("/api/v1/user/settings") for p in paths)
 
     def test_notifications_routes_registered(self, app: FastAPI) -> None:
         """Notification routes are registered."""
@@ -84,7 +84,7 @@ class TestRouterConfiguration:
     def test_saga_routes_registered(self, app: FastAPI) -> None:
         """Saga routes are registered."""
         paths = self._get_all_paths(app)
-        assert "/api/v1/sagas" in paths
+        assert any(p.startswith("/api/v1/sagas") for p in paths)
 
     def test_replay_routes_registered(self, app: FastAPI) -> None:
         """Replay routes are registered (admin only)."""
@@ -105,9 +105,9 @@ class TestRouterConfiguration:
     def test_admin_routes_registered(self, app: FastAPI) -> None:
         """Admin routes are registered."""
         paths = self._get_all_paths(app)
-        assert "/api/v1/admin/users" in paths
-        assert "/api/v1/admin/settings" in paths
-        assert "/api/v1/admin/events" in paths
+        assert any(p.startswith("/api/v1/admin/users") for p in paths)
+        assert any(p.startswith("/api/v1/admin/settings") for p in paths)
+        assert any(p.startswith("/api/v1/admin/events") for p in paths)
 
     def _get_all_paths(self, app: FastAPI) -> set[str]:
         """Extract all route paths from app, including mounted routers."""

@@ -210,6 +210,10 @@ class TestExportEventsCSV:
         assert "attachment" in content_disposition
         assert ".csv" in content_disposition
 
+        # Verify CSV structure - header line should be present
+        body_csv = response.text
+        assert "Event ID" in body_csv and "Timestamp" in body_csv
+
     @pytest.mark.asyncio
     async def test_export_events_csv_with_filters(
         self, test_admin: AsyncClient
@@ -248,6 +252,12 @@ class TestExportEventsJSON:
         content_disposition = response.headers.get("content-disposition", "")
         assert "attachment" in content_disposition
         assert ".json" in content_disposition
+
+        # Verify JSON structure
+        data = response.json()
+        assert "export_metadata" in data and "events" in data
+        assert isinstance(data["events"], list)
+        assert "exported_at" in data["export_metadata"]
 
     @pytest.mark.asyncio
     async def test_export_events_json_with_filters(

@@ -125,7 +125,8 @@ class TestCreateUser:
         )
 
         assert response.status_code == 200
-        user = UserResponse.model_validate(response.json())
+        raw_data = response.json()
+        user = UserResponse.model_validate(raw_data)
 
         assert user.user_id is not None
         assert user.username == request.username
@@ -134,6 +135,10 @@ class TestCreateUser:
         assert user.is_active is True
         assert user.created_at is not None
         assert user.updated_at is not None
+
+        # Security: password must not be exposed in response
+        assert "password" not in raw_data
+        assert "hashed_password" not in raw_data
 
     @pytest.mark.asyncio
     async def test_create_admin_user(self, test_admin: AsyncClient) -> None:

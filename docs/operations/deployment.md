@@ -119,7 +119,7 @@ docker compose down -v  # Also removes persistent volumes
 
 ### Running tests locally
 
-The `test` command runs the full integration and unit test suite:
+The `test` command runs the full unit and E2E test suite:
 
 ```bash
 ./deploy.sh test

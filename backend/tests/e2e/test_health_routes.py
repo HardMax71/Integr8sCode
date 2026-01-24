@@ -1,3 +1,6 @@
+import asyncio
+import time
+
 import pytest
 from app.api.routes.health import LivenessResponse, ReadinessResponse
 from httpx import AsyncClient
@@ -55,3 +58,29 @@ class TestHealthRoutes:
 
         # Uptime should be same or slightly higher
         assert result2.uptime_seconds >= result1.uptime_seconds
+
+    @pytest.mark.asyncio
+    async def test_liveness_is_fast(self, client: AsyncClient) -> None:
+        """Liveness check should respond within 1 second."""
+        start = time.time()
+        r = await client.get("/api/v1/health/live")
+        assert r.status_code == 200
+        assert time.time() - start < 1.0
+
+    @pytest.mark.asyncio
+    async def test_concurrent_liveness_fetch(self, client: AsyncClient) -> None:
+        """Multiple concurrent liveness checks should all succeed."""
+        tasks = [client.get("/api/v1/health/live") for _ in range(5)]
+        responses = await asyncio.gather(*tasks)
+        assert all(r.status_code == 200 for r in responses)
+
+    @pytest.mark.asyncio
+    async def test_nonexistent_health_routes_return_404(self, client: AsyncClient) -> None:
+        """Non-existent health routes should return 404."""
+        for path in [
+            "/api/v1/health/healthz",
+            "/api/v1/health/health",
+            "/api/v1/health/readyz",
+        ]:
+            r = await client.get(path)
+            assert r.status_code in (404, 405)

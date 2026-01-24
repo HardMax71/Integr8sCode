@@ -132,54 +132,38 @@ graph TD
         B[Frontend Unit Tests]
     end
 
-    subgraph "Sequential (single stack)"
-        C[Setup k3s]
-        D[Build Images]
-        E[Start Stack]
-        F[Backend Integration]
-        G[Backend E2E]
-        H[Frontend E2E]
-        C --> D --> E --> F --> G --> H
+    subgraph "Build"
+        C[Build Images]
+    end
+
+    subgraph "E2E Tests (parallel)"
+        D[Setup k3s + Stack]
+        E[Backend E2E]
+        F[Frontend E2E]
+        D --> E
+        D --> F
     end
 
     A --> C
     B --> C
+    C --> D
 
     style A fill:#e8f5e9
     style B fill:#e8f5e9
     style C fill:#e1f5fe
     style D fill:#e1f5fe
-    style E fill:#e1f5fe
+    style E fill:#fff3e0
     style F fill:#fff3e0
-    style G fill:#fff3e0
-    style H fill:#fff3e0
 ```
-
-### Why unified?
-
-Previously, backend integration, backend E2E, and frontend E2E tests each started their own full stack independently.
-This caused:
-- **3x setup time**: k3s installation, image builds, and docker-compose startup repeated for each job
-- **~15 minutes total**: Each job took ~5 minutes, running in parallel but with redundant work
-
-The unified approach:
-- **1x setup time**: Stack starts once, all tests run sequentially against it
-- **~10 minutes total**: Single setup (~5 min) + all tests (~5 min)
-- **Better resource efficiency**: One runner instead of three
 
 ### Test execution order
 
 1. **Unit tests (parallel)**: Backend and frontend unit tests run simultaneously. They require no infrastructure and
    complete quickly (~1-2 min each).
 
-2. **Stack setup**: After unit tests pass, the stack-tests job:
-    - Installs k3s for Kubernetes functionality
-    - Builds all Docker images (with GHA layer caching)
-    - Starts the full stack via `./deploy.sh dev --ci`
-    - Seeds test users
+2. **Image build**: After unit tests pass, all Docker images are built with GHA layer caching.
 
-3. **Integration & E2E tests (sequential)**: All tests run against the same stack:
-    - Backend integration tests (pytest)
+3. **E2E tests (parallel)**: Backend and frontend E2E tests run in parallel, each setting up their own stack:
     - Backend E2E tests (pytest with k8s)
     - Frontend E2E tests (Playwright)
 
@@ -187,7 +171,7 @@ The unified approach:
 
 Each test suite reports coverage to [Codecov](https://codecov.io/):
 - `backend-unit` flag for unit tests
-- `backend-stack` flag for integration + E2E tests (combined)
+- `backend-e2e` flag for E2E tests
 - `frontend-unit` flag for frontend unit tests
 
 ## Documentation
@@ -231,14 +215,13 @@ npx tsc --noEmit
 npm run test
 ```
 
-For integration and E2E tests, use the same deployment as CI:
+For E2E tests, use the same deployment as CI:
 
 ```bash
 # Start full stack (requires k8s configured locally)
 ./deploy.sh dev
 
 # Run tests inside the running backend container
-docker compose exec -T backend uv run pytest tests/integration -v
 docker compose exec -T backend uv run pytest tests/e2e -v
 
 # Run frontend E2E tests
@@ -294,7 +277,7 @@ This eliminates copy-paste across workflows and ensures consistent k8s setup.
 | Frontend CI        | `.github/workflows/frontend-ci.yml`  | TypeScript lint and type check     |
 | Security Scanning  | `.github/workflows/security.yml`     | Bandit SAST                        |
 | Docker Build & Scan| `.github/workflows/docker.yml`       | Image build and Trivy scan         |
-| Stack Tests        | `.github/workflows/stack-tests.yml`  | All unit, integration, and E2E tests |
+| Stack Tests        | `.github/workflows/stack-tests.yml`  | All unit and E2E tests               |
 | Documentation      | `.github/workflows/docs.yml`         | MkDocs build and deploy            |
 
 All workflows use [uv](https://docs.astral.sh/uv/) for Python dependency management and npm for Node.js, with caching

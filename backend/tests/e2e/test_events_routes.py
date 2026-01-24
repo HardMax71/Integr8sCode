@@ -1,6 +1,4 @@
 import pytest
-from pydantic import TypeAdapter
-
 from app.domain.enums.events import EventType
 from app.domain.events.typed import DomainEvent
 from app.schemas_pydantic.events import (
@@ -12,6 +10,7 @@ from app.schemas_pydantic.events import (
 )
 from app.schemas_pydantic.execution import ExecutionResponse
 from httpx import AsyncClient
+from pydantic import TypeAdapter
 
 DomainEventAdapter: TypeAdapter[DomainEvent] = TypeAdapter(DomainEvent)
 

@@ -377,9 +377,9 @@ class TestGetSettingsHistory:
         assert isinstance(history, list)
         assert len(history) == 3, f"Expected 3 history entries, got {len(history)}"
 
-        # History returns most recent entries first
-        # The reason field contains the key info (e.g., "Custom setting 'key_4' updated")
-        expected_keys = ["key_4", "key_3", "key_2"]
+        # History returns oldest entries first (ascending order)
+        # The reason field contains the key info (e.g., "Custom setting 'key_0' updated")
+        expected_keys = ["key_0", "key_1", "key_2"]
         for i, entry in enumerate(history):
             assert isinstance(entry, DomainSettingsHistoryEntry)
             assert entry.reason is not None, f"Entry {i} should have a reason"

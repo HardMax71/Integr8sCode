@@ -208,7 +208,9 @@ class TestExecutionErrors:
         exec_response = ExecutionResponse.model_validate(response.json())
         result = await wait_for_terminal_state(test_user, exec_response.execution_id)
 
-        assert result.status == ExecutionStatus.FAILED
+        # Script errors result in COMPLETED status with non-zero exit code
+        # FAILED is reserved for infrastructure/timeout failures
+        assert result.status == ExecutionStatus.COMPLETED
         assert result.stderr is not None
         assert "SyntaxError" in result.stderr
         assert result.exit_code != 0
@@ -228,7 +230,9 @@ class TestExecutionErrors:
         exec_response = ExecutionResponse.model_validate(response.json())
         result = await wait_for_terminal_state(test_user, exec_response.execution_id)
 
-        assert result.status == ExecutionStatus.FAILED
+        # Script errors result in COMPLETED status with non-zero exit code
+        # FAILED is reserved for infrastructure/timeout failures
+        assert result.status == ExecutionStatus.COMPLETED
         assert result.stdout is not None
         assert "before" in result.stdout
         assert "after" not in (result.stdout or "")

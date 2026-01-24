@@ -19,10 +19,10 @@ class TestExceptionHandlerBehavior:
 
     @pytest.mark.asyncio
     async def test_not_found_returns_404(
-        self, client: httpx.AsyncClient
+        self, test_user: httpx.AsyncClient
     ) -> None:
         """Nonexistent execution returns 404."""
-        response = await client.get(
+        response = await test_user.get(
             "/api/v1/executions/nonexistent-id-12345/result"
         )
 
@@ -56,13 +56,13 @@ class TestExceptionHandlerBehavior:
         self, test_user: httpx.AsyncClient
     ) -> None:
         """Validation errors return proper format."""
-        # Send invalid data (empty script)
+        # Send invalid data (unsupported language version)
         response = await test_user.post(
             "/api/v1/execute",
             json={
-                "script": "",  # Empty script should fail validation
+                "script": "print('test')",
                 "lang": "python",
-                "lang_version": "3.11",
+                "lang_version": "99.99",  # Invalid version triggers validation error
             },
         )
 

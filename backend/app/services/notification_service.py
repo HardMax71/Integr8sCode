@@ -395,7 +395,7 @@ class NotificationService:
         target_users: list[str] | None,
         target_roles: list[UserRole] | None,
     ) -> list[str]:
-        if target_users:
+        if target_users is not None:
             return target_users
         if target_roles:
             return await self.repository.get_users_by_roles(target_roles)
@@ -733,7 +733,7 @@ class NotificationService:
 
         # Get counts
         total, unread_count = await asyncio.gather(
-            self.repository.count_notifications(user_id, {"status": status}), self.get_unread_count(user_id)
+            self.repository.count_notifications(user_id), self.get_unread_count(user_id)
         )
 
         return DomainNotificationListResult(notifications=notifications, total=total, unread_count=unread_count)

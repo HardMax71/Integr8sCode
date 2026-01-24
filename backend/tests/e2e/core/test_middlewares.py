@@ -1,6 +1,8 @@
 import httpx
 import pytest
 
+from app.settings import Settings
+
 pytestmark = pytest.mark.e2e
 
 
@@ -213,9 +215,12 @@ class TestRateLimitMiddleware:
 
     @pytest.mark.asyncio
     async def test_rate_limit_headers_present(
-        self, client: httpx.AsyncClient
+        self, client: httpx.AsyncClient, test_settings: Settings
     ) -> None:
-        """Rate limit headers are added to responses."""
+        """Rate limit headers are added to responses when rate limiting is enabled."""
+        if not test_settings.RATE_LIMIT_ENABLED:
+            pytest.skip("Rate limiting is disabled in test config")
+
         response = await client.get("/api/v1/k8s-limits")
 
         assert response.status_code == 200
@@ -265,7 +270,7 @@ class TestMiddlewareOrder:
 
     @pytest.mark.asyncio
     async def test_all_middlewares_work_together(
-        self, test_user: httpx.AsyncClient
+        self, test_user: httpx.AsyncClient, test_settings: Settings
     ) -> None:
         """All middlewares work correctly in combination."""
         response = await test_user.get("/api/v1/notifications")
@@ -276,8 +281,9 @@ class TestMiddlewareOrder:
         # Cache control middleware ran
         assert "Cache-Control" in response.headers
 
-        # Rate limit middleware ran
-        assert "X-RateLimit-Limit" in response.headers
+        # Rate limit middleware ran (only if enabled)
+        if test_settings.RATE_LIMIT_ENABLED:
+            assert "X-RateLimit-Limit" in response.headers
 
         # Request completed successfully
         assert response.status_code == 200

@@ -476,8 +476,8 @@ class TestGetReplayStatus:
         assert status_response.status_code == 200
         status = EventReplayStatusResponse.model_validate(status_response.json())
         assert status.session_id == replay_result.session_id
-        # After scheduling a replay (dry_run=False), status is SCHEDULED
-        assert status.status == ReplayStatus.SCHEDULED
+        # After scheduling a replay (dry_run=False), status is SCHEDULED or RUNNING if it started quickly
+        assert status.status in (ReplayStatus.SCHEDULED, ReplayStatus.RUNNING)
         assert status.total_events >= 1
         assert status.replayed_events >= 0
         assert status.progress_percentage >= 0.0

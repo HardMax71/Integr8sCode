@@ -403,7 +403,12 @@ class TestListEventTypes:
         # First create an event so there's at least one type (requires admin)
         request = PublishEventRequest(
             event_type=EventType.SCRIPT_SAVED,
-            payload={"script_id": "test-script", "name": "test_list_types"},
+            payload={
+                "script_id": "test-script",
+                "user_id": "test-user",
+                "title": "Test Script",
+                "language": "python",
+            },
         )
         await test_admin.post("/api/v1/events/publish", json=request.model_dump())
 

@@ -19,9 +19,9 @@ async def sse_client(app: FastAPI, test_user: AsyncClient) -> SSETestClient:
     See: https://github.com/encode/httpx/issues/2186
     """
     client = SSETestClient(app)
-    # Copy auth cookies from httpx client
+    # Copy auth cookies from httpx client (SimpleCookie uses dict-style assignment)
     for name, value in test_user.cookies.items():
-        client.cookie_jar.set(name, value)
+        client.cookie_jar[name] = value
     # Copy CSRF header
     if csrf := test_user.headers.get("X-CSRF-Token"):
         client.headers["X-CSRF-Token"] = csrf
@@ -33,7 +33,7 @@ async def sse_client_another(app: FastAPI, another_user: AsyncClient) -> SSETest
     """SSE-capable test client with auth from another_user."""
     client = SSETestClient(app)
     for name, value in another_user.cookies.items():
-        client.cookie_jar.set(name, value)
+        client.cookie_jar[name] = value
     if csrf := another_user.headers.get("X-CSRF-Token"):
         client.headers["X-CSRF-Token"] = csrf
     return client

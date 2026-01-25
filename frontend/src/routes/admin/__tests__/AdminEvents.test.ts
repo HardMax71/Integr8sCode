@@ -37,8 +37,13 @@ vi.mock('../../../lib/api', () => ({
   getUserOverviewApiV1AdminUsersUserIdOverviewGet: (...args: unknown[]) => mocks.getUserOverviewApiV1AdminUsersUserIdOverviewGet(...args),
 }));
 
-vi.mock('../../../stores/toastStore', () => ({
-  addToast: (...args: unknown[]) => mocks.addToast(...args),
+vi.mock('svelte-sonner', () => ({
+  toast: {
+    success: (...args: unknown[]) => mocks.addToast(...args),
+    error: (...args: unknown[]) => mocks.addToast(...args),
+    warning: (...args: unknown[]) => mocks.addToast(...args),
+    info: (...args: unknown[]) => mocks.addToast(...args),
+  },
 }));
 
 vi.mock('../../../lib/api-interceptors');
@@ -118,11 +123,11 @@ describe('AdminEvents', () => {
       vi.useRealTimers();
       const error = { message: 'Network error' };
       mocks.browseEventsApiV1AdminEventsBrowsePost.mockImplementation(async () => {
-        mocks.addToast('Failed to load events', 'error');
+        mocks.addToast('Failed to load events');
         return { data: null, error };
       });
       render(AdminEvents);
-      await waitFor(() => expect(mocks.addToast).toHaveBeenCalledWith('Failed to load events', 'error'));
+      await waitFor(() => expect(mocks.addToast).toHaveBeenCalledWith('Failed to load events'));
     });
 
     it('displays empty state when no events', async () => {
@@ -565,7 +570,7 @@ describe('AdminEvents', () => {
       await user.click(deleteBtns[0]);
 
       await waitFor(() => {
-        expect(mocks.addToast).toHaveBeenCalledWith('Event deleted successfully', 'success');
+        expect(mocks.addToast).toHaveBeenCalledWith('Event deleted successfully');
       });
     });
 
@@ -587,7 +592,7 @@ describe('AdminEvents', () => {
       const user = userEvent.setup();
       const error = { message: 'Cannot delete' };
       mocks.deleteEventApiV1AdminEventsEventIdDelete.mockImplementation(async () => {
-        mocks.addToast('Failed to delete event', 'error');
+        mocks.addToast('Failed to delete event');
         return { data: null, error };
       });
       const events = [createMockEvent()];
@@ -597,7 +602,7 @@ describe('AdminEvents', () => {
       await user.click(deleteBtns[0]);
 
       await waitFor(() => {
-        expect(mocks.addToast).toHaveBeenCalledWith('Failed to delete event', 'error');
+        expect(mocks.addToast).toHaveBeenCalledWith('Failed to delete event');
       });
     });
   });
@@ -631,7 +636,7 @@ describe('AdminEvents', () => {
         expect.stringContaining('/api/v1/admin/events/export/csv'),
         '_blank'
       );
-      expect(mocks.addToast).toHaveBeenCalledWith(expect.stringContaining('Starting CSV export'), 'info');
+      expect(mocks.addToast).toHaveBeenCalledWith(expect.stringContaining('Starting CSV export'));
     });
 
     it('exports as JSON', async () => {
@@ -648,7 +653,7 @@ describe('AdminEvents', () => {
         expect.stringContaining('/api/v1/admin/events/export/json'),
         '_blank'
       );
-      expect(mocks.addToast).toHaveBeenCalledWith(expect.stringContaining('Starting JSON export'), 'info');
+      expect(mocks.addToast).toHaveBeenCalledWith(expect.stringContaining('Starting JSON export'));
     });
   });
 
@@ -722,7 +727,7 @@ describe('AdminEvents', () => {
       const error = { message: 'Failed to load' };
       const events = [createMockEvent({ metadata: { user_id: 'user-error' } })];
       mocks.getUserOverviewApiV1AdminUsersUserIdOverviewGet.mockImplementation(async () => {
-        mocks.addToast('Failed to load user overview', 'error');
+        mocks.addToast('Failed to load user overview');
         return { data: null, error };
       });
       await renderWithEvents(events);
@@ -731,7 +736,7 @@ describe('AdminEvents', () => {
       await user.click(userLinks[0]);
 
       await waitFor(() => {
-        expect(mocks.addToast).toHaveBeenCalledWith('Failed to load user overview', 'error');
+        expect(mocks.addToast).toHaveBeenCalledWith('Failed to load user overview');
       });
     });
   });
@@ -785,7 +790,7 @@ describe('AdminEvents', () => {
       const user = userEvent.setup();
       const error = { message: 'Detail not found' };
       mocks.getEventDetailApiV1AdminEventsEventIdGet.mockImplementation(async () => {
-        mocks.addToast('Failed to load event details', 'error');
+        mocks.addToast('Failed to load event details');
         return { data: null, error };
       });
       const events = [createMockEvent()];
@@ -795,7 +800,7 @@ describe('AdminEvents', () => {
       await user.click(eventRows[0]);
 
       await waitFor(() => {
-        expect(mocks.addToast).toHaveBeenCalledWith('Failed to load event details', 'error');
+        expect(mocks.addToast).toHaveBeenCalledWith('Failed to load event details');
       });
     });
 
@@ -804,7 +809,7 @@ describe('AdminEvents', () => {
       const user = userEvent.setup();
       const error = { message: 'Replay failed' };
       mocks.replayEventsApiV1AdminEventsReplayPost.mockImplementation(async () => {
-        mocks.addToast('Failed to replay event', 'error');
+        mocks.addToast('Failed to replay event');
         return { data: null, error };
       });
       const events = [createMockEvent()];
@@ -814,7 +819,7 @@ describe('AdminEvents', () => {
       await user.click(replayBtns[0]);
 
       await waitFor(() => {
-        expect(mocks.addToast).toHaveBeenCalledWith('Failed to replay event', 'error');
+        expect(mocks.addToast).toHaveBeenCalledWith('Failed to replay event');
       });
     });
   });

@@ -8,7 +8,7 @@
     } from '$lib/api';
     import { isAuthenticated, username } from '$stores/auth';
     import { theme as themeStore, setTheme } from '$stores/theme';
-    import { addToast } from '$stores/toastStore';
+    import { toast } from 'svelte-sonner';
     import { get } from 'svelte/store';
     import { fly } from 'svelte/transition';
     import { setUserSettings } from '$stores/userSettings';
@@ -123,7 +123,7 @@
             savedSnapshot = JSON.stringify(formData);
         } catch (err) {
             console.error('Failed to load settings:', err);
-            addToast('Failed to load settings. Using defaults.', 'error');
+            toast.error('Failed to load settings. Using defaults.');
         } finally {
             loading = false;
         }
@@ -132,7 +132,7 @@
     async function saveSettings() {
         const currentState = JSON.stringify(formData);
         if (currentState === savedSnapshot) {
-            addToast('No changes to save', 'info');
+            toast.info('No changes to save');
             return;
         }
 
@@ -176,10 +176,10 @@
             };
             savedSnapshot = JSON.stringify(formData);
 
-            addToast('Settings saved successfully', 'success');
+            toast.success('Settings saved successfully');
         } catch (err) {
             console.error('Settings save error:', err);
-            addToast('Failed to save settings', 'error');
+            toast.error('Failed to save settings');
         } finally {
             saving = false;
         }
@@ -218,7 +218,7 @@
             historyCacheTime = Date.now();
         } catch (err) {
             console.error('Failed to load settings history:', err);
-            addToast('Failed to load settings history', 'error');
+            toast.error('Failed to load settings history');
             history = [];
         } finally {
             historyLoading = false;
@@ -246,10 +246,10 @@
             }
 
             showHistory = false;
-            addToast('Settings restored successfully', 'success');
+            toast.success('Settings restored successfully');
         } catch (err) {
             console.error('Failed to restore settings:', err);
-            addToast('Failed to restore settings', 'error');
+            toast.error('Failed to restore settings');
         }
     }
     

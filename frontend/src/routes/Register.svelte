@@ -1,6 +1,6 @@
 <script lang="ts">
     import { goto, route } from "@mateothegreat/svelte5-router";
-    import { addToast } from "$stores/toastStore";
+    import { toast } from 'svelte-sonner';
     import { fade, fly } from "svelte/transition";
     import { registerApiV1AuthRegisterPost } from "$lib/api";
     import { onMount } from 'svelte';
@@ -21,12 +21,12 @@
     async function handleRegister() {
         if (password !== confirmPassword) {
             error = "Passwords do not match.";
-            addToast(error, "error");
+            toast.error(error);
             return;
         }
         if (password.length < 8) { // Backend requires min 8 characters
             error = "Password must be at least 8 characters long.";
-            addToast(error, "warning");
+            toast.warning(error);
             return;
         }
 
@@ -35,12 +35,12 @@
         try {
             const { error: apiError } = await registerApiV1AuthRegisterPost({ body: { username, email, password } });
             if (apiError) throw apiError;
-            addToast("Registration successful! Please log in.", "success");
+            toast.success("Registration successful! Please log in.");
             goto("/login");
         } catch (err: unknown) {
             const errObj = err as { detail?: string; message?: string } | null;
             error = errObj?.detail || errObj?.message || "Registration failed. Please try again.";
-            addToast(error, "error");
+            toast.error(error);
         } finally {
             loading = false;
         }

@@ -67,8 +67,13 @@ vi.mock('../../../lib/api', () => ({
 
 vi.mock('../../../lib/api-interceptors');
 
-vi.mock('../../../stores/toastStore', () => ({
-  addToast: (...args: unknown[]) => mocks.addToast(...args),
+vi.mock('svelte-sonner', () => ({
+  toast: {
+    success: (...args: unknown[]) => mocks.addToast(...args),
+    error: (...args: unknown[]) => mocks.addToast(...args),
+    warning: (...args: unknown[]) => mocks.addToast(...args),
+    info: (...args: unknown[]) => mocks.addToast(...args),
+  },
 }));
 
 vi.mock('../../../lib/formatters', () => ({
@@ -120,11 +125,11 @@ describe('AdminUsers', () => {
     it('handles API error on load and shows toast', async () => {
       const error = { message: 'Network error' };
       mocks.listUsersApiV1AdminUsersGet.mockImplementation(async () => {
-        mocks.addToast('Failed to load users', 'error');
+        mocks.addToast('Failed to load users');
         return { data: null, error };
       });
       render(AdminUsers);
-      await waitFor(() => expect(mocks.addToast).toHaveBeenCalledWith('Failed to load users', 'error'));
+      await waitFor(() => expect(mocks.addToast).toHaveBeenCalledWith('Failed to load users'));
       expect(screen.queryByText('testuser')).not.toBeInTheDocument();
     });
   });
@@ -302,7 +307,7 @@ describe('AdminUsers', () => {
     it('handles validation error on create and shows toast', async () => {
       const error = { status: 422, detail: [{ loc: ['body', 'username'], msg: 'Required' }] };
       mocks.createUserApiV1AdminUsersPost.mockImplementation(async () => {
-        mocks.addToast('Validation error: username: Required', 'error');
+        mocks.addToast('Validation error: username: Required');
         return { data: null, error };
       });
       const user = userEvent.setup();
@@ -318,7 +323,7 @@ describe('AdminUsers', () => {
       const submitBtn = allCreateButtons.find(btn => btn.closest('[role="dialog"]'));
       await user.click(submitBtn!);
 
-      await waitFor(() => expect(mocks.addToast).toHaveBeenCalledWith('Validation error: username: Required', 'error'));
+      await waitFor(() => expect(mocks.addToast).toHaveBeenCalledWith('Validation error: username: Required'));
     });
 
     it('closes modal on cancel', async () => {
@@ -443,7 +448,7 @@ describe('AdminUsers', () => {
     it('handles deletion error and shows toast', async () => {
       const error = { message: 'Cannot delete' };
       mocks.deleteUserApiV1AdminUsersUserIdDelete.mockImplementation(async () => {
-        mocks.addToast('Failed to delete user', 'error');
+        mocks.addToast('Failed to delete user');
         return { data: null, error };
       });
       const users = [createMockUser({ username: 'deleteme' })];
@@ -458,7 +463,7 @@ describe('AdminUsers', () => {
       const confirmDeleteBtn = allDeleteButtons.find(btn => btn.closest('[role="dialog"]'));
       await user.click(confirmDeleteBtn!);
 
-      await waitFor(() => expect(mocks.addToast).toHaveBeenCalledWith('Failed to delete user', 'error'));
+      await waitFor(() => expect(mocks.addToast).toHaveBeenCalledWith('Failed to delete user'));
     });
 
     it('cancels deletion', async () => {
@@ -576,7 +581,7 @@ describe('AdminUsers', () => {
         error: null,
       });
       mocks.updateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPut.mockImplementation(async () => {
-        mocks.addToast('Failed to save rate limits', 'error');
+        mocks.addToast('Failed to save rate limits');
         return { data: null, error };
       });
       const users = [createMockUser({ username: 'testuser' })];
@@ -589,7 +594,7 @@ describe('AdminUsers', () => {
 
       await user.click(screen.getByRole('button', { name: /Save Changes/i }));
 
-      await waitFor(() => expect(mocks.addToast).toHaveBeenCalledWith('Failed to save rate limits', 'error'));
+      await waitFor(() => expect(mocks.addToast).toHaveBeenCalledWith('Failed to save rate limits'));
     });
 
     it('adds new rate limit rule', async () => {
@@ -687,7 +692,7 @@ describe('AdminUsers', () => {
       await user.click(submitBtn!);
 
       expect(mocks.createUserApiV1AdminUsersPost).not.toHaveBeenCalled();
-      expect(mocks.addToast).toHaveBeenCalledWith('Username is required', 'error');
+      expect(mocks.addToast).toHaveBeenCalledWith('Username is required');
     });
 
     it('requires password for new user', async () => {
@@ -706,7 +711,7 @@ describe('AdminUsers', () => {
       await user.click(submitBtn!);
 
       expect(mocks.createUserApiV1AdminUsersPost).not.toHaveBeenCalled();
-      expect(mocks.addToast).toHaveBeenCalledWith('Password is required', 'error');
+      expect(mocks.addToast).toHaveBeenCalledWith('Password is required');
     });
 
     it('password is optional for edit', async () => {
@@ -735,7 +740,7 @@ describe('AdminUsers', () => {
     it('handles API error when loading rate limits and shows toast', async () => {
       const error = { message: 'Failed to load' };
       mocks.getUserRateLimitsApiV1AdminUsersUserIdRateLimitsGet.mockImplementation(async () => {
-        mocks.addToast('Failed to load rate limits', 'error');
+        mocks.addToast('Failed to load rate limits');
         return { data: null, error };
       });
       const users = [createMockUser({ username: 'testuser' })];
@@ -745,7 +750,7 @@ describe('AdminUsers', () => {
       const rateLimitButtons = screen.getAllByTitle('Manage Rate Limits');
       await user.click(rateLimitButtons[0]);
 
-      await waitFor(() => expect(mocks.addToast).toHaveBeenCalledWith('Failed to load rate limits', 'error'));
+      await waitFor(() => expect(mocks.addToast).toHaveBeenCalledWith('Failed to load rate limits'));
     });
 
     it('handles API error when resetting rate limits and shows toast', async () => {
@@ -758,7 +763,7 @@ describe('AdminUsers', () => {
         error: null,
       });
       mocks.resetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPost.mockImplementation(async () => {
-        mocks.addToast('Failed to reset rate limits', 'error');
+        mocks.addToast('Failed to reset rate limits');
         return { data: null, error: resetError };
       });
       const users = [createMockUser({ user_id: 'u1', username: 'testuser' })];
@@ -771,7 +776,7 @@ describe('AdminUsers', () => {
 
       await user.click(screen.getByRole('button', { name: /Reset All Counters/i }));
 
-      await waitFor(() => expect(mocks.addToast).toHaveBeenCalledWith('Failed to reset rate limits', 'error'));
+      await waitFor(() => expect(mocks.addToast).toHaveBeenCalledWith('Failed to reset rate limits'));
     });
   });
 });

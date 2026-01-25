@@ -15,7 +15,7 @@
         type AdminUserOverview,
     } from '$lib/api';
     import { unwrap, unwrapOr } from '$lib/api-interceptors';
-    import { addToast } from '$stores/toastStore';
+    import { toast } from 'svelte-sonner';
     import AdminLayout from '$routes/admin/AdminLayout.svelte';
     import Spinner from '$components/Spinner.svelte';
     import { FilterPanel } from '$components/admin';
@@ -130,9 +130,9 @@
         if (status.status === 'completed' || status.status === 'failed' || status.status === 'cancelled') {
             if (replayCheckInterval) { clearInterval(replayCheckInterval); replayCheckInterval = null; }
             if (status.status === 'completed') {
-                addToast(`Replay completed! Processed ${status.replayed_events} events successfully.`, 'success');
+                toast.success(`Replay completed! Processed ${status.replayed_events} events successfully.`);
             } else if (status.status === 'failed') {
-                addToast(`Replay failed: ${(status as { errors?: string[] }).errors?.[0] || 'Unknown error'}`, 'error');
+                toast.error(`Replay failed: ${(status as { errors?: string[] }).errors?.[0] || 'Unknown error'}`);
             }
         }
     }
@@ -151,10 +151,10 @@
                 replayPreview = { eventId, total_events: response.total_events, events_preview: (response.events_preview ?? []) as EventResponse[] };
                 showReplayPreview = true;
             } else {
-                addToast(`Dry run: ${response?.total_events} events would be replayed`, 'info');
+                toast.info(`Dry run: ${response?.total_events} events would be replayed`);
             }
         } else {
-            addToast(`Replay scheduled! Tracking progress...`, 'success');
+            toast.success(`Replay scheduled! Tracking progress...`);
             const sessionId = response?.session_id;
             if (sessionId) {
                 activeReplaySession = {
@@ -178,7 +178,7 @@
     async function deleteEvent(eventId: string): Promise<void> {
         if (!confirm('Are you sure you want to delete this event? This action cannot be undone.')) return;
         unwrap(await deleteEventApiV1AdminEventsEventIdDelete({ path: { event_id: eventId } }));
-        addToast('Event deleted successfully', 'success');
+        toast.success('Event deleted successfully');
         await Promise.all([loadEvents(), loadStats()]);
         selectedEvent = null;
     }
@@ -194,7 +194,7 @@
         if (filters.service_name) params.append('service_name', filters.service_name);
 
         window.open(`/api/v1/admin/events/export/${format}?${params.toString()}`, '_blank');
-        addToast(`Starting ${format.toUpperCase()} export...`, 'info');
+        toast.info(`Starting ${format.toUpperCase()} export...`);
     }
 
     async function openUserOverview(userId: string): Promise<void> {

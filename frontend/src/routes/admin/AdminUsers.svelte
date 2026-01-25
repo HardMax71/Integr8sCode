@@ -13,7 +13,7 @@
         type UserRole,
     } from '$lib/api';
     import { unwrap, unwrapOr } from '$lib/api-interceptors';
-    import { addToast } from '$stores/toastStore';
+    import { toast } from 'svelte-sonner';
     import AdminLayout from '$routes/admin/AdminLayout.svelte';
     import Spinner from '$components/Spinner.svelte';
     import Pagination from '$components/Pagination.svelte';
@@ -141,8 +141,8 @@
     }
 
     async function saveUser(): Promise<void> {
-        if (!userForm.username) { addToast('Username is required', 'error'); return; }
-        if (!editingUser && !userForm.password) { addToast('Password is required', 'error'); return; }
+        if (!userForm.username) { toast.error('Username is required'); return; }
+        if (!editingUser && !userForm.password) { toast.error('Password is required'); return; }
         savingUser = true;
         let result;
         if (editingUser) {
@@ -193,7 +193,7 @@
         } catch {
             showRateLimitModal = false;
             rateLimitUser = null;
-            addToast('Failed to load rate limits', 'error');
+            toast.error('Failed to load rate limits');
         } finally {
             loadingRateLimits = false;
         }

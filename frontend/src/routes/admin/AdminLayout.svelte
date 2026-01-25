@@ -1,7 +1,7 @@
 <script lang="ts">
     import { route, goto } from '@mateothegreat/svelte5-router';
     import { onMount } from 'svelte';
-    import { addToast } from '$stores/toastStore';
+    import { toast } from 'svelte-sonner';
     import { isAuthenticated, username, userRole, verifyAuth } from '$stores/auth';
     import { get } from 'svelte/store';
     import Spinner from '$components/Spinner.svelte';
@@ -32,14 +32,14 @@
                 const currentPath = window.location.pathname + window.location.search + window.location.hash;
                 sessionStorage.setItem('redirectAfterLogin', currentPath);
 
-                addToast('Authentication required', 'error');
+                toast.error('Authentication required');
                 goto('/login');
                 return;
             }
 
             // Check for admin role
             if (currentRole !== 'admin') {
-                addToast('Admin access required', 'error');
+                toast.error('Admin access required');
                 goto('/');
                 return;
             }
@@ -51,7 +51,7 @@
             const currentPath = window.location.pathname + window.location.search + window.location.hash;
             sessionStorage.setItem('redirectAfterLogin', currentPath);
 
-            addToast('Authentication required', 'error');
+            toast.error('Authentication required');
             goto('/login');
         } finally {
             loading = false;

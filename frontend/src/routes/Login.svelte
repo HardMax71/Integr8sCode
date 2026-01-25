@@ -1,7 +1,7 @@
 <script lang="ts">
   import { goto, route } from "@mateothegreat/svelte5-router";
   import { login } from "$stores/auth";
-  import { addToast } from "$stores/toastStore";
+  import { toast } from 'svelte-sonner';
   import { fade, fly } from "svelte/transition";
   import Spinner from '$components/Spinner.svelte';
   import { onMount } from 'svelte';
@@ -19,7 +19,7 @@
     // Check for authentication message from redirect
     const authMessage = sessionStorage.getItem('authMessage');
     if (authMessage) {
-      addToast(authMessage, "info");
+      toast.info(authMessage);
       sessionStorage.removeItem('authMessage');
     }
   });
@@ -33,7 +33,7 @@
       // Load user settings in background (non-blocking)
       loadUserSettings().catch(err => console.warn('Failed to load user settings:', err));
 
-      addToast("Login successful! Welcome back.", "success");
+      toast.success("Login successful! Welcome back.");
 
       // Check if there's a saved redirect path
       const redirectPath = sessionStorage.getItem('redirectAfterLogin');
@@ -46,7 +46,7 @@
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Login failed. Please check your credentials.";
       error = message;
-      addToast(error, "error");
+      toast.error(error);
     } finally {
       loading = false;
     }

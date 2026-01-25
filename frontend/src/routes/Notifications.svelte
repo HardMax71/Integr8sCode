@@ -2,7 +2,7 @@
     import { onMount, type Component } from 'svelte';
     import { goto } from '@mateothegreat/svelte5-router';
     import { isAuthenticated, verifyAuth } from '$stores/auth';
-    import { addToast } from '$stores/toastStore';
+    import { toast } from 'svelte-sonner';
     import { notificationStore, notifications, unreadCount } from '$stores/notificationStore';
     import { get } from 'svelte/store';
     import { fly } from 'svelte/transition';
@@ -50,9 +50,9 @@
         deleting[id] = true;
         const success = await notificationStore.delete(id);
         if (success) {
-            addToast('Notification deleted', 'success');
+            toast.success('Notification deleted');
         } else {
-            addToast('Failed to delete notification', 'error');
+            toast.error('Failed to delete notification');
         }
         deleting[id] = false;
     }
@@ -65,9 +65,9 @@
     async function markAllAsRead(): Promise<void> {
         const success = await notificationStore.markAllAsRead();
         if (success) {
-            addToast('All notifications marked as read', 'success');
+            toast.success('All notifications marked as read');
         } else {
-            addToast('Failed to mark all as read', 'error');
+            toast.error('Failed to mark all as read');
         }
     }
 

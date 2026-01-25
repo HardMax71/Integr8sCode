@@ -1,27 +1,29 @@
 import {
     createExecutionApiV1ExecutePost,
-    getResultApiV1ResultExecutionIdGet,
+    getResultApiV1ExecutionsExecutionIdResultGet,
     type ExecutionResult,
+    type ExecutionStatus,
     type EventType,
+    type SseControlEvent,
+    type SseExecutionEventData,
 } from '$lib/api';
 import { getErrorMessage } from '$lib/api-interceptors';
 
 export type ExecutionPhase = 'idle' | 'starting' | 'queued' | 'scheduled' | 'running';
 
-// Valid phases that can come from backend status updates
-const VALID_BACKEND_PHASES = new Set<string>(['queued', 'scheduled', 'running']);
-
-function toExecutionPhase(status: string | undefined, fallback: ExecutionPhase): ExecutionPhase {
-    return status && VALID_BACKEND_PHASES.has(status) ? status as ExecutionPhase : fallback;
+function isActivePhase(s: ExecutionStatus): s is 'queued' | 'scheduled' | 'running' {
+    return s === 'queued' || s === 'scheduled' || s === 'running';
 }
 
-// Failure event types that should trigger fallback fetch
-const FAILURE_EVENTS = new Set<EventType>(['execution_failed', 'execution_timeout', 'result_failed']);
+function isTerminalFailure(e: EventType | SseControlEvent): boolean {
+    return e === 'execution_failed' || e === 'execution_timeout' || e === 'result_failed';
+}
 
 export function createExecutionState() {
     let phase = $state<ExecutionPhase>('idle');
     let result = $state<ExecutionResult | null>(null);
     let error = $state<string | null>(null);
+    let abortController: AbortController | null = null;
 
     function reset() {
         phase = 'idle';
@@ -29,10 +31,16 @@ export function createExecutionState() {
         error = null;
     }
 
+    function abort() {
+        abortController?.abort();
+        abortController = null;
+        phase = 'idle';
+    }
+
     async function execute(script: string, lang: string, langVersion: string): Promise<void> {
+        abort();
         reset();
         phase = 'starting';
-        let executionId: string | null = null;
 
         try {
             const { data, error: execError } = await createExecutionApiV1ExecutePost({
@@ -40,75 +48,86 @@ export function createExecutionState() {
             });
             if (execError) throw execError;
 
-            executionId = data.execution_id;
-            phase = toExecutionPhase(data.status, 'queued');
+            const executionId = data.execution_id;
+            phase = isActivePhase(data.status) ? data.status : 'queued';
 
-            const finalResult = await new Promise<ExecutionResult>((resolve, reject) => {
-                const eventSource = new EventSource(`/api/v1/events/executions/${executionId}`, {
-                    withCredentials: true
-                });
-
-                const fetchFallback = async () => {
-                    try {
-                        const { data, error } = await getResultApiV1ResultExecutionIdGet({
-                            path: { execution_id: executionId! }
-                        });
-                        if (error) throw error;
-                        resolve(data!);
-                    } catch (e) {
-                        reject(e);
-                    }
-                };
-
-                eventSource.onmessage = async (event) => {
-                    try {
-                        const eventData = JSON.parse(event.data);
-                        const eventType = eventData?.event_type || eventData?.type;
-
-                        if (eventType === 'heartbeat' || eventType === 'connected' || eventType === 'subscribed') return;
-
-                        if (eventData.status) {
-                            phase = toExecutionPhase(eventData.status, phase);
-                        }
-
-                        if (eventType === 'result_stored' && eventData.result) {
-                            eventSource.close();
-                            resolve(eventData.result);
-                            return;
-                        }
-
-                        if (FAILURE_EVENTS.has(eventType)) {
-                            eventSource.close();
-                            await fetchFallback();
-                        }
-                    } catch (err) {
-                        console.error('SSE parse error:', err);
-                    }
-                };
-
-                eventSource.onerror = async () => {
-                    eventSource.close();
-                    await fetchFallback();
-                };
-            });
-
-            result = finalResult;
+            result = await streamResult(executionId);
         } catch (err) {
             error = getErrorMessage(err, 'Error executing script.');
-            if (executionId) {
-                try {
-                    const { data } = await getResultApiV1ResultExecutionIdGet({
-                        path: { execution_id: executionId }
-                    });
-                    if (data) {
-                        result = data;
-                        error = null;
-                    }
-                } catch { /* keep error */ }
-            }
         } finally {
+            abortController = null;
             phase = 'idle';
         }
+    }
+
+    async function streamResult(executionId: string): Promise<ExecutionResult> {
+        abortController = new AbortController();
+
+        const response = await fetch(`/api/v1/events/executions/${executionId}`, {
+            headers: { 'Accept': 'text/event-stream' },
+            credentials: 'include',
+            signal: abortController.signal,
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) throw new Error('Unauthorized');
+            return fetchResult(executionId);
+        }
+
+        const reader = response.body!.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        try {
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() ?? '';
+
+                for (const line of lines) {
+                    if (!line.startsWith('data:')) continue;
+
+                    let eventData: SseExecutionEventData;
+                    try {
+                        eventData = JSON.parse(line.slice(5).trim());
+                    } catch {
+                        continue; // Skip malformed SSE events
+                    }
+                    const eventType = eventData.event_type;
+
+                    // Update phase from status events
+                    if (eventData.status && isActivePhase(eventData.status)) {
+                        phase = eventData.status;
+                    }
+
+                    // Terminal: result received
+                    if (eventType === 'result_stored' && eventData.result) {
+                        return eventData.result;
+                    }
+
+                    // Terminal: failure - fetch result (may have partial output)
+                    if (isTerminalFailure(eventType)) {
+                        return fetchResult(executionId);
+                    }
+                }
+            }
+        } finally {
+            await reader.cancel().catch(() => {}); // Close stream and release lock
+        }
+
+        // Stream ended without terminal event - fetch result
+        return fetchResult(executionId);
+    }
+
+    async function fetchResult(executionId: string): Promise<ExecutionResult> {
+        const { data, error } = await getResultApiV1ExecutionsExecutionIdResultGet({
+            path: { execution_id: executionId }
+        });
+        if (error) throw error;
+        return data!;
     }
 
     return {
@@ -117,6 +136,7 @@ export function createExecutionState() {
         get error() { return error; },
         get isExecuting() { return phase !== 'idle'; },
         execute,
+        abort,
         reset
     };
 }

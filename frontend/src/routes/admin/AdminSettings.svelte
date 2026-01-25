@@ -9,7 +9,7 @@
         type SecuritySettingsSchema,
         type MonitoringSettingsSchema,
     } from '$lib/api';
-    import { addToast } from '$stores/toastStore';
+    import { toast } from 'svelte-sonner';
     import AdminLayout from '$routes/admin/AdminLayout.svelte';
     import Spinner from '$components/Spinner.svelte';
 
@@ -46,7 +46,7 @@
         } catch (err) {
             console.error('Failed to load settings:', err);
             const msg = (err as Error)?.message || 'Unknown error';
-            addToast(`Failed to load settings: ${msg}`, 'error');
+            toast.error(`Failed to load settings: ${msg}`);
         } finally {
             loading = false;
         }
@@ -57,10 +57,10 @@
         try {
             const { error } = await updateSystemSettingsApiV1AdminSettingsPut({ body: settings });
             if (error) throw error;
-            addToast('Settings saved successfully', 'success');
+            toast.success('Settings saved successfully');
         } catch (err) {
             const msg = (err as Error)?.message || 'Unknown error';
-            addToast(`Failed to save settings: ${msg}`, 'error');
+            toast.error(`Failed to save settings: ${msg}`);
         } finally {
             saving = false;
         }
@@ -80,10 +80,10 @@
                 security_settings: data.security_settings ?? {},
                 monitoring_settings: data.monitoring_settings ?? {}
             };
-            addToast('Settings reset to defaults', 'success');
+            toast.success('Settings reset to defaults');
         } catch (err) {
             const msg = (err as Error)?.message || 'Unknown error';
-            addToast(`Failed to reset settings: ${msg}`, 'error');
+            toast.error(`Failed to reset settings: ${msg}`);
         } finally {
             resetting = false;
         }

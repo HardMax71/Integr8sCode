@@ -1,12 +1,14 @@
 <script lang="ts">
     import { Eye, Play, Trash2 } from '@lucide/svelte';
-    import type { EventResponse } from '$lib/api';
+    import type { EventBrowseResponse } from '$lib/api';
     import { formatTimestamp } from '$lib/formatters';
     import { getEventTypeColor } from '$lib/admin/events';
     import EventTypeIcon from '$components/EventTypeIcon.svelte';
 
+    type BrowsedEvent = EventBrowseResponse['events'][number];
+
     interface Props {
-        events: EventResponse[];
+        events: BrowsedEvent[];
         onViewDetails: (eventId: string) => void;
         onPreviewReplay: (eventId: string) => void;
         onReplay: (eventId: string) => void;
@@ -191,8 +193,8 @@
                 </div>
                 <div class="col-span-2">
                     <span class="text-fg-muted dark:text-dark-fg-muted">Correlation:</span>
-                    <span class="ml-1 font-mono text-xs truncate inline-block max-w-[200px] align-bottom" title={event.correlation_id}>
-                        {event.correlation_id}
+                    <span class="ml-1 font-mono text-xs truncate inline-block max-w-[200px] align-bottom" title={event.metadata?.correlation_id ?? '-'}>
+                        {event.metadata?.correlation_id ?? '-'}
                     </span>
                 </div>
             </div>

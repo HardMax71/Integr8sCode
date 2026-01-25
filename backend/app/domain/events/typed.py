@@ -30,7 +30,15 @@ class EventMetadata(AvroBase):
 class BaseEvent(AvroBase):
     """Base fields for all domain events."""
 
-    model_config = ConfigDict(from_attributes=True)
+    # Pydantic marks fields with default/default_factory as optional in JSON Schema,
+    # which generates optional TypeScript types (e.g., `event_id?: string`).
+    # Since stored events always have these fields, we override the schema to mark them required.
+    # See: https://github.com/pydantic/pydantic/issues/7209
+    # See: https://github.com/pydantic/pydantic/discussions/6073
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={"required": ["event_id", "event_type", "event_version", "timestamp", "metadata"]},
+    )
 
     event_id: str = Field(default_factory=lambda: str(uuid4()))
     event_type: EventType

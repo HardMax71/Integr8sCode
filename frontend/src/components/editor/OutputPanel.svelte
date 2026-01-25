@@ -5,7 +5,7 @@
     import { AlertTriangle, FileText, Copy } from '@lucide/svelte';
     import AnsiToHtml from 'ansi-to-html';
     import DOMPurify from 'dompurify';
-    import { addToast } from '$stores/toastStore';
+    import { toast } from 'svelte-sonner';
 
     let { phase, result, error }: {
         phase: ExecutionPhase;
@@ -31,9 +31,9 @@
     async function copyToClipboard(text: string, label: string) {
         try {
             await navigator.clipboard.writeText(text);
-            addToast(`${label} copied to clipboard`, 'success');
+            toast.success(`${label} copied to clipboard`);
         } catch {
-            addToast(`Failed to copy ${label.toLowerCase()}`, 'error');
+            toast.error(`Failed to copy ${label.toLowerCase()}`);
         }
     }
 

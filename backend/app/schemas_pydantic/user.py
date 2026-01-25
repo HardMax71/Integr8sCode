@@ -154,10 +154,10 @@ class RateLimitRuleResponse(BaseModel):
     """Response model for rate limit rule."""
 
     endpoint_pattern: str
-    group: str
+    group: EndpointGroup
     requests: int
     window_seconds: int
-    algorithm: str
+    algorithm: RateLimitAlgorithm
     burst_multiplier: float = 1.5
     priority: int = 0
     enabled: bool = True

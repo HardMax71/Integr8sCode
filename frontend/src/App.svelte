@@ -1,9 +1,9 @@
 <script lang="ts">
     import { onMount, onDestroy } from 'svelte';
     import { Router, goto } from "@mateothegreat/svelte5-router";
+    import { Toaster } from 'svelte-sonner';
     import Header from "$components/Header.svelte";
     import Footer from "$components/Footer.svelte";
-    import ToastContainer from "$components/ToastContainer.svelte";
     import Spinner from "$components/Spinner.svelte";
     import ErrorDisplay from "$components/ErrorDisplay.svelte";
     import { theme } from '$stores/theme';
@@ -90,7 +90,7 @@
 {:else}
     <div class="flex flex-col min-h-screen bg-bg-default dark:bg-dark-bg-default pt-16">
         <Header/>
-        <ToastContainer/>
+        <Toaster richColors position="top-right" />
         <main class="flex-grow">
             {#if !authInitialized}
                 <div class="flex items-center justify-center min-h-[50vh]">

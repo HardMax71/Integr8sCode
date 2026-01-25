@@ -7,7 +7,7 @@
   } = $props();
 
   // Determine if this is a network/connection error for user-friendly messaging
-  const isNetworkError = $derived(() => {
+  const isNetworkError = $derived.by(() => {
     const msg = error instanceof Error ? error.message : String(error);
     return msg.toLowerCase().includes('network') ||
            msg.toLowerCase().includes('fetch') ||
@@ -16,7 +16,7 @@
 
   // User-friendly message - never expose raw error details
   const userMessage = $derived(
-    isNetworkError()
+    isNetworkError
       ? 'Unable to connect to the server. Please check your internet connection and try again.'
       : 'Something went wrong. Our team has been notified and is working on it.'
   );

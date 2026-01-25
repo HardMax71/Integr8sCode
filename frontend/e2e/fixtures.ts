@@ -114,7 +114,8 @@ export async function expectActiveNavLink(page: Page, linkName: string): Promise
 }
 
 export async function expectToastVisible(page: Page, timeout = 5000): Promise<void> {
-  await expect(page.locator('[class*="toast"]').first()).toBeVisible({ timeout });
+  // svelte-sonner uses data-sonner-toast attribute
+  await expect(page.locator('[data-sonner-toast]').first()).toBeVisible({ timeout });
 }
 
 export async function expectRedirectToLogin(page: Page): Promise<void> {

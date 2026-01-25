@@ -21,3 +21,24 @@ flag_management:
       carryforward: true
     - name: frontend
       carryforward: true
+
+component_management:
+  individual_components:
+    - component_id: backend
+      name: Backend
+      paths:
+        - backend/app/**
+    - component_id: frontend
+      name: Frontend
+      paths:
+        - frontend/src/**
+
+ignore:
+  - "**/tests/**"
+  - "**/test/**"
+  - "**/__tests__/**"
+  - "**/test_*.py"
+  - "**/*_test.py"
+  - "**/*.test.ts"
+  - "**/*.spec.ts"
+  - "**/conftest.py"

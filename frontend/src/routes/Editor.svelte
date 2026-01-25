@@ -13,7 +13,7 @@
         type ResourceLimits,
         type LanguageInfo,
     } from '$lib/api';
-    import { addToast } from '$stores/toastStore';
+    import { toast } from 'svelte-sonner';
     import { unwrap, unwrapOr } from '$lib/api-interceptors';
     import Spinner from '$components/Spinner.svelte';
     import { updateMetaTags, pageMeta } from '$utils/meta';
@@ -104,7 +104,7 @@
             const saved = savedScripts.find(s => s.id === currentScriptIdValue);
             if (saved && saved.name !== scriptNameValue) {
                 currentScriptId.set(null);
-                addToast('Script name changed. Next save will create a new script.', 'info');
+                toast.info('Script name changed. Next save will create a new script.');
             }
         }
     });
@@ -131,7 +131,7 @@
 
         const { data: limitsData, error: limitsError } = await getK8sResourceLimitsApiV1K8sLimitsGet({});
         if (limitsError) {
-            addToast('Failed to load runtime configuration. Execution disabled.', 'error');
+            toast.error('Failed to load runtime configuration. Execution disabled.');
         } else {
             k8sLimits = limitsData ?? null;
             supportedRuntimes = k8sLimits?.supported_runtimes || {};
@@ -174,14 +174,14 @@
         if (s.lang_version) selectedVersion.set(s.lang_version);
         editorRef?.setContent(s.script);
         execution.reset();
-        addToast(`Loaded script: ${s.name}`, 'info');
+        toast.info(`Loaded script: ${s.name}`);
         showOptions = false;
     }
 
     async function saveScript() {
-        if (!authenticated) { addToast('Please log in to save scripts.', 'warning'); return; }
+        if (!authenticated) { toast.warning('Please log in to save scripts.'); return; }
         const name = get(scriptName);
-        if (!name.trim()) { addToast('Please provide a name for your script.', 'warning'); return; }
+        if (!name.trim()) { toast.warning('Please provide a name for your script.'); return; }
 
         const body = { name, script: get(script), lang: get(selectedLang), lang_version: get(selectedVersion) };
         const id = get(currentScriptId);
@@ -193,15 +193,15 @@
                     currentScriptId.set(null);
                     const data = unwrap(await createSavedScriptApiV1ScriptsPost({ body }));
                     currentScriptId.set(data.script_id);
-                    addToast('Script saved successfully.', 'success');
+                    toast.success('Script saved successfully.');
                 }
                 return;
             }
-            addToast('Script updated successfully.', 'success');
+            toast.success('Script updated successfully.');
         } else {
             const data = unwrap(await createSavedScriptApiV1ScriptsPost({ body }));
             currentScriptId.set(data.script_id);
-            addToast('Script saved successfully.', 'success');
+            toast.success('Script saved successfully.');
         }
         await loadSavedScripts();
     }
@@ -210,7 +210,7 @@
         const s = savedScripts.find(x => x.id === id);
         if (!confirm(s ? `Are you sure you want to delete "${s.name}"?` : 'Are you sure you want to delete this script?')) return;
         unwrap(await deleteSavedScriptApiV1ScriptsScriptIdDelete({ path: { script_id: id } }));
-        addToast('Script deleted successfully.', 'success');
+        toast.success('Script deleted successfully.');
         if (get(currentScriptId) === id) newScript();
         await loadSavedScripts();
     }
@@ -221,7 +221,7 @@
         currentScriptId.set(null);
         editorRef?.setContent('');
         execution.reset();
-        addToast('New script started.', 'info');
+        toast.info('New script started.');
     }
 
     function exportScript() {
@@ -241,9 +241,17 @@
         URL.revokeObjectURL(url);
     }
 
+    const MAX_FILE_SIZE = 1024 * 1024; // 1MB
+
     function handleFileUpload(event: Event) {
         const file = (event.target as HTMLInputElement).files?.[0];
         if (!file) return;
+
+        if (file.size > MAX_FILE_SIZE) {
+            toast.error('File too large. Maximum size is 1MB.');
+            (event.target as HTMLInputElement).value = '';
+            return;
+        }
 
         const extToLang: Record<string, string> = {};
         for (const [lang, info] of Object.entries(supportedRuntimes)) extToLang[info.file_ext] = lang;
@@ -252,7 +260,8 @@
         const detectedLang = extToLang[fileExt];
 
         if (!detectedLang) {
-            addToast(`Unsupported file type. Allowed: ${Object.values(supportedRuntimes).map(i => `.${i.file_ext}`).join(', ')}`, 'error');
+            toast.error(`Unsupported file type. Allowed: ${Object.values(supportedRuntimes).map(i => `.${i.file_ext}`).join(', ')}`);
+            (event.target as HTMLInputElement).value = '';
             return;
         }
 
@@ -266,9 +275,9 @@
             const info = supportedRuntimes[detectedLang];
             if (info?.versions.length) selectedVersion.set(info.versions[0]);
             editorRef?.setContent(text);
-            addToast(`Loaded ${detectedLang} script from ${file.name}`, 'info');
+            toast.info(`Loaded ${detectedLang} script from ${file.name}`);
         };
-        reader.onerror = () => addToast('Failed to read the selected file.', 'error');
+        reader.onerror = () => toast.error('Failed to read the selected file.');
         reader.readAsText(file);
         (event.target as HTMLInputElement).value = '';
     }
@@ -276,7 +285,7 @@
     function loadExampleScript() {
         const lang = get(selectedLang);
         const example = exampleScripts[lang];
-        if (!example) { addToast(`No example script available for ${lang}.`, 'warning'); return; }
+        if (!example) { toast.warning(`No example script available for ${lang}.`); return; }
 
         const lines = example.split('\n');
         const firstLine = lines.find((l: string) => l.trim().length > 0);
@@ -286,7 +295,7 @@
         script.set(cleaned);
         editorRef?.setContent(cleaned);
         execution.reset();
-        addToast(`Loaded example script for ${lang}.`, 'info');
+        toast.info(`Loaded example script for ${lang}.`);
     }
 
     function handleExecute() {

@@ -1,9 +1,9 @@
 import asyncio
-from typing import Any
 
 import pytest
 from app.domain.enums.events import EventType
 from app.domain.enums.replay import ReplayStatus
+from app.domain.events.typed import DomainEvent
 from app.schemas_pydantic.admin_events import (
     EventBrowseRequest,
     EventBrowseResponse,
@@ -26,7 +26,7 @@ async def wait_for_events(
     aggregate_id: str,
     timeout: float = 30.0,
     poll_interval: float = 0.5,
-) -> list[dict[str, Any]]:
+) -> list[DomainEvent]:
     """Poll until at least one event exists for the aggregate.
 
     Args:
@@ -345,7 +345,7 @@ class TestGetEventDetail:
     ) -> None:
         """Admin can get event details."""
         events = await wait_for_events(test_admin, created_execution_admin.execution_id)
-        event_id = events[0].get("event_id")
+        event_id = events[0].event_id
 
         response = await test_admin.get(f"/api/v1/admin/events/{event_id}")
 
@@ -509,7 +509,7 @@ class TestDeleteEvent:
 
         execution = ExecutionResponse.model_validate(exec_response.json())
         events = await wait_for_events(test_admin, execution.execution_id)
-        event_id = events[0].get("event_id")
+        event_id = events[0].event_id
 
         response = await test_admin.delete(f"/api/v1/admin/events/{event_id}")
 

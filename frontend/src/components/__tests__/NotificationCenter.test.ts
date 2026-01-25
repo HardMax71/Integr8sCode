@@ -60,6 +60,10 @@ const mocks = vi.hoisted(() => {
       clear: ReturnType<typeof vi.fn>;
       refresh: ReturnType<typeof vi.fn>;
     },
+    // Mock notification stream
+    mockStreamConnect: vi.fn(),
+    mockStreamDisconnect: vi.fn(),
+    mockStreamConnected: false,
   };
 });
 
@@ -89,41 +93,14 @@ vi.mock('../../stores/notificationStore', () => ({
   get loading() { return mocks.mockLoading; },
 }));
 
-// Mock EventSource with instance tracking
-class MockEventSource {
-  static CONNECTING = 0;
-  static OPEN = 1;
-  static CLOSED = 2;
-  static instances: MockEventSource[] = [];
-
-  readyState = MockEventSource.OPEN;
-  onopen: ((ev: Event) => void) | null = null;
-  onmessage: ((ev: MessageEvent) => void) | null = null;
-  onerror: ((ev: Event) => void) | null = null;
-
-  constructor(public url: string, public options?: { withCredentials?: boolean }) {
-    MockEventSource.instances.push(this);
-    setTimeout(() => { if (this.onopen) this.onopen(new Event('open')); }, 0);
-  }
-
-  close() { this.readyState = MockEventSource.CLOSED; }
-
-  simulateMessage(data: unknown) {
-    if (this.onmessage) {
-      this.onmessage(new MessageEvent('message', { data: JSON.stringify(data) }));
-    }
-  }
-
-  simulateError() {
-    if (this.onerror) {
-      this.onerror(new Event('error'));
-    }
-  }
-
-  static clearInstances() { MockEventSource.instances = []; }
-  static getLastInstance() { return MockEventSource.instances[MockEventSource.instances.length - 1]; }
-}
-vi.stubGlobal('EventSource', MockEventSource);
+// Mock the notification stream module
+vi.mock('../../lib/notifications/stream.svelte', () => ({
+  notificationStream: {
+    get connected() { return mocks.mockStreamConnected; },
+    connect: (...args: unknown[]) => mocks.mockStreamConnect(...args),
+    disconnect: () => mocks.mockStreamDisconnect(),
+  },
+}));
 
 // Configurable Notification mock
 const mockRequestPermission = vi.fn().mockResolvedValue('granted');
@@ -160,27 +137,6 @@ const openDropdownWithContainer = async () => {
   const { container } = render(NotificationCenter);
   await user.click(screen.getByRole('button', { name: /Notifications/i }));
   return { user, container };
-};
-
-/** Sets up SSE and waits for the EventSource to be ready with handlers attached */
-const setupSSE = async () => {
-  mocks.mockIsAuthenticated.set(true);
-  render(NotificationCenter);
-  await waitFor(() => { expect(MockEventSource.instances.length).toBeGreaterThan(0); });
-  const instance = MockEventSource.getLastInstance()!;
-  await waitFor(() => { expect(instance.onmessage).not.toBeNull(); });
-  return instance;
-};
-
-/** Sets up SSE with fake timers and returns instance with error handler ready */
-const setupSSEWithFakeTimers = async () => {
-  vi.useFakeTimers();
-  mocks.mockIsAuthenticated.set(true);
-  render(NotificationCenter);
-  await vi.waitFor(() => { expect(MockEventSource.instances.length).toBeGreaterThan(0); });
-  const instance = MockEventSource.getLastInstance()!;
-  await vi.waitFor(() => { expect(instance.onerror).not.toBeNull(); });
-  return instance;
 };
 
 /** Mocks window.location.href for external URL testing */
@@ -238,12 +194,6 @@ const badgeTestCases = [
   { count: 12, expected: '9+' },
 ];
 
-const ignoredSSEMessages = [
-  { message: { event: 'heartbeat' }, desc: 'heartbeat', shouldLog: false },
-  { message: { event: 'connected' }, desc: 'connected', shouldLog: false },
-  { message: { other: 'value' }, desc: 'non-notification', shouldLog: true },
-];
-
 const interactionTestCases = [
   { method: 'click' as const, hasUrl: true, url: '/builds/123' },
   { method: 'click' as const, hasUrl: false, url: undefined },
@@ -268,7 +218,9 @@ describe('NotificationCenter', () => {
     mocks.mockNotificationStore.markAllAsRead.mockReset().mockResolvedValue(true);
     mocks.mockNotificationStore.clear.mockReset();
     mocks.mockNotificationStore.add.mockReset();
-    MockEventSource.clearInstances();
+    mocks.mockStreamConnect.mockReset();
+    mocks.mockStreamDisconnect.mockReset();
+    mocks.mockStreamConnected = false;
     mockNotificationPermission = 'default';
     mockRequestPermission.mockReset().mockResolvedValue('granted');
     vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -456,70 +408,24 @@ describe('NotificationCenter', () => {
     });
   });
 
-  describe('SSE connection', () => {
-    it('connects when authenticated and clears on logout', async () => {
+  describe('stream connection', () => {
+    it('connects when authenticated', async () => {
       mocks.mockIsAuthenticated.set(true);
       render(NotificationCenter);
-      await waitFor(() => { expect(MockEventSource.instances.length).toBeGreaterThan(0); });
+      await waitFor(() => {
+        expect(mocks.mockNotificationStore.load).toHaveBeenCalled();
+      });
+    });
+
+    it('disconnects and clears on logout', async () => {
+      mocks.mockIsAuthenticated.set(true);
+      render(NotificationCenter);
+      await waitFor(() => { expect(mocks.mockNotificationStore.load).toHaveBeenCalled(); });
       mocks.mockIsAuthenticated.set(false);
-      await waitFor(() => { expect(mocks.mockNotificationStore.clear).toHaveBeenCalled(); });
-    });
-  });
-
-  describe('SSE message handling', () => {
-    it('adds valid notifications to store', async () => {
-      const instance = await setupSSE();
-      instance.simulateMessage({ notification_id: 'new-1', subject: 'New', body: 'Body' });
-      await waitFor(() => { expect(mocks.mockNotificationStore.add).toHaveBeenCalled(); });
-    });
-
-    it.each(ignoredSSEMessages)('ignores $desc messages', async ({ message, shouldLog }) => {
-      const instance = await setupSSE();
-      instance.simulateMessage(message);
-      expect(mocks.mockNotificationStore.add).not.toHaveBeenCalled();
-      if (shouldLog) expect(console.debug).toHaveBeenCalled();
-    });
-
-    it('handles JSON parse errors', async () => {
-      const instance = await setupSSE();
-      instance.onmessage?.(new MessageEvent('message', { data: 'invalid{' }));
-      expect(console.error).toHaveBeenCalled();
-    });
-  });
-
-  describe('SSE error handling', () => {
-    it('attempts reconnection on error', async () => {
-      const instance = await setupSSEWithFakeTimers();
-      instance.simulateError();
-      expect(console.log).toHaveBeenCalled();
-      vi.useRealTimers();
-    });
-
-    it('closes stream on error when logged out', async () => {
-      const instance = await setupSSE();
-      mocks.mockIsAuthenticated.set(false);
-      instance.simulateError();
-      expect(instance.readyState).toBe(MockEventSource.CLOSED);
-    });
-
-    it('logs error after max reconnection attempts', async () => {
-      await setupSSEWithFakeTimers();
-      for (let i = 0; i < 4; i++) {
-        MockEventSource.getLastInstance()!.simulateError();
-        await vi.advanceTimersByTimeAsync(30000);
-      }
-      expect(console.error).toHaveBeenCalled();
-      vi.useRealTimers();
-    });
-
-    it('stops reconnecting after logout', async () => {
-      await setupSSEWithFakeTimers();
-      const count = MockEventSource.instances.length;
-      mocks.mockIsAuthenticated.set(false);
-      MockEventSource.getLastInstance()!.simulateError();
-      await vi.advanceTimersByTimeAsync(10000);
-      expect(MockEventSource.instances.length).toBe(count);
-      vi.useRealTimers();
+      await waitFor(() => {
+        expect(mocks.mockStreamDisconnect).toHaveBeenCalled();
+        expect(mocks.mockNotificationStore.clear).toHaveBeenCalled();
+      });
     });
   });
 
@@ -553,29 +459,6 @@ describe('NotificationCenter', () => {
       const user = await openDropdown();
       await user.click(await screen.findByText('Enable desktop notifications'));
       expect(mockRequestPermission).toHaveBeenCalled();
-    });
-
-    it('shows browser notification when SSE notification received and permission granted', async () => {
-      mockNotificationPermission = 'granted';
-      const mockNotificationConstructor = vi.fn();
-      vi.stubGlobal('Notification', {
-        get permission() { return 'granted'; },
-        requestPermission: mockRequestPermission,
-      });
-      (globalThis as unknown as { Notification: unknown }).Notification = class {
-        constructor(title: string, options?: NotificationOptions) {
-          mockNotificationConstructor(title, options);
-        }
-        static get permission() { return 'granted'; }
-        static requestPermission = mockRequestPermission;
-      };
-
-      const instance = await setupSSE();
-      instance.simulateMessage({ notification_id: 'n1', subject: 'Test Title', body: 'Test Body' });
-
-      await waitFor(() => {
-        expect(mockNotificationConstructor).toHaveBeenCalledWith('Test Title', expect.objectContaining({ body: 'Test Body' }));
-      });
     });
   });
 });

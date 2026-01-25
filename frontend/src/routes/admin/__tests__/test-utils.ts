@@ -48,39 +48,64 @@ export function mockWindowGlobals(openMock: Mock, confirmMock: Mock): void {
 // Event Mock Helpers
 // ============================================================================
 
+export interface MockEventMetadata {
+  service_name: string;
+  service_version: string;
+  correlation_id?: string;
+  user_id?: string | null;
+}
+
 export interface MockEventOverrides {
   event_id?: string;
   event_type?: string;
   timestamp?: string;
-  correlation_id?: string;
   aggregate_id?: string;
-  metadata?: Record<string, unknown>;
-  payload?: Record<string, unknown>;
+  metadata?: Partial<MockEventMetadata>;
+  // Event-specific payload fields
+  execution_id?: string;
+  exit_code?: number;
+  output?: string;
 }
 
 export const DEFAULT_EVENT = {
   event_id: 'evt-1',
   event_type: 'execution_completed',
   timestamp: '2024-01-15T10:30:00Z',
-  correlation_id: 'corr-123',
   aggregate_id: 'exec-456',
-  metadata: { user_id: 'user-1', service_name: 'test-service' },
-  payload: { output: 'hello', exit_code: 0 },
+  metadata: {
+    service_name: 'test-service',
+    service_version: '1.0.0',
+    correlation_id: 'corr-123',
+    user_id: 'user-1',
+  },
+  execution_id: 'exec-456',
+  exit_code: 0,
+  output: 'hello',
 };
 
 /** Re-export EVENT_TYPES from the source for test consistency */
 export { EVENT_TYPES } from '$lib/admin/events/eventTypes';
 
-export const createMockEvent = (overrides: MockEventOverrides = {}) => ({ ...DEFAULT_EVENT, ...overrides });
+export const createMockEvent = (overrides: MockEventOverrides = {}) => {
+  const { metadata: metadataOverrides, ...rest } = overrides;
+  return {
+    ...DEFAULT_EVENT,
+    ...rest,
+    metadata: { ...DEFAULT_EVENT.metadata, ...metadataOverrides },
+  };
+};
 
 export const createMockEvents = (count: number) =>
   Array.from({ length: count }, (_, i) => createMockEvent({
     event_id: `evt-${i + 1}`,
     event_type: EVENT_TYPES[i % EVENT_TYPES.length],
     timestamp: new Date(Date.now() - i * 60000).toISOString(),
-    correlation_id: `corr-${i + 1}`,
     aggregate_id: `exec-${i + 1}`,
-    metadata: { user_id: `user-${(i % 3) + 1}`, service_name: 'execution-service' },
+    metadata: {
+      correlation_id: `corr-${i + 1}`,
+      user_id: `user-${(i % 3) + 1}`,
+      service_name: 'execution-service',
+    },
   }));
 
 export function createMockStats(overrides: Partial<{

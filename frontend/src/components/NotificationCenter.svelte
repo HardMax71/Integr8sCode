@@ -1,19 +1,14 @@
 <script lang="ts">
-    import { onMount, onDestroy, type Component } from 'svelte';
-    import { fade, fly } from 'svelte/transition';
-    import { isAuthenticated, username, userId } from '$stores/auth';
-    import { get } from 'svelte/store';
+    import { onDestroy, type Component } from 'svelte';
+    import { fly } from 'svelte/transition';
+    import { isAuthenticated } from '$stores/auth';
     import { goto } from '@mateothegreat/svelte5-router';
     import { notificationStore, notifications, unreadCount, loading } from '$stores/notificationStore';
+    import { notificationStream } from '$lib/notifications/stream.svelte';
     import type { NotificationResponse } from '$lib/api';
     import { Bell, AlertCircle, AlertTriangle, CircleCheck, Info } from '@lucide/svelte';
 
     let showDropdown = $state(false);
-    // EventSource and reconnect state - not displayed in template, no $state needed
-    let eventSource: EventSource | null = null;
-    let reconnectAttempts = 0;
-    const maxReconnectAttempts = 3;
-    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
     let hasLoadedInitialData = false;
 
     function getNotificationIcon(tags: string[] = []): Component {
@@ -23,151 +18,42 @@
         if (set.has('completed') || set.has('success')) return CircleCheck;
         return Info;
     }
-    
+
     const priorityColors = {
         low: 'text-fg-muted dark:text-dark-fg-muted',
         medium: 'text-blue-600 dark:text-blue-400',
         high: 'text-orange-600 dark:text-orange-400',
         urgent: 'text-red-600 dark:text-red-400'
     };
-    
-    onMount(() => {
-        // Subscribe to authentication changes
-        const unsubscribe = isAuthenticated.subscribe(($isAuth) => {
-            if ($isAuth && !hasLoadedInitialData) {
-                hasLoadedInitialData = true;
-                // Load notifications using the shared store
-                notificationStore.load(20).then(() => {
-                    connectToNotificationStream();
-                });
-            } else if (!$isAuth) {
-                // Close stream if not authenticated
-                if (eventSource) {
-                    eventSource.close();
-                    eventSource = null;
-                }
-                hasLoadedInitialData = false;
-                notificationStore.clear();
-            }
-        });
 
-        return unsubscribe;
+    // Reactive connection based on auth state
+    $effect(() => {
+        if ($isAuthenticated) {
+            if (!hasLoadedInitialData) {
+                hasLoadedInitialData = true;
+                notificationStore.load(20).then(() => {
+                    notificationStream.connect((data) => notificationStore.add(data));
+                });
+            }
+        } else {
+            notificationStream.disconnect();
+            hasLoadedInitialData = false;
+            notificationStore.clear();
+        }
     });
-    
+
     onDestroy(() => {
-        if (eventSource) {
-            eventSource.close();
-            eventSource = null;
-        }
-        if (reconnectTimeout) clearTimeout(reconnectTimeout);
+        notificationStream.disconnect();
     });
-    
-    
-    function connectToNotificationStream(): void {
-        const isAuth = get(isAuthenticated);
-        if (!isAuth) return;
-        
-        // Check if we've exceeded max attempts
-        if (reconnectAttempts >= maxReconnectAttempts) {
-            console.error('Max reconnection attempts reached for notification stream');
-            return;
-        }
-        
-        // Close existing connection if any
-        if (eventSource) {
-            eventSource.close();
-        }
-        
-        const url = `/api/v1/events/notifications/stream`;
-        eventSource = new EventSource(url, {
-            withCredentials: true
-        });
-        
-        eventSource.onopen = (event) => {
-            console.log('Notification stream connected', event.type);
-            reconnectAttempts = 0; // Reset on successful connection
-        };
-        
-        eventSource.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                
-                // Ignore heartbeat, connection, and subscription confirmation messages
-                if (data.event_type === 'heartbeat' || data.event_type === 'connected' || data.event_type === 'subscribed') {
-                    return;
-                }
-                
-                // Only process actual notification events
-                if (data.notification_id && data.subject && data.body) {
-                    // Add to shared notification store
-                    notificationStore.add(data);
-                    
-                    // Show browser notification if permission granted
-                    if (Notification.permission === 'granted') {
-                        new Notification(data.subject, {
-                            body: data.body,
-                            icon: '/favicon.png'
-                        });
-                    }
-                } else {
-                    console.debug('SSE event received but not a notification:', data);
-                }
-            } catch (err) {
-                console.error('Error processing notification:', err);
-            }
-        };
-        
-        eventSource.onerror = (error) => {
-            // SSE connections will fire error event when closing, ignore if we're not authenticated
-            const isAuth = get(isAuthenticated);
-            if (!isAuth) {
-                if (eventSource) {
-                    eventSource.close();
-                    eventSource = null;
-                }
-                return;
-            }
-            
-            // Only log actual errors, not normal closure
-            if (eventSource && eventSource.readyState !== EventSource.CLOSED) {
-                console.error('Notification stream error:', error.type);
-            }
-            
-            if (eventSource) {
-                eventSource.close();
-                eventSource = null;
-            }
-            
-            // Only reconnect if authenticated and under limit
-            if (isAuth && reconnectAttempts < maxReconnectAttempts) {
-                reconnectAttempts++;
-                console.log(`Reconnecting notification stream... (attempt ${reconnectAttempts}/${maxReconnectAttempts})`);
-                
-                // Exponential backoff: 5s, 10s, 20s
-                const delay = Math.min(5000 * Math.pow(2, reconnectAttempts - 1), 20000);
-                
-                if (reconnectTimeout) clearTimeout(reconnectTimeout);
-                reconnectTimeout = setTimeout(() => {
-                    const stillAuth = get(isAuthenticated);
-                    if (stillAuth && !eventSource) {
-                        connectToNotificationStream();
-                    }
-                }, delay);
-            } else if (reconnectAttempts >= maxReconnectAttempts) {
-                console.error('Max reconnection attempts reached for notification stream');
-            }
-        };
-    }
-    
+
     async function markAsRead(notification: NotificationResponse): Promise<void> {
         if (notification.status === 'read') return;
         await notificationStore.markAsRead(notification.notification_id);
     }
-    
+
     async function markAllAsRead(): Promise<void> {
         const success = await notificationStore.markAllAsRead();
         if (success) {
-            // Close dropdown after marking all as read
             showDropdown = false;
         }
     }
@@ -176,7 +62,6 @@
         showDropdown = !showDropdown;
 
         if (showDropdown && $unreadCount > 0) {
-            // Mark visible notifications as read after a delay
             setTimeout(() => {
                 $notifications.slice(0, 5).forEach(n => {
                     if (n.status !== 'read') {
@@ -188,7 +73,6 @@
     }
 
     function formatTime(timestamp: string): string {
-        // Backend sends ISO datetime strings
         const date = new Date(timestamp);
         const now = new Date();
         const diff = now.getTime() - date.getTime();
@@ -198,10 +82,7 @@
         if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
         return date.toLocaleDateString();
     }
-    
-    // getNotificationIcon now based on tags above
 
-    // Track permission state reactively
     let notificationPermission = $state(
         typeof window !== 'undefined' && 'Notification' in window
             ? Notification.permission
@@ -228,7 +109,7 @@
             </span>
         {/if}
     </button>
-    
+
     {#if showDropdown}
         <div
             class="absolute right-0 mt-2 w-96 bg-surface-overlay dark:bg-dark-surface-overlay rounded-lg shadow-lg border border-border-default dark:border-dark-border-default z-50"
@@ -256,7 +137,7 @@
                     </button>
                 {/if}
             </div>
-            
+
             <div class="max-h-96 overflow-y-auto">
                 {#if $loading}
                     <div class="p-8 text-center">
@@ -276,7 +157,6 @@
                             onclick={() => {
                                 markAsRead(notification);
                                 if (notification.action_url) {
-                                    // Use goto for internal links, window.location for external
                                     if (notification.action_url.startsWith('/')) {
                                         showDropdown = false;
                                         goto(notification.action_url);
@@ -325,7 +205,7 @@
                     {/each}
                 {/if}
             </div>
-            
+
             <div class="p-3 border-t border-border-default dark:border-dark-border-default">
                 <button
                     onclick={() => {

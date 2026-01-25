@@ -5,7 +5,6 @@ from uuid import uuid4
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute, inject
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Request
-from pydantic import TypeAdapter
 
 from app.api.dependencies import admin_user, current_user
 from app.core.tracing import EventAttributes, add_span_attributes
@@ -13,9 +12,8 @@ from app.core.utils import get_client_ip
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.user import UserRole
-from app.domain.events.typed import BaseEvent, EventMetadata
+from app.domain.events.typed import BaseEvent, DomainEvent, EventMetadata
 from app.domain.exceptions import DomainError
-from app.schemas_pydantic.events import EventResponse
 from app.schemas_pydantic.execution import (
     CancelExecutionRequest,
     CancelResponse,
@@ -35,8 +33,6 @@ from app.services.execution_service import ExecutionService
 from app.services.idempotency import IdempotencyManager
 from app.services.kafka_event_service import KafkaEventService
 from app.settings import Settings
-
-_event_list_adapter: TypeAdapter[list[EventResponse]] = TypeAdapter(list[EventResponse])
 
 router = APIRouter(route_class=DishkaRoute, tags=["execution"])
 
@@ -234,18 +230,18 @@ async def retry_execution(
     return ExecutionResponse.model_validate(new_result)
 
 
-@router.get("/executions/{execution_id}/events", response_model=list[EventResponse])
+@router.get("/executions/{execution_id}/events", response_model=list[DomainEvent])
 async def get_execution_events(
         execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
         event_service: FromDishka[EventService],
         event_types: list[EventType] | None = Query(None, description="Event types to filter"),
         limit: int = Query(100, ge=1, le=1000),
-) -> list[EventResponse]:
+) -> list[DomainEvent]:
     """Get all events for an execution."""
     events = await event_service.get_events_by_aggregate(
         aggregate_id=execution.execution_id, event_types=event_types, limit=limit
     )
-    return _event_list_adapter.validate_python([e.model_dump() for e in events])
+    return events
 
 
 @router.get("/user/executions", response_model=ExecutionListResponse)

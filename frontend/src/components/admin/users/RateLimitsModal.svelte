@@ -1,6 +1,6 @@
 <script lang="ts">
     import { Plus, X } from '@lucide/svelte';
-    import type { UserResponse, UserRateLimit, RateLimitRule } from '$lib/api';
+    import type { UserResponse, UserRateLimitConfigResponse, RateLimitRuleResponse } from '$lib/api';
     import {
         getGroupColor,
         getDefaultRulesWithMultiplier,
@@ -13,7 +13,7 @@
     interface Props {
         open: boolean;
         user: UserResponse | null;
-        config: UserRateLimit | null;
+        config: UserRateLimitConfigResponse | null;
         usage: Record<string, { count?: number; tokens_remaining?: number }> | null;
         loading: boolean;
         saving: boolean;
@@ -38,7 +38,7 @@
         config ? getDefaultRulesWithMultiplier(config.global_multiplier) : []
     );
 
-    function handleEndpointChange(rule: RateLimitRule): void {
+    function handleEndpointChange(rule: RateLimitRuleResponse): void {
         if (rule.endpoint_pattern) {
             rule.group = detectGroupFromEndpoint(rule.endpoint_pattern);
         }
@@ -52,7 +52,7 @@
 
     function removeRule(index: number): void {
         if (!config?.rules) return;
-        config.rules = config.rules.filter((_, i) => i !== index);
+        config.rules = config.rules.filter((_: RateLimitRuleResponse, i: number) => i !== index);
     }
 </script>
 

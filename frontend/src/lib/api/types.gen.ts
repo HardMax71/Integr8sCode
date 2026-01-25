@@ -15,9 +15,139 @@ export type AdminUserOverview = {
     /**
      * Recent Events
      */
-    recent_events?: Array<{
-        [key: string]: unknown;
-    }>;
+    recent_events?: Array<({
+        event_type: 'execution_requested';
+    } & ExecutionRequestedEvent) | ({
+        event_type: 'execution_accepted';
+    } & ExecutionAcceptedEvent) | ({
+        event_type: 'execution_queued';
+    } & ExecutionQueuedEvent) | ({
+        event_type: 'execution_started';
+    } & ExecutionStartedEvent) | ({
+        event_type: 'execution_running';
+    } & ExecutionRunningEvent) | ({
+        event_type: 'execution_completed';
+    } & ExecutionCompletedEvent) | ({
+        event_type: 'execution_failed';
+    } & ExecutionFailedEvent) | ({
+        event_type: 'execution_timeout';
+    } & ExecutionTimeoutEvent) | ({
+        event_type: 'execution_cancelled';
+    } & ExecutionCancelledEvent) | ({
+        event_type: 'pod_created';
+    } & PodCreatedEvent) | ({
+        event_type: 'pod_scheduled';
+    } & PodScheduledEvent) | ({
+        event_type: 'pod_running';
+    } & PodRunningEvent) | ({
+        event_type: 'pod_succeeded';
+    } & PodSucceededEvent) | ({
+        event_type: 'pod_failed';
+    } & PodFailedEvent) | ({
+        event_type: 'pod_terminated';
+    } & PodTerminatedEvent) | ({
+        event_type: 'pod_deleted';
+    } & PodDeletedEvent) | ({
+        event_type: 'result_stored';
+    } & ResultStoredEvent) | ({
+        event_type: 'result_failed';
+    } & ResultFailedEvent) | ({
+        event_type: 'user_settings_updated';
+    } & UserSettingsUpdatedEvent) | ({
+        event_type: 'user_registered';
+    } & UserRegisteredEvent) | ({
+        event_type: 'user_login';
+    } & UserLoginEvent) | ({
+        event_type: 'user_logged_in';
+    } & UserLoggedInEvent) | ({
+        event_type: 'user_logged_out';
+    } & UserLoggedOutEvent) | ({
+        event_type: 'user_updated';
+    } & UserUpdatedEvent) | ({
+        event_type: 'user_deleted';
+    } & UserDeletedEvent) | ({
+        event_type: 'notification_created';
+    } & NotificationCreatedEvent) | ({
+        event_type: 'notification_sent';
+    } & NotificationSentEvent) | ({
+        event_type: 'notification_delivered';
+    } & NotificationDeliveredEvent) | ({
+        event_type: 'notification_failed';
+    } & NotificationFailedEvent) | ({
+        event_type: 'notification_read';
+    } & NotificationReadEvent) | ({
+        event_type: 'notification_clicked';
+    } & NotificationClickedEvent) | ({
+        event_type: 'notification_preferences_updated';
+    } & NotificationPreferencesUpdatedEvent) | ({
+        event_type: 'saga_started';
+    } & SagaStartedEvent) | ({
+        event_type: 'saga_completed';
+    } & SagaCompletedEvent) | ({
+        event_type: 'saga_failed';
+    } & SagaFailedEvent) | ({
+        event_type: 'saga_cancelled';
+    } & SagaCancelledEvent) | ({
+        event_type: 'saga_compensating';
+    } & SagaCompensatingEvent) | ({
+        event_type: 'saga_compensated';
+    } & SagaCompensatedEvent) | ({
+        event_type: 'create_pod_command';
+    } & CreatePodCommandEvent) | ({
+        event_type: 'delete_pod_command';
+    } & DeletePodCommandEvent) | ({
+        event_type: 'allocate_resources_command';
+    } & AllocateResourcesCommandEvent) | ({
+        event_type: 'release_resources_command';
+    } & ReleaseResourcesCommandEvent) | ({
+        event_type: 'script_saved';
+    } & ScriptSavedEvent) | ({
+        event_type: 'script_deleted';
+    } & ScriptDeletedEvent) | ({
+        event_type: 'script_shared';
+    } & ScriptSharedEvent) | ({
+        event_type: 'security_violation';
+    } & SecurityViolationEvent) | ({
+        event_type: 'rate_limit_exceeded';
+    } & RateLimitExceededEvent) | ({
+        event_type: 'auth_failed';
+    } & AuthFailedEvent) | ({
+        event_type: 'resource_limit_exceeded';
+    } & ResourceLimitExceededEvent) | ({
+        event_type: 'quota_exceeded';
+    } & QuotaExceededEvent) | ({
+        event_type: 'system_error';
+    } & SystemErrorEvent) | ({
+        event_type: 'service_unhealthy';
+    } & ServiceUnhealthyEvent) | ({
+        event_type: 'service_recovered';
+    } & ServiceRecoveredEvent) | ({
+        event_type: 'dlq_message_received';
+    } & DlqMessageReceivedEvent) | ({
+        event_type: 'dlq_message_retried';
+    } & DlqMessageRetriedEvent) | ({
+        event_type: 'dlq_message_discarded';
+    } & DlqMessageDiscardedEvent)>;
+};
+
+/**
+ * AgeStatistics
+ *
+ * Age statistics for DLQ messages.
+ */
+export type AgeStatistics = {
+    /**
+     * Min Age Seconds
+     */
+    min_age_seconds?: number;
+    /**
+     * Max Age Seconds
+     */
+    max_age_seconds?: number;
+    /**
+     * Avg Age Seconds
+     */
+    avg_age_seconds?: number;
 };
 
 /**
@@ -40,6 +170,84 @@ export type AlertResponse = {
      * Errors
      */
     errors?: Array<string>;
+};
+
+/**
+ * AllocateResourcesCommandEvent
+ */
+export type AllocateResourcesCommandEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'allocate_resources_command';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Execution Id
+     */
+    execution_id?: string;
+    /**
+     * Cpu Request
+     */
+    cpu_request?: string;
+    /**
+     * Memory Request
+     */
+    memory_request?: string;
+};
+
+/**
+ * AuthFailedEvent
+ */
+export type AuthFailedEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'auth_failed';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Username
+     */
+    username?: string | null;
+    /**
+     * Reason
+     */
+    reason?: string;
+    /**
+     * Ip Address
+     */
+    ip_address?: string | null;
 };
 
 /**
@@ -129,6 +337,89 @@ export type CleanupResponse = {
 };
 
 /**
+ * CreatePodCommandEvent
+ */
+export type CreatePodCommandEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'create_pod_command';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Saga Id
+     */
+    saga_id?: string;
+    /**
+     * Execution Id
+     */
+    execution_id?: string;
+    /**
+     * Script
+     */
+    script?: string;
+    /**
+     * Language
+     */
+    language?: string;
+    /**
+     * Language Version
+     */
+    language_version?: string;
+    /**
+     * Runtime Image
+     */
+    runtime_image?: string;
+    /**
+     * Runtime Command
+     */
+    runtime_command?: Array<string>;
+    /**
+     * Runtime Filename
+     */
+    runtime_filename?: string;
+    /**
+     * Timeout Seconds
+     */
+    timeout_seconds?: number;
+    /**
+     * Cpu Limit
+     */
+    cpu_limit?: string;
+    /**
+     * Memory Limit
+     */
+    memory_limit?: string;
+    /**
+     * Cpu Request
+     */
+    cpu_request?: string;
+    /**
+     * Memory Request
+     */
+    memory_request?: string;
+    /**
+     * Priority
+     */
+    priority?: number;
+};
+
+/**
  * DLQBatchRetryResponse
  *
  * Response model for batch retry operation.
@@ -157,20 +448,125 @@ export type DlqBatchRetryResponse = {
 /**
  * DLQMessageDetail
  *
- * Detailed DLQ message response.
+ * Detailed DLQ message response. Mirrors DLQMessage for direct model_validate.
  */
 export type DlqMessageDetail = {
     /**
-     * Event Id
-     */
-    event_id: string;
-    /**
      * Event
      */
-    event: {
-        [key: string]: unknown;
-    };
-    event_type: EventType;
+    event: ({
+        event_type: 'execution_requested';
+    } & ExecutionRequestedEvent) | ({
+        event_type: 'execution_accepted';
+    } & ExecutionAcceptedEvent) | ({
+        event_type: 'execution_queued';
+    } & ExecutionQueuedEvent) | ({
+        event_type: 'execution_started';
+    } & ExecutionStartedEvent) | ({
+        event_type: 'execution_running';
+    } & ExecutionRunningEvent) | ({
+        event_type: 'execution_completed';
+    } & ExecutionCompletedEvent) | ({
+        event_type: 'execution_failed';
+    } & ExecutionFailedEvent) | ({
+        event_type: 'execution_timeout';
+    } & ExecutionTimeoutEvent) | ({
+        event_type: 'execution_cancelled';
+    } & ExecutionCancelledEvent) | ({
+        event_type: 'pod_created';
+    } & PodCreatedEvent) | ({
+        event_type: 'pod_scheduled';
+    } & PodScheduledEvent) | ({
+        event_type: 'pod_running';
+    } & PodRunningEvent) | ({
+        event_type: 'pod_succeeded';
+    } & PodSucceededEvent) | ({
+        event_type: 'pod_failed';
+    } & PodFailedEvent) | ({
+        event_type: 'pod_terminated';
+    } & PodTerminatedEvent) | ({
+        event_type: 'pod_deleted';
+    } & PodDeletedEvent) | ({
+        event_type: 'result_stored';
+    } & ResultStoredEvent) | ({
+        event_type: 'result_failed';
+    } & ResultFailedEvent) | ({
+        event_type: 'user_settings_updated';
+    } & UserSettingsUpdatedEvent) | ({
+        event_type: 'user_registered';
+    } & UserRegisteredEvent) | ({
+        event_type: 'user_login';
+    } & UserLoginEvent) | ({
+        event_type: 'user_logged_in';
+    } & UserLoggedInEvent) | ({
+        event_type: 'user_logged_out';
+    } & UserLoggedOutEvent) | ({
+        event_type: 'user_updated';
+    } & UserUpdatedEvent) | ({
+        event_type: 'user_deleted';
+    } & UserDeletedEvent) | ({
+        event_type: 'notification_created';
+    } & NotificationCreatedEvent) | ({
+        event_type: 'notification_sent';
+    } & NotificationSentEvent) | ({
+        event_type: 'notification_delivered';
+    } & NotificationDeliveredEvent) | ({
+        event_type: 'notification_failed';
+    } & NotificationFailedEvent) | ({
+        event_type: 'notification_read';
+    } & NotificationReadEvent) | ({
+        event_type: 'notification_clicked';
+    } & NotificationClickedEvent) | ({
+        event_type: 'notification_preferences_updated';
+    } & NotificationPreferencesUpdatedEvent) | ({
+        event_type: 'saga_started';
+    } & SagaStartedEvent) | ({
+        event_type: 'saga_completed';
+    } & SagaCompletedEvent) | ({
+        event_type: 'saga_failed';
+    } & SagaFailedEvent) | ({
+        event_type: 'saga_cancelled';
+    } & SagaCancelledEvent) | ({
+        event_type: 'saga_compensating';
+    } & SagaCompensatingEvent) | ({
+        event_type: 'saga_compensated';
+    } & SagaCompensatedEvent) | ({
+        event_type: 'create_pod_command';
+    } & CreatePodCommandEvent) | ({
+        event_type: 'delete_pod_command';
+    } & DeletePodCommandEvent) | ({
+        event_type: 'allocate_resources_command';
+    } & AllocateResourcesCommandEvent) | ({
+        event_type: 'release_resources_command';
+    } & ReleaseResourcesCommandEvent) | ({
+        event_type: 'script_saved';
+    } & ScriptSavedEvent) | ({
+        event_type: 'script_deleted';
+    } & ScriptDeletedEvent) | ({
+        event_type: 'script_shared';
+    } & ScriptSharedEvent) | ({
+        event_type: 'security_violation';
+    } & SecurityViolationEvent) | ({
+        event_type: 'rate_limit_exceeded';
+    } & RateLimitExceededEvent) | ({
+        event_type: 'auth_failed';
+    } & AuthFailedEvent) | ({
+        event_type: 'resource_limit_exceeded';
+    } & ResourceLimitExceededEvent) | ({
+        event_type: 'quota_exceeded';
+    } & QuotaExceededEvent) | ({
+        event_type: 'system_error';
+    } & SystemErrorEvent) | ({
+        event_type: 'service_unhealthy';
+    } & ServiceUnhealthyEvent) | ({
+        event_type: 'service_recovered';
+    } & ServiceRecoveredEvent) | ({
+        event_type: 'dlq_message_received';
+    } & DlqMessageReceivedEvent) | ({
+        event_type: 'dlq_message_retried';
+    } & DlqMessageRetriedEvent) | ({
+        event_type: 'dlq_message_discarded';
+    } & DlqMessageDiscardedEvent);
     /**
      * Original Topic
      */
@@ -188,6 +584,10 @@ export type DlqMessageDetail = {
      */
     failed_at: string;
     status: DlqMessageStatus;
+    /**
+     * Producer Id
+     */
+    producer_id: string;
     /**
      * Created At
      */
@@ -213,10 +613,6 @@ export type DlqMessageDetail = {
      */
     discard_reason?: string | null;
     /**
-     * Producer Id
-     */
-    producer_id: string;
-    /**
      * Dlq Offset
      */
     dlq_offset?: number | null;
@@ -231,16 +627,233 @@ export type DlqMessageDetail = {
 };
 
 /**
- * DLQMessageResponse
+ * DLQMessageDiscardedEvent
  *
- * Response model for a DLQ message.
+ * Emitted when a DLQ message is discarded (max retries exceeded or manual discard).
  */
-export type DlqMessageResponse = {
+export type DlqMessageDiscardedEvent = {
     /**
      * Event Id
      */
     event_id: string;
-    event_type: EventType;
+    /**
+     * Event Type
+     */
+    event_type: 'dlq_message_discarded';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Dlq Event Id
+     */
+    dlq_event_id?: string;
+    /**
+     * Original Topic
+     */
+    original_topic?: string;
+    /**
+     * Original Event Type
+     */
+    original_event_type?: string;
+    /**
+     * Reason
+     */
+    reason?: string;
+    /**
+     * Retry Count
+     */
+    retry_count?: number;
+};
+
+/**
+ * DLQMessageReceivedEvent
+ *
+ * Emitted when a message is received and persisted in the DLQ.
+ */
+export type DlqMessageReceivedEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'dlq_message_received';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Dlq Event Id
+     */
+    dlq_event_id?: string;
+    /**
+     * Original Topic
+     */
+    original_topic?: string;
+    /**
+     * Original Event Type
+     */
+    original_event_type?: string;
+    /**
+     * Error
+     */
+    error?: string;
+    /**
+     * Retry Count
+     */
+    retry_count?: number;
+    /**
+     * Producer Id
+     */
+    producer_id?: string;
+    /**
+     * Failed At
+     */
+    failed_at?: string;
+};
+
+/**
+ * DLQMessageResponse
+ *
+ * Response model for a DLQ message. Mirrors DLQMessage for direct model_validate.
+ */
+export type DlqMessageResponse = {
+    /**
+     * Event
+     */
+    event: ({
+        event_type: 'execution_requested';
+    } & ExecutionRequestedEvent) | ({
+        event_type: 'execution_accepted';
+    } & ExecutionAcceptedEvent) | ({
+        event_type: 'execution_queued';
+    } & ExecutionQueuedEvent) | ({
+        event_type: 'execution_started';
+    } & ExecutionStartedEvent) | ({
+        event_type: 'execution_running';
+    } & ExecutionRunningEvent) | ({
+        event_type: 'execution_completed';
+    } & ExecutionCompletedEvent) | ({
+        event_type: 'execution_failed';
+    } & ExecutionFailedEvent) | ({
+        event_type: 'execution_timeout';
+    } & ExecutionTimeoutEvent) | ({
+        event_type: 'execution_cancelled';
+    } & ExecutionCancelledEvent) | ({
+        event_type: 'pod_created';
+    } & PodCreatedEvent) | ({
+        event_type: 'pod_scheduled';
+    } & PodScheduledEvent) | ({
+        event_type: 'pod_running';
+    } & PodRunningEvent) | ({
+        event_type: 'pod_succeeded';
+    } & PodSucceededEvent) | ({
+        event_type: 'pod_failed';
+    } & PodFailedEvent) | ({
+        event_type: 'pod_terminated';
+    } & PodTerminatedEvent) | ({
+        event_type: 'pod_deleted';
+    } & PodDeletedEvent) | ({
+        event_type: 'result_stored';
+    } & ResultStoredEvent) | ({
+        event_type: 'result_failed';
+    } & ResultFailedEvent) | ({
+        event_type: 'user_settings_updated';
+    } & UserSettingsUpdatedEvent) | ({
+        event_type: 'user_registered';
+    } & UserRegisteredEvent) | ({
+        event_type: 'user_login';
+    } & UserLoginEvent) | ({
+        event_type: 'user_logged_in';
+    } & UserLoggedInEvent) | ({
+        event_type: 'user_logged_out';
+    } & UserLoggedOutEvent) | ({
+        event_type: 'user_updated';
+    } & UserUpdatedEvent) | ({
+        event_type: 'user_deleted';
+    } & UserDeletedEvent) | ({
+        event_type: 'notification_created';
+    } & NotificationCreatedEvent) | ({
+        event_type: 'notification_sent';
+    } & NotificationSentEvent) | ({
+        event_type: 'notification_delivered';
+    } & NotificationDeliveredEvent) | ({
+        event_type: 'notification_failed';
+    } & NotificationFailedEvent) | ({
+        event_type: 'notification_read';
+    } & NotificationReadEvent) | ({
+        event_type: 'notification_clicked';
+    } & NotificationClickedEvent) | ({
+        event_type: 'notification_preferences_updated';
+    } & NotificationPreferencesUpdatedEvent) | ({
+        event_type: 'saga_started';
+    } & SagaStartedEvent) | ({
+        event_type: 'saga_completed';
+    } & SagaCompletedEvent) | ({
+        event_type: 'saga_failed';
+    } & SagaFailedEvent) | ({
+        event_type: 'saga_cancelled';
+    } & SagaCancelledEvent) | ({
+        event_type: 'saga_compensating';
+    } & SagaCompensatingEvent) | ({
+        event_type: 'saga_compensated';
+    } & SagaCompensatedEvent) | ({
+        event_type: 'create_pod_command';
+    } & CreatePodCommandEvent) | ({
+        event_type: 'delete_pod_command';
+    } & DeletePodCommandEvent) | ({
+        event_type: 'allocate_resources_command';
+    } & AllocateResourcesCommandEvent) | ({
+        event_type: 'release_resources_command';
+    } & ReleaseResourcesCommandEvent) | ({
+        event_type: 'script_saved';
+    } & ScriptSavedEvent) | ({
+        event_type: 'script_deleted';
+    } & ScriptDeletedEvent) | ({
+        event_type: 'script_shared';
+    } & ScriptSharedEvent) | ({
+        event_type: 'security_violation';
+    } & SecurityViolationEvent) | ({
+        event_type: 'rate_limit_exceeded';
+    } & RateLimitExceededEvent) | ({
+        event_type: 'auth_failed';
+    } & AuthFailedEvent) | ({
+        event_type: 'resource_limit_exceeded';
+    } & ResourceLimitExceededEvent) | ({
+        event_type: 'quota_exceeded';
+    } & QuotaExceededEvent) | ({
+        event_type: 'system_error';
+    } & SystemErrorEvent) | ({
+        event_type: 'service_unhealthy';
+    } & ServiceUnhealthyEvent) | ({
+        event_type: 'service_recovered';
+    } & ServiceRecoveredEvent) | ({
+        event_type: 'dlq_message_received';
+    } & DlqMessageReceivedEvent) | ({
+        event_type: 'dlq_message_retried';
+    } & DlqMessageRetriedEvent) | ({
+        event_type: 'dlq_message_discarded';
+    } & DlqMessageDiscardedEvent);
     /**
      * Original Topic
      */
@@ -258,10 +871,6 @@ export type DlqMessageResponse = {
      */
     failed_at: string;
     status: DlqMessageStatus;
-    /**
-     * Age Seconds
-     */
-    age_seconds: number;
     /**
      * Producer Id
      */
@@ -282,6 +891,55 @@ export type DlqMessageResponse = {
      * Next Retry At
      */
     next_retry_at?: string | null;
+};
+
+/**
+ * DLQMessageRetriedEvent
+ *
+ * Emitted when a DLQ message is retried.
+ */
+export type DlqMessageRetriedEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'dlq_message_retried';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Dlq Event Id
+     */
+    dlq_event_id?: string;
+    /**
+     * Original Topic
+     */
+    original_topic?: string;
+    /**
+     * Original Event Type
+     */
+    original_event_type?: string;
+    /**
+     * Retry Count
+     */
+    retry_count?: number;
+    /**
+     * Retry Topic
+     */
+    retry_topic?: string;
 };
 
 /**
@@ -330,21 +988,12 @@ export type DlqStats = {
     /**
      * By Topic
      */
-    by_topic: Array<{
-        [key: string]: unknown;
-    }>;
+    by_topic: Array<TopicStatistic>;
     /**
      * By Event Type
      */
-    by_event_type: Array<{
-        [key: string]: unknown;
-    }>;
-    /**
-     * Age Stats
-     */
-    age_stats: {
-        [key: string]: unknown;
-    };
+    by_event_type: Array<EventTypeStatistic>;
+    age_stats: AgeStatistics;
     /**
      * Timestamp
      */
@@ -422,6 +1071,53 @@ export type DeleteNotificationResponse = {
 };
 
 /**
+ * DeletePodCommandEvent
+ */
+export type DeletePodCommandEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'delete_pod_command';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Saga Id
+     */
+    saga_id?: string;
+    /**
+     * Execution Id
+     */
+    execution_id?: string;
+    /**
+     * Reason
+     */
+    reason?: string;
+    /**
+     * Pod Name
+     */
+    pod_name?: string | null;
+    /**
+     * Namespace
+     */
+    namespace?: string | null;
+};
+
+/**
  * DeleteResponse
  *
  * Model for execution deletion response.
@@ -448,11 +1144,33 @@ export type DeleteUserResponse = {
      */
     message: string;
     /**
-     * Deleted Counts
+     * User Deleted
      */
-    deleted_counts: {
-        [key: string]: number;
-    };
+    user_deleted: boolean;
+    /**
+     * Executions
+     */
+    executions?: number;
+    /**
+     * Saved Scripts
+     */
+    saved_scripts?: number;
+    /**
+     * Notifications
+     */
+    notifications?: number;
+    /**
+     * User Settings
+     */
+    user_settings?: number;
+    /**
+     * Events
+     */
+    events?: number;
+    /**
+     * Sagas
+     */
+    sagas?: number;
 };
 
 /**
@@ -519,6 +1237,13 @@ export type EditorSettings = {
 export type EndpointGroup = 'execution' | 'admin' | 'sse' | 'websocket' | 'auth' | 'public' | 'api';
 
 /**
+ * Environment
+ *
+ * Deployment environments.
+ */
+export type Environment = 'development' | 'staging' | 'production' | 'test';
+
+/**
  * EventAggregationRequest
  *
  * Request model for event aggregation queries.
@@ -572,9 +1297,119 @@ export type EventBrowseResponse = {
     /**
      * Events
      */
-    events: Array<{
-        [key: string]: unknown;
-    }>;
+    events: Array<({
+        event_type: 'execution_requested';
+    } & ExecutionRequestedEvent) | ({
+        event_type: 'execution_accepted';
+    } & ExecutionAcceptedEvent) | ({
+        event_type: 'execution_queued';
+    } & ExecutionQueuedEvent) | ({
+        event_type: 'execution_started';
+    } & ExecutionStartedEvent) | ({
+        event_type: 'execution_running';
+    } & ExecutionRunningEvent) | ({
+        event_type: 'execution_completed';
+    } & ExecutionCompletedEvent) | ({
+        event_type: 'execution_failed';
+    } & ExecutionFailedEvent) | ({
+        event_type: 'execution_timeout';
+    } & ExecutionTimeoutEvent) | ({
+        event_type: 'execution_cancelled';
+    } & ExecutionCancelledEvent) | ({
+        event_type: 'pod_created';
+    } & PodCreatedEvent) | ({
+        event_type: 'pod_scheduled';
+    } & PodScheduledEvent) | ({
+        event_type: 'pod_running';
+    } & PodRunningEvent) | ({
+        event_type: 'pod_succeeded';
+    } & PodSucceededEvent) | ({
+        event_type: 'pod_failed';
+    } & PodFailedEvent) | ({
+        event_type: 'pod_terminated';
+    } & PodTerminatedEvent) | ({
+        event_type: 'pod_deleted';
+    } & PodDeletedEvent) | ({
+        event_type: 'result_stored';
+    } & ResultStoredEvent) | ({
+        event_type: 'result_failed';
+    } & ResultFailedEvent) | ({
+        event_type: 'user_settings_updated';
+    } & UserSettingsUpdatedEvent) | ({
+        event_type: 'user_registered';
+    } & UserRegisteredEvent) | ({
+        event_type: 'user_login';
+    } & UserLoginEvent) | ({
+        event_type: 'user_logged_in';
+    } & UserLoggedInEvent) | ({
+        event_type: 'user_logged_out';
+    } & UserLoggedOutEvent) | ({
+        event_type: 'user_updated';
+    } & UserUpdatedEvent) | ({
+        event_type: 'user_deleted';
+    } & UserDeletedEvent) | ({
+        event_type: 'notification_created';
+    } & NotificationCreatedEvent) | ({
+        event_type: 'notification_sent';
+    } & NotificationSentEvent) | ({
+        event_type: 'notification_delivered';
+    } & NotificationDeliveredEvent) | ({
+        event_type: 'notification_failed';
+    } & NotificationFailedEvent) | ({
+        event_type: 'notification_read';
+    } & NotificationReadEvent) | ({
+        event_type: 'notification_clicked';
+    } & NotificationClickedEvent) | ({
+        event_type: 'notification_preferences_updated';
+    } & NotificationPreferencesUpdatedEvent) | ({
+        event_type: 'saga_started';
+    } & SagaStartedEvent) | ({
+        event_type: 'saga_completed';
+    } & SagaCompletedEvent) | ({
+        event_type: 'saga_failed';
+    } & SagaFailedEvent) | ({
+        event_type: 'saga_cancelled';
+    } & SagaCancelledEvent) | ({
+        event_type: 'saga_compensating';
+    } & SagaCompensatingEvent) | ({
+        event_type: 'saga_compensated';
+    } & SagaCompensatedEvent) | ({
+        event_type: 'create_pod_command';
+    } & CreatePodCommandEvent) | ({
+        event_type: 'delete_pod_command';
+    } & DeletePodCommandEvent) | ({
+        event_type: 'allocate_resources_command';
+    } & AllocateResourcesCommandEvent) | ({
+        event_type: 'release_resources_command';
+    } & ReleaseResourcesCommandEvent) | ({
+        event_type: 'script_saved';
+    } & ScriptSavedEvent) | ({
+        event_type: 'script_deleted';
+    } & ScriptDeletedEvent) | ({
+        event_type: 'script_shared';
+    } & ScriptSharedEvent) | ({
+        event_type: 'security_violation';
+    } & SecurityViolationEvent) | ({
+        event_type: 'rate_limit_exceeded';
+    } & RateLimitExceededEvent) | ({
+        event_type: 'auth_failed';
+    } & AuthFailedEvent) | ({
+        event_type: 'resource_limit_exceeded';
+    } & ResourceLimitExceededEvent) | ({
+        event_type: 'quota_exceeded';
+    } & QuotaExceededEvent) | ({
+        event_type: 'system_error';
+    } & SystemErrorEvent) | ({
+        event_type: 'service_unhealthy';
+    } & ServiceUnhealthyEvent) | ({
+        event_type: 'service_recovered';
+    } & ServiceRecoveredEvent) | ({
+        event_type: 'dlq_message_received';
+    } & DlqMessageReceivedEvent) | ({
+        event_type: 'dlq_message_retried';
+    } & DlqMessageRetriedEvent) | ({
+        event_type: 'dlq_message_discarded';
+    } & DlqMessageDiscardedEvent)>;
     /**
      * Total
      */
@@ -614,21 +1449,127 @@ export type EventDetailResponse = {
     /**
      * Event
      */
-    event: {
-        [key: string]: unknown;
-    };
+    event: ({
+        event_type: 'execution_requested';
+    } & ExecutionRequestedEvent) | ({
+        event_type: 'execution_accepted';
+    } & ExecutionAcceptedEvent) | ({
+        event_type: 'execution_queued';
+    } & ExecutionQueuedEvent) | ({
+        event_type: 'execution_started';
+    } & ExecutionStartedEvent) | ({
+        event_type: 'execution_running';
+    } & ExecutionRunningEvent) | ({
+        event_type: 'execution_completed';
+    } & ExecutionCompletedEvent) | ({
+        event_type: 'execution_failed';
+    } & ExecutionFailedEvent) | ({
+        event_type: 'execution_timeout';
+    } & ExecutionTimeoutEvent) | ({
+        event_type: 'execution_cancelled';
+    } & ExecutionCancelledEvent) | ({
+        event_type: 'pod_created';
+    } & PodCreatedEvent) | ({
+        event_type: 'pod_scheduled';
+    } & PodScheduledEvent) | ({
+        event_type: 'pod_running';
+    } & PodRunningEvent) | ({
+        event_type: 'pod_succeeded';
+    } & PodSucceededEvent) | ({
+        event_type: 'pod_failed';
+    } & PodFailedEvent) | ({
+        event_type: 'pod_terminated';
+    } & PodTerminatedEvent) | ({
+        event_type: 'pod_deleted';
+    } & PodDeletedEvent) | ({
+        event_type: 'result_stored';
+    } & ResultStoredEvent) | ({
+        event_type: 'result_failed';
+    } & ResultFailedEvent) | ({
+        event_type: 'user_settings_updated';
+    } & UserSettingsUpdatedEvent) | ({
+        event_type: 'user_registered';
+    } & UserRegisteredEvent) | ({
+        event_type: 'user_login';
+    } & UserLoginEvent) | ({
+        event_type: 'user_logged_in';
+    } & UserLoggedInEvent) | ({
+        event_type: 'user_logged_out';
+    } & UserLoggedOutEvent) | ({
+        event_type: 'user_updated';
+    } & UserUpdatedEvent) | ({
+        event_type: 'user_deleted';
+    } & UserDeletedEvent) | ({
+        event_type: 'notification_created';
+    } & NotificationCreatedEvent) | ({
+        event_type: 'notification_sent';
+    } & NotificationSentEvent) | ({
+        event_type: 'notification_delivered';
+    } & NotificationDeliveredEvent) | ({
+        event_type: 'notification_failed';
+    } & NotificationFailedEvent) | ({
+        event_type: 'notification_read';
+    } & NotificationReadEvent) | ({
+        event_type: 'notification_clicked';
+    } & NotificationClickedEvent) | ({
+        event_type: 'notification_preferences_updated';
+    } & NotificationPreferencesUpdatedEvent) | ({
+        event_type: 'saga_started';
+    } & SagaStartedEvent) | ({
+        event_type: 'saga_completed';
+    } & SagaCompletedEvent) | ({
+        event_type: 'saga_failed';
+    } & SagaFailedEvent) | ({
+        event_type: 'saga_cancelled';
+    } & SagaCancelledEvent) | ({
+        event_type: 'saga_compensating';
+    } & SagaCompensatingEvent) | ({
+        event_type: 'saga_compensated';
+    } & SagaCompensatedEvent) | ({
+        event_type: 'create_pod_command';
+    } & CreatePodCommandEvent) | ({
+        event_type: 'delete_pod_command';
+    } & DeletePodCommandEvent) | ({
+        event_type: 'allocate_resources_command';
+    } & AllocateResourcesCommandEvent) | ({
+        event_type: 'release_resources_command';
+    } & ReleaseResourcesCommandEvent) | ({
+        event_type: 'script_saved';
+    } & ScriptSavedEvent) | ({
+        event_type: 'script_deleted';
+    } & ScriptDeletedEvent) | ({
+        event_type: 'script_shared';
+    } & ScriptSharedEvent) | ({
+        event_type: 'security_violation';
+    } & SecurityViolationEvent) | ({
+        event_type: 'rate_limit_exceeded';
+    } & RateLimitExceededEvent) | ({
+        event_type: 'auth_failed';
+    } & AuthFailedEvent) | ({
+        event_type: 'resource_limit_exceeded';
+    } & ResourceLimitExceededEvent) | ({
+        event_type: 'quota_exceeded';
+    } & QuotaExceededEvent) | ({
+        event_type: 'system_error';
+    } & SystemErrorEvent) | ({
+        event_type: 'service_unhealthy';
+    } & ServiceUnhealthyEvent) | ({
+        event_type: 'service_recovered';
+    } & ServiceRecoveredEvent) | ({
+        event_type: 'dlq_message_received';
+    } & DlqMessageReceivedEvent) | ({
+        event_type: 'dlq_message_retried';
+    } & DlqMessageRetriedEvent) | ({
+        event_type: 'dlq_message_discarded';
+    } & DlqMessageDiscardedEvent);
     /**
      * Related Events
      */
-    related_events: Array<{
-        [key: string]: unknown;
-    }>;
+    related_events: Array<EventSummary>;
     /**
      * Timeline
      */
-    timeline: Array<{
-        [key: string]: unknown;
-    }>;
+    timeline: Array<EventSummary>;
 };
 
 /**
@@ -756,7 +1697,119 @@ export type EventListResponse = {
     /**
      * Events
      */
-    events: Array<EventResponse>;
+    events: Array<({
+        event_type: 'execution_requested';
+    } & ExecutionRequestedEvent) | ({
+        event_type: 'execution_accepted';
+    } & ExecutionAcceptedEvent) | ({
+        event_type: 'execution_queued';
+    } & ExecutionQueuedEvent) | ({
+        event_type: 'execution_started';
+    } & ExecutionStartedEvent) | ({
+        event_type: 'execution_running';
+    } & ExecutionRunningEvent) | ({
+        event_type: 'execution_completed';
+    } & ExecutionCompletedEvent) | ({
+        event_type: 'execution_failed';
+    } & ExecutionFailedEvent) | ({
+        event_type: 'execution_timeout';
+    } & ExecutionTimeoutEvent) | ({
+        event_type: 'execution_cancelled';
+    } & ExecutionCancelledEvent) | ({
+        event_type: 'pod_created';
+    } & PodCreatedEvent) | ({
+        event_type: 'pod_scheduled';
+    } & PodScheduledEvent) | ({
+        event_type: 'pod_running';
+    } & PodRunningEvent) | ({
+        event_type: 'pod_succeeded';
+    } & PodSucceededEvent) | ({
+        event_type: 'pod_failed';
+    } & PodFailedEvent) | ({
+        event_type: 'pod_terminated';
+    } & PodTerminatedEvent) | ({
+        event_type: 'pod_deleted';
+    } & PodDeletedEvent) | ({
+        event_type: 'result_stored';
+    } & ResultStoredEvent) | ({
+        event_type: 'result_failed';
+    } & ResultFailedEvent) | ({
+        event_type: 'user_settings_updated';
+    } & UserSettingsUpdatedEvent) | ({
+        event_type: 'user_registered';
+    } & UserRegisteredEvent) | ({
+        event_type: 'user_login';
+    } & UserLoginEvent) | ({
+        event_type: 'user_logged_in';
+    } & UserLoggedInEvent) | ({
+        event_type: 'user_logged_out';
+    } & UserLoggedOutEvent) | ({
+        event_type: 'user_updated';
+    } & UserUpdatedEvent) | ({
+        event_type: 'user_deleted';
+    } & UserDeletedEvent) | ({
+        event_type: 'notification_created';
+    } & NotificationCreatedEvent) | ({
+        event_type: 'notification_sent';
+    } & NotificationSentEvent) | ({
+        event_type: 'notification_delivered';
+    } & NotificationDeliveredEvent) | ({
+        event_type: 'notification_failed';
+    } & NotificationFailedEvent) | ({
+        event_type: 'notification_read';
+    } & NotificationReadEvent) | ({
+        event_type: 'notification_clicked';
+    } & NotificationClickedEvent) | ({
+        event_type: 'notification_preferences_updated';
+    } & NotificationPreferencesUpdatedEvent) | ({
+        event_type: 'saga_started';
+    } & SagaStartedEvent) | ({
+        event_type: 'saga_completed';
+    } & SagaCompletedEvent) | ({
+        event_type: 'saga_failed';
+    } & SagaFailedEvent) | ({
+        event_type: 'saga_cancelled';
+    } & SagaCancelledEvent) | ({
+        event_type: 'saga_compensating';
+    } & SagaCompensatingEvent) | ({
+        event_type: 'saga_compensated';
+    } & SagaCompensatedEvent) | ({
+        event_type: 'create_pod_command';
+    } & CreatePodCommandEvent) | ({
+        event_type: 'delete_pod_command';
+    } & DeletePodCommandEvent) | ({
+        event_type: 'allocate_resources_command';
+    } & AllocateResourcesCommandEvent) | ({
+        event_type: 'release_resources_command';
+    } & ReleaseResourcesCommandEvent) | ({
+        event_type: 'script_saved';
+    } & ScriptSavedEvent) | ({
+        event_type: 'script_deleted';
+    } & ScriptDeletedEvent) | ({
+        event_type: 'script_shared';
+    } & ScriptSharedEvent) | ({
+        event_type: 'security_violation';
+    } & SecurityViolationEvent) | ({
+        event_type: 'rate_limit_exceeded';
+    } & RateLimitExceededEvent) | ({
+        event_type: 'auth_failed';
+    } & AuthFailedEvent) | ({
+        event_type: 'resource_limit_exceeded';
+    } & ResourceLimitExceededEvent) | ({
+        event_type: 'quota_exceeded';
+    } & QuotaExceededEvent) | ({
+        event_type: 'system_error';
+    } & SystemErrorEvent) | ({
+        event_type: 'service_unhealthy';
+    } & ServiceUnhealthyEvent) | ({
+        event_type: 'service_recovered';
+    } & ServiceRecoveredEvent) | ({
+        event_type: 'dlq_message_received';
+    } & DlqMessageReceivedEvent) | ({
+        event_type: 'dlq_message_retried';
+    } & DlqMessageRetriedEvent) | ({
+        event_type: 'dlq_message_discarded';
+    } & DlqMessageDiscardedEvent)>;
     /**
      * Total
      */
@@ -776,11 +1829,11 @@ export type EventListResponse = {
 };
 
 /**
- * EventMetadataResponse
+ * EventMetadata
  *
- * Pydantic schema for event metadata in API responses.
+ * Event metadata - embedded in all events.
  */
-export type EventMetadataResponse = {
+export type EventMetadata = {
     /**
      * Service Name
      */
@@ -792,7 +1845,7 @@ export type EventMetadataResponse = {
     /**
      * Correlation Id
      */
-    correlation_id: string;
+    correlation_id?: string;
     /**
      * User Id
      */
@@ -805,10 +1858,7 @@ export type EventMetadataResponse = {
      * User Agent
      */
     user_agent?: string | null;
-    /**
-     * Environment
-     */
-    environment?: string;
+    environment?: Environment;
 };
 
 /**
@@ -876,9 +1926,7 @@ export type EventReplayResponse = {
     /**
      * Events Preview
      */
-    events_preview?: Array<{
-        [key: string]: unknown;
-    }> | null;
+    events_preview?: Array<EventSummary> | null;
 };
 
 /**
@@ -943,48 +1991,6 @@ export type EventReplayStatusResponse = {
      * Progress Percentage
      */
     readonly progress_percentage: number;
-};
-
-/**
- * EventResponse
- */
-export type EventResponse = {
-    /**
-     * Event Id
-     */
-    event_id: string;
-    event_type: EventType;
-    /**
-     * Event Version
-     */
-    event_version: string;
-    /**
-     * Timestamp
-     */
-    timestamp: string;
-    /**
-     * Aggregate Id
-     */
-    aggregate_id?: string | null;
-    /**
-     * Correlation Id
-     */
-    correlation_id?: string | null;
-    /**
-     * Causation Id
-     */
-    causation_id?: string | null;
-    metadata: EventMetadataResponse;
-    /**
-     * Payload
-     */
-    payload: {
-        [key: string]: unknown;
-    };
-    /**
-     * Stored At
-     */
-    stored_at?: string | null;
 };
 
 /**
@@ -1058,11 +2064,48 @@ export type EventStatsResponse = {
 };
 
 /**
+ * EventSummary
+ *
+ * Lightweight event summary for lists and previews.
+ */
+export type EventSummary = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    event_type: EventType;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+};
+
+/**
  * EventType
  *
  * Event types used throughout the system.
  */
-export type EventType = 'execution_requested' | 'execution_accepted' | 'execution_queued' | 'execution_started' | 'execution_running' | 'execution_completed' | 'execution_failed' | 'execution_timeout' | 'execution_cancelled' | 'pod_created' | 'pod_scheduled' | 'pod_running' | 'pod_succeeded' | 'pod_failed' | 'pod_terminated' | 'pod_deleted' | 'user_registered' | 'user_login' | 'user_logged_in' | 'user_logged_out' | 'user_updated' | 'user_deleted' | 'user_settings_updated' | 'user_theme_changed' | 'user_notification_settings_updated' | 'user_editor_settings_updated' | 'notification_created' | 'notification_sent' | 'notification_delivered' | 'notification_failed' | 'notification_read' | 'notification_clicked' | 'notification_preferences_updated' | 'script_saved' | 'script_deleted' | 'script_shared' | 'security_violation' | 'rate_limit_exceeded' | 'auth_failed' | 'resource_limit_exceeded' | 'quota_exceeded' | 'system_error' | 'service_unhealthy' | 'service_recovered' | 'result_stored' | 'result_failed' | 'saga_started' | 'saga_completed' | 'saga_failed' | 'saga_cancelled' | 'saga_compensating' | 'saga_compensated' | 'create_pod_command' | 'delete_pod_command' | 'allocate_resources_command' | 'release_resources_command';
+export type EventType = 'execution_requested' | 'execution_accepted' | 'execution_queued' | 'execution_started' | 'execution_running' | 'execution_completed' | 'execution_failed' | 'execution_timeout' | 'execution_cancelled' | 'pod_created' | 'pod_scheduled' | 'pod_running' | 'pod_succeeded' | 'pod_failed' | 'pod_terminated' | 'pod_deleted' | 'user_registered' | 'user_login' | 'user_logged_in' | 'user_logged_out' | 'user_updated' | 'user_deleted' | 'user_settings_updated' | 'notification_created' | 'notification_sent' | 'notification_delivered' | 'notification_failed' | 'notification_read' | 'notification_clicked' | 'notification_preferences_updated' | 'script_saved' | 'script_deleted' | 'script_shared' | 'security_violation' | 'rate_limit_exceeded' | 'auth_failed' | 'resource_limit_exceeded' | 'quota_exceeded' | 'system_error' | 'service_unhealthy' | 'service_recovered' | 'result_stored' | 'result_failed' | 'saga_started' | 'saga_completed' | 'saga_failed' | 'saga_cancelled' | 'saga_compensating' | 'saga_compensated' | 'create_pod_command' | 'delete_pod_command' | 'allocate_resources_command' | 'release_resources_command' | 'dlq_message_received' | 'dlq_message_retried' | 'dlq_message_discarded';
+
+/**
+ * EventTypeStatistic
+ *
+ * Statistics for a single event type.
+ */
+export type EventTypeStatistic = {
+    /**
+     * Event Type
+     */
+    event_type: string;
+    /**
+     * Count
+     */
+    count: number;
+};
 
 /**
  * ExampleScripts
@@ -1079,6 +2122,136 @@ export type ExampleScripts = {
 };
 
 /**
+ * ExecutionAcceptedEvent
+ */
+export type ExecutionAcceptedEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'execution_accepted';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Execution Id
+     */
+    execution_id?: string;
+    /**
+     * Queue Position
+     */
+    queue_position?: number;
+    /**
+     * Estimated Wait Seconds
+     */
+    estimated_wait_seconds?: number | null;
+    /**
+     * Priority
+     */
+    priority?: number;
+};
+
+/**
+ * ExecutionCancelledEvent
+ */
+export type ExecutionCancelledEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'execution_cancelled';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Execution Id
+     */
+    execution_id?: string;
+    /**
+     * Reason
+     */
+    reason?: string;
+    /**
+     * Cancelled By
+     */
+    cancelled_by?: string | null;
+    /**
+     * Force Terminated
+     */
+    force_terminated?: boolean;
+};
+
+/**
+ * ExecutionCompletedEvent
+ */
+export type ExecutionCompletedEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'execution_completed';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Execution Id
+     */
+    execution_id?: string;
+    /**
+     * Exit Code
+     */
+    exit_code?: number;
+    resource_usage?: ResourceUsageDomain | null;
+    /**
+     * Stdout
+     */
+    stdout?: string;
+    /**
+     * Stderr
+     */
+    stderr?: string;
+};
+
+/**
  * ExecutionErrorType
  *
  * Types of execution errors.
@@ -1086,26 +2259,52 @@ export type ExampleScripts = {
 export type ExecutionErrorType = 'system_error' | 'timeout' | 'resource_limit' | 'script_error' | 'permission_denied';
 
 /**
- * ExecutionEventResponse
- *
- * Model for execution event response.
+ * ExecutionFailedEvent
  */
-export type ExecutionEventResponse = {
+export type ExecutionFailedEvent = {
     /**
      * Event Id
      */
     event_id: string;
-    event_type: EventType;
+    /**
+     * Event Type
+     */
+    event_type: 'execution_failed';
+    /**
+     * Event Version
+     */
+    event_version: string;
     /**
      * Timestamp
      */
     timestamp: string;
     /**
-     * Payload
+     * Aggregate Id
      */
-    payload: {
-        [key: string]: unknown;
-    };
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Execution Id
+     */
+    execution_id?: string;
+    /**
+     * Exit Code
+     */
+    exit_code?: number;
+    error_type?: ExecutionErrorType | null;
+    /**
+     * Error Message
+     */
+    error_message?: string;
+    resource_usage?: ResourceUsageDomain | null;
+    /**
+     * Stdout
+     */
+    stdout?: string;
+    /**
+     * Stderr
+     */
+    stderr?: string;
 };
 
 /**
@@ -1169,6 +2368,45 @@ export type ExecutionListResponse = {
 };
 
 /**
+ * ExecutionQueuedEvent
+ */
+export type ExecutionQueuedEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'execution_queued';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Execution Id
+     */
+    execution_id?: string;
+    /**
+     * Position In Queue
+     */
+    position_in_queue?: number | null;
+    /**
+     * Estimated Start Time
+     */
+    estimated_start_time?: string | null;
+};
+
+/**
  * ExecutionRequest
  *
  * Model for execution request.
@@ -1192,6 +2430,85 @@ export type ExecutionRequest = {
      * Language version to use for execution
      */
     lang_version?: string;
+};
+
+/**
+ * ExecutionRequestedEvent
+ */
+export type ExecutionRequestedEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'execution_requested';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Execution Id
+     */
+    execution_id?: string;
+    /**
+     * Script
+     */
+    script?: string;
+    /**
+     * Language
+     */
+    language?: string;
+    /**
+     * Language Version
+     */
+    language_version?: string;
+    /**
+     * Runtime Image
+     */
+    runtime_image?: string;
+    /**
+     * Runtime Command
+     */
+    runtime_command?: Array<string>;
+    /**
+     * Runtime Filename
+     */
+    runtime_filename?: string;
+    /**
+     * Timeout Seconds
+     */
+    timeout_seconds?: number;
+    /**
+     * Cpu Limit
+     */
+    cpu_limit?: string;
+    /**
+     * Memory Limit
+     */
+    memory_limit?: string;
+    /**
+     * Cpu Request
+     */
+    cpu_request?: string;
+    /**
+     * Memory Request
+     */
+    memory_request?: string;
+    /**
+     * Priority
+     */
+    priority?: number;
 };
 
 /**
@@ -1243,11 +2560,137 @@ export type ExecutionResult = {
 };
 
 /**
+ * ExecutionRunningEvent
+ */
+export type ExecutionRunningEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'execution_running';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Execution Id
+     */
+    execution_id?: string;
+    /**
+     * Pod Name
+     */
+    pod_name?: string;
+    /**
+     * Progress Percentage
+     */
+    progress_percentage?: number | null;
+};
+
+/**
+ * ExecutionStartedEvent
+ */
+export type ExecutionStartedEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'execution_started';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Execution Id
+     */
+    execution_id?: string;
+    /**
+     * Pod Name
+     */
+    pod_name?: string;
+    /**
+     * Node Name
+     */
+    node_name?: string | null;
+    /**
+     * Container Id
+     */
+    container_id?: string | null;
+};
+
+/**
  * ExecutionStatus
  *
  * Status of an execution.
  */
 export type ExecutionStatus = 'queued' | 'scheduled' | 'running' | 'completed' | 'failed' | 'timeout' | 'cancelled' | 'error';
+
+/**
+ * ExecutionTimeoutEvent
+ */
+export type ExecutionTimeoutEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'execution_timeout';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Execution Id
+     */
+    execution_id?: string;
+    /**
+     * Timeout Seconds
+     */
+    timeout_seconds?: number;
+    resource_usage?: ResourceUsageDomain | null;
+    /**
+     * Stdout
+     */
+    stdout?: string;
+    /**
+     * Stderr
+     */
+    stderr?: string;
+};
 
 /**
  * GrafanaAlertItem
@@ -1374,10 +2817,17 @@ export type LivenessResponse = {
     /**
      * Timestamp
      *
-     * ISO timestamp of health check
+     * Timestamp of health check
      */
     timestamp: string;
 };
+
+/**
+ * LoginMethod
+ *
+ * User login methods.
+ */
+export type LoginMethod = 'password' | 'oauth' | 'sso' | 'api_key';
 
 /**
  * LoginResponse
@@ -1467,6 +2917,185 @@ export type MonitoringSettingsSchema = {
 export type NotificationChannel = 'in_app' | 'webhook' | 'slack';
 
 /**
+ * NotificationClickedEvent
+ */
+export type NotificationClickedEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'notification_clicked';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Notification Id
+     */
+    notification_id?: string;
+    /**
+     * User Id
+     */
+    user_id?: string;
+    /**
+     * Clicked At
+     */
+    clicked_at?: string;
+    /**
+     * Action
+     */
+    action?: string | null;
+};
+
+/**
+ * NotificationCreatedEvent
+ */
+export type NotificationCreatedEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'notification_created';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Notification Id
+     */
+    notification_id?: string;
+    /**
+     * User Id
+     */
+    user_id?: string;
+    /**
+     * Subject
+     */
+    subject?: string;
+    /**
+     * Body
+     */
+    body?: string;
+    severity?: NotificationSeverity;
+    /**
+     * Tags
+     */
+    tags?: Array<string>;
+    /**
+     * Channels
+     */
+    channels?: Array<NotificationChannel>;
+};
+
+/**
+ * NotificationDeliveredEvent
+ */
+export type NotificationDeliveredEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'notification_delivered';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Notification Id
+     */
+    notification_id?: string;
+    /**
+     * User Id
+     */
+    user_id?: string;
+    channel?: NotificationChannel;
+    /**
+     * Delivered At
+     */
+    delivered_at?: string;
+};
+
+/**
+ * NotificationFailedEvent
+ */
+export type NotificationFailedEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'notification_failed';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Notification Id
+     */
+    notification_id?: string;
+    /**
+     * User Id
+     */
+    user_id?: string;
+    channel?: NotificationChannel;
+    /**
+     * Error
+     */
+    error?: string;
+    /**
+     * Retry Count
+     */
+    retry_count?: number;
+};
+
+/**
  * NotificationListResponse
  *
  * Response schema for notification list endpoints
@@ -1484,6 +3113,80 @@ export type NotificationListResponse = {
      * Unread Count
      */
     unread_count: number;
+};
+
+/**
+ * NotificationPreferencesUpdatedEvent
+ */
+export type NotificationPreferencesUpdatedEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'notification_preferences_updated';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * User Id
+     */
+    user_id?: string;
+    /**
+     * Changed Fields
+     */
+    changed_fields?: Array<string>;
+};
+
+/**
+ * NotificationReadEvent
+ */
+export type NotificationReadEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'notification_read';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Notification Id
+     */
+    notification_id?: string;
+    /**
+     * User Id
+     */
+    user_id?: string;
+    /**
+     * Read At
+     */
+    read_at?: string;
 };
 
 /**
@@ -1523,6 +3226,46 @@ export type NotificationResponse = {
      * Tags
      */
     tags: Array<string>;
+};
+
+/**
+ * NotificationSentEvent
+ */
+export type NotificationSentEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'notification_sent';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Notification Id
+     */
+    notification_id?: string;
+    /**
+     * User Id
+     */
+    user_id?: string;
+    channel?: NotificationChannel;
+    /**
+     * Sent At
+     */
+    sent_at?: string;
 };
 
 /**
@@ -1647,6 +3390,311 @@ export type PasswordResetRequest = {
 };
 
 /**
+ * PodCreatedEvent
+ */
+export type PodCreatedEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'pod_created';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Execution Id
+     */
+    execution_id?: string;
+    /**
+     * Pod Name
+     */
+    pod_name?: string;
+    /**
+     * Namespace
+     */
+    namespace?: string;
+};
+
+/**
+ * PodDeletedEvent
+ */
+export type PodDeletedEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'pod_deleted';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Execution Id
+     */
+    execution_id?: string;
+    /**
+     * Pod Name
+     */
+    pod_name?: string;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+};
+
+/**
+ * PodFailedEvent
+ */
+export type PodFailedEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'pod_failed';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Execution Id
+     */
+    execution_id?: string;
+    /**
+     * Pod Name
+     */
+    pod_name?: string;
+    /**
+     * Exit Code
+     */
+    exit_code?: number;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Message
+     */
+    message?: string | null;
+    /**
+     * Stdout
+     */
+    stdout?: string | null;
+    /**
+     * Stderr
+     */
+    stderr?: string | null;
+};
+
+/**
+ * PodRunningEvent
+ */
+export type PodRunningEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'pod_running';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Execution Id
+     */
+    execution_id?: string;
+    /**
+     * Pod Name
+     */
+    pod_name?: string;
+    /**
+     * Container Statuses
+     */
+    container_statuses?: string;
+};
+
+/**
+ * PodScheduledEvent
+ */
+export type PodScheduledEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'pod_scheduled';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Execution Id
+     */
+    execution_id?: string;
+    /**
+     * Pod Name
+     */
+    pod_name?: string;
+    /**
+     * Node Name
+     */
+    node_name?: string;
+};
+
+/**
+ * PodSucceededEvent
+ */
+export type PodSucceededEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'pod_succeeded';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Execution Id
+     */
+    execution_id?: string;
+    /**
+     * Pod Name
+     */
+    pod_name?: string;
+    /**
+     * Exit Code
+     */
+    exit_code?: number;
+    /**
+     * Stdout
+     */
+    stdout?: string | null;
+    /**
+     * Stderr
+     */
+    stderr?: string | null;
+};
+
+/**
+ * PodTerminatedEvent
+ */
+export type PodTerminatedEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'pod_terminated';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Execution Id
+     */
+    execution_id?: string;
+    /**
+     * Pod Name
+     */
+    pod_name?: string;
+    /**
+     * Exit Code
+     */
+    exit_code?: number;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Message
+     */
+    message?: string | null;
+};
+
+/**
  * PublishEventRequest
  *
  * Request model for publishing events.
@@ -1713,14 +3761,102 @@ export type PublishEventResponse = {
 };
 
 /**
+ * QuotaExceededEvent
+ */
+export type QuotaExceededEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'quota_exceeded';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Quota Type
+     */
+    quota_type?: string;
+    /**
+     * Limit
+     */
+    limit?: number;
+    /**
+     * Current Usage
+     */
+    current_usage?: number;
+    /**
+     * User Id
+     */
+    user_id?: string;
+};
+
+/**
  * RateLimitAlgorithm
  */
 export type RateLimitAlgorithm = 'sliding_window' | 'token_bucket' | 'fixed_window' | 'leaky_bucket';
 
 /**
- * RateLimitRule
+ * RateLimitExceededEvent
  */
-export type RateLimitRule = {
+export type RateLimitExceededEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'rate_limit_exceeded';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * User Id
+     */
+    user_id?: string | null;
+    /**
+     * Endpoint
+     */
+    endpoint?: string;
+    /**
+     * Limit
+     */
+    limit?: number;
+    /**
+     * Window Seconds
+     */
+    window_seconds?: number;
+};
+
+/**
+ * RateLimitRuleRequest
+ *
+ * Request model for rate limit rule.
+ */
+export type RateLimitRuleRequest = {
     /**
      * Endpoint Pattern
      */
@@ -1734,11 +3870,11 @@ export type RateLimitRule = {
      * Window Seconds
      */
     window_seconds: number;
+    algorithm?: RateLimitAlgorithm;
     /**
      * Burst Multiplier
      */
     burst_multiplier?: number;
-    algorithm?: RateLimitAlgorithm;
     /**
      * Priority
      */
@@ -1747,10 +3883,6 @@ export type RateLimitRule = {
      * Enabled
      */
     enabled?: boolean;
-    /**
-     * Compiled Pattern
-     */
-    compiled_pattern?: string | null;
 };
 
 /**
@@ -1763,10 +3895,7 @@ export type RateLimitRuleResponse = {
      * Endpoint Pattern
      */
     endpoint_pattern: string;
-    /**
-     * Group
-     */
-    group: string;
+    group: EndpointGroup;
     /**
      * Requests
      */
@@ -1775,10 +3904,7 @@ export type RateLimitRuleResponse = {
      * Window Seconds
      */
     window_seconds: number;
-    /**
-     * Algorithm
-     */
-    algorithm: string;
+    algorithm: RateLimitAlgorithm;
     /**
      * Burst Multiplier
      */
@@ -1809,6 +3935,30 @@ export type RateLimitSummary = {
      * Has Custom Limits
      */
     has_custom_limits?: boolean | null;
+};
+
+/**
+ * RateLimitUpdateRequest
+ *
+ * Request model for updating user rate limits.
+ */
+export type RateLimitUpdateRequest = {
+    /**
+     * Bypass Rate Limit
+     */
+    bypass_rate_limit?: boolean;
+    /**
+     * Global Multiplier
+     */
+    global_multiplier?: number;
+    /**
+     * Rules
+     */
+    rules?: Array<RateLimitRuleRequest>;
+    /**
+     * Notes
+     */
+    notes?: string | null;
 };
 
 /**
@@ -1849,6 +3999,45 @@ export type ReadinessResponse = {
 };
 
 /**
+ * ReleaseResourcesCommandEvent
+ */
+export type ReleaseResourcesCommandEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'release_resources_command';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Execution Id
+     */
+    execution_id?: string;
+    /**
+     * Cpu Request
+     */
+    cpu_request?: string;
+    /**
+     * Memory Request
+     */
+    memory_request?: string;
+};
+
+/**
  * ReplayAggregateResponse
  *
  * Response model for replaying aggregate events
@@ -1869,7 +4058,7 @@ export type ReplayAggregateResponse = {
     /**
      * Event Types
      */
-    event_types?: Array<string> | null;
+    event_types?: Array<EventType> | null;
     /**
      * Start Time
      */
@@ -1968,13 +4157,29 @@ export type ReplayErrorInfo = {
  */
 export type ReplayFilter = {
     /**
+     * Event Ids
+     */
+    event_ids?: Array<string> | null;
+    /**
      * Execution Id
      */
     execution_id?: string | null;
     /**
+     * Correlation Id
+     */
+    correlation_id?: string | null;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    /**
      * Event Types
      */
     event_types?: Array<EventType> | null;
+    /**
+     * Exclude Event Types
+     */
+    exclude_event_types?: Array<EventType> | null;
     /**
      * Start Time
      */
@@ -1997,10 +4202,6 @@ export type ReplayFilter = {
     custom_query?: {
         [key: string]: unknown;
     } | null;
-    /**
-     * Exclude Event Types
-     */
-    exclude_event_types?: Array<EventType> | null;
 };
 
 /**
@@ -2166,7 +4367,7 @@ export type ReplaySession = {
 /**
  * ReplayStatus
  */
-export type ReplayStatus = 'scheduled' | 'created' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
+export type ReplayStatus = 'preview' | 'scheduled' | 'created' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
 
 /**
  * ReplayTarget
@@ -2177,6 +4378,49 @@ export type ReplayTarget = 'kafka' | 'callback' | 'file' | 'test';
  * ReplayType
  */
 export type ReplayType = 'execution' | 'time_range' | 'event_type' | 'query' | 'recovery';
+
+/**
+ * ResourceLimitExceededEvent
+ */
+export type ResourceLimitExceededEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'resource_limit_exceeded';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Resource Type
+     */
+    resource_type?: string;
+    /**
+     * Limit
+     */
+    limit?: number;
+    /**
+     * Requested
+     */
+    requested?: number;
+    /**
+     * User Id
+     */
+    user_id?: string | null;
+};
 
 /**
  * ResourceLimits
@@ -2237,6 +4481,28 @@ export type ResourceUsage = {
 };
 
 /**
+ * ResourceUsageDomain
+ */
+export type ResourceUsageDomain = {
+    /**
+     * Execution Time Wall Seconds
+     */
+    execution_time_wall_seconds?: number;
+    /**
+     * Cpu Time Jiffies
+     */
+    cpu_time_jiffies?: number;
+    /**
+     * Clk Tck Hertz
+     */
+    clk_tck_hertz?: number;
+    /**
+     * Peak Memory Kb
+     */
+    peak_memory_kb?: number;
+};
+
+/**
  * RestoreSettingsRequest
  *
  * Request model for restoring settings
@@ -2250,6 +4516,82 @@ export type RestoreSettingsRequest = {
      * Reason
      */
     reason?: string | null;
+};
+
+/**
+ * ResultFailedEvent
+ */
+export type ResultFailedEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'result_failed';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Execution Id
+     */
+    execution_id?: string;
+    /**
+     * Error
+     */
+    error?: string;
+    storage_type?: StorageType | null;
+};
+
+/**
+ * ResultStoredEvent
+ */
+export type ResultStoredEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'result_stored';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Execution Id
+     */
+    execution_id?: string;
+    storage_type?: StorageType | null;
+    /**
+     * Storage Path
+     */
+    storage_path?: string;
+    /**
+     * Size Bytes
+     */
+    size_bytes?: number;
 };
 
 /**
@@ -2309,17 +4651,118 @@ export type RetryPolicyRequest = {
 export type RetryStrategy = 'immediate' | 'exponential_backoff' | 'fixed_interval' | 'scheduled' | 'manual';
 
 /**
+ * SSEControlEvent
+ *
+ * Control events for execution SSE streams (not from Kafka).
+ */
+export type SseControlEvent = 'connected' | 'subscribed' | 'heartbeat' | 'shutdown' | 'status' | 'error';
+
+/**
+ * SSEExecutionEventData
+ *
+ * Typed model for SSE execution stream event payload.
+ *
+ * This represents the JSON data sent inside each SSE message for execution streams.
+ * All fields except event_type and execution_id are optional since different
+ * event types carry different data.
+ */
+export type SseExecutionEventData = {
+    /**
+     * Event Type
+     *
+     * Event type identifier (business event or control event)
+     */
+    event_type: EventType | SseControlEvent;
+    /**
+     * Execution Id
+     *
+     * Execution ID this event relates to
+     */
+    execution_id: string;
+    /**
+     * Timestamp
+     *
+     * Event timestamp
+     */
+    timestamp?: string | null;
+    /**
+     * Event Id
+     *
+     * Unique event identifier
+     */
+    event_id?: string | null;
+    /**
+     * Connection Id
+     *
+     * SSE connection ID (connected event)
+     */
+    connection_id?: string | null;
+    /**
+     * Message
+     *
+     * Human-readable message (heartbeat, shutdown)
+     */
+    message?: string | null;
+    /**
+     * Grace Period
+     *
+     * Shutdown grace period in seconds
+     */
+    grace_period?: number | null;
+    /**
+     * Error
+     *
+     * Error message (error event)
+     */
+    error?: string | null;
+    /**
+     * Current execution status
+     */
+    status?: ExecutionStatus | null;
+    /**
+     * Stdout
+     *
+     * Standard output from execution
+     */
+    stdout?: string | null;
+    /**
+     * Stderr
+     *
+     * Standard error from execution
+     */
+    stderr?: string | null;
+    /**
+     * Exit Code
+     *
+     * Process exit code
+     */
+    exit_code?: number | null;
+    /**
+     * Timeout Seconds
+     *
+     * Timeout duration in seconds
+     */
+    timeout_seconds?: number | null;
+    /**
+     * CPU/memory usage metrics
+     */
+    resource_usage?: ResourceUsage | null;
+    /**
+     * Complete execution result
+     */
+    result?: ExecutionResult | null;
+};
+
+/**
  * SSEHealthResponse
  *
  * Response model for SSE health check.
  */
 export type SseHealthResponse = {
     /**
-     * Status
-     *
      * Health status: healthy or draining
      */
-    status: string;
+    status: SseHealthStatus;
     /**
      * Kafka Enabled
      *
@@ -2363,6 +4806,96 @@ export type SseHealthResponse = {
 };
 
 /**
+ * SSEHealthStatus
+ *
+ * Health status for SSE service.
+ */
+export type SseHealthStatus = 'healthy' | 'draining';
+
+/**
+ * SSENotificationEvent
+ *
+ * Event types for notification SSE streams.
+ */
+export type SseNotificationEvent = 'connected' | 'subscribed' | 'heartbeat' | 'notification';
+
+/**
+ * SSENotificationEventData
+ *
+ * Typed model for SSE notification stream event payload.
+ *
+ * This represents the JSON data sent inside each SSE message for notification streams.
+ */
+export type SseNotificationEventData = {
+    /**
+     * SSE notification event type
+     */
+    event_type: SseNotificationEvent;
+    /**
+     * User Id
+     *
+     * User ID for the notification stream
+     */
+    user_id?: string | null;
+    /**
+     * Timestamp
+     *
+     * Event timestamp
+     */
+    timestamp?: string | null;
+    /**
+     * Message
+     *
+     * Human-readable message
+     */
+    message?: string | null;
+    /**
+     * Notification Id
+     *
+     * Unique notification ID
+     */
+    notification_id?: string | null;
+    /**
+     * Notification severity level
+     */
+    severity?: NotificationSeverity | null;
+    /**
+     * Notification delivery status
+     */
+    status?: NotificationStatus | null;
+    /**
+     * Tags
+     *
+     * Notification tags
+     */
+    tags?: Array<string> | null;
+    /**
+     * Subject
+     *
+     * Notification subject/title
+     */
+    subject?: string | null;
+    /**
+     * Body
+     *
+     * Notification body content
+     */
+    body?: string | null;
+    /**
+     * Action Url
+     *
+     * Optional action URL
+     */
+    action_url?: string | null;
+    /**
+     * Created At
+     *
+     * Creation timestamp
+     */
+    created_at?: string | null;
+};
+
+/**
  * SagaCancellationResponse
  *
  * Response schema for saga cancellation
@@ -2380,6 +4913,241 @@ export type SagaCancellationResponse = {
      * Saga Id
      */
     saga_id: string;
+};
+
+/**
+ * SagaCancelledEvent
+ */
+export type SagaCancelledEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'saga_cancelled';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Saga Id
+     */
+    saga_id?: string;
+    /**
+     * Saga Name
+     */
+    saga_name?: string;
+    /**
+     * Execution Id
+     */
+    execution_id?: string;
+    /**
+     * Reason
+     */
+    reason?: string;
+    /**
+     * Completed Steps
+     */
+    completed_steps?: Array<string>;
+    /**
+     * Compensated Steps
+     */
+    compensated_steps?: Array<string>;
+    /**
+     * Cancelled At
+     */
+    cancelled_at?: string | null;
+    /**
+     * Cancelled By
+     */
+    cancelled_by?: string | null;
+};
+
+/**
+ * SagaCompensatedEvent
+ */
+export type SagaCompensatedEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'saga_compensated';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Saga Id
+     */
+    saga_id?: string;
+    /**
+     * Saga Name
+     */
+    saga_name?: string;
+    /**
+     * Execution Id
+     */
+    execution_id?: string;
+    /**
+     * Compensated Steps
+     */
+    compensated_steps?: Array<string>;
+};
+
+/**
+ * SagaCompensatingEvent
+ */
+export type SagaCompensatingEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'saga_compensating';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Saga Id
+     */
+    saga_id?: string;
+    /**
+     * Saga Name
+     */
+    saga_name?: string;
+    /**
+     * Execution Id
+     */
+    execution_id?: string;
+    /**
+     * Compensating Step
+     */
+    compensating_step?: string;
+};
+
+/**
+ * SagaCompletedEvent
+ */
+export type SagaCompletedEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'saga_completed';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Saga Id
+     */
+    saga_id?: string;
+    /**
+     * Saga Name
+     */
+    saga_name?: string;
+    /**
+     * Execution Id
+     */
+    execution_id?: string;
+    /**
+     * Completed Steps
+     */
+    completed_steps?: Array<string>;
+};
+
+/**
+ * SagaFailedEvent
+ */
+export type SagaFailedEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'saga_failed';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Saga Id
+     */
+    saga_id?: string;
+    /**
+     * Saga Name
+     */
+    saga_name?: string;
+    /**
+     * Execution Id
+     */
+    execution_id?: string;
+    /**
+     * Failed Step
+     */
+    failed_step?: string;
+    /**
+     * Error
+     */
+    error?: string;
 };
 
 /**
@@ -2408,6 +5176,49 @@ export type SagaListResponse = {
      * Has More
      */
     has_more: boolean;
+};
+
+/**
+ * SagaStartedEvent
+ */
+export type SagaStartedEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'saga_started';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Saga Id
+     */
+    saga_id?: string;
+    /**
+     * Saga Name
+     */
+    saga_name?: string;
+    /**
+     * Execution Id
+     */
+    execution_id?: string;
+    /**
+     * Initial Event Id
+     */
+    initial_event_id?: string;
 };
 
 /**
@@ -2565,6 +5376,131 @@ export type SavedScriptUpdate = {
 };
 
 /**
+ * ScriptDeletedEvent
+ */
+export type ScriptDeletedEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'script_deleted';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Script Id
+     */
+    script_id?: string;
+    /**
+     * User Id
+     */
+    user_id?: string;
+    /**
+     * Deleted By
+     */
+    deleted_by?: string | null;
+};
+
+/**
+ * ScriptSavedEvent
+ */
+export type ScriptSavedEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'script_saved';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Script Id
+     */
+    script_id?: string;
+    /**
+     * User Id
+     */
+    user_id?: string;
+    /**
+     * Title
+     */
+    title?: string;
+    /**
+     * Language
+     */
+    language?: string;
+};
+
+/**
+ * ScriptSharedEvent
+ */
+export type ScriptSharedEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'script_shared';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Script Id
+     */
+    script_id?: string;
+    /**
+     * Shared By
+     */
+    shared_by?: string;
+    /**
+     * Shared With
+     */
+    shared_with?: Array<string>;
+    /**
+     * Permissions
+     */
+    permissions?: string;
+};
+
+/**
  * SecuritySettingsSchema
  *
  * Security configuration schema.
@@ -2594,6 +5530,127 @@ export type SecuritySettingsSchema = {
      * Account lockout duration
      */
     lockout_duration_minutes?: number;
+};
+
+/**
+ * SecurityViolationEvent
+ */
+export type SecurityViolationEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'security_violation';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * User Id
+     */
+    user_id?: string | null;
+    /**
+     * Violation Type
+     */
+    violation_type?: string;
+    /**
+     * Details
+     */
+    details?: string;
+    /**
+     * Ip Address
+     */
+    ip_address?: string | null;
+};
+
+/**
+ * ServiceRecoveredEvent
+ */
+export type ServiceRecoveredEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'service_recovered';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Service Name
+     */
+    service_name?: string;
+    /**
+     * Health Check
+     */
+    health_check?: string;
+    /**
+     * Downtime Seconds
+     */
+    downtime_seconds?: number;
+};
+
+/**
+ * ServiceUnhealthyEvent
+ */
+export type ServiceUnhealthyEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'service_unhealthy';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Service Name
+     */
+    service_name?: string;
+    /**
+     * Health Check
+     */
+    health_check?: string;
+    /**
+     * Reason
+     */
+    reason?: string;
 };
 
 /**
@@ -2748,6 +5805,13 @@ export type ShutdownStatusResponse = {
 export type SortOrder = 'asc' | 'desc';
 
 /**
+ * StorageType
+ *
+ * Types of storage backends.
+ */
+export type StorageType = 'database' | 's3' | 'filesystem' | 'redis';
+
+/**
  * SubscriptionUpdate
  *
  * Request schema for updating notification subscriptions
@@ -2812,6 +5876,49 @@ export type SubscriptionsResponse = {
 };
 
 /**
+ * SystemErrorEvent
+ */
+export type SystemErrorEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'system_error';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * Error Type
+     */
+    error_type?: string;
+    /**
+     * Message
+     */
+    message?: string;
+    /**
+     * Service Name
+     */
+    service_name?: string;
+    /**
+     * Stack Trace
+     */
+    stack_trace?: string | null;
+};
+
+/**
  * SystemSettings
  *
  * System-wide settings model.
@@ -2863,6 +5970,26 @@ export type TokenValidationResponse = {
 };
 
 /**
+ * TopicStatistic
+ *
+ * Statistics for a single topic.
+ */
+export type TopicStatistic = {
+    /**
+     * Topic
+     */
+    topic: string;
+    /**
+     * Count
+     */
+    count: number;
+    /**
+     * Avg Retry Count
+     */
+    avg_retry_count: number;
+};
+
+/**
  * UnreadCountResponse
  *
  * Response schema for unread notification count
@@ -2897,6 +6024,45 @@ export type UserCreate = {
      * Password
      */
     password: string;
+};
+
+/**
+ * UserDeletedEvent
+ */
+export type UserDeletedEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'user_deleted';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * User Id
+     */
+    user_id?: string;
+    /**
+     * Deleted By
+     */
+    deleted_by?: string | null;
+    /**
+     * Reason
+     */
+    reason?: string | null;
 };
 
 /**
@@ -2940,37 +6106,118 @@ export type UserListResponse = {
 };
 
 /**
- * UserRateLimit
+ * UserLoggedInEvent
  */
-export type UserRateLimit = {
+export type UserLoggedInEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'user_logged_in';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
     /**
      * User Id
      */
-    user_id: string;
+    user_id?: string;
+    login_method?: LoginMethod;
     /**
-     * Rules
+     * Ip Address
      */
-    rules?: Array<RateLimitRule>;
+    ip_address?: string | null;
     /**
-     * Global Multiplier
+     * User Agent
      */
-    global_multiplier?: number;
+    user_agent?: string | null;
+};
+
+/**
+ * UserLoggedOutEvent
+ */
+export type UserLoggedOutEvent = {
     /**
-     * Bypass Rate Limit
+     * Event Id
      */
-    bypass_rate_limit?: boolean;
+    event_id: string;
     /**
-     * Created At
+     * Event Type
      */
-    created_at?: string;
+    event_type: 'user_logged_out';
     /**
-     * Updated At
+     * Event Version
      */
-    updated_at?: string;
+    event_version: string;
     /**
-     * Notes
+     * Timestamp
      */
-    notes?: string | null;
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * User Id
+     */
+    user_id?: string;
+    /**
+     * Logout Reason
+     */
+    logout_reason?: string | null;
+};
+
+/**
+ * UserLoginEvent
+ */
+export type UserLoginEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'user_login';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * User Id
+     */
+    user_id?: string;
+    login_method?: LoginMethod;
+    /**
+     * Ip Address
+     */
+    ip_address?: string | null;
+    /**
+     * User Agent
+     */
+    user_agent?: string | null;
 };
 
 /**
@@ -3028,6 +6275,45 @@ export type UserRateLimitsResponse = {
             [key: string]: unknown;
         };
     };
+};
+
+/**
+ * UserRegisteredEvent
+ */
+export type UserRegisteredEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'user_registered';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * User Id
+     */
+    user_id?: string;
+    /**
+     * Username
+     */
+    username?: string;
+    /**
+     * Email
+     */
+    email?: string;
 };
 
 /**
@@ -3161,6 +6447,45 @@ export type UserSettingsUpdate = {
 };
 
 /**
+ * UserSettingsUpdatedEvent
+ */
+export type UserSettingsUpdatedEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'user_settings_updated';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * User Id
+     */
+    user_id?: string;
+    /**
+     * Changed Fields
+     */
+    changed_fields?: Array<string>;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+};
+
+/**
  * UserUpdate
  *
  * Model for updating a user
@@ -3183,6 +6508,45 @@ export type UserUpdate = {
      * Password
      */
     password?: string | null;
+};
+
+/**
+ * UserUpdatedEvent
+ */
+export type UserUpdatedEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'user_updated';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * User Id
+     */
+    user_id?: string;
+    /**
+     * Updated Fields
+     */
+    updated_fields?: Array<string>;
+    /**
+     * Updated By
+     */
+    updated_by?: string | null;
 };
 
 /**
@@ -3435,7 +6799,7 @@ export type CreateExecutionApiV1ExecutePostResponses = {
 
 export type CreateExecutionApiV1ExecutePostResponse = CreateExecutionApiV1ExecutePostResponses[keyof CreateExecutionApiV1ExecutePostResponses];
 
-export type GetResultApiV1ResultExecutionIdGetData = {
+export type GetResultApiV1ExecutionsExecutionIdResultGetData = {
     body?: never;
     path: {
         /**
@@ -3444,28 +6808,28 @@ export type GetResultApiV1ResultExecutionIdGetData = {
         execution_id: string;
     };
     query?: never;
-    url: '/api/v1/result/{execution_id}';
+    url: '/api/v1/executions/{execution_id}/result';
 };
 
-export type GetResultApiV1ResultExecutionIdGetErrors = {
+export type GetResultApiV1ExecutionsExecutionIdResultGetErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type GetResultApiV1ResultExecutionIdGetError = GetResultApiV1ResultExecutionIdGetErrors[keyof GetResultApiV1ResultExecutionIdGetErrors];
+export type GetResultApiV1ExecutionsExecutionIdResultGetError = GetResultApiV1ExecutionsExecutionIdResultGetErrors[keyof GetResultApiV1ExecutionsExecutionIdResultGetErrors];
 
-export type GetResultApiV1ResultExecutionIdGetResponses = {
+export type GetResultApiV1ExecutionsExecutionIdResultGetResponses = {
     /**
      * Successful Response
      */
     200: ExecutionResult;
 };
 
-export type GetResultApiV1ResultExecutionIdGetResponse = GetResultApiV1ResultExecutionIdGetResponses[keyof GetResultApiV1ResultExecutionIdGetResponses];
+export type GetResultApiV1ExecutionsExecutionIdResultGetResponse = GetResultApiV1ExecutionsExecutionIdResultGetResponses[keyof GetResultApiV1ExecutionsExecutionIdResultGetResponses];
 
-export type CancelExecutionApiV1ExecutionIdCancelPostData = {
+export type CancelExecutionApiV1ExecutionsExecutionIdCancelPostData = {
     body: CancelExecutionRequest;
     path: {
         /**
@@ -3474,28 +6838,28 @@ export type CancelExecutionApiV1ExecutionIdCancelPostData = {
         execution_id: string;
     };
     query?: never;
-    url: '/api/v1/{execution_id}/cancel';
+    url: '/api/v1/executions/{execution_id}/cancel';
 };
 
-export type CancelExecutionApiV1ExecutionIdCancelPostErrors = {
+export type CancelExecutionApiV1ExecutionsExecutionIdCancelPostErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type CancelExecutionApiV1ExecutionIdCancelPostError = CancelExecutionApiV1ExecutionIdCancelPostErrors[keyof CancelExecutionApiV1ExecutionIdCancelPostErrors];
+export type CancelExecutionApiV1ExecutionsExecutionIdCancelPostError = CancelExecutionApiV1ExecutionsExecutionIdCancelPostErrors[keyof CancelExecutionApiV1ExecutionsExecutionIdCancelPostErrors];
 
-export type CancelExecutionApiV1ExecutionIdCancelPostResponses = {
+export type CancelExecutionApiV1ExecutionsExecutionIdCancelPostResponses = {
     /**
      * Successful Response
      */
     200: CancelResponse;
 };
 
-export type CancelExecutionApiV1ExecutionIdCancelPostResponse = CancelExecutionApiV1ExecutionIdCancelPostResponses[keyof CancelExecutionApiV1ExecutionIdCancelPostResponses];
+export type CancelExecutionApiV1ExecutionsExecutionIdCancelPostResponse = CancelExecutionApiV1ExecutionsExecutionIdCancelPostResponses[keyof CancelExecutionApiV1ExecutionsExecutionIdCancelPostResponses];
 
-export type RetryExecutionApiV1ExecutionIdRetryPostData = {
+export type RetryExecutionApiV1ExecutionsExecutionIdRetryPostData = {
     body: RetryExecutionRequest;
     path: {
         /**
@@ -3504,26 +6868,26 @@ export type RetryExecutionApiV1ExecutionIdRetryPostData = {
         execution_id: string;
     };
     query?: never;
-    url: '/api/v1/{execution_id}/retry';
+    url: '/api/v1/executions/{execution_id}/retry';
 };
 
-export type RetryExecutionApiV1ExecutionIdRetryPostErrors = {
+export type RetryExecutionApiV1ExecutionsExecutionIdRetryPostErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type RetryExecutionApiV1ExecutionIdRetryPostError = RetryExecutionApiV1ExecutionIdRetryPostErrors[keyof RetryExecutionApiV1ExecutionIdRetryPostErrors];
+export type RetryExecutionApiV1ExecutionsExecutionIdRetryPostError = RetryExecutionApiV1ExecutionsExecutionIdRetryPostErrors[keyof RetryExecutionApiV1ExecutionsExecutionIdRetryPostErrors];
 
-export type RetryExecutionApiV1ExecutionIdRetryPostResponses = {
+export type RetryExecutionApiV1ExecutionsExecutionIdRetryPostResponses = {
     /**
      * Successful Response
      */
     200: ExecutionResponse;
 };
 
-export type RetryExecutionApiV1ExecutionIdRetryPostResponse = RetryExecutionApiV1ExecutionIdRetryPostResponses[keyof RetryExecutionApiV1ExecutionIdRetryPostResponses];
+export type RetryExecutionApiV1ExecutionsExecutionIdRetryPostResponse = RetryExecutionApiV1ExecutionsExecutionIdRetryPostResponses[keyof RetryExecutionApiV1ExecutionsExecutionIdRetryPostResponses];
 
 export type GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetData = {
     body?: never;
@@ -3563,7 +6927,119 @@ export type GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetResponses = {
      *
      * Successful Response
      */
-    200: Array<ExecutionEventResponse>;
+    200: Array<({
+        event_type: 'execution_requested';
+    } & ExecutionRequestedEvent) | ({
+        event_type: 'execution_accepted';
+    } & ExecutionAcceptedEvent) | ({
+        event_type: 'execution_queued';
+    } & ExecutionQueuedEvent) | ({
+        event_type: 'execution_started';
+    } & ExecutionStartedEvent) | ({
+        event_type: 'execution_running';
+    } & ExecutionRunningEvent) | ({
+        event_type: 'execution_completed';
+    } & ExecutionCompletedEvent) | ({
+        event_type: 'execution_failed';
+    } & ExecutionFailedEvent) | ({
+        event_type: 'execution_timeout';
+    } & ExecutionTimeoutEvent) | ({
+        event_type: 'execution_cancelled';
+    } & ExecutionCancelledEvent) | ({
+        event_type: 'pod_created';
+    } & PodCreatedEvent) | ({
+        event_type: 'pod_scheduled';
+    } & PodScheduledEvent) | ({
+        event_type: 'pod_running';
+    } & PodRunningEvent) | ({
+        event_type: 'pod_succeeded';
+    } & PodSucceededEvent) | ({
+        event_type: 'pod_failed';
+    } & PodFailedEvent) | ({
+        event_type: 'pod_terminated';
+    } & PodTerminatedEvent) | ({
+        event_type: 'pod_deleted';
+    } & PodDeletedEvent) | ({
+        event_type: 'result_stored';
+    } & ResultStoredEvent) | ({
+        event_type: 'result_failed';
+    } & ResultFailedEvent) | ({
+        event_type: 'user_settings_updated';
+    } & UserSettingsUpdatedEvent) | ({
+        event_type: 'user_registered';
+    } & UserRegisteredEvent) | ({
+        event_type: 'user_login';
+    } & UserLoginEvent) | ({
+        event_type: 'user_logged_in';
+    } & UserLoggedInEvent) | ({
+        event_type: 'user_logged_out';
+    } & UserLoggedOutEvent) | ({
+        event_type: 'user_updated';
+    } & UserUpdatedEvent) | ({
+        event_type: 'user_deleted';
+    } & UserDeletedEvent) | ({
+        event_type: 'notification_created';
+    } & NotificationCreatedEvent) | ({
+        event_type: 'notification_sent';
+    } & NotificationSentEvent) | ({
+        event_type: 'notification_delivered';
+    } & NotificationDeliveredEvent) | ({
+        event_type: 'notification_failed';
+    } & NotificationFailedEvent) | ({
+        event_type: 'notification_read';
+    } & NotificationReadEvent) | ({
+        event_type: 'notification_clicked';
+    } & NotificationClickedEvent) | ({
+        event_type: 'notification_preferences_updated';
+    } & NotificationPreferencesUpdatedEvent) | ({
+        event_type: 'saga_started';
+    } & SagaStartedEvent) | ({
+        event_type: 'saga_completed';
+    } & SagaCompletedEvent) | ({
+        event_type: 'saga_failed';
+    } & SagaFailedEvent) | ({
+        event_type: 'saga_cancelled';
+    } & SagaCancelledEvent) | ({
+        event_type: 'saga_compensating';
+    } & SagaCompensatingEvent) | ({
+        event_type: 'saga_compensated';
+    } & SagaCompensatedEvent) | ({
+        event_type: 'create_pod_command';
+    } & CreatePodCommandEvent) | ({
+        event_type: 'delete_pod_command';
+    } & DeletePodCommandEvent) | ({
+        event_type: 'allocate_resources_command';
+    } & AllocateResourcesCommandEvent) | ({
+        event_type: 'release_resources_command';
+    } & ReleaseResourcesCommandEvent) | ({
+        event_type: 'script_saved';
+    } & ScriptSavedEvent) | ({
+        event_type: 'script_deleted';
+    } & ScriptDeletedEvent) | ({
+        event_type: 'script_shared';
+    } & ScriptSharedEvent) | ({
+        event_type: 'security_violation';
+    } & SecurityViolationEvent) | ({
+        event_type: 'rate_limit_exceeded';
+    } & RateLimitExceededEvent) | ({
+        event_type: 'auth_failed';
+    } & AuthFailedEvent) | ({
+        event_type: 'resource_limit_exceeded';
+    } & ResourceLimitExceededEvent) | ({
+        event_type: 'quota_exceeded';
+    } & QuotaExceededEvent) | ({
+        event_type: 'system_error';
+    } & SystemErrorEvent) | ({
+        event_type: 'service_unhealthy';
+    } & ServiceUnhealthyEvent) | ({
+        event_type: 'service_recovered';
+    } & ServiceRecoveredEvent) | ({
+        event_type: 'dlq_message_received';
+    } & DlqMessageReceivedEvent) | ({
+        event_type: 'dlq_message_retried';
+    } & DlqMessageRetriedEvent) | ({
+        event_type: 'dlq_message_discarded';
+    } & DlqMessageDiscardedEvent)>;
 };
 
 export type GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetResponse = GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetResponses[keyof GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetResponses];
@@ -3650,7 +7126,7 @@ export type GetK8sResourceLimitsApiV1K8sLimitsGetResponses = {
 
 export type GetK8sResourceLimitsApiV1K8sLimitsGetResponse = GetK8sResourceLimitsApiV1K8sLimitsGetResponses[keyof GetK8sResourceLimitsApiV1K8sLimitsGetResponses];
 
-export type DeleteExecutionApiV1ExecutionIdDeleteData = {
+export type DeleteExecutionApiV1ExecutionsExecutionIdDeleteData = {
     body?: never;
     path: {
         /**
@@ -3659,26 +7135,26 @@ export type DeleteExecutionApiV1ExecutionIdDeleteData = {
         execution_id: string;
     };
     query?: never;
-    url: '/api/v1/{execution_id}';
+    url: '/api/v1/executions/{execution_id}';
 };
 
-export type DeleteExecutionApiV1ExecutionIdDeleteErrors = {
+export type DeleteExecutionApiV1ExecutionsExecutionIdDeleteErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type DeleteExecutionApiV1ExecutionIdDeleteError = DeleteExecutionApiV1ExecutionIdDeleteErrors[keyof DeleteExecutionApiV1ExecutionIdDeleteErrors];
+export type DeleteExecutionApiV1ExecutionsExecutionIdDeleteError = DeleteExecutionApiV1ExecutionsExecutionIdDeleteErrors[keyof DeleteExecutionApiV1ExecutionsExecutionIdDeleteErrors];
 
-export type DeleteExecutionApiV1ExecutionIdDeleteResponses = {
+export type DeleteExecutionApiV1ExecutionsExecutionIdDeleteResponses = {
     /**
      * Successful Response
      */
     200: DeleteResponse;
 };
 
-export type DeleteExecutionApiV1ExecutionIdDeleteResponse = DeleteExecutionApiV1ExecutionIdDeleteResponses[keyof DeleteExecutionApiV1ExecutionIdDeleteResponses];
+export type DeleteExecutionApiV1ExecutionsExecutionIdDeleteResponse = DeleteExecutionApiV1ExecutionsExecutionIdDeleteResponses[keyof DeleteExecutionApiV1ExecutionsExecutionIdDeleteResponses];
 
 export type ListSavedScriptsApiV1ScriptsGetData = {
     body?: never;
@@ -4294,8 +7770,10 @@ export type NotificationStreamApiV1EventsNotificationsStreamGetResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: SseNotificationEventData;
 };
+
+export type NotificationStreamApiV1EventsNotificationsStreamGetResponse = NotificationStreamApiV1EventsNotificationsStreamGetResponses[keyof NotificationStreamApiV1EventsNotificationsStreamGetResponses];
 
 export type ExecutionEventsApiV1EventsExecutionsExecutionIdGetData = {
     body?: never;
@@ -4322,8 +7800,10 @@ export type ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: SseExecutionEventData;
 };
+
+export type ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponse = ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses[keyof ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses];
 
 export type SseHealthApiV1EventsHealthGetData = {
     body?: never;
@@ -4393,7 +7873,7 @@ export type GetUserEventsApiV1EventsUserGetData = {
         /**
          * Event Types
          */
-        event_types?: Array<string> | null;
+        event_types?: Array<EventType> | null;
         /**
          * Start Time
          */
@@ -4634,9 +8114,123 @@ export type GetEventApiV1EventsEventIdGetError = GetEventApiV1EventsEventIdGetEr
 
 export type GetEventApiV1EventsEventIdGetResponses = {
     /**
+     * Response Get Event Api V1 Events  Event Id  Get
+     *
      * Successful Response
      */
-    200: EventResponse;
+    200: ({
+        event_type: 'execution_requested';
+    } & ExecutionRequestedEvent) | ({
+        event_type: 'execution_accepted';
+    } & ExecutionAcceptedEvent) | ({
+        event_type: 'execution_queued';
+    } & ExecutionQueuedEvent) | ({
+        event_type: 'execution_started';
+    } & ExecutionStartedEvent) | ({
+        event_type: 'execution_running';
+    } & ExecutionRunningEvent) | ({
+        event_type: 'execution_completed';
+    } & ExecutionCompletedEvent) | ({
+        event_type: 'execution_failed';
+    } & ExecutionFailedEvent) | ({
+        event_type: 'execution_timeout';
+    } & ExecutionTimeoutEvent) | ({
+        event_type: 'execution_cancelled';
+    } & ExecutionCancelledEvent) | ({
+        event_type: 'pod_created';
+    } & PodCreatedEvent) | ({
+        event_type: 'pod_scheduled';
+    } & PodScheduledEvent) | ({
+        event_type: 'pod_running';
+    } & PodRunningEvent) | ({
+        event_type: 'pod_succeeded';
+    } & PodSucceededEvent) | ({
+        event_type: 'pod_failed';
+    } & PodFailedEvent) | ({
+        event_type: 'pod_terminated';
+    } & PodTerminatedEvent) | ({
+        event_type: 'pod_deleted';
+    } & PodDeletedEvent) | ({
+        event_type: 'result_stored';
+    } & ResultStoredEvent) | ({
+        event_type: 'result_failed';
+    } & ResultFailedEvent) | ({
+        event_type: 'user_settings_updated';
+    } & UserSettingsUpdatedEvent) | ({
+        event_type: 'user_registered';
+    } & UserRegisteredEvent) | ({
+        event_type: 'user_login';
+    } & UserLoginEvent) | ({
+        event_type: 'user_logged_in';
+    } & UserLoggedInEvent) | ({
+        event_type: 'user_logged_out';
+    } & UserLoggedOutEvent) | ({
+        event_type: 'user_updated';
+    } & UserUpdatedEvent) | ({
+        event_type: 'user_deleted';
+    } & UserDeletedEvent) | ({
+        event_type: 'notification_created';
+    } & NotificationCreatedEvent) | ({
+        event_type: 'notification_sent';
+    } & NotificationSentEvent) | ({
+        event_type: 'notification_delivered';
+    } & NotificationDeliveredEvent) | ({
+        event_type: 'notification_failed';
+    } & NotificationFailedEvent) | ({
+        event_type: 'notification_read';
+    } & NotificationReadEvent) | ({
+        event_type: 'notification_clicked';
+    } & NotificationClickedEvent) | ({
+        event_type: 'notification_preferences_updated';
+    } & NotificationPreferencesUpdatedEvent) | ({
+        event_type: 'saga_started';
+    } & SagaStartedEvent) | ({
+        event_type: 'saga_completed';
+    } & SagaCompletedEvent) | ({
+        event_type: 'saga_failed';
+    } & SagaFailedEvent) | ({
+        event_type: 'saga_cancelled';
+    } & SagaCancelledEvent) | ({
+        event_type: 'saga_compensating';
+    } & SagaCompensatingEvent) | ({
+        event_type: 'saga_compensated';
+    } & SagaCompensatedEvent) | ({
+        event_type: 'create_pod_command';
+    } & CreatePodCommandEvent) | ({
+        event_type: 'delete_pod_command';
+    } & DeletePodCommandEvent) | ({
+        event_type: 'allocate_resources_command';
+    } & AllocateResourcesCommandEvent) | ({
+        event_type: 'release_resources_command';
+    } & ReleaseResourcesCommandEvent) | ({
+        event_type: 'script_saved';
+    } & ScriptSavedEvent) | ({
+        event_type: 'script_deleted';
+    } & ScriptDeletedEvent) | ({
+        event_type: 'script_shared';
+    } & ScriptSharedEvent) | ({
+        event_type: 'security_violation';
+    } & SecurityViolationEvent) | ({
+        event_type: 'rate_limit_exceeded';
+    } & RateLimitExceededEvent) | ({
+        event_type: 'auth_failed';
+    } & AuthFailedEvent) | ({
+        event_type: 'resource_limit_exceeded';
+    } & ResourceLimitExceededEvent) | ({
+        event_type: 'quota_exceeded';
+    } & QuotaExceededEvent) | ({
+        event_type: 'system_error';
+    } & SystemErrorEvent) | ({
+        event_type: 'service_unhealthy';
+    } & ServiceUnhealthyEvent) | ({
+        event_type: 'service_recovered';
+    } & ServiceRecoveredEvent) | ({
+        event_type: 'dlq_message_received';
+    } & DlqMessageReceivedEvent) | ({
+        event_type: 'dlq_message_retried';
+    } & DlqMessageRetriedEvent) | ({
+        event_type: 'dlq_message_discarded';
+    } & DlqMessageDiscardedEvent);
 };
 
 export type GetEventApiV1EventsEventIdGetResponse = GetEventApiV1EventsEventIdGetResponses[keyof GetEventApiV1EventsEventIdGetResponses];
@@ -5354,7 +8948,7 @@ export type GetUserRateLimitsApiV1AdminUsersUserIdRateLimitsGetResponses = {
 export type GetUserRateLimitsApiV1AdminUsersUserIdRateLimitsGetResponse = GetUserRateLimitsApiV1AdminUsersUserIdRateLimitsGetResponses[keyof GetUserRateLimitsApiV1AdminUsersUserIdRateLimitsGetResponses];
 
 export type UpdateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPutData = {
-    body: UserRateLimit;
+    body: RateLimitUpdateRequest;
     path: {
         /**
          * User Id

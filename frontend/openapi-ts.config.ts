@@ -4,8 +4,8 @@ export default defineConfig({
     input: '../docs/reference/openapi.json',
     output: {
         path: 'src/lib/api',
-        format: 'prettier',
     },
+    postProcess: ['prettier'],
     plugins: [
         '@hey-api/typescript',
         '@hey-api/sdk',

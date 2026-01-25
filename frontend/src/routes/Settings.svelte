@@ -5,10 +5,11 @@
         updateUserSettingsApiV1UserSettingsPut,
         restoreSettingsApiV1UserSettingsRestorePost,
         getSettingsHistoryApiV1UserSettingsHistoryGet,
+        type SettingsHistoryEntry,
     } from '$lib/api';
     import { isAuthenticated, username } from '$stores/auth';
     import { theme as themeStore, setTheme } from '$stores/theme';
-    import { addToast } from '$stores/toastStore';
+    import { toast } from 'svelte-sonner';
     import { get } from 'svelte/store';
     import { fly } from 'svelte/transition';
     import { setUserSettings } from '$stores/userSettings';
@@ -19,7 +20,7 @@
     let saving = $state(false);
     let activeTab = $state('general');
     let showHistory = $state(false);
-    let history = $state<any[]>([]);
+    let history = $state<SettingsHistoryEntry[]>([]);
     let historyLoading = $state(false);
 
     // Dropdown states
@@ -123,7 +124,7 @@
             savedSnapshot = JSON.stringify(formData);
         } catch (err) {
             console.error('Failed to load settings:', err);
-            addToast('Failed to load settings. Using defaults.', 'error');
+            toast.error('Failed to load settings. Using defaults.');
         } finally {
             loading = false;
         }
@@ -132,7 +133,7 @@
     async function saveSettings() {
         const currentState = JSON.stringify(formData);
         if (currentState === savedSnapshot) {
-            addToast('No changes to save', 'info');
+            toast.info('No changes to save');
             return;
         }
 
@@ -176,10 +177,10 @@
             };
             savedSnapshot = JSON.stringify(formData);
 
-            addToast('Settings saved successfully', 'success');
+            toast.success('Settings saved successfully');
         } catch (err) {
             console.error('Settings save error:', err);
-            addToast('Failed to save settings', 'error');
+            toast.error('Failed to save settings');
         } finally {
             saving = false;
         }
@@ -206,19 +207,14 @@
             const { data, error } = await getSettingsHistoryApiV1UserSettingsHistoryGet({ query: { limit: 10 } });
             if (error) throw error;
 
-            history = (data?.history || [])
-                .map(item => ({
-                    ...item,
-                    displayField: item.field,
-                    isRestore: item.reason?.includes('restore')
-                }))
+            history = [...(data?.history || [])]
                 .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
             historyCache = history;
             historyCacheTime = Date.now();
         } catch (err) {
             console.error('Failed to load settings history:', err);
-            addToast('Failed to load settings history', 'error');
+            toast.error('Failed to load settings history');
             history = [];
         } finally {
             historyLoading = false;
@@ -246,10 +242,10 @@
             }
 
             showHistory = false;
-            addToast('Settings restored successfully', 'success');
+            toast.success('Settings restored successfully');
         } catch (err) {
             console.error('Failed to restore settings:', err);
-            addToast('Failed to restore settings', 'error');
+            toast.error('Failed to restore settings');
         }
     }
     
@@ -550,7 +546,7 @@
                                 {#each history as item}
                                     <tr class="border-b border-border-default dark:border-dark-border-default hover:bg-neutral-50 dark:hover:bg-neutral-800">
                                         <td class="px-4 py-2 text-sm text-fg-default dark:text-dark-fg-default whitespace-nowrap">{formatTimestamp(item.timestamp)}</td>
-                                        <td class="px-4 py-2 text-sm text-fg-default dark:text-dark-fg-default">{item.displayField}</td>
+                                        <td class="px-4 py-2 text-sm text-fg-default dark:text-dark-fg-default">{item.field}</td>
                                         <td class="px-4 py-2 text-sm font-mono text-fg-muted dark:text-dark-fg-muted">
                                             <div class="flex flex-wrap items-center gap-1">
                                                 <span class="text-red-600 dark:text-red-400 break-all">{typeof item.old_value === 'object' ? JSON.stringify(item.old_value) : item.old_value}</span>

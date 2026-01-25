@@ -1,167 +1,142 @@
-# Environment Variables Reference
+# Environment Variables
 
-Complete reference of all environment variables used by the Integr8sCode backend.
+All configuration is done through environment variables loaded from `.env` files. Copy `backend/.env` to get started and adjust as needed.
 
-## Core Configuration
+## Core
 
-| Variable                      | Default                              | Description                         |
-|-------------------------------|--------------------------------------|-------------------------------------|
-| `PROJECT_NAME`                | `integr8scode`                       | Application name                    |
-| `DATABASE_NAME`               | `integr8scode_db`                    | MongoDB database name               |
-| `MONGODB_URL`                 | `mongodb://mongo:27017/integr8scode` | MongoDB connection URL              |
-| `SECRET_KEY`                  | *required*                           | JWT signing key (min 32 characters) |
-| `ALGORITHM`                   | `HS256`                              | JWT signing algorithm               |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | `1440`                               | Token lifetime (24 hours)           |
-| `API_V1_STR`                  | `/api/v1`                            | API version prefix                  |
-| `APP_URL`                     | `https://integr8scode.cc`            | Public application URL              |
+```bash
+--8<-- "backend/.env:1:9"
+```
 
-## Server Configuration
+??? info "Legend"
+    | Variable | Description | Default |
+    |----------|-------------|---------|
+    | `PROJECT_NAME` | Application name for logs and metadata | `integr8scode` |
+    | `DATABASE_NAME` | MongoDB database name | `integr8scode_db` |
+    | `SECRET_KEY` | JWT signing key. **Required**, min 32 chars | — |
+    | `ALGORITHM` | JWT signing algorithm | `HS256` |
+    | `ACCESS_TOKEN_EXPIRE_MINUTES` | Token lifetime in minutes | `1440` (24h) |
+    | `MONGO_ROOT_USER` | MongoDB admin username | `root` |
+    | `MONGO_ROOT_PASSWORD` | MongoDB admin password | `rootpassword` |
+    | `MONGODB_URL` | MongoDB connection string | `mongodb://mongo:27017/integr8scode` |
 
-| Variable          | Default                 | Description               |
-|-------------------|-------------------------|---------------------------|
-| `SERVER_HOST`     | `localhost`             | Server bind address       |
-| `SERVER_PORT`     | `443`                   | Server port               |
-| `SSL_KEYFILE`     | `/app/certs/server.key` | SSL private key path      |
-| `SSL_CERTFILE`    | `/app/certs/server.crt` | SSL certificate path      |
-| `WEB_CONCURRENCY` | `4`                     | Gunicorn worker count     |
-| `WEB_THREADS`     | `1`                     | Threads per worker        |
-| `WEB_TIMEOUT`     | `60`                    | Request timeout (seconds) |
-| `WEB_BACKLOG`     | `2048`                  | Connection backlog        |
+## Kubernetes
 
-## Kubernetes Configuration
+```bash
+--8<-- "backend/.env:10:17"
+```
 
-| Variable                         | Default          | Description                 |
-|----------------------------------|------------------|-----------------------------|
-| `KUBERNETES_CONFIG_PATH`         | `~/.kube/config` | Kubeconfig file path        |
-| `KUBERNETES_CA_CERTIFICATE_PATH` | *none*           | Custom CA certificate path  |
-| `K8S_POD_CPU_LIMIT`              | `1000m`          | Pod CPU limit               |
-| `K8S_POD_MEMORY_LIMIT`           | `128Mi`          | Pod memory limit            |
-| `K8S_POD_CPU_REQUEST`            | `1000m`          | Pod CPU request             |
-| `K8S_POD_MEMORY_REQUEST`         | `128Mi`          | Pod memory request          |
-| `K8S_POD_EXECUTION_TIMEOUT`      | `300`            | Execution timeout (seconds) |
-| `K8S_POD_PRIORITY_CLASS_NAME`    | *none*           | Pod priority class          |
+??? info "Legend"
+    | Variable | Description | Default |
+    |----------|-------------|---------|
+    | `KUBERNETES_CONFIG_PATH` | Path to kubeconfig | `~/.kube/config` |
+    | `KUBERNETES_CA_CERTIFICATE_PATH` | Custom CA cert for K8s API | — |
+    | `K8S_POD_CPU_LIMIT` | CPU limit per pod | `1000m` |
+    | `K8S_POD_MEMORY_LIMIT` | Memory limit per pod | `128Mi` |
+    | `K8S_POD_CPU_REQUEST` | CPU request (guaranteed) | `1000m` |
+    | `K8S_POD_MEMORY_REQUEST` | Memory request (guaranteed) | `128Mi` |
+    | `K8S_POD_EXECUTION_TIMEOUT` | Max execution time in seconds | `300` |
+    | `K8S_NAMESPACE` | Namespace for executor pods | `integr8scode` |
+    | `RATE_LIMITS` | Default rate limit string | `100/minute` |
 
-## Kafka Configuration
+## Kafka
 
-| Variable                      | Default                       | Description                            |
-|-------------------------------|-------------------------------|----------------------------------------|
-| `KAFKA_BOOTSTRAP_SERVERS`     | `kafka:29092`                 | Kafka broker addresses                 |
-| `SCHEMA_REGISTRY_URL`         | `http://schema-registry:8081` | Schema Registry URL                    |
-| `SCHEMA_REGISTRY_AUTH`        | `""`                          | Registry auth (`username:password`)    |
-| `ENABLE_EVENT_STREAMING`      | `false`                       | Enable Kafka event streaming           |
-| `EVENT_RETENTION_DAYS`        | `30`                          | Event retention period                 |
-| `KAFKA_TOPIC_PREFIX`          | `pref`                        | Topic name prefix                      |
-| `KAFKA_GROUP_SUFFIX`          | `suff`                        | Consumer group suffix                  |
-| `KAFKA_CONSUMER_GROUP_ID`     | `integr8scode-backend`        | Default consumer group                 |
-| `KAFKA_AUTO_OFFSET_RESET`     | `earliest`                    | Offset reset policy                    |
-| `KAFKA_ENABLE_AUTO_COMMIT`    | `true`                        | Auto-commit offsets                    |
-| `KAFKA_SESSION_TIMEOUT_MS`    | `45000`                       | Session timeout (ms)                   |
-| `KAFKA_HEARTBEAT_INTERVAL_MS` | `10000`                       | Heartbeat interval (ms)                |
-| `KAFKA_MAX_POLL_INTERVAL_MS`  | `300000`                      | Max poll interval (ms)                 |
-| `KAFKA_REQUEST_TIMEOUT_MS`    | `40000`                       | Request timeout for broker calls (ms)  |
-| `KAFKA_MAX_POLL_RECORDS`      | `500`                         | Max poll batch size                    |
+```bash
+--8<-- "backend/.env:19:31"
+```
 
-## Redis Configuration
+??? info "Legend"
+    | Variable | Description | Default |
+    |----------|-------------|---------|
+    | `KAFKA_BOOTSTRAP_SERVERS` | Broker addresses (comma-separated) | `kafka:29092` |
+    | `SCHEMA_REGISTRY_URL` | Confluent Schema Registry URL | `http://schema-registry:8081` |
+    | `ENABLE_EVENT_STREAMING` | Enable Kafka events | `false` |
+    | `EVENT_RETENTION_DAYS` | Days to retain events in MongoDB | `30` |
+    | `KAFKA_CONSUMER_GROUP_ID` | Consumer group ID | `integr8scode-backend` |
+    | `KAFKA_AUTO_OFFSET_RESET` | Where to start if no offset | `earliest` |
+    | `KAFKA_ENABLE_AUTO_COMMIT` | Auto-commit offsets | `true` |
+    | `KAFKA_SESSION_TIMEOUT_MS` | Session timeout before rebalance | `45000` |
+    | `KAFKA_HEARTBEAT_INTERVAL_MS` | Heartbeat frequency | `10000` |
+    | `KAFKA_REQUEST_TIMEOUT_MS` | Broker request timeout | `40000` |
+    | `KAFKA_MAX_POLL_RECORDS` | Max records per poll | `500` |
 
-| Variable                 | Default | Description                 |
-|--------------------------|---------|-----------------------------|
-| `REDIS_HOST`             | `redis` | Redis server host           |
-| `REDIS_PORT`             | `6379`  | Redis server port           |
-| `REDIS_DB`               | `0`     | Redis database number       |
-| `REDIS_PASSWORD`         | *none*  | Redis password              |
-| `REDIS_SSL`              | `false` | Enable SSL/TLS              |
-| `REDIS_MAX_CONNECTIONS`  | `200`   | Connection pool size        |
-| `REDIS_DECODE_RESPONSES` | `true`  | Decode responses to strings |
+## WebSocket & SSE
 
-## Rate Limiting Configuration
+```bash
+--8<-- "backend/.env:33:39"
+```
 
-| Variable                      | Default          | Description                                    |
-|-------------------------------|------------------|------------------------------------------------|
-| `RATE_LIMITS`                 | `100/minute`     | Default rate limit string                      |
-| `RATE_LIMIT_DEFAULT_REQUESTS` | `100`            | Default request limit                          |
-| `RATE_LIMIT_DEFAULT_WINDOW`   | `60`             | Default window (seconds)                       |
-| `RATE_LIMIT_BURST_MULTIPLIER` | `1.5`            | Token bucket burst factor                      |
-| `RATE_LIMIT_REDIS_PREFIX`     | `rate_limit:`    | Redis key prefix                               |
-| `RATE_LIMIT_ALGORITHM`        | `sliding_window` | Algorithm (`sliding_window` or `token_bucket`) |
+??? info "Legend"
+    | Variable | Description | Default |
+    |----------|-------------|---------|
+    | `WEBSOCKET_PING_INTERVAL` | WebSocket ping interval (seconds) | `30` |
+    | `WEBSOCKET_PING_TIMEOUT` | WebSocket ping timeout | `10` |
+    | `LOG_LEVEL` | `DEBUG`, `INFO`, `WARNING`, `ERROR` | `DEBUG` |
+    | `WEBSOCKET_MAX_CONNECTIONS_PER_USER` | Max concurrent connections per user | `5` |
+    | `WEBSOCKET_STALE_CONNECTION_TIMEOUT` | Stale connection timeout | `300` |
 
-## SSE Configuration
+## Tracing (OpenTelemetry)
 
-| Variable                             | Default | Description                  |
-|--------------------------------------|---------|------------------------------|
-| `SSE_CONSUMER_POOL_SIZE`             | `10`    | Kafka consumer pool size     |
-| `SSE_HEARTBEAT_INTERVAL`             | `30`    | Heartbeat interval (seconds) |
-| `WEBSOCKET_PING_INTERVAL`            | `30`    | Connection ping interval     |
-| `WEBSOCKET_PING_TIMEOUT`             | `10`    | Ping timeout                 |
-| `WEBSOCKET_MAX_CONNECTIONS_PER_USER` | `5`     | Max connections per user     |
-| `WEBSOCKET_STALE_CONNECTION_TIMEOUT` | `300`   | Stale connection timeout     |
+```bash
+--8<-- "backend/.env:41:47"
+```
 
-## Notification Configuration
+??? info "Legend"
+    | Variable | Description | Default |
+    |----------|-------------|---------|
+    | `ENABLE_TRACING` | Enable distributed tracing | `true` |
+    | `JAEGER_AGENT_HOST` | Jaeger agent hostname | `jaeger` |
+    | `JAEGER_AGENT_PORT` | Jaeger agent UDP port | `6831` |
+    | `TRACING_SERVICE_NAME` | Service name in traces | `integr8scode-backend` |
+    | `TRACING_SERVICE_VERSION` | Version in trace metadata | `1.0.0` |
+    | `TRACING_SAMPLING_RATE` | Sample rate (0.0–1.0) | `0.1` |
 
-| Variable                      | Default | Description                   |
-|-------------------------------|---------|-------------------------------|
-| `NOTIF_THROTTLE_WINDOW_HOURS` | `1`     | Throttle window (hours)       |
-| `NOTIF_THROTTLE_MAX_PER_HOUR` | `5`     | Max notifications per hour    |
-| `NOTIF_PENDING_BATCH_SIZE`    | `10`    | Pending batch size            |
-| `NOTIF_OLD_DAYS`              | `30`    | Notification retention (days) |
-| `NOTIF_RETRY_DELAY_MINUTES`   | `5`     | Retry delay (minutes)         |
+## Dead Letter Queue
 
-## Dead Letter Queue Configuration
+```bash
+--8<-- "backend/.env:49:56"
+```
 
-| Variable                       | Default  | Description              |
-|--------------------------------|----------|--------------------------|
-| `DLQ_RETRY_MAX_ATTEMPTS`       | `5`      | Maximum retry attempts   |
-| `DLQ_RETRY_BASE_DELAY_SECONDS` | `60.0`   | Base retry delay         |
-| `DLQ_RETRY_MAX_DELAY_SECONDS`  | `3600.0` | Maximum retry delay      |
-| `DLQ_RETENTION_DAYS`           | `7`      | DLQ message retention    |
-| `DLQ_WARNING_THRESHOLD`        | `100`    | Warning threshold count  |
-| `DLQ_CRITICAL_THRESHOLD`       | `1000`   | Critical threshold count |
+??? info "Legend"
+    | Variable | Description | Default |
+    |----------|-------------|---------|
+    | `DLQ_RETRY_MAX_ATTEMPTS` | Retries before archiving | `5` |
+    | `DLQ_RETRY_BASE_DELAY_SECONDS` | Base delay between retries | `60` |
+    | `DLQ_RETRY_MAX_DELAY_SECONDS` | Max delay (backoff cap) | `3600` |
+    | `DLQ_RETENTION_DAYS` | Days to keep DLQ messages | `7` |
+    | `DLQ_WARNING_THRESHOLD` | Warning alert threshold | `100` |
+    | `DLQ_CRITICAL_THRESHOLD` | Critical alert threshold | `1000` |
 
-## Tracing Configuration (OpenTelemetry)
+## Service & OTEL
 
-| Variable                      | Default                | Description                    |
-|-------------------------------|------------------------|--------------------------------|
-| `ENABLE_TRACING`              | `true`                 | Enable distributed tracing     |
-| `TRACING_SERVICE_NAME`        | `integr8scode-backend` | Service name for traces        |
-| `TRACING_SERVICE_VERSION`     | `1.0.0`                | Service version                |
-| `TRACING_SAMPLING_RATE`       | `0.1`                  | Sampling rate (0.0 to 1.0)     |
-| `TRACING_ADAPTIVE_SAMPLING`   | `false`                | Enable adaptive sampling       |
-| `JAEGER_AGENT_HOST`           | `jaeger`               | Jaeger agent host              |
-| `JAEGER_AGENT_PORT`           | `6831`                 | Jaeger agent UDP port          |
-| `JAEGER_COLLECTOR_ENDPOINT`   | *none*                 | Jaeger HTTP collector URL      |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | *none*                 | OTLP exporter endpoint         |
-| `OTEL_SERVICE_NAME`           | *none*                 | OTLP service name override     |
-| `OTEL_SERVICE_VERSION`        | *none*                 | OTLP version override          |
-| `OTEL_RESOURCE_ATTRIBUTES`    | *none*                 | Additional resource attributes |
+```bash
+--8<-- "backend/.env:58:69"
+```
 
-## Schema Configuration
+??? info "Legend"
+    | Variable | Description | Default |
+    |----------|-------------|---------|
+    | `APP_URL` | Public URL for notifications | `https://integr8scode.cc` |
+    | `SERVICE_NAME` | Service identifier | `integr8scode-backend` |
+    | `SERVICE_VERSION` | Service version | `1.0.0` |
+    | `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP collector endpoint | — |
+    | `OTEL_SERVICE_NAME` | OTEL service name | — |
+    | `OTEL_SERVICE_VERSION` | OTEL service version | — |
+    | `OTEL_RESOURCE_ATTRIBUTES` | Additional resource attributes | — |
 
-| Variable             | Default            | Description             |
-|----------------------|--------------------|-------------------------|
-| `SCHEMA_BASE_PATH`   | `app/schemas_avro` | Base path for schemas   |
-| `SCHEMA_AVRO_PATH`   | `app/schemas_avro` | Avro schema path        |
-| `SCHEMA_CONFIG_PATH` | *none*             | Schema config file path |
+## Server
 
-## Development Configuration
+```bash
+--8<-- "backend/.env:70:87"
+```
 
-| Variable           | Default | Description             |
-|--------------------|---------|-------------------------|
-| `TESTING`          | `false` | Enable test mode        |
-| `DEVELOPMENT_MODE` | `false` | Enable development mode |
-| `SECURE_COOKIES`   | `true`  | Require secure cookies  |
-| `LOG_LEVEL`        | `DEBUG` | Logging level           |
-
-## MongoDB Docker Configuration
-
-These are used by Docker Compose for MongoDB initialization:
-
-| Variable              | Default | Description           |
-|-----------------------|---------|-----------------------|
-| `MONGO_ROOT_USER`     | *none*  | MongoDB root username |
-| `MONGO_ROOT_PASSWORD` | *none*  | MongoDB root password |
-
-## Service Metadata
-
-| Variable          | Default                | Description        |
-|-------------------|------------------------|--------------------|
-| `SERVICE_NAME`    | `integr8scode-backend` | Service identifier |
-| `SERVICE_VERSION` | `1.0.0`                | Service version    |
+??? info "Legend"
+    | Variable | Description | Default |
+    |----------|-------------|---------|
+    | `WEB_CONCURRENCY` | Gunicorn worker processes | `4` |
+    | `WEB_THREADS` | Threads per worker | `1` |
+    | `WEB_TIMEOUT` | Request timeout in seconds | `60` |
+    | `WEB_BACKLOG` | TCP connection backlog | `2048` |
+    | `SERVER_HOST` | Bind address | `localhost` |
+    | `BCRYPT_ROUNDS` | Password hashing rounds | `12` |
+    | `REDIS_MAX_CONNECTIONS` | Redis connection pool size | `200` |

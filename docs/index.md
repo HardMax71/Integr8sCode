@@ -1,10 +1,15 @@
+<div style="text-align: center;" markdown>
+
+![Integr8sCode](assets/images/logo.png){ width="150" }
+
 # Integr8sCode
 
-[![SBOM & Supply Chain Security](https://github.com/HardMax71/Integr8sCode/actions/workflows/sbom-compliance.yml/badge.svg)](https://github.com/HardMax71/Integr8sCode/actions/workflows/sbom-compliance.yml)
 [GitHub :material-github:](https://github.com/HardMax71/Integr8sCode){ .md-button }
 [Live Demo :material-play:](https://app.integr8scode.cc/){ .md-button .md-button--primary }
 
 Run Python scripts in isolated Kubernetes pods with real-time output streaming, resource limits, and full audit trails.
+
+</div>
 
 ## Quick start
 
@@ -14,25 +19,9 @@ cd Integr8sCode
 ./deploy.sh dev
 ```
 
-| Service     | URL                         | Credentials       |
-|-------------|-----------------------------|-------------------|
-| Frontend    | `https://localhost:5001`    | user / user123    |
-| Backend API | `https://localhost:443`     | —                 |
-| Grafana     | `http://localhost:3000`     | admin / admin123  |
+Then open [https://localhost:5001](https://localhost:5001) and log in with `user` / `user123`.
 
-!!! warning "Default credentials"
-    The default credentials above are for **development only**. In production, set secure passwords via environment
-    variables and disable the user-seed job.
-
-Verify the backend is running:
-
-```bash
-curl -k https://localhost/api/v1/health/live
-```
-
-!!! note "Kubernetes metrics"
-    If CPU/memory metrics show as `null`, enable the metrics server:
-    `kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml`
+For the full walkthrough, see [Getting Started](getting-started.md).
 
 ## Core features
 
@@ -52,40 +41,15 @@ The platform supports multiple languages and versions:
 Execution output streams in real-time via Server-Sent Events. All events flow through Kafka for full audit trails, with
 automatic retries via dead letter queue for failed processing.
 
-## Architecture
-
-Svelte frontend → FastAPI backend (MongoDB, Kafka, Redis) → Kubernetes pods with Cilium network policies.
-
-```mermaid
-flowchart TB
-    User:::userStyle --> Frontend
-    Frontend --> API
-    API --> Coordinator
-    Coordinator --> Saga
-    Saga --> K8sWorker[K8s Worker]
-    K8sWorker --> Pod
-    K8sWorker --> ResultProcessor[Result Processor]
-    PodMonitor[Pod Monitor] --> ResultProcessor
-    ResultProcessor --> SSE
-    SSE --> User
-    classDef userStyle fill:#e0e0e0,stroke:#333,stroke-width:2px
-```
-
-For detailed architecture diagrams, see the [Architecture](architecture/overview.md) section.
-
-## Security
-
-| Control                  | Implementation                              |
-|--------------------------|---------------------------------------------|
-| Network isolation        | Cilium deny-all egress policy               |
-| Non-root execution       | Dropped capabilities, no privilege escalation|
-| Filesystem               | Read-only root filesystem                   |
-| Kubernetes API           | No service account token mounted            |
-| Supply Chain (SBOM)      | [Weekly Scans & Artifacts](https://github.com/HardMax71/Integr8sCode/actions/workflows/sbom-compliance.yml) |
-
 ## Documentation
 
 <div class="grid cards" markdown>
+
+-   :material-rocket-launch: **[Getting Started](getting-started.md)**
+
+    ---
+
+    Run the stack locally and execute your first script
 
 -   :material-sitemap: **[Architecture](architecture/overview.md)**
 
@@ -111,6 +75,12 @@ For detailed architecture diagrams, see the [Architecture](architecture/overview
 
     Deployment, tracing, and monitoring
 
+-   :material-shield: **[Security](SECURITY.md)**
+
+    ---
+
+    Policies, network isolation, and supply chain
+
 -   :material-variable: **[Environment Variables](reference/environment-variables.md)**
 
     ---
@@ -130,35 +100,3 @@ For detailed architecture diagrams, see the [Architecture](architecture/overview
     Development setup, pre-commit hooks, and PR guidelines
 
 </div>
-
-## Sample code
-
-Try this Python 3.10+ example in the editor:
-
-```python
-from typing import TypeGuard
-
-def is_string(value: object) -> TypeGuard[str]:
-    return isinstance(value, str)
-
-def example_function(data: object):
-    match data:
-        case int() if data > 10:
-            print("An integer greater than 10")
-        case str() if is_string(data):
-            print(f"A string: {data}")
-        case _:
-            print("Something else")
-
-example_function(15)
-example_function("hello")
-example_function([1, 2, 3])
-```
-
-Expected output:
-
-```
-An integer greater than 10
-A string: hello
-Something else
-```

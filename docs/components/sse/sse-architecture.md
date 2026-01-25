@@ -83,6 +83,37 @@ Key metrics: `sse.connections.active`, `sse.messages.sent.total`, `sse.connectio
 
 WebSockets were initially implemented but removed because SSE is sufficient for server-to-client communication, simpler connection management, better proxy compatibility (many corporate proxies block WebSockets), excellent browser support with automatic reconnection, and works great with HTTP/2 multiplexing.
 
+## Testing SSE endpoints
+
+Testing SSE endpoints in E2E tests is tricky. Our tests use `httpx.AsyncClient` with `ASGITransport` to run against the FastAPI app in-process without starting a real server. The problem is that httpx's ASGITransport buffers entire responses before returning, which causes tests to hang indefinitely when streaming SSE — the response never "completes" because SSE streams are infinite by design.
+
+This is a [known limitation](https://github.com/encode/httpx/issues/2186) with no fix in sight (there's an open PR since January 2024 but it hasn't been merged).
+
+The solution is [async-asgi-testclient](https://github.com/vinissimus/async-asgi-testclient), an alternative ASGI test client that properly handles streaming. It's added as a dev dependency and used alongside httpx — httpx for regular requests, async-asgi-testclient for SSE endpoints.
+
+The test fixtures copy authentication cookies and CSRF tokens from the httpx client to the SSE client, so both share the same session:
+
+```python
+@pytest_asyncio.fixture
+async def sse_client(app: FastAPI, test_user: AsyncClient) -> SSETestClient:
+    client = SSETestClient(app)
+    for name, value in test_user.cookies.items():
+        client.cookie_jar.set(name, value)
+    if csrf := test_user.headers.get("X-CSRF-Token"):
+        client.headers["X-CSRF-Token"] = csrf
+    return client
+```
+
+Tests then verify that SSE endpoints return the correct content-type and stream data:
+
+```python
+async def test_notification_stream(self, sse_client: SSETestClient) -> None:
+    async with sse_client:
+        response = await sse_client.get("/api/v1/events/notifications/stream", stream=True)
+        assert response.status_code == 200
+        assert "text/event-stream" in response.headers.get("content-type", "")
+```
+
 ## Key files
 
 | File                                                                                                                              | Purpose                |

@@ -104,6 +104,7 @@ extra_css:
 
 nav:
   - Home: index.md
+  - Getting Started: getting-started.md
 
   - Architecture:
     - Overview: architecture/overview.md
@@ -164,8 +165,9 @@ nav:
     - Admin API: operations/admin-api.md
 
   - Security:
-    - Policy & SBOM: SECURITY.md
+    - Policy: SECURITY.md
     - Network Isolation: security/policies.md
+    - Supply Chain & SBOM: security/supply-chain.md
 
   - Frontend:
     - Routing: frontend/routing.md

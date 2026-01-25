@@ -112,10 +112,6 @@ class Settings(BaseSettings):
     # App URL for notification links
     APP_URL: str = "https://integr8scode.cc"
 
-    # WebSocket configuration
-    WEBSOCKET_PING_INTERVAL: int = 30
-    WEBSOCKET_PING_TIMEOUT: int = 10
-
     # Redis Configuration
     REDIS_HOST: str = "redis"
     REDIS_PORT: int = 6379
@@ -131,8 +127,6 @@ class Settings(BaseSettings):
     RATE_LIMIT_BURST_MULTIPLIER: float = 1.5
     RATE_LIMIT_REDIS_PREFIX: str = "rate_limit:"
     RATE_LIMIT_ALGORITHM: str = "sliding_window"  # sliding_window or token_bucket
-    WEBSOCKET_MAX_CONNECTIONS_PER_USER: int = 5
-    WEBSOCKET_STALE_CONNECTION_TIMEOUT: int = 300
 
     # Service metadata
     SERVICE_NAME: str = "integr8scode-backend"

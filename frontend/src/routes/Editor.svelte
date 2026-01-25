@@ -241,9 +241,16 @@
         URL.revokeObjectURL(url);
     }
 
+    const MAX_FILE_SIZE = 1024 * 1024; // 1MB
+
     function handleFileUpload(event: Event) {
         const file = (event.target as HTMLInputElement).files?.[0];
         if (!file) return;
+
+        if (file.size > MAX_FILE_SIZE) {
+            toast.error('File too large. Maximum size is 1MB.');
+            return;
+        }
 
         const extToLang: Record<string, string> = {};
         for (const [lang, info] of Object.entries(supportedRuntimes)) extToLang[info.file_ext] = lang;

@@ -4651,6 +4651,109 @@ export type RetryPolicyRequest = {
 export type RetryStrategy = 'immediate' | 'exponential_backoff' | 'fixed_interval' | 'scheduled' | 'manual';
 
 /**
+ * SSEControlEvent
+ *
+ * Control events for execution SSE streams (not from Kafka).
+ */
+export type SseControlEvent = 'connected' | 'subscribed' | 'heartbeat' | 'shutdown' | 'status' | 'error';
+
+/**
+ * SSEExecutionEventData
+ *
+ * Typed model for SSE execution stream event payload.
+ *
+ * This represents the JSON data sent inside each SSE message for execution streams.
+ * All fields except event_type and execution_id are optional since different
+ * event types carry different data.
+ */
+export type SseExecutionEventData = {
+    /**
+     * Event Type
+     *
+     * Event type identifier (business event or control event)
+     */
+    event_type: EventType | SseControlEvent;
+    /**
+     * Execution Id
+     *
+     * Execution ID this event relates to
+     */
+    execution_id: string;
+    /**
+     * Timestamp
+     *
+     * Event timestamp
+     */
+    timestamp?: string | null;
+    /**
+     * Event Id
+     *
+     * Unique event identifier
+     */
+    event_id?: string | null;
+    /**
+     * Connection Id
+     *
+     * SSE connection ID (connected event)
+     */
+    connection_id?: string | null;
+    /**
+     * Message
+     *
+     * Human-readable message (heartbeat, shutdown)
+     */
+    message?: string | null;
+    /**
+     * Grace Period
+     *
+     * Shutdown grace period in seconds
+     */
+    grace_period?: number | null;
+    /**
+     * Error
+     *
+     * Error message (error event)
+     */
+    error?: string | null;
+    /**
+     * Current execution status
+     */
+    status?: ExecutionStatus | null;
+    /**
+     * Stdout
+     *
+     * Standard output from execution
+     */
+    stdout?: string | null;
+    /**
+     * Stderr
+     *
+     * Standard error from execution
+     */
+    stderr?: string | null;
+    /**
+     * Exit Code
+     *
+     * Process exit code
+     */
+    exit_code?: number | null;
+    /**
+     * Timeout Seconds
+     *
+     * Timeout duration in seconds
+     */
+    timeout_seconds?: number | null;
+    /**
+     * CPU/memory usage metrics
+     */
+    resource_usage?: ResourceUsage | null;
+    /**
+     * Complete execution result
+     */
+    result?: ExecutionResult | null;
+};
+
+/**
  * SSEHealthResponse
  *
  * Response model for SSE health check.
@@ -4708,6 +4811,89 @@ export type SseHealthResponse = {
  * Health status for SSE service.
  */
 export type SseHealthStatus = 'healthy' | 'draining';
+
+/**
+ * SSENotificationEvent
+ *
+ * Event types for notification SSE streams.
+ */
+export type SseNotificationEvent = 'connected' | 'subscribed' | 'heartbeat' | 'notification';
+
+/**
+ * SSENotificationEventData
+ *
+ * Typed model for SSE notification stream event payload.
+ *
+ * This represents the JSON data sent inside each SSE message for notification streams.
+ */
+export type SseNotificationEventData = {
+    /**
+     * SSE notification event type
+     */
+    event_type: SseNotificationEvent;
+    /**
+     * User Id
+     *
+     * User ID for the notification stream
+     */
+    user_id?: string | null;
+    /**
+     * Timestamp
+     *
+     * Event timestamp
+     */
+    timestamp?: string | null;
+    /**
+     * Message
+     *
+     * Human-readable message
+     */
+    message?: string | null;
+    /**
+     * Notification Id
+     *
+     * Unique notification ID
+     */
+    notification_id?: string | null;
+    /**
+     * Notification severity level
+     */
+    severity?: NotificationSeverity | null;
+    /**
+     * Notification delivery status
+     */
+    status?: NotificationStatus | null;
+    /**
+     * Tags
+     *
+     * Notification tags
+     */
+    tags?: Array<string> | null;
+    /**
+     * Subject
+     *
+     * Notification subject/title
+     */
+    subject?: string | null;
+    /**
+     * Body
+     *
+     * Notification body content
+     */
+    body?: string | null;
+    /**
+     * Action Url
+     *
+     * Optional action URL
+     */
+    action_url?: string | null;
+    /**
+     * Created At
+     *
+     * Creation timestamp
+     */
+    created_at?: string | null;
+};
 
 /**
  * SagaCancellationResponse
@@ -7584,8 +7770,10 @@ export type NotificationStreamApiV1EventsNotificationsStreamGetResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: SseNotificationEventData;
 };
+
+export type NotificationStreamApiV1EventsNotificationsStreamGetResponse = NotificationStreamApiV1EventsNotificationsStreamGetResponses[keyof NotificationStreamApiV1EventsNotificationsStreamGetResponses];
 
 export type ExecutionEventsApiV1EventsExecutionsExecutionIdGetData = {
     body?: never;
@@ -7612,8 +7800,10 @@ export type ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: SseExecutionEventData;
 };
+
+export type ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponse = ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses[keyof ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses];
 
 export type SseHealthApiV1EventsHealthGetData = {
     body?: never;

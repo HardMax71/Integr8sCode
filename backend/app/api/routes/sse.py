@@ -4,14 +4,19 @@ from fastapi import APIRouter, Request
 from sse_starlette.sse import EventSourceResponse
 
 from app.domain.sse import SSEHealthDomain
-from app.schemas_pydantic.sse import ShutdownStatusResponse, SSEHealthResponse
+from app.schemas_pydantic.sse import (
+    ShutdownStatusResponse,
+    SSEExecutionEventData,
+    SSEHealthResponse,
+    SSENotificationEventData,
+)
 from app.services.auth_service import AuthService
 from app.services.sse.sse_service import SSEService
 
 router = APIRouter(prefix="/events", tags=["sse"], route_class=DishkaRoute)
 
 
-@router.get("/notifications/stream")
+@router.get("/notifications/stream", responses={200: {"model": SSENotificationEventData}})
 async def notification_stream(
     request: Request,
     sse_service: FromDishka[SSEService],
@@ -23,7 +28,7 @@ async def notification_stream(
     return EventSourceResponse(sse_service.create_notification_stream(user_id=current_user.user_id))
 
 
-@router.get("/executions/{execution_id}")
+@router.get("/executions/{execution_id}", responses={200: {"model": SSEExecutionEventData}})
 async def execution_events(
     execution_id: str, request: Request, sse_service: FromDishka[SSEService], auth_service: FromDishka[AuthService]
 ) -> EventSourceResponse:

@@ -1803,7 +1803,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SSENotificationEventData"
+                }
               }
             }
           }
@@ -1834,7 +1836,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SSEExecutionEventData"
+                }
               }
             }
           },
@@ -12846,6 +12850,201 @@
         "title": "RetryStrategy",
         "description": "Retry strategies for DLQ messages."
       },
+      "SSEControlEvent": {
+        "type": "string",
+        "enum": [
+          "connected",
+          "subscribed",
+          "heartbeat",
+          "shutdown",
+          "status",
+          "error"
+        ],
+        "title": "SSEControlEvent",
+        "description": "Control events for execution SSE streams (not from Kafka)."
+      },
+      "SSEExecutionEventData": {
+        "properties": {
+          "event_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EventType"
+              },
+              {
+                "$ref": "#/components/schemas/SSEControlEvent"
+              }
+            ],
+            "title": "Event Type",
+            "description": "Event type identifier (business event or control event)"
+          },
+          "execution_id": {
+            "type": "string",
+            "title": "Execution Id",
+            "description": "Execution ID this event relates to"
+          },
+          "timestamp": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timestamp",
+            "description": "Event timestamp"
+          },
+          "event_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Id",
+            "description": "Unique event identifier"
+          },
+          "connection_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Id",
+            "description": "SSE connection ID (connected event)"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message",
+            "description": "Human-readable message (heartbeat, shutdown)"
+          },
+          "grace_period": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grace Period",
+            "description": "Shutdown grace period in seconds"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error",
+            "description": "Error message (error event)"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExecutionStatus"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Current execution status"
+          },
+          "stdout": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stdout",
+            "description": "Standard output from execution"
+          },
+          "stderr": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stderr",
+            "description": "Standard error from execution"
+          },
+          "exit_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Code",
+            "description": "Process exit code"
+          },
+          "timeout_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timeout Seconds",
+            "description": "Timeout duration in seconds"
+          },
+          "resource_usage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResourceUsage"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "CPU/memory usage metrics"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExecutionResult"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Complete execution result"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_type",
+          "execution_id"
+        ],
+        "title": "SSEExecutionEventData",
+        "description": "Typed model for SSE execution stream event payload.\n\nThis represents the JSON data sent inside each SSE message for execution streams.\nAll fields except event_type and execution_id are optional since different\nevent types carry different data."
+      },
       "SSEHealthResponse": {
         "properties": {
           "status": {
@@ -12910,6 +13109,166 @@
         ],
         "title": "SSEHealthStatus",
         "description": "Health status for SSE service."
+      },
+      "SSENotificationEvent": {
+        "type": "string",
+        "enum": [
+          "connected",
+          "subscribed",
+          "heartbeat",
+          "notification"
+        ],
+        "title": "SSENotificationEvent",
+        "description": "Event types for notification SSE streams."
+      },
+      "SSENotificationEventData": {
+        "properties": {
+          "event_type": {
+            "$ref": "#/components/schemas/SSENotificationEvent",
+            "description": "SSE notification event type"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id",
+            "description": "User ID for the notification stream"
+          },
+          "timestamp": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timestamp",
+            "description": "Event timestamp"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message",
+            "description": "Human-readable message"
+          },
+          "notification_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notification Id",
+            "description": "Unique notification ID"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NotificationSeverity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Notification severity level"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NotificationStatus"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Notification delivery status"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags",
+            "description": "Notification tags"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject",
+            "description": "Notification subject/title"
+          },
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body",
+            "description": "Notification body content"
+          },
+          "action_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action Url",
+            "description": "Optional action URL"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At",
+            "description": "Creation timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_type"
+        ],
+        "title": "SSENotificationEventData",
+        "description": "Typed model for SSE notification stream event payload.\n\nThis represents the JSON data sent inside each SSE message for notification streams."
       },
       "SagaCancellationResponse": {
         "properties": {

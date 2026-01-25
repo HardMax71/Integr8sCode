@@ -2,14 +2,22 @@ import {
     createExecutionApiV1ExecutePost,
     getResultApiV1ExecutionsExecutionIdResultGet,
     type ExecutionResult,
+    type ExecutionStatus,
     type EventType,
+    type SseControlEvent,
+    type SseExecutionEventData,
 } from '$lib/api';
 import { getErrorMessage } from '$lib/api-interceptors';
 
 export type ExecutionPhase = 'idle' | 'starting' | 'queued' | 'scheduled' | 'running';
 
-const VALID_PHASES = new Set(['queued', 'scheduled', 'running']);
-const TERMINAL_FAILURES: Set<EventType> = new Set(['execution_failed', 'execution_timeout', 'result_failed']);
+function isActivePhase(s: ExecutionStatus): s is 'queued' | 'scheduled' | 'running' {
+    return s === 'queued' || s === 'scheduled' || s === 'running';
+}
+
+function isTerminalFailure(e: EventType | SseControlEvent): boolean {
+    return e === 'execution_failed' || e === 'execution_timeout' || e === 'result_failed';
+}
 
 export function createExecutionState() {
     let phase = $state<ExecutionPhase>('idle');
@@ -41,7 +49,7 @@ export function createExecutionState() {
             if (execError) throw execError;
 
             const executionId = data.execution_id;
-            phase = VALID_PHASES.has(data.status) ? data.status as ExecutionPhase : 'queued';
+            phase = isActivePhase(data.status) ? data.status : 'queued';
 
             result = await streamResult(executionId);
         } catch (err) {
@@ -82,12 +90,17 @@ export function createExecutionState() {
                 for (const line of lines) {
                     if (!line.startsWith('data:')) continue;
 
-                    const eventData = JSON.parse(line.slice(5).trim());
-                    const eventType = eventData?.event_type;
+                    let eventData: SseExecutionEventData;
+                    try {
+                        eventData = JSON.parse(line.slice(5).trim());
+                    } catch {
+                        continue; // Skip malformed SSE events
+                    }
+                    const eventType = eventData.event_type;
 
                     // Update phase from status events
-                    if (eventData.status && VALID_PHASES.has(eventData.status)) {
-                        phase = eventData.status as ExecutionPhase;
+                    if (eventData.status && isActivePhase(eventData.status)) {
+                        phase = eventData.status;
                     }
 
                     // Terminal: result received
@@ -96,7 +109,7 @@ export function createExecutionState() {
                     }
 
                     // Terminal: failure - fetch result (may have partial output)
-                    if (TERMINAL_FAILURES.has(eventType)) {
+                    if (isTerminalFailure(eventType)) {
                         return fetchResult(executionId);
                     }
                 }

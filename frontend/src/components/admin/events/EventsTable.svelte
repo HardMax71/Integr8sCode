@@ -1,12 +1,14 @@
 <script lang="ts">
     import { Eye, Play, Trash2 } from '@lucide/svelte';
-    import type { EventResponse } from '$lib/api';
+    import type { EventBrowseResponse } from '$lib/api';
     import { formatTimestamp } from '$lib/formatters';
     import { getEventTypeColor } from '$lib/admin/events';
     import EventTypeIcon from '$components/EventTypeIcon.svelte';
 
+    type BrowsedEvent = EventBrowseResponse['events'][number];
+
     interface Props {
-        events: EventResponse[];
+        events: BrowsedEvent[];
         onViewDetails: (eventId: string) => void;
         onPreviewReplay: (eventId: string) => void;
         onReplay: (eventId: string) => void;

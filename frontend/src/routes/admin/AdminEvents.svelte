@@ -8,12 +8,15 @@
         replayEventsApiV1AdminEventsReplayPost,
         deleteEventApiV1AdminEventsEventIdDelete,
         getUserOverviewApiV1AdminUsersUserIdOverviewGet,
-        type EventResponse,
+        type EventBrowseResponse,
         type EventStatsResponse,
         type EventDetailResponse,
         type EventReplayStatusResponse,
+        type EventSummary,
         type AdminUserOverview,
     } from '$lib/api';
+
+    type BrowsedEvent = EventBrowseResponse['events'][number];
     import { unwrap, unwrapOr } from '$lib/api-interceptors';
     import { toast } from 'svelte-sonner';
     import AdminLayout from '$routes/admin/AdminLayout.svelte';
@@ -42,7 +45,7 @@
     } from '@lucide/svelte';
 
     // State
-    let events = $state<EventResponse[]>([]);
+    let events = $state<BrowsedEvent[]>([]);
     let loading = $state(false);
     let totalEvents = $state(0);
     let stats = $state<EventStatsResponse | null>(null);
@@ -64,7 +67,7 @@
     // Replay state
     let activeReplaySession = $state<EventReplayStatusResponse | null>(null);
     let replayCheckInterval: ReturnType<typeof setInterval> | null = null;
-    let replayPreview = $state<{ eventId: string; total_events: number; events_preview?: EventResponse[] } | null>(null);
+    let replayPreview = $state<{ eventId: string; total_events: number; events_preview?: EventSummary[] } | null>(null);
     let showReplayPreview = $state(false);
 
     // User overview modal
@@ -105,7 +108,7 @@
             }
         }), null);
         loading = false;
-        events = (data?.events ?? []) as EventResponse[];
+        events = data?.events ?? [];
         totalEvents = data?.total || 0;
     }
 
@@ -148,7 +151,7 @@
 
         if (dryRun) {
             if (response?.events_preview && response.events_preview.length > 0) {
-                replayPreview = { eventId, total_events: response.total_events, events_preview: (response.events_preview ?? []) as EventResponse[] };
+                replayPreview = { eventId, total_events: response.total_events, events_preview: response.events_preview };
                 showReplayPreview = true;
             } else {
                 toast.info(`Dry run: ${response?.total_events} events would be replayed`);

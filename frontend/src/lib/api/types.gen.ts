@@ -179,19 +179,19 @@ export type AllocateResourcesCommandEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'allocate_resources_command';
+    event_type: 'allocate_resources_command';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -200,15 +200,15 @@ export type AllocateResourcesCommandEvent = {
     /**
      * Execution Id
      */
-    execution_id: string;
+    execution_id?: string;
     /**
      * Cpu Request
      */
-    cpu_request: string;
+    cpu_request?: string;
     /**
      * Memory Request
      */
-    memory_request: string;
+    memory_request?: string;
 };
 
 /**
@@ -218,19 +218,19 @@ export type AuthFailedEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'auth_failed';
+    event_type: 'auth_failed';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -243,7 +243,7 @@ export type AuthFailedEvent = {
     /**
      * Reason
      */
-    reason: string;
+    reason?: string;
     /**
      * Ip Address
      */
@@ -343,19 +343,19 @@ export type CreatePodCommandEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'create_pod_command';
+    event_type: 'create_pod_command';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -364,27 +364,27 @@ export type CreatePodCommandEvent = {
     /**
      * Saga Id
      */
-    saga_id: string;
+    saga_id?: string;
     /**
      * Execution Id
      */
-    execution_id: string;
+    execution_id?: string;
     /**
      * Script
      */
-    script: string;
+    script?: string;
     /**
      * Language
      */
-    language: string;
+    language?: string;
     /**
      * Language Version
      */
-    language_version: string;
+    language_version?: string;
     /**
      * Runtime Image
      */
-    runtime_image: string;
+    runtime_image?: string;
     /**
      * Runtime Command
      */
@@ -392,27 +392,27 @@ export type CreatePodCommandEvent = {
     /**
      * Runtime Filename
      */
-    runtime_filename: string;
+    runtime_filename?: string;
     /**
      * Timeout Seconds
      */
-    timeout_seconds: number;
+    timeout_seconds?: number;
     /**
      * Cpu Limit
      */
-    cpu_limit: string;
+    cpu_limit?: string;
     /**
      * Memory Limit
      */
-    memory_limit: string;
+    memory_limit?: string;
     /**
      * Cpu Request
      */
-    cpu_request: string;
+    cpu_request?: string;
     /**
      * Memory Request
      */
-    memory_request: string;
+    memory_request?: string;
     /**
      * Priority
      */
@@ -635,19 +635,19 @@ export type DlqMessageDiscardedEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'dlq_message_discarded';
+    event_type: 'dlq_message_discarded';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -656,23 +656,23 @@ export type DlqMessageDiscardedEvent = {
     /**
      * Dlq Event Id
      */
-    dlq_event_id: string;
+    dlq_event_id?: string;
     /**
      * Original Topic
      */
-    original_topic: string;
+    original_topic?: string;
     /**
      * Original Event Type
      */
-    original_event_type: string;
+    original_event_type?: string;
     /**
      * Reason
      */
-    reason: string;
+    reason?: string;
     /**
      * Retry Count
      */
-    retry_count: number;
+    retry_count?: number;
 };
 
 /**
@@ -684,19 +684,19 @@ export type DlqMessageReceivedEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'dlq_message_received';
+    event_type: 'dlq_message_received';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -705,31 +705,31 @@ export type DlqMessageReceivedEvent = {
     /**
      * Dlq Event Id
      */
-    dlq_event_id: string;
+    dlq_event_id?: string;
     /**
      * Original Topic
      */
-    original_topic: string;
+    original_topic?: string;
     /**
      * Original Event Type
      */
-    original_event_type: string;
+    original_event_type?: string;
     /**
      * Error
      */
-    error: string;
+    error?: string;
     /**
      * Retry Count
      */
-    retry_count: number;
+    retry_count?: number;
     /**
      * Producer Id
      */
-    producer_id: string;
+    producer_id?: string;
     /**
      * Failed At
      */
-    failed_at: string;
+    failed_at?: string;
 };
 
 /**
@@ -902,19 +902,19 @@ export type DlqMessageRetriedEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'dlq_message_retried';
+    event_type: 'dlq_message_retried';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -923,23 +923,23 @@ export type DlqMessageRetriedEvent = {
     /**
      * Dlq Event Id
      */
-    dlq_event_id: string;
+    dlq_event_id?: string;
     /**
      * Original Topic
      */
-    original_topic: string;
+    original_topic?: string;
     /**
      * Original Event Type
      */
-    original_event_type: string;
+    original_event_type?: string;
     /**
      * Retry Count
      */
-    retry_count: number;
+    retry_count?: number;
     /**
      * Retry Topic
      */
-    retry_topic: string;
+    retry_topic?: string;
 };
 
 /**
@@ -1077,19 +1077,19 @@ export type DeletePodCommandEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'delete_pod_command';
+    event_type: 'delete_pod_command';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -1098,15 +1098,15 @@ export type DeletePodCommandEvent = {
     /**
      * Saga Id
      */
-    saga_id: string;
+    saga_id?: string;
     /**
      * Execution Id
      */
-    execution_id: string;
+    execution_id?: string;
     /**
      * Reason
      */
-    reason: string;
+    reason?: string;
     /**
      * Pod Name
      */
@@ -1697,7 +1697,119 @@ export type EventListResponse = {
     /**
      * Events
      */
-    events: Array<EventResponse>;
+    events: Array<({
+        event_type: 'execution_requested';
+    } & ExecutionRequestedEvent) | ({
+        event_type: 'execution_accepted';
+    } & ExecutionAcceptedEvent) | ({
+        event_type: 'execution_queued';
+    } & ExecutionQueuedEvent) | ({
+        event_type: 'execution_started';
+    } & ExecutionStartedEvent) | ({
+        event_type: 'execution_running';
+    } & ExecutionRunningEvent) | ({
+        event_type: 'execution_completed';
+    } & ExecutionCompletedEvent) | ({
+        event_type: 'execution_failed';
+    } & ExecutionFailedEvent) | ({
+        event_type: 'execution_timeout';
+    } & ExecutionTimeoutEvent) | ({
+        event_type: 'execution_cancelled';
+    } & ExecutionCancelledEvent) | ({
+        event_type: 'pod_created';
+    } & PodCreatedEvent) | ({
+        event_type: 'pod_scheduled';
+    } & PodScheduledEvent) | ({
+        event_type: 'pod_running';
+    } & PodRunningEvent) | ({
+        event_type: 'pod_succeeded';
+    } & PodSucceededEvent) | ({
+        event_type: 'pod_failed';
+    } & PodFailedEvent) | ({
+        event_type: 'pod_terminated';
+    } & PodTerminatedEvent) | ({
+        event_type: 'pod_deleted';
+    } & PodDeletedEvent) | ({
+        event_type: 'result_stored';
+    } & ResultStoredEvent) | ({
+        event_type: 'result_failed';
+    } & ResultFailedEvent) | ({
+        event_type: 'user_settings_updated';
+    } & UserSettingsUpdatedEvent) | ({
+        event_type: 'user_registered';
+    } & UserRegisteredEvent) | ({
+        event_type: 'user_login';
+    } & UserLoginEvent) | ({
+        event_type: 'user_logged_in';
+    } & UserLoggedInEvent) | ({
+        event_type: 'user_logged_out';
+    } & UserLoggedOutEvent) | ({
+        event_type: 'user_updated';
+    } & UserUpdatedEvent) | ({
+        event_type: 'user_deleted';
+    } & UserDeletedEvent) | ({
+        event_type: 'notification_created';
+    } & NotificationCreatedEvent) | ({
+        event_type: 'notification_sent';
+    } & NotificationSentEvent) | ({
+        event_type: 'notification_delivered';
+    } & NotificationDeliveredEvent) | ({
+        event_type: 'notification_failed';
+    } & NotificationFailedEvent) | ({
+        event_type: 'notification_read';
+    } & NotificationReadEvent) | ({
+        event_type: 'notification_clicked';
+    } & NotificationClickedEvent) | ({
+        event_type: 'notification_preferences_updated';
+    } & NotificationPreferencesUpdatedEvent) | ({
+        event_type: 'saga_started';
+    } & SagaStartedEvent) | ({
+        event_type: 'saga_completed';
+    } & SagaCompletedEvent) | ({
+        event_type: 'saga_failed';
+    } & SagaFailedEvent) | ({
+        event_type: 'saga_cancelled';
+    } & SagaCancelledEvent) | ({
+        event_type: 'saga_compensating';
+    } & SagaCompensatingEvent) | ({
+        event_type: 'saga_compensated';
+    } & SagaCompensatedEvent) | ({
+        event_type: 'create_pod_command';
+    } & CreatePodCommandEvent) | ({
+        event_type: 'delete_pod_command';
+    } & DeletePodCommandEvent) | ({
+        event_type: 'allocate_resources_command';
+    } & AllocateResourcesCommandEvent) | ({
+        event_type: 'release_resources_command';
+    } & ReleaseResourcesCommandEvent) | ({
+        event_type: 'script_saved';
+    } & ScriptSavedEvent) | ({
+        event_type: 'script_deleted';
+    } & ScriptDeletedEvent) | ({
+        event_type: 'script_shared';
+    } & ScriptSharedEvent) | ({
+        event_type: 'security_violation';
+    } & SecurityViolationEvent) | ({
+        event_type: 'rate_limit_exceeded';
+    } & RateLimitExceededEvent) | ({
+        event_type: 'auth_failed';
+    } & AuthFailedEvent) | ({
+        event_type: 'resource_limit_exceeded';
+    } & ResourceLimitExceededEvent) | ({
+        event_type: 'quota_exceeded';
+    } & QuotaExceededEvent) | ({
+        event_type: 'system_error';
+    } & SystemErrorEvent) | ({
+        event_type: 'service_unhealthy';
+    } & ServiceUnhealthyEvent) | ({
+        event_type: 'service_recovered';
+    } & ServiceRecoveredEvent) | ({
+        event_type: 'dlq_message_received';
+    } & DlqMessageReceivedEvent) | ({
+        event_type: 'dlq_message_retried';
+    } & DlqMessageRetriedEvent) | ({
+        event_type: 'dlq_message_discarded';
+    } & DlqMessageDiscardedEvent)>;
     /**
      * Total
      */
@@ -1734,39 +1846,6 @@ export type EventMetadata = {
      * Correlation Id
      */
     correlation_id?: string;
-    /**
-     * User Id
-     */
-    user_id?: string | null;
-    /**
-     * Ip Address
-     */
-    ip_address?: string | null;
-    /**
-     * User Agent
-     */
-    user_agent?: string | null;
-    environment?: Environment;
-};
-
-/**
- * EventMetadataResponse
- *
- * Pydantic schema for event metadata in API responses.
- */
-export type EventMetadataResponse = {
-    /**
-     * Service Name
-     */
-    service_name: string;
-    /**
-     * Service Version
-     */
-    service_version: string;
-    /**
-     * Correlation Id
-     */
-    correlation_id: string;
     /**
      * User Id
      */
@@ -1915,33 +1994,6 @@ export type EventReplayStatusResponse = {
 };
 
 /**
- * EventResponse
- *
- * API response schema for events. Captures all event-specific fields via extra='allow'.
- */
-export type EventResponse = {
-    /**
-     * Event Id
-     */
-    event_id: string;
-    event_type: EventType;
-    /**
-     * Event Version
-     */
-    event_version?: string;
-    /**
-     * Timestamp
-     */
-    timestamp: string;
-    /**
-     * Aggregate Id
-     */
-    aggregate_id?: string | null;
-    metadata: EventMetadataResponse;
-    [key: string]: unknown | string | EventType | string | null | EventMetadataResponse | undefined;
-};
-
-/**
  * EventStatistics
  *
  * Event statistics response.
@@ -2076,19 +2128,19 @@ export type ExecutionAcceptedEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'execution_accepted';
+    event_type: 'execution_accepted';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -2097,11 +2149,11 @@ export type ExecutionAcceptedEvent = {
     /**
      * Execution Id
      */
-    execution_id: string;
+    execution_id?: string;
     /**
      * Queue Position
      */
-    queue_position: number;
+    queue_position?: number;
     /**
      * Estimated Wait Seconds
      */
@@ -2119,19 +2171,19 @@ export type ExecutionCancelledEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'execution_cancelled';
+    event_type: 'execution_cancelled';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -2140,11 +2192,11 @@ export type ExecutionCancelledEvent = {
     /**
      * Execution Id
      */
-    execution_id: string;
+    execution_id?: string;
     /**
      * Reason
      */
-    reason: string;
+    reason?: string;
     /**
      * Cancelled By
      */
@@ -2162,19 +2214,19 @@ export type ExecutionCompletedEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'execution_completed';
+    event_type: 'execution_completed';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -2183,11 +2235,11 @@ export type ExecutionCompletedEvent = {
     /**
      * Execution Id
      */
-    execution_id: string;
+    execution_id?: string;
     /**
      * Exit Code
      */
-    exit_code: number;
+    exit_code?: number;
     resource_usage?: ResourceUsageDomain | null;
     /**
      * Stdout
@@ -2213,19 +2265,19 @@ export type ExecutionFailedEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'execution_failed';
+    event_type: 'execution_failed';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -2234,11 +2286,11 @@ export type ExecutionFailedEvent = {
     /**
      * Execution Id
      */
-    execution_id: string;
+    execution_id?: string;
     /**
      * Exit Code
      */
-    exit_code: number;
+    exit_code?: number;
     error_type?: ExecutionErrorType | null;
     /**
      * Error Message
@@ -2322,19 +2374,19 @@ export type ExecutionQueuedEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'execution_queued';
+    event_type: 'execution_queued';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -2343,7 +2395,7 @@ export type ExecutionQueuedEvent = {
     /**
      * Execution Id
      */
-    execution_id: string;
+    execution_id?: string;
     /**
      * Position In Queue
      */
@@ -2387,19 +2439,19 @@ export type ExecutionRequestedEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'execution_requested';
+    event_type: 'execution_requested';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -2408,51 +2460,51 @@ export type ExecutionRequestedEvent = {
     /**
      * Execution Id
      */
-    execution_id: string;
+    execution_id?: string;
     /**
      * Script
      */
-    script: string;
+    script?: string;
     /**
      * Language
      */
-    language: string;
+    language?: string;
     /**
      * Language Version
      */
-    language_version: string;
+    language_version?: string;
     /**
      * Runtime Image
      */
-    runtime_image: string;
+    runtime_image?: string;
     /**
      * Runtime Command
      */
-    runtime_command: Array<string>;
+    runtime_command?: Array<string>;
     /**
      * Runtime Filename
      */
-    runtime_filename: string;
+    runtime_filename?: string;
     /**
      * Timeout Seconds
      */
-    timeout_seconds: number;
+    timeout_seconds?: number;
     /**
      * Cpu Limit
      */
-    cpu_limit: string;
+    cpu_limit?: string;
     /**
      * Memory Limit
      */
-    memory_limit: string;
+    memory_limit?: string;
     /**
      * Cpu Request
      */
-    cpu_request: string;
+    cpu_request?: string;
     /**
      * Memory Request
      */
-    memory_request: string;
+    memory_request?: string;
     /**
      * Priority
      */
@@ -2514,19 +2566,19 @@ export type ExecutionRunningEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'execution_running';
+    event_type: 'execution_running';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -2535,11 +2587,11 @@ export type ExecutionRunningEvent = {
     /**
      * Execution Id
      */
-    execution_id: string;
+    execution_id?: string;
     /**
      * Pod Name
      */
-    pod_name: string;
+    pod_name?: string;
     /**
      * Progress Percentage
      */
@@ -2553,19 +2605,19 @@ export type ExecutionStartedEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'execution_started';
+    event_type: 'execution_started';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -2574,11 +2626,11 @@ export type ExecutionStartedEvent = {
     /**
      * Execution Id
      */
-    execution_id: string;
+    execution_id?: string;
     /**
      * Pod Name
      */
-    pod_name: string;
+    pod_name?: string;
     /**
      * Node Name
      */
@@ -2603,19 +2655,19 @@ export type ExecutionTimeoutEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'execution_timeout';
+    event_type: 'execution_timeout';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -2624,11 +2676,11 @@ export type ExecutionTimeoutEvent = {
     /**
      * Execution Id
      */
-    execution_id: string;
+    execution_id?: string;
     /**
      * Timeout Seconds
      */
-    timeout_seconds: number;
+    timeout_seconds?: number;
     resource_usage?: ResourceUsageDomain | null;
     /**
      * Stdout
@@ -2871,19 +2923,19 @@ export type NotificationClickedEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'notification_clicked';
+    event_type: 'notification_clicked';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -2892,15 +2944,15 @@ export type NotificationClickedEvent = {
     /**
      * Notification Id
      */
-    notification_id: string;
+    notification_id?: string;
     /**
      * User Id
      */
-    user_id: string;
+    user_id?: string;
     /**
      * Clicked At
      */
-    clicked_at: string;
+    clicked_at?: string;
     /**
      * Action
      */
@@ -2914,19 +2966,19 @@ export type NotificationCreatedEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'notification_created';
+    event_type: 'notification_created';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -2935,20 +2987,20 @@ export type NotificationCreatedEvent = {
     /**
      * Notification Id
      */
-    notification_id: string;
+    notification_id?: string;
     /**
      * User Id
      */
-    user_id: string;
+    user_id?: string;
     /**
      * Subject
      */
-    subject: string;
+    subject?: string;
     /**
      * Body
      */
-    body: string;
-    severity: NotificationSeverity;
+    body?: string;
+    severity?: NotificationSeverity;
     /**
      * Tags
      */
@@ -2966,19 +3018,19 @@ export type NotificationDeliveredEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'notification_delivered';
+    event_type: 'notification_delivered';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -2987,16 +3039,16 @@ export type NotificationDeliveredEvent = {
     /**
      * Notification Id
      */
-    notification_id: string;
+    notification_id?: string;
     /**
      * User Id
      */
-    user_id: string;
-    channel: NotificationChannel;
+    user_id?: string;
+    channel?: NotificationChannel;
     /**
      * Delivered At
      */
-    delivered_at: string;
+    delivered_at?: string;
 };
 
 /**
@@ -3006,19 +3058,19 @@ export type NotificationFailedEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'notification_failed';
+    event_type: 'notification_failed';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -3027,16 +3079,16 @@ export type NotificationFailedEvent = {
     /**
      * Notification Id
      */
-    notification_id: string;
+    notification_id?: string;
     /**
      * User Id
      */
-    user_id: string;
-    channel: NotificationChannel;
+    user_id?: string;
+    channel?: NotificationChannel;
     /**
      * Error
      */
-    error: string;
+    error?: string;
     /**
      * Retry Count
      */
@@ -3070,19 +3122,19 @@ export type NotificationPreferencesUpdatedEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'notification_preferences_updated';
+    event_type: 'notification_preferences_updated';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -3091,7 +3143,7 @@ export type NotificationPreferencesUpdatedEvent = {
     /**
      * User Id
      */
-    user_id: string;
+    user_id?: string;
     /**
      * Changed Fields
      */
@@ -3105,19 +3157,19 @@ export type NotificationReadEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'notification_read';
+    event_type: 'notification_read';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -3126,15 +3178,15 @@ export type NotificationReadEvent = {
     /**
      * Notification Id
      */
-    notification_id: string;
+    notification_id?: string;
     /**
      * User Id
      */
-    user_id: string;
+    user_id?: string;
     /**
      * Read At
      */
-    read_at: string;
+    read_at?: string;
 };
 
 /**
@@ -3183,19 +3235,19 @@ export type NotificationSentEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'notification_sent';
+    event_type: 'notification_sent';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -3204,16 +3256,16 @@ export type NotificationSentEvent = {
     /**
      * Notification Id
      */
-    notification_id: string;
+    notification_id?: string;
     /**
      * User Id
      */
-    user_id: string;
-    channel: NotificationChannel;
+    user_id?: string;
+    channel?: NotificationChannel;
     /**
      * Sent At
      */
-    sent_at: string;
+    sent_at?: string;
 };
 
 /**
@@ -3344,19 +3396,19 @@ export type PodCreatedEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'pod_created';
+    event_type: 'pod_created';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -3365,11 +3417,11 @@ export type PodCreatedEvent = {
     /**
      * Execution Id
      */
-    execution_id: string;
+    execution_id?: string;
     /**
      * Pod Name
      */
-    pod_name: string;
+    pod_name?: string;
     /**
      * Namespace
      */
@@ -3383,19 +3435,19 @@ export type PodDeletedEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'pod_deleted';
+    event_type: 'pod_deleted';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -3404,11 +3456,11 @@ export type PodDeletedEvent = {
     /**
      * Execution Id
      */
-    execution_id: string;
+    execution_id?: string;
     /**
      * Pod Name
      */
-    pod_name: string;
+    pod_name?: string;
     /**
      * Reason
      */
@@ -3422,19 +3474,19 @@ export type PodFailedEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'pod_failed';
+    event_type: 'pod_failed';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -3443,11 +3495,11 @@ export type PodFailedEvent = {
     /**
      * Execution Id
      */
-    execution_id: string;
+    execution_id?: string;
     /**
      * Pod Name
      */
-    pod_name: string;
+    pod_name?: string;
     /**
      * Exit Code
      */
@@ -3477,19 +3529,19 @@ export type PodRunningEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'pod_running';
+    event_type: 'pod_running';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -3498,11 +3550,11 @@ export type PodRunningEvent = {
     /**
      * Execution Id
      */
-    execution_id: string;
+    execution_id?: string;
     /**
      * Pod Name
      */
-    pod_name: string;
+    pod_name?: string;
     /**
      * Container Statuses
      */
@@ -3516,19 +3568,19 @@ export type PodScheduledEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'pod_scheduled';
+    event_type: 'pod_scheduled';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -3537,11 +3589,11 @@ export type PodScheduledEvent = {
     /**
      * Execution Id
      */
-    execution_id: string;
+    execution_id?: string;
     /**
      * Pod Name
      */
-    pod_name: string;
+    pod_name?: string;
     /**
      * Node Name
      */
@@ -3555,19 +3607,19 @@ export type PodSucceededEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'pod_succeeded';
+    event_type: 'pod_succeeded';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -3576,11 +3628,11 @@ export type PodSucceededEvent = {
     /**
      * Execution Id
      */
-    execution_id: string;
+    execution_id?: string;
     /**
      * Pod Name
      */
-    pod_name: string;
+    pod_name?: string;
     /**
      * Exit Code
      */
@@ -3602,19 +3654,19 @@ export type PodTerminatedEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'pod_terminated';
+    event_type: 'pod_terminated';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -3623,11 +3675,11 @@ export type PodTerminatedEvent = {
     /**
      * Execution Id
      */
-    execution_id: string;
+    execution_id?: string;
     /**
      * Pod Name
      */
-    pod_name: string;
+    pod_name?: string;
     /**
      * Exit Code
      */
@@ -3715,19 +3767,19 @@ export type QuotaExceededEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'quota_exceeded';
+    event_type: 'quota_exceeded';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -3736,19 +3788,19 @@ export type QuotaExceededEvent = {
     /**
      * Quota Type
      */
-    quota_type: string;
+    quota_type?: string;
     /**
      * Limit
      */
-    limit: number;
+    limit?: number;
     /**
      * Current Usage
      */
-    current_usage: number;
+    current_usage?: number;
     /**
      * User Id
      */
-    user_id: string;
+    user_id?: string;
 };
 
 /**
@@ -3763,19 +3815,19 @@ export type RateLimitExceededEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'rate_limit_exceeded';
+    event_type: 'rate_limit_exceeded';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -3788,15 +3840,15 @@ export type RateLimitExceededEvent = {
     /**
      * Endpoint
      */
-    endpoint: string;
+    endpoint?: string;
     /**
      * Limit
      */
-    limit: number;
+    limit?: number;
     /**
      * Window Seconds
      */
-    window_seconds: number;
+    window_seconds?: number;
 };
 
 /**
@@ -3953,19 +4005,19 @@ export type ReleaseResourcesCommandEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'release_resources_command';
+    event_type: 'release_resources_command';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -3974,15 +4026,15 @@ export type ReleaseResourcesCommandEvent = {
     /**
      * Execution Id
      */
-    execution_id: string;
+    execution_id?: string;
     /**
      * Cpu Request
      */
-    cpu_request: string;
+    cpu_request?: string;
     /**
      * Memory Request
      */
-    memory_request: string;
+    memory_request?: string;
 };
 
 /**
@@ -4334,19 +4386,19 @@ export type ResourceLimitExceededEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'resource_limit_exceeded';
+    event_type: 'resource_limit_exceeded';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -4355,15 +4407,15 @@ export type ResourceLimitExceededEvent = {
     /**
      * Resource Type
      */
-    resource_type: string;
+    resource_type?: string;
     /**
      * Limit
      */
-    limit: number;
+    limit?: number;
     /**
      * Requested
      */
-    requested: number;
+    requested?: number;
     /**
      * User Id
      */
@@ -4473,19 +4525,19 @@ export type ResultFailedEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'result_failed';
+    event_type: 'result_failed';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -4494,7 +4546,7 @@ export type ResultFailedEvent = {
     /**
      * Execution Id
      */
-    execution_id: string;
+    execution_id?: string;
     /**
      * Error
      */
@@ -4509,19 +4561,19 @@ export type ResultStoredEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'result_stored';
+    event_type: 'result_stored';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -4530,7 +4582,7 @@ export type ResultStoredEvent = {
     /**
      * Execution Id
      */
-    execution_id: string;
+    execution_id?: string;
     storage_type?: StorageType | null;
     /**
      * Storage Path
@@ -4684,19 +4736,19 @@ export type SagaCancelledEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'saga_cancelled';
+    event_type: 'saga_cancelled';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -4705,19 +4757,19 @@ export type SagaCancelledEvent = {
     /**
      * Saga Id
      */
-    saga_id: string;
+    saga_id?: string;
     /**
      * Saga Name
      */
-    saga_name: string;
+    saga_name?: string;
     /**
      * Execution Id
      */
-    execution_id: string;
+    execution_id?: string;
     /**
      * Reason
      */
-    reason: string;
+    reason?: string;
     /**
      * Completed Steps
      */
@@ -4743,19 +4795,19 @@ export type SagaCompensatedEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'saga_compensated';
+    event_type: 'saga_compensated';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -4764,15 +4816,15 @@ export type SagaCompensatedEvent = {
     /**
      * Saga Id
      */
-    saga_id: string;
+    saga_id?: string;
     /**
      * Saga Name
      */
-    saga_name: string;
+    saga_name?: string;
     /**
      * Execution Id
      */
-    execution_id: string;
+    execution_id?: string;
     /**
      * Compensated Steps
      */
@@ -4786,19 +4838,19 @@ export type SagaCompensatingEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'saga_compensating';
+    event_type: 'saga_compensating';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -4807,19 +4859,19 @@ export type SagaCompensatingEvent = {
     /**
      * Saga Id
      */
-    saga_id: string;
+    saga_id?: string;
     /**
      * Saga Name
      */
-    saga_name: string;
+    saga_name?: string;
     /**
      * Execution Id
      */
-    execution_id: string;
+    execution_id?: string;
     /**
      * Compensating Step
      */
-    compensating_step: string;
+    compensating_step?: string;
 };
 
 /**
@@ -4829,19 +4881,19 @@ export type SagaCompletedEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'saga_completed';
+    event_type: 'saga_completed';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -4850,15 +4902,15 @@ export type SagaCompletedEvent = {
     /**
      * Saga Id
      */
-    saga_id: string;
+    saga_id?: string;
     /**
      * Saga Name
      */
-    saga_name: string;
+    saga_name?: string;
     /**
      * Execution Id
      */
-    execution_id: string;
+    execution_id?: string;
     /**
      * Completed Steps
      */
@@ -4872,19 +4924,19 @@ export type SagaFailedEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'saga_failed';
+    event_type: 'saga_failed';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -4893,23 +4945,23 @@ export type SagaFailedEvent = {
     /**
      * Saga Id
      */
-    saga_id: string;
+    saga_id?: string;
     /**
      * Saga Name
      */
-    saga_name: string;
+    saga_name?: string;
     /**
      * Execution Id
      */
-    execution_id: string;
+    execution_id?: string;
     /**
      * Failed Step
      */
-    failed_step: string;
+    failed_step?: string;
     /**
      * Error
      */
-    error: string;
+    error?: string;
 };
 
 /**
@@ -4947,19 +4999,19 @@ export type SagaStartedEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'saga_started';
+    event_type: 'saga_started';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -4968,19 +5020,19 @@ export type SagaStartedEvent = {
     /**
      * Saga Id
      */
-    saga_id: string;
+    saga_id?: string;
     /**
      * Saga Name
      */
-    saga_name: string;
+    saga_name?: string;
     /**
      * Execution Id
      */
-    execution_id: string;
+    execution_id?: string;
     /**
      * Initial Event Id
      */
-    initial_event_id: string;
+    initial_event_id?: string;
 };
 
 /**
@@ -5144,19 +5196,19 @@ export type ScriptDeletedEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'script_deleted';
+    event_type: 'script_deleted';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -5165,11 +5217,11 @@ export type ScriptDeletedEvent = {
     /**
      * Script Id
      */
-    script_id: string;
+    script_id?: string;
     /**
      * User Id
      */
-    user_id: string;
+    user_id?: string;
     /**
      * Deleted By
      */
@@ -5183,19 +5235,19 @@ export type ScriptSavedEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'script_saved';
+    event_type: 'script_saved';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -5204,19 +5256,19 @@ export type ScriptSavedEvent = {
     /**
      * Script Id
      */
-    script_id: string;
+    script_id?: string;
     /**
      * User Id
      */
-    user_id: string;
+    user_id?: string;
     /**
      * Title
      */
-    title: string;
+    title?: string;
     /**
      * Language
      */
-    language: string;
+    language?: string;
 };
 
 /**
@@ -5226,19 +5278,19 @@ export type ScriptSharedEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'script_shared';
+    event_type: 'script_shared';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -5247,11 +5299,11 @@ export type ScriptSharedEvent = {
     /**
      * Script Id
      */
-    script_id: string;
+    script_id?: string;
     /**
      * Shared By
      */
-    shared_by: string;
+    shared_by?: string;
     /**
      * Shared With
      */
@@ -5259,7 +5311,7 @@ export type ScriptSharedEvent = {
     /**
      * Permissions
      */
-    permissions: string;
+    permissions?: string;
 };
 
 /**
@@ -5301,19 +5353,19 @@ export type SecurityViolationEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'security_violation';
+    event_type: 'security_violation';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -5326,11 +5378,11 @@ export type SecurityViolationEvent = {
     /**
      * Violation Type
      */
-    violation_type: string;
+    violation_type?: string;
     /**
      * Details
      */
-    details: string;
+    details?: string;
     /**
      * Ip Address
      */
@@ -5344,19 +5396,19 @@ export type ServiceRecoveredEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'service_recovered';
+    event_type: 'service_recovered';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -5365,15 +5417,15 @@ export type ServiceRecoveredEvent = {
     /**
      * Service Name
      */
-    service_name: string;
+    service_name?: string;
     /**
      * Health Check
      */
-    health_check: string;
+    health_check?: string;
     /**
      * Downtime Seconds
      */
-    downtime_seconds: number;
+    downtime_seconds?: number;
 };
 
 /**
@@ -5383,19 +5435,19 @@ export type ServiceUnhealthyEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'service_unhealthy';
+    event_type: 'service_unhealthy';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -5404,15 +5456,15 @@ export type ServiceUnhealthyEvent = {
     /**
      * Service Name
      */
-    service_name: string;
+    service_name?: string;
     /**
      * Health Check
      */
-    health_check: string;
+    health_check?: string;
     /**
      * Reason
      */
-    reason: string;
+    reason?: string;
 };
 
 /**
@@ -5644,19 +5696,19 @@ export type SystemErrorEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'system_error';
+    event_type: 'system_error';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -5665,15 +5717,15 @@ export type SystemErrorEvent = {
     /**
      * Error Type
      */
-    error_type: string;
+    error_type?: string;
     /**
      * Message
      */
-    message: string;
+    message?: string;
     /**
      * Service Name
      */
-    service_name: string;
+    service_name?: string;
     /**
      * Stack Trace
      */
@@ -5795,19 +5847,19 @@ export type UserDeletedEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'user_deleted';
+    event_type: 'user_deleted';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -5816,7 +5868,7 @@ export type UserDeletedEvent = {
     /**
      * User Id
      */
-    user_id: string;
+    user_id?: string;
     /**
      * Deleted By
      */
@@ -5874,19 +5926,19 @@ export type UserLoggedInEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'user_logged_in';
+    event_type: 'user_logged_in';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -5895,8 +5947,8 @@ export type UserLoggedInEvent = {
     /**
      * User Id
      */
-    user_id: string;
-    login_method: LoginMethod;
+    user_id?: string;
+    login_method?: LoginMethod;
     /**
      * Ip Address
      */
@@ -5914,19 +5966,19 @@ export type UserLoggedOutEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'user_logged_out';
+    event_type: 'user_logged_out';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -5935,7 +5987,7 @@ export type UserLoggedOutEvent = {
     /**
      * User Id
      */
-    user_id: string;
+    user_id?: string;
     /**
      * Logout Reason
      */
@@ -5949,19 +6001,19 @@ export type UserLoginEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'user_login';
+    event_type: 'user_login';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -5970,8 +6022,8 @@ export type UserLoginEvent = {
     /**
      * User Id
      */
-    user_id: string;
-    login_method: LoginMethod;
+    user_id?: string;
+    login_method?: LoginMethod;
     /**
      * Ip Address
      */
@@ -6046,19 +6098,19 @@ export type UserRegisteredEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'user_registered';
+    event_type: 'user_registered';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -6067,15 +6119,15 @@ export type UserRegisteredEvent = {
     /**
      * User Id
      */
-    user_id: string;
+    user_id?: string;
     /**
      * Username
      */
-    username: string;
+    username?: string;
     /**
      * Email
      */
-    email: string;
+    email?: string;
 };
 
 /**
@@ -6215,19 +6267,19 @@ export type UserSettingsUpdatedEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'user_settings_updated';
+    event_type: 'user_settings_updated';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -6236,7 +6288,7 @@ export type UserSettingsUpdatedEvent = {
     /**
      * User Id
      */
-    user_id: string;
+    user_id?: string;
     /**
      * Changed Fields
      */
@@ -6279,19 +6331,19 @@ export type UserUpdatedEvent = {
     /**
      * Event Id
      */
-    event_id?: string;
+    event_id: string;
     /**
      * Event Type
      */
-    event_type?: 'user_updated';
+    event_type: 'user_updated';
     /**
      * Event Version
      */
-    event_version?: string;
+    event_version: string;
     /**
      * Timestamp
      */
-    timestamp?: string;
+    timestamp: string;
     /**
      * Aggregate Id
      */
@@ -6300,7 +6352,7 @@ export type UserUpdatedEvent = {
     /**
      * User Id
      */
-    user_id: string;
+    user_id?: string;
     /**
      * Updated Fields
      */
@@ -6689,7 +6741,119 @@ export type GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetResponses = {
      *
      * Successful Response
      */
-    200: Array<EventResponse>;
+    200: Array<({
+        event_type: 'execution_requested';
+    } & ExecutionRequestedEvent) | ({
+        event_type: 'execution_accepted';
+    } & ExecutionAcceptedEvent) | ({
+        event_type: 'execution_queued';
+    } & ExecutionQueuedEvent) | ({
+        event_type: 'execution_started';
+    } & ExecutionStartedEvent) | ({
+        event_type: 'execution_running';
+    } & ExecutionRunningEvent) | ({
+        event_type: 'execution_completed';
+    } & ExecutionCompletedEvent) | ({
+        event_type: 'execution_failed';
+    } & ExecutionFailedEvent) | ({
+        event_type: 'execution_timeout';
+    } & ExecutionTimeoutEvent) | ({
+        event_type: 'execution_cancelled';
+    } & ExecutionCancelledEvent) | ({
+        event_type: 'pod_created';
+    } & PodCreatedEvent) | ({
+        event_type: 'pod_scheduled';
+    } & PodScheduledEvent) | ({
+        event_type: 'pod_running';
+    } & PodRunningEvent) | ({
+        event_type: 'pod_succeeded';
+    } & PodSucceededEvent) | ({
+        event_type: 'pod_failed';
+    } & PodFailedEvent) | ({
+        event_type: 'pod_terminated';
+    } & PodTerminatedEvent) | ({
+        event_type: 'pod_deleted';
+    } & PodDeletedEvent) | ({
+        event_type: 'result_stored';
+    } & ResultStoredEvent) | ({
+        event_type: 'result_failed';
+    } & ResultFailedEvent) | ({
+        event_type: 'user_settings_updated';
+    } & UserSettingsUpdatedEvent) | ({
+        event_type: 'user_registered';
+    } & UserRegisteredEvent) | ({
+        event_type: 'user_login';
+    } & UserLoginEvent) | ({
+        event_type: 'user_logged_in';
+    } & UserLoggedInEvent) | ({
+        event_type: 'user_logged_out';
+    } & UserLoggedOutEvent) | ({
+        event_type: 'user_updated';
+    } & UserUpdatedEvent) | ({
+        event_type: 'user_deleted';
+    } & UserDeletedEvent) | ({
+        event_type: 'notification_created';
+    } & NotificationCreatedEvent) | ({
+        event_type: 'notification_sent';
+    } & NotificationSentEvent) | ({
+        event_type: 'notification_delivered';
+    } & NotificationDeliveredEvent) | ({
+        event_type: 'notification_failed';
+    } & NotificationFailedEvent) | ({
+        event_type: 'notification_read';
+    } & NotificationReadEvent) | ({
+        event_type: 'notification_clicked';
+    } & NotificationClickedEvent) | ({
+        event_type: 'notification_preferences_updated';
+    } & NotificationPreferencesUpdatedEvent) | ({
+        event_type: 'saga_started';
+    } & SagaStartedEvent) | ({
+        event_type: 'saga_completed';
+    } & SagaCompletedEvent) | ({
+        event_type: 'saga_failed';
+    } & SagaFailedEvent) | ({
+        event_type: 'saga_cancelled';
+    } & SagaCancelledEvent) | ({
+        event_type: 'saga_compensating';
+    } & SagaCompensatingEvent) | ({
+        event_type: 'saga_compensated';
+    } & SagaCompensatedEvent) | ({
+        event_type: 'create_pod_command';
+    } & CreatePodCommandEvent) | ({
+        event_type: 'delete_pod_command';
+    } & DeletePodCommandEvent) | ({
+        event_type: 'allocate_resources_command';
+    } & AllocateResourcesCommandEvent) | ({
+        event_type: 'release_resources_command';
+    } & ReleaseResourcesCommandEvent) | ({
+        event_type: 'script_saved';
+    } & ScriptSavedEvent) | ({
+        event_type: 'script_deleted';
+    } & ScriptDeletedEvent) | ({
+        event_type: 'script_shared';
+    } & ScriptSharedEvent) | ({
+        event_type: 'security_violation';
+    } & SecurityViolationEvent) | ({
+        event_type: 'rate_limit_exceeded';
+    } & RateLimitExceededEvent) | ({
+        event_type: 'auth_failed';
+    } & AuthFailedEvent) | ({
+        event_type: 'resource_limit_exceeded';
+    } & ResourceLimitExceededEvent) | ({
+        event_type: 'quota_exceeded';
+    } & QuotaExceededEvent) | ({
+        event_type: 'system_error';
+    } & SystemErrorEvent) | ({
+        event_type: 'service_unhealthy';
+    } & ServiceUnhealthyEvent) | ({
+        event_type: 'service_recovered';
+    } & ServiceRecoveredEvent) | ({
+        event_type: 'dlq_message_received';
+    } & DlqMessageReceivedEvent) | ({
+        event_type: 'dlq_message_retried';
+    } & DlqMessageRetriedEvent) | ({
+        event_type: 'dlq_message_discarded';
+    } & DlqMessageDiscardedEvent)>;
 };
 
 export type GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetResponse = GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetResponses[keyof GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetResponses];

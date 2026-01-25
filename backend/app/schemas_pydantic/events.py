@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.domain.enums.common import Environment, SortOrder
 from app.domain.enums.events import EventType
+from app.domain.events.typed import DomainEvent
 
 
 class HourlyEventCountSchema(BaseModel):
@@ -31,19 +32,6 @@ class EventMetadataResponse(BaseModel):
     environment: Environment = Environment.PRODUCTION
 
 
-class EventResponse(BaseModel):
-    """API response schema for events. Captures all event-specific fields via extra='allow'."""
-
-    model_config = ConfigDict(from_attributes=True, extra="allow")
-
-    event_id: str
-    event_type: EventType
-    event_version: str = "1.0"
-    timestamp: datetime
-    aggregate_id: str | None = None
-    metadata: EventMetadataResponse
-
-
 class EventSummaryResponse(BaseModel):
     """Lightweight event summary for lists and related events display."""
 
@@ -58,7 +46,7 @@ class EventSummaryResponse(BaseModel):
 class EventListResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    events: List[EventResponse]
+    events: List[DomainEvent]
     total: int
     limit: int
     skip: int

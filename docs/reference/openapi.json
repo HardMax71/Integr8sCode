@@ -416,7 +416,237 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/EventResponse"
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/ExecutionRequestedEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/ExecutionAcceptedEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/ExecutionQueuedEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/ExecutionStartedEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/ExecutionRunningEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/ExecutionCompletedEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/ExecutionFailedEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/ExecutionTimeoutEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/ExecutionCancelledEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/PodCreatedEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/PodScheduledEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/PodRunningEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/PodSucceededEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/PodFailedEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/PodTerminatedEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/PodDeletedEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/ResultStoredEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/ResultFailedEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/UserSettingsUpdatedEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/UserRegisteredEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/UserLoginEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/UserLoggedInEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/UserLoggedOutEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/UserUpdatedEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/UserDeletedEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/NotificationCreatedEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/NotificationSentEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/NotificationDeliveredEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/NotificationFailedEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/NotificationReadEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/NotificationClickedEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/NotificationPreferencesUpdatedEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/SagaStartedEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/SagaCompletedEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/SagaFailedEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/SagaCancelledEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/SagaCompensatingEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/SagaCompensatedEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/CreatePodCommandEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/DeletePodCommandEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/AllocateResourcesCommandEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/ReleaseResourcesCommandEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/ScriptSavedEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/ScriptDeletedEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/ScriptSharedEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/SecurityViolationEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/RateLimitExceededEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/AuthFailedEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/ResourceLimitExceededEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/QuotaExceededEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/SystemErrorEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/ServiceUnhealthyEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/ServiceRecoveredEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/DLQMessageReceivedEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/DLQMessageRetriedEvent"
+                      },
+                      {
+                        "$ref": "#/components/schemas/DLQMessageDiscardedEvent"
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "event_type",
+                      "mapping": {
+                        "execution_requested": "#/components/schemas/ExecutionRequestedEvent",
+                        "execution_accepted": "#/components/schemas/ExecutionAcceptedEvent",
+                        "execution_queued": "#/components/schemas/ExecutionQueuedEvent",
+                        "execution_started": "#/components/schemas/ExecutionStartedEvent",
+                        "execution_running": "#/components/schemas/ExecutionRunningEvent",
+                        "execution_completed": "#/components/schemas/ExecutionCompletedEvent",
+                        "execution_failed": "#/components/schemas/ExecutionFailedEvent",
+                        "execution_timeout": "#/components/schemas/ExecutionTimeoutEvent",
+                        "execution_cancelled": "#/components/schemas/ExecutionCancelledEvent",
+                        "pod_created": "#/components/schemas/PodCreatedEvent",
+                        "pod_scheduled": "#/components/schemas/PodScheduledEvent",
+                        "pod_running": "#/components/schemas/PodRunningEvent",
+                        "pod_succeeded": "#/components/schemas/PodSucceededEvent",
+                        "pod_failed": "#/components/schemas/PodFailedEvent",
+                        "pod_terminated": "#/components/schemas/PodTerminatedEvent",
+                        "pod_deleted": "#/components/schemas/PodDeletedEvent",
+                        "result_stored": "#/components/schemas/ResultStoredEvent",
+                        "result_failed": "#/components/schemas/ResultFailedEvent",
+                        "user_settings_updated": "#/components/schemas/UserSettingsUpdatedEvent",
+                        "user_registered": "#/components/schemas/UserRegisteredEvent",
+                        "user_login": "#/components/schemas/UserLoginEvent",
+                        "user_logged_in": "#/components/schemas/UserLoggedInEvent",
+                        "user_logged_out": "#/components/schemas/UserLoggedOutEvent",
+                        "user_updated": "#/components/schemas/UserUpdatedEvent",
+                        "user_deleted": "#/components/schemas/UserDeletedEvent",
+                        "notification_created": "#/components/schemas/NotificationCreatedEvent",
+                        "notification_sent": "#/components/schemas/NotificationSentEvent",
+                        "notification_delivered": "#/components/schemas/NotificationDeliveredEvent",
+                        "notification_failed": "#/components/schemas/NotificationFailedEvent",
+                        "notification_read": "#/components/schemas/NotificationReadEvent",
+                        "notification_clicked": "#/components/schemas/NotificationClickedEvent",
+                        "notification_preferences_updated": "#/components/schemas/NotificationPreferencesUpdatedEvent",
+                        "saga_started": "#/components/schemas/SagaStartedEvent",
+                        "saga_completed": "#/components/schemas/SagaCompletedEvent",
+                        "saga_failed": "#/components/schemas/SagaFailedEvent",
+                        "saga_cancelled": "#/components/schemas/SagaCancelledEvent",
+                        "saga_compensating": "#/components/schemas/SagaCompensatingEvent",
+                        "saga_compensated": "#/components/schemas/SagaCompensatedEvent",
+                        "create_pod_command": "#/components/schemas/CreatePodCommandEvent",
+                        "delete_pod_command": "#/components/schemas/DeletePodCommandEvent",
+                        "allocate_resources_command": "#/components/schemas/AllocateResourcesCommandEvent",
+                        "release_resources_command": "#/components/schemas/ReleaseResourcesCommandEvent",
+                        "script_saved": "#/components/schemas/ScriptSavedEvent",
+                        "script_deleted": "#/components/schemas/ScriptDeletedEvent",
+                        "script_shared": "#/components/schemas/ScriptSharedEvent",
+                        "security_violation": "#/components/schemas/SecurityViolationEvent",
+                        "rate_limit_exceeded": "#/components/schemas/RateLimitExceededEvent",
+                        "auth_failed": "#/components/schemas/AuthFailedEvent",
+                        "resource_limit_exceeded": "#/components/schemas/ResourceLimitExceededEvent",
+                        "quota_exceeded": "#/components/schemas/QuotaExceededEvent",
+                        "system_error": "#/components/schemas/SystemErrorEvent",
+                        "service_unhealthy": "#/components/schemas/ServiceUnhealthyEvent",
+                        "service_recovered": "#/components/schemas/ServiceRecoveredEvent",
+                        "dlq_message_received": "#/components/schemas/DLQMessageReceivedEvent",
+                        "dlq_message_retried": "#/components/schemas/DLQMessageRetriedEvent",
+                        "dlq_message_discarded": "#/components/schemas/DLQMessageDiscardedEvent"
+                      }
+                    }
                   },
                   "title": "Response Get Execution Events Api V1 Executions  Execution Id  Events Get"
                 }
@@ -5029,10 +5259,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "execution_id",
-          "cpu_request",
-          "memory_request"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "AllocateResourcesCommandEvent"
       },
@@ -5104,8 +5335,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "reason"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "AuthFailedEvent"
       },
@@ -5344,19 +5578,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "saga_id",
-          "execution_id",
-          "script",
-          "language",
-          "language_version",
-          "runtime_image",
-          "runtime_filename",
-          "timeout_seconds",
-          "cpu_limit",
-          "memory_limit",
-          "cpu_request",
-          "memory_request"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "CreatePodCommandEvent"
       },
@@ -5832,12 +6058,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "dlq_event_id",
-          "original_topic",
-          "original_event_type",
-          "reason",
-          "retry_count"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "DLQMessageDiscardedEvent",
         "description": "Emitted when a DLQ message is discarded (max retries exceeded or manual discard)."
@@ -5913,14 +6138,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "dlq_event_id",
-          "original_topic",
-          "original_event_type",
-          "error",
-          "retry_count",
-          "producer_id",
-          "failed_at"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "DLQMessageReceivedEvent",
         "description": "Emitted when a message is received and persisted in the DLQ."
@@ -6306,12 +6528,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "dlq_event_id",
-          "original_topic",
-          "original_event_type",
-          "retry_count",
-          "retry_topic"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "DLQMessageRetriedEvent",
         "description": "Emitted when a DLQ message is retried."
@@ -6566,10 +6787,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "saga_id",
-          "execution_id",
-          "reason"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "DeletePodCommandEvent"
       },
@@ -7571,7 +7793,237 @@
         "properties": {
           "events": {
             "items": {
-              "$ref": "#/components/schemas/EventResponse"
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/ExecutionRequestedEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/ExecutionAcceptedEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/ExecutionQueuedEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/ExecutionStartedEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/ExecutionRunningEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/ExecutionCompletedEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/ExecutionFailedEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/ExecutionTimeoutEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/ExecutionCancelledEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/PodCreatedEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/PodScheduledEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/PodRunningEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/PodSucceededEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/PodFailedEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/PodTerminatedEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/PodDeletedEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/ResultStoredEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/ResultFailedEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/UserSettingsUpdatedEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/UserRegisteredEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/UserLoginEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/UserLoggedInEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/UserLoggedOutEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/UserUpdatedEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/UserDeletedEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/NotificationCreatedEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/NotificationSentEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/NotificationDeliveredEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/NotificationFailedEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/NotificationReadEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/NotificationClickedEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/NotificationPreferencesUpdatedEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/SagaStartedEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/SagaCompletedEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/SagaFailedEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/SagaCancelledEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/SagaCompensatingEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/SagaCompensatedEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/CreatePodCommandEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/DeletePodCommandEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/AllocateResourcesCommandEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/ReleaseResourcesCommandEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/ScriptSavedEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/ScriptDeletedEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/ScriptSharedEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/SecurityViolationEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/RateLimitExceededEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/AuthFailedEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/ResourceLimitExceededEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/QuotaExceededEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/SystemErrorEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/ServiceUnhealthyEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/ServiceRecoveredEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/DLQMessageReceivedEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/DLQMessageRetriedEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/DLQMessageDiscardedEvent"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "event_type",
+                "mapping": {
+                  "allocate_resources_command": "#/components/schemas/AllocateResourcesCommandEvent",
+                  "auth_failed": "#/components/schemas/AuthFailedEvent",
+                  "create_pod_command": "#/components/schemas/CreatePodCommandEvent",
+                  "delete_pod_command": "#/components/schemas/DeletePodCommandEvent",
+                  "dlq_message_discarded": "#/components/schemas/DLQMessageDiscardedEvent",
+                  "dlq_message_received": "#/components/schemas/DLQMessageReceivedEvent",
+                  "dlq_message_retried": "#/components/schemas/DLQMessageRetriedEvent",
+                  "execution_accepted": "#/components/schemas/ExecutionAcceptedEvent",
+                  "execution_cancelled": "#/components/schemas/ExecutionCancelledEvent",
+                  "execution_completed": "#/components/schemas/ExecutionCompletedEvent",
+                  "execution_failed": "#/components/schemas/ExecutionFailedEvent",
+                  "execution_queued": "#/components/schemas/ExecutionQueuedEvent",
+                  "execution_requested": "#/components/schemas/ExecutionRequestedEvent",
+                  "execution_running": "#/components/schemas/ExecutionRunningEvent",
+                  "execution_started": "#/components/schemas/ExecutionStartedEvent",
+                  "execution_timeout": "#/components/schemas/ExecutionTimeoutEvent",
+                  "notification_clicked": "#/components/schemas/NotificationClickedEvent",
+                  "notification_created": "#/components/schemas/NotificationCreatedEvent",
+                  "notification_delivered": "#/components/schemas/NotificationDeliveredEvent",
+                  "notification_failed": "#/components/schemas/NotificationFailedEvent",
+                  "notification_preferences_updated": "#/components/schemas/NotificationPreferencesUpdatedEvent",
+                  "notification_read": "#/components/schemas/NotificationReadEvent",
+                  "notification_sent": "#/components/schemas/NotificationSentEvent",
+                  "pod_created": "#/components/schemas/PodCreatedEvent",
+                  "pod_deleted": "#/components/schemas/PodDeletedEvent",
+                  "pod_failed": "#/components/schemas/PodFailedEvent",
+                  "pod_running": "#/components/schemas/PodRunningEvent",
+                  "pod_scheduled": "#/components/schemas/PodScheduledEvent",
+                  "pod_succeeded": "#/components/schemas/PodSucceededEvent",
+                  "pod_terminated": "#/components/schemas/PodTerminatedEvent",
+                  "quota_exceeded": "#/components/schemas/QuotaExceededEvent",
+                  "rate_limit_exceeded": "#/components/schemas/RateLimitExceededEvent",
+                  "release_resources_command": "#/components/schemas/ReleaseResourcesCommandEvent",
+                  "resource_limit_exceeded": "#/components/schemas/ResourceLimitExceededEvent",
+                  "result_failed": "#/components/schemas/ResultFailedEvent",
+                  "result_stored": "#/components/schemas/ResultStoredEvent",
+                  "saga_cancelled": "#/components/schemas/SagaCancelledEvent",
+                  "saga_compensated": "#/components/schemas/SagaCompensatedEvent",
+                  "saga_compensating": "#/components/schemas/SagaCompensatingEvent",
+                  "saga_completed": "#/components/schemas/SagaCompletedEvent",
+                  "saga_failed": "#/components/schemas/SagaFailedEvent",
+                  "saga_started": "#/components/schemas/SagaStartedEvent",
+                  "script_deleted": "#/components/schemas/ScriptDeletedEvent",
+                  "script_saved": "#/components/schemas/ScriptSavedEvent",
+                  "script_shared": "#/components/schemas/ScriptSharedEvent",
+                  "security_violation": "#/components/schemas/SecurityViolationEvent",
+                  "service_recovered": "#/components/schemas/ServiceRecoveredEvent",
+                  "service_unhealthy": "#/components/schemas/ServiceUnhealthyEvent",
+                  "system_error": "#/components/schemas/SystemErrorEvent",
+                  "user_deleted": "#/components/schemas/UserDeletedEvent",
+                  "user_logged_in": "#/components/schemas/UserLoggedInEvent",
+                  "user_logged_out": "#/components/schemas/UserLoggedOutEvent",
+                  "user_login": "#/components/schemas/UserLoginEvent",
+                  "user_registered": "#/components/schemas/UserRegisteredEvent",
+                  "user_settings_updated": "#/components/schemas/UserSettingsUpdatedEvent",
+                  "user_updated": "#/components/schemas/UserUpdatedEvent"
+                }
+              }
             },
             "type": "array",
             "title": "Events"
@@ -7662,67 +8114,6 @@
         ],
         "title": "EventMetadata",
         "description": "Event metadata - embedded in all events."
-      },
-      "EventMetadataResponse": {
-        "properties": {
-          "service_name": {
-            "type": "string",
-            "title": "Service Name"
-          },
-          "service_version": {
-            "type": "string",
-            "title": "Service Version"
-          },
-          "correlation_id": {
-            "type": "string",
-            "title": "Correlation Id"
-          },
-          "user_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "User Id"
-          },
-          "ip_address": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ip Address"
-          },
-          "user_agent": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "User Agent"
-          },
-          "environment": {
-            "$ref": "#/components/schemas/Environment",
-            "default": "production"
-          }
-        },
-        "type": "object",
-        "required": [
-          "service_name",
-          "service_version",
-          "correlation_id"
-        ],
-        "title": "EventMetadataResponse",
-        "description": "Pydantic schema for event metadata in API responses."
       },
       "EventReplayRequest": {
         "properties": {
@@ -7980,51 +8371,6 @@
         ],
         "title": "EventReplayStatusResponse",
         "description": "Response model for replay status"
-      },
-      "EventResponse": {
-        "properties": {
-          "event_id": {
-            "type": "string",
-            "title": "Event Id"
-          },
-          "event_type": {
-            "$ref": "#/components/schemas/EventType"
-          },
-          "event_version": {
-            "type": "string",
-            "title": "Event Version",
-            "default": "1.0"
-          },
-          "timestamp": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Timestamp"
-          },
-          "aggregate_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Aggregate Id"
-          },
-          "metadata": {
-            "$ref": "#/components/schemas/EventMetadataResponse"
-          }
-        },
-        "additionalProperties": true,
-        "type": "object",
-        "required": [
-          "event_id",
-          "event_type",
-          "timestamp",
-          "metadata"
-        ],
-        "title": "EventResponse",
-        "description": "API response schema for events. Captures all event-specific fields via extra='allow'."
       },
       "EventStatistics": {
         "properties": {
@@ -8358,9 +8704,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "execution_id",
-          "queue_position"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "ExecutionAcceptedEvent"
       },
@@ -8430,9 +8778,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "execution_id",
-          "reason"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "ExecutionCancelledEvent"
       },
@@ -8506,9 +8856,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "execution_id",
-          "exit_code"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "ExecutionCompletedEvent"
       },
@@ -8609,9 +8961,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "execution_id",
-          "exit_code"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "ExecutionFailedEvent"
       },
@@ -8760,8 +9114,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "execution_id"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "ExecutionQueuedEvent"
       },
@@ -8891,19 +9248,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "execution_id",
-          "script",
-          "language",
-          "language_version",
-          "runtime_image",
-          "runtime_command",
-          "runtime_filename",
-          "timeout_seconds",
-          "cpu_limit",
-          "memory_limit",
-          "cpu_request",
-          "memory_request"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "ExecutionRequestedEvent"
       },
@@ -9067,9 +9416,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "execution_id",
-          "pod_name"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "ExecutionRunningEvent"
       },
@@ -9145,9 +9496,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "execution_id",
-          "pod_name"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "ExecutionStartedEvent"
       },
@@ -9236,9 +9589,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "execution_id",
-          "timeout_seconds"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "ExecutionTimeoutEvent"
       },
@@ -9605,10 +9960,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "notification_id",
-          "user_id",
-          "clicked_at"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "NotificationClickedEvent"
       },
@@ -9687,12 +10043,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "notification_id",
-          "user_id",
-          "subject",
-          "body",
-          "severity"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "NotificationCreatedEvent"
       },
@@ -9754,11 +10109,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "notification_id",
-          "user_id",
-          "channel",
-          "delivered_at"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "NotificationDeliveredEvent"
       },
@@ -9824,11 +10179,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "notification_id",
-          "user_id",
-          "channel",
-          "error"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "NotificationFailedEvent"
       },
@@ -9912,8 +10267,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "user_id"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "NotificationPreferencesUpdatedEvent"
       },
@@ -9972,10 +10330,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "notification_id",
-          "user_id",
-          "read_at"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "NotificationReadEvent"
       },
@@ -10112,11 +10471,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "notification_id",
-          "user_id",
-          "channel",
-          "sent_at"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "NotificationSentEvent"
       },
@@ -10367,9 +10726,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "execution_id",
-          "pod_name"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "PodCreatedEvent"
       },
@@ -10434,9 +10795,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "execution_id",
-          "pod_name"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "PodDeletedEvent"
       },
@@ -10539,9 +10902,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "execution_id",
-          "pod_name"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "PodFailedEvent"
       },
@@ -10600,9 +10965,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "execution_id",
-          "pod_name"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "PodRunningEvent"
       },
@@ -10661,9 +11028,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "execution_id",
-          "pod_name"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "PodScheduledEvent"
       },
@@ -10744,9 +11113,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "execution_id",
-          "pod_name"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "PodSucceededEvent"
       },
@@ -10827,9 +11198,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "execution_id",
-          "pod_name"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "PodTerminatedEvent"
       },
@@ -10984,11 +11357,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "quota_type",
-          "limit",
-          "current_usage",
-          "user_id"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "QuotaExceededEvent"
       },
@@ -11067,10 +11440,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "endpoint",
-          "limit",
-          "window_seconds"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "RateLimitExceededEvent"
       },
@@ -11341,10 +11715,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "execution_id",
-          "cpu_request",
-          "memory_request"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "ReleaseResourcesCommandEvent"
       },
@@ -12124,10 +12499,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "resource_type",
-          "limit",
-          "requested"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "ResourceLimitExceededEvent"
       },
@@ -12313,8 +12689,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "execution_id"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "ResultFailedEvent"
       },
@@ -12384,8 +12763,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "execution_id"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "ResultStoredEvent"
       },
@@ -12648,11 +13030,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "saga_id",
-          "saga_name",
-          "execution_id",
-          "reason"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "SagaCancelledEvent"
       },
@@ -12717,10 +13099,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "saga_id",
-          "saga_name",
-          "execution_id"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "SagaCompensatedEvent"
       },
@@ -12782,11 +13165,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "saga_id",
-          "saga_name",
-          "execution_id",
-          "compensating_step"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "SagaCompensatingEvent"
       },
@@ -12851,10 +13234,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "saga_id",
-          "saga_name",
-          "execution_id"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "SagaCompletedEvent"
       },
@@ -12920,12 +13304,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "saga_id",
-          "saga_name",
-          "execution_id",
-          "failed_step",
-          "error"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "SagaFailedEvent"
       },
@@ -13024,11 +13407,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "saga_id",
-          "saga_name",
-          "execution_id",
-          "initial_event_id"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "SagaStartedEvent"
       },
@@ -13366,9 +13749,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "script_id",
-          "user_id"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "ScriptDeletedEvent"
       },
@@ -13430,11 +13815,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "script_id",
-          "user_id",
-          "title",
-          "language"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "ScriptSavedEvent"
       },
@@ -13499,10 +13884,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "script_id",
-          "shared_by",
-          "permissions"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "ScriptSharedEvent"
       },
@@ -13617,9 +14003,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "violation_type",
-          "details"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "SecurityViolationEvent"
       },
@@ -13677,10 +14065,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "service_name",
-          "health_check",
-          "downtime_seconds"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "ServiceRecoveredEvent"
       },
@@ -13738,10 +14127,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "service_name",
-          "health_check",
-          "reason"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "ServiceUnhealthyEvent"
       },
@@ -14172,10 +14562,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "error_type",
-          "message",
-          "service_name"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "SystemErrorEvent"
       },
@@ -14388,8 +14779,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "user_id"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "UserDeletedEvent"
       },
@@ -14515,9 +14909,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "user_id",
-          "login_method"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "UserLoggedInEvent"
       },
@@ -14578,8 +14974,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "user_id"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "UserLoggedOutEvent"
       },
@@ -14654,9 +15053,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "user_id",
-          "login_method"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "UserLoginEvent"
       },
@@ -14813,10 +15214,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "user_id",
-          "username",
-          "email"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "UserRegisteredEvent"
       },
@@ -15117,8 +15519,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "user_id"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "UserSettingsUpdatedEvent"
       },
@@ -15249,8 +15654,11 @@
         },
         "type": "object",
         "required": [
-          "metadata",
-          "user_id"
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
         ],
         "title": "UserUpdatedEvent"
       },

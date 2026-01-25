@@ -1,13 +1,13 @@
 <script lang="ts">
     import { AlertTriangle } from '@lucide/svelte';
-    import type { EventResponse } from '$lib/api';
+    import type { EventSummary } from '$lib/api';
     import { formatTimestamp } from '$lib/formatters';
     import Modal from '$components/Modal.svelte';
 
     interface ReplayPreview {
         eventId: string;
         total_events: number;
-        events_preview?: EventResponse[];
+        events_preview?: EventSummary[];
     }
 
     interface Props {

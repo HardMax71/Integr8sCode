@@ -6,7 +6,6 @@ from typing import Annotated, Any, Dict, List
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import TypeAdapter
 
 from app.api.dependencies import admin_user, current_user
 from app.core.correlation import CorrelationContext
@@ -21,7 +20,6 @@ from app.schemas_pydantic.events import (
     EventAggregationRequest,
     EventFilterRequest,
     EventListResponse,
-    EventResponse,
     EventStatistics,
     PublishEventRequest,
     PublishEventResponse,
@@ -32,8 +30,6 @@ from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
 from app.services.kafka_event_service import KafkaEventService
 from app.settings import Settings
-
-_event_response_list_adapter: TypeAdapter[list[EventResponse]] = TypeAdapter(list[EventResponse])
 
 router = APIRouter(prefix="/events", tags=["events"], route_class=DishkaRoute)
 
@@ -66,7 +62,7 @@ async def get_execution_events(
         raise HTTPException(status_code=403, detail="Access denied")
 
     return EventListResponse(
-        events=_event_response_list_adapter.validate_python(result.events, from_attributes=True),
+        events=result.events,
         total=result.total,
         limit=limit,
         skip=skip,
@@ -97,7 +93,7 @@ async def get_user_events(
     )
 
     return EventListResponse(
-        events=_event_response_list_adapter.validate_python(result.events, from_attributes=True),
+        events=result.events,
         total=result.total,
         limit=limit,
         skip=skip,
@@ -134,7 +130,7 @@ async def query_events(
         raise HTTPException(status_code=403, detail="Cannot query other users' events")
 
     return EventListResponse(
-        events=_event_response_list_adapter.validate_python(result.events, from_attributes=True),
+        events=result.events,
         total=result.total,
         limit=result.limit,
         skip=result.skip,
@@ -161,7 +157,7 @@ async def get_events_by_correlation(
     )
 
     return EventListResponse(
-        events=_event_response_list_adapter.validate_python(result.events, from_attributes=True),
+        events=result.events,
         total=result.total,
         limit=limit,
         skip=skip,
@@ -190,7 +186,7 @@ async def get_current_request_events(
     )
 
     return EventListResponse(
-        events=_event_response_list_adapter.validate_python(result.events, from_attributes=True),
+        events=result.events,
         total=result.total,
         limit=limit,
         skip=skip,

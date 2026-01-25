@@ -396,7 +396,7 @@ describe('AdminEvents', () => {
     it('displays event information in modal', async () => {
       vi.useRealTimers();
       const user = userEvent.setup();
-      const event = createMockEvent({ event_id: 'evt-123', event_type: 'execution_completed', correlation_id: 'corr-abc' });
+      const event = createMockEvent({ event_id: 'evt-123', event_type: 'execution_completed', metadata: { correlation_id: 'corr-abc' } });
       mocks.getEventDetailApiV1AdminEventsEventIdGet.mockResolvedValue({
         data: createMockEventDetail(event),
         error: null,

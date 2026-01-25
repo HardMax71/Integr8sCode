@@ -145,9 +145,15 @@ export function initializeApiInterceptors(): void {
 
 export function unwrap<T>(result: { data?: T; error?: unknown }): T {
     if (result.error) throw result.error;
-    return result.data as T;
+    if (result.data === undefined) {
+        throw new Error('Unexpected empty response');
+    }
+    return result.data;
 }
 
 export function unwrapOr<T>(result: { data?: T; error?: unknown }, fallback: T): T {
-    return result.error ? fallback : (result.data as T);
+    if (result.error || result.data === undefined) {
+        return fallback;
+    }
+    return result.data;
 }

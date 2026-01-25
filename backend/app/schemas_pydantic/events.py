@@ -44,6 +44,17 @@ class EventResponse(BaseModel):
     metadata: EventMetadataResponse
 
 
+class EventSummaryResponse(BaseModel):
+    """Lightweight event summary for lists and related events display."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    event_id: str
+    event_type: EventType
+    timestamp: datetime
+    aggregate_id: str | None = None
+
+
 class EventListResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

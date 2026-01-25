@@ -1,7 +1,7 @@
 /**
  * Rate limit configurations and utilities for user management
  */
-import type { RateLimitRule, EndpointGroup } from '$lib/api';
+import type { RateLimitRuleResponse, EndpointGroup } from '$lib/api';
 
 // Group colors for rate limit endpoint groups
 export const GROUP_COLORS: Record<EndpointGroup, string> = {
@@ -38,7 +38,7 @@ export function detectGroupFromEndpoint(endpoint: string): EndpointGroup {
 }
 
 // Default rate limit rules
-export interface DefaultRateLimitRule extends Omit<RateLimitRule, 'enabled' | 'burst_multiplier'> {
+export interface DefaultRateLimitRule extends Omit<RateLimitRuleResponse, 'enabled' | 'burst_multiplier'> {
     effective_requests?: number;
 }
 
@@ -64,7 +64,7 @@ export function getDefaultRulesWithMultiplier(multiplier: number = 1): DefaultRa
 }
 
 // Create a new empty rate limit rule
-export function createEmptyRule(): RateLimitRule {
+export function createEmptyRule(): RateLimitRuleResponse {
     return {
         endpoint_pattern: '',
         group: 'api',

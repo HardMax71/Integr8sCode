@@ -1,6 +1,6 @@
 import {
     createExecutionApiV1ExecutePost,
-    getResultApiV1ResultExecutionIdGet,
+    getResultApiV1ExecutionsExecutionIdResultGet,
     type ExecutionResult,
     type EventType,
 } from '$lib/api';
@@ -110,7 +110,7 @@ export function createExecutionState() {
     }
 
     async function fetchResult(executionId: string): Promise<ExecutionResult> {
-        const { data, error } = await getResultApiV1ResultExecutionIdGet({
+        const { data, error } = await getResultApiV1ExecutionsExecutionIdResultGet({
             path: { execution_id: executionId }
         });
         if (error) throw error;

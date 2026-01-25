@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from io import StringIO
-from typing import Any, Dict, List
+from typing import Any, List
 
 from beanie.odm.enums import SortDirection
 
@@ -18,6 +18,7 @@ from app.domain.events.event_models import (
     EventExportRow,
     EventFilter,
     EventStatistics,
+    EventSummary,
 )
 from app.domain.replay import ReplayConfig, ReplayFilter
 from app.services.replay_service import ReplayService
@@ -49,7 +50,7 @@ class AdminReplayResult:
         replay_correlation_id: str,
         status: ReplayStatus,
         session_id: str | None = None,
-        events_preview: List[Dict[str, Any]] | None = None,
+        events_preview: list[EventSummary] | None = None,
     ) -> None:
         self.dry_run = dry_run
         self.total_events = total_events
@@ -121,22 +122,12 @@ class AdminEventsService:
         )
 
         if dry_run:
-            # Map previews into simple dicts via repository summary mapper
-            previews = [
-                {
-                    "event_id": e.event_id,
-                    "event_type": e.event_type,
-                    "timestamp": e.timestamp,
-                    "aggregate_id": e.aggregate_id,
-                }
-                for e in session_data.events_preview
-            ]
             result = AdminReplayResult(
                 dry_run=True,
                 total_events=session_data.total_events,
                 replay_correlation_id=replay_correlation_id,
                 status=ReplayStatus.PREVIEW,
-                events_preview=previews,
+                events_preview=session_data.events_preview,
             )
             self.logger.info(
                 "Replay dry-run prepared",

@@ -1,9 +1,11 @@
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Dict, List
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from app.domain.enums.events import EventType
+from app.domain.events.event_models import EventSummary
+from app.domain.events.typed import DomainEvent
 from app.schemas_pydantic.events import HourlyEventCountSchema
 from app.schemas_pydantic.execution import ExecutionResult
 
@@ -55,7 +57,7 @@ class EventReplayRequest(BaseModel):
 class EventBrowseResponse(BaseModel):
     """Response model for browsing events"""
 
-    events: List[Dict[str, Any]]
+    events: List[DomainEvent]
     total: int
     skip: int
     limit: int
@@ -64,9 +66,9 @@ class EventBrowseResponse(BaseModel):
 class EventDetailResponse(BaseModel):
     """Response model for event detail"""
 
-    event: Dict[str, Any]
-    related_events: List[Dict[str, Any]]
-    timeline: List[Dict[str, Any]]
+    event: DomainEvent
+    related_events: List[EventSummary]
+    timeline: List[EventSummary]
 
 
 class EventReplayResponse(BaseModel):
@@ -77,7 +79,7 @@ class EventReplayResponse(BaseModel):
     replay_correlation_id: str
     session_id: str | None = None
     status: str
-    events_preview: List[Dict[str, Any]] | None = None
+    events_preview: List[EventSummary] | None = None
 
 
 class EventReplayStatusResponse(BaseModel):

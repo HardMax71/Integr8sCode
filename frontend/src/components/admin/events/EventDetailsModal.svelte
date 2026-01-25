@@ -1,25 +1,9 @@
 <script lang="ts">
-    import type { EventDetailResponse, EventType } from '$lib/api';
+    import type { EventDetailResponse } from '$lib/api';
     import { formatTimestamp } from '$lib/formatters';
     import { getEventTypeColor } from '$lib/admin/events';
     import Modal from '$components/Modal.svelte';
     import EventTypeIcon from '$components/EventTypeIcon.svelte';
-
-    interface EventData {
-        event_id: string;
-        event_type: EventType;
-        timestamp: string;
-        correlation_id?: string | null;
-        aggregate_id?: string | null;
-        metadata?: Record<string, unknown>;
-        payload?: Record<string, unknown>;
-    }
-
-    interface RelatedEvent {
-        event_id: string;
-        event_type: EventType;
-        timestamp: string;
-    }
 
     interface Props {
         event: EventDetailResponse | null;
@@ -31,9 +15,9 @@
 
     let { event, open, onClose, onReplay, onViewRelated }: Props = $props();
 
-    // Type-safe accessors
-    const eventData = $derived(event?.event as unknown as EventData | undefined);
-    const relatedEvents = $derived((event?.related_events ?? []) as unknown as RelatedEvent[]);
+    // Properly typed - no casts needed, API types are now correct
+    const eventData = $derived(event?.event);
+    const relatedEvents = $derived(event?.related_events ?? []);
 </script>
 
 <Modal {open} title="Event Details" {onClose} size="lg">
@@ -66,7 +50,7 @@
                         </tr>
                         <tr class="border-b border-border-default dark:border-dark-border-default">
                             <td class="px-4 py-2 font-semibold text-fg-default dark:text-dark-fg-default">Correlation ID</td>
-                            <td class="px-4 py-2 font-mono text-sm text-fg-default dark:text-dark-fg-default">{eventData.correlation_id}</td>
+                            <td class="px-4 py-2 font-mono text-sm text-fg-default dark:text-dark-fg-default">{eventData.metadata.correlation_id ?? '-'}</td>
                         </tr>
                         <tr class="border-b border-border-default dark:border-dark-border-default">
                             <td class="px-4 py-2 font-semibold text-fg-default dark:text-dark-fg-default">Aggregate ID</td>
@@ -77,13 +61,8 @@
             </div>
 
             <div>
-                <h4 class="font-semibold mb-2">Metadata</h4>
-                <pre class="bg-neutral-100 dark:bg-neutral-800 p-3 rounded overflow-auto text-sm font-mono text-fg-default dark:text-dark-fg-default">{JSON.stringify(eventData.metadata, null, 2)}</pre>
-            </div>
-
-            <div>
-                <h4 class="font-semibold mb-2">Payload</h4>
-                <pre class="bg-neutral-100 dark:bg-neutral-800 p-3 rounded overflow-auto text-sm font-mono text-fg-default dark:text-dark-fg-default">{JSON.stringify(eventData.payload, null, 2)}</pre>
+                <h4 class="font-semibold mb-2">Full Event Data</h4>
+                <pre class="bg-neutral-100 dark:bg-neutral-800 p-3 rounded overflow-auto text-sm font-mono text-fg-default dark:text-dark-fg-default max-h-96">{JSON.stringify(eventData, null, 2)}</pre>
             </div>
 
             {#if relatedEvents.length > 0}
@@ -111,7 +90,10 @@
 
     {#snippet footer()}
         <button
-            onclick={() => eventData && onReplay(eventData.event_id)}
+            onclick={() => {
+                const id = eventData?.event_id;
+                if (id) onReplay(id);
+            }}
             class="btn btn-primary"
         >
             Replay Event

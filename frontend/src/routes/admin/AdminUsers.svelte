@@ -9,7 +9,7 @@
         updateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPut,
         resetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPost,
         type UserResponse,
-        type UserRateLimit,
+        type UserRateLimitConfigResponse,
         type UserRole,
     } from '$lib/api';
     import { unwrap, unwrapOr } from '$lib/api-interceptors';
@@ -51,7 +51,7 @@
     let editingUser = $state<UserResponse | null>(null);
 
     // Rate limit state
-    let rateLimitConfig = $state<UserRateLimit | null>(null);
+    let rateLimitConfig = $state<UserRateLimitConfigResponse | null>(null);
     let rateLimitUsage = $state<Record<string, { count?: number; tokens_remaining?: number }> | null>(null);
     let loadingRateLimits = $state(false);
     let savingRateLimits = $state(false);
@@ -186,7 +186,7 @@
                 path: { user_id: user.user_id }
             });
             const response = unwrap(result);
-            rateLimitConfig = (response?.rate_limit_config as UserRateLimit | undefined) || {
+            rateLimitConfig = response?.rate_limit_config ?? {
                 user_id: user.user_id, rules: [], global_multiplier: 1.0, bypass_rate_limit: false, notes: ''
             };
             rateLimitUsage = response?.current_usage || {};

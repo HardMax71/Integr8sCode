@@ -4,7 +4,6 @@ from typing import Annotated
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
-from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
 
 from app.api.dependencies import admin_user
@@ -44,7 +43,7 @@ async def browse_events(request: EventBrowseRequest, service: FromDishka[AdminEv
         )
 
         return EventBrowseResponse(
-            events=[jsonable_encoder(event) for event in result.events],
+            events=result.events,
             total=result.total,
             skip=result.skip,
             limit=result.limit,
@@ -135,9 +134,9 @@ async def get_event_detail(event_id: str, service: FromDishka[AdminEventsService
             raise HTTPException(status_code=404, detail="Event not found")
 
         return EventDetailResponse(
-            event=jsonable_encoder(result.event),
-            related_events=[jsonable_encoder(e) for e in result.related_events],
-            timeline=[jsonable_encoder(e) for e in result.timeline],
+            event=result.event,
+            related_events=result.related_events,
+            timeline=result.timeline,
         )
 
     except HTTPException:

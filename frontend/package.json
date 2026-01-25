@@ -44,6 +44,7 @@
     "codemirror": "^6.0.1",
     "dompurify": "^3.2.0",
     "dotenv": "^17.2.3",
+    "event-source-plus": "^0.1.15",
     "postcss": "^8.4.47",
     "rollup": "^4.55.1",
     "rollup-plugin-css-only": "^4.3.0",

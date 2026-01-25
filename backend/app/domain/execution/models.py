@@ -1,22 +1,14 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Optional
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.storage import ExecutionErrorType
-
-
-class ResourceUsageDomain(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    execution_time_wall_seconds: float = 0.0
-    cpu_time_jiffies: int = 0
-    clk_tck_hertz: int = 0
-    peak_memory_kb: int = 0
+from app.domain.events.typed import EventMetadata, ResourceUsageDomain
 
 
 class DomainExecution(BaseModel):
@@ -47,7 +39,7 @@ class ExecutionResultDomain(BaseModel):
     stderr: str
     resource_usage: ResourceUsageDomain | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    metadata: EventMetadata | None = None
     error_type: ExecutionErrorType | None = None
 
 

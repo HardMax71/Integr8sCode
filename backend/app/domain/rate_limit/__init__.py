@@ -1,5 +1,6 @@
 from .rate_limit_models import (
     EndpointGroup,
+    EndpointUsageStats,
     RateLimitAlgorithm,
     RateLimitConfig,
     RateLimitRule,
@@ -12,6 +13,7 @@ from .rate_limit_models import (
 
 __all__ = [
     "EndpointGroup",
+    "EndpointUsageStats",
     "RateLimitAlgorithm",
     "RateLimitConfig",
     "RateLimitRule",

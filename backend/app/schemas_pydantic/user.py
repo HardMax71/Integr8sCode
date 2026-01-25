@@ -5,7 +5,7 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.domain.enums.user import UserRole
-from app.domain.rate_limit import EndpointGroup, RateLimitAlgorithm
+from app.domain.rate_limit import EndpointGroup, EndpointUsageStats, RateLimitAlgorithm
 
 
 class UserBase(BaseModel):
@@ -206,7 +206,7 @@ class UserRateLimitsResponse(BaseModel):
 
     user_id: str
     rate_limit_config: Optional[UserRateLimitConfigResponse] = None
-    current_usage: dict[str, dict[str, object]]
+    current_usage: dict[str, EndpointUsageStats]
 
     model_config = ConfigDict(from_attributes=True)
 

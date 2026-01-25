@@ -1,18 +1,18 @@
+from __future__ import annotations
+
 import json
 import math
 import re
 import time
-from contextlib import contextmanager
-from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any, Awaitable, Dict, Generator, Optional, cast
+from typing import Optional
 
 import redis.asyncio as redis
+from pydantic import TypeAdapter
 
 from app.core.metrics import RateLimitMetrics
-from app.core.tracing.utils import add_span_attributes
 from app.domain.rate_limit import (
-    EndpointGroup,
+    EndpointUsageStats,
     RateLimitAlgorithm,
     RateLimitConfig,
     RateLimitRule,
@@ -22,93 +22,11 @@ from app.domain.rate_limit import (
 )
 from app.settings import Settings
 
-
-def _rule_to_dict(rule: RateLimitRule) -> Dict[str, Any]:
-    return {
-        "endpoint_pattern": rule.endpoint_pattern,
-        "group": rule.group,
-        "requests": rule.requests,
-        "window_seconds": rule.window_seconds,
-        "burst_multiplier": rule.burst_multiplier,
-        "algorithm": rule.algorithm,
-        "priority": rule.priority,
-        "enabled": rule.enabled,
-    }
-
-
-def _rule_from_dict(data: Dict[str, Any]) -> RateLimitRule:
-    return RateLimitRule(
-        endpoint_pattern=data["endpoint_pattern"],
-        group=EndpointGroup(data["group"]),
-        requests=data["requests"],
-        window_seconds=data["window_seconds"],
-        burst_multiplier=data.get("burst_multiplier", 1.5),
-        algorithm=RateLimitAlgorithm(data.get("algorithm", RateLimitAlgorithm.SLIDING_WINDOW)),
-        priority=data.get("priority", 0),
-        enabled=data.get("enabled", True),
-    )
-
-
-def _user_limit_to_dict(user_limit: UserRateLimit) -> Dict[str, Any]:
-    return {
-        "user_id": user_limit.user_id,
-        "bypass_rate_limit": user_limit.bypass_rate_limit,
-        "global_multiplier": user_limit.global_multiplier,
-        "rules": [_rule_to_dict(rule) for rule in user_limit.rules],
-        "created_at": user_limit.created_at.isoformat() if user_limit.created_at else None,
-        "updated_at": user_limit.updated_at.isoformat() if user_limit.updated_at else None,
-        "notes": user_limit.notes,
-    }
-
-
-def _user_limit_from_dict(data: Dict[str, Any]) -> UserRateLimit:
-    created_at = data.get("created_at")
-    if created_at and isinstance(created_at, str):
-        created_at = datetime.fromisoformat(created_at)
-    elif not created_at:
-        created_at = datetime.now(timezone.utc)
-
-    updated_at = data.get("updated_at")
-    if updated_at and isinstance(updated_at, str):
-        updated_at = datetime.fromisoformat(updated_at)
-    elif not updated_at:
-        updated_at = datetime.now(timezone.utc)
-
-    return UserRateLimit(
-        user_id=data["user_id"],
-        bypass_rate_limit=data.get("bypass_rate_limit", False),
-        global_multiplier=data.get("global_multiplier", 1.0),
-        rules=[_rule_from_dict(rule_data) for rule_data in data.get("rules", [])],
-        created_at=created_at,
-        updated_at=updated_at,
-        notes=data.get("notes"),
-    )
-
-
-def _config_to_json(config: RateLimitConfig) -> str:
-    data = {
-        "default_rules": [_rule_to_dict(rule) for rule in config.default_rules],
-        "user_overrides": {uid: _user_limit_to_dict(user_limit) for uid, user_limit in config.user_overrides.items()},
-        "global_enabled": config.global_enabled,
-        "redis_ttl": config.redis_ttl,
-    }
-    return json.dumps(data)
-
-
-def _config_from_json(json_str: str | bytes) -> RateLimitConfig:
-    data = json.loads(json_str)
-    return RateLimitConfig(
-        default_rules=[_rule_from_dict(rule_data) for rule_data in data.get("default_rules", [])],
-        user_overrides={
-            uid: _user_limit_from_dict(user_data) for uid, user_data in data.get("user_overrides", {}).items()
-        },
-        global_enabled=data.get("global_enabled", True),
-        redis_ttl=data.get("redis_ttl", 3600),
-    )
+_config_adapter = TypeAdapter(RateLimitConfig)
 
 
 class RateLimitService:
-    def __init__(self, redis_client: redis.Redis, settings: Settings, metrics: "RateLimitMetrics"):
+    def __init__(self, redis_client: redis.Redis, settings: Settings, metrics: RateLimitMetrics):
         self.redis = redis_client
         self.settings = settings
         self.prefix = settings.RATE_LIMIT_REDIS_PREFIX
@@ -124,45 +42,12 @@ class RateLimitService:
 
     async def _register_user_key(self, user_id: str, key: str) -> None:
         """Index a runtime key under a user's set for fast CRUD without SCAN."""
-        _ = await cast(Awaitable[int], self.redis.sadd(self._index_key(user_id), key))
+        await self.redis.sadd(self._index_key(user_id), key)  # type: ignore[misc]
 
     def _normalize_endpoint(self, endpoint: str) -> str:
         normalized = self._uuid_pattern.sub("*", endpoint)
         normalized = self._id_pattern.sub("/*", normalized)
         return normalized
-
-    @contextmanager
-    def _timer(self, histogram: Any, attrs: dict[str, str]) -> Generator[None, None, None]:
-        start = time.time()
-        try:
-            yield
-        finally:
-            duration_ms = (time.time() - start) * 1000
-            histogram.record(duration_ms, attrs)
-
-    @dataclass
-    class _Context:
-        user_id: str
-        endpoint: str
-        normalized_endpoint: str
-        authenticated: bool
-        config: Optional[RateLimitConfig] = None
-        rule: Optional[RateLimitRule] = None
-        multiplier: float = 1.0
-        effective_limit: int = 0
-        algorithm: RateLimitAlgorithm = RateLimitAlgorithm.SLIDING_WINDOW
-
-    def _labels(self, ctx: "RateLimitService._Context") -> dict[str, str]:
-        labels = {
-            "authenticated": str(ctx.authenticated).lower(),
-            "endpoint": ctx.normalized_endpoint,
-            "algorithm": ctx.algorithm,
-        }
-        if ctx.rule is not None:
-            labels.update(
-                {"group": ctx.rule.group, "priority": str(ctx.rule.priority), "multiplier": str(ctx.multiplier)}
-            )
-        return labels
 
     def _unlimited(self, algo: RateLimitAlgorithm = RateLimitAlgorithm.SLIDING_WINDOW) -> RateLimitStatus:
         return RateLimitStatus(
@@ -190,115 +75,47 @@ class RateLimitService:
     async def check_rate_limit(
         self, user_id: str, endpoint: str, config: Optional[RateLimitConfig] = None
     ) -> RateLimitStatus:
-        start_time = time.time()
-        # Tracing attributes added at end of check
-        ctx = RateLimitService._Context(
-            user_id=user_id,
-            endpoint=endpoint,
-            normalized_endpoint=self._normalize_endpoint(endpoint),
-            authenticated=not user_id.startswith("ip:"),
-        )
+        normalized_endpoint = self._normalize_endpoint(endpoint)
+        authenticated = not user_id.startswith("ip:")
 
-        try:
-            if config is None:
-                with self._timer(self.metrics.redis_duration, {"operation": "get_config"}):
-                    config = await self._get_config()
-            ctx.config = config
-            # Prepare config (compile/sort)
-            self._prepare_config(config)
+        if config is None:
+            config = await self._get_config()
+        self._prepare_config(config)
 
-            if not config.global_enabled:
-                return self._unlimited()
+        if not config.global_enabled:
+            return self._unlimited()
 
-            # Check user overrides
-            user_config = config.user_overrides.get(str(user_id))
-            if user_config and user_config.bypass_rate_limit:
-                self.metrics.bypass.add(1, {"endpoint": ctx.normalized_endpoint})
-                self.metrics.requests_total.add(
-                    1,
-                    {
-                        "authenticated": str(ctx.authenticated).lower(),
-                        "endpoint": ctx.normalized_endpoint,
-                        "algorithm": "bypassed",
-                    },
-                )
-                return self._unlimited()
+        user_config = config.user_overrides.get(str(user_id))
+        if user_config and user_config.bypass_rate_limit:
+            self.metrics.record_bypass(normalized_endpoint)
+            self.metrics.record_request(normalized_endpoint, authenticated, "bypassed")
+            return self._unlimited()
 
-            # Find matching rule
-            rule = self._find_matching_rule(endpoint, user_config, config)
-            if not rule:
-                self.metrics.requests_total.add(
-                    1,
-                    {
-                        "authenticated": str(ctx.authenticated).lower(),
-                        "endpoint": ctx.normalized_endpoint,
-                        "algorithm": "no_limit",
-                    },
-                )
-                return self._unlimited()
+        rule = self._find_matching_rule(endpoint, user_config, config)
+        if not rule:
+            self.metrics.record_request(normalized_endpoint, authenticated, "no_limit")
+            return self._unlimited()
 
-            # Apply user multiplier if exists
-            ctx.rule = rule
-            ctx.multiplier = user_config.global_multiplier if user_config else 1.0
-            ctx.effective_limit = int(rule.requests * ctx.multiplier)
-            ctx.algorithm = rule.algorithm
+        multiplier = user_config.global_multiplier if user_config else 1.0
+        effective_limit = int(rule.requests * multiplier)
 
-            # Track total requests with algorithm
-            self.metrics.requests_total.add(
-                1,
-                {
-                    "authenticated": str(ctx.authenticated).lower(),
-                    "endpoint": ctx.normalized_endpoint,
-                    "algorithm": rule.algorithm,
-                },
+        self.metrics.record_request(normalized_endpoint, authenticated, rule.algorithm)
+
+        if rule.algorithm == RateLimitAlgorithm.TOKEN_BUCKET:
+            status = await self._check_token_bucket(
+                user_id, endpoint, effective_limit, rule.window_seconds, rule.burst_multiplier, rule
+            )
+        else:
+            status = await self._check_sliding_window(
+                user_id, endpoint, effective_limit, rule.window_seconds, rule
             )
 
-            # Record window size
-            self.metrics.window_size.record(
-                rule.window_seconds, {"endpoint": ctx.normalized_endpoint, "algorithm": rule.algorithm}
-            )
+        if status.allowed:
+            self.metrics.record_allowed(normalized_endpoint, rule.group)
+        else:
+            self.metrics.record_rejected(normalized_endpoint, rule.group)
 
-            # Check rate limit based on algorithm (avoid duplicate branches)
-            timer_attrs = {
-                "algorithm": rule.algorithm,
-                "endpoint": ctx.normalized_endpoint,
-                "authenticated": str(ctx.authenticated).lower(),
-            }
-            with self._timer(self.metrics.algorithm_duration, timer_attrs):
-                if rule.algorithm == RateLimitAlgorithm.TOKEN_BUCKET:
-                    status = await self._check_token_bucket(
-                        user_id, endpoint, ctx.effective_limit, rule.window_seconds, rule.burst_multiplier, rule
-                    )
-                else:
-                    status = await self._check_sliding_window(
-                        user_id, endpoint, ctx.effective_limit, rule.window_seconds, rule
-                    )
-
-            labels = self._labels(ctx)
-            if status.allowed:
-                self.metrics.allowed.add(1, labels)
-            else:
-                self.metrics.rejected.add(1, labels)
-
-            self.metrics.remaining.record(status.remaining, labels)
-            if status.limit > 0:
-                quota_used = ((status.limit - status.remaining) / status.limit) * 100
-                self.metrics.quota_usage.record(quota_used, labels)
-
-            add_span_attributes(
-                **{
-                    "rate_limit.allowed": status.allowed,
-                    "rate_limit.limit": status.limit,
-                    "rate_limit.remaining": status.remaining,
-                    "rate_limit.algorithm": status.algorithm,
-                }
-            )
-            return status
-        finally:
-            self.metrics.check_duration.record(
-                (time.time() - start_time) * 1000,
-                {"endpoint": ctx.normalized_endpoint, "authenticated": str(ctx.authenticated).lower()},
-            )
+        return status
 
     async def _check_sliding_window(
         self, user_id: str, endpoint: str, limit: int, window_seconds: int, rule: RateLimitRule
@@ -308,24 +125,18 @@ class RateLimitService:
         now = time.time()
         window_start = now - window_seconds
 
-        normalized_endpoint = self._normalize_endpoint(endpoint)
-
-        with self._timer(self.metrics.redis_duration, {"operation": "sliding_window", "endpoint": normalized_endpoint}):
-            pipe = self.redis.pipeline()
-            pipe.zremrangebyscore(key, 0, window_start)
-            pipe.zadd(key, {str(now): now})
-            pipe.zcard(key)
-            pipe.expire(key, window_seconds * 2)
-            results = await pipe.execute()
+        pipe = self.redis.pipeline()
+        pipe.zremrangebyscore(key, 0, window_start)
+        pipe.zadd(key, {str(now): now})
+        pipe.zcard(key)
+        pipe.expire(key, window_seconds * 2)
+        results = await pipe.execute()
 
         count = results[2]
         remaining = max(0, limit - count)
 
         if count > limit:
-            # Calculate retry after
-            with self._timer(self.metrics.redis_duration, {"operation": "get_oldest_timestamp"}):
-                oldest_timestamp = await self.redis.zrange(key, 0, 0, withscores=True)
-
+            oldest_timestamp = await self.redis.zrange(key, 0, 0, withscores=True)
             if oldest_timestamp:
                 retry_after = int(oldest_timestamp[0][1] + window_seconds - now) + 1
             else:
@@ -357,50 +168,24 @@ class RateLimitService:
         key = f"{self.prefix}tb:{user_id}:{endpoint}"
         max_tokens = int(limit * burst_multiplier)
         refill_rate = limit / window_seconds
-
-        normalized_endpoint = self._normalize_endpoint(endpoint)
-
         now = time.time()
 
         await self._register_user_key(user_id, key)
 
-        # Get current bucket state
-        with self._timer(
-            self.metrics.redis_duration, {"operation": "token_bucket_get", "endpoint": normalized_endpoint}
-        ):
-            bucket_data = await self.redis.get(key)
-
+        bucket_data = await self.redis.get(key)
         if bucket_data:
             bucket = json.loads(bucket_data)
             tokens = bucket["tokens"]
             last_refill = bucket["last_refill"]
-
-            # Refill tokens
             time_passed = now - last_refill
             tokens_to_add = time_passed * refill_rate
             tokens = min(max_tokens, tokens + tokens_to_add)
         else:
             tokens = max_tokens
-            last_refill = now
 
-        # Record token bucket metrics
-        self.metrics.token_bucket_tokens.record(
-            tokens,
-            {
-                "endpoint": normalized_endpoint,
-            },
-        )
-        self.metrics.token_bucket_refill_rate.record(refill_rate, {"endpoint": normalized_endpoint})
-
-        # Try to consume a token
         if tokens >= 1:
             tokens -= 1
-            bucket = {"tokens": tokens, "last_refill": now}
-
-            with self._timer(
-                self.metrics.redis_duration, {"operation": "token_bucket_set", "endpoint": normalized_endpoint}
-            ):
-                await self.redis.setex(key, window_seconds * 2, json.dumps(bucket))
+            await self.redis.setex(key, window_seconds * 2, json.dumps({"tokens": tokens, "last_refill": now}))
 
             return RateLimitStatus(
                 allowed=True,
@@ -411,19 +196,17 @@ class RateLimitService:
                 matched_rule=rule.endpoint_pattern,
                 algorithm=RateLimitAlgorithm.TOKEN_BUCKET,
             )
-        else:
-            # Calculate when next token will be available
-            retry_after = int((1 - tokens) / refill_rate) + 1
 
-            return RateLimitStatus(
-                allowed=False,
-                limit=limit,
-                remaining=0,
-                reset_at=datetime.fromtimestamp(now + retry_after, timezone.utc),
-                retry_after=retry_after,
-                matched_rule=rule.endpoint_pattern,
-                algorithm=RateLimitAlgorithm.TOKEN_BUCKET,
-            )
+        retry_after = int((1 - tokens) / refill_rate) + 1
+        return RateLimitStatus(
+            allowed=False,
+            limit=limit,
+            remaining=0,
+            reset_at=datetime.fromtimestamp(now + retry_after, timezone.utc),
+            retry_after=retry_after,
+            matched_rule=rule.endpoint_pattern,
+            algorithm=RateLimitAlgorithm.TOKEN_BUCKET,
+        )
 
     def _find_matching_rule(
         self, endpoint: str, user_config: Optional[UserRateLimit], global_config: RateLimitConfig
@@ -449,50 +232,21 @@ class RateLimitService:
         return None
 
     async def _get_config(self) -> RateLimitConfig:
-        # Try to get from Redis cache
         config_key = f"{self.prefix}config"
         config_data = await self.redis.get(config_key)
 
         if config_data:
-            config = _config_from_json(config_data)
+            config = _config_adapter.validate_json(config_data)
         else:
-            # Return default config and cache it
             config = RateLimitConfig.get_default_config()
-            await self.redis.setex(
-                config_key,
-                300,  # Cache for 5 minutes
-                _config_to_json(config),
-            )
+            await self.redis.setex(config_key, 300, _config_adapter.dump_json(config))
 
-        # Prepare for fast matching
         self._prepare_config(config)
-
-        # Always record current config metrics when loading
-        active_rules_count = len([r for r in config.default_rules if r.enabled])
-        custom_users_count = len(config.user_overrides)
-        bypass_users_count = len([u for u in config.user_overrides.values() if u.bypass_rate_limit])
-
-        self.metrics.active_rules.record(active_rules_count)
-        self.metrics.custom_users.record(custom_users_count)
-        self.metrics.bypass_users.record(bypass_users_count)
-
         return config
 
     async def update_config(self, config: RateLimitConfig) -> None:
         config_key = f"{self.prefix}config"
-
-        with self._timer(self.metrics.redis_duration, {"operation": "update_config"}):
-            await self.redis.setex(config_key, 300, _config_to_json(config))
-
-        # Update configuration metrics - just record the absolute values
-        active_rules_count = len([r for r in config.default_rules if r.enabled])
-        custom_users_count = len(config.user_overrides)
-        bypass_users_count = len([u for u in config.user_overrides.values() if u.bypass_rate_limit])
-
-        # Record current values (histograms will track the distribution)
-        self.metrics.active_rules.record(active_rules_count)
-        self.metrics.custom_users.record(custom_users_count)
-        self.metrics.bypass_users.record(bypass_users_count)
+        await self.redis.setex(config_key, 300, _config_adapter.dump_json(config))
 
     async def update_user_rate_limit(self, user_id: str, user_limit: UserRateLimit) -> None:
         config = await self._get_config()
@@ -549,15 +303,22 @@ class RateLimitService:
 
     async def reset_user_limits(self, user_id: str) -> None:
         index_key = self._index_key(user_id)
-        keys = await cast(Awaitable[set[Any]], self.redis.smembers(index_key))
+        keys = await self.redis.smembers(index_key)  # type: ignore[misc]
         if keys:
             await self.redis.delete(*keys)
         await self.redis.delete(index_key)
 
-    async def get_usage_stats(self, user_id: str) -> dict[str, dict[str, object]]:
-        stats: dict[str, dict[str, object]] = {}
+    async def get_usage_stats(self, user_id: str) -> dict[str, EndpointUsageStats]:
+        stats: dict[str, EndpointUsageStats] = {}
         index_key = self._index_key(user_id)
-        keys = await cast(Awaitable[set[Any]], self.redis.smembers(index_key))
+        keys = await self.redis.smembers(index_key)  # type: ignore[misc]
+        if not keys:
+            return stats
+
+        config = await self._get_config()
+        user_config = config.user_overrides.get(str(user_id))
+        multiplier = user_config.global_multiplier if user_config else 1.0
+
         for key in keys:
             key_str = key.decode() if isinstance(key, bytes) else key
             parts = key_str.split(":")
@@ -566,15 +327,20 @@ class RateLimitService:
                 continue
             algo = parts[1]
             endpoint = ":".join(parts[3:])
+
             if algo == "sw":
-                count = await cast(Awaitable[int], self.redis.zcard(key))
-                stats[endpoint] = {"count": count, "algorithm": "sliding_window"}
+                count = await self.redis.zcard(key)
+                rule = self._find_matching_rule(endpoint, user_config, config)
+                limit = int(rule.requests * multiplier) if rule else 0
+                remaining = max(0, limit - count)
+                stats[endpoint] = EndpointUsageStats(
+                    algorithm=RateLimitAlgorithm.SLIDING_WINDOW, remaining=remaining
+                )
             elif algo == "tb":
                 bucket_data = await self.redis.get(key)
                 if bucket_data:
                     bucket = json.loads(bucket_data)
-                    stats[endpoint] = {
-                        "tokens_remaining": bucket.get("tokens", 0),
-                        "algorithm": "token_bucket",
-                    }
+                    stats[endpoint] = EndpointUsageStats(
+                        algorithm=RateLimitAlgorithm.TOKEN_BUCKET, remaining=int(bucket.get("tokens", 0))
+                    )
         return stats

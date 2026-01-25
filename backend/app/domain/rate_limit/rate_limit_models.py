@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import re
 from dataclasses import field
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
+from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass
 
 from app.core.utils import StringEnum
@@ -23,6 +26,14 @@ class EndpointGroup(StringEnum):
     AUTH = "auth"
     PUBLIC = "public"
     API = "api"
+
+
+@dataclass(config=ConfigDict(from_attributes=True))
+class EndpointUsageStats:
+    """Usage statistics for a single endpoint (IETF RateLimit-style)."""
+
+    algorithm: RateLimitAlgorithm
+    remaining: int
 
 
 @dataclass
@@ -158,7 +169,7 @@ class UserRateLimitsResult:
 
     user_id: str
     rate_limit_config: Optional[UserRateLimit]
-    current_usage: Dict[str, Dict[str, object]]
+    current_usage: Dict[str, EndpointUsageStats]
 
 
 @dataclass

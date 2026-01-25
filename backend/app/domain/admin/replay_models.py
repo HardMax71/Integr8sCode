@@ -1,12 +1,28 @@
 from dataclasses import field
 from datetime import datetime
-from typing import Any
 
+from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass
 
+from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.replay import ReplayStatus
 from app.domain.events.event_models import EventSummary
 from app.domain.replay.models import ReplayFilter, ReplaySessionState
+
+
+@dataclass(config=ConfigDict(from_attributes=True))
+class ExecutionResultSummary:
+    """Summary of an execution result for replay status."""
+
+    execution_id: str
+    status: ExecutionStatus | None
+    stdout: str | None
+    stderr: str | None
+    exit_code: int | None
+    lang: str
+    lang_version: str
+    created_at: datetime
+    updated_at: datetime
 
 
 @dataclass
@@ -15,7 +31,7 @@ class ReplaySessionStatusDetail:
 
     session: ReplaySessionState
     estimated_completion: datetime | None = None
-    execution_results: list[dict[str, Any]] = field(default_factory=list)
+    execution_results: list[ExecutionResultSummary] = field(default_factory=list)
 
 
 @dataclass

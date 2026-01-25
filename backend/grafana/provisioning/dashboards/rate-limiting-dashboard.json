@@ -156,7 +156,7 @@
               }
             ]
           },
-          "unit": "short"
+          "unit": "reqps"
         }
       },
       "gridPos": {
@@ -168,7 +168,7 @@
       "id": 3,
       "options": {
         "colorMode": "value",
-        "graphMode": "none",
+        "graphMode": "area",
         "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": {
@@ -182,11 +182,11 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "rate_limit_custom_users_sum / rate_limit_custom_users_count",
+          "expr": "sum(rate(rate_limit_allowed_total[5m]))",
           "refId": "A"
         }
       ],
-      "title": "Users with Custom Limits",
+      "title": "Allowed Rate",
       "type": "stat"
     },
     {
@@ -206,7 +206,7 @@
               }
             ]
           },
-          "unit": "short"
+          "unit": "reqps"
         }
       },
       "gridPos": {
@@ -218,7 +218,7 @@
       "id": 4,
       "options": {
         "colorMode": "value",
-        "graphMode": "none",
+        "graphMode": "area",
         "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": {
@@ -232,11 +232,11 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "rate_limit_bypass_users_sum / rate_limit_bypass_users_count",
+          "expr": "sum(rate(rate_limit_bypass_total[5m]))",
           "refId": "A"
         }
       ],
-      "title": "Bypassed Users",
+      "title": "Bypass Rate",
       "type": "stat"
     },
     {
@@ -389,78 +389,12 @@
       "targets": [
         {
           "expr": "sum(rate(rate_limit_requests_total[5m])) by (authenticated)",
-          "legendFormat": "{{authenticated}}",
+          "legendFormat": "authenticated={{authenticated}}",
           "refId": "A"
         }
       ],
-      "title": "IP vs User Requests",
+      "title": "Authenticated vs Anonymous Requests",
       "type": "timeseries"
-    },
-    {
-      "datasource": "Victoria Metrics",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "custom": {
-            "align": "left",
-            "displayMode": "auto"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 12
-      },
-      "id": 7,
-      "options": {
-        "showHeader": true,
-        "sortBy": [
-          {
-            "desc": true,
-            "displayName": "Requests"
-          }
-        ]
-      },
-      "pluginVersion": "8.0.0",
-      "targets": [
-        {
-          "expr": "topk(10, sum(rate(rate_limit_requests_total[5m])) by (identifier))",
-          "format": "table",
-          "instant": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Top Users by Request Rate",
-      "transformations": [
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true
-            },
-            "indexByName": {},
-            "renameByName": {
-              "Value": "Requests/sec",
-              "identifier": "User/IP"
-            }
-          }
-        }
-      ],
-      "type": "table"
     },
     {
       "datasource": "Victoria Metrics",
@@ -483,10 +417,10 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
+        "x": 0,
         "y": 12
       },
-      "id": 8,
+      "id": 7,
       "options": {
         "displayLabels": ["percent"],
         "legend": {
@@ -559,20 +493,20 @@
               }
             ]
           },
-          "unit": "ms"
+          "unit": "reqps"
         }
       },
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
-        "y": 20
+        "x": 12,
+        "y": 12
       },
-      "id": 9,
+      "id": 8,
       "options": {
         "legend": {
-          "calcs": ["mean", "lastNotNull"],
-          "displayMode": "table",
+          "calcs": [],
+          "displayMode": "list",
           "placement": "bottom"
         },
         "tooltip": {
@@ -582,334 +516,17 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum(rate(rate_limit_check_duration_milliseconds_bucket[5m])) by (le, endpoint))",
-          "legendFormat": "{{endpoint}} - p50",
+          "expr": "sum(rate(rate_limit_allowed_total[5m])) by (group)",
+          "legendFormat": "allowed: {{group}}",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(rate_limit_check_duration_milliseconds_bucket[5m])) by (le, endpoint))",
-          "legendFormat": "{{endpoint}} - p95",
+          "expr": "sum(rate(rate_limit_rejected_total[5m])) by (group)",
+          "legendFormat": "rejected: {{group}}",
           "refId": "B"
-        },
-        {
-          "expr": "histogram_quantile(0.99, sum(rate(rate_limit_check_duration_milliseconds_bucket[5m])) by (le, endpoint))",
-          "legendFormat": "{{endpoint}} - p99",
-          "refId": "C"
         }
       ],
-      "title": "Rate Limit Check Latency",
-      "type": "timeseries"
-    },
-    {
-      "datasource": "Victoria Metrics",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "ms"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 20
-      },
-      "id": 10,
-      "options": {
-        "legend": {
-          "calcs": ["mean", "lastNotNull"],
-          "displayMode": "table",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "pluginVersion": "8.0.0",
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(rate_limit_redis_duration_milliseconds_bucket[5m])) by (le, operation))",
-          "legendFormat": "{{operation}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Redis Operation Latency",
-      "type": "timeseries"
-    },
-    {
-      "datasource": "Victoria Metrics",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 50
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "percent"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 28
-      },
-      "id": 11,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "pluginVersion": "8.0.0",
-      "targets": [
-        {
-          "expr": "avg(rate_limit_quota_usage_percent_sum / rate_limit_quota_usage_percent_count) by (endpoint)",
-          "legendFormat": "{{endpoint}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Quota Usage by Endpoint",
-      "type": "timeseries"
-    },
-    {
-      "datasource": "Victoria Metrics",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "short"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 28
-      },
-      "id": 12,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "pluginVersion": "8.0.0",
-      "targets": [
-        {
-          "expr": "avg(rate_limit_remaining_sum / rate_limit_remaining_count) by (endpoint)",
-          "legendFormat": "{{endpoint}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Average Remaining Requests by Endpoint",
-      "type": "timeseries"
-    },
-    {
-      "datasource": "Victoria Metrics",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "short"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 36
-      },
-      "id": 13,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "pluginVersion": "8.0.0",
-      "targets": [
-        {
-          "expr": "avg(rate_limit_token_bucket_tokens_sum / rate_limit_token_bucket_tokens_count) by (endpoint)",
-          "legendFormat": "{{endpoint}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Token Bucket - Available Tokens (Requires TOKEN_BUCKET algorithm in use)",
+      "title": "Allowed/Rejected by Endpoint Group",
       "type": "timeseries"
     },
     {
@@ -963,10 +580,10 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 36
+        "x": 0,
+        "y": 20
       },
-      "id": 14,
+      "id": 9,
       "options": {
         "legend": {
           "calcs": [],
@@ -987,77 +604,6 @@
       ],
       "title": "Bypassed Requests by Endpoint",
       "type": "timeseries"
-    },
-    {
-      "datasource": "Victoria Metrics",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "custom": {
-            "align": "left",
-            "displayMode": "auto"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 1
-              }
-            ]
-          }
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 44
-      },
-      "id": 15,
-      "options": {
-        "showHeader": true,
-        "sortBy": [
-          {
-            "desc": true,
-            "displayName": "Count"
-          }
-        ]
-      },
-      "pluginVersion": "8.0.0",
-      "targets": [
-        {
-          "expr": "sum(rate(rate_limit_redis_errors_total[5m])) by (error_type, operation) or vector(0)",
-          "format": "table",
-          "instant": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Redis Errors",
-      "transformations": [
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true
-            },
-            "indexByName": {},
-            "renameByName": {
-              "Value": "Count",
-              "error_type": "Error Type",
-              "operation": "Operation"
-            }
-          }
-        }
-      ],
-      "type": "table"
     },
     {
       "datasource": "Victoria Metrics",
@@ -1111,9 +657,9 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 44
+        "y": 20
       },
-      "id": 16,
+      "id": 10,
       "options": {
         "legend": {
           "calcs": [],
@@ -1127,196 +673,12 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "sum(rate(rate_limit_requests_total[5m])) by (group)",
-          "legendFormat": "{{group}}",
+          "expr": "sum(rate(rate_limit_rejected_total[5m])) by (endpoint)",
+          "legendFormat": "{{endpoint}}",
           "refId": "A"
         }
       ],
-      "title": "Requests by Endpoint Group",
-      "type": "timeseries"
-    },
-    {
-      "datasource": "Victoria Metrics",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "short"
-        }
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 8,
-        "x": 0,
-        "y": 52
-      },
-      "id": 17,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        },
-        "text": {},
-        "textMode": "auto"
-      },
-      "pluginVersion": "8.0.0",
-      "targets": [
-        {
-          "expr": "rate_limit_active_rules_sum / rate_limit_active_rules_count",
-          "refId": "A"
-        }
-      ],
-      "title": "Active Rate Limit Rules",
-      "type": "stat"
-    },
-    {
-      "datasource": "Victoria Metrics",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 1
-              },
-              {
-                "color": "red",
-                "value": 5
-              }
-            ]
-          },
-          "unit": "short"
-        }
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 8,
-        "x": 8,
-        "y": 52
-      },
-      "id": 18,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        },
-        "text": {},
-        "textMode": "auto"
-      },
-      "pluginVersion": "8.0.0",
-      "targets": [
-        {
-          "expr": "sum(rate(rate_limit_config_errors_total[5m])) or vector(0)",
-          "refId": "A"
-        }
-      ],
-      "title": "Config Load Errors",
-      "type": "stat"
-    },
-    {
-      "datasource": "Victoria Metrics",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "ms"
-        }
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 8,
-        "x": 16,
-        "y": 52
-      },
-      "id": 19,
-      "options": {
-        "legend": {
-          "calcs": ["mean"],
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "pluginVersion": "8.0.0",
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(rate_limit_algorithm_duration_milliseconds_bucket[5m])) by (le, algorithm))",
-          "legendFormat": "{{algorithm}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Algorithm Execution Time (p95)",
+      "title": "Rejected Requests by Endpoint",
       "type": "timeseries"
     }
   ],

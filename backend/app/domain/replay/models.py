@@ -8,6 +8,17 @@ from app.domain.enums.events import EventType
 from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
 
 
+class ReplayError(BaseModel):
+    """Error details for replay operations."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    timestamp: str
+    error: str
+    type: str | None = None  # Present for session-level errors
+    event_id: str | None = None  # Present for event-level errors
+
+
 class ReplayFilter(BaseModel):
     # Event selection filters
     event_ids: List[str] | None = None
@@ -135,7 +146,7 @@ class ReplaySessionState(BaseModel):
     completed_at: datetime | None = None
     last_event_at: datetime | None = None
 
-    errors: list[dict[str, Any]] = Field(default_factory=list)
+    errors: list[ReplayError] = Field(default_factory=list)
 
     # Tracking and admin fields
     correlation_id: str = Field(default_factory=lambda: str(uuid4()))

@@ -138,4 +138,4 @@ class RedisIdempotencyRepository:
         return counts
 
     async def health_check(self) -> None:
-        await self._r.ping()  # type: ignore[misc]  # redis-py dual sync/async return type
+        await self._r.ping()  # type: ignore[misc]  # redis-py returns Awaitable[bool] | bool

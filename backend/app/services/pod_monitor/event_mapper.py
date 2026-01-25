@@ -17,8 +17,8 @@ from app.domain.events.typed import (
     PodRunningEvent,
     PodScheduledEvent,
     PodTerminatedEvent,
+    ResourceUsageDomain,
 )
-from app.domain.execution import ResourceUsageDomain
 
 # Python 3.12 type aliases
 type PodPhase = str

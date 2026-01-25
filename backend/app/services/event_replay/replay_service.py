@@ -14,7 +14,7 @@ from app.db.repositories.replay_repository import ReplayRepository
 from app.domain.admin.replay_updates import ReplaySessionUpdate
 from app.domain.enums.replay import ReplayStatus, ReplayTarget
 from app.domain.events.typed import DomainEvent
-from app.domain.replay import ReplayConfig, ReplaySessionState
+from app.domain.replay import ReplayConfig, ReplayError, ReplaySessionState
 from app.events.core import UnifiedProducer
 from app.events.event_store import EventStore
 from app.settings import Settings
@@ -146,7 +146,7 @@ class EventReplayService:
         session.status = ReplayStatus.FAILED
         session.completed_at = datetime.now(timezone.utc)
         session.errors.append(
-            {"timestamp": datetime.now(timezone.utc).isoformat(), "error": str(error), "type": type(error).__name__}
+            ReplayError(timestamp=datetime.now(timezone.utc).isoformat(), error=str(error), type=type(error).__name__)
         )
         self._metrics.record_replay_error(type(error).__name__)
         await self._update_session_in_db(session)
@@ -171,9 +171,10 @@ class EventReplayService:
     async def _handle_replay_error(self, session: ReplaySessionState, event: DomainEvent, error: Exception) -> None:
         self.logger.error("Failed to replay event", extra={"event_id": event.event_id, "error": str(error)})
         session.failed_events += 1
-        session.errors.append(
-            {"timestamp": datetime.now(timezone.utc).isoformat(), "event_id": str(event.event_id), "error": str(error)}
+        err = ReplayError(
+            timestamp=datetime.now(timezone.utc).isoformat(), event_id=str(event.event_id), error=str(error)
         )
+        session.errors.append(err)
 
     async def _replay_to_kafka(self, session: ReplaySessionState, event: DomainEvent) -> bool:
         config = session.config

@@ -63,15 +63,7 @@ async def retry_dlq_messages(
     retry_request: ManualRetryRequest, dlq_manager: FromDishka[DLQManager]
 ) -> DLQBatchRetryResponse:
     result = await dlq_manager.retry_messages_batch(retry_request.event_ids)
-    return DLQBatchRetryResponse(
-        total=result.total,
-        successful=result.successful,
-        failed=result.failed,
-        details=[
-            {"event_id": d.event_id, "status": d.status, **({"error": d.error} if d.error else {})}
-            for d in result.details
-        ],
-    )
+    return DLQBatchRetryResponse.model_validate(result, from_attributes=True)
 
 
 @router.post("/retry-policy", response_model=MessageResponse)

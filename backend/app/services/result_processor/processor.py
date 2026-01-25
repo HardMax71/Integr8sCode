@@ -202,7 +202,7 @@ class ResultProcessor(LifecycleEnabled):
             stdout=event.stdout,
             stderr=event.stderr,
             resource_usage=event.resource_usage,
-            metadata=event.metadata.model_dump(),
+            metadata=event.metadata,
         )
 
         try:
@@ -231,7 +231,7 @@ class ResultProcessor(LifecycleEnabled):
             stdout=event.stdout,
             stderr=event.stderr,
             resource_usage=event.resource_usage,
-            metadata=event.metadata.model_dump(),
+            metadata=event.metadata,
             error_type=event.error_type,
         )
         try:
@@ -262,7 +262,7 @@ class ResultProcessor(LifecycleEnabled):
             stdout=event.stdout,
             stderr=event.stderr,
             resource_usage=event.resource_usage,
-            metadata=event.metadata.model_dump(),
+            metadata=event.metadata,
             error_type=ExecutionErrorType.TIMEOUT,
         )
         try:

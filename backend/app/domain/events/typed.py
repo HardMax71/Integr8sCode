@@ -10,7 +10,17 @@ from app.domain.enums.common import Environment
 from app.domain.enums.events import EventType
 from app.domain.enums.notification import NotificationChannel, NotificationSeverity
 from app.domain.enums.storage import ExecutionErrorType, StorageType
-from app.domain.execution import ResourceUsageDomain
+
+
+class ResourceUsageDomain(AvroBase):
+    """Resource usage metrics from script execution."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    execution_time_wall_seconds: float = 0.0
+    cpu_time_jiffies: int = 0
+    clk_tck_hertz: int = 0
+    peak_memory_kb: int = 0
 
 
 class EventMetadata(AvroBase):

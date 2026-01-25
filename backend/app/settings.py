@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -119,7 +121,7 @@ class Settings(BaseSettings):
     REDIS_PASSWORD: str | None = None
     REDIS_SSL: bool = False
     REDIS_MAX_CONNECTIONS: int = 200
-    REDIS_DECODE_RESPONSES: bool = True
+    REDIS_DECODE_RESPONSES: Literal[True] = True
 
     # Rate Limiting Configuration
     RATE_LIMIT_DEFAULT_REQUESTS: int = 100

@@ -58,6 +58,7 @@ from app.domain.events.typed import (
     RateLimitExceededEvent,
     ReleaseResourcesCommandEvent,
     ResourceLimitExceededEvent,
+    ResourceUsageDomain,
     # Result Events
     ResultFailedEvent,
     ResultStoredEvent,
@@ -110,6 +111,7 @@ __all__ = [
     "BaseEvent",
     "DomainEvent",
     "EventMetadata",
+    "ResourceUsageDomain",
     "domain_event_adapter",
     # Execution Events
     "ExecutionRequestedEvent",

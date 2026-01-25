@@ -115,7 +115,7 @@ export function createExecutionState() {
                 }
             }
         } finally {
-            reader.releaseLock();
+            await reader.cancel().catch(() => {}); // Close stream and release lock
         }
 
         // Stream ended without terminal event - fetch result

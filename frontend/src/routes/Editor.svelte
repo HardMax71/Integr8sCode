@@ -249,6 +249,7 @@
 
         if (file.size > MAX_FILE_SIZE) {
             toast.error('File too large. Maximum size is 1MB.');
+            (event.target as HTMLInputElement).value = '';
             return;
         }
 
@@ -260,6 +261,7 @@
 
         if (!detectedLang) {
             toast.error(`Unsupported file type. Allowed: ${Object.values(supportedRuntimes).map(i => `.${i.file_ext}`).join(', ')}`);
+            (event.target as HTMLInputElement).value = '';
             return;
         }
 

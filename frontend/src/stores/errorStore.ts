@@ -7,7 +7,7 @@ export interface AppError {
 }
 
 function createErrorStore() {
-  const { subscribe, set, update } = writable<AppError | null>(null);
+  const { subscribe, set } = writable<AppError | null>(null);
 
   return {
     subscribe,

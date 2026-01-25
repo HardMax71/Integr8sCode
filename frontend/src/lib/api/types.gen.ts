@@ -1062,7 +1062,7 @@ export type EventStatsResponse = {
  *
  * Event types used throughout the system.
  */
-export type EventType = 'execution_requested' | 'execution_accepted' | 'execution_queued' | 'execution_started' | 'execution_running' | 'execution_completed' | 'execution_failed' | 'execution_timeout' | 'execution_cancelled' | 'pod_created' | 'pod_scheduled' | 'pod_running' | 'pod_succeeded' | 'pod_failed' | 'pod_terminated' | 'pod_deleted' | 'user_registered' | 'user_login' | 'user_logged_in' | 'user_logged_out' | 'user_updated' | 'user_deleted' | 'user_settings_updated' | 'user_theme_changed' | 'user_notification_settings_updated' | 'user_editor_settings_updated' | 'notification_created' | 'notification_sent' | 'notification_delivered' | 'notification_failed' | 'notification_read' | 'notification_clicked' | 'notification_preferences_updated' | 'script_saved' | 'script_deleted' | 'script_shared' | 'security_violation' | 'rate_limit_exceeded' | 'auth_failed' | 'resource_limit_exceeded' | 'quota_exceeded' | 'system_error' | 'service_unhealthy' | 'service_recovered' | 'result_stored' | 'result_failed' | 'saga_started' | 'saga_completed' | 'saga_failed' | 'saga_cancelled' | 'saga_compensating' | 'saga_compensated' | 'create_pod_command' | 'delete_pod_command' | 'allocate_resources_command' | 'release_resources_command';
+export type EventType = 'execution_requested' | 'execution_accepted' | 'execution_queued' | 'execution_started' | 'execution_running' | 'execution_completed' | 'execution_failed' | 'execution_timeout' | 'execution_cancelled' | 'pod_created' | 'pod_scheduled' | 'pod_running' | 'pod_succeeded' | 'pod_failed' | 'pod_terminated' | 'pod_deleted' | 'user_registered' | 'user_login' | 'user_logged_in' | 'user_logged_out' | 'user_updated' | 'user_deleted' | 'user_settings_updated' | 'notification_created' | 'notification_sent' | 'notification_delivered' | 'notification_failed' | 'notification_read' | 'notification_clicked' | 'notification_preferences_updated' | 'script_saved' | 'script_deleted' | 'script_shared' | 'security_violation' | 'rate_limit_exceeded' | 'auth_failed' | 'resource_limit_exceeded' | 'quota_exceeded' | 'system_error' | 'service_unhealthy' | 'service_recovered' | 'result_stored' | 'result_failed' | 'saga_started' | 'saga_completed' | 'saga_failed' | 'saga_cancelled' | 'saga_compensating' | 'saga_compensated' | 'create_pod_command' | 'delete_pod_command' | 'allocate_resources_command' | 'release_resources_command';
 
 /**
  * ExampleScripts
@@ -1968,13 +1968,29 @@ export type ReplayErrorInfo = {
  */
 export type ReplayFilter = {
     /**
+     * Event Ids
+     */
+    event_ids?: Array<string> | null;
+    /**
      * Execution Id
      */
     execution_id?: string | null;
     /**
+     * Correlation Id
+     */
+    correlation_id?: string | null;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    /**
      * Event Types
      */
     event_types?: Array<EventType> | null;
+    /**
+     * Exclude Event Types
+     */
+    exclude_event_types?: Array<EventType> | null;
     /**
      * Start Time
      */
@@ -1997,10 +2013,6 @@ export type ReplayFilter = {
     custom_query?: {
         [key: string]: unknown;
     } | null;
-    /**
-     * Exclude Event Types
-     */
-    exclude_event_types?: Array<EventType> | null;
 };
 
 /**

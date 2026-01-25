@@ -1,7 +1,12 @@
 import { EventSourcePlus } from 'event-source-plus';
-import type { NotificationResponse } from '$lib/api';
+import type { NotificationResponse, SseNotificationEventData } from '$lib/api';
 
 type NotificationCallback = (data: NotificationResponse) => void;
+
+// Validates SSE notification has all required fields for UI
+function isCompleteNotification(data: SseNotificationEventData): boolean {
+    return !!(data.notification_id && data.subject && data.body && data.status && data.created_at);
+}
 
 class NotificationStream {
     #controller: ReturnType<EventSourcePlus['listen']> | null = null;
@@ -31,25 +36,15 @@ class NotificationStream {
             },
             onMessage: (event) => {
                 try {
-                    const data = JSON.parse(event.data);
+                    const data: SseNotificationEventData = JSON.parse(event.data);
 
-                    // Ignore heartbeat, connection, and subscription messages
-                    if (data.event_type === 'heartbeat' ||
-                        data.event_type === 'connected' ||
-                        data.event_type === 'subscribed') {
-                        return;
-                    }
+                    // Only process actual notification events with complete data
+                    if (data.event_type === 'notification' && isCompleteNotification(data)) {
+                        // SSE data matches NotificationResponse except 'channel' (unused by UI)
+                        this.#onNotification?.(data as unknown as NotificationResponse);
 
-                    // Only process actual notifications
-                    if (data.notification_id && data.subject && data.body) {
-                        this.#onNotification?.(data as NotificationResponse);
-
-                        // Browser notification if permitted
                         if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-                            new Notification(data.subject, {
-                                body: data.body,
-                                icon: '/favicon.png'
-                            });
+                            new Notification(data.subject!, { body: data.body!, icon: '/favicon.png' });
                         }
                     }
                 } catch (err) {

@@ -20,33 +20,29 @@ const STATUS_MESSAGES: Record<number, { message: string; type: 'error' | 'warnin
     429: { message: 'Too many requests. Please slow down.', type: 'warning' },
 };
 
-function extractDetail(err: unknown): string | ValidationError[] | null {
-    if (typeof err === 'object' && err !== null && 'detail' in err) {
-        return (err as { detail: string | ValidationError[] }).detail;
-    }
-    return null;
-}
-
 export function getErrorMessage(err: unknown, fallback = 'An error occurred'): string {
     if (!err) return fallback;
-
-    const detail = extractDetail(err);
-    if (typeof detail === 'string') return detail;
-    if (Array.isArray(detail) && detail.length > 0) {
-        return detail.map((e) => `${e.loc[e.loc.length - 1]}: ${e.msg}`).join(', ');
-    }
-
-    if (err instanceof Error) return err.message;
     if (typeof err === 'string') return err;
-    if (typeof err === 'object' && 'message' in err) {
-        return String((err as { message: unknown }).message);
+    if (err instanceof Error) return err.message;
+    if (typeof err !== 'object') return fallback;
+
+    const obj = err as Record<string, unknown>;
+
+    if (typeof obj.detail === 'string') return obj.detail;
+    if (typeof obj.message === 'string') return obj.message;
+
+    // FastAPI ValidationError[]
+    if (Array.isArray(obj.detail)) {
+        return (obj.detail as ValidationError[])
+            .map(e => `${e.loc[e.loc.length - 1] ?? 'field'}: ${e.msg}`)
+            .join(', ');
     }
 
     return fallback;
 }
 
 function formatValidationErrors(detail: ValidationError[]): string {
-    return detail.map((e) => `${e.loc[e.loc.length - 1]}: ${e.msg}`).join('\n');
+    return detail.map(e => `${e.loc[e.loc.length - 1] ?? 'field'}: ${e.msg}`).join('\n');
 }
 
 function clearAuthState(): void {
@@ -95,10 +91,10 @@ function handleErrorStatus(status: number | undefined, error: unknown, isAuthEnd
         return true;
     }
 
-    if (status === 422) {
-        const detail = extractDetail(error);
+    if (status === 422 && typeof error === 'object' && error !== null) {
+        const detail = (error as Record<string, unknown>).detail;
         if (Array.isArray(detail) && detail.length > 0) {
-            toast.error(`Validation error:\n${formatValidationErrors(detail)}`);
+            toast.error(`Validation error:\n${formatValidationErrors(detail as ValidationError[])}`);
             return true;
         }
     }

@@ -2,6 +2,8 @@
 
 All configuration is done through environment variables loaded from `.env` files. Copy `backend/.env` to get started and adjust as needed.
 
+The code blocks below show the actual `backend/.env` development configuration. The legend tables show what the app uses if a variable is **not set at all** — these are the `settings.py` defaults, which may differ from the dev config.
+
 ## Core
 
 ```bash
@@ -9,7 +11,7 @@ All configuration is done through environment variables loaded from `.env` files
 ```
 
 ??? info "Legend"
-    | Variable | Description | Default |
+    | Variable | Description | If unset |
     |----------|-------------|---------|
     | `PROJECT_NAME` | Application name for logs and metadata | `integr8scode` |
     | `DATABASE_NAME` | MongoDB database name | `integr8scode_db` |
@@ -27,7 +29,7 @@ All configuration is done through environment variables loaded from `.env` files
 ```
 
 ??? info "Legend"
-    | Variable | Description | Default |
+    | Variable | Description | If unset |
     |----------|-------------|---------|
     | `KUBERNETES_CONFIG_PATH` | Path to kubeconfig | `~/.kube/config` |
     | `KUBERNETES_CA_CERTIFICATE_PATH` | Custom CA cert for K8s API | — |
@@ -46,7 +48,7 @@ All configuration is done through environment variables loaded from `.env` files
 ```
 
 ??? info "Legend"
-    | Variable | Description | Default |
+    | Variable | Description | If unset |
     |----------|-------------|---------|
     | `KAFKA_BOOTSTRAP_SERVERS` | Broker addresses (comma-separated) | `kafka:29092` |
     | `SCHEMA_REGISTRY_URL` | Confluent Schema Registry URL | `http://schema-registry:8081` |
@@ -60,29 +62,26 @@ All configuration is done through environment variables loaded from `.env` files
     | `KAFKA_REQUEST_TIMEOUT_MS` | Broker request timeout | `40000` |
     | `KAFKA_MAX_POLL_RECORDS` | Max records per poll | `500` |
 
-## WebSocket & SSE
+## SSE (Server-Sent Events)
 
 ```bash
---8<-- "backend/.env:33:39"
+--8<-- "backend/.env:32:34"
 ```
 
 ??? info "Legend"
-    | Variable | Description | Default |
+    | Variable | Description | If unset |
     |----------|-------------|---------|
-    | `WEBSOCKET_PING_INTERVAL` | WebSocket ping interval (seconds) | `30` |
-    | `WEBSOCKET_PING_TIMEOUT` | WebSocket ping timeout | `10` |
-    | `LOG_LEVEL` | `DEBUG`, `INFO`, `WARNING`, `ERROR` | `DEBUG` |
-    | `WEBSOCKET_MAX_CONNECTIONS_PER_USER` | Max concurrent connections per user | `5` |
-    | `WEBSOCKET_STALE_CONNECTION_TIMEOUT` | Stale connection timeout | `300` |
+    | `SSE_CONSUMER_POOL_SIZE` | Number of Kafka consumers for SSE streaming | `10` |
+    | `SSE_HEARTBEAT_INTERVAL` | Keepalive interval in seconds | `30` |
 
 ## Tracing (OpenTelemetry)
 
 ```bash
---8<-- "backend/.env:41:47"
+--8<-- "backend/.env:39:45"
 ```
 
 ??? info "Legend"
-    | Variable | Description | Default |
+    | Variable | Description | If unset |
     |----------|-------------|---------|
     | `ENABLE_TRACING` | Enable distributed tracing | `true` |
     | `JAEGER_AGENT_HOST` | Jaeger agent hostname | `jaeger` |
@@ -94,11 +93,11 @@ All configuration is done through environment variables loaded from `.env` files
 ## Dead Letter Queue
 
 ```bash
---8<-- "backend/.env:49:56"
+--8<-- "backend/.env:47:53"
 ```
 
 ??? info "Legend"
-    | Variable | Description | Default |
+    | Variable | Description | If unset |
     |----------|-------------|---------|
     | `DLQ_RETRY_MAX_ATTEMPTS` | Retries before archiving | `5` |
     | `DLQ_RETRY_BASE_DELAY_SECONDS` | Base delay between retries | `60` |
@@ -110,11 +109,11 @@ All configuration is done through environment variables loaded from `.env` files
 ## Service & OTEL
 
 ```bash
---8<-- "backend/.env:58:69"
+--8<-- "backend/.env:55:66"
 ```
 
 ??? info "Legend"
-    | Variable | Description | Default |
+    | Variable | Description | If unset |
     |----------|-------------|---------|
     | `APP_URL` | Public URL for notifications | `https://integr8scode.cc` |
     | `SERVICE_NAME` | Service identifier | `integr8scode-backend` |
@@ -127,11 +126,11 @@ All configuration is done through environment variables loaded from `.env` files
 ## Server
 
 ```bash
---8<-- "backend/.env:70:87"
+--8<-- "backend/.env:68:84"
 ```
 
 ??? info "Legend"
-    | Variable | Description | Default |
+    | Variable | Description | If unset |
     |----------|-------------|---------|
     | `WEB_CONCURRENCY` | Gunicorn worker processes | `4` |
     | `WEB_THREADS` | Threads per worker | `1` |

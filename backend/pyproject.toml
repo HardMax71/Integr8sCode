@@ -21,7 +21,7 @@ dependencies = [
     "cachetools==6.2.4",
     "certifi==2024.8.30",
     "charset-normalizer==3.4.0",
-    "click==8.1.7",
+    "click==8.3.1",
     "ConfigArgParse==1.7.1",
     "aiokafka==0.13.0",
     "python-schema-registry-client==2.6.1",

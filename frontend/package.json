@@ -28,7 +28,7 @@
     "@codemirror/state": "^6.5.3",
     "@codemirror/theme-one-dark": "^6.1.2",
     "@codemirror/view": "^6.39.8",
-    "@lucide/svelte": "^0.562.0",
+    "@lucide/svelte": "^0.563.1",
     "@mateothegreat/svelte5-router": "^2.16.19",
     "@rollup/plugin-commonjs": "^29.0.0",
     "@rollup/plugin-json": "^6.1.0",

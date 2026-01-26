@@ -59,7 +59,7 @@
   "devDependencies": {
     "@babel/runtime": "^7.28.6",
     "@eslint/js": "^9.39.2",
-    "@hey-api/openapi-ts": "0.90.4",
+    "@hey-api/openapi-ts": "0.90.10",
     "@playwright/test": "^1.52.0",
     "@rollup/plugin-alias": "^6.0.0",
     "@rollup/plugin-typescript": "^12.1.2",

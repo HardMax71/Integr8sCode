@@ -83,7 +83,7 @@ dependencies = [
     "pathspec==0.12.1",
     "prometheus-fastapi-instrumentator==7.0.0",
     "prometheus_client==0.21.0",
-    "propcache==0.3.2",
+    "propcache==0.4.1",
     "protobuf==4.25.8",
     "psutil==6.1.0",
     "pyasn1==0.6.2",

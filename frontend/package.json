@@ -27,7 +27,7 @@
     "@codemirror/legacy-modes": "^6.5.2",
     "@codemirror/state": "^6.5.3",
     "@codemirror/theme-one-dark": "^6.1.2",
-    "@codemirror/view": "^6.39.8",
+    "@codemirror/view": "^6.39.11",
     "@lucide/svelte": "^0.562.0",
     "@mateothegreat/svelte5-router": "^2.16.19",
     "@rollup/plugin-commonjs": "^29.0.0",

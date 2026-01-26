@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Dict, Optional
 
 from pydantic.dataclasses import dataclass
 
@@ -15,6 +14,14 @@ class IdempotencyStatus(StringEnum):
     EXPIRED = "expired"
 
 
+class KeyStrategy(StringEnum):
+    """Strategy for generating idempotency keys."""
+
+    EVENT_BASED = "event_based"
+    CONTENT_HASH = "content_hash"
+    CUSTOM = "custom"
+
+
 @dataclass
 class IdempotencyRecord:
     key: str
@@ -23,14 +30,14 @@ class IdempotencyRecord:
     event_id: str
     created_at: datetime
     ttl_seconds: int
-    completed_at: Optional[datetime] = None
-    processing_duration_ms: Optional[int] = None
-    error: Optional[str] = None
-    result_json: Optional[str] = None
+    completed_at: datetime | None = None
+    processing_duration_ms: int | None = None
+    error: str | None = None
+    result_json: str | None = None
 
 
 @dataclass
 class IdempotencyStats:
     total_keys: int
-    status_counts: Dict[IdempotencyStatus, int]
+    status_counts: dict[IdempotencyStatus, int]
     prefix: str

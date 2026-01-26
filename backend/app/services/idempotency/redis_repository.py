@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any
 
 import redis.asyncio as redis
 from pymongo.errors import DuplicateKeyError
@@ -45,7 +45,7 @@ class RedisIdempotencyRepository:
         # If caller already namespaces, respect it; otherwise prefix.
         return key if key.startswith(f"{self._prefix}:") else f"{self._prefix}:{key}"
 
-    def _doc_to_record(self, doc: Dict[str, Any]) -> IdempotencyRecord:
+    def _doc_to_record(self, doc: dict[str, Any]) -> IdempotencyRecord:
         created_at = doc.get("created_at")
         if isinstance(created_at, str):
             created_at = _parse_iso_datetime(created_at)
@@ -65,7 +65,7 @@ class RedisIdempotencyRepository:
             result_json=doc.get("result"),
         )
 
-    def _record_to_doc(self, rec: IdempotencyRecord) -> Dict[str, Any]:
+    def _record_to_doc(self, rec: IdempotencyRecord) -> dict[str, Any]:
         return {
             "key": rec.key,
             "status": rec.status,
@@ -85,7 +85,7 @@ class RedisIdempotencyRepository:
         if not raw:
             return None
         try:
-            doc: Dict[str, Any] = json.loads(raw)
+            doc: dict[str, Any] = json.loads(raw)
         except Exception:
             return None
         return self._doc_to_record(doc)

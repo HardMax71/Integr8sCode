@@ -14,6 +14,7 @@ from app.db.repositories.saga_repository import SagaRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.saga import SagaState
 from app.domain.events.typed import DomainEvent, EventMetadata, SagaCancelledEvent
+from app.domain.idempotency import KeyStrategy
 from app.domain.saga.models import Saga, SagaConfig
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
 from app.events.event_store import EventStore
@@ -159,7 +160,7 @@ class SagaOrchestrator(LifecycleEnabled):
             idempotency_manager=self._idempotency_manager,
             dispatcher=dispatcher,
             logger=self.logger,
-            default_key_strategy="event_based",
+            default_key_strategy=KeyStrategy.EVENT_BASED,
             default_ttl_seconds=7200,
             enable_for_all_handlers=False,
         )

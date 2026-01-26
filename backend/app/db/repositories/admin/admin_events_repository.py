@@ -13,6 +13,7 @@ from app.db.docs import (
 )
 from app.domain.admin import ExecutionResultSummary, ReplaySessionData, ReplaySessionStatusDetail
 from app.domain.admin.replay_updates import ReplaySessionUpdate
+from app.domain.enums.events import EventType
 from app.domain.enums.replay import ReplayStatus
 from app.domain.events import (
     DomainEvent,
@@ -22,6 +23,7 @@ from app.domain.events import (
     EventFilter,
     EventStatistics,
     EventSummary,
+    EventTypeCount,
     HourlyEventCount,
     UserEventCount,
     domain_event_adapter,
@@ -141,7 +143,7 @@ class AdminEventsRepository:
             .limit(10)
         )
         top_types = await EventDocument.aggregate(type_pipeline.export()).to_list()
-        events_by_type = {t["_id"]: t["count"] for t in top_types}
+        events_by_type = [EventTypeCount(event_type=EventType(t["_id"]), count=t["count"]) for t in top_types]
 
         # Hourly events pipeline - project renames _id->hour
         hourly_pipeline = (

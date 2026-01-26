@@ -3,13 +3,13 @@ import json
 import logging
 import re
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any
 
 from opentelemetry import trace
 
 correlation_id_context: contextvars.ContextVar[str | None] = contextvars.ContextVar("correlation_id", default=None)
 
-request_metadata_context: contextvars.ContextVar[Dict[str, Any] | None] = contextvars.ContextVar(
+request_metadata_context: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar(
     "request_metadata", default=None
 )
 

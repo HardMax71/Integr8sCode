@@ -1,5 +1,3 @@
-from typing import Dict, Set
-
 from app.core.utils import StringEnum
 from app.domain.enums.events import EventType
 
@@ -70,7 +68,7 @@ class GroupId(StringEnum):
 
 
 # Consumer group topic subscriptions
-CONSUMER_GROUP_SUBSCRIPTIONS: Dict[GroupId, Set[KafkaTopic]] = {
+CONSUMER_GROUP_SUBSCRIPTIONS: dict[GroupId, set[KafkaTopic]] = {
     GroupId.EXECUTION_COORDINATOR: {
         KafkaTopic.EXECUTION_EVENTS,
         KafkaTopic.EXECUTION_RESULTS,
@@ -107,7 +105,7 @@ CONSUMER_GROUP_SUBSCRIPTIONS: Dict[GroupId, Set[KafkaTopic]] = {
 }
 
 # Consumer group event filters
-CONSUMER_GROUP_EVENTS: Dict[GroupId, Set[EventType]] = {
+CONSUMER_GROUP_EVENTS: dict[GroupId, set[EventType]] = {
     GroupId.EXECUTION_COORDINATOR: {
         EventType.EXECUTION_REQUESTED,
         EventType.EXECUTION_COMPLETED,

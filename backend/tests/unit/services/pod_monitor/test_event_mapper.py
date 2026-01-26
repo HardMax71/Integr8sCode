@@ -83,8 +83,9 @@ def test_pending_running_and_succeeded_mapping() -> None:
     assert any(e.event_type == EventType.POD_RUNNING for e in evts)
     pr = [e for e in evts if e.event_type == EventType.POD_RUNNING][0]
     assert isinstance(pr, PodRunningEvent)
-    statuses = json.loads(pr.container_statuses)
-    assert any("waiting" in s["state"] for s in statuses) and any("terminated" in s["state"] for s in statuses)
+    assert any("waiting" in s.state for s in pr.container_statuses) and any(
+        "terminated" in s.state for s in pr.container_statuses
+    )
 
     # Succeeded -> completed; logs parsed JSON used
     term = ContainerStatus(State(terminated=Terminated(0)))

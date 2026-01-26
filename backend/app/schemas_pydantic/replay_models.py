@@ -1,24 +1,26 @@
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.enums.events import EventType
+from app.domain.enums.kafka import KafkaTopic
 from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
+from app.domain.replay import ReplayError
 
 
 class ReplayFilterSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     execution_id: str | None = None
-    event_types: List[EventType] | None = None
+    event_types: list[EventType] | None = None
     start_time: datetime | None = None
     end_time: datetime | None = None
     user_id: str | None = None
     service_name: str | None = None
-    custom_query: Dict[str, Any] | None = None
-    exclude_event_types: List[EventType] | None = None
+    custom_query: dict[str, Any] | None = None
+    exclude_event_types: list[EventType] | None = None
 
 
 class ReplayConfigSchema(BaseModel):
@@ -33,7 +35,7 @@ class ReplayConfigSchema(BaseModel):
     batch_size: int = Field(default=100, ge=1, le=1000)
     max_events: int | None = Field(default=None, ge=1)
 
-    target_topics: Dict[EventType, str] | None = None
+    target_topics: dict[EventType, KafkaTopic] | None = None
     target_file_path: str | None = None
 
     skip_errors: bool = True
@@ -60,4 +62,4 @@ class ReplaySession(BaseModel):
     completed_at: datetime | None = None
     last_event_at: datetime | None = None
 
-    errors: List[Dict[str, Any]] = Field(default_factory=list)
+    errors: list[ReplayError] = Field(default_factory=list)

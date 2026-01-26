@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -17,7 +17,7 @@ class NotificationSettings(BaseModel):
     execution_failed: bool = True
     system_updates: bool = True
     security_alerts: bool = True
-    channels: List[NotificationChannel] = [NotificationChannel.IN_APP]
+    channels: list[NotificationChannel] = [NotificationChannel.IN_APP]
 
 
 class EditorSettings(BaseModel):
@@ -59,7 +59,7 @@ class UserSettings(BaseModel):
     time_format: str = "24h"
     notifications: NotificationSettings = Field(default_factory=NotificationSettings)
     editor: EditorSettings = Field(default_factory=EditorSettings)
-    custom_settings: Dict[str, Any] = Field(default_factory=dict)
+    custom_settings: dict[str, Any] = Field(default_factory=dict)
     version: int = 1
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -76,7 +76,7 @@ class UserSettingsUpdate(BaseModel):
     time_format: str | None = None
     notifications: NotificationSettings | None = None
     editor: EditorSettings | None = None
-    custom_settings: Dict[str, Any] | None = None
+    custom_settings: dict[str, Any] | None = None
 
 
 class SettingChange(BaseModel):
@@ -114,7 +114,7 @@ class SettingsHistoryResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    history: List[SettingsHistoryEntry]
+    history: list[SettingsHistoryEntry]
     limit: int
 
 
@@ -130,5 +130,5 @@ class SettingsEvent(BaseModel):
 
     event_type: EventType
     timestamp: datetime
-    payload: Dict[str, Any]
+    payload: dict[str, Any]
     correlation_id: str | None = None

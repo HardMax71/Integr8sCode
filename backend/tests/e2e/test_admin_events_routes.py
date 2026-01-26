@@ -202,7 +202,7 @@ class TestEventStats:
         stats = EventStatsResponse.model_validate(response.json())
 
         assert stats.total_events >= 0
-        assert isinstance(stats.events_by_type, dict)
+        assert isinstance(stats.events_by_type, list)
         assert isinstance(stats.events_by_hour, list)
         assert isinstance(stats.top_users, list)
         assert stats.error_rate >= 0.0

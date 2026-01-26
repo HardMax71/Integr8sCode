@@ -1,6 +1,5 @@
 import re
 from datetime import datetime
-from typing import List
 
 from pydantic import BaseModel, ConfigDict
 
@@ -89,7 +88,7 @@ class UserListResult(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    users: List[User]
+    users: list[User]
     total: int
     offset: int
     limit: int

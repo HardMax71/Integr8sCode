@@ -2,7 +2,7 @@ import asyncio
 import logging
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any
 
 from app.core.metrics import ConnectionMetrics
 from app.db.repositories.sse_repository import SSERepository
@@ -50,7 +50,7 @@ class SSEService:
         self.metrics = connection_metrics
         self.heartbeat_interval = getattr(settings, "SSE_HEARTBEAT_INTERVAL", 30)
 
-    async def create_execution_stream(self, execution_id: str, user_id: str) -> AsyncGenerator[Dict[str, Any], None]:
+    async def create_execution_stream(self, execution_id: str, user_id: str) -> AsyncGenerator[dict[str, Any], None]:
         connection_id = f"sse_{execution_id}_{datetime.now(timezone.utc).timestamp()}"
 
         shutdown_event = await self.shutdown_manager.register_connection(execution_id, connection_id)
@@ -125,7 +125,7 @@ class SSEService:
         subscription: Any,
         shutdown_event: asyncio.Event,
         include_heartbeat: bool = True,
-    ) -> AsyncGenerator[Dict[str, Any], None]:
+    ) -> AsyncGenerator[dict[str, Any], None]:
         last_heartbeat = datetime.now(timezone.utc)
         while True:
             if shutdown_event.is_set():
@@ -195,7 +195,7 @@ class SSEService:
             }
         )
 
-    async def create_notification_stream(self, user_id: str) -> AsyncGenerator[Dict[str, Any], None]:
+    async def create_notification_stream(self, user_id: str) -> AsyncGenerator[dict[str, Any], None]:
         subscription = None
 
         try:
@@ -271,10 +271,10 @@ class SSEService:
             timestamp=datetime.now(timezone.utc),
         )
 
-    def _format_sse_event(self, event: SSEExecutionEventData) -> Dict[str, Any]:
+    def _format_sse_event(self, event: SSEExecutionEventData) -> dict[str, Any]:
         """Format typed SSE event for sse-starlette."""
         return {"data": event.model_dump_json(exclude_none=True)}
 
-    def _format_notification_event(self, event: SSENotificationEventData) -> Dict[str, Any]:
+    def _format_notification_event(self, event: SSENotificationEventData) -> dict[str, Any]:
         """Format typed notification SSE event for sse-starlette."""
         return {"data": event.model_dump_json(exclude_none=True)}

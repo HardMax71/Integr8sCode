@@ -2,8 +2,9 @@ import asyncio
 import inspect
 import json
 import logging
+from collections.abc import AsyncIterator
 from datetime import datetime, timedelta, timezone
-from typing import Any, AsyncIterator, Callable, Dict, List
+from typing import Any, Callable
 from uuid import uuid4
 
 from opentelemetry.trace import SpanKind
@@ -29,14 +30,14 @@ class EventReplayService:
         settings: Settings,
         logger: logging.Logger,
     ) -> None:
-        self._sessions: Dict[str, ReplaySessionState] = {}
-        self._active_tasks: Dict[str, asyncio.Task[None]] = {}
+        self._sessions: dict[str, ReplaySessionState] = {}
+        self._active_tasks: dict[str, asyncio.Task[None]] = {}
         self._repository = repository
         self._producer = producer
         self._event_store = event_store
         self.logger = logger
-        self._callbacks: Dict[ReplayTarget, Callable[..., Any]] = {}
-        self._file_locks: Dict[str, asyncio.Lock] = {}
+        self._callbacks: dict[ReplayTarget, Callable[..., Any]] = {}
+        self._file_locks: dict[str, asyncio.Lock] = {}
         self._metrics = ReplayMetrics(settings)
         self.logger.info("Event replay service initialized")
 
@@ -146,7 +147,7 @@ class EventReplayService:
         session.status = ReplayStatus.FAILED
         session.completed_at = datetime.now(timezone.utc)
         session.errors.append(
-            ReplayError(timestamp=datetime.now(timezone.utc).isoformat(), error=str(error), type=type(error).__name__)
+            ReplayError(timestamp=datetime.now(timezone.utc), error=str(error), error_type=type(error).__name__)
         )
         self._metrics.record_replay_error(type(error).__name__)
         await self._update_session_in_db(session)
@@ -172,7 +173,7 @@ class EventReplayService:
         self.logger.error("Failed to replay event", extra={"event_id": event.event_id, "error": str(error)})
         session.failed_events += 1
         err = ReplayError(
-            timestamp=datetime.now(timezone.utc).isoformat(), event_id=str(event.event_id), error=str(error)
+            timestamp=datetime.now(timezone.utc), event_id=str(event.event_id), error=str(error)
         )
         session.errors.append(err)
 
@@ -199,7 +200,7 @@ class EventReplayService:
         await self._write_event_to_file(event, file_path)
         return True
 
-    async def _fetch_event_batches(self, session: ReplaySessionState) -> AsyncIterator[List[DomainEvent]]:
+    async def _fetch_event_batches(self, session: ReplaySessionState) -> AsyncIterator[list[DomainEvent]]:
         self.logger.info("Fetching events for session", extra={"session_id": session.session_id})
         events_processed = 0
         max_events = session.config.max_events
@@ -207,7 +208,7 @@ class EventReplayService:
         async for batch_docs in self._repository.fetch_events(
             replay_filter=session.config.filter, batch_size=session.config.batch_size
         ):
-            batch: List[DomainEvent] = []
+            batch: list[DomainEvent] = []
             for doc in batch_docs:
                 if max_events and events_processed >= max_events:
                     break
@@ -223,7 +224,7 @@ class EventReplayService:
             if max_events and events_processed >= max_events:
                 break
 
-    async def _process_batch(self, session: ReplaySessionState, batch: List[DomainEvent]) -> None:
+    async def _process_batch(self, session: ReplaySessionState, batch: list[DomainEvent]) -> None:
         with trace_span(
             name="event_replay.process_batch",
             kind=SpanKind.INTERNAL,
@@ -325,7 +326,7 @@ class EventReplayService:
     def get_session(self, session_id: str) -> ReplaySessionState | None:
         return self._sessions.get(session_id)
 
-    def list_sessions(self, status: ReplayStatus | None = None, limit: int = 100) -> List[ReplaySessionState]:
+    def list_sessions(self, status: ReplayStatus | None = None, limit: int = 100) -> list[ReplaySessionState]:
         sessions = list(self._sessions.values())
 
         if status:

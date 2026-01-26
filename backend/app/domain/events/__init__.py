@@ -11,8 +11,10 @@ from app.domain.events.event_models import (
     EventSortOrder,
     EventStatistics,
     EventSummary,
+    EventTypeCount,
     ExecutionEventsResult,
     HourlyEventCount,
+    ServiceEventCount,
     UserEventCount,
 )
 from app.domain.events.typed import (
@@ -23,6 +25,7 @@ from app.domain.events.typed import (
     # Security Events
     AuthFailedEvent,
     BaseEvent,
+    ContainerStatusInfo,
     CreatePodCommandEvent,
     DeletePodCommandEvent,
     DomainEvent,
@@ -37,6 +40,7 @@ from app.domain.events.typed import (
     ExecutionRunningEvent,
     ExecutionStartedEvent,
     ExecutionTimeoutEvent,
+    NotificationAllReadEvent,
     # Notification Events
     NotificationClickedEvent,
     NotificationCreatedEvent,
@@ -103,12 +107,15 @@ __all__ = [
     "EventSortOrder",
     "EventStatistics",
     "EventSummary",
+    "EventTypeCount",
     "ExecutionEventsResult",
     "HourlyEventCount",
+    "ServiceEventCount",
     "UserEventCount",
     # Base types
     "ArchivedEvent",
     "BaseEvent",
+    "ContainerStatusInfo",
     "DomainEvent",
     "EventMetadata",
     "ResourceUsageDomain",
@@ -148,6 +155,7 @@ __all__ = [
     "NotificationDeliveredEvent",
     "NotificationFailedEvent",
     "NotificationReadEvent",
+    "NotificationAllReadEvent",
     "NotificationClickedEvent",
     "NotificationPreferencesUpdatedEvent",
     # Saga Events

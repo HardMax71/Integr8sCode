@@ -2,7 +2,7 @@ import logging
 import threading
 import time
 from collections import deque
-from typing import Sequence, Tuple
+from collections.abc import Sequence
 
 from opentelemetry.context import Context
 from opentelemetry.sdk.trace.sampling import Decision, Sampler, SamplingResult
@@ -170,7 +170,7 @@ class AdaptiveSampler(Sampler):
 
         return False
 
-    def _calculate_metrics(self) -> Tuple[float, int]:
+    def _calculate_metrics(self) -> tuple[float, int]:
         """Calculate current error rate and request rate"""
         now = time.time()
         minute_ago = now - 60

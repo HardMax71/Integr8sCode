@@ -5,7 +5,6 @@ import math
 import re
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 
 import redis.asyncio as redis
 from pydantic import TypeAdapter
@@ -73,7 +72,7 @@ class RateLimitService:
             user_limit.rules.sort(key=lambda r: r.priority, reverse=True)
 
     async def check_rate_limit(
-        self, user_id: str, endpoint: str, config: Optional[RateLimitConfig] = None
+        self, user_id: str, endpoint: str, config: RateLimitConfig | None = None
     ) -> RateLimitStatus:
         normalized_endpoint = self._normalize_endpoint(endpoint)
         authenticated = not user_id.startswith("ip:")
@@ -209,8 +208,8 @@ class RateLimitService:
         )
 
     def _find_matching_rule(
-        self, endpoint: str, user_config: Optional[UserRateLimit], global_config: RateLimitConfig
-    ) -> Optional[RateLimitRule]:
+        self, endpoint: str, user_config: UserRateLimit | None, global_config: RateLimitConfig
+    ) -> RateLimitRule | None:
         rules = []
 
         # Add user-specific rules (already pre-sorted)
@@ -253,14 +252,14 @@ class RateLimitService:
         config.user_overrides[str(user_id)] = user_limit
         await self.update_config(config)
 
-    async def get_user_rate_limit(self, user_id: str) -> Optional[UserRateLimit]:
+    async def get_user_rate_limit(self, user_id: str) -> UserRateLimit | None:
         config = await self._get_config()
         return config.user_overrides.get(str(user_id))
 
     async def get_user_rate_limit_summary(
         self,
         user_id: str,
-        config: Optional[RateLimitConfig] = None,
+        config: RateLimitConfig | None = None,
     ) -> UserRateLimitSummary:
         """Return a summary for the user's rate limit configuration with sensible defaults.
 

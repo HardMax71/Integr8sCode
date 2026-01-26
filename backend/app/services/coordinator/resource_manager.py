@@ -1,7 +1,6 @@
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Dict, List
 
 from app.core.metrics import CoordinatorMetrics
 
@@ -63,9 +62,9 @@ class ResourceStats:
     total: ResourceGroup
     available: ResourceGroup
     allocated: ResourceGroup
-    utilization: Dict[str, float]
+    utilization: dict[str, float]
     allocation_count: int
-    limits: Dict[str, int | float]
+    limits: dict[str, int | float]
 
 
 @dataclass
@@ -116,7 +115,7 @@ class ResourceManager:
         )
 
         # Track allocations
-        self._allocations: Dict[str, ResourceAllocation] = {}
+        self._allocations: dict[str, ResourceAllocation] = {}
         self._allocation_lock = asyncio.Lock()
 
         # Default allocations by language
@@ -287,7 +286,7 @@ class ResourceManager:
                 },
             )
 
-    async def get_allocations_by_resource_usage(self) -> List[ResourceAllocationInfo]:
+    async def get_allocations_by_resource_usage(self) -> list[ResourceAllocationInfo]:
         """Get allocations sorted by resource usage"""
         async with self._allocation_lock:
             allocations = []

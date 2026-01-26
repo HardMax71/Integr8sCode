@@ -138,8 +138,8 @@ async def test_ip_based_rate_limiting(scope: AsyncContainer) -> None:
     result = await svc.check_rate_limit("ip:192.168.1.1", "/api/test")
     assert result.allowed is True
 
-    # Verify metrics object has requests_total counter for checks
-    assert hasattr(svc.metrics, 'requests_total')
+    # Verify metrics object has _requests counter for checks
+    assert hasattr(svc.metrics, '_requests')
 
 
 @pytest.mark.asyncio

@@ -2,6 +2,7 @@ import logging
 
 import pytest
 from app.domain.events.typed import DomainEvent
+from app.domain.idempotency import KeyStrategy
 from app.services.idempotency.idempotency_manager import IdempotencyManager
 from app.services.idempotency.middleware import IdempotentEventHandler
 from dishka import AsyncContainer
@@ -25,7 +26,7 @@ async def test_idempotent_handler_blocks_duplicates(scope: AsyncContainer) -> No
     handler = IdempotentEventHandler(
         handler=_handler,
         idempotency_manager=manager,
-        key_strategy="event_based",
+        key_strategy=KeyStrategy.EVENT_BASED,
         logger=_test_logger,
     )
 
@@ -49,7 +50,7 @@ async def test_idempotent_handler_content_hash_blocks_same_content(scope: AsyncC
     handler = IdempotentEventHandler(
         handler=_handler,
         idempotency_manager=manager,
-        key_strategy="content_hash",
+        key_strategy=KeyStrategy.CONTENT_HASH,
         logger=_test_logger,
     )
 

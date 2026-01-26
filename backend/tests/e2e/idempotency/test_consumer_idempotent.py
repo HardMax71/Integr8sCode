@@ -10,6 +10,7 @@ from app.domain.events.typed import DomainEvent
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
 from app.events.core.dispatcher import EventDispatcher as Disp
 from app.events.schema.schema_registry import SchemaRegistryManager
+from app.domain.idempotency import KeyStrategy
 from app.services.idempotency.idempotency_manager import IdempotencyManager
 from app.services.idempotency.middleware import IdempotentConsumerWrapper
 from app.settings import Settings
@@ -75,7 +76,7 @@ async def test_consumer_idempotent_wrapper_blocks_duplicates(scope: AsyncContain
         consumer=base,
         idempotency_manager=idm,
         dispatcher=disp,
-        default_key_strategy="event_based",
+        default_key_strategy=KeyStrategy.EVENT_BASED,
         enable_for_all_handlers=True,
         logger=_test_logger,
     )

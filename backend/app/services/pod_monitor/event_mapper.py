@@ -1,5 +1,4 @@
 import ast
-import json
 import logging
 from dataclasses import dataclass
 from typing import Protocol
@@ -9,6 +8,7 @@ from kubernetes import client as k8s_client
 from app.domain.enums.kafka import GroupId
 from app.domain.enums.storage import ExecutionErrorType
 from app.domain.events.typed import (
+    ContainerStatusInfo,
     DomainEvent,
     EventMetadata,
     ExecutionCompletedEvent,
@@ -228,19 +228,19 @@ class PodEventMapper:
             return None
 
         container_statuses = [
-            {
-                "name": status.name,
-                "ready": str(status.ready),
-                "restart_count": str(status.restart_count),
-                "state": self._format_container_state(status.state),
-            }
+            ContainerStatusInfo(
+                name=status.name,
+                ready=status.ready,
+                restart_count=status.restart_count,
+                state=self._format_container_state(status.state),
+            )
             for status in (ctx.pod.status.container_statuses or [])
         ]
 
         evt = PodRunningEvent(
             execution_id=ctx.execution_id,
             pod_name=ctx.pod.metadata.name,
-            container_statuses=json.dumps(container_statuses),  # Serialize as JSON string
+            container_statuses=container_statuses,
             metadata=ctx.metadata,
         )
         self.logger.debug(f"POD-EVENT: mapped running -> {evt.event_type} exec={ctx.execution_id}")

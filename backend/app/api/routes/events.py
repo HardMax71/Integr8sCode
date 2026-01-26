@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Annotated, Any, Dict, List
+from typing import Annotated, Any
 
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
@@ -74,7 +74,7 @@ async def get_execution_events(
 async def get_user_events(
     current_user: Annotated[UserResponse, Depends(current_user)],
     event_service: FromDishka[EventService],
-    event_types: List[EventType] | None = Query(None),
+    event_types: list[EventType] | None = Query(None),
     start_time: datetime | None = Query(None),
     end_time: datetime | None = Query(None),
     limit: int = Query(100, ge=1, le=1000),
@@ -259,12 +259,12 @@ async def publish_custom_event(
     return PublishEventResponse(event_id=event_id, status="published", timestamp=datetime.now(timezone.utc))
 
 
-@router.post("/aggregate", response_model=List[Dict[str, Any]])
+@router.post("/aggregate", response_model=list[dict[str, Any]])
 async def aggregate_events(
     current_user: Annotated[UserResponse, Depends(current_user)],
     aggregation: EventAggregationRequest,
     event_service: FromDishka[EventService],
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     result = await event_service.aggregate_events(
         user_id=current_user.user_id,
         user_role=current_user.role,
@@ -275,10 +275,10 @@ async def aggregate_events(
     return result.results
 
 
-@router.get("/types/list", response_model=List[str])
+@router.get("/types/list", response_model=list[str])
 async def list_event_types(
     current_user: Annotated[UserResponse, Depends(current_user)], event_service: FromDishka[EventService]
-) -> List[str]:
+) -> list[str]:
     event_types = await event_service.list_event_types(user_id=current_user.user_id, user_role=current_user.role)
     return event_types
 

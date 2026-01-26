@@ -484,9 +484,10 @@ class UserServicesProvider(Provider):
             repository: UserSettingsRepository,
             kafka_event_service: KafkaEventService,
             event_bus_manager: EventBusManager,
+            settings: Settings,
             logger: logging.Logger,
     ) -> UserSettingsService:
-        service = UserSettingsService(repository, kafka_event_service, logger)
+        service = UserSettingsService(repository, kafka_event_service, settings, logger)
         await service.initialize(event_bus_manager)
         return service
 

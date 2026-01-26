@@ -260,7 +260,7 @@ class TestAdminEvents:
 
         # Verify structure of what's actually returned
         if "events_by_type" in data:
-            assert isinstance(data["events_by_type"], dict)
+            assert isinstance(data["events_by_type"], list)
         if "events_by_hour" in data:
             assert isinstance(data["events_by_hour"], list)
         if "top_users" in data:

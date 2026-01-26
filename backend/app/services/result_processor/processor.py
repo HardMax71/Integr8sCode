@@ -22,6 +22,7 @@ from app.domain.events.typed import (
     ResultStoredEvent,
 )
 from app.domain.execution import ExecutionNotFoundError, ExecutionResultDomain
+from app.domain.idempotency import KeyStrategy
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.idempotency import IdempotencyManager
@@ -147,7 +148,7 @@ class ResultProcessor(LifecycleEnabled):
             idempotency_manager=self._idempotency_manager,
             dispatcher=self._dispatcher,
             logger=self.logger,
-            default_key_strategy="content_hash",
+            default_key_strategy=KeyStrategy.CONTENT_HASH,
             default_ttl_seconds=7200,
             enable_for_all_handlers=True,
         )

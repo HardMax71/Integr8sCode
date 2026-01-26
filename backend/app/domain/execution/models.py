@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Optional
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -17,16 +16,16 @@ class DomainExecution(BaseModel):
     execution_id: str = Field(default_factory=lambda: str(uuid4()))
     script: str = ""
     status: ExecutionStatus = ExecutionStatus.QUEUED
-    stdout: Optional[str] = None
-    stderr: Optional[str] = None
+    stdout: str | None = None
+    stderr: str | None = None
     lang: str = "python"
     lang_version: str = "3.11"
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    resource_usage: Optional[ResourceUsageDomain] = None
-    user_id: Optional[str] = None
-    exit_code: Optional[int] = None
-    error_type: Optional[ExecutionErrorType] = None
+    resource_usage: ResourceUsageDomain | None = None
+    user_id: str | None = None
+    exit_code: int | None = None
+    error_type: ExecutionErrorType | None = None
 
 
 class ExecutionResultDomain(BaseModel):
@@ -82,9 +81,9 @@ class DomainExecutionUpdate(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    status: Optional[ExecutionStatus] = None
-    stdout: Optional[str] = None
-    stderr: Optional[str] = None
-    exit_code: Optional[int] = None
-    error_type: Optional[ExecutionErrorType] = None
-    resource_usage: Optional[ResourceUsageDomain] = None
+    status: ExecutionStatus | None = None
+    stdout: str | None = None
+    stderr: str | None = None
+    exit_code: int | None = None
+    error_type: ExecutionErrorType | None = None
+    resource_usage: ResourceUsageDomain | None = None

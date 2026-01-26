@@ -10,7 +10,7 @@ import pytest
 import redis.asyncio as redis
 from app.core.metrics import DatabaseMetrics
 from app.domain.events.typed import DomainEvent
-from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus
+from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus, KeyStrategy
 from app.services.idempotency.idempotency_manager import IdempotencyConfig, IdempotencyManager
 from app.services.idempotency.middleware import IdempotentEventHandler, idempotent_handler
 from app.services.idempotency.redis_repository import RedisIdempotencyRepository
@@ -52,7 +52,7 @@ class TestIdempotencyManager:
         """Test the complete flow for a new event"""
         real_event = make_execution_requested_event(execution_id="exec-123")
         # Check and reserve
-        result = await manager.check_and_reserve(real_event, key_strategy="event_based")
+        result = await manager.check_and_reserve(real_event, key_strategy=KeyStrategy.EVENT_BASED)
 
         assert result.is_duplicate is False
         assert result.status == IdempotencyStatus.PROCESSING
@@ -65,7 +65,7 @@ class TestIdempotencyManager:
         assert record.status == IdempotencyStatus.PROCESSING
 
         # Mark as completed
-        success = await manager.mark_completed(real_event, key_strategy="event_based")
+        success = await manager.mark_completed(real_event, key_strategy=KeyStrategy.EVENT_BASED)
         assert success is True
 
         # Verify status updated
@@ -80,14 +80,14 @@ class TestIdempotencyManager:
         """Test that duplicates are properly detected"""
         real_event = make_execution_requested_event(execution_id="exec-dupe-1")
         # First request
-        result1 = await manager.check_and_reserve(real_event, key_strategy="event_based")
+        result1 = await manager.check_and_reserve(real_event, key_strategy=KeyStrategy.EVENT_BASED)
         assert result1.is_duplicate is False
 
         # Mark as completed
-        await manager.mark_completed(real_event, key_strategy="event_based")
+        await manager.mark_completed(real_event, key_strategy=KeyStrategy.EVENT_BASED)
 
         # Second request with same event
-        result2 = await manager.check_and_reserve(real_event, key_strategy="event_based")
+        result2 = await manager.check_and_reserve(real_event, key_strategy=KeyStrategy.EVENT_BASED)
         assert result2.is_duplicate is True
         assert result2.status == IdempotencyStatus.COMPLETED
 
@@ -97,7 +97,7 @@ class TestIdempotencyManager:
         real_event = make_execution_requested_event(execution_id="exec-race-1")
         # Simulate concurrent requests
         tasks = [
-            manager.check_and_reserve(real_event, key_strategy="event_based")
+            manager.check_and_reserve(real_event, key_strategy=KeyStrategy.EVENT_BASED)
             for _ in range(5)
         ]
 
@@ -116,7 +116,7 @@ class TestIdempotencyManager:
         """Test that stuck processing allows retry after timeout"""
         real_event = make_execution_requested_event(execution_id="exec-timeout-1")
         # First request
-        result1 = await manager.check_and_reserve(real_event, key_strategy="event_based")
+        result1 = await manager.check_and_reserve(real_event, key_strategy=KeyStrategy.EVENT_BASED)
         assert result1.is_duplicate is False
 
         # Manually update the created_at to simulate old processing
@@ -126,7 +126,7 @@ class TestIdempotencyManager:
         await manager._repo.update_record(record)
 
         # Second request should be allowed due to timeout
-        result2 = await manager.check_and_reserve(real_event, key_strategy="event_based")
+        result2 = await manager.check_and_reserve(real_event, key_strategy=KeyStrategy.EVENT_BASED)
         assert result2.is_duplicate is False  # Allowed to retry
         assert result2.status == IdempotencyStatus.PROCESSING
 
@@ -145,13 +145,13 @@ class TestIdempotencyManager:
         )
 
         # Use content hash strategy
-        result1 = await manager.check_and_reserve(event1, key_strategy="content_hash")
+        result1 = await manager.check_and_reserve(event1, key_strategy=KeyStrategy.CONTENT_HASH)
         assert result1.is_duplicate is False
 
-        await manager.mark_completed(event1, key_strategy="content_hash")
+        await manager.mark_completed(event1, key_strategy=KeyStrategy.CONTENT_HASH)
 
         # Second event with same content should be duplicate
-        result2 = await manager.check_and_reserve(event2, key_strategy="content_hash")
+        result2 = await manager.check_and_reserve(event2, key_strategy=KeyStrategy.CONTENT_HASH)
         assert result2.is_duplicate is True
 
     @pytest.mark.asyncio
@@ -159,12 +159,12 @@ class TestIdempotencyManager:
         """Test marking events as failed"""
         real_event = make_execution_requested_event(execution_id="exec-failed-1")
         # Reserve
-        result = await manager.check_and_reserve(real_event, key_strategy="event_based")
+        result = await manager.check_and_reserve(real_event, key_strategy=KeyStrategy.EVENT_BASED)
         assert result.is_duplicate is False
 
         # Mark as failed
         error_msg = "Execution failed: out of memory"
-        success = await manager.mark_failed(real_event, error=error_msg, key_strategy="event_based")
+        success = await manager.mark_failed(real_event, error=error_msg, key_strategy=KeyStrategy.EVENT_BASED)
         assert success is True
 
         # Verify status and error
@@ -179,7 +179,7 @@ class TestIdempotencyManager:
         """Test caching of results"""
         real_event = make_execution_requested_event(execution_id="exec-cache-1")
         # Reserve
-        result = await manager.check_and_reserve(real_event, key_strategy="event_based")
+        result = await manager.check_and_reserve(real_event, key_strategy=KeyStrategy.EVENT_BASED)
         assert result.is_duplicate is False
 
         # Complete with cached result
@@ -187,16 +187,16 @@ class TestIdempotencyManager:
         success = await manager.mark_completed_with_json(
             real_event,
             cached_json=cached_result,
-            key_strategy="event_based"
+            key_strategy=KeyStrategy.EVENT_BASED
         )
         assert success is True
 
         # Retrieve cached result
-        retrieved = await manager.get_cached_json(real_event, "event_based", None)
+        retrieved = await manager.get_cached_json(real_event, KeyStrategy.EVENT_BASED, None)
         assert retrieved == cached_result
 
         # Check duplicate with cached result
-        duplicate_result = await manager.check_and_reserve(real_event, key_strategy="event_based")
+        duplicate_result = await manager.check_and_reserve(real_event, key_strategy=KeyStrategy.EVENT_BASED)
         assert duplicate_result.is_duplicate is True
         assert duplicate_result.has_cached_result is True
 
@@ -215,12 +215,12 @@ class TestIdempotencyManager:
 
         # Process events with different outcomes
         for i, event in enumerate(events):
-            await manager.check_and_reserve(event, key_strategy="event_based")
+            await manager.check_and_reserve(event, key_strategy=KeyStrategy.EVENT_BASED)
 
             if i < 6:
-                await manager.mark_completed(event, key_strategy="event_based")
+                await manager.mark_completed(event, key_strategy=KeyStrategy.EVENT_BASED)
             elif i < 8:
-                await manager.mark_failed(event, "Test error", key_strategy="event_based")
+                await manager.mark_failed(event, "Test error", key_strategy=KeyStrategy.EVENT_BASED)
             # Leave rest in processing
 
         # Get stats
@@ -237,11 +237,11 @@ class TestIdempotencyManager:
         """Test removing idempotency keys"""
         real_event = make_execution_requested_event(execution_id="exec-remove-1")
         # Add a key
-        result = await manager.check_and_reserve(real_event, key_strategy="event_based")
+        result = await manager.check_and_reserve(real_event, key_strategy=KeyStrategy.EVENT_BASED)
         assert result.is_duplicate is False
 
         # Remove it
-        removed = await manager.remove(real_event, key_strategy="event_based")
+        removed = await manager.remove(real_event, key_strategy=KeyStrategy.EVENT_BASED)
         assert removed is True
 
         # Verify it's gone
@@ -249,7 +249,7 @@ class TestIdempotencyManager:
         assert record is None
 
         # Can process again
-        result2 = await manager.check_and_reserve(real_event, key_strategy="event_based")
+        result2 = await manager.check_and_reserve(real_event, key_strategy=KeyStrategy.EVENT_BASED)
         assert result2.is_duplicate is False
 
 
@@ -281,7 +281,7 @@ class TestIdempotentEventHandlerIntegration:
         handler = IdempotentEventHandler(
             handler=actual_handler,
             idempotency_manager=manager,
-            key_strategy="event_based",
+            key_strategy=KeyStrategy.EVENT_BASED,
             logger=_test_logger,
         )
 
@@ -305,7 +305,7 @@ class TestIdempotentEventHandlerIntegration:
         handler = IdempotentEventHandler(
             handler=actual_handler,
             idempotency_manager=manager,
-            key_strategy="event_based",
+            key_strategy=KeyStrategy.EVENT_BASED,
             logger=_test_logger,
         )
 
@@ -327,7 +327,7 @@ class TestIdempotentEventHandlerIntegration:
         handler = IdempotentEventHandler(
             handler=failing_handler,
             idempotency_manager=manager,
-            key_strategy="event_based",
+            key_strategy=KeyStrategy.EVENT_BASED,
             logger=_test_logger,
         )
 
@@ -358,7 +358,7 @@ class TestIdempotentEventHandlerIntegration:
         handler = IdempotentEventHandler(
             handler=actual_handler,
             idempotency_manager=manager,
-            key_strategy="event_based",
+            key_strategy=KeyStrategy.EVENT_BASED,
             on_duplicate=on_duplicate,
             logger=_test_logger,
         )
@@ -380,7 +380,7 @@ class TestIdempotentEventHandlerIntegration:
 
         @idempotent_handler(
             idempotency_manager=manager,
-            key_strategy="content_hash",
+            key_strategy=KeyStrategy.CONTENT_HASH,
             ttl_seconds=300,
             logger=_test_logger,
         )
@@ -422,7 +422,7 @@ class TestIdempotentEventHandlerIntegration:
         handler = IdempotentEventHandler(
             handler=process_script,
             idempotency_manager=manager,
-            key_strategy="custom",
+            key_strategy=KeyStrategy.CUSTOM,
             custom_key_func=extract_script_key,
             logger=_test_logger,
         )
@@ -461,26 +461,26 @@ class TestIdempotentEventHandlerIntegration:
         """Test that invalid key strategy raises error"""
         real_event = make_execution_requested_event(execution_id="invalid-strategy-1")
         with pytest.raises(ValueError, match="Invalid key strategy"):
-            await manager.check_and_reserve(real_event, key_strategy="invalid_strategy")
+            await manager.check_and_reserve(real_event, key_strategy="invalid_strategy")  # type: ignore[arg-type]  # testing invalid use
 
     @pytest.mark.asyncio
     async def test_custom_key_without_custom_key_param(self, manager: IdempotencyManager) -> None:
         """Test that custom strategy without custom_key raises error"""
         real_event = make_execution_requested_event(execution_id="custom-key-missing-1")
         with pytest.raises(ValueError, match="Invalid key strategy"):
-            await manager.check_and_reserve(real_event, key_strategy="custom")
+            await manager.check_and_reserve(real_event, key_strategy=KeyStrategy.CUSTOM)
 
     @pytest.mark.asyncio
     async def test_get_cached_json_existing(self, manager: IdempotencyManager) -> None:
         """Test retrieving cached JSON result"""
         # First complete with cached result
         real_event = make_execution_requested_event(execution_id="cache-exist-1")
-        await manager.check_and_reserve(real_event, key_strategy="event_based")
+        await manager.check_and_reserve(real_event, key_strategy=KeyStrategy.EVENT_BASED)
         cached_data = json.dumps({"output": "test", "code": 0})
-        await manager.mark_completed_with_json(real_event, cached_data, "event_based")
+        await manager.mark_completed_with_json(real_event, cached_data, KeyStrategy.EVENT_BASED)
 
         # Retrieve cached result
-        retrieved = await manager.get_cached_json(real_event, "event_based", None)
+        retrieved = await manager.get_cached_json(real_event, KeyStrategy.EVENT_BASED, None)
         assert retrieved == cached_data
 
     @pytest.mark.asyncio
@@ -489,7 +489,7 @@ class TestIdempotentEventHandlerIntegration:
         real_event = make_execution_requested_event(execution_id="cache-miss-1")
         # Trying to get cached result for non-existent key should raise
         with pytest.raises(AssertionError, match="cached result must exist"):
-            await manager.get_cached_json(real_event, "event_based", None)
+            await manager.get_cached_json(real_event, KeyStrategy.EVENT_BASED, None)
 
     @pytest.mark.asyncio
     async def test_cleanup_expired_keys(self, manager: IdempotencyManager) -> None:
@@ -539,11 +539,11 @@ class TestIdempotentEventHandlerIntegration:
         fields = {"script", "language"}
         result1 = await manager.check_and_reserve(
             event1,
-            key_strategy="content_hash",
+            key_strategy=KeyStrategy.CONTENT_HASH,
             fields=fields
         )
         assert result1.is_duplicate is False
-        await manager.mark_completed(event1, key_strategy="content_hash", fields=fields)
+        await manager.mark_completed(event1, key_strategy=KeyStrategy.CONTENT_HASH, fields=fields)
 
         # Event with same script and language but different other fields
         event2 = make_execution_requested_event(
@@ -558,7 +558,7 @@ class TestIdempotentEventHandlerIntegration:
 
         result2 = await manager.check_and_reserve(
             event2,
-            key_strategy="content_hash",
+            key_strategy=KeyStrategy.CONTENT_HASH,
             fields=fields
         )
         assert result2.is_duplicate is True  # Same script and language

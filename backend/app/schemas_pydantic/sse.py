@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, TypeVar
+from typing import Any, TypeVar
 
 from pydantic import BaseModel, Field
 
@@ -60,7 +60,7 @@ class RedisSSEMessage(BaseModel):
 
     event_type: EventType = Field(description="Event type from Kafka")
     execution_id: str | None = Field(None, description="Execution ID")
-    data: Dict[str, Any] = Field(description="Full event data from BaseEvent.model_dump()")
+    data: dict[str, Any] = Field(description="Full event data from BaseEvent.model_dump()")
 
 
 class SSENotificationEventData(BaseModel):

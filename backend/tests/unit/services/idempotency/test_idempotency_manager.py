@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 import pytest
 from app.core.metrics import DatabaseMetrics
 from app.domain.events.typed import BaseEvent
+from app.domain.idempotency import KeyStrategy
 from app.services.idempotency.idempotency_manager import (
     IdempotencyConfig,
     IdempotencyKeyStrategy,
@@ -94,10 +95,10 @@ def test_manager_generate_key_variants(database_metrics: DatabaseMetrics) -> Non
     ev.event_id = "e"
     ev.model_dump.return_value = {"event_id": "e", "event_type": "t"}
 
-    assert mgr._generate_key(ev, "event_based") == "idempotency:t:e"
-    ch = mgr._generate_key(ev, "content_hash")
+    assert mgr._generate_key(ev, KeyStrategy.EVENT_BASED) == "idempotency:t:e"
+    ch = mgr._generate_key(ev, KeyStrategy.CONTENT_HASH)
     assert ch.startswith("idempotency:") and len(ch.split(":")[-1]) == 64
-    assert mgr._generate_key(ev, "custom", custom_key="k") == "idempotency:t:k"
+    assert mgr._generate_key(ev, KeyStrategy.CUSTOM, custom_key="k") == "idempotency:t:k"
     with pytest.raises(ValueError):
-        mgr._generate_key(ev, "invalid")
+        mgr._generate_key(ev, KeyStrategy.CUSTOM)  # CUSTOM requires custom_key
 

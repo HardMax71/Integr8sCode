@@ -38,7 +38,7 @@ class SSERedisSubscription:
         try:
             await self._pubsub.unsubscribe(self._channel)
         finally:
-            await self._pubsub.close()
+            await self._pubsub.aclose()  # type: ignore[no-untyped-call]
 
 
 class SSERedisBus:

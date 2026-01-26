@@ -1,5 +1,3 @@
-from typing import Dict
-
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
@@ -7,7 +5,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 class CacheControlMiddleware:
     def __init__(self, app: ASGIApp):
         self.app = app
-        self.cache_policies: Dict[str, str] = {
+        self.cache_policies: dict[str, str] = {
             "/api/v1/k8s-limits": "public, max-age=300",  # 5 minutes
             "/api/v1/example-scripts": "public, max-age=600",  # 10 minutes
             "/api/v1/auth/verify-token": "private, no-cache",  # 30 seconds

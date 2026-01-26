@@ -112,8 +112,20 @@ class EventDetail:
 
 
 @dataclass
+class EventTypeCount:
+    event_type: EventType
+    count: int
+
+
+@dataclass
 class HourlyEventCount:
     hour: str
+    count: int
+
+
+@dataclass
+class ServiceEventCount:
+    service_name: str
     count: int
 
 
@@ -128,8 +140,8 @@ class EventStatistics:
     """Event statistics."""
 
     total_events: int
-    events_by_type: dict[str, int] = field(default_factory=dict)
-    events_by_service: dict[str, int] = field(default_factory=dict)
+    events_by_type: list[EventTypeCount] = field(default_factory=list)
+    events_by_service: list[ServiceEventCount] = field(default_factory=list)
     events_by_hour: list[HourlyEventCount | dict[str, Any]] = field(default_factory=list)
     top_users: list[UserEventCount] = field(default_factory=list)
     error_rate: float = 0.0

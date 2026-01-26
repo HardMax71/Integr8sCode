@@ -76,6 +76,8 @@ export type AdminUserOverview = {
     } & NotificationFailedEvent) | ({
         event_type: 'notification_read';
     } & NotificationReadEvent) | ({
+        event_type: 'notification_all_read';
+    } & NotificationAllReadEvent) | ({
         event_type: 'notification_clicked';
     } & NotificationClickedEvent) | ({
         event_type: 'notification_preferences_updated';
@@ -337,6 +339,30 @@ export type CleanupResponse = {
 };
 
 /**
+ * ContainerStatusInfo
+ *
+ * Container status information from Kubernetes pod.
+ */
+export type ContainerStatusInfo = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Ready
+     */
+    ready?: boolean;
+    /**
+     * Restart Count
+     */
+    restart_count?: number;
+    /**
+     * State
+     */
+    state?: string;
+};
+
+/**
  * CreatePodCommandEvent
  */
 export type CreatePodCommandEvent = {
@@ -440,9 +466,7 @@ export type DlqBatchRetryResponse = {
     /**
      * Details
      */
-    details: Array<{
-        [key: string]: unknown;
-    }>;
+    details: Array<DlqRetryResult>;
 };
 
 /**
@@ -515,6 +539,8 @@ export type DlqMessageDetail = {
     } & NotificationFailedEvent) | ({
         event_type: 'notification_read';
     } & NotificationReadEvent) | ({
+        event_type: 'notification_all_read';
+    } & NotificationAllReadEvent) | ({
         event_type: 'notification_clicked';
     } & NotificationClickedEvent) | ({
         event_type: 'notification_preferences_updated';
@@ -802,6 +828,8 @@ export type DlqMessageResponse = {
     } & NotificationFailedEvent) | ({
         event_type: 'notification_read';
     } & NotificationReadEvent) | ({
+        event_type: 'notification_all_read';
+    } & NotificationAllReadEvent) | ({
         event_type: 'notification_clicked';
     } & NotificationClickedEvent) | ({
         event_type: 'notification_preferences_updated';
@@ -971,6 +999,24 @@ export type DlqMessagesResponse = {
      * Limit
      */
     limit: number;
+};
+
+/**
+ * DLQRetryResult
+ */
+export type DlqRetryResult = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Error
+     */
+    error?: string | null;
 };
 
 /**
@@ -1237,6 +1283,19 @@ export type EditorSettings = {
 export type EndpointGroup = 'execution' | 'admin' | 'sse' | 'websocket' | 'auth' | 'public' | 'api';
 
 /**
+ * EndpointUsageStats
+ *
+ * Usage statistics for a single endpoint (IETF RateLimit-style).
+ */
+export type EndpointUsageStats = {
+    algorithm: RateLimitAlgorithm;
+    /**
+     * Remaining
+     */
+    remaining: number;
+};
+
+/**
  * Environment
  *
  * Deployment environments.
@@ -1358,6 +1417,8 @@ export type EventBrowseResponse = {
     } & NotificationFailedEvent) | ({
         event_type: 'notification_read';
     } & NotificationReadEvent) | ({
+        event_type: 'notification_all_read';
+    } & NotificationAllReadEvent) | ({
         event_type: 'notification_clicked';
     } & NotificationClickedEvent) | ({
         event_type: 'notification_preferences_updated';
@@ -1510,6 +1571,8 @@ export type EventDetailResponse = {
     } & NotificationFailedEvent) | ({
         event_type: 'notification_read';
     } & NotificationReadEvent) | ({
+        event_type: 'notification_all_read';
+    } & NotificationAllReadEvent) | ({
         event_type: 'notification_clicked';
     } & NotificationClickedEvent) | ({
         event_type: 'notification_preferences_updated';
@@ -1758,6 +1821,8 @@ export type EventListResponse = {
     } & NotificationFailedEvent) | ({
         event_type: 'notification_read';
     } & NotificationReadEvent) | ({
+        event_type: 'notification_all_read';
+    } & NotificationAllReadEvent) | ({
         event_type: 'notification_clicked';
     } & NotificationClickedEvent) | ({
         event_type: 'notification_preferences_updated';
@@ -1978,7 +2043,7 @@ export type EventReplayStatusResponse = {
     /**
      * Errors
      */
-    errors?: Array<ReplayErrorInfo> | null;
+    errors?: Array<ReplayError> | null;
     /**
      * Estimated Completion
      */
@@ -2006,15 +2071,11 @@ export type EventStatistics = {
     /**
      * Events By Type
      */
-    events_by_type: {
-        [key: string]: number;
-    };
+    events_by_type: Array<EventTypeCountSchema>;
     /**
      * Events By Service
      */
-    events_by_service: {
-        [key: string]: number;
-    };
+    events_by_service: Array<ServiceEventCountSchema>;
     /**
      * Events By Hour
      */
@@ -2042,9 +2103,7 @@ export type EventStatsResponse = {
     /**
      * Events By Type
      */
-    events_by_type: {
-        [key: string]: number;
-    };
+    events_by_type: Array<EventTypeCountSchema>;
     /**
      * Events By Hour
      */
@@ -2089,7 +2148,20 @@ export type EventSummary = {
  *
  * Event types used throughout the system.
  */
-export type EventType = 'execution_requested' | 'execution_accepted' | 'execution_queued' | 'execution_started' | 'execution_running' | 'execution_completed' | 'execution_failed' | 'execution_timeout' | 'execution_cancelled' | 'pod_created' | 'pod_scheduled' | 'pod_running' | 'pod_succeeded' | 'pod_failed' | 'pod_terminated' | 'pod_deleted' | 'user_registered' | 'user_login' | 'user_logged_in' | 'user_logged_out' | 'user_updated' | 'user_deleted' | 'user_settings_updated' | 'notification_created' | 'notification_sent' | 'notification_delivered' | 'notification_failed' | 'notification_read' | 'notification_clicked' | 'notification_preferences_updated' | 'script_saved' | 'script_deleted' | 'script_shared' | 'security_violation' | 'rate_limit_exceeded' | 'auth_failed' | 'resource_limit_exceeded' | 'quota_exceeded' | 'system_error' | 'service_unhealthy' | 'service_recovered' | 'result_stored' | 'result_failed' | 'saga_started' | 'saga_completed' | 'saga_failed' | 'saga_cancelled' | 'saga_compensating' | 'saga_compensated' | 'create_pod_command' | 'delete_pod_command' | 'allocate_resources_command' | 'release_resources_command' | 'dlq_message_received' | 'dlq_message_retried' | 'dlq_message_discarded';
+export type EventType = 'execution_requested' | 'execution_accepted' | 'execution_queued' | 'execution_started' | 'execution_running' | 'execution_completed' | 'execution_failed' | 'execution_timeout' | 'execution_cancelled' | 'pod_created' | 'pod_scheduled' | 'pod_running' | 'pod_succeeded' | 'pod_failed' | 'pod_terminated' | 'pod_deleted' | 'user_registered' | 'user_login' | 'user_logged_in' | 'user_logged_out' | 'user_updated' | 'user_deleted' | 'user_settings_updated' | 'notification_created' | 'notification_sent' | 'notification_delivered' | 'notification_failed' | 'notification_read' | 'notification_all_read' | 'notification_clicked' | 'notification_preferences_updated' | 'script_saved' | 'script_deleted' | 'script_shared' | 'security_violation' | 'rate_limit_exceeded' | 'auth_failed' | 'resource_limit_exceeded' | 'quota_exceeded' | 'system_error' | 'service_unhealthy' | 'service_recovered' | 'result_stored' | 'result_failed' | 'saga_started' | 'saga_completed' | 'saga_failed' | 'saga_cancelled' | 'saga_compensating' | 'saga_compensated' | 'create_pod_command' | 'delete_pod_command' | 'allocate_resources_command' | 'release_resources_command' | 'dlq_message_received' | 'dlq_message_retried' | 'dlq_message_discarded';
+
+/**
+ * EventTypeCountSchema
+ *
+ * Event count by type.
+ */
+export type EventTypeCountSchema = {
+    event_type: EventType;
+    /**
+     * Count
+     */
+    count: number;
+};
 
 /**
  * EventTypeStatistic
@@ -2781,6 +2853,13 @@ export type HourlyEventCountSchema = {
 };
 
 /**
+ * KafkaTopic
+ *
+ * Kafka topic names used throughout the system.
+ */
+export type KafkaTopic = 'execution_events' | 'execution_completed' | 'execution_failed' | 'execution_timeout' | 'execution_requests' | 'execution_commands' | 'execution_tasks' | 'pod_events' | 'pod_status_updates' | 'pod_results' | 'execution_results' | 'user_events' | 'user_notifications' | 'user_settings_events' | 'script_events' | 'security_events' | 'resource_events' | 'notification_events' | 'system_events' | 'saga_events' | 'saga_commands' | 'dead_letter_queue' | 'dlq_events' | 'event_bus_stream' | 'websocket_events';
+
+/**
  * LanguageInfo
  *
  * Language runtime information.
@@ -2907,6 +2986,45 @@ export type MonitoringSettingsSchema = {
      * Trace sampling rate
      */
     sampling_rate?: number;
+};
+
+/**
+ * NotificationAllReadEvent
+ */
+export type NotificationAllReadEvent = {
+    /**
+     * Event Id
+     */
+    event_id: string;
+    /**
+     * Event Type
+     */
+    event_type: 'notification_all_read';
+    /**
+     * Event Version
+     */
+    event_version: string;
+    /**
+     * Timestamp
+     */
+    timestamp: string;
+    /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    metadata: EventMetadata;
+    /**
+     * User Id
+     */
+    user_id?: string;
+    /**
+     * Count
+     */
+    count?: number;
+    /**
+     * Read At
+     */
+    read_at?: string;
 };
 
 /**
@@ -3558,7 +3676,7 @@ export type PodRunningEvent = {
     /**
      * Container Statuses
      */
-    container_statuses?: string;
+    container_statuses?: Array<ContainerStatusInfo>;
 };
 
 /**
@@ -4104,7 +4222,7 @@ export type ReplayConfigSchema = {
      * Target Topics
      */
     target_topics?: {
-        [key: string]: string;
+        [key: string]: KafkaTopic;
     } | null;
     /**
      * Target File Path
@@ -4129,11 +4247,19 @@ export type ReplayConfigSchema = {
 };
 
 /**
- * ReplayErrorInfo
+ * ReplayError
  *
- * Error info for replay operations.
+ * Error details for replay operations.
+ *
+ * Attributes:
+ * timestamp: When the error occurred.
+ * error: Human-readable error message.
+ * error_type: Python exception class name (e.g., "ValueError", "KafkaException").
+ * This is the result of `type(exception).__name__`, NOT the ErrorType enum.
+ * Present for session-level errors.
+ * event_id: ID of the event that failed to replay. Present for event-level errors.
  */
-export type ReplayErrorInfo = {
+export type ReplayError = {
     /**
      * Timestamp
      */
@@ -4143,13 +4269,13 @@ export type ReplayErrorInfo = {
      */
     error: string;
     /**
-     * Event Id
-     */
-    event_id?: string | null;
-    /**
      * Error Type
      */
     error_type?: string | null;
+    /**
+     * Event Id
+     */
+    event_id?: string | null;
 };
 
 /**
@@ -4281,7 +4407,7 @@ export type ReplayRequest = {
      * Target Topics
      */
     target_topics?: {
-        [key: string]: string;
+        [key: string]: KafkaTopic;
     } | null;
     /**
      * Retry Failed
@@ -4359,9 +4485,7 @@ export type ReplaySession = {
     /**
      * Errors
      */
-    errors?: Array<{
-        [key: string]: unknown;
-    }>;
+    errors?: Array<ReplayError>;
 };
 
 /**
@@ -4482,6 +4606,8 @@ export type ResourceUsage = {
 
 /**
  * ResourceUsageDomain
+ *
+ * Resource usage metrics from script execution.
  */
 export type ResourceUsageDomain = {
     /**
@@ -5576,6 +5702,22 @@ export type SecurityViolationEvent = {
 };
 
 /**
+ * ServiceEventCountSchema
+ *
+ * Event count by service.
+ */
+export type ServiceEventCountSchema = {
+    /**
+     * Service Name
+     */
+    service_name: string;
+    /**
+     * Count
+     */
+    count: number;
+};
+
+/**
  * ServiceRecoveredEvent
  */
 export type ServiceRecoveredEvent = {
@@ -6271,9 +6413,7 @@ export type UserRateLimitsResponse = {
      * Current Usage
      */
     current_usage: {
-        [key: string]: {
-            [key: string]: unknown;
-        };
+        [key: string]: EndpointUsageStats;
     };
 };
 
@@ -6616,7 +6756,7 @@ export type EventReplayStatusResponseWritable = {
     /**
      * Errors
      */
-    errors?: Array<ReplayErrorInfo> | null;
+    errors?: Array<ReplayError> | null;
     /**
      * Estimated Completion
      */
@@ -6988,6 +7128,8 @@ export type GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetResponses = {
     } & NotificationFailedEvent) | ({
         event_type: 'notification_read';
     } & NotificationReadEvent) | ({
+        event_type: 'notification_all_read';
+    } & NotificationAllReadEvent) | ({
         event_type: 'notification_clicked';
     } & NotificationClickedEvent) | ({
         event_type: 'notification_preferences_updated';
@@ -8179,6 +8321,8 @@ export type GetEventApiV1EventsEventIdGetResponses = {
     } & NotificationFailedEvent) | ({
         event_type: 'notification_read';
     } & NotificationReadEvent) | ({
+        event_type: 'notification_all_read';
+    } & NotificationAllReadEvent) | ({
         event_type: 'notification_clicked';
     } & NotificationClickedEvent) | ({
         event_type: 'notification_preferences_updated';

@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, Dict, Protocol
+from typing import Any, Protocol
 
 from opentelemetry import trace
 
@@ -48,13 +48,13 @@ class InstrumentationResult:
 class InstrumentationReport:
     """Report of all instrumentation results."""
 
-    results: Dict[str, InstrumentationResult] = field(default_factory=dict)
+    results: dict[str, InstrumentationResult] = field(default_factory=dict)
 
     def add_result(self, result: InstrumentationResult) -> None:
         """Add an instrumentation result to the report."""
         self.results[result.library] = result
 
-    def get_summary(self) -> Dict[str, str]:
+    def get_summary(self) -> dict[str, str]:
         """Get a summary of instrumentation statuses."""
         return {library: result.status for library, result in self.results.items()}
 
@@ -75,7 +75,7 @@ class LibraryInstrumentation:
 
     name: str
     instrumentor: Instrumentor
-    config: Dict[str, Any] = field(default_factory=dict)
+    config: dict[str, Any] = field(default_factory=dict)
 
 
 class TracerManager:

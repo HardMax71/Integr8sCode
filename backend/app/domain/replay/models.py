@@ -1,21 +1,42 @@
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from app.domain.enums.events import EventType
+from app.domain.enums.kafka import KafkaTopic
 from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
+
+
+class ReplayError(BaseModel):
+    """Error details for replay operations.
+
+    Attributes:
+        timestamp: When the error occurred.
+        error: Human-readable error message.
+        error_type: Python exception class name (e.g., "ValueError", "KafkaException").
+            This is the result of `type(exception).__name__`, NOT the ErrorType enum.
+            Present for session-level errors.
+        event_id: ID of the event that failed to replay. Present for event-level errors.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    timestamp: datetime
+    error: str
+    error_type: str | None = None
+    event_id: str | None = None
 
 
 class ReplayFilter(BaseModel):
     # Event selection filters
-    event_ids: List[str] | None = None
+    event_ids: list[str] | None = None
     execution_id: str | None = None
     correlation_id: str | None = None
     aggregate_id: str | None = None
-    event_types: List[EventType] | None = None
-    exclude_event_types: List[EventType] | None = None
+    event_types: list[EventType] | None = None
+    exclude_event_types: list[EventType] | None = None
 
     # Time range
     start_time: datetime | None = None
@@ -26,7 +47,7 @@ class ReplayFilter(BaseModel):
     service_name: str | None = None
 
     # Escape hatch for complex queries
-    custom_query: Dict[str, Any] | None = None
+    custom_query: dict[str, Any] | None = None
 
     def is_empty(self) -> bool:
         return not any(
@@ -44,8 +65,8 @@ class ReplayFilter(BaseModel):
             ]
         )
 
-    def to_mongo_query(self) -> Dict[str, Any]:
-        query: Dict[str, Any] = {}
+    def to_mongo_query(self) -> dict[str, Any]:
+        query: dict[str, Any] = {}
 
         if self.event_ids:
             query["event_id"] = {"$in": self.event_ids}
@@ -69,7 +90,7 @@ class ReplayFilter(BaseModel):
                 query["event_type"] = {"$nin": [str(et) for et in self.exclude_event_types]}
 
         if self.start_time or self.end_time:
-            time_query: Dict[str, Any] = {}
+            time_query: dict[str, Any] = {}
             if self.start_time:
                 time_query["$gte"] = self.start_time
             if self.end_time:
@@ -98,7 +119,7 @@ class ReplayConfig(BaseModel):
     batch_size: int = Field(default=100, ge=1, le=1000)
     max_events: int | None = Field(default=None, ge=1)
 
-    target_topics: Dict[EventType, str] | None = None
+    target_topics: dict[EventType, KafkaTopic] | None = None
     target_file_path: str | None = None
 
     skip_errors: bool = True
@@ -135,7 +156,7 @@ class ReplaySessionState(BaseModel):
     completed_at: datetime | None = None
     last_event_at: datetime | None = None
 
-    errors: list[dict[str, Any]] = Field(default_factory=list)
+    errors: list[ReplayError] = Field(default_factory=list)
 
     # Tracking and admin fields
     correlation_id: str = Field(default_factory=lambda: str(uuid4()))

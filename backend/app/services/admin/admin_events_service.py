@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from io import StringIO
-from typing import Any, List
+from typing import Any
 
 from beanie.odm.enums import SortDirection
 
@@ -188,7 +188,7 @@ class AdminEventsService:
         status = await self._repo.get_replay_status_with_progress(session_id)
         return status
 
-    async def export_events_csv(self, event_filter: EventFilter) -> List[EventExportRow]:
+    async def export_events_csv(self, event_filter: EventFilter) -> list[EventExportRow]:
         rows = await self._repo.export_events_csv(event_filter)
         return rows
 

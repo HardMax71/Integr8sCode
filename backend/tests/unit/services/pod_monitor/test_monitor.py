@@ -9,8 +9,13 @@ from app.core import k8s_clients as k8s_clients_module
 from app.core.k8s_clients import K8sClients
 from app.core.metrics import EventMetrics, KubernetesMetrics
 from app.db.repositories.event_repository import EventRepository
-from app.domain.events.typed import DomainEvent, EventMetadata, ExecutionCompletedEvent, ExecutionStartedEvent
-from app.domain.execution.models import ResourceUsageDomain
+from app.domain.events.typed import (
+    DomainEvent,
+    EventMetadata,
+    ExecutionCompletedEvent,
+    ExecutionStartedEvent,
+    ResourceUsageDomain,
+)
 from app.events.core import UnifiedProducer
 from app.services.kafka_event_service import KafkaEventService
 from app.services.pod_monitor.config import PodMonitorConfig

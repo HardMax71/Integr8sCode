@@ -20,9 +20,13 @@ from app.domain.enums.notification import (
 from app.domain.enums.user import UserRole
 from app.domain.events.typed import (
     DomainEvent,
+    EventMetadata,
     ExecutionCompletedEvent,
     ExecutionFailedEvent,
     ExecutionTimeoutEvent,
+    NotificationAllReadEvent,
+    NotificationCreatedEvent,
+    NotificationReadEvent,
 )
 from app.domain.notification import (
     DomainNotification,
@@ -300,13 +304,20 @@ class NotificationService(LifecycleEnabled):
         # Publish event
         event_bus = await self.event_bus_manager.get_event_bus()
         await event_bus.publish(
-            "notifications.created",
-            {
-                "notification_id": str(notification.notification_id),
-                "user_id": user_id,
-                "severity": str(severity),
-                "tags": notification.tags,
-            },
+            NotificationCreatedEvent(
+                notification_id=str(notification.notification_id),
+                user_id=user_id,
+                subject=subject,
+                body=body,
+                severity=severity,
+                tags=notification.tags,
+                channels=[channel],
+                metadata=EventMetadata(
+                    service_name=self.settings.SERVICE_NAME,
+                    service_version=self.settings.SERVICE_VERSION,
+                    user_id=user_id,
+                ),
+            )
         )
 
         await self._deliver_notification(notification)
@@ -671,8 +682,16 @@ class NotificationService(LifecycleEnabled):
         event_bus = await self.event_bus_manager.get_event_bus()
         if success:
             await event_bus.publish(
-                "notifications.read",
-                {"notification_id": str(notification_id), "user_id": user_id, "read_at": datetime.now(UTC).isoformat()},
+                NotificationReadEvent(
+                    notification_id=str(notification_id),
+                    user_id=user_id,
+                    read_at=datetime.now(UTC),
+                    metadata=EventMetadata(
+                        service_name=self.settings.SERVICE_NAME,
+                        service_version=self.settings.SERVICE_VERSION,
+                        user_id=user_id,
+                    ),
+                )
             )
         else:
             raise NotificationNotFoundError(notification_id)
@@ -762,7 +781,16 @@ class NotificationService(LifecycleEnabled):
         event_bus = await self.event_bus_manager.get_event_bus()
         if count > 0:
             await event_bus.publish(
-                "notifications.all_read", {"user_id": user_id, "count": count, "read_at": datetime.now(UTC).isoformat()}
+                NotificationAllReadEvent(
+                    user_id=user_id,
+                    count=count,
+                    read_at=datetime.now(UTC),
+                    metadata=EventMetadata(
+                        service_name=self.settings.SERVICE_NAME,
+                        service_version=self.settings.SERVICE_VERSION,
+                        user_id=user_id,
+                    ),
+                )
             )
 
         return count

@@ -14,6 +14,7 @@ from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.user import UserRole
 from app.domain.events.typed import BaseEvent, DomainEvent, EventMetadata
 from app.domain.exceptions import DomainError
+from app.domain.idempotency import KeyStrategy
 from app.schemas_pydantic.execution import (
     CancelExecutionRequest,
     CancelResponse,
@@ -88,7 +89,7 @@ async def create_execution(
         # Check for duplicate request using custom key
         idempotency_result = await idempotency_manager.check_and_reserve(
             event=pseudo_event,
-            key_strategy="custom",
+            key_strategy=KeyStrategy.CUSTOM,
             custom_key=f"http:{current_user.user_id}:{idempotency_key}",
             ttl_seconds=86400,  # 24 hours TTL for HTTP idempotency
         )
@@ -96,7 +97,7 @@ async def create_execution(
         if idempotency_result.is_duplicate:
             cached_json = await idempotency_manager.get_cached_json(
                 event=pseudo_event,
-                key_strategy="custom",
+                key_strategy=KeyStrategy.CUSTOM,
                 custom_key=f"http:{current_user.user_id}:{idempotency_key}",
             )
             return ExecutionResponse.model_validate_json(cached_json)
@@ -119,7 +120,7 @@ async def create_execution(
             await idempotency_manager.mark_completed_with_json(
                 event=pseudo_event,
                 cached_json=response_model.model_dump_json(),
-                key_strategy="custom",
+                key_strategy=KeyStrategy.CUSTOM,
                 custom_key=f"http:{current_user.user_id}:{idempotency_key}",
             )
 
@@ -131,7 +132,7 @@ async def create_execution(
             await idempotency_manager.mark_failed(
                 event=pseudo_event,
                 error=str(e),
-                key_strategy="custom",
+                key_strategy=KeyStrategy.CUSTOM,
                 custom_key=f"http:{current_user.user_id}:{idempotency_key}",
             )
         raise
@@ -141,7 +142,7 @@ async def create_execution(
             await idempotency_manager.mark_failed(
                 event=pseudo_event,
                 error=str(e),
-                key_strategy="custom",
+                key_strategy=KeyStrategy.CUSTOM,
                 custom_key=f"http:{current_user.user_id}:{idempotency_key}",
             )
         raise HTTPException(status_code=500, detail="Internal server error during script execution") from e

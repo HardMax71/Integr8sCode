@@ -11,6 +11,7 @@
         type UserResponse,
         type UserRateLimitConfigResponse,
         type UserRole,
+        type EndpointUsageStats,
     } from '$lib/api';
     import { unwrap, unwrapOr } from '$lib/api-interceptors';
     import { toast } from 'svelte-sonner';
@@ -52,7 +53,7 @@
 
     // Rate limit state
     let rateLimitConfig = $state<UserRateLimitConfigResponse | null>(null);
-    let rateLimitUsage = $state<Record<string, { count?: number; tokens_remaining?: number }> | null>(null);
+    let rateLimitUsage = $state<Record<string, EndpointUsageStats> | null>(null);
     let loadingRateLimits = $state(false);
     let savingRateLimits = $state(false);
 

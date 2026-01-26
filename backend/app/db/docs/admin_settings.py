@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any
 from uuid import uuid4
 
 from beanie import Document, Indexed
@@ -50,7 +50,7 @@ class AuditLogDocument(Document):
     user_id: Indexed(str)  # type: ignore[valid-type]
     username: str
     timestamp: Indexed(datetime) = Field(default_factory=lambda: datetime.now(timezone.utc))  # type: ignore[valid-type]
-    changes: Dict[str, Any] = Field(default_factory=dict)
+    changes: dict[str, Any] = Field(default_factory=dict)
     reason: str = ""
 
     model_config = ConfigDict(from_attributes=True)

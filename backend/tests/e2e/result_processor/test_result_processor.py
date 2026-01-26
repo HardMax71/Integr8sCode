@@ -9,9 +9,13 @@ from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.kafka import KafkaTopic
-from app.domain.events.typed import EventMetadata, ExecutionCompletedEvent, ResultStoredEvent
+from app.domain.events.typed import (
+    EventMetadata,
+    ExecutionCompletedEvent,
+    ResourceUsageDomain,
+    ResultStoredEvent,
+)
 from app.domain.execution import DomainExecutionCreate
-from app.domain.execution.models import ResourceUsageDomain
 from app.events.core import UnifiedConsumer, UnifiedProducer
 from app.events.core.dispatcher import EventDispatcher
 from app.events.core.types import ConsumerConfig

@@ -68,6 +68,6 @@ def test_other_metrics_classes_smoke(test_settings: Settings) -> None:
     HealthMetrics(test_settings).record_health_check_duration(0.001, "liveness", "basic")
     KubernetesMetrics(test_settings).record_k8s_pod_created("success", "python")
     NotificationMetrics(test_settings).record_notification_sent("welcome", channel="email")
-    RateLimitMetrics(test_settings).requests_total.add(1)
+    RateLimitMetrics(test_settings).record_request("/api/test", True, "sliding_window")
     ReplayMetrics(test_settings).record_session_created("by_id", "kafka")
     SecurityMetrics(test_settings).record_security_event("scan", severity="low")

@@ -1,7 +1,7 @@
 import logging
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any
 from uuid import uuid4
 
 from opentelemetry import trace
@@ -37,7 +37,7 @@ class KafkaEventService:
     async def publish_event(
         self,
         event_type: EventType,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         aggregate_id: str | None,
         correlation_id: str | None = None,
         metadata: EventMetadata | None = None,
@@ -90,7 +90,7 @@ class KafkaEventService:
             await self.event_repository.store_event(domain_event)
 
             # Prepare headers
-            headers: Dict[str, str] = {
+            headers: dict[str, str] = {
                 "event_type": event_type,
                 "correlation_id": event_metadata.correlation_id or "",
                 "service": event_metadata.service_name,
@@ -185,7 +185,7 @@ class KafkaEventService:
             start_time = time.time()
             await self.event_repository.store_event(event)
 
-            headers: Dict[str, str] = {
+            headers: dict[str, str] = {
                 "event_type": event.event_type,
                 "correlation_id": event.metadata.correlation_id or "",
                 "service": event.metadata.service_name,

@@ -1,9 +1,15 @@
 from datetime import datetime
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from app.dlq import AgeStatistics, DLQMessageStatus, EventTypeStatistic, RetryStrategy, TopicStatistic
+from app.dlq import (
+    AgeStatistics,
+    DLQMessageStatus,
+    DLQRetryResult,
+    EventTypeStatistic,
+    RetryStrategy,
+    TopicStatistic,
+)
 from app.domain.events.typed import DomainEvent
 
 
@@ -73,7 +79,7 @@ class DLQBatchRetryResponse(BaseModel):
     total: int
     successful: int
     failed: int
-    details: list[dict[str, Any]]
+    details: list[DLQRetryResult]
 
 
 class DLQTopicSummaryResponse(BaseModel):

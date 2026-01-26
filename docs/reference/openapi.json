@@ -508,6 +508,9 @@
                         "$ref": "#/components/schemas/NotificationReadEvent"
                       },
                       {
+                        "$ref": "#/components/schemas/NotificationAllReadEvent"
+                      },
+                      {
                         "$ref": "#/components/schemas/NotificationClickedEvent"
                       },
                       {
@@ -619,6 +622,7 @@
                         "notification_delivered": "#/components/schemas/NotificationDeliveredEvent",
                         "notification_failed": "#/components/schemas/NotificationFailedEvent",
                         "notification_read": "#/components/schemas/NotificationReadEvent",
+                        "notification_all_read": "#/components/schemas/NotificationAllReadEvent",
                         "notification_clicked": "#/components/schemas/NotificationClickedEvent",
                         "notification_preferences_updated": "#/components/schemas/NotificationPreferencesUpdatedEvent",
                         "saga_started": "#/components/schemas/SagaStartedEvent",
@@ -2447,6 +2451,9 @@
                       "$ref": "#/components/schemas/NotificationReadEvent"
                     },
                     {
+                      "$ref": "#/components/schemas/NotificationAllReadEvent"
+                    },
+                    {
                       "$ref": "#/components/schemas/NotificationClickedEvent"
                     },
                     {
@@ -2558,6 +2565,7 @@
                       "notification_delivered": "#/components/schemas/NotificationDeliveredEvent",
                       "notification_failed": "#/components/schemas/NotificationFailedEvent",
                       "notification_read": "#/components/schemas/NotificationReadEvent",
+                      "notification_all_read": "#/components/schemas/NotificationAllReadEvent",
                       "notification_clicked": "#/components/schemas/NotificationClickedEvent",
                       "notification_preferences_updated": "#/components/schemas/NotificationPreferencesUpdatedEvent",
                       "saga_started": "#/components/schemas/SagaStartedEvent",
@@ -5003,6 +5011,9 @@
                   "$ref": "#/components/schemas/NotificationReadEvent"
                 },
                 {
+                  "$ref": "#/components/schemas/NotificationAllReadEvent"
+                },
+                {
                   "$ref": "#/components/schemas/NotificationClickedEvent"
                 },
                 {
@@ -5100,6 +5111,7 @@
                   "execution_running": "#/components/schemas/ExecutionRunningEvent",
                   "execution_started": "#/components/schemas/ExecutionStartedEvent",
                   "execution_timeout": "#/components/schemas/ExecutionTimeoutEvent",
+                  "notification_all_read": "#/components/schemas/NotificationAllReadEvent",
                   "notification_clicked": "#/components/schemas/NotificationClickedEvent",
                   "notification_created": "#/components/schemas/NotificationCreatedEvent",
                   "notification_delivered": "#/components/schemas/NotificationDeliveredEvent",
@@ -5480,6 +5492,35 @@
         "title": "CleanupResponse",
         "description": "Response schema for cleanup operations"
       },
+      "ContainerStatusInfo": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "ready": {
+            "type": "boolean",
+            "title": "Ready",
+            "default": false
+          },
+          "restart_count": {
+            "type": "integer",
+            "title": "Restart Count",
+            "default": 0
+          },
+          "state": {
+            "type": "string",
+            "title": "State",
+            "default": "unknown"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "ContainerStatusInfo",
+        "description": "Container status information from Kubernetes pod."
+      },
       "CreatePodCommandEvent": {
         "properties": {
           "event_id": {
@@ -5606,7 +5647,7 @@
           },
           "details": {
             "items": {
-              "type": "object"
+              "$ref": "#/components/schemas/DLQRetryResult"
             },
             "type": "array",
             "title": "Details"
@@ -5717,6 +5758,9 @@
                 "$ref": "#/components/schemas/NotificationReadEvent"
               },
               {
+                "$ref": "#/components/schemas/NotificationAllReadEvent"
+              },
+              {
                 "$ref": "#/components/schemas/NotificationClickedEvent"
               },
               {
@@ -5815,6 +5859,7 @@
                 "execution_running": "#/components/schemas/ExecutionRunningEvent",
                 "execution_started": "#/components/schemas/ExecutionStartedEvent",
                 "execution_timeout": "#/components/schemas/ExecutionTimeoutEvent",
+                "notification_all_read": "#/components/schemas/NotificationAllReadEvent",
                 "notification_clicked": "#/components/schemas/NotificationClickedEvent",
                 "notification_created": "#/components/schemas/NotificationCreatedEvent",
                 "notification_delivered": "#/components/schemas/NotificationDeliveredEvent",
@@ -6246,6 +6291,9 @@
                 "$ref": "#/components/schemas/NotificationReadEvent"
               },
               {
+                "$ref": "#/components/schemas/NotificationAllReadEvent"
+              },
+              {
                 "$ref": "#/components/schemas/NotificationClickedEvent"
               },
               {
@@ -6344,6 +6392,7 @@
                 "execution_running": "#/components/schemas/ExecutionRunningEvent",
                 "execution_started": "#/components/schemas/ExecutionStartedEvent",
                 "execution_timeout": "#/components/schemas/ExecutionTimeoutEvent",
+                "notification_all_read": "#/components/schemas/NotificationAllReadEvent",
                 "notification_clicked": "#/components/schemas/NotificationClickedEvent",
                 "notification_created": "#/components/schemas/NotificationCreatedEvent",
                 "notification_delivered": "#/components/schemas/NotificationDeliveredEvent",
@@ -6583,6 +6632,35 @@
         ],
         "title": "DLQMessagesResponse",
         "description": "Response model for listing DLQ messages."
+      },
+      "DLQRetryResult": {
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "title": "Event Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_id",
+          "status"
+        ],
+        "title": "DLQRetryResult"
       },
       "DLQStats": {
         "properties": {
@@ -6948,6 +7026,24 @@
         ],
         "title": "EndpointGroup"
       },
+      "EndpointUsageStats": {
+        "properties": {
+          "algorithm": {
+            "$ref": "#/components/schemas/RateLimitAlgorithm"
+          },
+          "remaining": {
+            "type": "integer",
+            "title": "Remaining"
+          }
+        },
+        "type": "object",
+        "required": [
+          "algorithm",
+          "remaining"
+        ],
+        "title": "EndpointUsageStats",
+        "description": "Usage statistics for a single endpoint (IETF RateLimit-style)."
+      },
       "Environment": {
         "type": "string",
         "enum": [
@@ -7114,6 +7210,9 @@
                   "$ref": "#/components/schemas/NotificationReadEvent"
                 },
                 {
+                  "$ref": "#/components/schemas/NotificationAllReadEvent"
+                },
+                {
                   "$ref": "#/components/schemas/NotificationClickedEvent"
                 },
                 {
@@ -7211,6 +7310,7 @@
                   "execution_running": "#/components/schemas/ExecutionRunningEvent",
                   "execution_started": "#/components/schemas/ExecutionStartedEvent",
                   "execution_timeout": "#/components/schemas/ExecutionTimeoutEvent",
+                  "notification_all_read": "#/components/schemas/NotificationAllReadEvent",
                   "notification_clicked": "#/components/schemas/NotificationClickedEvent",
                   "notification_created": "#/components/schemas/NotificationCreatedEvent",
                   "notification_delivered": "#/components/schemas/NotificationDeliveredEvent",
@@ -7394,6 +7494,9 @@
                 "$ref": "#/components/schemas/NotificationReadEvent"
               },
               {
+                "$ref": "#/components/schemas/NotificationAllReadEvent"
+              },
+              {
                 "$ref": "#/components/schemas/NotificationClickedEvent"
               },
               {
@@ -7492,6 +7595,7 @@
                 "execution_running": "#/components/schemas/ExecutionRunningEvent",
                 "execution_started": "#/components/schemas/ExecutionStartedEvent",
                 "execution_timeout": "#/components/schemas/ExecutionTimeoutEvent",
+                "notification_all_read": "#/components/schemas/NotificationAllReadEvent",
                 "notification_clicked": "#/components/schemas/NotificationClickedEvent",
                 "notification_created": "#/components/schemas/NotificationCreatedEvent",
                 "notification_delivered": "#/components/schemas/NotificationDeliveredEvent",
@@ -7889,6 +7993,9 @@
                   "$ref": "#/components/schemas/NotificationReadEvent"
                 },
                 {
+                  "$ref": "#/components/schemas/NotificationAllReadEvent"
+                },
+                {
                   "$ref": "#/components/schemas/NotificationClickedEvent"
                 },
                 {
@@ -7986,6 +8093,7 @@
                   "execution_running": "#/components/schemas/ExecutionRunningEvent",
                   "execution_started": "#/components/schemas/ExecutionStartedEvent",
                   "execution_timeout": "#/components/schemas/ExecutionTimeoutEvent",
+                  "notification_all_read": "#/components/schemas/NotificationAllReadEvent",
                   "notification_clicked": "#/components/schemas/NotificationClickedEvent",
                   "notification_created": "#/components/schemas/NotificationCreatedEvent",
                   "notification_delivered": "#/components/schemas/NotificationDeliveredEvent",
@@ -8319,7 +8427,7 @@
             "anyOf": [
               {
                 "items": {
-                  "$ref": "#/components/schemas/ReplayErrorInfo"
+                  "$ref": "#/components/schemas/ReplayError"
                 },
                 "type": "array"
               },
@@ -8383,17 +8491,17 @@
             "title": "Total Events"
           },
           "events_by_type": {
-            "additionalProperties": {
-              "type": "integer"
+            "items": {
+              "$ref": "#/components/schemas/EventTypeCountSchema"
             },
-            "type": "object",
+            "type": "array",
             "title": "Events By Type"
           },
           "events_by_service": {
-            "additionalProperties": {
-              "type": "integer"
+            "items": {
+              "$ref": "#/components/schemas/ServiceEventCountSchema"
             },
-            "type": "object",
+            "type": "array",
             "title": "Events By Service"
           },
           "events_by_hour": {
@@ -8448,15 +8556,30 @@
               "hour": "2024-01-20 11:00"
             }
           ],
-          "events_by_service": {
-            "api-gateway": 523,
-            "execution-service": 1020
-          },
-          "events_by_type": {
-            "execution_completed": 498,
-            "execution_requested": 523,
-            "pod_created": 522
-          },
+          "events_by_service": [
+            {
+              "count": 523,
+              "service_name": "api-gateway"
+            },
+            {
+              "count": 1020,
+              "service_name": "execution-service"
+            }
+          ],
+          "events_by_type": [
+            {
+              "count": 523,
+              "event_type": "EXECUTION_REQUESTED"
+            },
+            {
+              "count": 498,
+              "event_type": "EXECUTION_COMPLETED"
+            },
+            {
+              "count": 522,
+              "event_type": "POD_CREATED"
+            }
+          ],
           "total_events": 1543
         }
       },
@@ -8467,10 +8590,10 @@
             "title": "Total Events"
           },
           "events_by_type": {
-            "additionalProperties": {
-              "type": "integer"
+            "items": {
+              "$ref": "#/components/schemas/EventTypeCountSchema"
             },
-            "type": "object",
+            "type": "array",
             "title": "Events By Type"
           },
           "events_by_hour": {
@@ -8574,6 +8697,7 @@
           "notification_delivered",
           "notification_failed",
           "notification_read",
+          "notification_all_read",
           "notification_clicked",
           "notification_preferences_updated",
           "script_saved",
@@ -8605,6 +8729,24 @@
         ],
         "title": "EventType",
         "description": "Event types used throughout the system."
+      },
+      "EventTypeCountSchema": {
+        "properties": {
+          "event_type": {
+            "$ref": "#/components/schemas/EventType"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_type",
+          "count"
+        ],
+        "title": "EventTypeCountSchema",
+        "description": "Event count by type."
       },
       "EventTypeStatistic": {
         "properties": {
@@ -9731,6 +9873,38 @@
         "title": "HourlyEventCountSchema",
         "description": "Hourly event count for statistics."
       },
+      "KafkaTopic": {
+        "type": "string",
+        "enum": [
+          "execution_events",
+          "execution_completed",
+          "execution_failed",
+          "execution_timeout",
+          "execution_requests",
+          "execution_commands",
+          "execution_tasks",
+          "pod_events",
+          "pod_status_updates",
+          "pod_results",
+          "execution_results",
+          "user_events",
+          "user_notifications",
+          "user_settings_events",
+          "script_events",
+          "security_events",
+          "resource_events",
+          "notification_events",
+          "system_events",
+          "saga_events",
+          "saga_commands",
+          "dead_letter_queue",
+          "dlq_events",
+          "event_bus_stream",
+          "websocket_events"
+        ],
+        "title": "KafkaTopic",
+        "description": "Kafka topic names used throughout the system."
+      },
       "LanguageInfo": {
         "properties": {
           "versions": {
@@ -9887,6 +10061,69 @@
         "type": "object",
         "title": "MonitoringSettingsSchema",
         "description": "Monitoring and observability schema."
+      },
+      "NotificationAllReadEvent": {
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "title": "Event Id"
+          },
+          "event_type": {
+            "type": "string",
+            "enum": [
+              "notification_all_read"
+            ],
+            "const": "notification_all_read",
+            "title": "Event Type",
+            "default": "notification_all_read"
+          },
+          "event_version": {
+            "type": "string",
+            "title": "Event Version",
+            "default": "1.0"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "aggregate_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aggregate Id"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/EventMetadata"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "read_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Read At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_id",
+          "event_type",
+          "event_version",
+          "timestamp",
+          "metadata"
+        ],
+        "title": "NotificationAllReadEvent"
       },
       "NotificationChannel": {
         "type": "string",
@@ -10962,9 +11199,11 @@
             "title": "Pod Name"
           },
           "container_statuses": {
-            "type": "string",
-            "title": "Container Statuses",
-            "default": ""
+            "items": {
+              "$ref": "#/components/schemas/ContainerStatusInfo"
+            },
+            "type": "array",
+            "title": "Container Statuses"
           }
         },
         "type": "object",
@@ -11864,7 +12103,7 @@
             "anyOf": [
               {
                 "additionalProperties": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/KafkaTopic"
                 },
                 "type": "object"
               },
@@ -11912,7 +12151,7 @@
         ],
         "title": "ReplayConfigSchema"
       },
-      "ReplayErrorInfo": {
+      "ReplayError": {
         "properties": {
           "timestamp": {
             "type": "string",
@@ -11922,17 +12161,6 @@
           "error": {
             "type": "string",
             "title": "Error"
-          },
-          "event_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Event Id"
           },
           "error_type": {
             "anyOf": [
@@ -11944,6 +12172,17 @@
               }
             ],
             "title": "Error Type"
+          },
+          "event_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Id"
           }
         },
         "type": "object",
@@ -11951,8 +12190,8 @@
           "timestamp",
           "error"
         ],
-        "title": "ReplayErrorInfo",
-        "description": "Error info for replay operations."
+        "title": "ReplayError",
+        "description": "Error details for replay operations.\n\nAttributes:\n    timestamp: When the error occurred.\n    error: Human-readable error message.\n    error_type: Python exception class name (e.g., \"ValueError\", \"KafkaException\").\n        This is the result of `type(exception).__name__`, NOT the ErrorType enum.\n        Present for session-level errors.\n    event_id: ID of the event that failed to replay. Present for event-level errors."
       },
       "ReplayFilter": {
         "properties": {
@@ -12257,7 +12496,7 @@
             "anyOf": [
               {
                 "additionalProperties": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/KafkaTopic"
                 },
                 "type": "object"
               },
@@ -12391,7 +12630,7 @@
           },
           "errors": {
             "items": {
-              "type": "object"
+              "$ref": "#/components/schemas/ReplayError"
             },
             "type": "array",
             "title": "Errors"
@@ -12604,7 +12843,8 @@
           }
         },
         "type": "object",
-        "title": "ResourceUsageDomain"
+        "title": "ResourceUsageDomain",
+        "description": "Resource usage metrics from script execution."
       },
       "RestoreSettingsRequest": {
         "properties": {
@@ -14370,6 +14610,25 @@
         ],
         "title": "SecurityViolationEvent"
       },
+      "ServiceEventCountSchema": {
+        "properties": {
+          "service_name": {
+            "type": "string",
+            "title": "Service Name"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "service_name",
+          "count"
+        ],
+        "title": "ServiceEventCountSchema",
+        "description": "Event count by service."
+      },
       "ServiceRecoveredEvent": {
         "properties": {
           "event_id": {
@@ -15505,7 +15764,7 @@
           },
           "current_usage": {
             "additionalProperties": {
-              "type": "object"
+              "$ref": "#/components/schemas/EndpointUsageStats"
             },
             "type": "object",
             "title": "Current Usage"

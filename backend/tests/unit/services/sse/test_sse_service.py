@@ -10,7 +10,8 @@ from app.core.metrics import ConnectionMetrics
 from app.db.repositories.sse_repository import SSERepository
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
-from app.domain.execution import DomainExecution, ResourceUsageDomain
+from app.domain.events import ResourceUsageDomain
+from app.domain.execution import DomainExecution
 from app.domain.sse import ShutdownStatus, SSEExecutionStatusDomain, SSEHealthDomain
 from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
 from app.services.sse.redis_bus import SSERedisBus, SSERedisSubscription

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from typing import AsyncIterator
 
@@ -111,12 +113,12 @@ class RedisProvider(Provider):
             socket_timeout=5,
         )
         # Test connection
-        await client.ping()  # type: ignore[misc]  # redis-py dual sync/async return type
+        await client.ping()  # type: ignore[misc]  # redis-py returns Awaitable[bool] | bool
         logger.info(f"Redis connected: {settings.REDIS_HOST}:{settings.REDIS_PORT}/{settings.REDIS_DB}")
         try:
             yield client
         finally:
-            await client.aclose()
+            await client.close()
 
     @provide
     def get_rate_limit_service(
@@ -383,7 +385,9 @@ class SSEProvider(Provider):
     scope = Scope.APP
 
     @provide
-    async def get_sse_redis_bus(self, redis_client: redis.Redis, logger: logging.Logger) -> AsyncIterator[SSERedisBus]:
+    async def get_sse_redis_bus(
+        self, redis_client: redis.Redis, logger: logging.Logger
+    ) -> AsyncIterator[SSERedisBus]:
         bus = SSERedisBus(redis_client, logger)
         yield bus
 
@@ -480,9 +484,10 @@ class UserServicesProvider(Provider):
             repository: UserSettingsRepository,
             kafka_event_service: KafkaEventService,
             event_bus_manager: EventBusManager,
+            settings: Settings,
             logger: logging.Logger,
     ) -> UserSettingsService:
-        service = UserSettingsService(repository, kafka_event_service, logger)
+        service = UserSettingsService(repository, kafka_event_service, settings, logger)
         await service.initialize(event_bus_manager)
         return service
 

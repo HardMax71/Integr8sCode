@@ -20,6 +20,7 @@ from app.domain.events.typed import (
     ExecutionFailedEvent,
     ExecutionRequestedEvent,
 )
+from app.domain.idempotency import KeyStrategy
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
 from app.events.event_store import EventStore
 from app.events.schema.schema_registry import (
@@ -163,7 +164,7 @@ class ExecutionCoordinator(LifecycleEnabled):
             idempotency_manager=self.idempotency_manager,
             dispatcher=self.dispatcher,
             logger=self.logger,
-            default_key_strategy="event_based",  # Use event ID for deduplication
+            default_key_strategy=KeyStrategy.EVENT_BASED,  # Use event ID for deduplication
             default_ttl_seconds=7200,  # 2 hours TTL for coordinator events
             enable_for_all_handlers=True,  # Enable idempotency for ALL handlers
         )

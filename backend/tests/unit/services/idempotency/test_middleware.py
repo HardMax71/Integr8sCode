@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from app.domain.events.typed import DomainEvent
-from app.domain.idempotency import IdempotencyStatus
+from app.domain.idempotency import IdempotencyStatus, KeyStrategy
 from app.services.idempotency.idempotency_manager import IdempotencyManager, IdempotencyResult
 from app.services.idempotency.middleware import (
     IdempotentEventHandler,
@@ -40,7 +40,7 @@ class TestIdempotentEventHandler:
         return IdempotentEventHandler(
             handler=mock_handler,
             idempotency_manager=mock_idempotency_manager,
-            key_strategy="event_based",
+            key_strategy=KeyStrategy.EVENT_BASED,
             ttl_seconds=3600,
             cache_result=True,
             logger=_test_logger
@@ -56,7 +56,7 @@ class TestIdempotentEventHandler:
         handler = IdempotentEventHandler(
             handler=mock_handler,
             idempotency_manager=mock_idempotency_manager,
-            key_strategy="content_hash",
+            key_strategy=KeyStrategy.CONTENT_HASH,
             fields=fields,
             logger=_test_logger
         )
@@ -75,7 +75,7 @@ class TestIdempotentEventHandler:
         # Verify
         mock_idempotency_manager.check_and_reserve.assert_called_once_with(
             event=event,
-            key_strategy="content_hash",
+            key_strategy=KeyStrategy.CONTENT_HASH,
             custom_key=None,
             ttl_seconds=None,
             fields=fields
@@ -107,7 +107,7 @@ class TestIdempotentEventHandler:
         mock_idempotency_manager.mark_failed.assert_called_once_with(
             event=event,
             error="Handler error",
-            key_strategy="event_based",
+            key_strategy=KeyStrategy.EVENT_BASED,
             custom_key=None,
             fields=None
         )

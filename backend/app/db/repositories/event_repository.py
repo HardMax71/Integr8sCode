@@ -18,6 +18,8 @@ from app.domain.events import (
     EventListResult,
     EventReplayInfo,
     EventStatistics,
+    EventTypeCount,
+    ServiceEventCount,
     domain_event_adapter,
 )
 
@@ -242,9 +244,17 @@ class EventRepository:
         )
 
         async for doc in EventDocument.aggregate(pipeline):
+            doc["events_by_type"] = [
+                EventTypeCount(event_type=EventType(k), count=v)
+                for k, v in doc.get("events_by_type", {}).items()
+            ]
+            doc["events_by_service"] = [
+                ServiceEventCount(service_name=k, count=v)
+                for k, v in doc.get("events_by_service", {}).items()
+            ]
             return EventStatistics(**doc)
 
-        return EventStatistics(total_events=0, events_by_type={}, events_by_service={}, events_by_hour=[])
+        return EventStatistics(total_events=0, events_by_type=[], events_by_service=[], events_by_hour=[])
 
     async def cleanup_old_events(
             self, older_than_days: int = 30, event_types: list[EventType] | None = None, dry_run: bool = False

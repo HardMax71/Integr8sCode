@@ -5,7 +5,7 @@ import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from app.core.metrics import CoordinatorMetrics
 from app.domain.events.typed import ExecutionRequestedEvent
@@ -54,10 +54,10 @@ class QueueManager:
         self.max_executions_per_user = max_executions_per_user
         self.stale_timeout_seconds = stale_timeout_seconds
 
-        self._queue: List[QueuedExecution] = []
+        self._queue: list[QueuedExecution] = []
         self._queue_lock = asyncio.Lock()
-        self._user_execution_count: Dict[str, int] = defaultdict(int)
-        self._execution_users: Dict[str, str] = {}
+        self._user_execution_count: dict[str, int] = defaultdict(int)
+        self._execution_users: dict[str, str] = {}
         self._cleanup_task: asyncio.Task[None] | None = None
         self._running = False
 
@@ -86,7 +86,7 @@ class QueueManager:
 
     async def add_execution(
         self, event: ExecutionRequestedEvent, priority: QueuePriority | None = None
-    ) -> Tuple[bool, int | None, str | None]:
+    ) -> tuple[bool, int | None, str | None]:
         async with self._queue_lock:
             if len(self._queue) >= self.max_queue_size:
                 return False, None, "Queue is full"
@@ -159,10 +159,10 @@ class QueueManager:
         async with self._queue_lock:
             return self._get_queue_position(execution_id)
 
-    async def get_queue_stats(self) -> Dict[str, Any]:
+    async def get_queue_stats(self) -> dict[str, Any]:
         async with self._queue_lock:
-            priority_counts: Dict[str, int] = defaultdict(int)
-            user_counts: Dict[str, int] = defaultdict(int)
+            priority_counts: dict[str, int] = defaultdict(int)
+            user_counts: dict[str, int] = defaultdict(int)
 
             for queued in self._queue:
                 priority_name = QueuePriority(queued.priority).name
@@ -181,7 +181,7 @@ class QueueManager:
 
     async def requeue_execution(
         self, event: ExecutionRequestedEvent, increment_retry: bool = True
-    ) -> Tuple[bool, int | None, str | None]:
+    ) -> tuple[bool, int | None, str | None]:
         def _next_lower(p: QueuePriority) -> QueuePriority:
             order = [
                 QueuePriority.CRITICAL,

@@ -1,6 +1,6 @@
 <script lang="ts">
     import { Plus, X } from '@lucide/svelte';
-    import type { UserResponse, UserRateLimitConfigResponse, RateLimitRuleResponse } from '$lib/api';
+    import type { UserResponse, UserRateLimitConfigResponse, RateLimitRuleResponse, EndpointUsageStats } from '$lib/api';
     import {
         getGroupColor,
         getDefaultRulesWithMultiplier,
@@ -14,7 +14,7 @@
         open: boolean;
         user: UserResponse | null;
         config: UserRateLimitConfigResponse | null;
-        usage: Record<string, { count?: number; tokens_remaining?: number }> | null;
+        usage: Record<string, EndpointUsageStats> | null;
         loading: boolean;
         saving: boolean;
         onClose: () => void;
@@ -235,11 +235,14 @@
                         </div>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {#each Object.entries(usage) as [endpoint, usageData]}
-                                <div class="flex justify-between p-2 bg-neutral-50 dark:bg-neutral-900 rounded">
+                                <div class="flex justify-between items-center p-2 bg-neutral-50 dark:bg-neutral-900 rounded">
                                     <span class="text-sm font-mono text-fg-muted dark:text-dark-fg-muted">{endpoint}</span>
-                                    <span class="text-sm font-semibold text-fg-default dark:text-dark-fg-default">
-                                        {usageData.count || usageData.tokens_remaining || 0}
-                                    </span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs text-neutral-500 dark:text-neutral-400">{usageData.algorithm}</span>
+                                        <span class="text-sm font-semibold text-fg-default dark:text-dark-fg-default">
+                                            {usageData.remaining} remaining
+                                        </span>
+                                    </div>
                                 </div>
                             {/each}
                         </div>

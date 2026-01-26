@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import re
 from dataclasses import field
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
 
+from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass
 
 from app.core.utils import StringEnum
@@ -25,6 +27,14 @@ class EndpointGroup(StringEnum):
     API = "api"
 
 
+@dataclass(config=ConfigDict(from_attributes=True))
+class EndpointUsageStats:
+    """Usage statistics for a single endpoint (IETF RateLimit-style)."""
+
+    algorithm: RateLimitAlgorithm
+    remaining: int
+
+
 @dataclass
 class RateLimitRule:
     endpoint_pattern: str
@@ -36,24 +46,24 @@ class RateLimitRule:
     priority: int = 0
     enabled: bool = True
     # Internal cache for matching speed; not serialized
-    compiled_pattern: Optional[re.Pattern[str]] = field(default=None, repr=False, compare=False)
+    compiled_pattern: re.Pattern[str] | None = field(default=None, repr=False, compare=False)
 
 
 @dataclass
 class UserRateLimit:
     user_id: str
-    rules: List[RateLimitRule] = field(default_factory=list)
+    rules: list[RateLimitRule] = field(default_factory=list)
     global_multiplier: float = 1.0
     bypass_rate_limit: bool = False
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    notes: Optional[str] = None
+    notes: str | None = None
 
 
 @dataclass
 class RateLimitConfig:
-    default_rules: List[RateLimitRule] = field(default_factory=list)
-    user_overrides: Dict[str, UserRateLimit] = field(default_factory=dict)
+    default_rules: list[RateLimitRule] = field(default_factory=list)
+    user_overrides: dict[str, UserRateLimit] = field(default_factory=dict)
     global_enabled: bool = True
     redis_ttl: int = 3600
 
@@ -133,8 +143,8 @@ class RateLimitStatus:
     limit: int
     remaining: int
     reset_at: datetime
-    retry_after: Optional[int] = None
-    matched_rule: Optional[str] = None
+    retry_after: int | None = None
+    matched_rule: str | None = None
     algorithm: RateLimitAlgorithm = RateLimitAlgorithm.SLIDING_WINDOW
 
 
@@ -157,8 +167,8 @@ class UserRateLimitsResult:
     """Result of fetching user rate limits with usage stats."""
 
     user_id: str
-    rate_limit_config: Optional[UserRateLimit]
-    current_usage: Dict[str, Dict[str, object]]
+    rate_limit_config: UserRateLimit | None
+    current_usage: dict[str, EndpointUsageStats]
 
 
 @dataclass

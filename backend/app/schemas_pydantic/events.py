@@ -1,12 +1,21 @@
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from typing import Any
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.domain.enums.common import Environment, SortOrder
 from app.domain.enums.events import EventType
-from app.domain.events.typed import DomainEvent
+from app.domain.events.typed import ContainerStatusInfo, DomainEvent
+
+
+class EventTypeCountSchema(BaseModel):
+    """Event count by type."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    event_type: EventType
+    count: int
 
 
 class HourlyEventCountSchema(BaseModel):
@@ -15,6 +24,15 @@ class HourlyEventCountSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     hour: str
+    count: int
+
+
+class ServiceEventCountSchema(BaseModel):
+    """Event count by service."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    service_name: str
     count: int
 
 
@@ -46,7 +64,7 @@ class EventSummaryResponse(BaseModel):
 class EventListResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    events: List[DomainEvent]
+    events: list[DomainEvent]
     total: int
     limit: int
     skip: int
@@ -56,7 +74,7 @@ class EventListResponse(BaseModel):
 class EventFilterRequest(BaseModel):
     """Request model for filtering events."""
 
-    event_types: List[EventType] | None = Field(None, description="Filter by event types")
+    event_types: list[EventType] | None = Field(None, description="Filter by event types")
     aggregate_id: str | None = Field(None, description="Filter by aggregate ID")
     correlation_id: str | None = Field(None, description="Filter by correlation ID")
     user_id: str | None = Field(None, description="Filter by user ID (admin only)")
@@ -81,7 +99,7 @@ class EventFilterRequest(BaseModel):
 class EventAggregationRequest(BaseModel):
     """Request model for event aggregation queries."""
 
-    pipeline: List[Dict[str, Any]] = Field(..., description="MongoDB aggregation pipeline")
+    pipeline: list[dict[str, Any]] = Field(..., description="MongoDB aggregation pipeline")
     limit: int = Field(100, ge=1, le=1000)
 
 
@@ -89,11 +107,11 @@ class PublishEventRequest(BaseModel):
     """Request model for publishing events."""
 
     event_type: EventType = Field(..., description="Type of event to publish")
-    payload: Dict[str, Any] = Field(..., description="Event payload data")
+    payload: dict[str, Any] = Field(..., description="Event payload data")
     aggregate_id: str | None = Field(None, description="Aggregate root ID")
     correlation_id: str | None = Field(None, description="Correlation ID")
     causation_id: str | None = Field(None, description="ID of causing event")
-    metadata: Dict[str, Any] | None = Field(None, description="Additional metadata")
+    metadata: dict[str, Any] | None = Field(None, description="Additional metadata")
 
 
 class EventBase(BaseModel):
@@ -107,7 +125,7 @@ class EventBase(BaseModel):
     correlation_id: str | None = None
     causation_id: str | None = None  # ID of the event that caused this event
     metadata: EventMetadataResponse
-    payload: Dict[str, Any]
+    payload: dict[str, Any]
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -157,7 +175,7 @@ class PodEventPayload(BaseModel):
     namespace: str
     execution_id: str
     phase: str | None = None
-    container_statuses: List[Dict[str, Any]] | None = None
+    container_statuses: list[ContainerStatusInfo] | None = None
     node_name: str | None = None
     pod_ip: str | None = None
     reason: str | None = None
@@ -174,7 +192,7 @@ class EventInDB(EventBase):
 class EventQuery(BaseModel):
     """Query parameters for event search."""
 
-    event_types: List[EventType] | None = None
+    event_types: list[EventType] | None = None
     aggregate_id: str | None = None
     correlation_id: str | None = None
     user_id: str | None = None
@@ -203,9 +221,9 @@ class EventStatistics(BaseModel):
     """Event statistics response."""
 
     total_events: int
-    events_by_type: Dict[str, int]
-    events_by_service: Dict[str, int]
-    events_by_hour: List[HourlyEventCountSchema]
+    events_by_type: list[EventTypeCountSchema]
+    events_by_service: list[ServiceEventCountSchema]
+    events_by_hour: list[HourlyEventCountSchema]
     start_time: datetime | None = None
     end_time: datetime | None = None
 
@@ -214,12 +232,15 @@ class EventStatistics(BaseModel):
         json_schema_extra={
             "example": {
                 "total_events": 1543,
-                "events_by_type": {
-                    EventType.EXECUTION_REQUESTED: 523,
-                    EventType.EXECUTION_COMPLETED: 498,
-                    EventType.POD_CREATED: 522,
-                },
-                "events_by_service": {"api-gateway": 523, "execution-service": 1020},
+                "events_by_type": [
+                    {"event_type": "EXECUTION_REQUESTED", "count": 523},
+                    {"event_type": "EXECUTION_COMPLETED", "count": 498},
+                    {"event_type": "POD_CREATED", "count": 522},
+                ],
+                "events_by_service": [
+                    {"service_name": "api-gateway", "count": 523},
+                    {"service_name": "execution-service", "count": 1020},
+                ],
                 "events_by_hour": [
                     {"hour": "2024-01-20 10:00", "count": 85},
                     {"hour": "2024-01-20 11:00", "count": 92},
@@ -234,8 +255,8 @@ class EventProjection(BaseModel):
 
     name: str
     description: str | None = None
-    source_events: List[EventType]  # Event types to include
-    aggregation_pipeline: List[Dict[str, Any]]
+    source_events: list[EventType]  # Event types to include
+    aggregation_pipeline: list[dict[str, Any]]
     output_collection: str
     refresh_interval_seconds: int = 300  # 5 minutes default
     last_updated: datetime | None = None
@@ -293,7 +314,7 @@ class ReplayAggregateResponse(BaseModel):
     dry_run: bool
     aggregate_id: str
     event_count: int | None = None
-    event_types: List[EventType] | None = None
+    event_types: list[EventType] | None = None
     start_time: datetime | None = None
     end_time: datetime | None = None
     replayed_count: int | None = None

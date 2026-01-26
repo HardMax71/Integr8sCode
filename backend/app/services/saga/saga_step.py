@@ -1,6 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Generic, Optional, TypeVar
+from typing import Any, Generic, TypeVar
 
 from fastapi.encoders import jsonable_encoder
 
@@ -20,8 +20,8 @@ class SagaContext:
         self.data: dict[str, Any] = {}
         self.events: list[DomainEvent] = []
         self.compensations: list[CompensationStep] = []
-        self.current_step: Optional[str] = None
-        self.error: Optional[Exception] = None
+        self.current_step: str | None = None
+        self.error: Exception | None = None
 
     def set(self, key: str, value: Any) -> None:
         """Set context data"""
@@ -88,7 +88,7 @@ class SagaStep(ABC, Generic[T]):
         pass
 
     @abstractmethod
-    def get_compensation(self) -> Optional["CompensationStep"]:
+    def get_compensation(self) -> "CompensationStep | None":
         """Get compensation step for this action"""
         pass
 

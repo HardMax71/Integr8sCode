@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any
 from uuid import uuid4
 
 from beanie import Document, Indexed
@@ -17,13 +17,13 @@ class ReplayFilter(BaseModel):
     """
 
     execution_id: str | None = None
-    event_types: List[EventType] | None = None
+    event_types: list[EventType] | None = None
     start_time: datetime | None = None
     end_time: datetime | None = None
     user_id: str | None = None
     service_name: str | None = None
-    custom_query: Dict[str, Any] | None = None
-    exclude_event_types: List[EventType] | None = None
+    custom_query: dict[str, Any] | None = None
+    exclude_event_types: list[EventType] | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -43,7 +43,7 @@ class ReplayConfig(BaseModel):
     batch_size: int = Field(default=100, ge=1, le=1000)
     max_events: int | None = Field(default=None, ge=1)
 
-    target_topics: Dict[str, str] | None = None  # EventType -> topic mapping as strings
+    target_topics: dict[str, str] | None = None  # EventType -> topic mapping as strings
     target_file_path: str | None = None
 
     skip_errors: bool = True

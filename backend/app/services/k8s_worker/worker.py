@@ -22,6 +22,7 @@ from app.domain.events.typed import (
     ExecutionStartedEvent,
     PodCreatedEvent,
 )
+from app.domain.idempotency import KeyStrategy
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
 from app.events.event_store import EventStore
 from app.events.schema.schema_registry import (
@@ -137,7 +138,7 @@ class KubernetesWorker(LifecycleEnabled):
             idempotency_manager=self.idempotency_manager,
             dispatcher=self.dispatcher,
             logger=self.logger,
-            default_key_strategy="content_hash",  # Hash execution_id + script for deduplication
+            default_key_strategy=KeyStrategy.CONTENT_HASH,  # Hash execution_id + script for deduplication
             default_ttl_seconds=3600,  # 1 hour TTL for pod creation events
             enable_for_all_handlers=True,  # Enable idempotency for all handlers
         )

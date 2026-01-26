@@ -11,8 +11,9 @@ from app.db.docs import (
     ExecutionDocument,
     ReplaySessionDocument,
 )
-from app.domain.admin import ReplaySessionData, ReplaySessionStatusDetail
+from app.domain.admin import ExecutionResultSummary, ReplaySessionData, ReplaySessionStatusDetail
 from app.domain.admin.replay_updates import ReplaySessionUpdate
+from app.domain.enums.events import EventType
 from app.domain.enums.replay import ReplayStatus
 from app.domain.events import (
     DomainEvent,
@@ -22,6 +23,7 @@ from app.domain.events import (
     EventFilter,
     EventStatistics,
     EventSummary,
+    EventTypeCount,
     HourlyEventCount,
     UserEventCount,
     domain_event_adapter,
@@ -141,7 +143,7 @@ class AdminEventsRepository:
             .limit(10)
         )
         top_types = await EventDocument.aggregate(type_pipeline.export()).to_list()
-        events_by_type = {t["_id"]: t["count"] for t in top_types}
+        events_by_type = [EventTypeCount(event_type=EventType(t["_id"]), count=t["count"]) for t in top_types]
 
         # Hourly events pipeline - project renames _id->hour
         hourly_pipeline = (
@@ -283,7 +285,7 @@ class AdminEventsRepository:
                     estimated_completion = current_time + timedelta(seconds=remaining / rate)
 
         # Fetch related execution results
-        execution_results: list[dict[str, Any]] = []
+        execution_results: list[ExecutionResultSummary] = []
         if doc.config and doc.config.filter and doc.config.filter.custom_query:
             original_query = doc.config.filter.custom_query
             original_events = await EventDocument.find(original_query).limit(10).to_list()
@@ -294,17 +296,17 @@ class AdminEventsRepository:
                 exec_doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == exec_id)
                 if exec_doc:
                     execution_results.append(
-                        {
-                            "execution_id": exec_doc.execution_id,
-                            "status": exec_doc.status if exec_doc.status else None,
-                            "stdout": exec_doc.stdout,
-                            "stderr": exec_doc.stderr,
-                            "exit_code": exec_doc.exit_code,
-                            "lang": exec_doc.lang,
-                            "lang_version": exec_doc.lang_version,
-                            "created_at": exec_doc.created_at,
-                            "updated_at": exec_doc.updated_at,
-                        }
+                        ExecutionResultSummary(
+                            execution_id=exec_doc.execution_id,
+                            status=exec_doc.status if exec_doc.status else None,
+                            stdout=exec_doc.stdout,
+                            stderr=exec_doc.stderr,
+                            exit_code=exec_doc.exit_code,
+                            lang=exec_doc.lang,
+                            lang_version=exec_doc.lang_version,
+                            created_at=exec_doc.created_at,
+                            updated_at=exec_doc.updated_at,
+                        )
                     )
 
         # Convert document to domain

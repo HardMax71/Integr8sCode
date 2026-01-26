@@ -1,11 +1,10 @@
 from datetime import datetime, timezone
-from typing import List, Optional
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.domain.enums.user import UserRole
-from app.domain.rate_limit import EndpointGroup, RateLimitAlgorithm
+from app.domain.rate_limit import EndpointGroup, EndpointUsageStats, RateLimitAlgorithm
 
 
 class UserBase(BaseModel):
@@ -42,11 +41,11 @@ class UserInDB(UserBase):
 class UserUpdate(BaseModel):
     """Model for updating a user"""
 
-    username: Optional[str] = None
-    email: Optional[EmailStr] = None
-    role: Optional[UserRole] = None
-    is_active: Optional[bool] = None
-    password: Optional[str] = Field(None, min_length=8)
+    username: str | None = None
+    email: EmailStr | None = None
+    role: UserRole | None = None
+    is_active: bool | None = None
+    password: str | None = Field(None, min_length=8)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -59,9 +58,9 @@ class UserResponse(UserBase):
     created_at: datetime
     updated_at: datetime
     # Rate limit summary fields (optional, populated by admin endpoints)
-    bypass_rate_limit: Optional[bool] = None
-    global_multiplier: Optional[float] = None
-    has_custom_limits: Optional[bool] = None
+    bypass_rate_limit: bool | None = None
+    global_multiplier: float | None = None
+    has_custom_limits: bool | None = None
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -77,8 +76,8 @@ class User(BaseModel):
     role: UserRole = UserRole.USER
     is_active: bool = True
     is_superuser: bool = False
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -89,7 +88,7 @@ class User(BaseModel):
 class UserListResponse(BaseModel):
     """Response model for listing users"""
 
-    users: List[UserResponse]
+    users: list[UserResponse]
     total: int
     offset: int
     limit: int
@@ -184,7 +183,7 @@ class RateLimitUpdateRequest(BaseModel):
     bypass_rate_limit: bool = False
     global_multiplier: float = 1.0
     rules: list[RateLimitRuleRequest] = []
-    notes: Optional[str] = None
+    notes: str | None = None
 
 
 class UserRateLimitConfigResponse(BaseModel):
@@ -194,9 +193,9 @@ class UserRateLimitConfigResponse(BaseModel):
     bypass_rate_limit: bool
     global_multiplier: float
     rules: list[RateLimitRuleResponse]
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-    notes: Optional[str] = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    notes: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -205,8 +204,8 @@ class UserRateLimitsResponse(BaseModel):
     """Response model for user rate limits with usage stats."""
 
     user_id: str
-    rate_limit_config: Optional[UserRateLimitConfigResponse] = None
-    current_usage: dict[str, dict[str, object]]
+    rate_limit_config: UserRateLimitConfigResponse | None = None
+    current_usage: dict[str, EndpointUsageStats]
 
     model_config = ConfigDict(from_attributes=True)
 

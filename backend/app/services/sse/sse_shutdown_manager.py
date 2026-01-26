@@ -2,7 +2,6 @@ import asyncio
 import logging
 import time
 from enum import Enum
-from typing import Dict, Set
 
 from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics import ConnectionMetrics
@@ -53,9 +52,9 @@ class SSEShutdownManager:
         self._shutdown_start_time: float | None = None
 
         # Track active connections by execution
-        self._active_connections: Dict[str, Set[str]] = {}  # execution_id -> connection_ids
-        self._connection_callbacks: Dict[str, asyncio.Event] = {}  # connection_id -> shutdown event
-        self._draining_connections: Set[str] = set()
+        self._active_connections: dict[str, set[str]] = {}  # execution_id -> connection_ids
+        self._connection_callbacks: dict[str, asyncio.Event] = {}  # connection_id -> shutdown event
+        self._draining_connections: set[str] = set()
 
         # Router reference (set during initialization)
         self._router: LifecycleEnabled | None = None

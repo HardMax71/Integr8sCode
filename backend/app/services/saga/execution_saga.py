@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.domain.enums.events import EventType
@@ -56,7 +56,7 @@ class ValidateExecutionStep(SagaStep[ExecutionRequestedEvent]):
 class AllocateResourcesStep(SagaStep[ExecutionRequestedEvent]):
     """Allocate resources for execution"""
 
-    def __init__(self, alloc_repo: Optional[ResourceAllocationRepository] = None) -> None:
+    def __init__(self, alloc_repo: ResourceAllocationRepository | None = None) -> None:
         super().__init__("allocate_resources")
         self.alloc_repo: ResourceAllocationRepository | None = alloc_repo
 
@@ -136,10 +136,10 @@ class QueueExecutionStep(SagaStep[ExecutionRequestedEvent]):
 class CreatePodStep(SagaStep[ExecutionRequestedEvent]):
     """Create Kubernetes pod"""
 
-    def __init__(self, producer: Optional[UnifiedProducer] = None, publish_commands: Optional[bool] = None) -> None:
+    def __init__(self, producer: UnifiedProducer | None = None, publish_commands: bool | None = None) -> None:
         super().__init__("create_pod")
         self.producer: UnifiedProducer | None = producer
-        self.publish_commands: Optional[bool] = publish_commands
+        self.publish_commands: bool | None = publish_commands
 
     async def execute(self, context: SagaContext, event: ExecutionRequestedEvent) -> bool:
         """Trigger pod creation by publishing CreatePodCommandEvent"""
@@ -236,7 +236,7 @@ class MonitorExecutionStep(SagaStep[ExecutionRequestedEvent]):
 class ReleaseResourcesCompensation(CompensationStep):
     """Release allocated resources"""
 
-    def __init__(self, alloc_repo: Optional[ResourceAllocationRepository] = None) -> None:
+    def __init__(self, alloc_repo: ResourceAllocationRepository | None = None) -> None:
         super().__init__("release_resources")
         self.alloc_repo: ResourceAllocationRepository | None = alloc_repo
 
@@ -264,7 +264,7 @@ class ReleaseResourcesCompensation(CompensationStep):
 class RemoveFromQueueCompensation(CompensationStep):
     """Remove execution from queue"""
 
-    def __init__(self, producer: Optional[UnifiedProducer] = None) -> None:
+    def __init__(self, producer: UnifiedProducer | None = None) -> None:
         super().__init__("remove_from_queue")
         self.producer: UnifiedProducer | None = producer
 
@@ -290,7 +290,7 @@ class RemoveFromQueueCompensation(CompensationStep):
 class DeletePodCompensation(CompensationStep):
     """Delete created pod"""
 
-    def __init__(self, producer: Optional[UnifiedProducer] = None) -> None:
+    def __init__(self, producer: UnifiedProducer | None = None) -> None:
         super().__init__("delete_pod")
         self.producer: UnifiedProducer | None = producer
 

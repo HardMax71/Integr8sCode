@@ -41,6 +41,7 @@ class EventType(StringEnum):
     NOTIFICATION_DELIVERED = "notification_delivered"
     NOTIFICATION_FAILED = "notification_failed"
     NOTIFICATION_READ = "notification_read"
+    NOTIFICATION_ALL_READ = "notification_all_read"
     NOTIFICATION_CLICKED = "notification_clicked"
     NOTIFICATION_PREFERENCES_UPDATED = "notification_preferences_updated"
 

@@ -1,9 +1,9 @@
 from datetime import datetime
-from typing import Dict
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from app.domain.enums.events import EventType
+from app.domain.enums.kafka import KafkaTopic
 from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
 from app.domain.replay import ReplayFilter
 
@@ -21,7 +21,7 @@ class ReplayRequest(BaseModel):
     max_events: int | None = Field(default=None, ge=1)
     skip_errors: bool = True
     target_file_path: str | None = None
-    target_topics: Dict[EventType, str] | None = None
+    target_topics: dict[EventType, KafkaTopic] | None = None
     retry_failed: bool = False
     retry_attempts: int = Field(default=3, ge=1, le=10)
     enable_progress_tracking: bool = True

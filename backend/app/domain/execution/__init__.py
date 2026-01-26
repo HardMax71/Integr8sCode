@@ -10,7 +10,6 @@ from .models import (
     ExecutionResultDomain,
     LanguageInfoDomain,
     ResourceLimitsDomain,
-    ResourceUsageDomain,
 )
 
 __all__ = [
@@ -20,7 +19,6 @@ __all__ = [
     "ExecutionResultDomain",
     "LanguageInfoDomain",
     "ResourceLimitsDomain",
-    "ResourceUsageDomain",
     "RuntimeNotSupportedError",
     "EventPublishError",
     "ExecutionNotFoundError",

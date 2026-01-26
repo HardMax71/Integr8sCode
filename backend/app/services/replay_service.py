@@ -1,6 +1,5 @@
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import List
 
 from app.db.repositories.replay_repository import ReplayRepository
 from app.domain.replay import (
@@ -112,7 +111,7 @@ class ReplayService:
             self.logger.error(f"Failed to cancel replay session: {e}")
             raise ReplayOperationError(session_id, "cancel", str(e)) from e
 
-    def list_sessions(self, status: ReplayStatus | None = None, limit: int = 100) -> List[ReplaySessionState]:
+    def list_sessions(self, status: ReplayStatus | None = None, limit: int = 100) -> list[ReplaySessionState]:
         """List replay sessions with optional filtering (domain objects)."""
         return self.event_replay_service.list_sessions(status=status, limit=limit)
 

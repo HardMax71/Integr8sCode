@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any
 
 from beanie import Document, Indexed
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -20,7 +20,7 @@ class NotificationSettings(BaseModel):
     execution_failed: bool = True
     system_updates: bool = True
     security_alerts: bool = True
-    channels: List[NotificationChannel] = [NotificationChannel.IN_APP]
+    channels: list[NotificationChannel] = [NotificationChannel.IN_APP]
 
 
 class EditorSettings(BaseModel):
@@ -66,7 +66,7 @@ class UserSettingsDocument(Document):
     time_format: str = "24h"
     notifications: NotificationSettings = Field(default_factory=NotificationSettings)
     editor: EditorSettings = Field(default_factory=EditorSettings)
-    custom_settings: Dict[str, Any] = Field(default_factory=dict)
+    custom_settings: dict[str, Any] = Field(default_factory=dict)
     version: int = 1
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -94,7 +94,7 @@ class UserSettingsSnapshotDocument(Document):
     time_format: str = "24h"
     notifications: NotificationSettings = Field(default_factory=NotificationSettings)
     editor: EditorSettings = Field(default_factory=EditorSettings)
-    custom_settings: Dict[str, Any] = Field(default_factory=dict)
+    custom_settings: dict[str, Any] = Field(default_factory=dict)
     version: int = 1
 
     # Snapshot metadata

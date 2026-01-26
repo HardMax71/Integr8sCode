@@ -1,11 +1,11 @@
 from functools import lru_cache
-from typing import Dict, get_args, get_origin
+from typing import get_args, get_origin
 
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 
 # EventType -> KafkaTopic routing
-EVENT_TYPE_TO_TOPIC: Dict[EventType, KafkaTopic] = {
+EVENT_TYPE_TO_TOPIC: dict[EventType, KafkaTopic] = {
     # Execution events
     EventType.EXECUTION_REQUESTED: KafkaTopic.EXECUTION_EVENTS,
     EventType.EXECUTION_ACCEPTED: KafkaTopic.EXECUTION_EVENTS,
@@ -78,7 +78,7 @@ EVENT_TYPE_TO_TOPIC: Dict[EventType, KafkaTopic] = {
 
 
 @lru_cache(maxsize=1)
-def _get_event_type_to_class() -> Dict[EventType, type]:
+def _get_event_type_to_class() -> dict[EventType, type]:
     """Build mapping from EventType to event class using DomainEvent union."""
     from app.domain.events.typed import DomainEvent
 

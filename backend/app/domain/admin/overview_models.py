@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import field
-from typing import List
 
 from pydantic.dataclasses import dataclass
 
@@ -31,4 +30,4 @@ class AdminUserOverviewDomain:
     stats: EventStatistics
     derived_counts: DerivedCountsDomain
     rate_limit_summary: RateLimitSummaryDomain
-    recent_events: List[DomainEvent] = field(default_factory=list)
+    recent_events: list[DomainEvent] = field(default_factory=list)

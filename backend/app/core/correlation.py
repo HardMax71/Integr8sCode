@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any
 
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -23,11 +23,11 @@ class CorrelationContext:
         return correlation_id_context.get() or ""
 
     @staticmethod
-    def set_request_metadata(metadata: Dict[str, Any]) -> None:
+    def set_request_metadata(metadata: dict[str, Any]) -> None:
         request_metadata_context.set(metadata)
 
     @staticmethod
-    def get_request_metadata() -> Dict[str, Any]:
+    def get_request_metadata() -> dict[str, Any]:
         return request_metadata_context.get() or {}
 
     @staticmethod

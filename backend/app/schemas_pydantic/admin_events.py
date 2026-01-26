@@ -1,28 +1,19 @@
 from datetime import datetime
-from typing import Dict, List
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from app.domain.enums.events import EventType
 from app.domain.events.event_models import EventSummary
 from app.domain.events.typed import DomainEvent
-from app.schemas_pydantic.events import HourlyEventCountSchema
+from app.domain.replay import ReplayError
+from app.schemas_pydantic.events import EventTypeCountSchema, HourlyEventCountSchema
 from app.schemas_pydantic.execution import ExecutionResult
-
-
-class ReplayErrorInfo(BaseModel):
-    """Error info for replay operations."""
-
-    timestamp: datetime
-    error: str
-    event_id: str | None = None
-    error_type: str | None = None
 
 
 class EventFilter(BaseModel):
     """Filter criteria for browsing events"""
 
-    event_types: List[EventType] | None = None
+    event_types: list[EventType] | None = None
     aggregate_id: str | None = None
     correlation_id: str | None = None
     user_id: str | None = None
@@ -45,7 +36,7 @@ class EventBrowseRequest(BaseModel):
 class EventReplayRequest(BaseModel):
     """Request model for replaying events"""
 
-    event_ids: List[str] | None = None
+    event_ids: list[str] | None = None
     correlation_id: str | None = None
     aggregate_id: str | None = None
     start_time: datetime | None = None
@@ -57,7 +48,7 @@ class EventReplayRequest(BaseModel):
 class EventBrowseResponse(BaseModel):
     """Response model for browsing events"""
 
-    events: List[DomainEvent]
+    events: list[DomainEvent]
     total: int
     skip: int
     limit: int
@@ -67,8 +58,8 @@ class EventDetailResponse(BaseModel):
     """Response model for event detail"""
 
     event: DomainEvent
-    related_events: List[EventSummary]
-    timeline: List[EventSummary]
+    related_events: list[EventSummary]
+    timeline: list[EventSummary]
 
 
 class EventReplayResponse(BaseModel):
@@ -79,7 +70,7 @@ class EventReplayResponse(BaseModel):
     replay_correlation_id: str
     session_id: str | None = None
     status: str
-    events_preview: List[EventSummary] | None = None
+    events_preview: list[EventSummary] | None = None
 
 
 class EventReplayStatusResponse(BaseModel):
@@ -97,9 +88,9 @@ class EventReplayStatusResponse(BaseModel):
     created_at: datetime
     started_at: datetime | None = None
     completed_at: datetime | None = None
-    errors: List[ReplayErrorInfo] | None = None
+    errors: list[ReplayError] | None = None
     estimated_completion: datetime | None = None
-    execution_results: List[ExecutionResult] | None = None
+    execution_results: list[ExecutionResult] | None = None
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -129,8 +120,8 @@ class EventStatsResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     total_events: int
-    events_by_type: Dict[str, int]
-    events_by_hour: List[HourlyEventCountSchema]
-    top_users: List[UserEventCountSchema]
+    events_by_type: list[EventTypeCountSchema]
+    events_by_hour: list[HourlyEventCountSchema]
+    top_users: list[UserEventCountSchema]
     error_rate: float
     avg_processing_time: float

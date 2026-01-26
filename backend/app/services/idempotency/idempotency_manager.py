@@ -10,7 +10,7 @@ from pymongo.errors import DuplicateKeyError
 
 from app.core.metrics import DatabaseMetrics
 from app.domain.events.typed import BaseEvent
-from app.domain.idempotency import IdempotencyRecord, IdempotencyStats, IdempotencyStatus
+from app.domain.idempotency import IdempotencyRecord, IdempotencyStats, IdempotencyStatus, KeyStrategy
 
 
 class IdempotencyResult(BaseModel):
@@ -95,13 +95,13 @@ class IdempotencyManager:
         self.logger.info("Closed idempotency manager")
 
     def _generate_key(
-        self, event: BaseEvent, key_strategy: str, custom_key: str | None = None, fields: set[str] | None = None
+        self, event: BaseEvent, key_strategy: KeyStrategy, custom_key: str | None = None, fields: set[str] | None = None
     ) -> str:
-        if key_strategy == "event_based":
+        if key_strategy == KeyStrategy.EVENT_BASED:
             key = IdempotencyKeyStrategy.event_based(event)
-        elif key_strategy == "content_hash":
+        elif key_strategy == KeyStrategy.CONTENT_HASH:
             key = IdempotencyKeyStrategy.content_hash(event, fields)
-        elif key_strategy == "custom" and custom_key:
+        elif key_strategy == KeyStrategy.CUSTOM and custom_key:
             key = IdempotencyKeyStrategy.custom(event, custom_key)
         else:
             raise ValueError(f"Invalid key strategy: {key_strategy}")
@@ -110,7 +110,7 @@ class IdempotencyManager:
     async def check_and_reserve(
         self,
         event: BaseEvent,
-        key_strategy: str = "event_based",
+        key_strategy: KeyStrategy = KeyStrategy.EVENT_BASED,
         custom_key: str | None = None,
         ttl_seconds: int | None = None,
         fields: set[str] | None = None,
@@ -227,7 +227,7 @@ class IdempotencyManager:
     async def mark_completed(
         self,
         event: BaseEvent,
-        key_strategy: str = "event_based",
+        key_strategy: KeyStrategy = KeyStrategy.EVENT_BASED,
         custom_key: str | None = None,
         fields: set[str] | None = None,
     ) -> bool:
@@ -247,7 +247,7 @@ class IdempotencyManager:
         self,
         event: BaseEvent,
         error: str,
-        key_strategy: str = "event_based",
+        key_strategy: KeyStrategy = KeyStrategy.EVENT_BASED,
         custom_key: str | None = None,
         fields: set[str] | None = None,
     ) -> bool:
@@ -264,7 +264,7 @@ class IdempotencyManager:
         self,
         event: BaseEvent,
         cached_json: str,
-        key_strategy: str = "event_based",
+        key_strategy: KeyStrategy = KeyStrategy.EVENT_BASED,
         custom_key: str | None = None,
         fields: set[str] | None = None,
     ) -> bool:
@@ -276,7 +276,7 @@ class IdempotencyManager:
         return await self._update_key_status(full_key, existing, IdempotencyStatus.COMPLETED, cached_json=cached_json)
 
     async def get_cached_json(
-        self, event: BaseEvent, key_strategy: str, custom_key: str | None, fields: set[str] | None = None
+        self, event: BaseEvent, key_strategy: KeyStrategy, custom_key: str | None, fields: set[str] | None = None
     ) -> str:
         full_key = self._generate_key(event, key_strategy, custom_key, fields)
         existing = await self._repo.find_by_key(full_key)
@@ -286,7 +286,7 @@ class IdempotencyManager:
     async def remove(
         self,
         event: BaseEvent,
-        key_strategy: str = "event_based",
+        key_strategy: KeyStrategy = KeyStrategy.EVENT_BASED,
         custom_key: str | None = None,
         fields: set[str] | None = None,
     ) -> bool:

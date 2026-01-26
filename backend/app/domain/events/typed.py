@@ -10,7 +10,17 @@ from app.domain.enums.common import Environment
 from app.domain.enums.events import EventType
 from app.domain.enums.notification import NotificationChannel, NotificationSeverity
 from app.domain.enums.storage import ExecutionErrorType, StorageType
-from app.domain.execution import ResourceUsageDomain
+
+
+class ResourceUsageDomain(AvroBase):
+    """Resource usage metrics from script execution."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    execution_time_wall_seconds: float = 0.0
+    cpu_time_jiffies: int = 0
+    clk_tck_hertz: int = 0
+    peak_memory_kb: int = 0
 
 
 class EventMetadata(AvroBase):
@@ -152,11 +162,22 @@ class PodScheduledEvent(BaseEvent):
     node_name: str = ""
 
 
+class ContainerStatusInfo(AvroBase):
+    """Container status information from Kubernetes pod."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    name: str
+    ready: bool = False
+    restart_count: int = 0
+    state: str = "unknown"
+
+
 class PodRunningEvent(BaseEvent):
     event_type: Literal[EventType.POD_RUNNING] = EventType.POD_RUNNING
     execution_id: str
     pod_name: str
-    container_statuses: str = ""
+    container_statuses: list[ContainerStatusInfo] = Field(default_factory=list)
 
 
 class PodSucceededEvent(BaseEvent):
@@ -309,6 +330,13 @@ class NotificationReadEvent(BaseEvent):
     event_type: Literal[EventType.NOTIFICATION_READ] = EventType.NOTIFICATION_READ
     notification_id: str
     user_id: str
+    read_at: datetime
+
+
+class NotificationAllReadEvent(BaseEvent):
+    event_type: Literal[EventType.NOTIFICATION_ALL_READ] = EventType.NOTIFICATION_ALL_READ
+    user_id: str
+    count: int
     read_at: datetime
 
 
@@ -620,6 +648,7 @@ DomainEvent = Annotated[
     | NotificationDeliveredEvent
     | NotificationFailedEvent
     | NotificationReadEvent
+    | NotificationAllReadEvent
     | NotificationClickedEvent
     | NotificationPreferencesUpdatedEvent
     # Saga Events

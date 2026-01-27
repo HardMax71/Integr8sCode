@@ -10,13 +10,9 @@ from app.domain.enums.saga import SagaState
 from app.domain.events.typed import DomainEvent, ExecutionRequestedEvent
 from app.domain.saga.models import Saga, SagaConfig
 from app.events.core import UnifiedProducer
-from app.events.event_store import EventStore
-from app.events.schema.schema_registry import SchemaRegistryManager
-from app.services.idempotency.idempotency_manager import IdempotencyManager
 from app.services.saga.base_saga import BaseSaga
 from app.services.saga.saga_orchestrator import SagaOrchestrator
 from app.services.saga.saga_step import CompensationStep, SagaContext, SagaStep
-from app.settings import Settings
 
 from tests.conftest import make_execution_requested_event
 
@@ -50,23 +46,6 @@ class _FakeProd(UnifiedProducer):
         self, event_to_produce: DomainEvent, key: str | None = None, headers: dict[str, str] | None = None
     ) -> None:
         return None
-
-
-class _FakeIdem(IdempotencyManager):
-    """Fake IdempotencyManager for testing."""
-
-    def __init__(self) -> None:
-        pass  # Skip parent __init__
-
-    async def close(self) -> None:
-        return None
-
-
-class _FakeStore(EventStore):
-    """Fake EventStore for testing."""
-
-    def __init__(self) -> None:
-        pass  # Skip parent __init__
 
 
 class _FakeAlloc(ResourceAllocationRepository):
@@ -105,10 +84,6 @@ def _orch(event_metrics: EventMetrics) -> SagaOrchestrator:
         config=SagaConfig(name="t", enable_compensation=True, store_events=True, publish_commands=False),
         saga_repository=_FakeRepo(),
         producer=_FakeProd(),
-        schema_registry_manager=MagicMock(spec=SchemaRegistryManager),
-        settings=MagicMock(spec=Settings),
-        event_store=_FakeStore(),
-        idempotency_manager=_FakeIdem(),
         resource_allocation_repository=_FakeAlloc(),
         logger=_test_logger,
         event_metrics=event_metrics,
@@ -119,11 +94,9 @@ def _orch(event_metrics: EventMetrics) -> SagaOrchestrator:
 async def test_min_success_flow(event_metrics: EventMetrics) -> None:
     orch = _orch(event_metrics)
     orch.register_saga(_Saga)
-    # Set orchestrator running state via lifecycle property
-    orch._lifecycle_started = True
-    await orch._handle_event(make_execution_requested_event(execution_id="e"))
-    # basic sanity; deep behavior covered by integration
-    assert orch.is_running is True
+    # Stateless orchestrator - just call handle_event directly
+    await orch.handle_event(make_execution_requested_event(execution_id="e"))
+    # Basic sanity - no exception means success; deep behavior covered by integration
 
 
 @pytest.mark.asyncio
@@ -133,10 +106,6 @@ async def test_should_trigger_and_existing_short_circuit(event_metrics: EventMet
         config=SagaConfig(name="t", enable_compensation=True, store_events=True, publish_commands=False),
         saga_repository=fake_repo,
         producer=_FakeProd(),
-        schema_registry_manager=MagicMock(spec=SchemaRegistryManager),
-        settings=MagicMock(spec=Settings),
-        event_store=_FakeStore(),
-        idempotency_manager=_FakeIdem(),
         resource_allocation_repository=_FakeAlloc(),
         logger=_test_logger,
         event_metrics=event_metrics,

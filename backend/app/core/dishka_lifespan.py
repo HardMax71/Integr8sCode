@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from contextlib import AsyncExitStack, asynccontextmanager
+from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 import redis.asyncio as redis
@@ -15,7 +15,6 @@ from app.core.metrics import RateLimitMetrics
 from app.core.startup import initialize_rate_limits
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
-from app.events.event_store_consumer import EventStoreConsumer
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.services.notification_service import NotificationService
 from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
@@ -76,26 +75,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             extra={"testing": settings.TESTING, "enable_tracing": settings.ENABLE_TRACING},
         )
 
-    # Phase 1: Resolve all DI dependencies in parallel
-    (
-        schema_registry,
-        database,
-        redis_client,
-        rate_limit_metrics,
-        sse_bridge,
-        event_store_consumer,
-        notification_service,
-    ) = await asyncio.gather(
+    # Resolve DI dependencies in parallel (fail fast on config issues)
+    schema_registry, database, redis_client, rate_limit_metrics, _, _ = await asyncio.gather(
         container.get(SchemaRegistryManager),
         container.get(Database),
         container.get(redis.Redis),
         container.get(RateLimitMetrics),
         container.get(SSEKafkaRedisBridge),
-        container.get(EventStoreConsumer),
         container.get(NotificationService),
     )
 
-    # Phase 2: Initialize infrastructure in parallel (independent subsystems)
+    # Initialize infrastructure in parallel
     await asyncio.gather(
         initialize_event_schemas(schema_registry),
         init_beanie(database=database, document_models=ALL_DOCUMENTS),
@@ -103,16 +93,5 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
     logger.info("Infrastructure initialized (schemas, beanie, rate limits)")
 
-    # Phase 3: Start Kafka consumers in parallel (providers already started them via async with,
-    # but __aenter__ is idempotent so this is safe and explicit)
-    async with AsyncExitStack() as stack:
-        stack.push_async_callback(sse_bridge.aclose)
-        stack.push_async_callback(event_store_consumer.aclose)
-        stack.push_async_callback(notification_service.aclose)
-        await asyncio.gather(
-            sse_bridge.__aenter__(),
-            event_store_consumer.__aenter__(),
-            notification_service.__aenter__(),
-        )
-        logger.info("SSE bridge, EventStoreConsumer, and NotificationService started")
-        yield
+    yield
+    # Container close handles all cleanup automatically

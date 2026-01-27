@@ -1,60 +1,38 @@
+"""Event replay worker entrypoint - stateless replay service.
+
+Provides event replay capability. DI container manages all lifecycle.
+This service doesn't consume from Kafka - it's an HTTP-driven replay service.
+"""
+
 import asyncio
 import logging
-from contextlib import AsyncExitStack
 
 from app.core.container import create_event_replay_container
 from app.core.database_context import Database
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
-from app.events.core import UnifiedProducer
-from app.services.event_replay.replay_service import EventReplayService
 from app.settings import Settings
 from beanie import init_beanie
 
 
-async def cleanup_task(replay_service: EventReplayService, logger: logging.Logger, interval_hours: int = 6) -> None:
-    """Periodically clean up old replay sessions"""
-    while True:
-        try:
-            await asyncio.sleep(interval_hours * 3600)
-            removed = await replay_service.cleanup_old_sessions(older_than_hours=48)
-            logger.info(f"Cleaned up {removed} old replay sessions")
-        except Exception as e:
-            logger.error(f"Error during cleanup: {e}")
-
-
 async def run_replay_service(settings: Settings) -> None:
-    """Run the event replay service with cleanup task."""
+    """Run the event replay service."""
 
     container = create_event_replay_container(settings)
+
     logger = await container.get(logging.Logger)
     logger.info("Starting EventReplayService with DI container...")
 
     db = await container.get(Database)
     await init_beanie(database=db, document_models=ALL_DOCUMENTS)
 
-    producer = await container.get(UnifiedProducer)
-    replay_service = await container.get(EventReplayService)
+    logger.info("Event replay service initialized and ready")
 
-    logger.info("Event replay service initialized")
+    # Service is HTTP-driven, wait for external shutdown
+    await asyncio.Event().wait()
 
-    async with AsyncExitStack() as stack:
-        stack.push_async_callback(container.close)
-        await stack.enter_async_context(producer)
-
-        task = asyncio.create_task(cleanup_task(replay_service, logger))
-
-        async def _cancel_task() -> None:
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
-
-        stack.push_async_callback(_cancel_task)
-
-        await asyncio.Event().wait()
+    await container.close()
 
 
 def main() -> None:

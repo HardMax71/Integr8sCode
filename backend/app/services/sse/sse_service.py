@@ -2,13 +2,12 @@ import asyncio
 import logging
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Dict
 
 from app.core.metrics import ConnectionMetrics
 from app.db.repositories.sse_repository import SSERepository
 from app.domain.enums.events import EventType
-from app.domain.enums.sse import SSEControlEvent, SSEHealthStatus, SSENotificationEvent
-from app.domain.sse import SSEHealthDomain
+from app.domain.enums.sse import SSEControlEvent, SSENotificationEvent
 from app.schemas_pydantic.execution import ExecutionResult
 from app.schemas_pydantic.sse import (
     RedisNotificationMessage,
@@ -50,7 +49,7 @@ class SSEService:
         self.metrics = connection_metrics
         self.heartbeat_interval = getattr(settings, "SSE_HEARTBEAT_INTERVAL", 30)
 
-    async def create_execution_stream(self, execution_id: str, user_id: str) -> AsyncGenerator[dict[str, Any], None]:
+    async def create_execution_stream(self, execution_id: str, user_id: str) -> AsyncGenerator[Dict[str, Any], None]:
         connection_id = f"sse_{execution_id}_{datetime.now(timezone.utc).timestamp()}"
 
         shutdown_event = await self.shutdown_manager.register_connection(execution_id, connection_id)
@@ -125,7 +124,7 @@ class SSEService:
         subscription: Any,
         shutdown_event: asyncio.Event,
         include_heartbeat: bool = True,
-    ) -> AsyncGenerator[dict[str, Any], None]:
+    ) -> AsyncGenerator[Dict[str, Any], None]:
         last_heartbeat = datetime.now(timezone.utc)
         while True:
             if shutdown_event.is_set():
@@ -195,7 +194,7 @@ class SSEService:
             }
         )
 
-    async def create_notification_stream(self, user_id: str) -> AsyncGenerator[dict[str, Any], None]:
+    async def create_notification_stream(self, user_id: str) -> AsyncGenerator[Dict[str, Any], None]:
         subscription = None
 
         try:
@@ -258,23 +257,10 @@ class SSEService:
             if subscription is not None:
                 await asyncio.shield(subscription.close())
 
-    async def get_health_status(self) -> SSEHealthDomain:
-        router_stats = self.router.get_stats()
-        return SSEHealthDomain(
-            status=SSEHealthStatus.DRAINING if self.shutdown_manager.is_shutting_down() else SSEHealthStatus.HEALTHY,
-            kafka_enabled=True,
-            active_connections=router_stats["active_executions"],
-            active_executions=router_stats["active_executions"],
-            active_consumers=router_stats["num_consumers"],
-            max_connections_per_user=5,
-            shutdown=self.shutdown_manager.get_shutdown_status(),
-            timestamp=datetime.now(timezone.utc),
-        )
-
-    def _format_sse_event(self, event: SSEExecutionEventData) -> dict[str, Any]:
+    def _format_sse_event(self, event: SSEExecutionEventData) -> Dict[str, Any]:
         """Format typed SSE event for sse-starlette."""
         return {"data": event.model_dump_json(exclude_none=True)}
 
-    def _format_notification_event(self, event: SSENotificationEventData) -> dict[str, Any]:
+    def _format_notification_event(self, event: SSENotificationEventData) -> Dict[str, Any]:
         """Format typed notification SSE event for sse-starlette."""
         return {"data": event.model_dump_json(exclude_none=True)}

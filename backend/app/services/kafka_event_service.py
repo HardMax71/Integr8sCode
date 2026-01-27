@@ -1,7 +1,7 @@
 import logging
 import time
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Dict
 from uuid import uuid4
 
 from opentelemetry import trace
@@ -21,12 +21,12 @@ tracer = trace.get_tracer(__name__)
 
 class KafkaEventService:
     def __init__(
-        self,
-        event_repository: EventRepository,
-        kafka_producer: UnifiedProducer,
-        settings: Settings,
-        logger: logging.Logger,
-        event_metrics: EventMetrics,
+            self,
+            event_repository: EventRepository,
+            kafka_producer: UnifiedProducer,
+            settings: Settings,
+            logger: logging.Logger,
+            event_metrics: EventMetrics,
     ):
         self.event_repository = event_repository
         self.kafka_producer = kafka_producer
@@ -35,12 +35,12 @@ class KafkaEventService:
         self.settings = settings
 
     async def publish_event(
-        self,
-        event_type: EventType,
-        payload: dict[str, Any],
-        aggregate_id: str | None,
-        correlation_id: str | None = None,
-        metadata: EventMetadata | None = None,
+            self,
+            event_type: EventType,
+            payload: Dict[str, Any],
+            aggregate_id: str | None,
+            correlation_id: str | None = None,
+            metadata: EventMetadata | None = None,
     ) -> str:
         """
         Publish an event to Kafka and store an audit copy via the repository
@@ -90,7 +90,7 @@ class KafkaEventService:
             await self.event_repository.store_event(domain_event)
 
             # Prepare headers
-            headers: dict[str, str] = {
+            headers: Dict[str, str] = {
                 "event_type": event_type,
                 "correlation_id": event_metadata.correlation_id or "",
                 "service": event_metadata.service_name,
@@ -113,12 +113,12 @@ class KafkaEventService:
             return domain_event.event_id
 
     async def publish_execution_event(
-        self,
-        event_type: EventType,
-        execution_id: str,
-        status: str,
-        metadata: EventMetadata | None = None,
-        error_message: str | None = None,
+            self,
+            event_type: EventType,
+            execution_id: str,
+            status: str,
+            metadata: EventMetadata | None = None,
+            error_message: str | None = None,
     ) -> str:
         """Publish execution-related event using provided metadata (no framework coupling)."""
         self.logger.info(
@@ -154,13 +154,13 @@ class KafkaEventService:
         return event_id
 
     async def publish_pod_event(
-        self,
-        event_type: EventType,
-        pod_name: str,
-        execution_id: str,
-        namespace: str = "integr8scode",
-        status: str | None = None,
-        metadata: EventMetadata | None = None,
+            self,
+            event_type: EventType,
+            pod_name: str,
+            execution_id: str,
+            namespace: str = "integr8scode",
+            status: str | None = None,
+            metadata: EventMetadata | None = None,
     ) -> str:
         """Publish pod-related event"""
         payload = {"pod_name": pod_name, "execution_id": execution_id, "namespace": namespace}
@@ -185,7 +185,7 @@ class KafkaEventService:
             start_time = time.time()
             await self.event_repository.store_event(event)
 
-            headers: dict[str, str] = {
+            headers: Dict[str, str] = {
                 "event_type": event.event_type,
                 "correlation_id": event.metadata.correlation_id or "",
                 "service": event.metadata.service_name,
@@ -201,7 +201,3 @@ class KafkaEventService:
             self.metrics.record_event_processing_duration(time.time() - start_time, event.event_type)
             self.logger.info("Domain event published", extra={"event_id": event.event_id})
             return event.event_id
-
-    async def close(self) -> None:
-        """Close event service resources"""
-        await self.kafka_producer.aclose()

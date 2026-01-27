@@ -3,13 +3,13 @@ import logging
 import uuid
 
 import pytest
+from aiokafka import AIOKafkaConsumer
 from app.core.metrics import EventMetrics
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.domain.events.typed import DomainEvent
 from app.events.core import UnifiedConsumer, UnifiedProducer
 from app.events.core.dispatcher import EventDispatcher
-from app.events.core.types import ConsumerConfig
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.settings import Settings
 from dishka import AsyncContainer
@@ -43,22 +43,25 @@ async def test_produce_consume_roundtrip(scope: AsyncContainer) -> None:
         received.set()
 
     group_id = f"test-consumer.{uuid.uuid4().hex[:6]}"
-    config = ConsumerConfig(
+
+    # Create AIOKafkaConsumer directly for test
+    topic = f"{settings.KAFKA_TOPIC_PREFIX}{KafkaTopic.EXECUTION_EVENTS}"
+    kafka_consumer = AIOKafkaConsumer(
+        topic,
         bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
         group_id=group_id,
         enable_auto_commit=True,
         auto_offset_reset="earliest",
     )
+    await kafka_consumer.start()
 
-    consumer = UnifiedConsumer(
-        config,
-        dispatcher,
+    handler = UnifiedConsumer(
+        event_dispatcher=dispatcher,
         schema_registry=registry,
-        settings=settings,
         logger=_test_logger,
         event_metrics=event_metrics,
+        group_id=group_id,
     )
-    await consumer.start([KafkaTopic.EXECUTION_EVENTS])
 
     try:
         # Produce a request event
@@ -67,6 +70,13 @@ async def test_produce_consume_roundtrip(scope: AsyncContainer) -> None:
         await producer.produce(evt, key=execution_id)
 
         # Wait for the handler to be called
-        await asyncio.wait_for(received.wait(), timeout=10.0)
+        async def consume_until_received() -> None:
+            async for msg in kafka_consumer:
+                await handler.handle(msg)
+                await kafka_consumer.commit()
+                if received.is_set():
+                    break
+
+        await asyncio.wait_for(consume_until_received(), timeout=10.0)
     finally:
-        await consumer.stop()
+        await kafka_consumer.stop()

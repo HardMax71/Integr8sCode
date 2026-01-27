@@ -2,7 +2,7 @@ import asyncio
 import logging
 
 import pytest
-from app.core.lifecycle import LifecycleEnabled
+
 from app.core.metrics import ConnectionMetrics
 from app.services.sse.sse_shutdown_manager import SSEShutdownManager
 
@@ -11,22 +11,15 @@ pytestmark = pytest.mark.unit
 _test_logger = logging.getLogger("test.services.sse.sse_shutdown_manager")
 
 
-class _FakeRouter(LifecycleEnabled):
-    """Fake router that tracks whether aclose was called."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.stopped = False
-        self._lifecycle_started = True  # Simulate already-started router
-
-    async def _on_stop(self) -> None:
-        self.stopped = True
-
-
 @pytest.mark.asyncio
 async def test_register_unregister_and_shutdown_flow(connection_metrics: ConnectionMetrics) -> None:
-    mgr = SSEShutdownManager(drain_timeout=0.5, notification_timeout=0.1, force_close_timeout=0.1, logger=_test_logger, connection_metrics=connection_metrics)
-    mgr.set_router(_FakeRouter())
+    mgr = SSEShutdownManager(
+        drain_timeout=0.5,
+        notification_timeout=0.1,
+        force_close_timeout=0.1,
+        logger=_test_logger,
+        connection_metrics=connection_metrics,
+    )
 
     # Register two connections
     e1 = await mgr.register_connection("exec-1", "c1")
@@ -52,8 +45,13 @@ async def test_register_unregister_and_shutdown_flow(connection_metrics: Connect
 
 @pytest.mark.asyncio
 async def test_reject_new_connection_during_shutdown(connection_metrics: ConnectionMetrics) -> None:
-    mgr = SSEShutdownManager(drain_timeout=0.5, notification_timeout=0.01, force_close_timeout=0.01,
-                             logger=_test_logger, connection_metrics=connection_metrics)
+    mgr = SSEShutdownManager(
+        drain_timeout=0.5,
+        notification_timeout=0.01,
+        force_close_timeout=0.01,
+        logger=_test_logger,
+        connection_metrics=connection_metrics,
+    )
     # Pre-register one active connection - shutdown will block waiting for it
     e = await mgr.register_connection("e", "c0")
     assert e is not None

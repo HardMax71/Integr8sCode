@@ -46,14 +46,14 @@ def _configure_retry_policies(manager: DLQManager, logger: logging.Logger) -> No
             topic="websocket-events", strategy=RetryStrategy.FIXED_INTERVAL, max_retries=10, base_delay_seconds=10
         ),
     )
-    manager.default_retry_policy = RetryPolicy(
+    manager.set_default_retry_policy(RetryPolicy(
         topic="default",
         strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
         max_retries=4,
         base_delay_seconds=60,
         max_delay_seconds=1800,
         retry_multiplier=2.5,
-    )
+    ))
 
 
 def _configure_filters(manager: DLQManager, testing: bool, logger: logging.Logger) -> None:

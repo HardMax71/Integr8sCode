@@ -3,11 +3,12 @@ import logging
 import uuid
 
 import pytest
+from aiokafka import AIOKafkaConsumer
 from app.core.metrics import EventMetrics
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.domain.events.typed import DomainEvent
-from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
+from app.events.core import EventDispatcher, UnifiedConsumer, UnifiedProducer
 from app.events.core.dispatcher import EventDispatcher as Disp
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.domain.idempotency import KeyStrategy
@@ -57,23 +58,28 @@ async def test_consumer_idempotent_wrapper_blocks_duplicates(scope: AsyncContain
     await producer.produce(ev, key=execution_id)
     await producer.produce(ev, key=execution_id)
 
-    # Real consumer with idempotent wrapper
-    cfg = ConsumerConfig(
+    group_id = f"test-idem-consumer.{uuid.uuid4().hex[:6]}"
+
+    # Create AIOKafkaConsumer directly
+    topic = f"{settings.KAFKA_TOPIC_PREFIX}{KafkaTopic.EXECUTION_EVENTS}"
+    kafka_consumer = AIOKafkaConsumer(
+        topic,
         bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-        group_id=f"test-idem-consumer.{uuid.uuid4().hex[:6]}",
+        group_id=group_id,
         enable_auto_commit=True,
         auto_offset_reset="earliest",
     )
-    base = UnifiedConsumer(
-        cfg,
+    await kafka_consumer.start()
+
+    handler = UnifiedConsumer(
         event_dispatcher=disp,
         schema_registry=registry,
-        settings=settings,
         logger=_test_logger,
         event_metrics=event_metrics,
+        group_id=group_id,
     )
     wrapper = IdempotentConsumerWrapper(
-        consumer=base,
+        consumer=handler,
         idempotency_manager=idm,
         dispatcher=disp,
         default_key_strategy=KeyStrategy.EVENT_BASED,
@@ -81,10 +87,16 @@ async def test_consumer_idempotent_wrapper_blocks_duplicates(scope: AsyncContain
         logger=_test_logger,
     )
 
-    await wrapper.start([KafkaTopic.EXECUTION_EVENTS])
     try:
-        # Await the future directly - true async, no polling
-        await asyncio.wait_for(handled_future, timeout=10.0)
+        # Consume until handler is called
+        async def consume_until_handled() -> None:
+            async for msg in kafka_consumer:
+                await handler.handle(msg)
+                await kafka_consumer.commit()
+                if handled_future.done():
+                    break
+
+        await asyncio.wait_for(consume_until_handled(), timeout=10.0)
         assert seen["n"] >= 1
     finally:
-        await wrapper.stop()
+        await kafka_consumer.stop()

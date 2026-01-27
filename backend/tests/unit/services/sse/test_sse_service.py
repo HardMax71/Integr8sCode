@@ -10,9 +10,8 @@ from app.core.metrics import ConnectionMetrics
 from app.db.repositories.sse_repository import SSERepository
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
-from app.domain.events import ResourceUsageDomain
-from app.domain.execution import DomainExecution
-from app.domain.sse import ShutdownStatus, SSEExecutionStatusDomain, SSEHealthDomain
+from app.domain.execution import DomainExecution, ResourceUsageDomain
+from app.domain.sse import ShutdownStatus, SSEExecutionStatusDomain
 from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
 from app.services.sse.redis_bus import SSERedisBus, SSERedisSubscription
 from app.services.sse.sse_service import SSEService
@@ -240,12 +239,3 @@ async def test_notification_stream_connected_and_heartbeat_and_message(connectio
     # Give the generator a chance to observe the flag and finish
     with pytest.raises(StopAsyncIteration):
         await asyncio.wait_for(agen.__anext__(), timeout=0.2)
-
-
-@pytest.mark.asyncio
-async def test_health_status_shape(connection_metrics: ConnectionMetrics) -> None:
-    svc = SSEService(repository=_FakeRepo(), router=_FakeRouter(), sse_bus=_FakeBus(), shutdown_manager=_FakeShutdown(),
-                     settings=_make_fake_settings(), logger=_test_logger, connection_metrics=connection_metrics)
-    h = await svc.get_health_status()
-    assert isinstance(h, SSEHealthDomain)
-    assert h.active_consumers == 3 and h.active_executions == 2

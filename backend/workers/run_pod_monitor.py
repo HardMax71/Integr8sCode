@@ -1,19 +1,23 @@
+"""Pod monitor worker entrypoint - consumes pod events from Kafka.
+
+Same pattern as other workers - pure Kafka consumer.
+K8s watch is externalized to a separate component that publishes to Kafka.
+"""
+
 import asyncio
 import logging
-import signal
 
+from aiokafka import AIOKafkaConsumer
 from app.core.container import create_pod_monitor_container
 from app.core.database_context import Database
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.kafka import GroupId
+from app.events.core import UnifiedConsumer
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
-from app.services.pod_monitor.monitor import MonitorState, PodMonitor
 from app.settings import Settings
 from beanie import init_beanie
-
-RECONCILIATION_LOG_INTERVAL: int = 60
 
 
 async def run_pod_monitor(settings: Settings) -> None:
@@ -29,27 +33,18 @@ async def run_pod_monitor(settings: Settings) -> None:
     schema_registry = await container.get(SchemaRegistryManager)
     await initialize_event_schemas(schema_registry)
 
-    # Services are already started by the DI container providers
-    monitor = await container.get(PodMonitor)
+    kafka_consumer = await container.get(AIOKafkaConsumer)
+    handler = await container.get(UnifiedConsumer)
 
-    # Shutdown event - signal handlers just set this
-    shutdown_event = asyncio.Event()
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, shutdown_event.set)
+    logger.info("PodMonitor started, consuming events...")
 
-    logger.info("PodMonitor started and running")
+    async for msg in kafka_consumer:
+        await handler.handle(msg)
+        await kafka_consumer.commit()
 
-    try:
-        # Wait for shutdown signal or service to stop
-        while monitor.state == MonitorState.RUNNING and not shutdown_event.is_set():
-            await asyncio.sleep(RECONCILIATION_LOG_INTERVAL)
-            status = await monitor.get_status()
-            logger.info(f"Pod monitor status: {status}")
-    finally:
-        # Container cleanup stops everything
-        logger.info("Initiating graceful shutdown...")
-        await container.close()
+    logger.info("PodMonitor shutdown complete")
+
+    await container.close()
 
 
 def main() -> None:

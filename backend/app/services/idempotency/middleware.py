@@ -6,6 +6,7 @@ from typing import Any, Awaitable, Callable, Dict, Set
 
 from app.domain.enums.events import EventType
 from app.domain.events.typed import DomainEvent
+from app.domain.idempotency import KeyStrategy
 from app.events.core import EventDispatcher, UnifiedConsumer
 from app.services.idempotency.idempotency_manager import IdempotencyManager
 
@@ -18,7 +19,7 @@ class IdempotentEventHandler:
         handler: Callable[[DomainEvent], Awaitable[None]],
         idempotency_manager: IdempotencyManager,
         logger: logging.Logger,
-        key_strategy: str = "event_based",
+        key_strategy: KeyStrategy = KeyStrategy.EVENT_BASED,
         custom_key_func: Callable[[DomainEvent], str] | None = None,
         fields: Set[str] | None = None,
         ttl_seconds: int | None = None,
@@ -43,7 +44,7 @@ class IdempotentEventHandler:
         )
         # Generate custom key if function provided
         custom_key = None
-        if self.key_strategy == "custom" and self.custom_key_func:
+        if self.key_strategy == KeyStrategy.CUSTOM and self.custom_key_func:
             custom_key = self.custom_key_func(event)
 
         # Check idempotency
@@ -92,7 +93,7 @@ class IdempotentEventHandler:
 def idempotent_handler(
     idempotency_manager: IdempotencyManager,
     logger: logging.Logger,
-    key_strategy: str = "event_based",
+    key_strategy: KeyStrategy = KeyStrategy.EVENT_BASED,
     custom_key_func: Callable[[DomainEvent], str] | None = None,
     fields: Set[str] | None = None,
     ttl_seconds: int | None = None,
@@ -127,7 +128,7 @@ class IdempotentConsumerWrapper:
         idempotency_manager: IdempotencyManager,
         dispatcher: EventDispatcher,
         logger: logging.Logger,
-        default_key_strategy: str = "event_based",
+        default_key_strategy: KeyStrategy = KeyStrategy.EVENT_BASED,
         default_ttl_seconds: int = 3600,
         enable_for_all_handlers: bool = True,
     ):
@@ -171,7 +172,7 @@ class IdempotentConsumerWrapper:
         self,
         event_type: str,
         handler: Callable[[DomainEvent], Awaitable[None]],
-        key_strategy: str | None = None,
+        key_strategy: KeyStrategy | None = None,
         custom_key_func: Callable[[DomainEvent], str] | None = None,
         fields: Set[str] | None = None,
         ttl_seconds: int | None = None,

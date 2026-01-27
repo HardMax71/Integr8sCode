@@ -12,7 +12,7 @@ from kubernetes import client as k8s_client
 from app.core.metrics import EventMetrics, KubernetesMetrics
 from app.db.repositories.pod_state_repository import PodStateRepository
 from app.domain.events.typed import DomainEvent, EventMetadata, ExecutionCompletedEvent
-from app.domain.execution.models import ResourceUsageDomain
+from app.domain.events.typed import ResourceUsageDomain
 from app.events.core import UnifiedProducer
 from app.services.pod_monitor.config import PodMonitorConfig
 from app.services.pod_monitor.event_mapper import PodEventMapper

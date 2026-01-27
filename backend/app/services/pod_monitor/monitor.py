@@ -17,7 +17,7 @@ from kubernetes import client as k8s_client
 
 from app.core.metrics import KubernetesMetrics
 from app.core.utils import StringEnum
-from app.db.repositories.pod_state_repository import PodStateRepository
+from app.db.repositories.redis.pod_state_repository import PodStateRepository
 from app.domain.events.typed import DomainEvent
 from app.events.core import UnifiedProducer
 from app.services.pod_monitor.config import PodMonitorConfig

@@ -34,6 +34,7 @@ class KafkaTopic(StringEnum):
 
     # Resource topics
     RESOURCE_EVENTS = "resource_events"
+    RESOURCE_ALLOCATION = "resource_allocation"
 
     # Notification topics
     NOTIFICATION_EVENTS = "notification_events"

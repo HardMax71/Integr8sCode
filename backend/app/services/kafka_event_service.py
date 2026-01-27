@@ -68,6 +68,7 @@ class KafkaEventService:
             event_metadata = metadata or EventMetadata(
                 service_name=self.settings.SERVICE_NAME,
                 service_version=self.settings.SERVICE_VERSION,
+                user_id="system",
                 correlation_id=correlation_id or str(uuid4()),
             )
             if correlation_id and event_metadata.correlation_id != correlation_id:

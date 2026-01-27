@@ -1,9 +1,3 @@
-"""Unified Kafka producer - thin wrapper over AIOKafkaProducer.
-
-The producer receives a ready-to-use AIOKafkaProducer from DI.
-No lifecycle management - DI provider handles start/stop.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -69,8 +63,6 @@ class UnifiedProducer:
             # Update metrics on success
             self._metrics.messages_sent += 1
             self._metrics.bytes_sent += len(serialized_value)
-
-            # Record Kafka metrics
             self._event_metrics.record_kafka_message_produced(topic)
 
             self._logger.debug(f"Message [{event_to_produce}] sent to topic: {topic}")
@@ -84,7 +76,7 @@ class UnifiedProducer:
             raise
 
     async def send_to_dlq(
-        self, original_event: DomainEvent, original_topic: str, error: Exception, retry_count: int = 0
+        self, original_event: DomainEvent, original_topic: KafkaTopic, error: Exception, retry_count: int = 0
     ) -> None:
         """Send a failed event to the Dead Letter Queue."""
         try:

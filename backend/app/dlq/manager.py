@@ -1,9 +1,3 @@
-"""DLQ Manager - stateless event handler.
-
-Manages Dead Letter Queue messages. Receives events,
-processes them, and handles retries. No lifecycle management.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -63,14 +57,14 @@ class DLQManager:
         self._dlq_topic = dlq_topic
         self._retry_topic_suffix = retry_topic_suffix
         self._default_retry_policy = RetryPolicy(
-            topic="default", strategy=RetryStrategy.EXPONENTIAL_BACKOFF
+            topic=KafkaTopic.DEAD_LETTER_QUEUE, strategy=RetryStrategy.EXPONENTIAL_BACKOFF
         )
-        self._retry_policies: dict[str, RetryPolicy] = {}
+        self._retry_policies: dict[KafkaTopic, RetryPolicy] = {}
         self._filters: list[object] = []
         self._dlq_events_topic = f"{settings.KAFKA_TOPIC_PREFIX}{KafkaTopic.DLQ_EVENTS}"
-        self._event_metadata = EventMetadata(service_name="dlq-manager", service_version="1.0.0")
+        self._event_metadata = EventMetadata(service_name="dlq-manager", service_version="1.0.0", user_id="system")
 
-    def set_retry_policy(self, topic: str, policy: RetryPolicy) -> None:
+    def set_retry_policy(self, topic: KafkaTopic, policy: RetryPolicy) -> None:
         """Set retry policy for a specific topic."""
         self._retry_policies[topic] = policy
 
@@ -89,34 +83,30 @@ class DLQManager:
         """
         start = asyncio.get_running_loop().time()
 
-        try:
-            data = json.loads(raw_message)
-            dlq_msg = DLQMessage(**data, headers=headers)
+        data = json.loads(raw_message)
+        dlq_msg = DLQMessage(**data, headers=headers)
 
-            self._metrics.record_dlq_message_received(dlq_msg.original_topic, dlq_msg.event.event_type)
-            self._metrics.record_dlq_message_age(
-                (datetime.now(timezone.utc) - dlq_msg.failed_at).total_seconds()
-            )
+        self._metrics.record_dlq_message_received(dlq_msg.original_topic, dlq_msg.event.event_type)
+        self._metrics.record_dlq_message_age(
+            (datetime.now(timezone.utc) - dlq_msg.failed_at).total_seconds()
+        )
 
-            ctx = extract_trace_context(dlq_msg.headers)
-            with get_tracer().start_as_current_span(
-                name="dlq.consume",
-                context=ctx,
-                kind=SpanKind.CONSUMER,
-                attributes={
-                    EventAttributes.KAFKA_TOPIC: str(self._dlq_topic),
-                    EventAttributes.EVENT_TYPE: dlq_msg.event.event_type,
-                    EventAttributes.EVENT_ID: dlq_msg.event.event_id,
-                },
-            ):
-                await self._process_dlq_message(dlq_msg)
+        ctx = extract_trace_context(dlq_msg.headers)
+        with get_tracer().start_as_current_span(
+            name="dlq.consume",
+            context=ctx,
+            kind=SpanKind.CONSUMER,
+            attributes={
+                EventAttributes.KAFKA_TOPIC: str(self._dlq_topic),
+                EventAttributes.EVENT_TYPE: dlq_msg.event.event_type,
+                EventAttributes.EVENT_ID: dlq_msg.event.event_id,
+            },
+        ):
+            await self._process_dlq_message(dlq_msg)
 
-            self._metrics.record_dlq_processing_duration(
-                asyncio.get_running_loop().time() - start, "process"
-            )
-
-        except Exception as e:
-            self._logger.error(f"Error processing DLQ message: {e}")
+        self._metrics.record_dlq_processing_duration(
+            asyncio.get_running_loop().time() - start, "process"
+        )
 
     async def _process_dlq_message(self, message: DLQMessage) -> None:
         """Process a DLQ message."""
@@ -163,21 +153,9 @@ class DLQManager:
         if not doc:
             return
 
-        update_dict: dict[str, object] = {"status": update.status, "last_updated": datetime.now(timezone.utc)}
-        if update.next_retry_at is not None:
-            update_dict["next_retry_at"] = update.next_retry_at
-        if update.retried_at is not None:
-            update_dict["retried_at"] = update.retried_at
-        if update.discarded_at is not None:
-            update_dict["discarded_at"] = update.discarded_at
-        if update.retry_count is not None:
-            update_dict["retry_count"] = update.retry_count
-        if update.discard_reason is not None:
-            update_dict["discard_reason"] = update.discard_reason
-        if update.last_error is not None:
-            update_dict["last_error"] = update.last_error
-
-        await doc.set(update_dict)
+        updates = {k: v for k, v in vars(update).items() if v is not None}
+        updates["last_updated"] = datetime.now(timezone.utc)
+        await doc.set(updates)
 
     async def _retry_message(self, message: DLQMessage) -> None:
         """Retry a DLQ message."""

@@ -9,15 +9,16 @@ from app.core.database_context import Database
 from app.db.docs import ALL_DOCUMENTS
 from app.dlq import DLQMessage, RetryPolicy, RetryStrategy
 from app.dlq.manager import DLQManager
+from app.domain.enums.kafka import KafkaTopic
 from app.settings import Settings
 from beanie import init_beanie
 
 
 def _configure_retry_policies(manager: DLQManager, logger: logging.Logger) -> None:
     manager.set_retry_policy(
-        "execution-requests",
+        KafkaTopic.EXECUTION_REQUESTS,
         RetryPolicy(
-            topic="execution-requests",
+            topic=KafkaTopic.EXECUTION_REQUESTS,
             strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
             max_retries=5,
             base_delay_seconds=30,
@@ -26,9 +27,9 @@ def _configure_retry_policies(manager: DLQManager, logger: logging.Logger) -> No
         ),
     )
     manager.set_retry_policy(
-        "pod-events",
+        KafkaTopic.POD_EVENTS,
         RetryPolicy(
-            topic="pod-events",
+            topic=KafkaTopic.POD_EVENTS,
             strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
             max_retries=3,
             base_delay_seconds=60,
@@ -37,17 +38,20 @@ def _configure_retry_policies(manager: DLQManager, logger: logging.Logger) -> No
         ),
     )
     manager.set_retry_policy(
-        "resource-allocation",
-        RetryPolicy(topic="resource-allocation", strategy=RetryStrategy.IMMEDIATE, max_retries=3),
+        KafkaTopic.RESOURCE_ALLOCATION,
+        RetryPolicy(topic=KafkaTopic.RESOURCE_ALLOCATION, strategy=RetryStrategy.IMMEDIATE, max_retries=3),
     )
     manager.set_retry_policy(
-        "websocket-events",
+        KafkaTopic.WEBSOCKET_EVENTS,
         RetryPolicy(
-            topic="websocket-events", strategy=RetryStrategy.FIXED_INTERVAL, max_retries=10, base_delay_seconds=10
+            topic=KafkaTopic.WEBSOCKET_EVENTS,
+            strategy=RetryStrategy.FIXED_INTERVAL,
+            max_retries=10,
+            base_delay_seconds=10,
         ),
     )
     manager.set_default_retry_policy(RetryPolicy(
-        topic="default",
+        topic=KafkaTopic.DEAD_LETTER_QUEUE,
         strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
         max_retries=4,
         base_delay_seconds=60,

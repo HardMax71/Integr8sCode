@@ -6,6 +6,7 @@ from app.db.docs import DLQMessageDocument
 from app.db.repositories.dlq_repository import DLQRepository
 from app.dlq import DLQMessageStatus
 from app.domain.enums.events import EventType
+from app.domain.enums.kafka import KafkaTopic
 
 pytestmark = pytest.mark.e2e
 
@@ -30,7 +31,7 @@ async def insert_test_dlq_docs() -> None:
                 "user_id": "u1",
                 "login_method": "password",
             },
-            original_topic="t1",
+            original_topic=KafkaTopic.USER_EVENTS,
             error="err",
             retry_count=0,
             failed_at=now,
@@ -45,7 +46,7 @@ async def insert_test_dlq_docs() -> None:
                 "user_id": "u1",
                 "login_method": "password",
             },
-            original_topic="t1",
+            original_topic=KafkaTopic.USER_EVENTS,
             error="err",
             retry_count=0,
             failed_at=now,
@@ -60,7 +61,7 @@ async def insert_test_dlq_docs() -> None:
                 "execution_id": "x1",
                 "pod_name": "p1",
             },
-            original_topic="t2",
+            original_topic=KafkaTopic.EXECUTION_EVENTS,
             error="err",
             retry_count=0,
             failed_at=now,
@@ -88,4 +89,4 @@ async def test_stats_list_get_and_updates(repo: DLQRepository) -> None:
     assert await repo.mark_message_discarded("id1", "r") in (True, False)
 
     topics = await repo.get_topics_summary()
-    assert any(t.topic == "t1" for t in topics)
+    assert any(t.topic == KafkaTopic.USER_EVENTS for t in topics)

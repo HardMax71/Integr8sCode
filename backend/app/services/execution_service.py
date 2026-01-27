@@ -8,7 +8,7 @@ from app.core.correlation import CorrelationContext
 from app.core.metrics import ExecutionMetrics
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
-from app.domain.enums.execution import ExecutionStatus
+from app.domain.enums.execution import ExecutionStatus, QueuePriority
 from app.domain.events.typed import (
     DomainEvent,
     EventMetadata,
@@ -96,7 +96,7 @@ class ExecutionService:
 
     def _create_event_metadata(
         self,
-        user_id: str | None = None,
+        user_id: str,
         client_ip: str | None = None,
         user_agent: str | None = None,
     ) -> EventMetadata:
@@ -131,7 +131,7 @@ class ExecutionService:
         user_agent: str | None,
         lang: str = "python",
         lang_version: str = "3.11",
-        priority: int = 5,
+        priority: QueuePriority = QueuePriority.NORMAL,
         timeout_override: int | None = None,
     ) -> DomainExecution:
         """
@@ -457,7 +457,7 @@ class ExecutionService:
         Args:
             execution_id: UUID of deleted execution.
         """
-        metadata = self._create_event_metadata()
+        metadata = self._create_event_metadata("system")
 
         event = ExecutionCancelledEvent(
             execution_id=execution_id, reason="user_requested", cancelled_by=metadata.user_id, metadata=metadata

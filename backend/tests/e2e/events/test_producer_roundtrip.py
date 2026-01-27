@@ -26,7 +26,7 @@ async def test_unified_producer_produce_and_send_to_dlq(scope: AsyncContainer) -
     await prod.produce(ev)
 
     # Exercise send_to_dlq path
-    topic = str(get_topic_for_event(ev.event_type))
+    topic = get_topic_for_event(ev.event_type)
     await prod.send_to_dlq(ev, original_topic=topic, error=RuntimeError("forced"), retry_count=1)
 
     # Verify metrics are being tracked

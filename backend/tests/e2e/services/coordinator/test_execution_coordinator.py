@@ -1,4 +1,5 @@
 import pytest
+from app.domain.enums.execution import QueuePriority
 from app.services.coordinator.coordinator import ExecutionCoordinator
 from dishka import AsyncContainer
 from tests.conftest import make_execution_requested_event
@@ -22,7 +23,7 @@ class TestExecutionCoordinator:
     async def test_handle_requested_with_priority(self, scope: AsyncContainer) -> None:
         """Handler respects execution priority."""
         coord: ExecutionCoordinator = await scope.get(ExecutionCoordinator)
-        ev = make_execution_requested_event(execution_id="e-priority-1", priority=10)
+        ev = make_execution_requested_event(execution_id="e-priority-1", priority=QueuePriority.BACKGROUND)
 
         await coord.handle_execution_requested(ev)
 

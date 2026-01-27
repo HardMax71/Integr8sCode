@@ -10,7 +10,7 @@ import pytest
 from kubernetes import client as k8s_client
 
 from app.core.metrics import EventMetrics, KubernetesMetrics
-from app.db.repositories.pod_state_repository import PodStateRepository
+from app.db.repositories.redis.pod_state_repository import PodStateRepository
 from app.domain.events.typed import DomainEvent, EventMetadata, ExecutionCompletedEvent
 from app.domain.events.typed import ResourceUsageDomain
 from app.events.core import UnifiedProducer
@@ -55,7 +55,7 @@ class FakePodStateRepository:
 
     async def track_pod(
             self, pod_name: str, execution_id: str, status: str,
-            metadata: dict[str, object] | None = None, ttl_seconds: int = 7200,
+            ttl_seconds: int = 7200,
     ) -> None:
         self._tracked.add(pod_name)
 
@@ -251,7 +251,7 @@ async def test_publish_event(event_metrics: EventMetrics, kubernetes_metrics: Ku
         aggregate_id="exec1",
         exit_code=0,
         resource_usage=ResourceUsageDomain(),
-        metadata=EventMetadata(service_name="test", service_version="1.0"),
+        metadata=EventMetadata(service_name="test", service_version="1.0", user_id="test"),
     )
 
     pod = make_pod(name="test-pod", phase="Succeeded", labels={"execution-id": "exec1"})
@@ -275,7 +275,7 @@ async def test_process_pod_event_publishes_mapped_events(event_metrics: EventMet
                     aggregate_id="e1",
                     exit_code=0,
                     resource_usage=ResourceUsageDomain(),
-                    metadata=EventMetadata(service_name="test", service_version="1.0"),
+                    metadata=EventMetadata(service_name="test", service_version="1.0", user_id="test"),
                 )
             ]
 

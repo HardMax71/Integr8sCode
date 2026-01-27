@@ -155,9 +155,6 @@ class NotificationService:
             body=body,
             severity=NotificationSeverity.MEDIUM,
             tags=["execution", "completed", ENTITY_EXECUTION_TAG, f"exec:{event.execution_id}"],
-            metadata=event.model_dump(
-                exclude={"metadata", "event_type", "event_version", "timestamp", "aggregate_id", "topic"}
-            ),
         )
 
     async def _handle_execution_failed(self, event: ExecutionFailedEvent) -> None:
@@ -167,12 +164,6 @@ class NotificationService:
             self._logger.error("No user_id in event metadata")
             return
 
-        event_data = event.model_dump(
-            exclude={"metadata", "event_type", "event_version", "timestamp", "aggregate_id", "topic"}
-        )
-        event_data["stdout"] = event_data["stdout"][:200]
-        event_data["stderr"] = event_data["stderr"][:200]
-
         title = f"Execution Failed: {event.execution_id}"
         body = f"Your execution failed: {event.error_message}"
         await self.create_notification(
@@ -181,7 +172,6 @@ class NotificationService:
             body=body,
             severity=NotificationSeverity.HIGH,
             tags=["execution", "failed", ENTITY_EXECUTION_TAG, f"exec:{event.execution_id}"],
-            metadata=event_data,
         )
 
     async def _handle_execution_timeout(self, event: ExecutionTimeoutEvent) -> None:
@@ -199,9 +189,6 @@ class NotificationService:
             body=body,
             severity=NotificationSeverity.HIGH,
             tags=["execution", "timeout", ENTITY_EXECUTION_TAG, f"exec:{event.execution_id}"],
-            metadata=event.model_dump(
-                exclude={"metadata", "event_type", "event_version", "timestamp", "aggregate_id", "topic"}
-            ),
         )
 
     async def create_notification(

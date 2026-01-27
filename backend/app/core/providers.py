@@ -38,12 +38,11 @@ from app.db.repositories.admin.admin_events_repository import AdminEventsReposit
 from app.db.repositories.admin.admin_settings_repository import AdminSettingsRepository
 from app.db.repositories.admin.admin_user_repository import AdminUserRepository
 from app.db.repositories.dlq_repository import DLQRepository
-from app.db.repositories.execution_queue_repository import ExecutionQueueRepository
-from app.db.repositories.execution_state_repository import ExecutionStateRepository
-from app.db.repositories.pod_state_repository import PodStateRepository
+from app.db.repositories.redis.idempotency_repository import IdempotencyRepository
+from app.db.repositories.redis.pod_state_repository import PodStateRepository
+from app.db.repositories.redis.user_limit_repository import UserLimitRepository
 from app.db.repositories.replay_repository import ReplayRepository
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
-from app.db.repositories.resource_repository import ResourceRepository
 from app.db.repositories.user_settings_repository import UserSettingsRepository
 from app.dlq.manager import DLQManager
 from app.domain.saga.models import SagaConfig
@@ -58,9 +57,6 @@ from app.services.event_replay.replay_service import EventReplayService
 from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
 from app.services.grafana_alert_processor import GrafanaAlertProcessor
-from app.services.idempotency import IdempotencyConfig, IdempotencyManager
-from app.services.idempotency.idempotency_manager import create_idempotency_manager
-from app.services.idempotency.redis_repository import RedisIdempotencyRepository
 from app.services.k8s_worker.config import K8sWorkerConfig
 from app.services.k8s_worker.worker import KubernetesWorker
 from app.services.kafka_event_service import KafkaEventService
@@ -134,34 +130,14 @@ class RedisRepositoryProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_execution_state_repository(
-            self, redis_client: redis.Redis, logger: logging.Logger
-    ) -> ExecutionStateRepository:
-        return ExecutionStateRepository(redis_client, logger)
+    def get_idempotency_repository(self, redis_client: redis.Redis) -> IdempotencyRepository:
+        return IdempotencyRepository(redis_client)
 
     @provide
-    def get_execution_queue_repository(
-            self, redis_client: redis.Redis, logger: logging.Logger, settings: Settings
-    ) -> ExecutionQueueRepository:
-        return ExecutionQueueRepository(
-            redis_client,
-            logger,
-            max_queue_size=10000,
-            max_executions_per_user=100,
-        )
-
-    @provide
-    async def get_resource_repository(
-            self, redis_client: redis.Redis, logger: logging.Logger, settings: Settings
-    ) -> ResourceRepository:
-        repo = ResourceRepository(
-            redis_client,
-            logger,
-            total_cpu_cores=32.0,
-            total_memory_mb=65536,
-        )
-        await repo.initialize()
-        return repo
+    def get_user_limit_repository(
+            self, redis_client: redis.Redis, settings: Settings
+    ) -> UserLimitRepository:
+        return UserLimitRepository(redis_client, max_per_user=settings.MAX_EXECUTIONS_PER_USER)
 
     @provide
     def get_pod_state_repository(
@@ -262,22 +238,6 @@ class MessagingProvider(Provider):
             dlq_metrics=dlq_metrics,
         )
 
-    @provide
-    def get_idempotency_repository(self, redis_client: redis.Redis) -> RedisIdempotencyRepository:
-        return RedisIdempotencyRepository(redis_client, key_prefix="idempotency")
-
-    @provide
-    async def get_idempotency_manager(
-            self, repo: RedisIdempotencyRepository, logger: logging.Logger, database_metrics: DatabaseMetrics
-    ) -> AsyncIterator[IdempotencyManager]:
-        manager = create_idempotency_manager(
-            repository=repo, config=IdempotencyConfig(), logger=logger, database_metrics=database_metrics
-        )
-        await manager.initialize()
-        try:
-            yield manager
-        finally:
-            await manager.close()
 
 
 class EventProvider(Provider):
@@ -622,9 +582,7 @@ class CoordinatorProvider(Provider):
             self,
             kafka_producer: UnifiedProducer,
             execution_repository: ExecutionRepository,
-            state_repo: ExecutionStateRepository,
-            queue_repo: ExecutionQueueRepository,
-            resource_repo: ResourceRepository,
+            user_limit_repo: UserLimitRepository,
             logger: logging.Logger,
             coordinator_metrics: CoordinatorMetrics,
             event_metrics: EventMetrics,
@@ -632,9 +590,7 @@ class CoordinatorProvider(Provider):
         return ExecutionCoordinator(
             producer=kafka_producer,
             execution_repository=execution_repository,
-            state_repo=state_repo,
-            queue_repo=queue_repo,
-            resource_repo=resource_repo,
+            user_limit_repo=user_limit_repo,
             logger=logger,
             coordinator_metrics=coordinator_metrics,
             event_metrics=event_metrics,

@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime, timezone
 
 import pytest
-from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
+from aiokafka import AIOKafkaConsumer
 from app.dlq.manager import DLQManager
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic

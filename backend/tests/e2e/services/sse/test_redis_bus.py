@@ -61,7 +61,7 @@ class _FakeRedis:
 
 
 def _make_metadata() -> EventMetadata:
-    return EventMetadata(service_name="test", service_version="1.0")
+    return EventMetadata(service_name="test", service_version="1.0", user_id="test")
 
 
 @pytest.mark.asyncio

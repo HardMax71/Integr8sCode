@@ -19,7 +19,7 @@ async def test_serialize_and_deserialize_event_real_registry(test_settings: Sett
         execution_id="e1",
         pod_name="p",
         namespace="n",
-        metadata=EventMetadata(service_name="s", service_version="1"),
+        metadata=EventMetadata(service_name="s", service_version="1", user_id="test"),
     )
     data = await m.serialize_event(ev)
     topic = str(get_topic_for_event(ev.event_type))

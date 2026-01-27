@@ -1,12 +1,5 @@
-"""Redis-backed pod state tracking repository.
-
-Replaces in-memory pod state tracking (_tracked_pods, _active_creations)
-for stateless, horizontally-scalable services.
-"""
-
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -23,7 +16,6 @@ class PodState:
     status: str
     created_at: datetime
     updated_at: datetime
-    metadata: dict[str, object] | None = None
 
 
 class PodStateRepository:
@@ -79,7 +71,6 @@ class PodStateRepository:
         pod_name: str,
         execution_id: str,
         status: str,
-        metadata: dict[str, object] | None = None,
         ttl_seconds: int = 7200,
     ) -> None:
         """Track a pod's state."""
@@ -92,7 +83,6 @@ class PodStateRepository:
             "status": status,
             "created_at": now,
             "updated_at": now,
-            "metadata": json.dumps(metadata) if metadata else "{}",
         }
 
         await self._redis.hset(key, mapping=data)  # type: ignore[misc]
@@ -129,19 +119,12 @@ class PodStateRepository:
             val = data.get(k.encode(), data.get(k, ""))
             return val.decode() if isinstance(val, bytes) else str(val)
 
-        metadata_str = get_str("metadata")
-        try:
-            metadata = json.loads(metadata_str) if metadata_str else None
-        except json.JSONDecodeError:
-            metadata = None
-
         return PodState(
             pod_name=get_str("pod_name"),
             execution_id=get_str("execution_id"),
             status=get_str("status"),
             created_at=datetime.fromisoformat(get_str("created_at")),
             updated_at=datetime.fromisoformat(get_str("updated_at")),
-            metadata=metadata,
         )
 
     async def is_pod_tracked(self, pod_name: str) -> bool:

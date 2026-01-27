@@ -183,7 +183,7 @@ class PodEventMapper:
         correlation_id = annotations.get("integr8s.io/correlation-id") or labels.get("correlation-id") or ""
 
         md = EventMetadata(
-            user_id=labels.get("user-id"),
+            user_id=labels.get("user-id", "system"),
             service_name=GroupId.POD_MONITOR,
             service_version="1.0.0",
             correlation_id=correlation_id,

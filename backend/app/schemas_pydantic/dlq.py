@@ -10,6 +10,7 @@ from app.dlq import (
     RetryStrategy,
     TopicStatistic,
 )
+from app.domain.enums.kafka import KafkaTopic
 from app.domain.events.typed import DomainEvent
 
 
@@ -31,7 +32,7 @@ class DLQMessageResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     event: DomainEvent
-    original_topic: str
+    original_topic: KafkaTopic
     error: str
     retry_count: int
     failed_at: datetime
@@ -46,7 +47,7 @@ class DLQMessageResponse(BaseModel):
 class RetryPolicyRequest(BaseModel):
     """Request model for setting a retry policy."""
 
-    topic: str
+    topic: KafkaTopic
     strategy: RetryStrategy
     max_retries: int = 5
     base_delay_seconds: float = 60.0
@@ -87,7 +88,7 @@ class DLQTopicSummaryResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    topic: str
+    topic: KafkaTopic
     total_messages: int
     status_breakdown: dict[str, int]
     oldest_message: datetime
@@ -102,7 +103,7 @@ class DLQMessageDetail(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     event: DomainEvent
-    original_topic: str
+    original_topic: KafkaTopic
     error: str
     retry_count: int
     failed_at: datetime

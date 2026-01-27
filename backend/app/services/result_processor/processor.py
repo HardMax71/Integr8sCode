@@ -180,6 +180,7 @@ class ResultProcessor:
             metadata=EventMetadata(
                 service_name=GroupId.RESULT_PROCESSOR,
                 service_version="1.0.0",
+                user_id="system",
             ),
         )
 
@@ -193,6 +194,7 @@ class ResultProcessor:
             metadata=EventMetadata(
                 service_name=GroupId.RESULT_PROCESSOR,
                 service_version="1.0.0",
+                user_id="system",
             ),
         )
 

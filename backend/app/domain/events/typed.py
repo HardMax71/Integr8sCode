@@ -8,6 +8,8 @@ from pydantic_avro.to_avro.base import AvroBase
 from app.domain.enums.auth import LoginMethod
 from app.domain.enums.common import Environment
 from app.domain.enums.events import EventType
+from app.domain.enums.execution import QueuePriority
+from app.domain.enums.kafka import KafkaTopic
 from app.domain.enums.notification import NotificationChannel, NotificationSeverity
 from app.domain.enums.storage import ExecutionErrorType, StorageType
 
@@ -30,8 +32,8 @@ class EventMetadata(AvroBase):
 
     service_name: str
     service_version: str
+    user_id: str
     correlation_id: str = Field(default_factory=lambda: str(uuid4()))
-    user_id: str | None = None
     ip_address: str | None = None
     user_agent: str | None = None
     environment: Environment = Environment.PRODUCTION
@@ -75,7 +77,7 @@ class ExecutionRequestedEvent(BaseEvent):
     memory_limit: str
     cpu_request: str
     memory_request: str
-    priority: int = 5
+    priority: QueuePriority = QueuePriority.NORMAL
 
 
 class ExecutionAcceptedEvent(BaseEvent):
@@ -83,7 +85,7 @@ class ExecutionAcceptedEvent(BaseEvent):
     execution_id: str
     queue_position: int
     estimated_wait_seconds: float | None = None
-    priority: int = 5
+    priority: QueuePriority = QueuePriority.NORMAL
 
 
 class ExecutionQueuedEvent(BaseEvent):
@@ -428,7 +430,7 @@ class CreatePodCommandEvent(BaseEvent):
     memory_limit: str
     cpu_request: str
     memory_request: str
-    priority: int = 5
+    priority: QueuePriority = QueuePriority.NORMAL
 
 
 class DeletePodCommandEvent(BaseEvent):
@@ -558,7 +560,7 @@ class DLQMessageReceivedEvent(BaseEvent):
 
     event_type: Literal[EventType.DLQ_MESSAGE_RECEIVED] = EventType.DLQ_MESSAGE_RECEIVED
     dlq_event_id: str  # The event_id of the failed message
-    original_topic: str
+    original_topic: KafkaTopic
     original_event_type: str
     error: str
     retry_count: int
@@ -571,7 +573,7 @@ class DLQMessageRetriedEvent(BaseEvent):
 
     event_type: Literal[EventType.DLQ_MESSAGE_RETRIED] = EventType.DLQ_MESSAGE_RETRIED
     dlq_event_id: str  # The event_id of the retried message
-    original_topic: str
+    original_topic: KafkaTopic
     original_event_type: str
     retry_count: int  # New retry count after this retry
     retry_topic: str  # Topic the message was retried to
@@ -582,7 +584,7 @@ class DLQMessageDiscardedEvent(BaseEvent):
 
     event_type: Literal[EventType.DLQ_MESSAGE_DISCARDED] = EventType.DLQ_MESSAGE_DISCARDED
     dlq_event_id: str  # The event_id of the discarded message
-    original_topic: str
+    original_topic: KafkaTopic
     original_event_type: str
     reason: str
     retry_count: int  # Final retry count when discarded

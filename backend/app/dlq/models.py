@@ -1,11 +1,11 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.utils import StringEnum
 from app.domain.enums.events import EventType
+from app.domain.enums.kafka import KafkaTopic
 from app.domain.events.typed import DomainEvent
 
 
@@ -34,7 +34,7 @@ class DLQMessage(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     event: DomainEvent  # Discriminated union - auto-validates from dict
-    original_topic: str = ""
+    original_topic: KafkaTopic
     error: str = "Unknown error"
     retry_count: int = 0
     failed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -63,7 +63,6 @@ class DLQMessageUpdate:
     retry_count: int | None = None
     discard_reason: str | None = None
     last_error: str | None = None
-    extra: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -71,7 +70,7 @@ class DLQMessageFilter:
     """Filter criteria for querying DLQ messages."""
 
     status: DLQMessageStatus | None = None
-    topic: str | None = None
+    topic: KafkaTopic | None = None
     event_type: EventType | None = None
 
 
@@ -79,7 +78,7 @@ class DLQMessageFilter:
 class RetryPolicy:
     """Retry policy configuration for DLQ messages."""
 
-    topic: str
+    topic: KafkaTopic
     strategy: RetryStrategy
     max_retries: int = 5
     base_delay_seconds: float = 60.0
@@ -121,7 +120,7 @@ class TopicStatistic(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    topic: str
+    topic: KafkaTopic
     count: int
     avg_retry_count: float
 
@@ -191,7 +190,7 @@ class DLQTopicSummary(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    topic: str
+    topic: KafkaTopic
     total_messages: int
     status_breakdown: dict[str, int]
     oldest_message: datetime

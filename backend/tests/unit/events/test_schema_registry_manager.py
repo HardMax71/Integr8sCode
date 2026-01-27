@@ -25,7 +25,7 @@ def test_deserialize_json_execution_requested(test_settings: Settings) -> None:
         "cpu_request": "50m",
         "memory_request": "64Mi",
         "priority": 5,
-        "metadata": {"service_name": "t", "service_version": "1.0"},
+        "metadata": {"service_name": "t", "service_version": "1.0", "user_id": "test"},
     }
     ev = m.deserialize_json(data)
     assert isinstance(ev, ExecutionRequestedEvent)

@@ -1,10 +1,3 @@
-"""Kubernetes Worker - stateless event handler.
-
-Creates Kubernetes pods from execution events. Receives events,
-processes them, and publishes results. No lifecycle management.
-All state is stored in Redis repositories.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -16,7 +9,7 @@ from kubernetes import client as k8s_client
 from kubernetes.client.rest import ApiException
 
 from app.core.metrics import EventMetrics, ExecutionMetrics, KubernetesMetrics
-from app.db.repositories.pod_state_repository import PodStateRepository
+from app.db.repositories.redis.pod_state_repository import PodStateRepository
 from app.domain.enums.storage import ExecutionErrorType
 from app.domain.events.typed import (
     CreatePodCommandEvent,

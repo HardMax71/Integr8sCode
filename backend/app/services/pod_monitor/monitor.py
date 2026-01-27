@@ -1,17 +1,14 @@
 import asyncio
 import logging
 import time
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from enum import auto
 from typing import Any
 
-from kubernetes import client as k8s_client
-from kubernetes.client.rest import ApiException
+from kubernetes_asyncio import client as k8s_client
+from kubernetes_asyncio import watch as k8s_watch
+from kubernetes_asyncio.client.rest import ApiException
 
-from app.core.k8s_clients import K8sClients, close_k8s_clients, create_k8s_clients
-from app.core.lifecycle import LifecycleEnabled
 from app.core.metrics import KubernetesMetrics
 from app.core.utils import StringEnum
 from app.domain.events.typed import DomainEvent
@@ -88,13 +85,15 @@ class ReconciliationResult:
     error: str | None = None
 
 
-class PodMonitor(LifecycleEnabled):
+class PodMonitor:
     """
     Monitors Kubernetes pods and publishes lifecycle events.
 
     This service watches pods with specific labels using the K8s watch API,
     maps Kubernetes events to application events, and publishes them to Kafka.
     Events are stored in the events collection AND published to Kafka via KafkaEventService.
+
+    Lifecycle is managed by DI provider - call start() to begin monitoring, stop() to end.
     """
 
     def __init__(
@@ -102,23 +101,17 @@ class PodMonitor(LifecycleEnabled):
         config: PodMonitorConfig,
         kafka_event_service: KafkaEventService,
         logger: logging.Logger,
-        k8s_clients: K8sClients,
+        api_client: k8s_client.ApiClient,
         event_mapper: PodEventMapper,
         kubernetes_metrics: KubernetesMetrics,
     ) -> None:
-        """Initialize the pod monitor with all required dependencies.
-
-        All dependencies must be provided - use create_pod_monitor() factory
-        for automatic dependency creation in production.
-        """
-        super().__init__()
+        """Initialize the pod monitor with all required dependencies."""
         self.logger = logger
         self.config = config
 
-        # Kubernetes clients (required, no nullability)
-        self._clients = k8s_clients
-        self._v1 = k8s_clients.v1
-        self._watch = k8s_clients.watch
+        # Kubernetes clients created from ApiClient
+        self._v1 = k8s_client.CoreV1Api(api_client)
+        self._watch = k8s_watch.Watch()
 
         # Components (required, no nullability)
         self._event_mapper = event_mapper
@@ -137,18 +130,16 @@ class PodMonitor(LifecycleEnabled):
         # Metrics
         self._metrics = kubernetes_metrics
 
+        self.logger.info(f"PodMonitor initialized for namespace {config.namespace}")
+
     @property
     def state(self) -> MonitorState:
         """Get current monitor state."""
         return self._state
 
-    async def _on_start(self) -> None:
+    async def start(self) -> None:
         """Start the pod monitor."""
         self.logger.info("Starting PodMonitor service...")
-
-        # Verify K8s connectivity (all clients already injected via __init__)
-        await asyncio.to_thread(self._v1.get_api_resources)
-        self.logger.info("Successfully connected to Kubernetes API")
 
         # Start monitoring
         self._state = MonitorState.RUNNING
@@ -160,7 +151,7 @@ class PodMonitor(LifecycleEnabled):
 
         self.logger.info("PodMonitor service started successfully")
 
-    async def _on_stop(self) -> None:
+    async def stop(self) -> None:
         """Stop the pod monitor."""
         self.logger.info("Stopping PodMonitor service...")
         self._state = MonitorState.STOPPING
@@ -177,6 +168,7 @@ class PodMonitor(LifecycleEnabled):
         # Close watch
         if self._watch:
             self._watch.stop()
+            await self._watch.close()
 
         # Clear state
         self._tracked_pods.clear()
@@ -211,8 +203,6 @@ class PodMonitor(LifecycleEnabled):
 
     async def _watch_pod_events(self) -> None:
         """Watch for pod events."""
-        # self._v1 and self._watch are guaranteed initialized by start()
-
         context = WatchContext(
             namespace=self.config.namespace,
             label_selector=self.config.label_selector,
@@ -223,8 +213,8 @@ class PodMonitor(LifecycleEnabled):
 
         self.logger.info(f"Starting pod watch with selector: {context.label_selector}, namespace: {context.namespace}")
 
-        # Create watch stream
-        kwargs = {
+        # Create watch stream kwargs
+        kwargs: dict[str, Any] = {
             "namespace": context.namespace,
             "label_selector": context.label_selector,
             "timeout_seconds": context.timeout_seconds,
@@ -236,27 +226,17 @@ class PodMonitor(LifecycleEnabled):
         if context.resource_version:
             kwargs["resource_version"] = context.resource_version
 
-        # Watch stream (clients guaranteed by __init__)
-        stream = self._watch.stream(self._v1.list_namespaced_pod, **kwargs)
+        # Watch stream - kubernetes_asyncio Watch is an async iterator
+        async for event in self._watch.stream(self._v1.list_namespaced_pod, **kwargs):
+            if self._state != MonitorState.RUNNING:
+                self._watch.stop()
+                break
 
-        try:
-            for event in stream:
-                if self._state != MonitorState.RUNNING:
-                    break
+            await self._process_raw_event(event)
 
-                await self._process_raw_event(event)
-
-        finally:
-            # Store resource version for next watch
-            self._update_resource_version(stream)
-
-    def _update_resource_version(self, stream: Any) -> None:
-        """Update last resource version from stream."""
-        try:
-            if stream._stop_event and stream._stop_event.resource_version:
-                self._last_resource_version = stream._stop_event.resource_version
-        except AttributeError:
-            pass
+        # Store resource version from watch for next iteration
+        if self._watch.resource_version:
+            self._last_resource_version = self._watch.resource_version
 
     async def _process_raw_event(self, raw_event: KubeEvent) -> None:
         """Process a raw Kubernetes watch event."""
@@ -302,7 +282,7 @@ class PodMonitor(LifecycleEnabled):
             self._metrics.update_pod_monitor_pods_watched(len(self._tracked_pods))
 
             # Map to application events
-            app_events = self._event_mapper.map_pod_event(event.pod, event.event_type)
+            app_events = await self._event_mapper.map_pod_event(event.pod, event.event_type)
 
             # Publish events
             for app_event in app_events:
@@ -329,7 +309,7 @@ class PodMonitor(LifecycleEnabled):
         try:
             # Add correlation ID from pod labels
             if pod.metadata and pod.metadata.labels:
-                event.metadata.correlation_id = pod.metadata.labels.get("execution-id")
+                event.metadata.correlation_id = pod.metadata.labels.get("execution-id") or ""
 
             execution_id = getattr(event, "execution_id", None) or event.aggregate_id
             key = str(execution_id or (pod.metadata.name if pod.metadata else "unknown"))
@@ -384,9 +364,9 @@ class PodMonitor(LifecycleEnabled):
         try:
             self.logger.info("Starting pod state reconciliation")
 
-            # List all pods matching selector (clients guaranteed by __init__)
-            pods = await asyncio.to_thread(
-                self._v1.list_namespaced_pod, namespace=self.config.namespace, label_selector=self.config.label_selector
+            # List all pods matching selector
+            pods = await self._v1.list_namespaced_pod(
+                namespace=self.config.namespace, label_selector=self.config.label_selector
             )
 
             # Get current pod names
@@ -456,49 +436,3 @@ class PodMonitor(LifecycleEnabled):
                 "enable_reconciliation": self.config.enable_state_reconciliation,
             },
         }
-
-
-@asynccontextmanager
-async def create_pod_monitor(
-    config: PodMonitorConfig,
-    kafka_event_service: KafkaEventService,
-    logger: logging.Logger,
-    kubernetes_metrics: KubernetesMetrics,
-    k8s_clients: K8sClients | None = None,
-    event_mapper: PodEventMapper | None = None,
-) -> AsyncIterator[PodMonitor]:
-    """Create and manage a pod monitor instance.
-
-    This factory handles production dependency creation:
-    - Creates K8sClients if not provided (using config settings)
-    - Creates PodEventMapper if not provided
-    - Cleans up created K8sClients on exit
-    """
-    # Track whether we created clients (so we know to close them)
-    owns_clients = k8s_clients is None
-
-    if k8s_clients is None:
-        k8s_clients = create_k8s_clients(
-            logger=logger,
-            kubeconfig_path=config.kubeconfig_path,
-            in_cluster=config.in_cluster,
-        )
-
-    if event_mapper is None:
-        event_mapper = PodEventMapper(logger=logger, k8s_api=k8s_clients.v1)
-
-    monitor = PodMonitor(
-        config=config,
-        kafka_event_service=kafka_event_service,
-        logger=logger,
-        k8s_clients=k8s_clients,
-        event_mapper=event_mapper,
-        kubernetes_metrics=kubernetes_metrics,
-    )
-
-    try:
-        async with monitor:
-            yield monitor
-    finally:
-        if owns_clients:
-            close_k8s_clients(k8s_clients)

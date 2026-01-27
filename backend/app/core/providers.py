@@ -5,10 +5,11 @@ from typing import AsyncIterator
 
 import redis.asyncio as redis
 from dishka import Provider, Scope, from_context, provide
+from kubernetes_asyncio import client as k8s_client
+from kubernetes_asyncio import config as k8s_config
 from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 from app.core.database_context import Database
-from app.core.k8s_clients import K8sClients, close_k8s_clients, create_k8s_clients
 from app.core.logging import setup_logger
 from app.core.metrics import (
     ConnectionMetrics,
@@ -43,8 +44,10 @@ from app.db.repositories.replay_repository import ReplayRepository
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.db.repositories.user_settings_repository import UserSettingsRepository
 from app.dlq.manager import DLQManager, create_dlq_manager
+from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId
+from app.domain.idempotency import KeyStrategy
 from app.domain.saga.models import SagaConfig
-from app.events.core import UnifiedProducer
+from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
 from app.events.event_store import EventStore, create_event_store
 from app.events.event_store_consumer import EventStoreConsumer, create_event_store_consumer
 from app.events.schema.schema_registry import SchemaRegistryManager
@@ -59,6 +62,7 @@ from app.services.execution_service import ExecutionService
 from app.services.grafana_alert_processor import GrafanaAlertProcessor
 from app.services.idempotency import IdempotencyConfig, IdempotencyManager
 from app.services.idempotency.idempotency_manager import create_idempotency_manager
+from app.services.idempotency.middleware import IdempotentConsumerWrapper
 from app.services.idempotency.redis_repository import RedisIdempotencyRepository
 from app.services.k8s_worker.config import K8sWorkerConfig
 from app.services.k8s_worker.worker import KubernetesWorker
@@ -247,20 +251,23 @@ class KubernetesProvider(Provider):
     scope = Scope.APP
 
     @provide
-    async def get_k8s_clients(self, settings: Settings, logger: logging.Logger) -> AsyncIterator[K8sClients]:
-        clients = create_k8s_clients(logger, kubeconfig_path=settings.KUBERNETES_CONFIG_PATH)
+    async def get_api_client(self, settings: Settings, logger: logging.Logger) -> AsyncIterator[k8s_client.ApiClient]:
+        """Provide Kubernetes ApiClient with config loading and cleanup."""
+        await k8s_config.load_kube_config(config_file=settings.KUBERNETES_CONFIG_PATH)
+        api_client = k8s_client.ApiClient()
+        logger.info(f"Kubernetes API host: {api_client.configuration.host}")
         try:
-            yield clients
+            yield api_client
         finally:
-            close_k8s_clients(clients)
+            await api_client.close()
 
 
 class ResourceCleanerProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_resource_cleaner(self, k8s_clients: K8sClients, logger: logging.Logger) -> ResourceCleaner:
-        return ResourceCleaner(k8s_clients=k8s_clients, logger=logger)
+    def get_resource_cleaner(self, api_client: k8s_client.ApiClient, logger: logging.Logger) -> ResourceCleaner:
+        return ResourceCleaner(api_client=api_client, logger=logger)
 
 
 class MetricsProvider(Provider):
@@ -709,28 +716,84 @@ class K8sWorkerProvider(Provider):
     scope = Scope.APP
 
     @provide
-    async def get_kubernetes_worker(
-            self,
-            kafka_producer: UnifiedProducer,
-            schema_registry: SchemaRegistryManager,
-            settings: Settings,
-            event_store: EventStore,
-            idempotency_manager: IdempotencyManager,
-            logger: logging.Logger,
-            event_metrics: EventMetrics,
-    ) -> AsyncIterator[KubernetesWorker]:
+    def get_k8s_worker_dispatcher(self, logger: logging.Logger) -> EventDispatcher:
+        """Create EventDispatcher for K8s worker."""
+        return EventDispatcher(logger=logger)
+
+    @provide
+    def get_kubernetes_worker(
+        self,
+        api_client: k8s_client.ApiClient,
+        kafka_producer: UnifiedProducer,
+        dispatcher: EventDispatcher,
+        settings: Settings,
+        logger: logging.Logger,
+        event_metrics: EventMetrics,
+    ) -> KubernetesWorker:
+        """Create KubernetesWorker - registers handlers on dispatcher in constructor."""
         config = K8sWorkerConfig()
-        async with KubernetesWorker(
-                config=config,
-                producer=kafka_producer,
-                schema_registry_manager=schema_registry,
-                settings=settings,
-                event_store=event_store,
-                idempotency_manager=idempotency_manager,
-                logger=logger,
-                event_metrics=event_metrics,
-        ) as worker:
-            yield worker
+        return KubernetesWorker(
+            config=config,
+            api_client=api_client,
+            producer=kafka_producer,
+            dispatcher=dispatcher,
+            settings=settings,
+            logger=logger,
+            event_metrics=event_metrics,
+        )
+
+    @provide
+    async def get_k8s_worker_consumer(
+        self,
+        worker: KubernetesWorker,  # Ensures worker created first (handlers registered)
+        dispatcher: EventDispatcher,
+        schema_registry: SchemaRegistryManager,
+        settings: Settings,
+        idempotency_manager: IdempotencyManager,
+        logger: logging.Logger,
+        event_metrics: EventMetrics,
+    ) -> AsyncIterator[IdempotentConsumerWrapper]:
+        """Create and start consumer for K8s worker."""
+        config = K8sWorkerConfig()
+        consumer_config = ConsumerConfig(
+            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+            group_id=config.consumer_group,
+            enable_auto_commit=False,
+            session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
+            heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+            max_poll_interval_ms=settings.KAFKA_MAX_POLL_INTERVAL_MS,
+            request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
+        )
+
+        consumer = UnifiedConsumer(
+            consumer_config,
+            event_dispatcher=dispatcher,
+            schema_registry=schema_registry,
+            settings=settings,
+            logger=logger,
+            event_metrics=event_metrics,
+        )
+
+        idempotent_consumer = IdempotentConsumerWrapper(
+            consumer=consumer,
+            idempotency_manager=idempotency_manager,
+            dispatcher=dispatcher,
+            logger=logger,
+            default_key_strategy=KeyStrategy.CONTENT_HASH,
+            default_ttl_seconds=3600,
+            enable_for_all_handlers=True,
+        )
+
+        await idempotent_consumer.start(list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.K8S_WORKER]))
+        logger.info("K8s worker consumer started")
+
+        try:
+            yield idempotent_consumer
+        finally:
+            await worker.wait_for_active_creations()
+            await idempotent_consumer.stop()
+            await idempotency_manager.close()
+            logger.info("K8s worker consumer stopped")
 
 
 class PodMonitorProvider(Provider):
@@ -738,31 +801,35 @@ class PodMonitorProvider(Provider):
 
     @provide
     def get_event_mapper(
-            self,
-            logger: logging.Logger,
-            k8s_clients: K8sClients,
+        self,
+        logger: logging.Logger,
+        api_client: k8s_client.ApiClient,
     ) -> PodEventMapper:
-        return PodEventMapper(logger=logger, k8s_api=k8s_clients.v1)
+        return PodEventMapper(logger=logger, k8s_api=k8s_client.CoreV1Api(api_client))
 
     @provide
     async def get_pod_monitor(
-            self,
-            kafka_event_service: KafkaEventService,
-            k8s_clients: K8sClients,
-            logger: logging.Logger,
-            event_mapper: PodEventMapper,
-            kubernetes_metrics: KubernetesMetrics,
+        self,
+        kafka_event_service: KafkaEventService,
+        api_client: k8s_client.ApiClient,
+        logger: logging.Logger,
+        event_mapper: PodEventMapper,
+        kubernetes_metrics: KubernetesMetrics,
     ) -> AsyncIterator[PodMonitor]:
         config = PodMonitorConfig()
-        async with PodMonitor(
-                config=config,
-                kafka_event_service=kafka_event_service,
-                logger=logger,
-                k8s_clients=k8s_clients,
-                event_mapper=event_mapper,
-                kubernetes_metrics=kubernetes_metrics,
-        ) as monitor:
+        monitor = PodMonitor(
+            config=config,
+            kafka_event_service=kafka_event_service,
+            logger=logger,
+            api_client=api_client,
+            event_mapper=event_mapper,
+            kubernetes_metrics=kubernetes_metrics,
+        )
+        await monitor.start()
+        try:
             yield monitor
+        finally:
+            await monitor.stop()
 
 
 class SagaOrchestratorProvider(Provider):

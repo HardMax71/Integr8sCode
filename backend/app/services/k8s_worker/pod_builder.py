@@ -1,4 +1,4 @@
-from kubernetes import client as k8s_client
+from kubernetes_asyncio import client as k8s_client
 
 from app.domain.events.typed import CreatePodCommandEvent
 from app.services.k8s_worker.config import K8sWorkerConfig

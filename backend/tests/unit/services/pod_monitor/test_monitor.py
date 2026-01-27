@@ -2,11 +2,11 @@ import asyncio
 import logging
 import types
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from app.core import k8s_clients as k8s_clients_module
-from app.core.k8s_clients import K8sClients
+from kubernetes_asyncio import client as k8s_client
+
 from app.core.metrics import EventMetrics, KubernetesMetrics
 from app.db.repositories.event_repository import EventRepository
 from app.domain.events.typed import (
@@ -26,14 +26,14 @@ from app.services.pod_monitor.monitor import (
     PodMonitor,
     ReconciliationResult,
     WatchEventType,
-    create_pod_monitor,
 )
 from app.settings import Settings
-from kubernetes.client.rest import ApiException
+from kubernetes_asyncio.client.rest import ApiException
 
-from tests.unit.services.pod_monitor.conftest import (
+from kubernetes_asyncio.client import V1Pod
+
+from tests.unit.conftest import (
     MockWatchStream,
-    Pod,
     make_mock_v1_api,
     make_mock_watch,
     make_pod,
@@ -104,26 +104,15 @@ class SpyMapper:
     def clear_cache(self) -> None:
         self.cleared = True
 
-    def map_pod_event(self, pod: Any, event_type: WatchEventType) -> list[Any]:  # noqa: ARG002
+    async def map_pod_event(self, pod: Any, event_type: WatchEventType) -> list[Any]:  # noqa: ARG002
         return []
 
 
-def make_k8s_clients_di(
-        events: list[dict[str, Any]] | None = None,
-        resource_version: str = "rv1",
-        pods: list[Pod] | None = None,
-        logs: str = "{}",
-) -> K8sClients:
-    """Create K8sClients for DI with mocks."""
-    v1 = make_mock_v1_api(logs=logs, pods=pods)
-    watch = make_mock_watch(events or [], resource_version)
-    return K8sClients(
-        api_client=MagicMock(),
-        v1=v1,
-        apps_v1=MagicMock(),
-        networking_v1=MagicMock(),
-        watch=watch,
-    )
+def make_mock_api_client() -> MagicMock:
+    """Create a mock ApiClient."""
+    mock = MagicMock(spec=k8s_client.ApiClient)
+    mock.close = AsyncMock()
+    return mock
 
 
 def make_pod_monitor(
@@ -131,22 +120,38 @@ def make_pod_monitor(
         kubernetes_metrics: KubernetesMetrics,
         config: PodMonitorConfig | None = None,
         kafka_service: KafkaEventService | None = None,
-        k8s_clients: K8sClients | None = None,
+        api_client: k8s_client.ApiClient | None = None,
         event_mapper: PodEventMapper | None = None,
+        mock_v1: Any | None = None,
+        mock_watch: Any | None = None,
+        pods: list[V1Pod] | None = None,
+        events: list[dict[str, Any]] | None = None,
+        resource_version: str = "rv1",
 ) -> PodMonitor:
-    """Create PodMonitor with sensible test defaults."""
+    """Create PodMonitor with sensible test defaults.
+
+    Since PodMonitor creates its own v1/watch from api_client,
+    we create the monitor and then replace _v1 and _watch with mocks.
+    """
     cfg = config or PodMonitorConfig()
-    clients = k8s_clients or make_k8s_clients_di()
+    client = api_client or make_mock_api_client()
     mapper = event_mapper or PodEventMapper(logger=_test_logger, k8s_api=make_mock_v1_api("{}"))
     service = kafka_service or create_test_kafka_event_service(event_metrics)[0]
-    return PodMonitor(
+
+    monitor = PodMonitor(
         config=cfg,
         kafka_event_service=service,
         logger=_test_logger,
-        k8s_clients=clients,
+        api_client=client,
         event_mapper=mapper,
         kubernetes_metrics=kubernetes_metrics,
     )
+
+    # Replace internal clients with mocks for testing
+    monitor._v1 = mock_v1 or make_mock_v1_api(pods=pods)
+    monitor._watch = mock_watch or make_mock_watch(events or [], resource_version)
+
+    return monitor
 
 
 # ===== Tests =====
@@ -166,10 +171,10 @@ async def test_start_and_stop_lifecycle(event_metrics: EventMetrics, kubernetes_
 
     pm._watch_pods = _quick_watch  # type: ignore[method-assign]
 
-    await pm.__aenter__()
+    await pm.start()
     assert pm.state == MonitorState.RUNNING
 
-    await pm.aclose()
+    await pm.stop()
     final_state: MonitorState = pm.state
     assert final_state == MonitorState.STOPPED
     assert spy.cleared is True
@@ -181,9 +186,11 @@ async def test_watch_pod_events_flow_and_publish(event_metrics: EventMetrics, ku
     cfg.enable_state_reconciliation = False
 
     pod = make_pod(name="p", phase="Succeeded", labels={"execution-id": "e1"}, term_exit=0, resource_version="rv1")
-    k8s_clients = make_k8s_clients_di(events=[{"type": "MODIFIED", "object": pod}], resource_version="rv2")
 
-    pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg, k8s_clients=k8s_clients)
+    pm = make_pod_monitor(
+        event_metrics, kubernetes_metrics, config=cfg,
+        events=[{"type": "MODIFIED", "object": pod}], resource_version="rv2"
+    )
     pm._state = MonitorState.RUNNING
 
     await pm._watch_pod_events()
@@ -268,9 +275,8 @@ async def test_reconcile_state_success(event_metrics: EventMetrics, kubernetes_m
 
     pod1 = make_pod(name="pod1", phase="Running", resource_version="v1")
     pod2 = make_pod(name="pod2", phase="Running", resource_version="v1")
-    k8s_clients = make_k8s_clients_di(pods=[pod1, pod2])
 
-    pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg, k8s_clients=k8s_clients)
+    pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg, pods=[pod1, pod2])
     pm._tracked_pods = {"pod2", "pod3"}
 
     processed: list[str] = []
@@ -294,17 +300,9 @@ async def test_reconcile_state_exception(event_metrics: EventMetrics, kubernetes
     cfg = PodMonitorConfig()
 
     fail_v1 = MagicMock()
-    fail_v1.list_namespaced_pod.side_effect = RuntimeError("API error")
+    fail_v1.list_namespaced_pod = AsyncMock(side_effect=RuntimeError("API error"))
 
-    k8s_clients = K8sClients(
-        api_client=MagicMock(),
-        v1=fail_v1,
-        apps_v1=MagicMock(),
-        networking_v1=MagicMock(),
-        watch=make_mock_watch([]),
-    )
-
-    pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg, k8s_clients=k8s_clients)
+    pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg, mock_v1=fail_v1)
 
     result = await pm._reconcile_state()
     assert result.success is False
@@ -318,7 +316,7 @@ async def test_process_pod_event_full_flow(event_metrics: EventMetrics, kubernet
     cfg.ignored_pod_phases = ["Unknown"]
 
     class MockMapper:
-        def map_pod_event(self, pod: Any, event_type: WatchEventType) -> list[Any]:  # noqa: ARG002
+        async def map_pod_event(self, pod: Any, event_type: WatchEventType) -> list[Any]:  # noqa: ARG002
             class Event:
                 event_type = types.SimpleNamespace(value="test_event")
                 metadata = types.SimpleNamespace(correlation_id=None)
@@ -375,7 +373,7 @@ async def test_process_pod_event_exception_handling(event_metrics: EventMetrics,
     cfg = PodMonitorConfig()
 
     class FailMapper:
-        def map_pod_event(self, pod: Any, event_type: WatchEventType) -> list[Any]:
+        async def map_pod_event(self, pod: Any, event_type: WatchEventType) -> list[Any]:
             raise RuntimeError("Mapping failed")
 
         def clear_cache(self) -> None:
@@ -535,103 +533,29 @@ async def test_watch_pods_generic_exception(event_metrics: EventMetrics, kuberne
 
 
 @pytest.mark.asyncio
-async def test_create_pod_monitor_context_manager(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test create_pod_monitor factory with auto-created dependencies."""
-    # Mock create_k8s_clients to avoid real K8s connection
-    mock_v1 = make_mock_v1_api()
-    mock_watch = make_mock_watch([])
-    mock_clients = K8sClients(
-        api_client=MagicMock(),
-        v1=mock_v1,
-        apps_v1=MagicMock(),
-        networking_v1=MagicMock(),
-        watch=mock_watch,
-    )
-
-    def mock_create_clients(
-            logger: logging.Logger,  # noqa: ARG001
-            kubeconfig_path: str | None = None,  # noqa: ARG001
-            in_cluster: bool | None = None,  # noqa: ARG001
-    ) -> K8sClients:
-        return mock_clients
-
-    monkeypatch.setattr(k8s_clients_module, "create_k8s_clients", mock_create_clients)
-    monkeypatch.setattr("app.services.pod_monitor.monitor.create_k8s_clients", mock_create_clients)
-
+async def test_start_and_stop(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
+    """Test explicit start() and stop() methods."""
     cfg = PodMonitorConfig()
     cfg.enable_state_reconciliation = False
-
-    service, _ = create_test_kafka_event_service(event_metrics)
-
-    # Use the actual create_pod_monitor which will use our mocked create_k8s_clients
-    async with create_pod_monitor(cfg, service, _test_logger, kubernetes_metrics=kubernetes_metrics) as monitor:
-        assert monitor.state == MonitorState.RUNNING
-
-    final_state: MonitorState = monitor.state
-    assert final_state == MonitorState.STOPPED
-
-
-@pytest.mark.asyncio
-async def test_create_pod_monitor_with_injected_k8s_clients(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
-    """Test create_pod_monitor with injected K8sClients (DI path)."""
-    cfg = PodMonitorConfig()
-    cfg.enable_state_reconciliation = False
-
-    service, _ = create_test_kafka_event_service(event_metrics)
-
-    mock_v1 = make_mock_v1_api()
-    mock_watch = make_mock_watch([])
-    mock_k8s_clients = K8sClients(
-        api_client=MagicMock(),
-        v1=mock_v1,
-        apps_v1=MagicMock(),
-        networking_v1=MagicMock(),
-        watch=mock_watch,
-    )
-
-    async with create_pod_monitor(
-            cfg, service, _test_logger, k8s_clients=mock_k8s_clients, kubernetes_metrics=kubernetes_metrics
-    ) as monitor:
-        assert monitor.state == MonitorState.RUNNING
-        assert monitor._clients is mock_k8s_clients
-        assert monitor._v1 is mock_v1
-
-    final_state: MonitorState = monitor.state
-    assert final_state == MonitorState.STOPPED
-
-
-@pytest.mark.asyncio
-async def test_start_already_running(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
-    """Test idempotent start via __aenter__."""
-    cfg = PodMonitorConfig()
     pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg)
 
-    # Simulate already started state
-    pm._lifecycle_started = True
-    pm._state = MonitorState.RUNNING
+    assert pm.state == MonitorState.IDLE
 
-    # Should be idempotent - just return self
-    await pm.__aenter__()
+    await pm.start()
+    state_after_start: MonitorState = pm.state
+    assert state_after_start == MonitorState.RUNNING
 
-
-@pytest.mark.asyncio
-async def test_stop_already_stopped(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
-    """Test idempotent stop via aclose()."""
-    cfg = PodMonitorConfig()
-    pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg)
-    pm._state = MonitorState.STOPPED
-    # Not started, so aclose should be a no-op
-
-    await pm.aclose()
+    await pm.stop()
+    state_after_stop: MonitorState = pm.state
+    assert state_after_stop == MonitorState.STOPPED
 
 
 @pytest.mark.asyncio
 async def test_stop_with_tasks(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
-    """Test cleanup of tasks on aclose()."""
+    """Test cleanup of tasks on stop()."""
     cfg = PodMonitorConfig()
     pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg)
     pm._state = MonitorState.RUNNING
-    pm._lifecycle_started = True
 
     async def dummy_task() -> None:
         await asyncio.Event().wait()
@@ -640,26 +564,10 @@ async def test_stop_with_tasks(event_metrics: EventMetrics, kubernetes_metrics: 
     pm._reconcile_task = asyncio.create_task(dummy_task())
     pm._tracked_pods = {"pod1"}
 
-    await pm.aclose()
+    await pm.stop()
 
     assert pm._state == MonitorState.STOPPED
     assert len(pm._tracked_pods) == 0
-
-
-def test_update_resource_version(event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics) -> None:
-    cfg = PodMonitorConfig()
-    pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg)
-
-    class Stream:
-        _stop_event = types.SimpleNamespace(resource_version="v123")
-
-    pm._update_resource_version(Stream())
-    assert pm._last_resource_version == "v123"
-
-    class BadStream:
-        pass
-
-    pm._update_resource_version(BadStream())
 
 
 @pytest.mark.asyncio
@@ -736,16 +644,12 @@ async def test_watch_pod_events_with_field_selector(event_metrics: EventMetrics,
 
     tracking_watch.stream.side_effect = track_stream
     tracking_watch.stop.return_value = None
+    tracking_watch.resource_version = "rv1"
 
-    k8s_clients = K8sClients(
-        api_client=MagicMock(),
-        v1=tracking_v1,
-        apps_v1=MagicMock(),
-        networking_v1=MagicMock(),
-        watch=tracking_watch,
+    pm = make_pod_monitor(
+        event_metrics, kubernetes_metrics, config=cfg,
+        mock_v1=tracking_v1, mock_watch=tracking_watch
     )
-
-    pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg, k8s_clients=k8s_clients)
     pm._state = MonitorState.RUNNING
 
     await pm._watch_pod_events()
@@ -794,8 +698,8 @@ async def test_start_with_reconciliation(event_metrics: EventMetrics, kubernetes
     pm._watch_pods = mock_watch  # type: ignore[method-assign]
     pm._reconciliation_loop = mock_reconcile  # type: ignore[method-assign]
 
-    await pm.__aenter__()
+    await pm.start()
     assert pm._watch_task is not None
     assert pm._reconcile_task is not None
 
-    await pm.aclose()
+    await pm.stop()

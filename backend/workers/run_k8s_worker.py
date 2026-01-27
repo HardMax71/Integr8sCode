@@ -9,6 +9,7 @@ from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.kafka import GroupId
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
+from app.services.idempotency.middleware import IdempotentConsumerWrapper
 from app.services.k8s_worker.worker import KubernetesWorker
 from app.settings import Settings
 from beanie import init_beanie
@@ -21,16 +22,26 @@ async def run_kubernetes_worker(settings: Settings) -> None:
     logger = await container.get(logging.Logger)
     logger.info("Starting KubernetesWorker with DI container...")
 
+    # Bootstrap database
     db = await container.get(Database)
     await init_beanie(database=db, document_models=ALL_DOCUMENTS)
 
+    # Initialize schemas
     schema_registry = await container.get(SchemaRegistryManager)
     await initialize_event_schemas(schema_registry)
 
-    # Services are already started by the DI container providers
+    # Get worker (triggers dispatcher creation and handler registration)
     worker = await container.get(KubernetesWorker)
 
-    # Shutdown event - signal handlers just set this
+    # Get consumer (triggers consumer creation and start)
+    # Consumer runs in background via its internal consume loop
+    await container.get(IdempotentConsumerWrapper)
+
+    # Bootstrap: ensure image pre-puller DaemonSet exists
+    asyncio.create_task(worker.ensure_image_pre_puller_daemonset())
+    logger.info("Image pre-puller daemonset task scheduled")
+
+    # Shutdown event
     shutdown_event = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -39,13 +50,9 @@ async def run_kubernetes_worker(settings: Settings) -> None:
     logger.info("KubernetesWorker started and running")
 
     try:
-        # Wait for shutdown signal or service to stop
-        while worker.is_running and not shutdown_event.is_set():
-            await asyncio.sleep(60)
-            status = await worker.get_status()
-            logger.info(f"Kubernetes worker status: {status}")
+        # Wait for shutdown signal
+        await shutdown_event.wait()
     finally:
-        # Container cleanup stops everything
         logger.info("Initiating graceful shutdown...")
         await container.close()
 

@@ -2,40 +2,24 @@ import asyncio
 from datetime import datetime
 
 import pytest
-import pytest_asyncio
-from app.core.k8s_clients import K8sClients
 from app.services.result_processor.resource_cleaner import ResourceCleaner
 from app.settings import Settings
 from dishka import AsyncContainer
-from kubernetes import client as k8s_client
+from kubernetes_asyncio import client as k8s_client
 
 pytestmark = [pytest.mark.e2e, pytest.mark.k8s]
 
 
-@pytest_asyncio.fixture
-async def k8s_clients(scope: AsyncContainer) -> K8sClients:
-    """Get K8sClients from DI container."""
-    return await scope.get(K8sClients)
-
-
-@pytest_asyncio.fixture
-async def resource_cleaner(scope: AsyncContainer) -> ResourceCleaner:
-    """Get ResourceCleaner from DI container."""
-    return await scope.get(ResourceCleaner)
-
-
 @pytest.mark.asyncio
-async def test_get_resource_usage(
-    resource_cleaner: ResourceCleaner, test_settings: Settings
-) -> None:
+async def test_get_resource_usage(scope: AsyncContainer, test_settings: Settings) -> None:
+    resource_cleaner = await scope.get(ResourceCleaner)
     usage = await resource_cleaner.get_resource_usage(namespace=test_settings.K8S_NAMESPACE)
     assert set(usage.keys()) >= {"pods", "configmaps", "network_policies"}
 
 
 @pytest.mark.asyncio
-async def test_cleanup_orphaned_resources_dry_run(
-    resource_cleaner: ResourceCleaner, test_settings: Settings
-) -> None:
+async def test_cleanup_orphaned_resources_dry_run(scope: AsyncContainer, test_settings: Settings) -> None:
+    resource_cleaner = await scope.get(ResourceCleaner)
     cleaned = await resource_cleaner.cleanup_orphaned_resources(
         namespace=test_settings.K8S_NAMESPACE,
         max_age_hours=0,
@@ -45,9 +29,8 @@ async def test_cleanup_orphaned_resources_dry_run(
 
 
 @pytest.mark.asyncio
-async def test_cleanup_nonexistent_pod(
-    resource_cleaner: ResourceCleaner, test_settings: Settings
-) -> None:
+async def test_cleanup_nonexistent_pod(scope: AsyncContainer, test_settings: Settings) -> None:
+    resource_cleaner = await scope.get(ResourceCleaner)
     namespace = test_settings.K8S_NAMESPACE
     nonexistent_pod = "integr8s-test-nonexistent-pod"
 
@@ -74,10 +57,11 @@ async def test_cleanup_nonexistent_pod(
 
 
 @pytest.mark.asyncio
-async def test_cleanup_orphaned_configmaps_dry_run(
-    k8s_clients: K8sClients, resource_cleaner: ResourceCleaner, test_settings: Settings
-) -> None:
-    v1 = k8s_clients.v1
+async def test_cleanup_orphaned_configmaps_dry_run(scope: AsyncContainer, test_settings: Settings) -> None:
+    api_client = await scope.get(k8s_client.ApiClient)
+    resource_cleaner = await scope.get(ResourceCleaner)
+
+    v1 = k8s_client.CoreV1Api(api_client)
     ns = test_settings.K8S_NAMESPACE
     name = f"int-test-cm-{int(datetime.now().timestamp())}"
 
@@ -86,7 +70,7 @@ async def test_cleanup_orphaned_configmaps_dry_run(
         labels={"app": "integr8s", "execution-id": "e-int-test"},
     )
     body = k8s_client.V1ConfigMap(metadata=metadata, data={"k": "v"})
-    v1.create_namespaced_config_map(namespace=ns, body=body)
+    await v1.create_namespaced_config_map(namespace=ns, body=body)
 
     try:
         res = await resource_cleaner.cleanup_orphaned_resources(namespace=ns, max_age_hours=0, dry_run=True)
@@ -95,6 +79,6 @@ async def test_cleanup_orphaned_configmaps_dry_run(
         )
     finally:
         try:
-            v1.delete_namespaced_config_map(name=name, namespace=ns)
+            await v1.delete_namespaced_config_map(name=name, namespace=ns)
         except Exception:
             pass

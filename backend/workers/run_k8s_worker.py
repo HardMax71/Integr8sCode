@@ -38,7 +38,8 @@ async def run_kubernetes_worker(settings: Settings) -> None:
     await container.get(IdempotentConsumerWrapper)
 
     # Bootstrap: ensure image pre-puller DaemonSet exists
-    asyncio.create_task(worker.ensure_image_pre_puller_daemonset())
+    # Save task to variable to prevent premature garbage collection
+    _daemonset_task = asyncio.create_task(worker.ensure_image_pre_puller_daemonset())
     logger.info("Image pre-puller daemonset task scheduled")
 
     # Shutdown event

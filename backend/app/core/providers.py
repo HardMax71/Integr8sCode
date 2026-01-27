@@ -792,7 +792,6 @@ class K8sWorkerProvider(Provider):
         finally:
             await worker.wait_for_active_creations()
             await idempotent_consumer.stop()
-            await idempotency_manager.close()
             logger.info("K8s worker consumer stopped")
 
 

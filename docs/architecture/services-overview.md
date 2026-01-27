@@ -4,7 +4,7 @@ This document explains what lives under `backend/app/services/`, what each servi
 
 ## High-level architecture
 
-The API (FastAPI) receives user requests for auth, execute, events, scripts, and settings. The Coordinator accepts validated execution requests and enqueues them to Kafka with metadata and idempotency guards. The Saga Orchestrator drives stateful execution via events and publishes commands to the K8s Worker. The K8s Worker builds and creates per-execution pods and supporting ConfigMaps with network isolation enforced at cluster level via Cilium policy. Pod Monitor watches K8s and translates pod phases and logs into domain events. Result Processor consumes completion/failure/timeout events, updates DB, and cleans resources. SSE Router fans execution events out to connected clients. DLQ Processor and Event Replay support reliability and investigations.
+The API (FastAPI) receives user requests for auth, execute, events, scripts, and settings. The Coordinator accepts validated execution requests, enforces per-user limits, and fires CreatePodCommandEvent to Kafka for K8s to handle. The Saga Orchestrator drives stateful execution via events and publishes commands to the K8s Worker. The K8s Worker builds and creates per-execution pods and supporting ConfigMaps with network isolation enforced at cluster level via Cilium policy. Pod Monitor watches K8s and translates pod phases and logs into domain events. Result Processor consumes completion/failure/timeout events, updates DB, and cleans resources. SSE Router fans execution events out to connected clients. DLQ Processor and Event Replay support reliability and investigations.
 
 ## Event streams
 
@@ -12,7 +12,7 @@ EXECUTION_EVENTS carries lifecycle updates like queued, started, running, and ca
 
 ## Execution pipeline services
 
-The coordinator/ module contains QueueManager which maintains an in-memory view of pending executions with priorities, aging, and backpressure. It doesn't own metrics for queue depth (that's centralized in coordinator metrics) and doesn't publish commands directly, instead emitting events for the Saga Orchestrator to process. This provides fairness, limits, and stale-job cleanup in one place while preventing double publications.
+The coordinator/ module is a stateless service that enforces per-user execution limits and fires CreatePodCommandEvent directly to Kafka. K8s handles all resource allocation and scheduling via ResourceQuotas, LimitRanges, and PriorityClasses. The coordinator tracks active executions per user via Redis and decrements on completion/failure/cancellation.
 
 The saga/ module has ExecutionSaga which encodes the multi-step execution flow from receiving a request through creating a pod command, observing pod outcomes, and committing the result. The Saga Orchestrator subscribes to EXECUTION events, reconstructs sagas, and issues SAGA_COMMANDS to the worker with goals of idempotency across restarts, clean compensation on failure, and avoiding duplicate side-effects.
 
@@ -44,7 +44,7 @@ The saved_script_service.py handles CRUD for saved scripts with ownership checks
 
 The rate_limit_service.py is a Redis-backed sliding window / token bucket implementation with dynamic configuration per endpoint group, user overrides, and IP fallback. It has a safe failure mode (fail open) with explicit metrics when Redis is unavailable.
 
-The idempotency/ module provides middleware and wrappers to make Kafka consumption idempotent using content-hash or custom keys, used for SAGA_COMMANDS to avoid duplicate pod creation.
+The `db/repositories/redis/idempotency_repository.py` provides simple Redis-based idempotency for HTTP API requests using the `Idempotency-Key` header pattern.
 
 The saga_service.py provides read-model access for saga state and guardrails like enforcing access control on saga inspection routes.
 
@@ -70,7 +70,7 @@ The DLQ Processor drains and retries dead-lettered messages with backoff and vis
 
 The worker refuses to run in the default namespace. Use the setup script to apply the Cilium policy in a dedicated namespace and run the worker there. Apply `backend/k8s/policies/executor-deny-all-cnp.yaml` or use `scripts/setup_k8s.sh <namespace>`. All executor pods are labeled `app=integr8s, component=executor` and are covered by the static deny-all policy. See [Security Policies](../security/policies.md) for details on network isolation.
 
-Sagas and consumers use content-hash keys by default to avoid duplicates on restarts. Coordinator centralizes queue depth metrics, Result Processor normalizes error types, and Rate Limit service emits rich diagnostics even when disabled.
+Coordinator handles per-user execution limits, Result Processor normalizes error types, and Rate Limit service emits rich diagnostics even when disabled.
 
 ## Common flows
 

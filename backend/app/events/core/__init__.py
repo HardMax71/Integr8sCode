@@ -8,15 +8,11 @@ from .producer import UnifiedProducer
 from .types import (
     ConsumerConfig,
     ConsumerMetrics,
-    ConsumerState,
     ProducerMetrics,
-    ProducerState,
 )
 
 __all__ = [
     # Types
-    "ProducerState",
-    "ConsumerState",
     "ConsumerConfig",
     "ProducerMetrics",
     "ConsumerMetrics",

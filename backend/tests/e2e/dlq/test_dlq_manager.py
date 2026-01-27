@@ -5,9 +5,8 @@ import uuid
 from datetime import datetime, timezone
 
 import pytest
-from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
-from app.core.metrics import DLQMetrics
-from app.dlq.manager import create_dlq_manager
+from aiokafka import AIOKafkaConsumer
+from app.dlq.manager import DLQManager
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.domain.events.typed import DLQMessageReceivedEvent
@@ -28,9 +27,8 @@ _test_logger = logging.getLogger("test.dlq.manager")
 @pytest.mark.asyncio
 async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_settings: Settings) -> None:
     """Test that DLQ manager persists messages and emits DLQMessageReceivedEvent."""
-    schema_registry = SchemaRegistryManager(test_settings, _test_logger)
-    dlq_metrics: DLQMetrics = await scope.get(DLQMetrics)
-    manager = create_dlq_manager(settings=test_settings, schema_registry=schema_registry, logger=_test_logger, dlq_metrics=dlq_metrics)
+    schema_registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
+    manager: DLQManager = await scope.get(DLQManager)
 
     prefix = test_settings.KAFKA_TOPIC_PREFIX
     ev = make_execution_requested_event(execution_id=f"exec-dlq-persist-{uuid.uuid4().hex[:8]}")
@@ -72,31 +70,24 @@ async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_
         "producer_id": "tests",
     }
 
-    # Produce to DLQ topic BEFORE starting consumers (auto_offset_reset="earliest")
-    producer = AIOKafkaProducer(bootstrap_servers=test_settings.KAFKA_BOOTSTRAP_SERVERS)
-    await producer.start()
-    try:
-        await producer.send_and_wait(
-            topic=f"{prefix}{str(KafkaTopic.DEAD_LETTER_QUEUE)}",
-            key=ev.event_id.encode(),
-            value=json.dumps(payload).encode(),
-        )
-    finally:
-        await producer.stop()
-
-    # Start consumer for DLQ events
+    # Start consumer for DLQ events before producing
     await consumer.start()
     consume_task = asyncio.create_task(consume_dlq_events())
 
     try:
-        # Start manager - it will consume from DLQ, persist, and emit DLQMessageReceivedEvent
-        async with manager:
-            # Await the DLQMessageReceivedEvent - true async, no polling
-            received = await asyncio.wait_for(received_future, timeout=15.0)
-            assert received.dlq_event_id == ev.event_id
-            assert received.event_type == EventType.DLQ_MESSAGE_RECEIVED
-            assert received.original_event_type == str(EventType.EXECUTION_REQUESTED)
-            assert received.error == "handler failed"
+        # Now produce to DLQ topic and call manager.handle_dlq_message directly
+        raw_message = json.dumps(payload).encode()
+        headers: dict[str, str] = {}
+
+        # Manager handles the message (stateless handler)
+        await manager.handle_dlq_message(raw_message, headers)
+
+        # Await the DLQMessageReceivedEvent - true async, no polling
+        received = await asyncio.wait_for(received_future, timeout=15.0)
+        assert received.dlq_event_id == ev.event_id
+        assert received.event_type == EventType.DLQ_MESSAGE_RECEIVED
+        assert received.original_event_type == str(EventType.EXECUTION_REQUESTED)
+        assert received.error == "handler failed"
     finally:
         consume_task.cancel()
         try:

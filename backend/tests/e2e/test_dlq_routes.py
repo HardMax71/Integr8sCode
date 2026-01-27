@@ -1,6 +1,7 @@
 import pytest
 from app.dlq.models import DLQMessageStatus, RetryStrategy
 from app.domain.enums.events import EventType
+from app.domain.enums.kafka import KafkaTopic
 from app.schemas_pydantic.dlq import (
     DLQBatchRetryResponse,
     DLQMessageDetail,
@@ -94,7 +95,7 @@ class TestGetDLQMessages:
         """Filter DLQ messages by topic."""
         response = await test_user.get(
             "/api/v1/dlq/messages",
-            params={"topic": "execution-events"},
+            params={"topic": KafkaTopic.EXECUTION_EVENTS},
         )
 
         assert response.status_code == 200
@@ -230,7 +231,7 @@ class TestSetRetryPolicy:
         response = await test_user.post(
             "/api/v1/dlq/retry-policy",
             json={
-                "topic": "execution-events",
+                "topic": KafkaTopic.EXECUTION_EVENTS,
                 "strategy": RetryStrategy.EXPONENTIAL_BACKOFF,
                 "max_retries": 5,
                 "base_delay_seconds": 60.0,
@@ -241,7 +242,7 @@ class TestSetRetryPolicy:
 
         assert response.status_code == 200
         result = MessageResponse.model_validate(response.json())
-        assert "execution-events" in result.message
+        assert KafkaTopic.EXECUTION_EVENTS in result.message
 
     @pytest.mark.asyncio
     async def test_set_retry_policy_fixed_strategy(
@@ -251,7 +252,7 @@ class TestSetRetryPolicy:
         response = await test_user.post(
             "/api/v1/dlq/retry-policy",
             json={
-                "topic": "test-topic",
+                "topic": KafkaTopic.POD_EVENTS,
                 "strategy": RetryStrategy.FIXED_INTERVAL,
                 "max_retries": 3,
                 "base_delay_seconds": 30.0,
@@ -262,7 +263,7 @@ class TestSetRetryPolicy:
 
         assert response.status_code == 200
         result = MessageResponse.model_validate(response.json())
-        assert "test-topic" in result.message
+        assert KafkaTopic.POD_EVENTS in result.message
 
     @pytest.mark.asyncio
     async def test_set_retry_policy_scheduled_strategy(
@@ -272,7 +273,7 @@ class TestSetRetryPolicy:
         response = await test_user.post(
             "/api/v1/dlq/retry-policy",
             json={
-                "topic": "notifications-topic",
+                "topic": KafkaTopic.USER_EVENTS,
                 "strategy": RetryStrategy.SCHEDULED,
                 "max_retries": 10,
                 "base_delay_seconds": 120.0,
@@ -283,7 +284,7 @@ class TestSetRetryPolicy:
 
         assert response.status_code == 200
         result = MessageResponse.model_validate(response.json())
-        assert "notifications-topic" in result.message
+        assert KafkaTopic.USER_EVENTS in result.message
 
 
 class TestDiscardDLQMessage:

@@ -8,6 +8,7 @@ import pytest
 import pytest_asyncio
 import redis.asyncio as redis
 from app.core.database_context import Database
+from app.domain.enums.execution import QueuePriority
 from app.domain.events.typed import EventMetadata, ExecutionRequestedEvent
 from app.main import create_app
 from app.settings import Settings
@@ -196,10 +197,10 @@ def make_execution_requested_event(
     memory_limit: str = "128Mi",
     cpu_request: str = "50m",
     memory_request: str = "64Mi",
-    priority: int = 5,
+    priority: QueuePriority = QueuePriority.NORMAL,
     service_name: str = "tests",
     service_version: str = "1.0.0",
-    user_id: str | None = None,
+    user_id: str = "test-user",
 ) -> ExecutionRequestedEvent:
     """Factory for ExecutionRequestedEvent with sensible defaults.
 

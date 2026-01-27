@@ -5,6 +5,7 @@ from pydantic import ConfigDict, Field
 from pymongo import ASCENDING, DESCENDING, IndexModel
 
 from app.dlq.models import DLQMessageStatus
+from app.domain.enums.kafka import KafkaTopic
 from app.domain.events.typed import DomainEvent
 
 
@@ -14,7 +15,7 @@ class DLQMessageDocument(Document):
     model_config = ConfigDict(from_attributes=True)
 
     event: DomainEvent  # Discriminated union - contains event_id, event_type
-    original_topic: Indexed(str) = ""  # type: ignore[valid-type]
+    original_topic: KafkaTopic
     error: str = "Unknown error"
     retry_count: Indexed(int) = 0  # type: ignore[valid-type]
     failed_at: Indexed(datetime) = Field(default_factory=lambda: datetime.now(timezone.utc))  # type: ignore[valid-type]
@@ -37,6 +38,7 @@ class DLQMessageDocument(Document):
         indexes = [
             IndexModel([("event.event_id", ASCENDING)], unique=True, name="idx_dlq_event_id"),
             IndexModel([("event.event_type", ASCENDING)], name="idx_dlq_event_type"),
+            IndexModel([("original_topic", ASCENDING)], name="idx_dlq_original_topic"),
             IndexModel([("status", ASCENDING)], name="idx_dlq_status"),
             IndexModel([("failed_at", DESCENDING)], name="idx_dlq_failed_desc"),
             IndexModel([("created_at", ASCENDING)], name="idx_dlq_created_ttl", expireAfterSeconds=7 * 24 * 3600),

@@ -130,6 +130,9 @@ class Settings(BaseSettings):
     RATE_LIMIT_REDIS_PREFIX: str = "rate_limit:"
     RATE_LIMIT_ALGORITHM: str = "sliding_window"  # sliding_window or token_bucket
 
+    # Per-user execution limit
+    MAX_EXECUTIONS_PER_USER: int = 100
+
     # Service metadata
     SERVICE_NAME: str = "integr8scode-backend"
     SERVICE_VERSION: str = "1.0.0"

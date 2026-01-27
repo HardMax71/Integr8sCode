@@ -1,74 +1,50 @@
+"""Result processor worker entrypoint - stateless event processing.
+
+Consumes execution completion events from Kafka and dispatches to ResultProcessor handlers.
+DI container manages all lifecycle - worker just iterates over consumer.
+"""
+
 import asyncio
 import logging
-import signal
-from contextlib import AsyncExitStack
 
+from aiokafka import AIOKafkaConsumer
 from app.core.container import create_result_processor_container
+from app.core.database_context import Database
 from app.core.logging import setup_logger
-from app.core.metrics import EventMetrics, ExecutionMetrics
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
-from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.kafka import GroupId
-from app.events.core import UnifiedProducer
-from app.events.schema.schema_registry import SchemaRegistryManager
-from app.services.idempotency import IdempotencyManager
-from app.services.result_processor.processor import ProcessingState, ResultProcessor
+from app.events.core import UnifiedConsumer
+from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.settings import Settings
 from beanie import init_beanie
-from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 
 async def run_result_processor(settings: Settings) -> None:
-
-    db_client: AsyncMongoClient[dict[str, object]] = AsyncMongoClient(
-        settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000
-    )
-    await init_beanie(database=db_client[settings.DATABASE_NAME], document_models=ALL_DOCUMENTS)
+    """Run the result processor service."""
 
     container = create_result_processor_container(settings)
-    producer = await container.get(UnifiedProducer)
-    schema_registry = await container.get(SchemaRegistryManager)
-    idempotency_manager = await container.get(IdempotencyManager)
-    execution_repo = await container.get(ExecutionRepository)
-    execution_metrics = await container.get(ExecutionMetrics)
-    event_metrics = await container.get(EventMetrics)
     logger = await container.get(logging.Logger)
-    logger.info(f"Beanie ODM initialized with {len(ALL_DOCUMENTS)} document models")
+    logger.info("Starting ResultProcessor with DI container...")
 
-    # ResultProcessor is manually created (not from DI), so we own its lifecycle
-    processor = ResultProcessor(
-        execution_repo=execution_repo,
-        producer=producer,
-        schema_registry=schema_registry,
-        settings=settings,
-        idempotency_manager=idempotency_manager,
-        logger=logger,
-        execution_metrics=execution_metrics,
-        event_metrics=event_metrics,
-    )
+    db = await container.get(Database)
+    await init_beanie(database=db, document_models=ALL_DOCUMENTS)
 
-    # Shutdown event - signal handlers just set this
-    shutdown_event = asyncio.Event()
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, shutdown_event.set)
+    schema_registry = await container.get(SchemaRegistryManager)
+    await initialize_event_schemas(schema_registry)
 
-    # We own the processor, so we use async with to manage its lifecycle
-    async with AsyncExitStack() as stack:
-        stack.callback(db_client.close)
-        stack.push_async_callback(container.close)
-        await stack.enter_async_context(processor)
+    kafka_consumer = await container.get(AIOKafkaConsumer)
+    handler = await container.get(UnifiedConsumer)
 
-        logger.info("ResultProcessor started and running")
+    logger.info("ResultProcessor started, consuming events...")
 
-        # Wait for shutdown signal or service to stop
-        while processor._state == ProcessingState.PROCESSING and not shutdown_event.is_set():
-            await asyncio.sleep(60)
-            status = await processor.get_status()
-            logger.info(f"ResultProcessor status: {status}")
+    async for msg in kafka_consumer:
+        await handler.handle(msg)
+        await kafka_consumer.commit()
 
-        logger.info("Initiating graceful shutdown...")
+    logger.info("ResultProcessor shutdown complete")
+
+    await container.close()
 
 
 def main() -> None:

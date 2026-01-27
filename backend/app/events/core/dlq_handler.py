@@ -1,13 +1,14 @@
 import logging
 from typing import Awaitable, Callable
 
+from app.domain.enums.kafka import KafkaTopic
 from app.domain.events.typed import DomainEvent
 
 from .producer import UnifiedProducer
 
 
 def create_dlq_error_handler(
-    producer: UnifiedProducer, original_topic: str, logger: logging.Logger, max_retries: int = 3
+    producer: UnifiedProducer, original_topic: KafkaTopic, logger: logging.Logger, max_retries: int = 3
 ) -> Callable[[Exception, DomainEvent], Awaitable[None]]:
     """Create an error handler that sends failed events to DLQ after max retries."""
     retry_counts: dict[str, int] = {}
@@ -26,7 +27,7 @@ def create_dlq_error_handler(
 
 
 def create_immediate_dlq_handler(
-    producer: UnifiedProducer, original_topic: str, logger: logging.Logger
+    producer: UnifiedProducer, original_topic: KafkaTopic, logger: logging.Logger
 ) -> Callable[[Exception, DomainEvent], Awaitable[None]]:
     """Create an error handler that immediately sends failed events to DLQ."""
 

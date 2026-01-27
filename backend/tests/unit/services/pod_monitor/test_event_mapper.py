@@ -31,7 +31,7 @@ def _ctx(pod: Pod, event_type: str = "ADDED") -> PodContext:
     return PodContext(
         pod=pod,
         execution_id="e1",
-        metadata=EventMetadata(service_name="t", service_version="1"),
+        metadata=EventMetadata(service_name="t", service_version="1", user_id="test"),
         phase=pod.status.phase or "",
         event_type=event_type,
     )

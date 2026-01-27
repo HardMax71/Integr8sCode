@@ -1,6 +1,5 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Annotated
-from uuid import uuid4
 
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute, inject
@@ -9,12 +8,12 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Requ
 from app.api.dependencies import admin_user, current_user
 from app.core.tracing import EventAttributes, add_span_attributes
 from app.core.utils import get_client_ip
+from app.db.repositories.redis.idempotency_repository import IdempotencyRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.user import UserRole
-from app.domain.events.typed import BaseEvent, DomainEvent, EventMetadata
+from app.domain.events.typed import DomainEvent, EventMetadata
 from app.domain.exceptions import DomainError
-from app.domain.idempotency import KeyStrategy
 from app.schemas_pydantic.execution import (
     CancelExecutionRequest,
     CancelResponse,
@@ -31,7 +30,6 @@ from app.schemas_pydantic.execution import (
 from app.schemas_pydantic.user import UserResponse
 from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
-from app.services.idempotency import IdempotencyManager
 from app.services.kafka_event_service import KafkaEventService
 from app.settings import Settings
 
@@ -58,7 +56,7 @@ async def create_execution(
         current_user: Annotated[UserResponse, Depends(current_user)],
         execution: ExecutionRequest,
         execution_service: FromDishka[ExecutionService],
-        idempotency_manager: FromDishka[IdempotencyManager],
+        idempotency_repo: FromDishka[IdempotencyRepository],
         idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> ExecutionResponse:
     add_span_attributes(
@@ -74,33 +72,14 @@ async def create_execution(
     )
 
     # Handle idempotency if key provided
-    pseudo_event = None
-    if idempotency_key:
-        # Create a pseudo-event for idempotency tracking
-        pseudo_event = BaseEvent(
-            event_id=str(uuid4()),
-            event_type=EventType.EXECUTION_REQUESTED,
-            timestamp=datetime.now(timezone.utc),
-            metadata=EventMetadata(
-                user_id=current_user.user_id, correlation_id=str(uuid4()), service_name="api", service_version="1.0.0"
-            ),
-        )
+    idem_key = f"exec:{current_user.user_id}:{idempotency_key}" if idempotency_key else None
 
-        # Check for duplicate request using custom key
-        idempotency_result = await idempotency_manager.check_and_reserve(
-            event=pseudo_event,
-            key_strategy=KeyStrategy.CUSTOM,
-            custom_key=f"http:{current_user.user_id}:{idempotency_key}",
-            ttl_seconds=86400,  # 24 hours TTL for HTTP idempotency
-        )
-
-        if idempotency_result.is_duplicate:
-            cached_json = await idempotency_manager.get_cached_json(
-                event=pseudo_event,
-                key_strategy=KeyStrategy.CUSTOM,
-                custom_key=f"http:{current_user.user_id}:{idempotency_key}",
-            )
-            return ExecutionResponse.model_validate_json(cached_json)
+    if idem_key:
+        is_new = await idempotency_repo.try_reserve(idem_key, ttl=86400)
+        if not is_new:
+            cached = await idempotency_repo.get_result(idem_key)
+            if cached:
+                return ExecutionResponse.model_validate_json(cached)
 
     try:
         client_ip = get_client_ip(request)
@@ -114,37 +93,16 @@ async def create_execution(
             user_agent=user_agent,
         )
 
-        # Store result for idempotency if key was provided
-        if idempotency_key and pseudo_event:
-            response_model = ExecutionResponse.model_validate(exec_result)
-            await idempotency_manager.mark_completed_with_json(
-                event=pseudo_event,
-                cached_json=response_model.model_dump_json(),
-                key_strategy=KeyStrategy.CUSTOM,
-                custom_key=f"http:{current_user.user_id}:{idempotency_key}",
-            )
+        response = ExecutionResponse.model_validate(exec_result)
 
-        return ExecutionResponse.model_validate(exec_result)
+        if idem_key:
+            await idempotency_repo.store_result(idem_key, response.model_dump_json(), ttl=86400)
 
-    except DomainError as e:
-        # Mark as failed for idempotency
-        if idempotency_key and pseudo_event:
-            await idempotency_manager.mark_failed(
-                event=pseudo_event,
-                error=str(e),
-                key_strategy=KeyStrategy.CUSTOM,
-                custom_key=f"http:{current_user.user_id}:{idempotency_key}",
-            )
+        return response
+
+    except DomainError:
         raise
     except Exception as e:
-        # Mark as failed for idempotency
-        if idempotency_key and pseudo_event:
-            await idempotency_manager.mark_failed(
-                event=pseudo_event,
-                error=str(e),
-                key_strategy=KeyStrategy.CUSTOM,
-                custom_key=f"http:{current_user.user_id}:{idempotency_key}",
-            )
         raise HTTPException(status_code=500, detail="Internal server error during script execution") from e
 
 

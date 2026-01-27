@@ -1,129 +1,93 @@
 # Idempotency
 
-The platform implements at-least-once event delivery with idempotency protection to prevent duplicate processing. When a
-Kafka message is delivered multiple times (due to retries, rebalances, or failures), the idempotency layer ensures the
-event handler executes only once. Results can be cached for fast duplicate responses.
+The platform implements idempotency protection for HTTP API requests using a simple Redis-based pattern. When a client provides an `Idempotency-Key` header, duplicate requests return the cached result instead of re-executing.
 
 ## Architecture
 
 ```mermaid
 flowchart TB
-    subgraph Kafka Consumer
-        MSG[Incoming Event] --> CHECK[Check & Reserve Key]
+    subgraph API Request
+        REQ[POST /execute] --> KEY{Idempotency-Key?}
     end
 
-    subgraph Idempotency Manager
-        CHECK --> REDIS[(Redis)]
-        REDIS --> FOUND{Key Exists?}
-        FOUND -->|Yes| STATUS{Status?}
-        STATUS -->|Processing| TIMEOUT{Timed Out?}
-        STATUS -->|Completed/Failed| DUP[Return Duplicate]
-        TIMEOUT -->|Yes| RETRY[Allow Retry]
-        TIMEOUT -->|No| WAIT[Block Duplicate]
-        FOUND -->|No| RESERVE[Reserve Key]
+    subgraph Redis
+        KEY -->|Yes| CHECK[SET NX]
+        CHECK --> EXISTS{Key Exists?}
+        EXISTS -->|Yes| GET[Get Cached Result]
+        EXISTS -->|No| RESERVE[Key Reserved]
     end
 
-    subgraph Handler Execution
-        RESERVE --> HANDLER[Execute Handler]
-        RETRY --> HANDLER
-        HANDLER -->|Success| COMPLETE[Mark Completed]
-        HANDLER -->|Error| FAIL[Mark Failed]
-        COMPLETE --> CACHE[Cache Result]
+    subgraph Handler
+        RESERVE --> EXEC[Execute Request]
+        EXEC --> STORE[Store Result]
+        GET --> RETURN[Return Cached]
+        STORE --> RETURN
     end
 ```
 
-## Key Strategies
+## Usage
 
-The idempotency manager supports three strategies for generating keys from events:
+Clients include the `Idempotency-Key` header to enable duplicate protection:
 
-**Event-based** uses the event's unique ID and type. This is the default and works for events where the ID is guaranteed
-unique (like UUIDs generated at publish time).
-
-**Content hash** generates a SHA-256 hash of the event's payload, excluding metadata like timestamps and event IDs. Use
-this when the same logical operation might produce different event IDs but identical content.
-
-**Custom** allows the caller to provide an arbitrary key. Useful when idempotency depends on business logic (e.g., "one
-execution per user per minute").
-
-```python
---8<-- "backend/app/services/idempotency/idempotency_manager.py:37:57"
+```bash
+curl -X POST https://api.example.com/api/v1/execute \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Idempotency-Key: my-unique-request-id" \
+  -d '{"script": "print(1)", "lang": "python", "lang_version": "3.11"}'
 ```
 
-## Status Lifecycle
+If the same key is sent again within the TTL window (24 hours), the API returns the cached response without re-executing.
 
-Each idempotency record transitions through defined states:
+## Implementation
 
-```python
---8<-- "backend/app/domain/idempotency/models.py:11:15"
-```
-
-When an event arrives, the manager checks for an existing key. If none exists, it creates a record in `PROCESSING` state
-and returns control to the handler. On success, the record moves to `COMPLETED`; on error, to `FAILED`. Both terminal
-states block duplicate processing for the TTL duration.
-
-If a key is found in `PROCESSING` state but has exceeded the processing timeout (default 5 minutes), the manager assumes
-the previous processor crashed and allows a retry.
-
-## Middleware Integration
-
-The `IdempotentEventHandler` wraps Kafka event handlers with automatic duplicate detection:
+The idempotency layer uses Redis `SET NX EX` for atomic reservation:
 
 ```python
---8<-- "backend/app/services/idempotency/middleware.py:39:73"
+--8<-- "backend/app/db/repositories/redis/idempotency_repository.py"
 ```
 
-For bulk registration, the `IdempotentConsumerWrapper` wraps all handlers in a dispatcher:
+### Key Format
 
-```python
---8<-- "backend/app/services/idempotency/middleware.py:122:141"
+Keys are namespaced by user to prevent cross-user collisions:
+
+```
+idempotent:exec:{user_id}:{idempotency_key}
 ```
 
-## Redis Storage
+### Flow
 
-Idempotency records are stored in Redis with automatic TTL expiration. The `SET NX EX` command provides atomic
-reservation—if two processes race to claim the same key, only one succeeds:
-
-```python
---8<-- "backend/app/services/idempotency/redis_repository.py:93:100"
-```
+1. **Reserve**: `SET NX` attempts to claim the key atomically
+2. **Check**: If key exists, fetch cached result
+3. **Execute**: If new, process the request
+4. **Store**: Save result JSON for future duplicates
 
 ## Configuration
 
-| Parameter                    | Default       | Description                          |
-|------------------------------|---------------|--------------------------------------|
-| `key_prefix`                 | `idempotency` | Redis key namespace                  |
-| `default_ttl_seconds`        | `3600`        | How long completed keys are retained |
-| `processing_timeout_seconds` | `300`         | When to assume a processor crashed   |
-| `enable_result_caching`      | `true`        | Store handler results for duplicates |
-| `max_result_size_bytes`      | `1048576`     | Maximum cached result size (1MB)     |
+| Parameter     | Default  | Description                        |
+|---------------|----------|------------------------------------|
+| `KEY_PREFIX`  | `idempotent` | Redis key namespace            |
+| `default_ttl` | `86400`  | TTL in seconds (24 hours)          |
 
-```python
---8<-- "backend/app/services/idempotency/idempotency_manager.py:27:34"
-```
+## Why This Design
 
-## Result Caching
+The previous implementation (~600 lines) included:
 
-When `enable_result_caching` is true, the manager stores the handler's result JSON alongside the completion status.
-Subsequent duplicates can return the cached result without re-executing the handler. This is useful for idempotent
-queries where the response should be consistent.
+- Multiple key strategies (event-based, content-hash, custom)
+- Processing state tracking with timeouts
+- Background stats collection
+- Middleware wrappers for Kafka consumers
+- Result caching with size limits
 
-Results exceeding `max_result_size_bytes` are silently dropped from the cache but the idempotency protection still
-applies.
+Analysis showed only HTTP API idempotency was actually used, and Kafka consumer idempotency was handled elsewhere. The simplified design:
 
-## Metrics
-
-The idempotency system exposes several metrics for monitoring:
-
-- `idempotency_cache_hits` - Key lookups that found an existing record
-- `idempotency_cache_misses` - Key lookups that created new records
-- `idempotency_duplicates_blocked` - Events rejected as duplicates
-- `idempotency_keys_active` - Current number of active keys (updated periodically)
+- **35 lines** vs ~600 lines
+- **3 methods** vs complex state machine
+- **No background tasks**
+- **No unused abstractions**
 
 ## Key Files
 
-| File                                                                                                                                                         | Purpose                                   |
-|--------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------|
-| [`services/idempotency/idempotency_manager.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/idempotency/idempotency_manager.py) | Core idempotency logic                    |
-| [`services/idempotency/redis_repository.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/idempotency/redis_repository.py)       | Redis storage adapter                     |
-| [`services/idempotency/middleware.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/idempotency/middleware.py)                   | Handler wrappers and consumer integration |
-| [`domain/idempotency/`](https://github.com/HardMax71/Integr8sCode/tree/main/backend/app/domain/idempotency)                                                  | Domain models                             |
+| File | Purpose |
+|------|---------|
+| [`db/repositories/redis/idempotency_repository.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/db/repositories/redis/idempotency_repository.py) | Redis-based idempotency |
+| [`api/routes/execution.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/api/routes/execution.py) | HTTP API usage |

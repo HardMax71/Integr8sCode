@@ -1,15 +1,21 @@
+"""Coordinator worker entrypoint - stateless event processing.
+
+Consumes execution events from Kafka and dispatches to ExecutionCoordinator handlers.
+DI container manages all lifecycle - worker just iterates over consumer.
+"""
+
 import asyncio
 import logging
-import signal
 
+from aiokafka import AIOKafkaConsumer
 from app.core.container import create_coordinator_container
 from app.core.database_context import Database
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.kafka import GroupId
+from app.events.core import UnifiedConsumer
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
-from app.services.coordinator.coordinator import ExecutionCoordinator
 from app.settings import Settings
 from beanie import init_beanie
 
@@ -18,6 +24,7 @@ async def run_coordinator(settings: Settings) -> None:
     """Run the execution coordinator service."""
 
     container = create_coordinator_container(settings)
+
     logger = await container.get(logging.Logger)
     logger.info("Starting ExecutionCoordinator with DI container...")
 
@@ -27,27 +34,18 @@ async def run_coordinator(settings: Settings) -> None:
     schema_registry = await container.get(SchemaRegistryManager)
     await initialize_event_schemas(schema_registry)
 
-    # Services are already started by the DI container providers
-    coordinator = await container.get(ExecutionCoordinator)
+    kafka_consumer = await container.get(AIOKafkaConsumer)
+    handler = await container.get(UnifiedConsumer)
 
-    # Shutdown event - signal handlers just set this
-    shutdown_event = asyncio.Event()
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, shutdown_event.set)
+    logger.info("ExecutionCoordinator started, consuming events...")
 
-    logger.info("ExecutionCoordinator started and running")
+    async for msg in kafka_consumer:
+        await handler.handle(msg)
+        await kafka_consumer.commit()
 
-    try:
-        # Wait for shutdown signal or service to stop
-        while coordinator.is_running and not shutdown_event.is_set():
-            await asyncio.sleep(60)
-            status = await coordinator.get_status()
-            logger.info(f"Coordinator status: {status}")
-    finally:
-        # Container cleanup stops everything
-        logger.info("Initiating graceful shutdown...")
-        await container.close()
+    logger.info("ExecutionCoordinator shutdown complete")
+
+    await container.close()
 
 
 def main() -> None:

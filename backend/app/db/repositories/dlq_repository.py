@@ -17,6 +17,7 @@ from app.dlq import (
     TopicStatistic,
 )
 from app.domain.enums.events import EventType
+from app.domain.enums.kafka import KafkaTopic
 
 
 class DLQRepository:
@@ -88,7 +89,7 @@ class DLQRepository:
     async def get_messages(
             self,
             status: DLQMessageStatus | None = None,
-            topic: str | None = None,
+            topic: KafkaTopic | None = None,
             event_type: EventType | None = None,
             limit: int = 50,
             offset: int = 0,

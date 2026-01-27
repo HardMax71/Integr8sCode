@@ -47,7 +47,7 @@ async def test_context_adders() -> None:
         error_type="test_error",
         message="test",
         service_name="test_service",
-        metadata=EventMetadata(service_name="t", service_version="1"),
+        metadata=EventMetadata(service_name="t", service_version="1", user_id="test"),
     )
     ctx.add_event(evt)
     assert len(ctx.events) == 1

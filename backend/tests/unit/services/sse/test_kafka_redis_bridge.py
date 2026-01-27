@@ -1,15 +1,10 @@
 import logging
-from unittest.mock import MagicMock
 
 import pytest
-from app.core.metrics import EventMetrics
 from app.domain.enums.events import EventType
 from app.domain.events.typed import DomainEvent, EventMetadata, ExecutionStartedEvent
-from app.events.core import EventDispatcher
-from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
 from app.services.sse.redis_bus import SSERedisBus
-from app.settings import Settings
 
 pytestmark = pytest.mark.unit
 
@@ -27,38 +22,46 @@ class _FakeBus(SSERedisBus):
 
 
 def _make_metadata() -> EventMetadata:
-    return EventMetadata(service_name="test", service_version="1.0")
+    return EventMetadata(service_name="test", service_version="1.0", user_id="test")
 
 
 @pytest.mark.asyncio
-async def test_register_and_route_events_without_kafka() -> None:
-    # Build the bridge but don't call start(); directly test routing handlers
+async def test_handle_event_routes_to_redis_bus() -> None:
+    """Test that handle_event routes events to Redis bus."""
     fake_bus = _FakeBus()
-    mock_settings = MagicMock(spec=Settings)
-    mock_settings.KAFKA_BOOTSTRAP_SERVERS = "kafka:9092"
-    mock_settings.SSE_CONSUMER_POOL_SIZE = 1
 
     bridge = SSEKafkaRedisBridge(
-        schema_registry=MagicMock(spec=SchemaRegistryManager),
-        settings=mock_settings,
-        event_metrics=MagicMock(spec=EventMetrics),
         sse_bus=fake_bus,
         logger=_test_logger,
     )
 
-    disp = EventDispatcher(_test_logger)
-    bridge._register_routing_handlers(disp)
-    handlers = disp.get_handlers(EventType.EXECUTION_STARTED)
-    assert len(handlers) > 0
-
     # Event with empty execution_id is ignored
-    h = handlers[0]
-    await h(ExecutionStartedEvent(execution_id="", pod_name="p", metadata=_make_metadata()))
+    await bridge.handle_event(
+        ExecutionStartedEvent(execution_id="", pod_name="p", metadata=_make_metadata())
+    )
     assert fake_bus.published == []
 
     # Proper event is published
-    await h(ExecutionStartedEvent(execution_id="exec-123", pod_name="p", metadata=_make_metadata()))
+    await bridge.handle_event(
+        ExecutionStartedEvent(execution_id="exec-123", pod_name="p", metadata=_make_metadata())
+    )
     assert fake_bus.published and fake_bus.published[-1][0] == "exec-123"
 
-    s = bridge.get_stats()
-    assert s["num_consumers"] == 0 and s["is_running"] is False
+
+@pytest.mark.asyncio
+async def test_get_status_returns_relevant_event_types() -> None:
+    """Test that get_status returns relevant event types."""
+    fake_bus = _FakeBus()
+    bridge = SSEKafkaRedisBridge(sse_bus=fake_bus, logger=_test_logger)
+
+    status = await bridge.get_status()
+    assert "relevant_event_types" in status
+    assert len(status["relevant_event_types"]) > 0
+
+
+def test_get_relevant_event_types() -> None:
+    """Test static method returns relevant event types."""
+    event_types = SSEKafkaRedisBridge.get_relevant_event_types()
+    assert EventType.EXECUTION_STARTED in event_types
+    assert EventType.EXECUTION_COMPLETED in event_types
+    assert EventType.RESULT_STORED in event_types

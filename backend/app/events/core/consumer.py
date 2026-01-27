@@ -1,258 +1,57 @@
-import asyncio
-import logging
-from collections.abc import Awaitable, Callable
-from datetime import datetime, timezone
-from typing import Any
+from __future__ import annotations
 
-from aiokafka import AIOKafkaConsumer, TopicPartition
-from aiokafka.errors import KafkaError
+import logging
+
+from aiokafka import ConsumerRecord
 from opentelemetry.trace import SpanKind
 
 from app.core.metrics import EventMetrics
 from app.core.tracing import EventAttributes
 from app.core.tracing.utils import extract_trace_context, get_tracer
-from app.domain.enums.kafka import KafkaTopic
 from app.domain.events.typed import DomainEvent
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.settings import Settings
 
 from .dispatcher import EventDispatcher
-from .types import ConsumerConfig, ConsumerMetrics, ConsumerMetricsSnapshot, ConsumerState, ConsumerStatus
 
 
 class UnifiedConsumer:
+    """Pure message handler - deserialize, dispatch, record metrics."""
+
     def __init__(
-        self,
-        config: ConsumerConfig,
-        event_dispatcher: EventDispatcher,
-        schema_registry: SchemaRegistryManager,
-        settings: Settings,
-        logger: logging.Logger,
-        event_metrics: EventMetrics,
-    ):
-        self._config = config
-        self.logger = logger
-        self._schema_registry = schema_registry
+            self,
+            event_dispatcher: EventDispatcher,
+            schema_registry: SchemaRegistryManager,
+            logger: logging.Logger,
+            event_metrics: EventMetrics,
+            group_id: str,
+    ) -> None:
         self._dispatcher = event_dispatcher
-        self._consumer: AIOKafkaConsumer | None = None
-        self._state = ConsumerState.STOPPED
-        self._running = False
-        self._metrics = ConsumerMetrics()
+        self._schema_registry = schema_registry
+        self._logger = logger
         self._event_metrics = event_metrics
-        self._error_callback: "Callable[[Exception, DomainEvent], Awaitable[None]] | None" = None
-        self._consume_task: asyncio.Task[None] | None = None
-        self._topic_prefix = settings.KAFKA_TOPIC_PREFIX
+        self._group_id = group_id
 
-    async def start(self, topics: list[KafkaTopic]) -> None:
-        self._state = self._state if self._state != ConsumerState.STOPPED else ConsumerState.STARTING
+    async def handle(self, msg: ConsumerRecord) -> DomainEvent | None:
+        """Handle a Kafka message - deserialize, dispatch, record metrics."""
+        if msg.value is None:
+            return None
 
-        topic_strings = [f"{self._topic_prefix}{str(topic)}" for topic in topics]
+        event = await self._schema_registry.deserialize_event(msg.value, msg.topic)
+        headers = {k: v.decode() for k, v in msg.headers}
 
-        self._consumer = AIOKafkaConsumer(
-            *topic_strings,
-            bootstrap_servers=self._config.bootstrap_servers,
-            group_id=self._config.group_id,
-            client_id=self._config.client_id,
-            auto_offset_reset=self._config.auto_offset_reset,
-            enable_auto_commit=self._config.enable_auto_commit,
-            session_timeout_ms=self._config.session_timeout_ms,
-            heartbeat_interval_ms=self._config.heartbeat_interval_ms,
-            max_poll_interval_ms=self._config.max_poll_interval_ms,
-            request_timeout_ms=self._config.request_timeout_ms,
-            fetch_min_bytes=self._config.fetch_min_bytes,
-            fetch_max_wait_ms=self._config.fetch_max_wait_ms,
-        )
-
-        await self._consumer.start()
-        self._running = True
-        self._consume_task = asyncio.create_task(self._consume_loop())
-
-        self._state = ConsumerState.RUNNING
-
-        self.logger.info(f"Consumer started for topics: {topic_strings}")
-
-    async def stop(self) -> None:
-        self._state = (
-            ConsumerState.STOPPING
-            if self._state not in (ConsumerState.STOPPED, ConsumerState.STOPPING)
-            else self._state
-        )
-
-        self._running = False
-
-        if self._consume_task:
-            self._consume_task.cancel()
-            await asyncio.gather(self._consume_task, return_exceptions=True)
-            self._consume_task = None
-
-        await self._cleanup()
-        self._state = ConsumerState.STOPPED
-
-    async def _cleanup(self) -> None:
-        if self._consumer:
-            await self._consumer.stop()
-            self._consumer = None
-
-    async def _consume_loop(self) -> None:
-        self.logger.info(f"Consumer loop started for group {self._config.group_id}")
-        poll_count = 0
-        message_count = 0
-
-        while self._running and self._consumer:
-            poll_count += 1
-            if poll_count % 100 == 0:  # Log every 100 polls
-                self.logger.debug(f"Consumer loop active: polls={poll_count}, messages={message_count}")
-
-            try:
-                # Use getone() with timeout for single message consumption
-                msg = await asyncio.wait_for(
-                    self._consumer.getone(),
-                    timeout=0.1
-                )
-
-                message_count += 1
-                self.logger.debug(
-                    f"Message received from topic {msg.topic}, partition {msg.partition}, offset {msg.offset}"
-                )
-                await self._process_message(msg)
-                if not self._config.enable_auto_commit:
-                    await self._consumer.commit()
-
-            except asyncio.TimeoutError:
-                # No message available within timeout, continue polling
-                await asyncio.sleep(0.01)
-            except KafkaError as e:
-                self.logger.error(f"Consumer error: {e}")
-                self._metrics.processing_errors += 1
-
-        self.logger.warning(
-            f"Consumer loop ended for group {self._config.group_id}: "
-            f"running={self._running}, consumer={self._consumer is not None}"
-        )
-
-    async def _process_message(self, message: Any) -> None:
-        """Process a ConsumerRecord from aiokafka."""
-        topic = message.topic
-        if not topic:
-            self.logger.warning("Message with no topic received")
-            return
-
-        raw_value = message.value
-        if not raw_value:
-            self.logger.warning(f"Empty message from topic {topic}")
-            return
-
-        self.logger.debug(f"Deserializing message from topic {topic}, size={len(raw_value)} bytes")
-        event = await self._schema_registry.deserialize_event(raw_value, topic)
-        self.logger.info(f"Deserialized event: type={event.event_type}, id={event.event_id}")
-
-        # Extract trace context from Kafka headers and start a consumer span
-        # aiokafka headers are list of tuples: [(key, value), ...]
-        header_list = message.headers or []
-        headers: dict[str, str] = {}
-        for k, v in header_list:
-            headers[str(k)] = v.decode("utf-8") if isinstance(v, (bytes, bytearray)) else (v or "")
-        ctx = extract_trace_context(headers)
-        tracer = get_tracer()
-
-        # Dispatch event through EventDispatcher
-        try:
-            self.logger.debug(f"Dispatching {event.event_type} to handlers")
-            partition_val = message.partition
-            offset_val = message.offset
-            part_attr = partition_val if partition_val is not None else -1
-            off_attr = offset_val if offset_val is not None else -1
-            with tracer.start_as_current_span(
+        with get_tracer().start_as_current_span(
                 name="kafka.consume",
-                context=ctx,
+                context=extract_trace_context(headers),
                 kind=SpanKind.CONSUMER,
                 attributes={
-                    EventAttributes.KAFKA_TOPIC: topic,
-                    EventAttributes.KAFKA_PARTITION: part_attr,
-                    EventAttributes.KAFKA_OFFSET: off_attr,
+                    EventAttributes.KAFKA_TOPIC: msg.topic,
+                    EventAttributes.KAFKA_PARTITION: msg.partition,
+                    EventAttributes.KAFKA_OFFSET: msg.offset,
                     EventAttributes.EVENT_TYPE: event.event_type,
                     EventAttributes.EVENT_ID: event.event_id,
                 },
-            ):
-                await self._dispatcher.dispatch(event)
-            self.logger.debug(f"Successfully dispatched {event.event_type}")
-            # Update metrics on successful dispatch
-            self._metrics.messages_consumed += 1
-            self._metrics.bytes_consumed += len(raw_value)
-            self._metrics.last_message_time = datetime.now(timezone.utc)
-            # Record Kafka consumption metrics
-            self._event_metrics.record_kafka_message_consumed(topic=topic, consumer_group=self._config.group_id)
-        except Exception as e:
-            self.logger.error(f"Dispatcher error for event {event.event_type}: {e}")
-            self._metrics.processing_errors += 1
-            # Record Kafka consumption error
-            self._event_metrics.record_kafka_consumption_error(
-                topic=topic, consumer_group=self._config.group_id, error_type=type(e).__name__
-            )
-            if self._error_callback:
-                await self._error_callback(e, event)
+        ):
+            await self._dispatcher.dispatch(event)
+            self._event_metrics.record_kafka_message_consumed(msg.topic, self._group_id)
 
-    def register_error_callback(self, callback: Callable[[Exception, DomainEvent], Awaitable[None]]) -> None:
-        self._error_callback = callback
-
-    @property
-    def state(self) -> ConsumerState:
-        return self._state
-
-    @property
-    def metrics(self) -> ConsumerMetrics:
-        return self._metrics
-
-    @property
-    def is_running(self) -> bool:
-        return self._state == ConsumerState.RUNNING
-
-    @property
-    def consumer(self) -> AIOKafkaConsumer | None:
-        return self._consumer
-
-    def get_status(self) -> ConsumerStatus:
-        return ConsumerStatus(
-            state=self._state,
-            is_running=self.is_running,
-            group_id=self._config.group_id,
-            client_id=self._config.client_id,
-            metrics=ConsumerMetricsSnapshot(
-                messages_consumed=self._metrics.messages_consumed,
-                bytes_consumed=self._metrics.bytes_consumed,
-                consumer_lag=self._metrics.consumer_lag,
-                commit_failures=self._metrics.commit_failures,
-                processing_errors=self._metrics.processing_errors,
-                last_message_time=self._metrics.last_message_time,
-                last_updated=self._metrics.last_updated,
-            ),
-        )
-
-    async def seek_to_beginning(self) -> None:
-        """Seek all assigned partitions to the beginning."""
-        if not self._consumer:
-            self.logger.warning("Cannot seek: consumer not initialized")
-            return
-
-        assignment = self._consumer.assignment()
-        if assignment:
-            await self._consumer.seek_to_beginning(*assignment)
-
-    async def seek_to_end(self) -> None:
-        """Seek all assigned partitions to the end."""
-        if not self._consumer:
-            self.logger.warning("Cannot seek: consumer not initialized")
-            return
-
-        assignment = self._consumer.assignment()
-        if assignment:
-            await self._consumer.seek_to_end(*assignment)
-
-    async def seek_to_offset(self, topic: str, partition: int, offset: int) -> None:
-        """Seek a specific partition to a specific offset."""
-        if not self._consumer:
-            self.logger.warning("Cannot seek to offset: consumer not initialized")
-            return
-
-        tp = TopicPartition(topic, partition)
-        self._consumer.seek(tp, offset)
+        return event

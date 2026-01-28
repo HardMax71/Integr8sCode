@@ -1,13 +1,11 @@
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
-from functools import partial
 from typing import Any
 
-from kubernetes import client as k8s_client
-from kubernetes.client.rest import ApiException
+from kubernetes_asyncio import client as k8s_client
+from kubernetes_asyncio.client.rest import ApiException
 
-from app.core.k8s_clients import K8sClients
 from app.domain.exceptions import InfrastructureError
 
 # Python 3.12 type aliases
@@ -18,12 +16,12 @@ type CountDict = dict[str, int]
 class ResourceCleaner:
     """Service for cleaning up Kubernetes resources.
 
-    Accepts K8sClients via dependency injection for proper configuration management.
+    Accepts ApiClient via dependency injection for proper configuration management.
     """
 
-    def __init__(self, k8s_clients: K8sClients, logger: logging.Logger) -> None:
-        self.v1: k8s_client.CoreV1Api = k8s_clients.v1
-        self.networking_v1: k8s_client.NetworkingV1Api = k8s_clients.networking_v1
+    def __init__(self, api_client: k8s_client.ApiClient, logger: logging.Logger) -> None:
+        self.v1 = k8s_client.CoreV1Api(api_client)
+        self.networking_v1 = k8s_client.NetworkingV1Api(api_client)
         self.logger = logger
 
     async def cleanup_pod_resources(
@@ -64,13 +62,8 @@ class ResourceCleaner:
     async def _delete_pod(self, pod_name: str, namespace: str) -> None:
         """Delete a pod"""
         try:
-            loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, self.v1.read_namespaced_pod, pod_name, namespace)
-
-            await loop.run_in_executor(
-                None, partial(self.v1.delete_namespaced_pod, pod_name, namespace, grace_period_seconds=30)
-            )
-
+            await self.v1.read_namespaced_pod(pod_name, namespace)
+            await self.v1.delete_namespaced_pod(pod_name, namespace, grace_period_seconds=30)
             self.logger.info(f"Deleted pod: {pod_name}")
 
         except ApiException as e:
@@ -105,13 +98,11 @@ class ResourceCleaner:
     ) -> None:
         """Generic function to delete labeled resources"""
         try:
-            loop = asyncio.get_running_loop()
             label_selector = f"execution-id={execution_id}"
-
-            resources = await loop.run_in_executor(None, partial(list_func, namespace, label_selector=label_selector))
+            resources = await list_func(namespace, label_selector=label_selector)
 
             for resource in resources.items:
-                await loop.run_in_executor(None, delete_func, resource.metadata.name, namespace)
+                await delete_func(resource.metadata.name, namespace)
                 self.logger.info(f"Deleted {resource_type}: {resource.metadata.name}")
 
         except ApiException as e:
@@ -145,10 +136,7 @@ class ResourceCleaner:
         self, namespace: str, cutoff_time: datetime, cleaned: ResourceDict, dry_run: bool
     ) -> None:
         """Clean up orphaned pods"""
-        loop = asyncio.get_running_loop()
-        pods = await loop.run_in_executor(
-            None, partial(self.v1.list_namespaced_pod, namespace, label_selector="app=integr8s")
-        )
+        pods = await self.v1.list_namespaced_pod(namespace, label_selector="app=integr8s")
 
         terminal_phases = {"Succeeded", "Failed", "Unknown"}
 
@@ -169,10 +157,7 @@ class ResourceCleaner:
         self, namespace: str, cutoff_time: datetime, cleaned: ResourceDict, dry_run: bool
     ) -> None:
         """Clean up orphaned ConfigMaps"""
-        loop = asyncio.get_running_loop()
-        configmaps = await loop.run_in_executor(
-            None, partial(self.v1.list_namespaced_config_map, namespace, label_selector="app=integr8s")
-        )
+        configmaps = await self.v1.list_namespaced_config_map(namespace, label_selector="app=integr8s")
 
         for cm in configmaps.items:
             if cm.metadata.creation_timestamp.replace(tzinfo=timezone.utc) < cutoff_time:
@@ -180,15 +165,12 @@ class ResourceCleaner:
 
                 if not dry_run:
                     try:
-                        await loop.run_in_executor(
-                            None, self.v1.delete_namespaced_config_map, cm.metadata.name, namespace
-                        )
+                        await self.v1.delete_namespaced_config_map(cm.metadata.name, namespace)
                     except Exception as e:
                         self.logger.error(f"Failed to delete orphaned ConfigMap {cm.metadata.name}: {e}")
 
     async def get_resource_usage(self, namespace: str = "default") -> CountDict:
         """Get current resource usage counts"""
-        loop = asyncio.get_running_loop()
         label_selector = "app=integr8s"
 
         default_counts = {"pods": 0, "configmaps": 0, "network_policies": 0}
@@ -196,9 +178,7 @@ class ResourceCleaner:
         try:
             # Get pods count
             try:
-                pods = await loop.run_in_executor(
-                    None, partial(self.v1.list_namespaced_pod, namespace, label_selector=label_selector)
-                )
+                pods = await self.v1.list_namespaced_pod(namespace, label_selector=label_selector)
                 pod_count = len(pods.items)
             except Exception as e:
                 self.logger.warning(f"Failed to get pods: {e}")
@@ -206,9 +186,7 @@ class ResourceCleaner:
 
             # Get configmaps count
             try:
-                configmaps = await loop.run_in_executor(
-                    None, partial(self.v1.list_namespaced_config_map, namespace, label_selector=label_selector)
-                )
+                configmaps = await self.v1.list_namespaced_config_map(namespace, label_selector=label_selector)
                 configmap_count = len(configmaps.items)
             except Exception as e:
                 self.logger.warning(f"Failed to get configmaps: {e}")
@@ -216,11 +194,8 @@ class ResourceCleaner:
 
             # Get network policies count
             try:
-                policies = await loop.run_in_executor(
-                    None,
-                    partial(
-                        self.networking_v1.list_namespaced_network_policy, namespace, label_selector=label_selector
-                    ),
+                policies = await self.networking_v1.list_namespaced_network_policy(
+                    namespace, label_selector=label_selector
                 )
                 policy_count = len(policies.items)
             except Exception as e:

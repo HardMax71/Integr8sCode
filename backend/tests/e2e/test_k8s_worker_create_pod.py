@@ -4,15 +4,13 @@ import uuid
 import pytest
 from app.core.metrics import EventMetrics
 from app.domain.events.typed import CreatePodCommandEvent, EventMetadata
-from app.events.core import UnifiedProducer
-from app.events.event_store import EventStore
-from app.events.schema.schema_registry import SchemaRegistryManager
-from app.services.idempotency import IdempotencyManager
+from app.events.core import EventDispatcher, UnifiedProducer
 from app.services.k8s_worker.config import K8sWorkerConfig
 from app.services.k8s_worker.worker import KubernetesWorker
 from app.settings import Settings
 from dishka import AsyncContainer
-from kubernetes.client.rest import ApiException
+from kubernetes_asyncio import client as k8s_client
+from kubernetes_asyncio.client.rest import ApiException
 
 pytestmark = [pytest.mark.e2e, pytest.mark.k8s]
 
@@ -25,28 +23,22 @@ async def test_worker_creates_configmap_and_pod(
 ) -> None:
     ns = test_settings.K8S_NAMESPACE
 
-    schema: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
-    store: EventStore = await scope.get(EventStore)
+    api_client: k8s_client.ApiClient = await scope.get(k8s_client.ApiClient)
     producer: UnifiedProducer = await scope.get(UnifiedProducer)
-    idem: IdempotencyManager = await scope.get(IdempotencyManager)
     event_metrics: EventMetrics = await scope.get(EventMetrics)
 
     cfg = K8sWorkerConfig(namespace=ns, max_concurrent_pods=1)
+    dispatcher = EventDispatcher(logger=_test_logger)
+
     worker = KubernetesWorker(
         config=cfg,
+        api_client=api_client,
         producer=producer,
-        schema_registry_manager=schema,
+        dispatcher=dispatcher,
         settings=test_settings,
-        event_store=store,
-        idempotency_manager=idem,
         logger=_test_logger,
         event_metrics=event_metrics,
     )
-
-    # Initialize k8s clients using worker's own method
-    worker._initialize_kubernetes_client()  # noqa: SLF001
-    if worker.v1 is None:
-        pytest.skip("Kubernetes cluster not available")
 
     exec_id = uuid.uuid4().hex[:8]
     cmd = CreatePodCommandEvent(
@@ -84,11 +76,11 @@ async def test_worker_creates_configmap_and_pod(
     await worker._create_pod(pod)  # noqa: SLF001
 
     # Verify resources exist
-    got_cm = worker.v1.read_namespaced_config_map(name=f"script-{exec_id}", namespace=ns)
+    got_cm = await worker.v1.read_namespaced_config_map(name=f"script-{exec_id}", namespace=ns)
     assert got_cm is not None
-    got_pod = worker.v1.read_namespaced_pod(name=f"executor-{exec_id}", namespace=ns)
+    got_pod = await worker.v1.read_namespaced_pod(name=f"executor-{exec_id}", namespace=ns)
     assert got_pod is not None
 
     # Cleanup
-    worker.v1.delete_namespaced_pod(name=f"executor-{exec_id}", namespace=ns)
-    worker.v1.delete_namespaced_config_map(name=f"script-{exec_id}", namespace=ns)
+    await worker.v1.delete_namespaced_pod(name=f"executor-{exec_id}", namespace=ns)
+    await worker.v1.delete_namespaced_config_map(name=f"script-{exec_id}", namespace=ns)

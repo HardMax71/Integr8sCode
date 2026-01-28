@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     # Kubernetes namespace for execution pods
     K8S_NAMESPACE: str = "integr8scode"
 
+    # Maximum concurrent pod creations allowed by k8s worker
+    K8S_MAX_CONCURRENT_PODS: int = 10
+
     # Settings for Kubernetes resource limits and requests
     K8S_POD_CPU_LIMIT: str = "1000m"
     K8S_POD_MEMORY_LIMIT: str = "128Mi"

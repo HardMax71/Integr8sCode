@@ -64,8 +64,7 @@ from app.services.idempotency import IdempotencyConfig, IdempotencyManager
 from app.services.idempotency.idempotency_manager import create_idempotency_manager
 from app.services.idempotency.middleware import IdempotentConsumerWrapper
 from app.services.idempotency.redis_repository import RedisIdempotencyRepository
-from app.services.k8s_worker.config import K8sWorkerConfig
-from app.services.k8s_worker.worker import KubernetesWorker
+from app.services.k8s_worker import KubernetesWorker
 from app.services.kafka_event_service import KafkaEventService
 from app.services.notification_service import NotificationService
 from app.services.pod_monitor.config import PodMonitorConfig
@@ -731,9 +730,7 @@ class K8sWorkerProvider(Provider):
         event_metrics: EventMetrics,
     ) -> KubernetesWorker:
         """Create KubernetesWorker - registers handlers on dispatcher in constructor."""
-        config = K8sWorkerConfig()
         return KubernetesWorker(
-            config=config,
             api_client=api_client,
             producer=kafka_producer,
             dispatcher=dispatcher,
@@ -754,10 +751,9 @@ class K8sWorkerProvider(Provider):
         event_metrics: EventMetrics,
     ) -> AsyncIterator[IdempotentConsumerWrapper]:
         """Create and start consumer for K8s worker."""
-        config = K8sWorkerConfig()
         consumer_config = ConsumerConfig(
             bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=config.consumer_group,
+            group_id=GroupId.K8S_WORKER,
             enable_auto_commit=False,
             session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
             heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,

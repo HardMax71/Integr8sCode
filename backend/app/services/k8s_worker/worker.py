@@ -20,9 +20,9 @@ from app.domain.events.typed import (
 )
 from app.events.core import EventDispatcher, UnifiedProducer
 from app.runtime_registry import RUNTIME_REGISTRY
-from app.services.k8s_worker.config import K8sWorkerConfig
-from app.services.k8s_worker.pod_builder import PodBuilder
 from app.settings import Settings
+
+from .pod_builder import PodBuilder
 
 
 class KubernetesWorker:
@@ -39,24 +39,22 @@ class KubernetesWorker:
     """
 
     def __init__(
-        self,
-        config: K8sWorkerConfig,
-        api_client: k8s_client.ApiClient,
-        producer: UnifiedProducer,
-        dispatcher: EventDispatcher,
-        settings: Settings,
-        logger: logging.Logger,
-        event_metrics: EventMetrics,
+            self,
+            api_client: k8s_client.ApiClient,
+            producer: UnifiedProducer,
+            dispatcher: EventDispatcher,
+            settings: Settings,
+            logger: logging.Logger,
+            event_metrics: EventMetrics,
     ):
         self._event_metrics = event_metrics
         self.logger = logger
         self.metrics = KubernetesMetrics(settings)
         self.execution_metrics = ExecutionMetrics(settings)
-        self.config = config
         self._settings = settings
 
         # Validate namespace
-        if self.config.namespace == "default":
+        if self._settings.K8S_NAMESPACE == "default":
             raise ValueError(
                 "KubernetesWorker namespace 'default' is forbidden. Set K8S_NAMESPACE to a dedicated namespace."
             )
@@ -67,7 +65,7 @@ class KubernetesWorker:
         self.apps_v1 = k8s_client.AppsV1Api(api_client)
 
         # Components
-        self.pod_builder = PodBuilder(namespace=self.config.namespace, config=self.config)
+        self.pod_builder = PodBuilder(settings=settings)
         self.producer = producer
         self._dispatcher = dispatcher
 
@@ -77,9 +75,9 @@ class KubernetesWorker:
 
         # State tracking
         self._active_creations: set[str] = set()
-        self._creation_semaphore = asyncio.Semaphore(self.config.max_concurrent_pods)
+        self._creation_semaphore = asyncio.Semaphore(self._settings.K8S_MAX_CONCURRENT_PODS)
 
-        self.logger.info(f"KubernetesWorker initialized for namespace {self.config.namespace}")
+        self.logger.info(f"KubernetesWorker initialized for namespace {self._settings.K8S_NAMESPACE}")
 
     async def _handle_create_pod_command_wrapper(self, event: DomainEvent) -> None:
         """Wrapper for handling CreatePodCommandEvent with type safety."""
@@ -115,14 +113,14 @@ class KubernetesWorker:
             pod_name = f"executor-{execution_id}"
             await self.v1.delete_namespaced_pod(
                 name=pod_name,
-                namespace=self.config.namespace,
+                namespace=self._settings.K8S_NAMESPACE,
                 grace_period_seconds=30,
             )
             self.logger.info(f"Successfully deleted pod {pod_name}")
 
             # Delete associated ConfigMap
             configmap_name = f"script-{execution_id}"
-            await self.v1.delete_namespaced_config_map(name=configmap_name, namespace=self.config.namespace)
+            await self.v1.delete_namespaced_config_map(name=configmap_name, namespace=self._settings.K8S_NAMESPACE)
             self.logger.info(f"Successfully deleted ConfigMap {configmap_name}")
 
         except ApiException as e:
@@ -202,7 +200,7 @@ exec "$@"
     async def _create_config_map(self, config_map: k8s_client.V1ConfigMap) -> None:
         """Create ConfigMap in Kubernetes"""
         try:
-            await self.v1.create_namespaced_config_map(namespace=self.config.namespace, body=config_map)
+            await self.v1.create_namespaced_config_map(namespace=self._settings.K8S_NAMESPACE, body=config_map)
             self.metrics.record_k8s_config_map_created("success")
             self.logger.debug(f"Created ConfigMap {config_map.metadata.name}")
         except ApiException as e:
@@ -216,7 +214,7 @@ exec "$@"
     async def _create_pod(self, pod: k8s_client.V1Pod) -> None:
         """Create Pod in Kubernetes"""
         try:
-            await self.v1.create_namespaced_pod(namespace=self.config.namespace, body=pod)
+            await self.v1.create_namespaced_pod(namespace=self._settings.K8S_NAMESPACE, body=pod)
             self.logger.debug(f"Created Pod {pod.metadata.name}")
         except ApiException as e:
             if e.status == 409:  # Already exists
@@ -264,8 +262,8 @@ exec "$@"
         return {
             "active_creations": len(self._active_creations),
             "config": {
-                "namespace": self.config.namespace,
-                "max_concurrent_pods": self.config.max_concurrent_pods,
+                "namespace": self._settings.K8S_NAMESPACE,
+                "max_concurrent_pods": self._settings.K8S_MAX_CONCURRENT_PODS,
             },
         }
 
@@ -286,7 +284,7 @@ exec "$@"
     async def ensure_image_pre_puller_daemonset(self) -> None:
         """Ensure the runtime image pre-puller DaemonSet exists."""
         daemonset_name = "runtime-image-pre-puller"
-        namespace = self.config.namespace
+        namespace = self._settings.K8S_NAMESPACE
 
         try:
             init_containers = []

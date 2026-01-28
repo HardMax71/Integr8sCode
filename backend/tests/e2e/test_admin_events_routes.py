@@ -1,6 +1,8 @@
-import asyncio
+import uuid
 
 import pytest
+import pytest_asyncio
+from app.db.repositories.event_repository import EventRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.replay import ReplayStatus
 from app.domain.events.typed import DomainEvent
@@ -16,51 +18,20 @@ from app.schemas_pydantic.admin_events import (
     EventStatsResponse,
 )
 from app.schemas_pydantic.execution import ExecutionRequest, ExecutionResponse
+from dishka import AsyncContainer
 from httpx import AsyncClient
+from tests.conftest import make_execution_requested_event
 
-pytestmark = [pytest.mark.e2e, pytest.mark.admin, pytest.mark.kafka]
+pytestmark = [pytest.mark.e2e, pytest.mark.admin]
 
 
-async def wait_for_events(
-    client: AsyncClient,
-    aggregate_id: str,
-    timeout: float = 30.0,
-    poll_interval: float = 0.5,
-) -> list[DomainEvent]:
-    """Poll until at least one event exists for the aggregate.
-
-    Args:
-        client: Admin HTTP client
-        aggregate_id: Execution ID to get events for
-        timeout: Maximum time to wait in seconds
-        poll_interval: Time between polls in seconds
-
-    Returns:
-        List of events for the aggregate
-
-    Raises:
-        TimeoutError: If no events appear within timeout
-        AssertionError: If API returns unexpected status code
-    """
-    deadline = asyncio.get_event_loop().time() + timeout
-
-    while asyncio.get_event_loop().time() < deadline:
-        request = EventBrowseRequest(
-            filters=EventFilter(aggregate_id=aggregate_id),
-            limit=10,
-        )
-        response = await client.post(
-            "/api/v1/admin/events/browse", json=request.model_dump()
-        )
-        assert response.status_code == 200, f"Unexpected: {response.status_code} - {response.text}"
-
-        result = EventBrowseResponse.model_validate(response.json())
-        if result.events:
-            return result.events
-
-        await asyncio.sleep(poll_interval)
-
-    raise TimeoutError(f"No events appeared for aggregate {aggregate_id} within {timeout}s")
+@pytest_asyncio.fixture
+async def stored_event(scope: AsyncContainer) -> DomainEvent:
+    """Insert a test event directly into DB - no Kafka/waiting needed."""
+    repo = await scope.get(EventRepository)
+    event = make_execution_requested_event(execution_id=f"e-{uuid.uuid4().hex[:8]}")
+    await repo.store_event(event)
+    return event
 
 
 class TestBrowseEvents:
@@ -90,13 +61,14 @@ class TestBrowseEvents:
 
     @pytest.mark.asyncio
     async def test_browse_events_with_event_type_filter(
-        self, test_admin: AsyncClient, created_execution_admin: ExecutionResponse
+            self, test_admin: AsyncClient, stored_event: DomainEvent
     ) -> None:
         """Browse events filtered by event type."""
-        await wait_for_events(test_admin, created_execution_admin.execution_id)
-
         request = EventBrowseRequest(
-            filters=EventFilter(event_types=[EventType.EXECUTION_REQUESTED]),
+            filters=EventFilter(
+                event_types=[EventType.EXECUTION_REQUESTED],
+                aggregate_id=stored_event.aggregate_id,
+            ),
             skip=0,
             limit=20,
         )
@@ -111,7 +83,7 @@ class TestBrowseEvents:
 
     @pytest.mark.asyncio
     async def test_browse_events_with_pagination(
-        self, test_admin: AsyncClient
+            self, test_admin: AsyncClient
     ) -> None:
         """Pagination works for event browsing."""
         request = EventBrowseRequest(
@@ -130,13 +102,11 @@ class TestBrowseEvents:
 
     @pytest.mark.asyncio
     async def test_browse_events_with_aggregate_filter(
-        self, test_admin: AsyncClient, created_execution_admin: ExecutionResponse
+            self, test_admin: AsyncClient, stored_event: DomainEvent
     ) -> None:
         """Browse events filtered by aggregate ID."""
-        await wait_for_events(test_admin, created_execution_admin.execution_id)
-
         request = EventBrowseRequest(
-            filters=EventFilter(aggregate_id=created_execution_admin.execution_id),
+            filters=EventFilter(aggregate_id=stored_event.aggregate_id),
             limit=50,
         )
         response = await test_admin.post(
@@ -150,7 +120,7 @@ class TestBrowseEvents:
 
     @pytest.mark.asyncio
     async def test_browse_events_with_search_text(
-        self, test_admin: AsyncClient
+            self, test_admin: AsyncClient
     ) -> None:
         """Browse events with text search."""
         request = EventBrowseRequest(
@@ -167,7 +137,7 @@ class TestBrowseEvents:
 
     @pytest.mark.asyncio
     async def test_browse_events_forbidden_for_regular_user(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Regular user cannot browse admin events."""
         response = await test_user.post(
@@ -179,7 +149,7 @@ class TestBrowseEvents:
 
     @pytest.mark.asyncio
     async def test_browse_events_unauthenticated(
-        self, client: AsyncClient
+            self, client: AsyncClient
     ) -> None:
         """Unauthenticated request returns 401."""
         response = await client.post(
@@ -210,7 +180,7 @@ class TestEventStats:
 
     @pytest.mark.asyncio
     async def test_get_event_stats_with_hours(
-        self, test_admin: AsyncClient
+            self, test_admin: AsyncClient
     ) -> None:
         """Get event statistics for specific time period."""
         response = await test_admin.get(
@@ -224,7 +194,7 @@ class TestEventStats:
 
     @pytest.mark.asyncio
     async def test_get_event_stats_max_hours(
-        self, test_admin: AsyncClient
+            self, test_admin: AsyncClient
     ) -> None:
         """Get event statistics for maximum time period (168 hours)."""
         response = await test_admin.get(
@@ -238,7 +208,7 @@ class TestEventStats:
 
     @pytest.mark.asyncio
     async def test_get_event_stats_forbidden_for_regular_user(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Regular user cannot get event stats."""
         response = await test_user.get("/api/v1/admin/events/stats")
@@ -267,7 +237,7 @@ class TestExportEventsCSV:
 
     @pytest.mark.asyncio
     async def test_export_events_csv_with_filters(
-        self, test_admin: AsyncClient
+            self, test_admin: AsyncClient
     ) -> None:
         """Export CSV with event type filters."""
         response = await test_admin.get(
@@ -282,7 +252,7 @@ class TestExportEventsCSV:
 
     @pytest.mark.asyncio
     async def test_export_events_csv_forbidden_for_regular_user(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Regular user cannot export events."""
         response = await test_user.get("/api/v1/admin/events/export/csv")
@@ -313,7 +283,7 @@ class TestExportEventsJSON:
 
     @pytest.mark.asyncio
     async def test_export_events_json_with_filters(
-        self, test_admin: AsyncClient
+            self, test_admin: AsyncClient
     ) -> None:
         """Export JSON with comprehensive filters."""
         response = await test_admin.get(
@@ -328,7 +298,7 @@ class TestExportEventsJSON:
 
     @pytest.mark.asyncio
     async def test_export_events_json_forbidden_for_regular_user(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Regular user cannot export events."""
         response = await test_user.get("/api/v1/admin/events/export/json")
@@ -341,13 +311,10 @@ class TestGetEventDetail:
 
     @pytest.mark.asyncio
     async def test_get_event_detail(
-        self, test_admin: AsyncClient, created_execution_admin: ExecutionResponse
+            self, test_admin: AsyncClient, stored_event: DomainEvent
     ) -> None:
         """Admin can get event details."""
-        events = await wait_for_events(test_admin, created_execution_admin.execution_id)
-        event_id = events[0].event_id
-
-        response = await test_admin.get(f"/api/v1/admin/events/{event_id}")
+        response = await test_admin.get(f"/api/v1/admin/events/{stored_event.event_id}")
 
         assert response.status_code == 200
         detail = EventDetailResponse.model_validate(response.json())
@@ -358,7 +325,7 @@ class TestGetEventDetail:
 
     @pytest.mark.asyncio
     async def test_get_event_detail_not_found(
-        self, test_admin: AsyncClient
+            self, test_admin: AsyncClient
     ) -> None:
         """Get nonexistent event returns 404."""
         response = await test_admin.get(
@@ -369,7 +336,7 @@ class TestGetEventDetail:
 
     @pytest.mark.asyncio
     async def test_get_event_detail_forbidden_for_regular_user(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Regular user cannot get event details."""
         response = await test_user.get("/api/v1/admin/events/some-event-id")
@@ -382,13 +349,11 @@ class TestReplayEvents:
 
     @pytest.mark.asyncio
     async def test_replay_events_dry_run(
-        self, test_admin: AsyncClient, created_execution_admin: ExecutionResponse
+            self, test_admin: AsyncClient, stored_event: DomainEvent
     ) -> None:
         """Admin can replay events in dry run mode."""
-        await wait_for_events(test_admin, created_execution_admin.execution_id)
-
         request = EventReplayRequest(
-            aggregate_id=created_execution_admin.execution_id,
+            aggregate_id=stored_event.aggregate_id,
             dry_run=True,
         )
         response = await test_admin.post(
@@ -404,7 +369,7 @@ class TestReplayEvents:
 
     @pytest.mark.asyncio
     async def test_replay_events_no_events_found(
-        self, test_admin: AsyncClient
+            self, test_admin: AsyncClient
     ) -> None:
         """Replay with non-matching filter returns 404."""
         request = EventReplayRequest(
@@ -419,7 +384,7 @@ class TestReplayEvents:
 
     @pytest.mark.asyncio
     async def test_replay_events_forbidden_for_regular_user(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Regular user cannot replay events."""
         response = await test_user.post(
@@ -435,7 +400,7 @@ class TestGetReplayStatus:
 
     @pytest.mark.asyncio
     async def test_get_replay_status_not_found(
-        self, test_admin: AsyncClient
+            self, test_admin: AsyncClient
     ) -> None:
         """Get nonexistent replay session returns 404."""
         response = await test_admin.get(
@@ -446,19 +411,11 @@ class TestGetReplayStatus:
 
     @pytest.mark.asyncio
     async def test_get_replay_status_after_replay(
-        self, test_admin: AsyncClient, simple_execution_request: ExecutionRequest
+            self, test_admin: AsyncClient, stored_event: DomainEvent
     ) -> None:
         """Get replay status after starting a replay."""
-        exec_response = await test_admin.post(
-            "/api/v1/execute", json=simple_execution_request.model_dump()
-        )
-        assert exec_response.status_code == 200
-
-        execution = ExecutionResponse.model_validate(exec_response.json())
-        await wait_for_events(test_admin, execution.execution_id)
-
         request = EventReplayRequest(
-            aggregate_id=execution.execution_id,
+            aggregate_id=stored_event.aggregate_id,
             dry_run=False,
         )
         replay_response = await test_admin.post(
@@ -484,7 +441,7 @@ class TestGetReplayStatus:
 
     @pytest.mark.asyncio
     async def test_get_replay_status_forbidden_for_regular_user(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Regular user cannot get replay status."""
         response = await test_user.get(
@@ -499,31 +456,22 @@ class TestDeleteEvent:
 
     @pytest.mark.asyncio
     async def test_delete_event(
-        self, test_admin: AsyncClient, simple_execution_request: ExecutionRequest
+            self, test_admin: AsyncClient, stored_event: DomainEvent
     ) -> None:
         """Admin can delete an event."""
-        exec_response = await test_admin.post(
-            "/api/v1/execute", json=simple_execution_request.model_dump()
-        )
-        assert exec_response.status_code == 200
-
-        execution = ExecutionResponse.model_validate(exec_response.json())
-        events = await wait_for_events(test_admin, execution.execution_id)
-        event_id = events[0].event_id
-
-        response = await test_admin.delete(f"/api/v1/admin/events/{event_id}")
+        response = await test_admin.delete(f"/api/v1/admin/events/{stored_event.event_id}")
 
         assert response.status_code == 200
         result = EventDeleteResponse.model_validate(response.json())
-        assert result.event_id == event_id
+        assert result.event_id == stored_event.event_id
         assert "deleted" in result.message.lower()
 
-        verify_response = await test_admin.get(f"/api/v1/admin/events/{event_id}")
+        verify_response = await test_admin.get(f"/api/v1/admin/events/{stored_event.event_id}")
         assert verify_response.status_code == 404
 
     @pytest.mark.asyncio
     async def test_delete_event_forbidden_for_regular_user(
-        self, test_user: AsyncClient
+            self, test_user: AsyncClient
     ) -> None:
         """Regular user cannot delete events."""
         response = await test_user.delete(
@@ -534,7 +482,7 @@ class TestDeleteEvent:
 
     @pytest.mark.asyncio
     async def test_delete_event_unauthenticated(
-        self, client: AsyncClient
+            self, client: AsyncClient
     ) -> None:
         """Unauthenticated request returns 401."""
         response = await client.delete("/api/v1/admin/events/some-event-id")

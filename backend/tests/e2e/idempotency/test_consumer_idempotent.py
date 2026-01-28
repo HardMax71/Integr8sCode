@@ -1,90 +1,129 @@
-import asyncio
-import logging
 import uuid
 
 import pytest
-from app.core.metrics import EventMetrics
-from app.domain.enums.events import EventType
-from app.domain.enums.kafka import KafkaTopic
-from app.domain.events.typed import DomainEvent
-from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
-from app.events.core.dispatcher import EventDispatcher as Disp
-from app.events.schema.schema_registry import SchemaRegistryManager
-from app.domain.idempotency import KeyStrategy
+from app.domain.idempotency import IdempotencyStatus, KeyStrategy
 from app.services.idempotency.idempotency_manager import IdempotencyManager
-from app.services.idempotency.middleware import IdempotentConsumerWrapper
-from app.settings import Settings
 from dishka import AsyncContainer
-
 from tests.conftest import make_execution_requested_event
 
-# xdist_group: Kafka consumer creation can crash librdkafka when multiple workers
-# instantiate Consumer() objects simultaneously. Serial execution prevents this.
-pytestmark = [
-    pytest.mark.e2e,
-    pytest.mark.kafka,
-    pytest.mark.redis,
-    pytest.mark.xdist_group("kafka_consumers"),
-]
-
-_test_logger = logging.getLogger("test.idempotency.consumer_idempotent")
+pytestmark = [pytest.mark.e2e, pytest.mark.redis]
 
 
 @pytest.mark.asyncio
-async def test_consumer_idempotent_wrapper_blocks_duplicates(scope: AsyncContainer) -> None:
-    producer: UnifiedProducer = await scope.get(UnifiedProducer)
+async def test_idempotency_manager_blocks_duplicates(scope: AsyncContainer) -> None:
+    """Test that IdempotencyManager blocks duplicate events.
+
+    This tests the core idempotency behavior directly without Kafka:
+    1. First check_and_reserve() returns is_duplicate=False (key reserved)
+    2. Second check_and_reserve() returns is_duplicate=True (duplicate blocked)
+    """
     idm: IdempotencyManager = await scope.get(IdempotencyManager)
-    registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
-    settings: Settings = await scope.get(Settings)
-    event_metrics: EventMetrics = await scope.get(EventMetrics)
 
-    # Future resolves when handler processes an event - no polling needed
-    handled_future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
-    seen = {"n": 0}
-
-    # Build a dispatcher that signals completion via future
-    disp: Disp = EventDispatcher(logger=_test_logger)
-
-    @disp.register(EventType.EXECUTION_REQUESTED)
-    async def handle(_ev: DomainEvent) -> None:
-        seen["n"] += 1
-        if not handled_future.done():
-            handled_future.set_result(None)
-
-    # Produce messages BEFORE starting consumer (auto_offset_reset="earliest" will read them)
     execution_id = f"e-{uuid.uuid4().hex[:8]}"
-    ev = make_execution_requested_event(execution_id=execution_id)
-    await producer.produce(ev, key=execution_id)
-    await producer.produce(ev, key=execution_id)
+    event = make_execution_requested_event(execution_id=execution_id)
 
-    # Real consumer with idempotent wrapper
-    cfg = ConsumerConfig(
-        bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-        group_id=f"test-idem-consumer.{uuid.uuid4().hex[:6]}",
-        enable_auto_commit=True,
-        auto_offset_reset="earliest",
-    )
-    base = UnifiedConsumer(
-        cfg,
-        event_dispatcher=disp,
-        schema_registry=registry,
-        settings=settings,
-        logger=_test_logger,
-        event_metrics=event_metrics,
-    )
-    wrapper = IdempotentConsumerWrapper(
-        consumer=base,
-        idempotency_manager=idm,
-        dispatcher=disp,
-        default_key_strategy=KeyStrategy.EVENT_BASED,
-        enable_for_all_handlers=True,
-        logger=_test_logger,
-    )
+    # First call: should reserve the key (not a duplicate)
+    result1 = await idm.check_and_reserve(event, key_strategy=KeyStrategy.EVENT_BASED)
+    assert result1.is_duplicate is False
+    assert result1.status == IdempotencyStatus.PROCESSING
 
-    await wrapper.start([KafkaTopic.EXECUTION_EVENTS])
-    try:
-        # Await the future directly - true async, no polling
-        await asyncio.wait_for(handled_future, timeout=10.0)
-        assert seen["n"] >= 1
-    finally:
-        await wrapper.stop()
+    # Second call with same event: should be blocked (is a duplicate)
+    result2 = await idm.check_and_reserve(event, key_strategy=KeyStrategy.EVENT_BASED)
+    assert result2.is_duplicate is True
+    assert result2.status == IdempotencyStatus.PROCESSING
+
+
+@pytest.mark.asyncio
+async def test_idempotency_manager_allows_different_events(scope: AsyncContainer) -> None:
+    """Test that different events are processed independently."""
+    idm: IdempotencyManager = await scope.get(IdempotencyManager)
+
+    event1 = make_execution_requested_event(execution_id=f"e-{uuid.uuid4().hex[:8]}")
+    event2 = make_execution_requested_event(execution_id=f"e-{uuid.uuid4().hex[:8]}")
+
+    result1 = await idm.check_and_reserve(event1, key_strategy=KeyStrategy.EVENT_BASED)
+    result2 = await idm.check_and_reserve(event2, key_strategy=KeyStrategy.EVENT_BASED)
+
+    # Both should be allowed (different events)
+    assert result1.is_duplicate is False
+    assert result2.is_duplicate is False
+
+
+@pytest.mark.asyncio
+async def test_idempotency_manager_mark_completed(scope: AsyncContainer) -> None:
+    """Test marking an event as completed."""
+    idm: IdempotencyManager = await scope.get(IdempotencyManager)
+
+    event = make_execution_requested_event(execution_id=f"e-{uuid.uuid4().hex[:8]}")
+
+    # Reserve the key
+    result = await idm.check_and_reserve(event, key_strategy=KeyStrategy.EVENT_BASED)
+    assert result.is_duplicate is False
+
+    # Mark as completed
+    marked = await idm.mark_completed(event, key_strategy=KeyStrategy.EVENT_BASED)
+    assert marked is True
+
+    # Check again - should still be duplicate but now COMPLETED status
+    result2 = await idm.check_and_reserve(event, key_strategy=KeyStrategy.EVENT_BASED)
+    assert result2.is_duplicate is True
+    assert result2.status == IdempotencyStatus.COMPLETED
+
+
+@pytest.mark.asyncio
+async def test_idempotency_manager_mark_failed(scope: AsyncContainer) -> None:
+    """Test marking an event as failed."""
+    idm: IdempotencyManager = await scope.get(IdempotencyManager)
+
+    event = make_execution_requested_event(execution_id=f"e-{uuid.uuid4().hex[:8]}")
+
+    # Reserve the key
+    result = await idm.check_and_reserve(event, key_strategy=KeyStrategy.EVENT_BASED)
+    assert result.is_duplicate is False
+
+    # Mark as failed
+    marked = await idm.mark_failed(event, error="test error", key_strategy=KeyStrategy.EVENT_BASED)
+    assert marked is True
+
+    # Check again - should be duplicate with FAILED status
+    result2 = await idm.check_and_reserve(event, key_strategy=KeyStrategy.EVENT_BASED)
+    assert result2.is_duplicate is True
+    assert result2.status == IdempotencyStatus.FAILED
+
+
+@pytest.mark.asyncio
+async def test_idempotency_manager_remove_key(scope: AsyncContainer) -> None:
+    """Test removing an idempotency key allows reprocessing."""
+    idm: IdempotencyManager = await scope.get(IdempotencyManager)
+
+    event = make_execution_requested_event(execution_id=f"e-{uuid.uuid4().hex[:8]}")
+
+    # Reserve the key
+    result1 = await idm.check_and_reserve(event, key_strategy=KeyStrategy.EVENT_BASED)
+    assert result1.is_duplicate is False
+
+    # Remove the key
+    removed = await idm.remove(event, key_strategy=KeyStrategy.EVENT_BASED)
+    assert removed is True
+
+    # Now the same event can be processed again
+    result2 = await idm.check_and_reserve(event, key_strategy=KeyStrategy.EVENT_BASED)
+    assert result2.is_duplicate is False
+
+
+@pytest.mark.asyncio
+async def test_idempotency_content_hash_strategy(scope: AsyncContainer) -> None:
+    """Test content hash strategy blocks events with same content but different IDs."""
+    idm: IdempotencyManager = await scope.get(IdempotencyManager)
+
+    execution_id = f"e-{uuid.uuid4().hex[:8]}"
+    # Two events with different event_ids but same content
+    event1 = make_execution_requested_event(execution_id=execution_id)
+    event2 = make_execution_requested_event(execution_id=execution_id)
+
+    # With CONTENT_HASH strategy, same content = duplicate
+    result1 = await idm.check_and_reserve(event1, key_strategy=KeyStrategy.CONTENT_HASH)
+    result2 = await idm.check_and_reserve(event2, key_strategy=KeyStrategy.CONTENT_HASH)
+
+    assert result1.is_duplicate is False
+    assert result2.is_duplicate is True  # Same content = blocked

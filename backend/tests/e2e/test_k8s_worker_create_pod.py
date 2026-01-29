@@ -3,6 +3,7 @@ import uuid
 
 import pytest
 from app.core.metrics import EventMetrics
+from app.domain.enums.execution import QueuePriority
 from app.domain.events.typed import CreatePodCommandEvent, EventMetadata
 from app.events.core import EventDispatcher, UnifiedProducer
 from app.services.k8s_worker import KubernetesWorker
@@ -50,7 +51,7 @@ async def test_worker_creates_configmap_and_pod(
         memory_limit="128Mi",
         cpu_request="50m",
         memory_request="64Mi",
-        priority=5,
+        priority=QueuePriority.NORMAL,
         metadata=EventMetadata(service_name="tests", service_version="1", user_id="u1"),
     )
 

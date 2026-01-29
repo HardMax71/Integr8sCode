@@ -8,8 +8,8 @@ from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.kafka import GroupId
+from app.events.core import UnifiedConsumer
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
-from app.services.coordinator.coordinator import ExecutionCoordinator
 from app.settings import Settings
 from beanie import init_beanie
 
@@ -27,10 +27,10 @@ async def run_coordinator(settings: Settings) -> None:
     schema_registry = await container.get(SchemaRegistryManager)
     await initialize_event_schemas(schema_registry)
 
-    # Services are already started by the DI container providers
-    coordinator = await container.get(ExecutionCoordinator)
+    # Get consumer (triggers coordinator + dispatcher + queue_manager + scheduling via DI)
+    await container.get(UnifiedConsumer)
 
-    # Shutdown event - signal handlers just set this
+    # Shutdown event
     shutdown_event = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -39,13 +39,8 @@ async def run_coordinator(settings: Settings) -> None:
     logger.info("ExecutionCoordinator started and running")
 
     try:
-        # Wait for shutdown signal or service to stop
-        while coordinator.is_running and not shutdown_event.is_set():
-            await asyncio.sleep(60)
-            status = await coordinator.get_status()
-            logger.info(f"Coordinator status: {status}")
+        await shutdown_event.wait()
     finally:
-        # Container cleanup stops everything
         logger.info("Initiating graceful shutdown...")
         await container.close()
 

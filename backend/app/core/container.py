@@ -53,6 +53,7 @@ def create_app_container(settings: Settings) -> AsyncContainer:
         AdminServicesProvider(),
         EventReplayProvider(),
         BusinessServicesProvider(),
+        CoordinatorProvider(),
         KubernetesProvider(),
         ResourceCleanerProvider(),
         FastapiProvider(),

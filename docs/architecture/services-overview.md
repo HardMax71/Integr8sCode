@@ -12,7 +12,7 @@ EXECUTION_EVENTS carries lifecycle updates like queued, started, running, and ca
 
 ## Execution pipeline services
 
-The coordinator/ module contains QueueManager which maintains an in-memory view of pending executions with priorities, aging, and backpressure. It doesn't own metrics for queue depth (that's centralized in coordinator metrics) and doesn't publish commands directly, instead emitting events for the Saga Orchestrator to process. This provides fairness, limits, and stale-job cleanup in one place while preventing double publications.
+The coordinator/ module maintains an in-memory priority queue of pending executions with per-user limits, stale-job cleanup, and backpressure. Queue state is private to the ExecutionCoordinator class. The coordinator emits events for the Saga Orchestrator to process, providing fairness, limits, and cleanup in one place while preventing double publications.
 
 The saga/ module has ExecutionSaga which encodes the multi-step execution flow from receiving a request through creating a pod command, observing pod outcomes, and committing the result. The Saga Orchestrator subscribes to EXECUTION events, reconstructs sagas, and issues SAGA_COMMANDS to the worker with goals of idempotency across restarts, clean compensation on failure, and avoiding duplicate side-effects.
 
@@ -60,7 +60,7 @@ The Result Processor persists terminal execution outcomes, updates metrics, and 
 
 The Pod Monitor observes K8s pod state and translates to domain events. It watches CoreV1 Pod events and publishes EXECUTION_EVENTS for running, container started, logs tail, etc., adding useful metadata and best-effort failure analysis.
 
-The Coordinator owns the admission/queuing policy, sets priorities, and gates starts based on capacity. It interacts with ExecutionService (API) and Saga Orchestrator (events), ensuring queue depth metrics reflect only user requests and avoiding negative values via single ownership of the counter.
+The Coordinator owns the admission/queuing policy and sets priorities. It interacts with ExecutionService (API) and Saga Orchestrator (events), ensuring queue depth metrics reflect only user requests and avoiding negative values via single ownership of the counter. Resource limits are enforced by Kubernetes pod manifests, not by the coordinator.
 
 The Event Replay worker re-emits stored events to debug or rebuild projections, taking DB/event store and filters as inputs and outputting replayed events on regular topics with provenance markers.
 

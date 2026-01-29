@@ -1,6 +1,7 @@
 import logging
 
 import pytest
+from app.domain.enums.execution import QueuePriority
 from app.domain.events.typed import ExecutionRequestedEvent
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.settings import Settings
@@ -24,7 +25,7 @@ def test_deserialize_json_execution_requested(test_settings: Settings) -> None:
         "memory_limit": "128Mi",
         "cpu_request": "50m",
         "memory_request": "64Mi",
-        "priority": 5,
+        "priority": QueuePriority.NORMAL,
         "metadata": {"service_name": "t", "service_version": "1.0"},
     }
     ev = m.deserialize_json(data)

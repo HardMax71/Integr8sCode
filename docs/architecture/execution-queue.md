@@ -1,8 +1,8 @@
 # Execution Queue
 
-The ExecutionCoordinator manages a priority queue for script executions, allocating CPU and memory resources before
-spawning pods. It consumes `ExecutionRequested` events, validates resource availability, and emits commands to the
-Kubernetes worker via the saga system. Per-user limits and stale timeout handling prevent queue abuse.
+The ExecutionCoordinator manages a priority queue for script executions. It consumes `ExecutionRequested` events, queues
+them by priority, and emits `CreatePodCommand` events to the Kubernetes worker. Per-user limits and stale timeout
+handling prevent queue abuse. Actual resource enforcement happens at the Kubernetes level via pod manifests.
 
 ## Architecture
 
@@ -15,17 +15,12 @@ flowchart TB
     end
 
     subgraph Coordinator
-        COORD --> QUEUE[QueueManager]
-        COORD --> RESOURCES[ResourceManager]
-        QUEUE --> HEAP[(Priority Heap)]
-        RESOURCES --> POOL[(Resource Pool)]
+        COORD --> HEAP[(Priority Heap)]
     end
 
-    subgraph Scheduling Loop
-        LOOP[Get Next Execution] --> CHECK{Resources Available?}
-        CHECK -->|Yes| ALLOCATE[Allocate Resources]
-        CHECK -->|No| REQUEUE[Requeue Execution]
-        ALLOCATE --> PUBLISH[Publish CreatePodCommand]
+    subgraph Scheduling
+        DEDUP{Already Active?} -->|No| PUBLISH[Publish CreatePodCommand]
+        DEDUP -->|Yes| SKIP[Skip]
     end
 ```
 
@@ -34,18 +29,17 @@ flowchart TB
 Executions enter the queue with one of five priority levels. Lower numeric values are processed first:
 
 ```python
---8<-- "backend/app/services/coordinator/queue_manager.py:14:19"
+--8<-- "backend/app/services/coordinator/coordinator.py:32:37"
 ```
 
-The queue uses Python's `heapq` module, which efficiently maintains the priority ordering. When resources are
-unavailable, executions are requeued with reduced priority to prevent starvation of lower-priority work.
+The queue uses Python's `heapq` module, which efficiently maintains the priority ordering.
 
 ## Per-User Limits
 
 The queue enforces per-user execution limits to prevent a single user from monopolizing resources:
 
 ```python
---8<-- "backend/app/services/coordinator/queue_manager.py:42:54"
+--8<-- "backend/app/services/coordinator/coordinator.py:70:79"
 ```
 
 When a user exceeds their limit, new execution requests are rejected with an error message indicating the limit has been
@@ -53,70 +47,41 @@ reached.
 
 ## Stale Timeout
 
-Executions that sit in the queue too long (default 1 hour) are automatically removed by a background cleanup task. This
-prevents abandoned requests from consuming queue space indefinitely:
+Executions that sit in the queue too long (default 1 hour) are lazily swept when the queue is full. This prevents
+abandoned requests from consuming queue space indefinitely.
 
-```python
---8<-- "backend/app/services/coordinator/queue_manager.py:243:267"
-```
+## Reactive Scheduling
 
-## Resource Allocation
+The coordinator does not use a background polling loop. Scheduling is event-driven: when an execution is added at
+position 0 in the queue, or when an active execution completes, fails, or is cancelled, the coordinator immediately
+tries to schedule the next queued execution. A dedup guard (`_active_executions` set) prevents double-publishing
+`CreatePodCommand` for the same execution.
 
-The ResourceManager tracks a pool of CPU, memory, and GPU resources. Each execution requests an allocation based on
-language defaults or explicit requirements:
-
-```python
---8<-- "backend/app/services/coordinator/resource_manager.py:121:130"
-```
-
-The pool maintains minimum reserve thresholds to ensure the system remains responsive even under heavy load. Allocations
-that would exceed the safe threshold are rejected, and the execution is requeued for later processing.
-
-```python
---8<-- "backend/app/services/coordinator/resource_manager.py:135:148"
-```
-
-## Scheduling Loop
-
-The coordinator runs a background scheduling loop that continuously pulls executions from the queue and attempts to
-schedule them:
-
-```python
---8<-- "backend/app/services/coordinator/coordinator.py:307:323"
-```
-
-A semaphore limits concurrent scheduling operations to prevent overwhelming the system during bursts of incoming
-requests.
+Resource limits (CPU, memory) are enforced by Kubernetes via pod manifest `resources.requests` and `resources.limits`,
+not by the coordinator.
 
 ## Event Flow
 
 The coordinator handles several event types:
 
-1. **ExecutionRequested** - Adds execution to queue, publishes `ExecutionAccepted`
-2. **ExecutionCancelled** - Removes from queue, releases resources if allocated
-3. **ExecutionCompleted** - Releases allocated resources
-4. **ExecutionFailed** - Releases allocated resources
+1. **ExecutionRequested** - Adds execution to queue, publishes `ExecutionAccepted`, triggers scheduling if at front
+2. **ExecutionCancelled** - Removes from queue, triggers scheduling of next item
+3. **ExecutionCompleted** - Removes from active set, triggers scheduling of next item
+4. **ExecutionFailed** - Removes from active set, triggers scheduling of next item
 
 When scheduling succeeds, the coordinator publishes a `CreatePodCommand` to the saga topic, triggering pod creation by
 the Kubernetes worker.
 
 ## Configuration
 
-| Parameter                     | Default | Description                          |
-|-------------------------------|---------|--------------------------------------|
-| `max_queue_size`              | 10000   | Maximum executions in queue          |
-| `max_executions_per_user`     | 100     | Per-user queue limit                 |
-| `stale_timeout_seconds`       | 3600    | When to discard old executions       |
-| `max_concurrent_scheduling`   | 10      | Parallel scheduling operations       |
-| `scheduling_interval_seconds` | 0.5     | Polling interval when queue is empty |
-| `total_cpu_cores`             | 32.0    | Total CPU pool                       |
-| `total_memory_mb`             | 65536   | Total memory pool (64GB)             |
-| `overcommit_factor`           | 1.2     | Allow 20% resource overcommit        |
+| Parameter                 | Default | Description                    |
+|---------------------------|---------|--------------------------------|
+| `max_queue_size`          | 10000   | Maximum executions in queue    |
+| `max_executions_per_user` | 100     | Per-user queue limit           |
+| `stale_timeout_seconds`   | 3600    | When to discard old executions |
 
 ## Key Files
 
 | File                                                                                                                                                   | Purpose                       |
 |--------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------|
-| [`services/coordinator/coordinator.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/coordinator/coordinator.py)           | Main coordinator service      |
-| [`services/coordinator/queue_manager.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/coordinator/queue_manager.py)       | Priority queue implementation |
-| [`services/coordinator/resource_manager.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/coordinator/resource_manager.py) | Resource pool and allocation  |
+| [`services/coordinator/coordinator.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/coordinator/coordinator.py) | Coordinator service with integrated priority queue |

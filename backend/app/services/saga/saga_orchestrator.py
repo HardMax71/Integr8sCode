@@ -19,7 +19,6 @@ from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, Un
 from app.events.event_store import EventStore
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.mappings import get_topic_for_event
-from app.services.idempotency.idempotency_manager import IdempotencyManager
 from app.settings import Settings
 
 from .base_saga import BaseSaga
@@ -38,7 +37,6 @@ class SagaOrchestrator(LifecycleEnabled):
         schema_registry_manager: SchemaRegistryManager,
         settings: Settings,
         event_store: EventStore,
-        idempotency_manager: IdempotencyManager,
         resource_allocation_repository: ResourceAllocationRepository,
         logger: logging.Logger,
         event_metrics: EventMetrics,
@@ -48,7 +46,6 @@ class SagaOrchestrator(LifecycleEnabled):
         self._sagas: dict[str, type[BaseSaga]] = {}
         self._running_instances: dict[str, Saga] = {}
         self._consumer: UnifiedConsumer | None = None
-        self._idempotency_manager: IdempotencyManager = idempotency_manager
         self._producer = producer
         self._schema_registry_manager = schema_registry_manager
         self._settings = settings
@@ -597,7 +594,6 @@ def create_saga_orchestrator(
     schema_registry_manager: SchemaRegistryManager,
     settings: Settings,
     event_store: EventStore,
-    idempotency_manager: IdempotencyManager,
     resource_allocation_repository: ResourceAllocationRepository,
     config: SagaConfig,
     logger: logging.Logger,
@@ -611,7 +607,6 @@ def create_saga_orchestrator(
         schema_registry_manager: Schema registry manager for event serialization
         settings: Application settings
         event_store: Event store instance for event sourcing
-        idempotency_manager: Manager for idempotent event processing
         resource_allocation_repository: Repository for resource allocations
         config: Saga configuration
         logger: Logger instance
@@ -627,7 +622,6 @@ def create_saga_orchestrator(
         schema_registry_manager=schema_registry_manager,
         settings=settings,
         event_store=event_store,
-        idempotency_manager=idempotency_manager,
         resource_allocation_repository=resource_allocation_repository,
         logger=logger,
         event_metrics=event_metrics,

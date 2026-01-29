@@ -88,7 +88,7 @@ class EventDispatcher:
 
         # Run handlers concurrently for better performance
         tasks = [self._execute_handler(handler, event) for handler in handlers]
-        await asyncio.gather(*tasks, return_exceptions=True)
+        await asyncio.gather(*tasks)
 
     async def _execute_handler(self, handler: EventHandler, event: DomainEvent) -> None:
         """

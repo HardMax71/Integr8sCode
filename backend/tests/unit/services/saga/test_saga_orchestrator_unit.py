@@ -12,7 +12,6 @@ from app.domain.saga.models import Saga, SagaConfig
 from app.events.core import UnifiedProducer
 from app.events.event_store import EventStore
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.services.idempotency.idempotency_manager import IdempotencyManager
 from app.services.saga.base_saga import BaseSaga
 from app.services.saga.saga_orchestrator import SagaOrchestrator
 from app.services.saga.saga_step import CompensationStep, SagaContext, SagaStep
@@ -49,16 +48,6 @@ class _FakeProd(UnifiedProducer):
     async def produce(
         self, event_to_produce: DomainEvent, key: str | None = None, headers: dict[str, str] | None = None
     ) -> None:
-        return None
-
-
-class _FakeIdem(IdempotencyManager):
-    """Fake IdempotencyManager for testing."""
-
-    def __init__(self) -> None:
-        pass  # Skip parent __init__
-
-    async def close(self) -> None:
         return None
 
 
@@ -108,7 +97,6 @@ def _orch(event_metrics: EventMetrics) -> SagaOrchestrator:
         schema_registry_manager=MagicMock(spec=SchemaRegistryManager),
         settings=MagicMock(spec=Settings),
         event_store=_FakeStore(),
-        idempotency_manager=_FakeIdem(),
         resource_allocation_repository=_FakeAlloc(),
         logger=_test_logger,
         event_metrics=event_metrics,
@@ -136,7 +124,6 @@ async def test_should_trigger_and_existing_short_circuit(event_metrics: EventMet
         schema_registry_manager=MagicMock(spec=SchemaRegistryManager),
         settings=MagicMock(spec=Settings),
         event_store=_FakeStore(),
-        idempotency_manager=_FakeIdem(),
         resource_allocation_repository=_FakeAlloc(),
         logger=_test_logger,
         event_metrics=event_metrics,

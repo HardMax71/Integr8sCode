@@ -1,9 +1,9 @@
+from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
 from app.domain.events.typed import CreatePodCommandEvent, EventMetadata
-from app.services.k8s_worker.config import K8sWorkerConfig
-from app.services.k8s_worker.pod_builder import PodBuilder
+from app.services.k8s_worker import PodBuilder
 from kubernetes_asyncio import client as k8s_client
 
 
@@ -11,15 +11,20 @@ class TestPodBuilder:
     """Test PodBuilder functionality."""
 
     @pytest.fixture
-    def pod_builder(self) -> PodBuilder:
+    def mock_settings(self) -> MagicMock:
+        """Create mock settings with K8s config values."""
+        settings = MagicMock()
+        settings.K8S_NAMESPACE = "integr8scode"
+        settings.K8S_POD_CPU_REQUEST = "100m"
+        settings.K8S_POD_MEMORY_REQUEST = "128Mi"
+        settings.K8S_POD_CPU_LIMIT = "500m"
+        settings.K8S_POD_MEMORY_LIMIT = "512Mi"
+        return settings
+
+    @pytest.fixture
+    def pod_builder(self, mock_settings: MagicMock) -> PodBuilder:
         """Create PodBuilder instance."""
-        config = K8sWorkerConfig(
-            default_cpu_request="100m",
-            default_memory_request="128Mi",
-            default_cpu_limit="500m",
-            default_memory_limit="512Mi"
-        )
-        return PodBuilder(namespace="integr8scode", config=config)
+        return PodBuilder(settings=mock_settings)
 
     @pytest.fixture
     def create_pod_command(self) -> CreatePodCommandEvent:
@@ -134,7 +139,8 @@ class TestPodBuilder:
 
     def test_container_resources_defaults(
             self,
-            pod_builder: PodBuilder
+            pod_builder: PodBuilder,
+            mock_settings: MagicMock
     ) -> None:
         """Test container resource defaults."""
         command = CreatePodCommandEvent(
@@ -164,11 +170,11 @@ class TestPodBuilder:
         pod = pod_builder.build_pod_manifest(command)
         container = pod.spec.containers[0]
 
-        # Verify default resources from config
-        assert container.resources.requests["cpu"] == "100m"
-        assert container.resources.requests["memory"] == "128Mi"
-        assert container.resources.limits["cpu"] == "500m"
-        assert container.resources.limits["memory"] == "512Mi"
+        # Verify default resources from settings
+        assert container.resources.requests["cpu"] == mock_settings.K8S_POD_CPU_REQUEST
+        assert container.resources.requests["memory"] == mock_settings.K8S_POD_MEMORY_REQUEST
+        assert container.resources.limits["cpu"] == mock_settings.K8S_POD_CPU_LIMIT
+        assert container.resources.limits["memory"] == mock_settings.K8S_POD_MEMORY_LIMIT
 
     def test_pod_volumes(
             self,
@@ -267,7 +273,7 @@ class TestPodBuilder:
 
     def test_pod_timeout_default(
             self,
-            pod_builder: PodBuilder
+            pod_builder: PodBuilder,
     ) -> None:
         """Test default pod timeout."""
         command = CreatePodCommandEvent(
@@ -323,7 +329,7 @@ class TestPodBuilder:
 
     def test_pod_labels_truncation(
             self,
-            pod_builder: PodBuilder
+            pod_builder: PodBuilder,
     ) -> None:
         """Test label value truncation for K8s limits."""
         long_id = "a" * 100  # Exceeds K8s 63 char limit
@@ -375,7 +381,7 @@ class TestPodBuilder:
 
     def test_different_languages(
             self,
-            pod_builder: PodBuilder
+            pod_builder: PodBuilder,
     ) -> None:
         """Test pod creation for different languages."""
         languages = [

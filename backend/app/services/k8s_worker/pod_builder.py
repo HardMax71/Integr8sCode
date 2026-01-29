@@ -1,13 +1,12 @@
 from kubernetes_asyncio import client as k8s_client
 
 from app.domain.events.typed import CreatePodCommandEvent
-from app.services.k8s_worker.config import K8sWorkerConfig
+from app.settings import Settings
 
 
 class PodBuilder:
-    def __init__(self, namespace: str = "integr8scode", config: K8sWorkerConfig | None = None):
-        self.namespace = namespace
-        self.config = config or K8sWorkerConfig()
+    def __init__(self, settings: Settings):
+        self._settings = settings
 
     def build_pod_manifest(self, command: CreatePodCommandEvent) -> k8s_client.V1Pod:
         execution_id = command.execution_id
@@ -38,7 +37,7 @@ class PodBuilder:
             kind="ConfigMap",
             metadata=k8s_client.V1ObjectMeta(
                 name=f"script-{execution_id}",
-                namespace=self.namespace,
+                namespace=self._settings.K8S_NAMESPACE,
                 labels={
                     "app": "integr8s",
                     "component": "execution-script",
@@ -55,11 +54,11 @@ class PodBuilder:
         # Timeout is enforced by activeDeadlineSeconds on the pod spec
         container_command = ["/bin/sh", "/entry/entrypoint.sh"] + command.runtime_command
 
-        # Get resources - prefer command values, fallback to config
-        cpu_request = command.cpu_request or self.config.default_cpu_request
-        memory_request = command.memory_request or self.config.default_memory_request
-        cpu_limit = command.cpu_limit or self.config.default_cpu_limit
-        memory_limit = command.memory_limit or self.config.default_memory_limit
+        # Get resources - prefer command values, fallback to settings
+        cpu_request = command.cpu_request or self._settings.K8S_POD_CPU_REQUEST
+        memory_request = command.memory_request or self._settings.K8S_POD_MEMORY_REQUEST
+        cpu_limit = command.cpu_limit or self._settings.K8S_POD_CPU_LIMIT
+        memory_limit = command.memory_limit or self._settings.K8S_POD_MEMORY_LIMIT
 
         container = k8s_client.V1Container(
             name="executor",
@@ -181,4 +180,6 @@ class PodBuilder:
         if saga_id:
             annotations["integr8s.io/saga-id"] = saga_id
 
-        return k8s_client.V1ObjectMeta(name=name, namespace=self.namespace, labels=labels, annotations=annotations)
+        return k8s_client.V1ObjectMeta(
+            name=name, namespace=self._settings.K8S_NAMESPACE, labels=labels, annotations=annotations
+        )

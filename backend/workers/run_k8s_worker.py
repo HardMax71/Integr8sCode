@@ -10,7 +10,7 @@ from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.kafka import GroupId
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.services.idempotency.middleware import IdempotentConsumerWrapper
-from app.services.k8s_worker.worker import KubernetesWorker
+from app.services.k8s_worker import KubernetesWorker
 from app.settings import Settings
 from beanie import init_beanie
 

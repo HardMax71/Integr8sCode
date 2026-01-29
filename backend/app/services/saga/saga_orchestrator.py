@@ -14,13 +14,11 @@ from app.db.repositories.saga_repository import SagaRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.saga import SagaState
 from app.domain.events.typed import DomainEvent, EventMetadata, SagaCancelledEvent
-from app.domain.idempotency import KeyStrategy
 from app.domain.saga.models import Saga, SagaConfig
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
 from app.events.event_store import EventStore
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.mappings import get_topic_for_event
-from app.services.idempotency import IdempotentConsumerWrapper
 from app.services.idempotency.idempotency_manager import IdempotencyManager
 from app.settings import Settings
 
@@ -49,7 +47,7 @@ class SagaOrchestrator(LifecycleEnabled):
         self.config = config
         self._sagas: dict[str, type[BaseSaga]] = {}
         self._running_instances: dict[str, Saga] = {}
-        self._consumer: IdempotentConsumerWrapper | None = None
+        self._consumer: UnifiedConsumer | None = None
         self._idempotency_manager: IdempotencyManager = idempotency_manager
         self._producer = producer
         self._schema_registry_manager = schema_registry_manager
@@ -145,7 +143,7 @@ class SagaOrchestrator(LifecycleEnabled):
             dispatcher.register_handler(event_type, self._handle_event)
             self.logger.info(f"Registered handler for event type: {event_type}")
 
-        base_consumer = UnifiedConsumer(
+        self._consumer = UnifiedConsumer(
             config=consumer_config,
             event_dispatcher=dispatcher,
             schema_registry=self._schema_registry_manager,
@@ -153,17 +151,7 @@ class SagaOrchestrator(LifecycleEnabled):
             logger=self.logger,
             event_metrics=self._event_metrics,
         )
-        self._consumer = IdempotentConsumerWrapper(
-            consumer=base_consumer,
-            idempotency_manager=self._idempotency_manager,
-            dispatcher=dispatcher,
-            logger=self.logger,
-            default_key_strategy=KeyStrategy.EVENT_BASED,
-            default_ttl_seconds=7200,
-            enable_for_all_handlers=False,
-        )
 
-        assert self._consumer is not None
         await self._consumer.start(list(topics))
 
         self.logger.info(f"Saga consumer started for topics: {topics}")

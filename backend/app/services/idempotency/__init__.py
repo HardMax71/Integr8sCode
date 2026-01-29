@@ -1,19 +1,16 @@
 from app.domain.idempotency import IdempotencyStatus
 from app.services.idempotency.idempotency_manager import (
     IdempotencyConfig,
-    IdempotencyKeyStrategy,
     IdempotencyManager,
     IdempotencyResult,
 )
-from app.services.idempotency.middleware import IdempotentConsumerWrapper, IdempotentEventHandler, idempotent_handler
+from app.services.idempotency.middleware import IdempotentEventDispatcher, IdempotentEventHandler
 
 __all__ = [
-    "IdempotencyManager",
     "IdempotencyConfig",
+    "IdempotencyManager",
     "IdempotencyResult",
     "IdempotencyStatus",
-    "IdempotencyKeyStrategy",
+    "IdempotentEventDispatcher",
     "IdempotentEventHandler",
-    "idempotent_handler",
-    "IdempotentConsumerWrapper",
 ]

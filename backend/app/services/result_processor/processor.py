@@ -22,11 +22,8 @@ from app.domain.events.typed import (
     ResultStoredEvent,
 )
 from app.domain.execution import ExecutionNotFoundError, ExecutionResultDomain
-from app.domain.idempotency import KeyStrategy
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.services.idempotency import IdempotencyManager
-from app.services.idempotency.middleware import IdempotentConsumerWrapper
 from app.settings import Settings
 
 
@@ -61,7 +58,7 @@ class ResultProcessor(LifecycleEnabled):
             producer: UnifiedProducer,
             schema_registry: SchemaRegistryManager,
             settings: Settings,
-            idempotency_manager: IdempotencyManager,
+            dispatcher: EventDispatcher,
             logger: logging.Logger,
             execution_metrics: ExecutionMetrics,
             event_metrics: EventMetrics,
@@ -75,20 +72,19 @@ class ResultProcessor(LifecycleEnabled):
         self._settings = settings
         self._metrics = execution_metrics
         self._event_metrics = event_metrics
-        self._idempotency_manager: IdempotencyManager = idempotency_manager
+        self._dispatcher = dispatcher
         self._state = ProcessingState.IDLE
-        self._consumer: IdempotentConsumerWrapper | None = None
-        self._dispatcher: EventDispatcher | None = None
+        self._consumer: UnifiedConsumer | None = None
         self.logger = logger
 
     async def _on_start(self) -> None:
         """Start the result processor."""
         self.logger.info("Starting ResultProcessor...")
 
-        self._dispatcher = self._create_dispatcher()
+        self._register_handlers()
         self._consumer = await self._create_consumer()
         self._state = ProcessingState.PROCESSING
-        self.logger.info("ResultProcessor started successfully with idempotency protection")
+        self.logger.info("ResultProcessor started successfully")
 
     async def _on_stop(self) -> None:
         """Stop the result processor."""
@@ -101,19 +97,14 @@ class ResultProcessor(LifecycleEnabled):
         # Note: producer is managed by DI container, not stopped here
         self.logger.info("ResultProcessor stopped")
 
-    def _create_dispatcher(self) -> EventDispatcher:
-        """Create and configure event dispatcher with handlers."""
-        dispatcher = EventDispatcher(logger=self.logger)
+    def _register_handlers(self) -> None:
+        """Register event handlers on the dispatcher."""
+        self._dispatcher.register_handler(EventType.EXECUTION_COMPLETED, self._handle_completed_wrapper)
+        self._dispatcher.register_handler(EventType.EXECUTION_FAILED, self._handle_failed_wrapper)
+        self._dispatcher.register_handler(EventType.EXECUTION_TIMEOUT, self._handle_timeout_wrapper)
 
-        # Register handlers for specific event types
-        dispatcher.register_handler(EventType.EXECUTION_COMPLETED, self._handle_completed_wrapper)
-        dispatcher.register_handler(EventType.EXECUTION_FAILED, self._handle_failed_wrapper)
-        dispatcher.register_handler(EventType.EXECUTION_TIMEOUT, self._handle_timeout_wrapper)
-
-        return dispatcher
-
-    async def _create_consumer(self) -> IdempotentConsumerWrapper:
-        """Create and configure idempotent Kafka consumer."""
+    async def _create_consumer(self) -> UnifiedConsumer:
+        """Create and start Kafka consumer."""
         consumer_config = ConsumerConfig(
             bootstrap_servers=self._settings.KAFKA_BOOTSTRAP_SERVERS,
             group_id=self.config.consumer_group,
@@ -126,11 +117,7 @@ class ResultProcessor(LifecycleEnabled):
             request_timeout_ms=self._settings.KAFKA_REQUEST_TIMEOUT_MS,
         )
 
-        # Create consumer with schema registry and dispatcher
-        if not self._dispatcher:
-            raise RuntimeError("Event dispatcher not initialized")
-
-        base_consumer = UnifiedConsumer(
+        consumer = UnifiedConsumer(
             consumer_config,
             event_dispatcher=self._dispatcher,
             schema_registry=self._schema_registry,
@@ -138,17 +125,8 @@ class ResultProcessor(LifecycleEnabled):
             logger=self.logger,
             event_metrics=self._event_metrics,
         )
-        wrapper = IdempotentConsumerWrapper(
-            consumer=base_consumer,
-            idempotency_manager=self._idempotency_manager,
-            dispatcher=self._dispatcher,
-            logger=self.logger,
-            default_key_strategy=KeyStrategy.CONTENT_HASH,
-            default_ttl_seconds=7200,
-            enable_for_all_handlers=True,
-        )
-        await wrapper.start(self.config.topics)
-        return wrapper
+        await consumer.start(self.config.topics)
+        return consumer
 
     # Wrappers accepting DomainEvent to satisfy dispatcher typing
 

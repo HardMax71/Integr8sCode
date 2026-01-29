@@ -10,9 +10,11 @@ from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.kafka import GroupId
+from app.domain.idempotency import KeyStrategy
 from app.events.core import UnifiedProducer
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.idempotency import IdempotencyManager
+from app.services.idempotency.middleware import IdempotentEventDispatcher
 from app.services.result_processor.processor import ProcessingState, ResultProcessor
 from app.settings import Settings
 from beanie import init_beanie
@@ -36,13 +38,20 @@ async def run_result_processor(settings: Settings) -> None:
     logger = await container.get(logging.Logger)
     logger.info(f"Beanie ODM initialized with {len(ALL_DOCUMENTS)} document models")
 
+    dispatcher = IdempotentEventDispatcher(
+        logger=logger,
+        idempotency_manager=idempotency_manager,
+        key_strategy=KeyStrategy.CONTENT_HASH,
+        ttl_seconds=7200,
+    )
+
     # ResultProcessor is manually created (not from DI), so we own its lifecycle
     processor = ResultProcessor(
         execution_repo=execution_repo,
         producer=producer,
         schema_registry=schema_registry,
         settings=settings,
-        idempotency_manager=idempotency_manager,
+        dispatcher=dispatcher,
         logger=logger,
         execution_metrics=execution_metrics,
         event_metrics=event_metrics,

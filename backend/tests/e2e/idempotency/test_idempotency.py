@@ -3,7 +3,6 @@ import json
 import logging
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any
 
 import pytest
 import redis.asyncio as redis
@@ -11,7 +10,7 @@ from app.core.metrics import DatabaseMetrics
 from app.domain.events.typed import DomainEvent
 from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus, KeyStrategy
 from app.services.idempotency.idempotency_manager import IdempotencyConfig, IdempotencyManager
-from app.services.idempotency.middleware import IdempotentEventHandler, idempotent_handler
+from app.services.idempotency.middleware import IdempotentEventHandler
 from app.services.idempotency.redis_repository import RedisIdempotencyRepository
 from app.settings import Settings
 
@@ -35,7 +34,6 @@ class TestIdempotencyManager:
             processing_timeout_seconds=5,
             enable_result_caching=True,
             max_result_size_bytes=1024,
-            enable_metrics=False,
         )
         repo = RedisIdempotencyRepository(redis_client, key_prefix=prefix)
         database_metrics = DatabaseMetrics(test_settings)
@@ -194,26 +192,6 @@ class TestIdempotencyManager:
         assert duplicate_result.is_duplicate is True
         assert duplicate_result.has_cached_result is True
 
-    @pytest.mark.asyncio
-    async def test_remove_key(self, manager: IdempotencyManager) -> None:
-        """Test removing idempotency keys"""
-        real_event = make_execution_requested_event(execution_id="exec-remove-1")
-        # Add a key
-        result = await manager.check_and_reserve(real_event, key_strategy=KeyStrategy.EVENT_BASED)
-        assert result.is_duplicate is False
-
-        # Remove it
-        removed = await manager.remove(real_event, key_strategy=KeyStrategy.EVENT_BASED)
-        assert removed is True
-
-        # Verify it's gone
-        record = await manager._repo.find_by_key(result.key)
-        assert record is None
-
-        # Can process again
-        result2 = await manager.check_and_reserve(real_event, key_strategy=KeyStrategy.EVENT_BASED)
-        assert result2.is_duplicate is False
-
 
 class TestIdempotentEventHandlerIntegration:
     """Test IdempotentEventHandler with real components"""
@@ -221,7 +199,7 @@ class TestIdempotentEventHandlerIntegration:
     @pytest.fixture
     def manager(self, redis_client: redis.Redis, test_settings: Settings) -> IdempotencyManager:
         prefix = f"handler_test:{uuid.uuid4().hex[:6]}"
-        config = IdempotencyConfig(key_prefix=prefix, enable_metrics=False)
+        config = IdempotencyConfig(key_prefix=prefix)
         repo = RedisIdempotencyRepository(redis_client, key_prefix=prefix)
         database_metrics = DatabaseMetrics(test_settings)
         return IdempotencyManager(config, repo, _test_logger, database_metrics=database_metrics)
@@ -300,118 +278,6 @@ class TestIdempotentEventHandlerIntegration:
         assert record.status == IdempotencyStatus.FAILED
         assert record.error is not None
         assert "Processing failed" in record.error
-
-    @pytest.mark.asyncio
-    async def test_handler_duplicate_callback(self, manager: IdempotencyManager) -> None:
-        """Test duplicate callback is invoked"""
-        duplicate_events: list[tuple[DomainEvent, Any]] = []
-
-        async def actual_handler(event: DomainEvent) -> None:  # noqa: ARG001
-            pass  # Do nothing
-
-        async def on_duplicate(event: DomainEvent, result: Any) -> None:
-            duplicate_events.append((event, result))
-
-        handler = IdempotentEventHandler(
-            handler=actual_handler,
-            idempotency_manager=manager,
-            key_strategy=KeyStrategy.EVENT_BASED,
-            on_duplicate=on_duplicate,
-            logger=_test_logger,
-        )
-
-        # Process twice
-        real_event = make_execution_requested_event(execution_id="handler-dup-cb-1")
-        await handler(real_event)
-        await handler(real_event)
-
-        # Verify duplicate callback was called
-        assert len(duplicate_events) == 1
-        assert duplicate_events[0][0] == real_event
-        assert duplicate_events[0][1].is_duplicate is True
-
-    @pytest.mark.asyncio
-    async def test_decorator_integration(self, manager: IdempotencyManager) -> None:
-        """Test the @idempotent_handler decorator"""
-        processed_events: list[DomainEvent] = []
-
-        @idempotent_handler(
-            idempotency_manager=manager,
-            key_strategy=KeyStrategy.CONTENT_HASH,
-            ttl_seconds=300,
-            logger=_test_logger,
-        )
-        async def my_handler(event: DomainEvent) -> None:
-            processed_events.append(event)
-
-        # Process same event twice
-        real_event = make_execution_requested_event(execution_id="decor-1")
-        await my_handler(real_event)
-        await my_handler(real_event)
-
-        # Should only process once
-        assert len(processed_events) == 1
-
-        # Create event with same ID and same content for content hash match
-        similar_event = make_execution_requested_event(
-            execution_id=real_event.execution_id,
-            script=real_event.script,
-        )
-
-        # Should still be blocked (content hash)
-        await my_handler(similar_event)
-        assert len(processed_events) == 1  # Still only one
-
-    @pytest.mark.asyncio
-    async def test_custom_key_function(self, manager: IdempotencyManager) -> None:
-        """Test handler with custom key function"""
-        processed_scripts: list[str] = []
-
-        async def process_script(event: DomainEvent) -> None:
-            script: str = getattr(event, "script", "")
-            processed_scripts.append(script)
-
-        def extract_script_key(event: DomainEvent) -> str:
-            # Custom key based on script content only
-            script: str = getattr(event, "script", "")
-            return f"script:{hash(script)}"
-
-        handler = IdempotentEventHandler(
-            handler=process_script,
-            idempotency_manager=manager,
-            key_strategy=KeyStrategy.CUSTOM,
-            custom_key_func=extract_script_key,
-            logger=_test_logger,
-        )
-
-        # Events with same script
-        event1 = make_execution_requested_event(
-            execution_id="id1",
-            script="print('hello')",
-            service_name="test-service",
-        )
-
-        event2 = make_execution_requested_event(
-            execution_id="id2",
-            language="python",
-            language_version="3.9",  # Different version
-            runtime_image="python:3.9-slim",
-            runtime_command=("python",),
-            runtime_filename="main.py",
-            timeout_seconds=60,  # Different timeout
-            cpu_limit="200m",
-            memory_limit="256Mi",
-            cpu_request="100m",
-            memory_request="128Mi",
-            service_name="test-service",
-        )
-
-        await handler(event1)
-        await handler(event2)
-
-        # Should only process once (same script)
-        assert len(processed_scripts) == 1
-        assert processed_scripts[0] == "print('hello')"
 
     @pytest.mark.asyncio
     async def test_invalid_key_strategy(self, manager: IdempotencyManager) -> None:

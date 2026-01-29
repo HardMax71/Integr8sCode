@@ -11,7 +11,6 @@ class IdempotencyStatus(StringEnum):
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
-    EXPIRED = "expired"
 
 
 class KeyStrategy(StringEnum):

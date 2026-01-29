@@ -61,7 +61,7 @@ from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
 from app.services.grafana_alert_processor import GrafanaAlertProcessor
 from app.services.idempotency import IdempotencyConfig, IdempotencyManager
-from app.services.idempotency.middleware import IdempotentConsumerWrapper
+from app.services.idempotency.middleware import IdempotentEventDispatcher
 from app.services.idempotency.redis_repository import RedisIdempotencyRepository
 from app.services.k8s_worker import KubernetesWorker
 from app.services.kafka_event_service import KafkaEventService
@@ -604,13 +604,19 @@ async def _provide_execution_coordinator(
         event_metrics: EventMetrics,
 ) -> AsyncIterator[ExecutionCoordinator]:
     """Shared factory for ExecutionCoordinator with lifecycle management."""
+    dispatcher = IdempotentEventDispatcher(
+        logger=logger,
+        idempotency_manager=idempotency_manager,
+        key_strategy=KeyStrategy.EVENT_BASED,
+        ttl_seconds=7200,
+    )
     async with ExecutionCoordinator(
             producer=kafka_producer,
             schema_registry_manager=schema_registry,
             settings=settings,
             event_store=event_store,
             execution_repository=execution_repository,
-            idempotency_manager=idempotency_manager,
+            dispatcher=dispatcher,
             logger=logger,
             coordinator_metrics=coordinator_metrics,
             event_metrics=event_metrics,
@@ -707,9 +713,16 @@ class K8sWorkerProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_k8s_worker_dispatcher(self, logger: logging.Logger) -> EventDispatcher:
-        """Create EventDispatcher for K8s worker."""
-        return EventDispatcher(logger=logger)
+    def get_k8s_worker_dispatcher(
+        self, logger: logging.Logger, idempotency_manager: IdempotencyManager
+    ) -> EventDispatcher:
+        """Create idempotent EventDispatcher for K8s worker."""
+        return IdempotentEventDispatcher(
+            logger=logger,
+            idempotency_manager=idempotency_manager,
+            key_strategy=KeyStrategy.CONTENT_HASH,
+            ttl_seconds=3600,
+        )
 
     @provide
     def get_kubernetes_worker(
@@ -738,10 +751,9 @@ class K8sWorkerProvider(Provider):
         dispatcher: EventDispatcher,
         schema_registry: SchemaRegistryManager,
         settings: Settings,
-        idempotency_manager: IdempotencyManager,
         logger: logging.Logger,
         event_metrics: EventMetrics,
-    ) -> AsyncIterator[IdempotentConsumerWrapper]:
+    ) -> AsyncIterator[UnifiedConsumer]:
         """Create and start consumer for K8s worker."""
         consumer_config = ConsumerConfig(
             bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
@@ -762,24 +774,14 @@ class K8sWorkerProvider(Provider):
             event_metrics=event_metrics,
         )
 
-        idempotent_consumer = IdempotentConsumerWrapper(
-            consumer=consumer,
-            idempotency_manager=idempotency_manager,
-            dispatcher=dispatcher,
-            logger=logger,
-            default_key_strategy=KeyStrategy.CONTENT_HASH,
-            default_ttl_seconds=3600,
-            enable_for_all_handlers=True,
-        )
-
-        await idempotent_consumer.start(list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.K8S_WORKER]))
+        await consumer.start(list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.K8S_WORKER]))
         logger.info("K8s worker consumer started")
 
         try:
-            yield idempotent_consumer
+            yield consumer
         finally:
             await worker.wait_for_active_creations()
-            await idempotent_consumer.stop()
+            await consumer.stop()
             logger.info("K8s worker consumer stopped")
 
 

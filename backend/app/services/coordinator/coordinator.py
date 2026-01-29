@@ -20,7 +20,6 @@ from app.domain.events.typed import (
     ExecutionFailedEvent,
     ExecutionRequestedEvent,
 )
-from app.domain.idempotency import KeyStrategy
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
 from app.events.event_store import EventStore
 from app.events.schema.schema_registry import (
@@ -28,8 +27,6 @@ from app.events.schema.schema_registry import (
 )
 from app.services.coordinator.queue_manager import QueueManager, QueuePriority
 from app.services.coordinator.resource_manager import ResourceAllocation, ResourceManager
-from app.services.idempotency import IdempotencyManager
-from app.services.idempotency.middleware import IdempotentConsumerWrapper
 from app.settings import Settings
 
 EventHandler: TypeAlias = Coroutine[Any, Any, None]
@@ -55,7 +52,7 @@ class ExecutionCoordinator(LifecycleEnabled):
         settings: Settings,
         event_store: EventStore,
         execution_repository: ExecutionRepository,
-        idempotency_manager: IdempotencyManager,
+        dispatcher: EventDispatcher,
         logger: logging.Logger,
         coordinator_metrics: CoordinatorMetrics,
         event_metrics: EventMetrics,
@@ -92,12 +89,10 @@ class ExecutionCoordinator(LifecycleEnabled):
 
         # Kafka components
         self.consumer: UnifiedConsumer | None = None
-        self.idempotent_consumer: IdempotentConsumerWrapper | None = None
         self.producer: UnifiedProducer = producer
 
         # Persistence via repositories
         self.execution_repository = execution_repository
-        self.idempotency_manager = idempotency_manager
         self._event_store = event_store
 
         # Scheduling
@@ -110,7 +105,7 @@ class ExecutionCoordinator(LifecycleEnabled):
         self._active_executions: set[str] = set()
         self._execution_resources: ExecutionMap = {}
         self._schema_registry_manager = schema_registry_manager
-        self.dispatcher = EventDispatcher(logger=self.logger)
+        self.dispatcher = dispatcher
 
     async def _on_start(self) -> None:
         """Start the coordinator service."""
@@ -157,19 +152,9 @@ class ExecutionCoordinator(LifecycleEnabled):
         async def handle_cancelled(event: ExecutionCancelledEvent) -> None:
             await self._route_execution_event(event)
 
-        self.idempotent_consumer = IdempotentConsumerWrapper(
-            consumer=self.consumer,
-            idempotency_manager=self.idempotency_manager,
-            dispatcher=self.dispatcher,
-            logger=self.logger,
-            default_key_strategy=KeyStrategy.EVENT_BASED,  # Use event ID for deduplication
-            default_ttl_seconds=7200,  # 2 hours TTL for coordinator events
-            enable_for_all_handlers=True,  # Enable idempotency for ALL handlers
-        )
+        self.logger.info("COORDINATOR: Event handlers registered")
 
-        self.logger.info("COORDINATOR: Event handlers registered with idempotency protection")
-
-        await self.idempotent_consumer.start(list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.EXECUTION_COORDINATOR]))
+        await self.consumer.start(list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.EXECUTION_COORDINATOR]))
 
         # Start scheduling task
         self._scheduling_task = asyncio.create_task(self._scheduling_loop())
@@ -188,9 +173,8 @@ class ExecutionCoordinator(LifecycleEnabled):
             except asyncio.CancelledError:
                 pass
 
-        # Stop consumer (idempotent wrapper only)
-        if self.idempotent_consumer:
-            await self.idempotent_consumer.stop()
+        if self.consumer:
+            await self.consumer.stop()
 
         await self.queue_manager.stop()
 

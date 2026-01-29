@@ -42,7 +42,6 @@ class TestIdempotentEventHandler:
             idempotency_manager=mock_idempotency_manager,
             key_strategy=KeyStrategy.EVENT_BASED,
             ttl_seconds=3600,
-            cache_result=True,
             logger=_test_logger
         )
 
@@ -76,7 +75,6 @@ class TestIdempotentEventHandler:
         mock_idempotency_manager.check_and_reserve.assert_called_once_with(
             event=event,
             key_strategy=KeyStrategy.CONTENT_HASH,
-            custom_key=None,
             ttl_seconds=None,
             fields=fields
         )
@@ -108,15 +106,5 @@ class TestIdempotentEventHandler:
             event=event,
             error="Handler error",
             key_strategy=KeyStrategy.EVENT_BASED,
-            custom_key=None,
             fields=None
         )
-
-    # Duplicate handler and custom key behavior covered by integration tests
-
-
-class TestIdempotentHandlerDecorator:
-    pass
-
-class TestIdempotentConsumerWrapper:
-    pass

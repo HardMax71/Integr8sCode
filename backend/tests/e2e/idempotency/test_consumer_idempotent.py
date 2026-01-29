@@ -92,26 +92,6 @@ async def test_idempotency_manager_mark_failed(scope: AsyncContainer) -> None:
 
 
 @pytest.mark.asyncio
-async def test_idempotency_manager_remove_key(scope: AsyncContainer) -> None:
-    """Test removing an idempotency key allows reprocessing."""
-    idm: IdempotencyManager = await scope.get(IdempotencyManager)
-
-    event = make_execution_requested_event(execution_id=f"e-{uuid.uuid4().hex[:8]}")
-
-    # Reserve the key
-    result1 = await idm.check_and_reserve(event, key_strategy=KeyStrategy.EVENT_BASED)
-    assert result1.is_duplicate is False
-
-    # Remove the key
-    removed = await idm.remove(event, key_strategy=KeyStrategy.EVENT_BASED)
-    assert removed is True
-
-    # Now the same event can be processed again
-    result2 = await idm.check_and_reserve(event, key_strategy=KeyStrategy.EVENT_BASED)
-    assert result2.is_duplicate is False
-
-
-@pytest.mark.asyncio
 async def test_idempotency_content_hash_strategy(scope: AsyncContainer) -> None:
     """Test content hash strategy blocks events with same content but different IDs."""
     idm: IdempotencyManager = await scope.get(IdempotencyManager)

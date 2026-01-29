@@ -44,7 +44,7 @@ The saved_script_service.py handles CRUD for saved scripts with ownership checks
 
 The rate_limit_service.py is a Redis-backed sliding window / token bucket implementation with dynamic configuration per endpoint group, user overrides, and IP fallback. It has a safe failure mode (fail open) with explicit metrics when Redis is unavailable.
 
-The idempotency/ module provides middleware and wrappers to make Kafka consumption idempotent using content-hash or custom keys, used for SAGA_COMMANDS to avoid duplicate pod creation.
+The idempotency/ module provides `IdempotentEventDispatcher`, a subclass of `EventDispatcher` that wraps every registered handler with duplicate detection via content-hash or event-based keys. DI providers create this dispatcher for services consuming Kafka events (coordinator, k8s worker, result processor).
 
 The saga_service.py provides read-model access for saga state and guardrails like enforcing access control on saga inspection routes.
 

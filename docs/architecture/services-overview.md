@@ -12,7 +12,7 @@ EXECUTION_EVENTS carries lifecycle updates like queued, started, running, and ca
 
 ## Execution pipeline services
 
-The coordinator/ module contains QueueManager which maintains an in-memory view of pending executions with priorities, aging, and backpressure. It doesn't own metrics for queue depth (that's centralized in coordinator metrics) and doesn't publish commands directly, instead emitting events for the Saga Orchestrator to process. This provides fairness, limits, and stale-job cleanup in one place while preventing double publications.
+The coordinator/ module maintains an in-memory priority queue of pending executions with per-user limits, stale-job cleanup, and backpressure. Queue state is private to the ExecutionCoordinator class. The coordinator emits events for the Saga Orchestrator to process, providing fairness, limits, and cleanup in one place while preventing double publications.
 
 The saga/ module has ExecutionSaga which encodes the multi-step execution flow from receiving a request through creating a pod command, observing pod outcomes, and committing the result. The Saga Orchestrator subscribes to EXECUTION events, reconstructs sagas, and issues SAGA_COMMANDS to the worker with goals of idempotency across restarts, clean compensation on failure, and avoiding duplicate side-effects.
 

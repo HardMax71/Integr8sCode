@@ -28,10 +28,8 @@ pops the next item and publishes a `CreatePodCommand`. A dedup guard prevents do
 Executions are processed in priority order. Lower numeric values are processed first:
 
 ```python
---8<-- "backend/app/services/coordinator/queue_manager.py:14:19"
+--8<-- "backend/app/services/coordinator/coordinator.py:32:37"
 ```
-
-When resources are unavailable, executions are requeued with reduced priority to prevent starvation.
 
 ## Configuration
 
@@ -50,9 +48,8 @@ When resources are unavailable, executions are requeued with reduced priority to
 
 | File                                                                                                                           | Purpose                       |
 |--------------------------------------------------------------------------------------------------------------------------------|-------------------------------|
-| [`run_coordinator.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/workers/run_coordinator.py)              | Entry point                   |
-| [`coordinator.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/coordinator/coordinator.py)     | Main coordinator service      |
-| [`queue_manager.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/coordinator/queue_manager.py) | Priority queue implementation |
+| [`run_coordinator.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/workers/run_coordinator.py)          | Entry point                                        |
+| [`coordinator.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/coordinator/coordinator.py) | Coordinator service with integrated priority queue  |
 
 ## Deployment
 

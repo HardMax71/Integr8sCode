@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
+from app.domain.enums.execution import QueuePriority
 from app.domain.events.typed import CreatePodCommandEvent, EventMetadata
 from app.services.k8s_worker import PodBuilder
 from kubernetes_asyncio import client as k8s_client
@@ -43,7 +44,7 @@ class TestPodBuilder:
             memory_request="256Mi",
             cpu_limit="1000m",
             memory_limit="1Gi",
-            priority=5,
+            priority=QueuePriority.NORMAL,
             metadata=EventMetadata(
                 user_id=str(uuid4()),
                 correlation_id=str(uuid4()),
@@ -158,7 +159,7 @@ class TestPodBuilder:
             memory_request="",
             cpu_limit="",
             memory_limit="",
-            priority=5,
+            priority=QueuePriority.NORMAL,
             metadata=EventMetadata(
                 service_name="svc",
                 service_version="1",
@@ -291,7 +292,7 @@ class TestPodBuilder:
             memory_request="128Mi",
             cpu_limit="500m",
             memory_limit="512Mi",
-            priority=5,
+            priority=QueuePriority.NORMAL,
             metadata=EventMetadata(user_id=str(uuid4()), service_name="t", service_version="1")
         )
 
@@ -348,7 +349,7 @@ class TestPodBuilder:
             memory_limit="128Mi",
             cpu_request="50m",
             memory_request="64Mi",
-            priority=5,
+            priority=QueuePriority.NORMAL,
             metadata=EventMetadata(
                 service_name="svc",
                 service_version="1",
@@ -405,7 +406,7 @@ class TestPodBuilder:
                 memory_request="128Mi",
                 cpu_limit="200m",
                 memory_limit="256Mi",
-                priority=5,
+                priority=QueuePriority.NORMAL,
                 metadata=EventMetadata(user_id=str(uuid4()), service_name="t", service_version="1")
             )
 

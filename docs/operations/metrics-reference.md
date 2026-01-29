@@ -35,15 +35,13 @@ Track script execution performance and resource usage.
 
 Track scheduling and queue management.
 
-| Metric                                   | Type          | Labels              | Description               |
-|------------------------------------------|---------------|---------------------|---------------------------|
-| `coordinator.processing.time`            | Histogram     | -                   | Event processing time     |
-| `coordinator.scheduling.duration`        | Histogram     | -                   | Scheduling time           |
-| `coordinator.executions.active`          | UpDownCounter | -                   | Active managed executions |
-| `coordinator.queue.wait_time`            | Histogram     | priority, queue     | Queue wait by priority    |
-| `coordinator.executions.scheduled.total` | Counter       | status              | Scheduled executions      |
-| `coordinator.rate_limited.total`         | Counter       | limit_type, user_id | Rate limited requests     |
-| `coordinator.scheduling.decisions.total` | Counter       | decision, reason    | Scheduling decisions      |
+| Metric                                   | Type          | Labels   | Description               |
+|------------------------------------------|---------------|----------|---------------------------|
+| `coordinator.scheduling.duration`        | Histogram     | -        | Scheduling time           |
+| `coordinator.executions.active`          | UpDownCounter | -        | Active managed executions |
+| `coordinator.queue.wait_time`            | Histogram     | priority | Queue wait by priority    |
+| `execution.queue.depth`                  | UpDownCounter | -        | Queue depth               |
+| `coordinator.executions.scheduled.total` | Counter       | status   | Scheduled executions      |
 
 ### Rate Limit Metrics
 

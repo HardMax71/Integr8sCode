@@ -1,10 +1,15 @@
+import asyncio
+import heapq
 import logging
 import time
+from collections import defaultdict
+from dataclasses import dataclass, field
 from uuid import uuid4
 
 from app.core.metrics import CoordinatorMetrics
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
+from app.domain.enums.execution import QueuePriority
 from app.domain.enums.storage import ExecutionErrorType
 from app.domain.events.typed import (
     CreatePodCommandEvent,
@@ -17,7 +22,29 @@ from app.domain.events.typed import (
     ExecutionRequestedEvent,
 )
 from app.events.core import EventDispatcher, UnifiedProducer
-from app.services.coordinator.queue_manager import QueueManager, QueuePriority
+
+
+class QueueRejectError(Exception):
+    """Raised when an execution cannot be added to the queue."""
+
+
+@dataclass(order=True)
+class _QueuedExecution:
+    priority: QueuePriority
+    timestamp: float = field(compare=False)
+    event: ExecutionRequestedEvent = field(compare=False)
+
+    @property
+    def execution_id(self) -> str:
+        return self.event.execution_id
+
+    @property
+    def user_id(self) -> str:
+        return self.event.metadata.user_id or "anonymous"
+
+    @property
+    def age_seconds(self) -> float:
+        return time.time() - self.timestamp
 
 
 class ExecutionCoordinator:
@@ -27,7 +54,7 @@ class ExecutionCoordinator:
     This service:
     1. Consumes ExecutionRequested events
     2. Manages execution queue with priority
-    3. Enforces rate limits
+    3. Enforces per-user rate limits
     4. Publishes CreatePodCommand events for workers
     """
 
@@ -35,23 +62,35 @@ class ExecutionCoordinator:
         self,
         producer: UnifiedProducer,
         dispatcher: EventDispatcher,
-        queue_manager: QueueManager,
         execution_repository: ExecutionRepository,
         logger: logging.Logger,
         coordinator_metrics: CoordinatorMetrics,
+        max_queue_size: int = 10000,
+        max_executions_per_user: int = 100,
+        stale_timeout_seconds: int = 3600,
     ) -> None:
         self.logger = logger
         self.metrics = coordinator_metrics
         self.producer = producer
-        self.queue_manager = queue_manager
         self.execution_repository = execution_repository
 
+        # Queue configuration
+        self._max_queue_size = max_queue_size
+        self._max_per_user = max_executions_per_user
+        self._stale_timeout = stale_timeout_seconds
+
+        # Queue state
+        self._queue: list[_QueuedExecution] = []
+        self._queue_lock = asyncio.Lock()
+        self._user_counts: dict[str, int] = defaultdict(int)
+        self._execution_users: dict[str, str] = {}
+
+        # Scheduling state
         self._active_executions: set[str] = set()
 
         self._register_handlers(dispatcher)
 
     def _register_handlers(self, dispatcher: EventDispatcher) -> None:
-        """Register event handlers on the dispatcher."""
         dispatcher.register_handler(EventType.EXECUTION_REQUESTED, self._handle_requested_wrapper)
         dispatcher.register_handler(EventType.EXECUTION_COMPLETED, self._handle_completed_wrapper)
         dispatcher.register_handler(EventType.EXECUTION_FAILED, self._handle_failed_wrapper)
@@ -74,47 +113,37 @@ class ExecutionCoordinator:
         await self._handle_execution_cancelled(event)
 
     async def _handle_execution_requested(self, event: ExecutionRequestedEvent) -> None:
-        """Handle execution requested event - add to queue for processing"""
+        """Handle execution requested event - add to queue for processing."""
         self.logger.info(f"HANDLER CALLED: _handle_execution_requested for event {event.event_id}")
         start_time = time.time()
 
         try:
-            # Add to queue with priority
-            success, position, error = await self.queue_manager.add_execution(
-                event,
-                priority=QueuePriority(event.priority),
-            )
-
-            if not success:
-                # Publish queue full event
-                await self._publish_queue_full(event, error or "Queue is full")
-                self.metrics.record_coordinator_execution_scheduled("queue_full")
-                return
-
-            # Publish ExecutionAcceptedEvent
-            if position is None:
-                position = 0
-            await self._publish_execution_accepted(event, position, event.priority)
-
-            # Track metrics
-            duration = time.time() - start_time
-            self.metrics.record_coordinator_scheduling_duration(duration)
-            self.metrics.record_coordinator_execution_scheduled("queued")
-
-            self.logger.info(f"Execution {event.execution_id} added to queue at position {position}")
-
-            if position == 0:
-                await self._try_schedule_next()
-
+            position = await self._add_to_queue(event)
+        except QueueRejectError as e:
+            await self._publish_queue_full(event, str(e))
+            self.metrics.record_coordinator_execution_scheduled("queue_full")
+            return
         except Exception as e:
             self.logger.error(f"Failed to handle execution request {event.execution_id}: {e}", exc_info=True)
             self.metrics.record_coordinator_execution_scheduled("error")
+            return
+
+        await self._publish_execution_accepted(event, position)
+
+        duration = time.time() - start_time
+        self.metrics.record_coordinator_scheduling_duration(duration)
+        self.metrics.record_coordinator_execution_scheduled("queued")
+
+        self.logger.info(f"Execution {event.execution_id} added to queue at position {position}")
+
+        if position == 0:
+            await self._try_schedule_next()
 
     async def _handle_execution_cancelled(self, event: ExecutionCancelledEvent) -> None:
-        """Handle execution cancelled event"""
+        """Handle execution cancelled event."""
         execution_id = event.execution_id
 
-        removed = await self.queue_manager.remove_execution(execution_id)
+        removed = await self._remove_from_queue(execution_id)
         self._active_executions.discard(execution_id)
         self.metrics.update_coordinator_active_executions(len(self._active_executions))
 
@@ -124,7 +153,7 @@ class ExecutionCoordinator:
         await self._try_schedule_next()
 
     async def _handle_execution_completed(self, event: ExecutionCompletedEvent) -> None:
-        """Handle execution completed event"""
+        """Handle execution completed event."""
         execution_id = event.execution_id
 
         self._active_executions.discard(execution_id)
@@ -134,7 +163,7 @@ class ExecutionCoordinator:
         await self._try_schedule_next()
 
     async def _handle_execution_failed(self, event: ExecutionFailedEvent) -> None:
-        """Handle execution failed event"""
+        """Handle execution failed event."""
         execution_id = event.execution_id
 
         self._active_executions.discard(execution_id)
@@ -144,7 +173,7 @@ class ExecutionCoordinator:
 
     async def _try_schedule_next(self) -> None:
         """Pop the next queued execution and schedule it."""
-        execution = await self.queue_manager.get_next_execution()
+        execution = await self._pop_next()
         if execution:
             await self._schedule_execution(execution)
 
@@ -160,12 +189,10 @@ class ExecutionCoordinator:
         self.metrics.update_coordinator_active_executions(len(self._active_executions))
 
         try:
-            await self._publish_execution_started(event)
+            await self._publish_create_pod_command(event)
 
-            # Track metrics
             queue_time = start_time - event.timestamp.timestamp()
-            priority = getattr(event, "priority", QueuePriority.NORMAL.value)
-            self.metrics.record_coordinator_queue_time(queue_time, QueuePriority(priority).name)
+            self.metrics.record_coordinator_queue_time(queue_time, event.priority.name)
 
             scheduling_duration = time.time() - start_time
             self.metrics.record_coordinator_scheduling_duration(scheduling_duration)
@@ -185,9 +212,108 @@ class ExecutionCoordinator:
 
             await self._publish_scheduling_failed(event, str(e))
 
+    async def _add_to_queue(self, event: ExecutionRequestedEvent) -> int:
+        """Add execution to queue. Returns queue position. Raises QueueRejectError on failure."""
+        async with self._queue_lock:
+            if len(self._queue) >= self._max_queue_size:
+                self._sweep_stale()
+                if len(self._queue) >= self._max_queue_size:
+                    raise QueueRejectError("Queue is full")
+
+            user_id = event.metadata.user_id or "anonymous"
+
+            if self._user_counts[user_id] >= self._max_per_user:
+                raise QueueRejectError(f"User execution limit exceeded ({self._max_per_user})")
+
+            queued = _QueuedExecution(priority=event.priority, timestamp=time.time(), event=event)
+
+            heapq.heappush(self._queue, queued)
+            self._track_user(event.execution_id, user_id)
+            position = self._find_position(event.execution_id) or 0
+
+            self.metrics.update_execution_request_queue_size(len(self._queue))
+
+            self.logger.info(
+                f"Added execution {event.execution_id} to queue. "
+                f"Priority: {event.priority.name}, Position: {position}, "
+                f"Queue size: {len(self._queue)}"
+            )
+
+            return position
+
+    async def _pop_next(self) -> ExecutionRequestedEvent | None:
+        """Pop the highest-priority non-stale execution from the queue."""
+        async with self._queue_lock:
+            while self._queue:
+                queued = heapq.heappop(self._queue)
+
+                if queued.age_seconds > self._stale_timeout:
+                    self._untrack_user(queued.execution_id)
+                    continue
+
+                self._untrack_user(queued.execution_id)
+                self.metrics.record_coordinator_queue_time(queued.age_seconds, queued.priority.name)
+                self.metrics.update_execution_request_queue_size(len(self._queue))
+
+                self.logger.info(
+                    f"Retrieved execution {queued.execution_id} from queue. "
+                    f"Wait time: {queued.age_seconds:.2f}s, Queue size: {len(self._queue)}"
+                )
+
+                return queued.event
+
+            return None
+
+    async def _remove_from_queue(self, execution_id: str) -> bool:
+        """Remove a specific execution from the queue (e.g. on cancellation)."""
+        async with self._queue_lock:
+            initial_size = len(self._queue)
+            self._queue = [q for q in self._queue if q.execution_id != execution_id]
+
+            if len(self._queue) < initial_size:
+                heapq.heapify(self._queue)
+                self._untrack_user(execution_id)
+                self.metrics.update_execution_request_queue_size(len(self._queue))
+                self.logger.info(f"Removed execution {execution_id} from queue")
+                return True
+
+            return False
+
+    def _find_position(self, execution_id: str) -> int | None:
+        for position, queued in enumerate(self._queue):
+            if queued.execution_id == execution_id:
+                return position
+        return None
+
+    def _track_user(self, execution_id: str, user_id: str) -> None:
+        self._user_counts[user_id] += 1
+        self._execution_users[execution_id] = user_id
+
+    def _untrack_user(self, execution_id: str) -> None:
+        if execution_id in self._execution_users:
+            user_id = self._execution_users.pop(execution_id)
+            self._user_counts[user_id] -= 1
+            if self._user_counts[user_id] <= 0:
+                del self._user_counts[user_id]
+
+    def _sweep_stale(self) -> None:
+        """Remove stale executions from queue. Must be called under _queue_lock."""
+        active: list[_QueuedExecution] = []
+        removed = 0
+        for queued in self._queue:
+            if queued.age_seconds > self._stale_timeout:
+                self._untrack_user(queued.execution_id)
+                removed += 1
+            else:
+                active.append(queued)
+        if removed:
+            self._queue = active
+            heapq.heapify(self._queue)
+            self.metrics.update_execution_request_queue_size(len(self._queue))
+            self.logger.info(f"Swept {removed} stale executions from queue")
+
     async def _build_command_metadata(self, request: ExecutionRequestedEvent) -> EventMetadata:
         """Build metadata for CreatePodCommandEvent with guaranteed user_id."""
-        # Prefer execution record user_id to avoid missing attribution
         exec_rec = await self.execution_repository.get_execution(request.execution_id)
         user_id: str = exec_rec.user_id if exec_rec and exec_rec.user_id else "system"
 
@@ -198,8 +324,8 @@ class ExecutionCoordinator:
             correlation_id=request.metadata.correlation_id,
         )
 
-    async def _publish_execution_started(self, request: ExecutionRequestedEvent) -> None:
-        """Send CreatePodCommandEvent to k8s-worker via SAGA_COMMANDS topic"""
+    async def _publish_create_pod_command(self, request: ExecutionRequestedEvent) -> None:
+        """Send CreatePodCommandEvent to k8s-worker via SAGA_COMMANDS topic."""
         metadata = await self._build_command_metadata(request)
 
         create_pod_cmd = CreatePodCommandEvent(
@@ -222,30 +348,27 @@ class ExecutionCoordinator:
 
         await self.producer.produce(event_to_produce=create_pod_cmd, key=request.execution_id)
 
-    async def _publish_execution_accepted(self, request: ExecutionRequestedEvent, position: int, priority: int) -> None:
-        """Publish execution accepted event to notify that request was valid and queued"""
+    async def _publish_execution_accepted(self, request: ExecutionRequestedEvent, position: int) -> None:
+        """Publish execution accepted event to notify that request was valid and queued."""
         self.logger.info(f"Publishing ExecutionAcceptedEvent for execution {request.execution_id}")
 
         event = ExecutionAcceptedEvent(
             execution_id=request.execution_id,
             queue_position=position,
-            estimated_wait_seconds=None,  # Could calculate based on queue analysis
-            priority=priority,
+            estimated_wait_seconds=None,
+            priority=request.priority,
             metadata=request.metadata,
         )
 
         await self.producer.produce(event_to_produce=event)
 
     async def _publish_queue_full(self, request: ExecutionRequestedEvent, error: str) -> None:
-        """Publish queue full event"""
-        # Get queue stats for context
-        queue_stats = await self.queue_manager.get_queue_stats()
-
+        """Publish queue full event."""
         event = ExecutionFailedEvent(
             execution_id=request.execution_id,
             error_type=ExecutionErrorType.RESOURCE_LIMIT,
             exit_code=-1,
-            stderr=f"Queue full: {error}. Queue size: {queue_stats.get('total_size', 'unknown')}",
+            stderr=f"Queue full: {error}. Queue size: {len(self._queue)}",
             resource_usage=None,
             metadata=request.metadata,
             error_message=error,
@@ -254,7 +377,7 @@ class ExecutionCoordinator:
         await self.producer.produce(event_to_produce=event, key=request.execution_id)
 
     async def _publish_scheduling_failed(self, request: ExecutionRequestedEvent, error: str) -> None:
-        """Publish scheduling failed event"""
+        """Publish scheduling failed event."""
         event = ExecutionFailedEvent(
             execution_id=request.execution_id,
             error_type=ExecutionErrorType.SYSTEM_ERROR,
@@ -266,4 +389,3 @@ class ExecutionCoordinator:
         )
 
         await self.producer.produce(event_to_produce=event, key=request.execution_id)
-

@@ -1,4 +1,5 @@
 import pytest
+from app.domain.enums.execution import QueuePriority
 from app.services.coordinator.coordinator import ExecutionCoordinator
 from dishka import AsyncContainer
 from tests.conftest import make_execution_requested_event
@@ -29,7 +30,7 @@ class TestHandleExecutionRequested:
         coord: ExecutionCoordinator = await scope.get(ExecutionCoordinator)
         ev = make_execution_requested_event(
             execution_id="e-priority-1",
-            priority=10,  # High priority
+            priority=QueuePriority.BACKGROUND,
         )
 
         await coord._handle_execution_requested(ev)  # noqa: SLF001
@@ -51,19 +52,6 @@ class TestHandleExecutionRequested:
 
         assert "e-unique-1" in coord._active_executions  # noqa: SLF001
         assert "e-unique-2" in coord._active_executions  # noqa: SLF001
-
-
-class TestQueueManager:
-    """Tests for queue manager integration."""
-
-    @pytest.mark.asyncio
-    async def test_queue_manager_initialized(self, scope: AsyncContainer) -> None:
-        """Queue manager is properly initialized."""
-        coord: ExecutionCoordinator = await scope.get(ExecutionCoordinator)
-
-        assert coord.queue_manager is not None
-        assert hasattr(coord.queue_manager, "add_execution")
-        assert hasattr(coord.queue_manager, "get_next_execution")
 
 
 class TestCoordinatorLifecycle:

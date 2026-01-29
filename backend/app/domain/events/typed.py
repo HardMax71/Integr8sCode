@@ -8,6 +8,7 @@ from pydantic_avro.to_avro.base import AvroBase
 from app.domain.enums.auth import LoginMethod
 from app.domain.enums.common import Environment
 from app.domain.enums.events import EventType
+from app.domain.enums.execution import QueuePriority
 from app.domain.enums.notification import NotificationChannel, NotificationSeverity
 from app.domain.enums.storage import ExecutionErrorType, StorageType
 
@@ -75,7 +76,7 @@ class ExecutionRequestedEvent(BaseEvent):
     memory_limit: str
     cpu_request: str
     memory_request: str
-    priority: int = 5
+    priority: QueuePriority = QueuePriority.NORMAL
 
 
 class ExecutionAcceptedEvent(BaseEvent):
@@ -83,7 +84,7 @@ class ExecutionAcceptedEvent(BaseEvent):
     execution_id: str
     queue_position: int
     estimated_wait_seconds: float | None = None
-    priority: int = 5
+    priority: QueuePriority = QueuePriority.NORMAL
 
 
 class ExecutionQueuedEvent(BaseEvent):
@@ -428,7 +429,7 @@ class CreatePodCommandEvent(BaseEvent):
     memory_limit: str
     cpu_request: str
     memory_request: str
-    priority: int = 5
+    priority: QueuePriority = QueuePriority.NORMAL
 
 
 class DeletePodCommandEvent(BaseEvent):

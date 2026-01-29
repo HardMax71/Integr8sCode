@@ -55,7 +55,6 @@ from app.infrastructure.kafka.topics import get_all_topics
 from app.services.admin import AdminEventsService, AdminSettingsService, AdminUserService
 from app.services.auth_service import AuthService
 from app.services.coordinator.coordinator import ExecutionCoordinator
-from app.services.coordinator.queue_manager import QueueManager
 from app.services.event_bus import EventBusManager
 from app.services.event_replay.replay_service import EventReplayService
 from app.services.event_service import EventService
@@ -679,23 +678,10 @@ class CoordinatorProvider(Provider):
         )
 
     @provide
-    def get_queue_manager(
-        self, logger: logging.Logger, coordinator_metrics: CoordinatorMetrics
-    ) -> QueueManager:
-        return QueueManager(
-            logger=logger,
-            coordinator_metrics=coordinator_metrics,
-            max_queue_size=10000,
-            max_executions_per_user=100,
-            stale_timeout_seconds=3600,
-        )
-
-    @provide
     def get_execution_coordinator(
         self,
         producer: UnifiedProducer,
         dispatcher: EventDispatcher,
-        queue_manager: QueueManager,
         execution_repository: ExecutionRepository,
         logger: logging.Logger,
         coordinator_metrics: CoordinatorMetrics,
@@ -704,7 +690,6 @@ class CoordinatorProvider(Provider):
         return ExecutionCoordinator(
             producer=producer,
             dispatcher=dispatcher,
-            queue_manager=queue_manager,
             execution_repository=execution_repository,
             logger=logger,
             coordinator_metrics=coordinator_metrics,
@@ -740,7 +725,6 @@ class CoordinatorProvider(Provider):
             event_metrics=event_metrics,
         )
 
-        await coordinator.queue_manager.start()
         await consumer.start(list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.EXECUTION_COORDINATOR]))
         logger.info("Coordinator consumer started")
 
@@ -748,7 +732,6 @@ class CoordinatorProvider(Provider):
             yield consumer
         finally:
             await consumer.stop()
-            await coordinator.queue_manager.stop()
             logger.info("Coordinator consumer stopped")
 
 

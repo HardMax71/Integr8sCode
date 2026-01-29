@@ -15,8 +15,7 @@ flowchart TB
     end
 
     subgraph Coordinator
-        COORD --> QUEUE[QueueManager]
-        QUEUE --> HEAP[(Priority Heap)]
+        COORD --> HEAP[(Priority Heap)]
     end
 
     subgraph Scheduling
@@ -30,18 +29,17 @@ flowchart TB
 Executions enter the queue with one of five priority levels. Lower numeric values are processed first:
 
 ```python
---8<-- "backend/app/services/coordinator/queue_manager.py:14:19"
+--8<-- "backend/app/services/coordinator/coordinator.py:32:37"
 ```
 
-The queue uses Python's `heapq` module, which efficiently maintains the priority ordering. When resources are
-unavailable, executions are requeued with reduced priority to prevent starvation of lower-priority work.
+The queue uses Python's `heapq` module, which efficiently maintains the priority ordering.
 
 ## Per-User Limits
 
 The queue enforces per-user execution limits to prevent a single user from monopolizing resources:
 
 ```python
---8<-- "backend/app/services/coordinator/queue_manager.py:42:54"
+--8<-- "backend/app/services/coordinator/coordinator.py:70:79"
 ```
 
 When a user exceeds their limit, new execution requests are rejected with an error message indicating the limit has been
@@ -49,12 +47,8 @@ reached.
 
 ## Stale Timeout
 
-Executions that sit in the queue too long (default 1 hour) are automatically removed by a background cleanup task. This
-prevents abandoned requests from consuming queue space indefinitely:
-
-```python
---8<-- "backend/app/services/coordinator/queue_manager.py:243:267"
-```
+Executions that sit in the queue too long (default 1 hour) are lazily swept when the queue is full. This prevents
+abandoned requests from consuming queue space indefinitely.
 
 ## Reactive Scheduling
 
@@ -90,5 +84,4 @@ the Kubernetes worker.
 
 | File                                                                                                                                                   | Purpose                       |
 |--------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------|
-| [`services/coordinator/coordinator.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/coordinator/coordinator.py)     | Main coordinator service      |
-| [`services/coordinator/queue_manager.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/coordinator/queue_manager.py) | Priority queue implementation |
+| [`services/coordinator/coordinator.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/coordinator/coordinator.py) | Coordinator service with integrated priority queue |

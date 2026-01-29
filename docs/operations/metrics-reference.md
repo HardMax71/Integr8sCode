@@ -33,7 +33,7 @@ Track script execution performance and resource usage.
 
 ### Coordinator Metrics
 
-Track scheduling and resource allocation.
+Track scheduling and queue management.
 
 | Metric                                   | Type          | Labels              | Description               |
 |------------------------------------------|---------------|---------------------|---------------------------|
@@ -43,8 +43,6 @@ Track scheduling and resource allocation.
 | `coordinator.queue.wait_time`            | Histogram     | priority, queue     | Queue wait by priority    |
 | `coordinator.executions.scheduled.total` | Counter       | status              | Scheduled executions      |
 | `coordinator.rate_limited.total`         | Counter       | limit_type, user_id | Rate limited requests     |
-| `coordinator.resource.allocations.total` | Counter       | resource_type       | Resource allocations      |
-| `coordinator.resource.utilization`       | UpDownCounter | resource_type       | Current utilization       |
 | `coordinator.scheduling.decisions.total` | Counter       | decision, reason    | Scheduling decisions      |
 
 ### Rate Limit Metrics

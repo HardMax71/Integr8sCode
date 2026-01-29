@@ -27,7 +27,7 @@ graph LR
 
 | Worker                                    | What it does                                              | Entry point                |
 |-------------------------------------------|-----------------------------------------------------------|----------------------------|
-| [Coordinator](coordinator.md)             | Admits executions, manages the queue, allocates resources | `run_coordinator.py`       |
+| [Coordinator](coordinator.md)             | Admits executions, manages the priority queue             | `run_coordinator.py`       |
 | [Saga Orchestrator](saga_orchestrator.md) | Drives the execution state machine, issues pod commands   | `run_saga_orchestrator.py` |
 | [K8s Worker](k8s_worker.md)               | Creates ConfigMaps and Pods with security hardening       | `run_k8s_worker.py`        |
 | [Pod Monitor](pod_monitor.md)             | Watches pods, translates K8s events to domain events      | `run_pod_monitor.py`       |

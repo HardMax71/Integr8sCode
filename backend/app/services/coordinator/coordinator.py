@@ -1,18 +1,14 @@
-import asyncio
 import logging
 import time
-from collections.abc import Coroutine
-from typing import Any, TypeAlias
 from uuid import uuid4
 
-from app.core.lifecycle import LifecycleEnabled
-from app.core.metrics import CoordinatorMetrics, EventMetrics
+from app.core.metrics import CoordinatorMetrics
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
-from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId
 from app.domain.enums.storage import ExecutionErrorType
 from app.domain.events.typed import (
     CreatePodCommandEvent,
+    DomainEvent,
     EventMetadata,
     ExecutionAcceptedEvent,
     ExecutionCancelledEvent,
@@ -20,20 +16,11 @@ from app.domain.events.typed import (
     ExecutionFailedEvent,
     ExecutionRequestedEvent,
 )
-from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
-from app.events.event_store import EventStore
-from app.events.schema.schema_registry import (
-    SchemaRegistryManager,
-)
+from app.events.core import EventDispatcher, UnifiedProducer
 from app.services.coordinator.queue_manager import QueueManager, QueuePriority
-from app.services.coordinator.resource_manager import ResourceAllocation, ResourceManager
-from app.settings import Settings
-
-EventHandler: TypeAlias = Coroutine[Any, Any, None]
-ExecutionMap: TypeAlias = dict[str, ResourceAllocation]
 
 
-class ExecutionCoordinator(LifecycleEnabled):
+class ExecutionCoordinator:
     """
     Coordinates execution scheduling across the system.
 
@@ -41,168 +28,50 @@ class ExecutionCoordinator(LifecycleEnabled):
     1. Consumes ExecutionRequested events
     2. Manages execution queue with priority
     3. Enforces rate limits
-    4. Allocates resources
-    5. Publishes ExecutionStarted events for workers
+    4. Publishes CreatePodCommand events for workers
     """
 
     def __init__(
         self,
         producer: UnifiedProducer,
-        schema_registry_manager: SchemaRegistryManager,
-        settings: Settings,
-        event_store: EventStore,
-        execution_repository: ExecutionRepository,
         dispatcher: EventDispatcher,
+        queue_manager: QueueManager,
+        execution_repository: ExecutionRepository,
         logger: logging.Logger,
         coordinator_metrics: CoordinatorMetrics,
-        event_metrics: EventMetrics,
-        consumer_group: str = GroupId.EXECUTION_COORDINATOR,
-        max_concurrent_scheduling: int = 10,
-        scheduling_interval_seconds: float = 0.5,
-    ):
-        super().__init__()
+    ) -> None:
         self.logger = logger
         self.metrics = coordinator_metrics
-        self._event_metrics = event_metrics
-        self._settings = settings
-
-        # Kafka configuration
-        self.kafka_servers = self._settings.KAFKA_BOOTSTRAP_SERVERS
-        self.consumer_group = consumer_group
-
-        # Components
-        self.queue_manager = QueueManager(
-            logger=self.logger,
-            coordinator_metrics=coordinator_metrics,
-            max_queue_size=10000,
-            max_executions_per_user=100,
-            stale_timeout_seconds=3600,
-        )
-
-        self.resource_manager = ResourceManager(
-            logger=self.logger,
-            coordinator_metrics=coordinator_metrics,
-            total_cpu_cores=32.0,
-            total_memory_mb=65536,
-            total_gpu_count=0,
-        )
-
-        # Kafka components
-        self.consumer: UnifiedConsumer | None = None
-        self.producer: UnifiedProducer = producer
-
-        # Persistence via repositories
+        self.producer = producer
+        self.queue_manager = queue_manager
         self.execution_repository = execution_repository
-        self._event_store = event_store
 
-        # Scheduling
-        self.max_concurrent_scheduling = max_concurrent_scheduling
-        self.scheduling_interval = scheduling_interval_seconds
-        self._scheduling_semaphore = asyncio.Semaphore(max_concurrent_scheduling)
-
-        # State tracking
-        self._scheduling_task: asyncio.Task[None] | None = None
         self._active_executions: set[str] = set()
-        self._execution_resources: ExecutionMap = {}
-        self._schema_registry_manager = schema_registry_manager
-        self.dispatcher = dispatcher
 
-    async def _on_start(self) -> None:
-        """Start the coordinator service."""
-        self.logger.info("Starting ExecutionCoordinator service...")
+        self._register_handlers(dispatcher)
 
-        await self.queue_manager.start()
+    def _register_handlers(self, dispatcher: EventDispatcher) -> None:
+        """Register event handlers on the dispatcher."""
+        dispatcher.register_handler(EventType.EXECUTION_REQUESTED, self._handle_requested_wrapper)
+        dispatcher.register_handler(EventType.EXECUTION_COMPLETED, self._handle_completed_wrapper)
+        dispatcher.register_handler(EventType.EXECUTION_FAILED, self._handle_failed_wrapper)
+        dispatcher.register_handler(EventType.EXECUTION_CANCELLED, self._handle_cancelled_wrapper)
 
-        consumer_config = ConsumerConfig(
-            bootstrap_servers=self.kafka_servers,
-            group_id=self.consumer_group,
-            enable_auto_commit=False,
-            session_timeout_ms=self._settings.KAFKA_SESSION_TIMEOUT_MS,
-            heartbeat_interval_ms=self._settings.KAFKA_HEARTBEAT_INTERVAL_MS,
-            max_poll_interval_ms=self._settings.KAFKA_MAX_POLL_INTERVAL_MS,
-            request_timeout_ms=self._settings.KAFKA_REQUEST_TIMEOUT_MS,
-            max_poll_records=100,  # Process max 100 messages at a time for flow control
-            fetch_max_wait_ms=500,  # Wait max 500ms for data (reduces latency)
-            fetch_min_bytes=1,  # Return immediately if any data available
-        )
+    async def _handle_requested_wrapper(self, event: DomainEvent) -> None:
+        assert isinstance(event, ExecutionRequestedEvent)
+        await self._handle_execution_requested(event)
 
-        self.consumer = UnifiedConsumer(
-            consumer_config,
-            event_dispatcher=self.dispatcher,
-            schema_registry=self._schema_registry_manager,
-            settings=self._settings,
-            logger=self.logger,
-            event_metrics=self._event_metrics,
-        )
+    async def _handle_completed_wrapper(self, event: DomainEvent) -> None:
+        assert isinstance(event, ExecutionCompletedEvent)
+        await self._handle_execution_completed(event)
 
-        # Register handlers with EventDispatcher BEFORE wrapping with idempotency
-        @self.dispatcher.register(EventType.EXECUTION_REQUESTED)
-        async def handle_requested(event: ExecutionRequestedEvent) -> None:
-            await self._route_execution_event(event)
+    async def _handle_failed_wrapper(self, event: DomainEvent) -> None:
+        assert isinstance(event, ExecutionFailedEvent)
+        await self._handle_execution_failed(event)
 
-        @self.dispatcher.register(EventType.EXECUTION_COMPLETED)
-        async def handle_completed(event: ExecutionCompletedEvent) -> None:
-            await self._route_execution_result(event)
-
-        @self.dispatcher.register(EventType.EXECUTION_FAILED)
-        async def handle_failed(event: ExecutionFailedEvent) -> None:
-            await self._route_execution_result(event)
-
-        @self.dispatcher.register(EventType.EXECUTION_CANCELLED)
-        async def handle_cancelled(event: ExecutionCancelledEvent) -> None:
-            await self._route_execution_event(event)
-
-        self.logger.info("COORDINATOR: Event handlers registered")
-
-        await self.consumer.start(list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.EXECUTION_COORDINATOR]))
-
-        # Start scheduling task
-        self._scheduling_task = asyncio.create_task(self._scheduling_loop())
-
-        self.logger.info("ExecutionCoordinator service started successfully")
-
-    async def _on_stop(self) -> None:
-        """Stop the coordinator service."""
-        self.logger.info("Stopping ExecutionCoordinator service...")
-
-        # Stop scheduling task
-        if self._scheduling_task:
-            self._scheduling_task.cancel()
-            try:
-                await self._scheduling_task
-            except asyncio.CancelledError:
-                pass
-
-        if self.consumer:
-            await self.consumer.stop()
-
-        await self.queue_manager.stop()
-
-        self.logger.info(f"ExecutionCoordinator service stopped. Active executions: {len(self._active_executions)}")
-
-    async def _route_execution_event(self, event: ExecutionRequestedEvent | ExecutionCancelledEvent) -> None:
-        """Route execution events to appropriate handlers based on event type"""
-        self.logger.info(
-            f"COORDINATOR: Routing execution event - type: {event.event_type}, "
-            f"id: {event.event_id}, "
-            f"actual class: {type(event).__name__}"
-        )
-
-        if event.event_type == EventType.EXECUTION_REQUESTED:
-            await self._handle_execution_requested(event)
-        elif event.event_type == EventType.EXECUTION_CANCELLED:
-            await self._handle_execution_cancelled(event)
-        else:
-            self.logger.debug(f"Ignoring execution event type: {event.event_type}")
-
-    async def _route_execution_result(self, event: ExecutionCompletedEvent | ExecutionFailedEvent) -> None:
-        """Route execution result events to appropriate handlers based on event type"""
-        if event.event_type == EventType.EXECUTION_COMPLETED:
-            await self._handle_execution_completed(event)
-        elif event.event_type == EventType.EXECUTION_FAILED:
-            await self._handle_execution_failed(event)
-        else:
-            self.logger.debug(f"Ignoring execution result event type: {event.event_type}")
+    async def _handle_cancelled_wrapper(self, event: DomainEvent) -> None:
+        assert isinstance(event, ExecutionCancelledEvent)
+        await self._handle_execution_cancelled(event)
 
     async def _handle_execution_requested(self, event: ExecutionRequestedEvent) -> None:
         """Handle execution requested event - add to queue for processing"""
@@ -234,9 +103,8 @@ class ExecutionCoordinator(LifecycleEnabled):
 
             self.logger.info(f"Execution {event.execution_id} added to queue at position {position}")
 
-            # Schedule immediately if at front of queue (position 0)
             if position == 0:
-                await self._schedule_execution(event)
+                await self._try_schedule_next()
 
         except Exception as e:
             self.logger.error(f"Failed to handle execution request {event.execution_id}: {e}", exc_info=True)
@@ -247,138 +115,75 @@ class ExecutionCoordinator(LifecycleEnabled):
         execution_id = event.execution_id
 
         removed = await self.queue_manager.remove_execution(execution_id)
-
-        if execution_id in self._execution_resources:
-            await self.resource_manager.release_allocation(execution_id)
-            del self._execution_resources[execution_id]
-
         self._active_executions.discard(execution_id)
         self.metrics.update_coordinator_active_executions(len(self._active_executions))
 
         if removed:
             self.logger.info(f"Execution {execution_id} cancelled and removed from queue")
 
+        await self._try_schedule_next()
+
     async def _handle_execution_completed(self, event: ExecutionCompletedEvent) -> None:
         """Handle execution completed event"""
         execution_id = event.execution_id
 
-        if execution_id in self._execution_resources:
-            await self.resource_manager.release_allocation(execution_id)
-            del self._execution_resources[execution_id]
-
-        # Remove from active set
         self._active_executions.discard(execution_id)
         self.metrics.update_coordinator_active_executions(len(self._active_executions))
 
-        self.logger.info(f"Execution {execution_id} completed, resources released")
+        self.logger.info(f"Execution {execution_id} completed")
+        await self._try_schedule_next()
 
     async def _handle_execution_failed(self, event: ExecutionFailedEvent) -> None:
         """Handle execution failed event"""
         execution_id = event.execution_id
 
-        # Release resources
-        if execution_id in self._execution_resources:
-            await self.resource_manager.release_allocation(execution_id)
-            del self._execution_resources[execution_id]
-
-        # Remove from active set
         self._active_executions.discard(execution_id)
         self.metrics.update_coordinator_active_executions(len(self._active_executions))
 
-    async def _scheduling_loop(self) -> None:
-        """Main scheduling loop"""
-        while self.is_running:
-            try:
-                # Get next execution from queue
-                execution = await self.queue_manager.get_next_execution()
+        await self._try_schedule_next()
 
-                if execution:
-                    # Schedule execution
-                    asyncio.create_task(self._schedule_execution(execution))
-                else:
-                    # No executions in queue, wait
-                    await asyncio.sleep(self.scheduling_interval)
-
-            except Exception as e:
-                self.logger.error(f"Error in scheduling loop: {e}", exc_info=True)
-                await asyncio.sleep(5)  # Wait before retrying
+    async def _try_schedule_next(self) -> None:
+        """Pop the next queued execution and schedule it."""
+        execution = await self.queue_manager.get_next_execution()
+        if execution:
+            await self._schedule_execution(execution)
 
     async def _schedule_execution(self, event: ExecutionRequestedEvent) -> None:
-        """Schedule a single execution"""
-        async with self._scheduling_semaphore:
-            start_time = time.time()
-            execution_id = event.execution_id
+        """Schedule a single execution."""
+        start_time = time.time()
+        execution_id = event.execution_id
 
-            # Atomic check-and-claim: no await between check and add prevents TOCTOU race
-            # when both eager scheduling (position=0) and _scheduling_loop try to schedule
-            if execution_id in self._active_executions:
-                self.logger.debug(f"Execution {execution_id} already claimed, skipping")
-                return
-            self._active_executions.add(execution_id)
+        if execution_id in self._active_executions:
+            self.logger.debug(f"Execution {execution_id} already claimed, skipping")
+            return
+        self._active_executions.add(execution_id)
+        self.metrics.update_coordinator_active_executions(len(self._active_executions))
 
-            try:
-                # Request resource allocation
-                allocation = await self.resource_manager.request_allocation(
-                    execution_id,
-                    event.language,
-                    requested_cpu=None,  # Use defaults for now
-                    requested_memory_mb=None,
-                    requested_gpu=0,
-                )
+        try:
+            await self._publish_execution_started(event)
 
-                if not allocation:
-                    # No resources available, release claim and requeue
-                    self._active_executions.discard(execution_id)
-                    await self.queue_manager.requeue_execution(event, increment_retry=False)
-                    self.logger.info(f"No resources available for {execution_id}, requeued")
-                    return
+            # Track metrics
+            queue_time = start_time - event.timestamp.timestamp()
+            priority = getattr(event, "priority", QueuePriority.NORMAL.value)
+            self.metrics.record_coordinator_queue_time(queue_time, QueuePriority(priority).name)
 
-                # Track allocation (already in _active_executions from claim above)
-                self._execution_resources[execution_id] = allocation
-                self.metrics.update_coordinator_active_executions(len(self._active_executions))
+            scheduling_duration = time.time() - start_time
+            self.metrics.record_coordinator_scheduling_duration(scheduling_duration)
+            self.metrics.record_coordinator_execution_scheduled("scheduled")
 
-                # Publish execution started event for workers
-                self.logger.info(f"About to publish ExecutionStartedEvent for {event.execution_id}")
-                try:
-                    await self._publish_execution_started(event)
-                    self.logger.info(f"Successfully published ExecutionStartedEvent for {event.execution_id}")
-                except Exception as publish_error:
-                    self.logger.error(
-                        f"Failed to publish ExecutionStartedEvent for {event.execution_id}: {publish_error}",
-                        exc_info=True,
-                    )
-                    raise
+            self.logger.info(
+                f"Scheduled execution {event.execution_id}. "
+                f"Queue time: {queue_time:.2f}s"
+            )
 
-                # Track metrics
-                queue_time = start_time - event.timestamp.timestamp()
-                priority = getattr(event, "priority", QueuePriority.NORMAL.value)
-                self.metrics.record_coordinator_queue_time(queue_time, QueuePriority(priority).name)
+        except Exception as e:
+            self.logger.error(f"Failed to schedule execution {event.execution_id}: {e}", exc_info=True)
 
-                scheduling_duration = time.time() - start_time
-                self.metrics.record_coordinator_scheduling_duration(scheduling_duration)
-                self.metrics.record_coordinator_execution_scheduled("scheduled")
+            self._active_executions.discard(event.execution_id)
+            self.metrics.update_coordinator_active_executions(len(self._active_executions))
+            self.metrics.record_coordinator_execution_scheduled("error")
 
-                self.logger.info(
-                    f"Scheduled execution {event.execution_id}. "
-                    f"Queue time: {queue_time:.2f}s, "
-                    f"Resources: {allocation.cpu_cores} CPU, "
-                    f"{allocation.memory_mb}MB RAM"
-                )
-
-            except Exception as e:
-                self.logger.error(f"Failed to schedule execution {event.execution_id}: {e}", exc_info=True)
-
-                # Release any allocated resources
-                if event.execution_id in self._execution_resources:
-                    await self.resource_manager.release_allocation(event.execution_id)
-                    del self._execution_resources[event.execution_id]
-
-                self._active_executions.discard(event.execution_id)
-                self.metrics.update_coordinator_active_executions(len(self._active_executions))
-                self.metrics.record_coordinator_execution_scheduled("error")
-
-                # Publish failure event
-                await self._publish_scheduling_failed(event, str(e))
+            await self._publish_scheduling_failed(event, str(e))
 
     async def _build_command_metadata(self, request: ExecutionRequestedEvent) -> EventMetadata:
         """Build metadata for CreatePodCommandEvent with guaranteed user_id."""
@@ -430,7 +235,6 @@ class ExecutionCoordinator(LifecycleEnabled):
         )
 
         await self.producer.produce(event_to_produce=event)
-        self.logger.info(f"ExecutionAcceptedEvent published for {request.execution_id}")
 
     async def _publish_queue_full(self, request: ExecutionRequestedEvent, error: str) -> None:
         """Publish queue full event"""
@@ -451,16 +255,11 @@ class ExecutionCoordinator(LifecycleEnabled):
 
     async def _publish_scheduling_failed(self, request: ExecutionRequestedEvent, error: str) -> None:
         """Publish scheduling failed event"""
-        # Get resource stats for context
-        resource_stats = await self.resource_manager.get_resource_stats()
-
         event = ExecutionFailedEvent(
             execution_id=request.execution_id,
             error_type=ExecutionErrorType.SYSTEM_ERROR,
             exit_code=-1,
-            stderr=f"Failed to schedule execution: {error}. "
-            f"Available resources: CPU={resource_stats.available.cpu_cores}, "
-            f"Memory={resource_stats.available.memory_mb}MB",
+            stderr=f"Failed to schedule execution: {error}",
             resource_usage=None,
             metadata=request.metadata,
             error_message=error,
@@ -468,11 +267,3 @@ class ExecutionCoordinator(LifecycleEnabled):
 
         await self.producer.produce(event_to_produce=event, key=request.execution_id)
 
-    async def get_status(self) -> dict[str, Any]:
-        """Get coordinator status"""
-        return {
-            "running": self.is_running,
-            "active_executions": len(self._active_executions),
-            "queue_stats": await self.queue_manager.get_queue_stats(),
-            "resource_stats": await self.resource_manager.get_resource_stats(),
-        }

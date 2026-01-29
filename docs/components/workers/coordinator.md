@@ -1,13 +1,13 @@
 # Coordinator
 
-The coordinator owns admission and queuing policy for executions. It decides which executions can proceed based on
-available resources and enforces per-user limits to prevent any single user from monopolizing the system.
+The coordinator owns admission and queuing policy for executions. It enforces per-user limits to prevent any single user
+from monopolizing the system and manages the priority queue for scheduling. Resource limits (CPU, memory) are enforced
+by Kubernetes via pod manifests, not by the coordinator.
 
 ```mermaid
 graph LR
     Kafka[(Kafka)] --> Coord[Coordinator]
     Coord --> Queue[Priority Queue]
-    Coord --> Resources[Resource Pool]
     Coord --> Accepted[Accepted Events]
     Accepted --> Kafka
 ```
@@ -18,13 +18,10 @@ When an `ExecutionRequested` event arrives, the coordinator checks:
 
 1. Is the queue full? (max 10,000 pending)
 2. Has this user exceeded their limit? (max 100 concurrent)
-3. Are there enough CPU and memory resources?
 
-If all checks pass, the coordinator allocates resources and publishes `ExecutionAccepted`. Otherwise, the request
-is either queued for later or rejected.
-
-The coordinator runs a background scheduling loop that continuously pulls from the priority queue and attempts to
-schedule pending executions as resources become available.
+If checks pass, the execution is queued and `ExecutionAccepted` is published. Scheduling is reactive: when an execution
+lands at the front of the queue, or when an active execution completes/fails/is cancelled, the coordinator immediately
+pops the next item and publishes a `CreatePodCommand`. A dedup guard prevents double-publishing for the same execution.
 
 ## Priority queue
 
@@ -36,15 +33,10 @@ Executions are processed in priority order. Lower numeric values are processed f
 
 When resources are unavailable, executions are requeued with reduced priority to prevent starvation.
 
-## Resource management
-
-The coordinator tracks a pool of CPU and memory resources:
+## Configuration
 
 | Parameter                 | Default | Description                |
 |---------------------------|---------|----------------------------|
-| `total_cpu_cores`         | 32      | Total CPU pool             |
-| `total_memory_mb`         | 65,536  | Total memory pool (64GB)   |
-| `overcommit_factor`       | 1.2     | Allow 20% overcommit       |
 | `max_queue_size`          | 10,000  | Maximum pending executions |
 | `max_executions_per_user` | 100     | Per-user limit             |
 | `stale_timeout_seconds`   | 3,600   | Stale execution timeout    |
@@ -58,10 +50,9 @@ The coordinator tracks a pool of CPU and memory resources:
 
 | File                                                                                                                           | Purpose                       |
 |--------------------------------------------------------------------------------------------------------------------------------|-------------------------------|
-| [`run_coordinator.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/workers/run_coordinator.py)                 | Entry point                   |
-| [`coordinator.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/coordinator/coordinator.py)        | Main coordinator service      |
-| [`queue_manager.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/coordinator/queue_manager.py)    | Priority queue implementation |
-| [`resource_manager.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/coordinator/resource_manager.py) | Resource pool and allocation  |
+| [`run_coordinator.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/workers/run_coordinator.py)              | Entry point                   |
+| [`coordinator.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/coordinator/coordinator.py)     | Main coordinator service      |
+| [`queue_manager.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/coordinator/queue_manager.py) | Priority queue implementation |
 
 ## Deployment
 

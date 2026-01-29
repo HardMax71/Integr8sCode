@@ -24,7 +24,7 @@ When a user submits code, the API creates an `ExecutionRequestedEvent` and publi
 The coordinator subscribes to `execution_events` and begins validation:
 
 - Has the user exceeded their rate limit?
-- Are sufficient resources available?
+- Is the queue full?
 - Should this execution be prioritized or queued?
 
 Some requests get rejected immediately. Others sit in a priority queue waiting for resources. Still others get cancelled before starting.
@@ -66,7 +66,7 @@ If the Kubernetes worker crashes, `execution_tasks` accumulates messages but the
 
 In a single-topic architecture, a slow worker would cause backpressure affecting *all* consumers. SSE might delay updates. Projections might fall behind. The entire system degrades because one component can't keep up.
 
-The coordinator acts as a *shock absorber* between user requests and pod creation. It can implement queuing, prioritization, and resource management without affecting upstream producers or downstream workers. During cluster capacity issues, the coordinator holds executions in its internal queue while still acknowledging receipt.
+The coordinator acts as a *shock absorber* between user requests and pod creation. It implements queuing and prioritization without affecting upstream producers or downstream workers. During high load, the coordinator holds executions in its internal queue while still acknowledging receipt.
 
 ## Extensibility
 

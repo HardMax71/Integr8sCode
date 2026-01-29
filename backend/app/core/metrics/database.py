@@ -89,14 +89,13 @@ class DatabaseMetrics(BaseMetrics):
     def record_idempotency_processing_duration(self, duration_seconds: float, operation: str) -> None:
         self.idempotency_processing_duration.record(duration_seconds, attributes={"operation": operation})
 
-    def update_idempotency_keys_active(self, count: int, prefix: str) -> None:
-        # Track the delta for gauge-like behavior
-        key = f"_idempotency_keys_{prefix}"
-        current_val = getattr(self, key, 0)
-        delta = count - current_val
-        if delta != 0:
-            self.idempotency_keys_active.add(delta, attributes={"key_prefix": prefix})
-        setattr(self, key, count)
+    def increment_idempotency_keys(self, prefix: str) -> None:
+        """Increment active idempotency keys count when a new key is created."""
+        self.idempotency_keys_active.add(1, attributes={"key_prefix": prefix})
+
+    def decrement_idempotency_keys(self, prefix: str) -> None:
+        """Decrement active idempotency keys count when a key is removed."""
+        self.idempotency_keys_active.add(-1, attributes={"key_prefix": prefix})
 
     def record_idempotent_event_processed(self, event_type: str, result: str) -> None:
         self.event_store_operations.add(

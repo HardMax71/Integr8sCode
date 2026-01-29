@@ -121,21 +121,5 @@ class RedisIdempotencyRepository:
         k = self._full_key(key)
         return int(await self._r.delete(k) or 0)
 
-    async def aggregate_status_counts(self, key_prefix: str) -> dict[str, int]:
-        pattern = f"{key_prefix.rstrip(':')}:*"
-        counts: dict[str, int] = {}
-        # SCAN to avoid blocking Redis
-        async for k in self._r.scan_iter(match=pattern, count=200):
-            try:
-                raw = await self._r.get(k)
-                if not raw:
-                    continue
-                doc = json.loads(raw)
-                status = str(doc.get("status", ""))
-                counts[status] = counts.get(status, 0) + 1
-            except Exception:
-                continue
-        return counts
-
     async def health_check(self) -> None:
         await self._r.ping()  # type: ignore[misc]  # redis-py returns Awaitable[bool] | bool

@@ -18,10 +18,14 @@ class EventDispatcher:
 
     This dispatcher eliminates the need for manual if/elif routing by maintaining
     a direct mapping from event types to their handlers.
+
+    Subclasses may override ``_wrap_handler`` to intercept handler registration
+    (e.g. ``IdempotentEventDispatcher`` adds idempotency protection).
     """
 
     def __init__(self, logger: logging.Logger) -> None:
         self.logger = logger
+
         # Map event types to their handlers
         self._handlers: dict[EventType, list[Callable[[DomainEvent], Awaitable[None]]]] = defaultdict(list)
 
@@ -32,6 +36,10 @@ class EventDispatcher:
         self._event_metrics: dict[EventType, dict[str, int]] = defaultdict(
             lambda: {"processed": 0, "failed": 0, "skipped": 0}
         )
+
+    def _wrap_handler(self, handler: EventHandler) -> EventHandler:
+        """Hook for subclasses to wrap handlers at registration time."""
+        return handler
 
     def register(
         self, event_type: EventType
@@ -51,7 +59,7 @@ class EventDispatcher:
         def decorator(handler: Callable[[T], Awaitable[None]]) -> Callable[[T], Awaitable[None]]:
             self.logger.info(f"Registering handler '{handler.__name__}' for event type '{event_type}'")
             # Safe: dispatch() routes by event_type, guaranteeing correct types at runtime
-            self._handlers[event_type].append(handler)  # type: ignore[arg-type]
+            self._handlers[event_type].append(self._wrap_handler(handler))  # type: ignore[arg-type]
             return handler
 
         return decorator
@@ -65,7 +73,7 @@ class EventDispatcher:
             handler: The async handler function
         """
         self.logger.info(f"Registering handler '{handler.__name__}' for event type '{event_type}'")
-        self._handlers[event_type].append(handler)
+        self._handlers[event_type].append(self._wrap_handler(handler))
 
     def remove_handler(self, event_type: EventType, handler: EventHandler) -> bool:
         """
@@ -167,11 +175,3 @@ class EventDispatcher:
     def get_handlers(self, event_type: EventType) -> list[Callable[[DomainEvent], Awaitable[None]]]:
         """Get all handlers for a specific event type."""
         return self._handlers.get(event_type, []).copy()
-
-    def get_all_handlers(self) -> dict[EventType, list[Callable[[DomainEvent], Awaitable[None]]]]:
-        """Get all registered handlers (returns a copy)."""
-        return {k: v.copy() for k, v in self._handlers.items()}
-
-    def replace_handlers(self, event_type: EventType, handlers: list[Callable[[DomainEvent], Awaitable[None]]]) -> None:
-        """Replace all handlers for a specific event type."""
-        self._handlers[event_type] = handlers

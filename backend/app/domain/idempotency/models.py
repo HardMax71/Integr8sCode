@@ -11,7 +11,6 @@ class IdempotencyStatus(StringEnum):
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
-    EXPIRED = "expired"
 
 
 class KeyStrategy(StringEnum):
@@ -34,10 +33,3 @@ class IdempotencyRecord:
     processing_duration_ms: int | None = None
     error: str | None = None
     result_json: str | None = None
-
-
-@dataclass
-class IdempotencyStats:
-    total_keys: int
-    status_counts: dict[IdempotencyStatus, int]
-    prefix: str

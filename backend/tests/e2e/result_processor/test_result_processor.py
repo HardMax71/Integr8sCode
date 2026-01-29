@@ -20,7 +20,9 @@ from app.events.core import UnifiedConsumer, UnifiedProducer
 from app.events.core.dispatcher import EventDispatcher
 from app.events.core.types import ConsumerConfig
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
+from app.domain.idempotency import KeyStrategy
 from app.services.idempotency import IdempotencyManager
+from app.services.idempotency.middleware import IdempotentEventDispatcher
 from app.services.result_processor.processor import ResultProcessor
 from app.settings import Settings
 from dishka import AsyncContainer
@@ -63,12 +65,18 @@ async def test_result_processor_persists_and_emits(scope: AsyncContainer) -> Non
     execution_id = created.execution_id
 
     # Build and start the processor
+    proc_dispatcher = IdempotentEventDispatcher(
+        logger=_test_logger,
+        idempotency_manager=idem,
+        key_strategy=KeyStrategy.CONTENT_HASH,
+        ttl_seconds=7200,
+    )
     processor = ResultProcessor(
         execution_repo=repo,
         producer=producer,
         schema_registry=registry,
         settings=settings,
-        idempotency_manager=idem,
+        dispatcher=proc_dispatcher,
         logger=_test_logger,
         execution_metrics=execution_metrics,
         event_metrics=event_metrics,

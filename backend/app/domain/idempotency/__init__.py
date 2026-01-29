@@ -1,6 +1,5 @@
 from .models import (
     IdempotencyRecord,
-    IdempotencyStats,
     IdempotencyStatus,
     KeyStrategy,
 )
@@ -8,6 +7,5 @@ from .models import (
 __all__ = [
     "IdempotencyStatus",
     "IdempotencyRecord",
-    "IdempotencyStats",
     "KeyStrategy",
 ]

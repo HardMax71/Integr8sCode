@@ -5,6 +5,7 @@ import pytest
 from app.core.metrics import EventMetrics, ExecutionMetrics
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId, KafkaTopic
+from app.events.core import EventDispatcher
 from app.services.result_processor.processor import ResultProcessor, ResultProcessorConfig
 
 pytestmark = pytest.mark.unit
@@ -29,21 +30,21 @@ class TestResultProcessorConfig:
         assert config.processing_timeout == 600
 
 
-def test_create_dispatcher_registers_handlers(
+def test_register_handlers_populates_dispatcher(
     execution_metrics: ExecutionMetrics, event_metrics: EventMetrics
 ) -> None:
+    dispatcher = EventDispatcher(logger=_test_logger)
     rp = ResultProcessor(
         execution_repo=MagicMock(),
         producer=MagicMock(),
         schema_registry=MagicMock(),
         settings=MagicMock(),
-        idempotency_manager=MagicMock(),
+        dispatcher=dispatcher,
         logger=_test_logger,
         execution_metrics=execution_metrics,
         event_metrics=event_metrics,
     )
-    dispatcher = rp._create_dispatcher()
-    assert dispatcher is not None
+    rp._register_handlers()
     assert EventType.EXECUTION_COMPLETED in dispatcher._handlers
     assert EventType.EXECUTION_FAILED in dispatcher._handlers
     assert EventType.EXECUTION_TIMEOUT in dispatcher._handlers

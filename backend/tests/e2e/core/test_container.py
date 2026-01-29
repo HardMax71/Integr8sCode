@@ -9,7 +9,7 @@ from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
 from app.services.notification_service import NotificationService
 from app.services.rate_limit_service import RateLimitService
-from app.services.replay_service import ReplayService
+from app.services.event_replay import EventReplayService
 from app.services.saved_script_service import SavedScriptService
 from app.services.admin import AdminUserService
 from app.services.user_settings_service import UserSettingsService
@@ -151,10 +151,10 @@ class TestBusinessServices:
     async def test_resolves_replay_service(
         self, scope: AsyncContainer
     ) -> None:
-        """Container resolves ReplayService."""
-        service = await scope.get(ReplayService)
+        """Container resolves EventReplayService."""
+        service = await scope.get(EventReplayService)
 
-        assert isinstance(service, ReplayService)
+        assert isinstance(service, EventReplayService)
 
 
 class TestServiceDependencies:

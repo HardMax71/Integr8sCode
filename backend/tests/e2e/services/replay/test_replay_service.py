@@ -2,7 +2,7 @@ import pytest
 from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
 from app.domain.replay.exceptions import ReplaySessionNotFoundError
 from app.services.event_replay import ReplayConfig, ReplayFilter
-from app.services.replay_service import ReplayService
+from app.services.event_replay import EventReplayService
 from dishka import AsyncContainer
 
 pytestmark = [pytest.mark.e2e, pytest.mark.kafka]
@@ -16,7 +16,7 @@ class TestCreateSession:
         self, scope: AsyncContainer
     ) -> None:
         """Create replay session for execution events."""
-        svc: ReplayService = await scope.get(ReplayService)
+        svc: EventReplayService = await scope.get(EventReplayService)
 
         cfg = ReplayConfig(
             replay_type=ReplayType.EXECUTION,
@@ -36,7 +36,7 @@ class TestCreateSession:
         self, scope: AsyncContainer
     ) -> None:
         """Create session with event limit."""
-        svc: ReplayService = await scope.get(ReplayService)
+        svc: EventReplayService = await scope.get(EventReplayService)
 
         cfg = ReplayConfig(
             replay_type=ReplayType.EXECUTION,
@@ -54,7 +54,7 @@ class TestCreateSession:
         self, scope: AsyncContainer
     ) -> None:
         """Create session with event filter."""
-        svc: ReplayService = await scope.get(ReplayService)
+        svc: EventReplayService = await scope.get(EventReplayService)
 
         replay_filter = ReplayFilter(
             aggregate_id="exec-1",
@@ -76,7 +76,7 @@ class TestListSessions:
     @pytest.mark.asyncio
     async def test_list_sessions(self, scope: AsyncContainer) -> None:
         """List replay sessions."""
-        svc: ReplayService = await scope.get(ReplayService)
+        svc: EventReplayService = await scope.get(EventReplayService)
 
         # Create a session first
         cfg = ReplayConfig(
@@ -96,7 +96,7 @@ class TestListSessions:
     @pytest.mark.asyncio
     async def test_list_sessions_with_limit(self, scope: AsyncContainer) -> None:
         """List sessions respects limit."""
-        svc: ReplayService = await scope.get(ReplayService)
+        svc: EventReplayService = await scope.get(EventReplayService)
 
         sessions = svc.list_sessions(limit=5)
 
@@ -110,7 +110,7 @@ class TestGetSession:
     @pytest.mark.asyncio
     async def test_get_session_by_id(self, scope: AsyncContainer) -> None:
         """Get session by ID."""
-        svc: ReplayService = await scope.get(ReplayService)
+        svc: EventReplayService = await scope.get(EventReplayService)
 
         # Create a session
         cfg = ReplayConfig(
@@ -130,7 +130,7 @@ class TestGetSession:
     @pytest.mark.asyncio
     async def test_get_session_not_found(self, scope: AsyncContainer) -> None:
         """Get nonexistent session raises error."""
-        svc: ReplayService = await scope.get(ReplayService)
+        svc: EventReplayService = await scope.get(EventReplayService)
 
         with pytest.raises(ReplaySessionNotFoundError):
             svc.get_session("nonexistent-session-id")
@@ -142,7 +142,7 @@ class TestCancelSession:
     @pytest.mark.asyncio
     async def test_cancel_session(self, scope: AsyncContainer) -> None:
         """Cancel a replay session."""
-        svc: ReplayService = await scope.get(ReplayService)
+        svc: EventReplayService = await scope.get(EventReplayService)
 
         # Create a session
         cfg = ReplayConfig(
@@ -164,7 +164,7 @@ class TestCancelSession:
         self, scope: AsyncContainer
     ) -> None:
         """Cancel nonexistent session raises error."""
-        svc: ReplayService = await scope.get(ReplayService)
+        svc: EventReplayService = await scope.get(EventReplayService)
 
         with pytest.raises(ReplaySessionNotFoundError):
             await svc.cancel_session("nonexistent-session-id")

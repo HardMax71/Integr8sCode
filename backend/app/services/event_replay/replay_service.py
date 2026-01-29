@@ -1,5 +1,4 @@
 import asyncio
-import inspect
 import json
 import logging
 from collections.abc import AsyncIterator
@@ -15,7 +14,15 @@ from app.db.repositories.replay_repository import ReplayRepository
 from app.domain.admin.replay_updates import ReplaySessionUpdate
 from app.domain.enums.replay import ReplayStatus, ReplayTarget
 from app.domain.events.typed import DomainEvent
-from app.domain.replay import ReplayConfig, ReplayError, ReplaySessionState
+from app.domain.replay import (
+    CleanupResult,
+    ReplayConfig,
+    ReplayError,
+    ReplayOperationError,
+    ReplayOperationResult,
+    ReplaySessionNotFoundError,
+    ReplaySessionState,
+)
 from app.events.core import UnifiedProducer
 from app.events.event_store import EventStore
 
@@ -54,10 +61,10 @@ class EventReplayService:
     async def start_replay(self, session_id: str) -> None:
         session = self._sessions.get(session_id)
         if not session:
-            raise ValueError(f"Session {session_id} not found")
+            raise ReplaySessionNotFoundError(session_id)
 
         if session.status != ReplayStatus.CREATED:
-            raise ValueError(f"Session {session_id} already started")
+            raise ReplayOperationError(session_id, "start", "Session already started")
 
         task = asyncio.create_task(self._run_replay(session))
         self._active_tasks[session_id] = task
@@ -81,14 +88,14 @@ class EventReplayService:
                     "replay.target": session.config.target,
                 },
             ):
-                await self._prepare_session(session)
+                total_count = await self._repository.count_events(session.config.filter)
+                session.total_events = min(total_count, session.config.max_events or total_count)
 
                 async for batch in self._fetch_event_batches(session):
                     if session.status != ReplayStatus.RUNNING:
                         break
 
                     await self._process_batch(session, batch)
-                    await self._handle_progress_callback(session)
 
                 await self._complete_session(session, start_time)
 
@@ -97,25 +104,6 @@ class EventReplayService:
         finally:
             self._metrics.decrement_active_replays()
             self._active_tasks.pop(session.session_id, None)
-
-    async def _prepare_session(self, session: ReplaySessionState) -> None:
-        total_count = await self._repository.count_events(session.config.filter)
-        session.total_events = min(total_count, session.config.max_events or total_count)
-
-        self.logger.info(
-            "Replay session will process events",
-            extra={"session_id": session.session_id, "total_events": session.total_events},
-        )
-
-    async def _handle_progress_callback(self, session: ReplaySessionState) -> None:
-        cb = session.config.get_progress_callback()
-        if cb is not None:
-            try:
-                result = cb(session)
-                if inspect.isawaitable(result):
-                    await result
-            except Exception as e:
-                self.logger.error(f"Progress callback error: {e}")
 
     async def _complete_session(self, session: ReplaySessionState, start_time: float) -> None:
         session.status = ReplayStatus.COMPLETED
@@ -294,7 +282,7 @@ class EventReplayService:
     async def pause_replay(self, session_id: str) -> None:
         session = self._sessions.get(session_id)
         if not session:
-            raise ValueError(f"Session {session_id} not found")
+            raise ReplaySessionNotFoundError(session_id)
 
         if session.status == ReplayStatus.RUNNING:
             session.status = ReplayStatus.PAUSED
@@ -303,7 +291,7 @@ class EventReplayService:
     async def resume_replay(self, session_id: str) -> None:
         session = self._sessions.get(session_id)
         if not session:
-            raise ValueError(f"Session {session_id} not found")
+            raise ReplaySessionNotFoundError(session_id)
 
         if session.status == ReplayStatus.PAUSED:
             session.status = ReplayStatus.RUNNING
@@ -312,7 +300,7 @@ class EventReplayService:
     async def cancel_replay(self, session_id: str) -> None:
         session = self._sessions.get(session_id)
         if not session:
-            raise ValueError(f"Session {session_id} not found")
+            raise ReplaySessionNotFoundError(session_id)
 
         session.status = ReplayStatus.CANCELLED
 
@@ -322,8 +310,11 @@ class EventReplayService:
 
         self.logger.info("Cancelled replay session", extra={"session_id": session_id})
 
-    def get_session(self, session_id: str) -> ReplaySessionState | None:
-        return self._sessions.get(session_id)
+    def get_session(self, session_id: str) -> ReplaySessionState:
+        session = self._sessions.get(session_id)
+        if not session:
+            raise ReplaySessionNotFoundError(session_id)
+        return session
 
     def list_sessions(self, status: ReplayStatus | None = None, limit: int = 100) -> list[ReplaySessionState]:
         sessions = list(self._sessions.values())
@@ -339,9 +330,9 @@ class EventReplayService:
     ) -> None:
         self._callbacks[target] = callback
 
-    async def cleanup_old_sessions(self, older_than_hours: int = 24) -> int:
+    async def cleanup_old_sessions(self, older_than_hours: int = 24) -> CleanupResult:
         cutoff_time = datetime.now(timezone.utc) - timedelta(hours=older_than_hours)
-        removed = 0
+        removed_memory = 0
 
         completed_statuses = {ReplayStatus.COMPLETED, ReplayStatus.FAILED, ReplayStatus.CANCELLED}
 
@@ -349,10 +340,61 @@ class EventReplayService:
             session = self._sessions[session_id]
             if session.status in completed_statuses and session.created_at < cutoff_time:
                 del self._sessions[session_id]
-                removed += 1
+                removed_memory += 1
 
-        self.logger.info("Cleaned up old replay sessions", extra={"removed_count": removed})
-        return removed
+        removed_db = await self._repository.delete_old_sessions(cutoff_time)
+        total_removed = max(removed_memory, removed_db)
+
+        self.logger.info("Cleaned up old replay sessions", extra={"removed_count": total_removed})
+        return CleanupResult(removed_sessions=total_removed, message=f"Removed {total_removed} old sessions")
+
+    async def create_session_from_config(self, config: ReplayConfig) -> ReplayOperationResult:
+        """Create a new replay session, persist it, and return an operation result."""
+        try:
+            session_id = await self.create_replay_session(config)
+            session = self._sessions.get(session_id)
+            if session:
+                await self._repository.save_session(session)
+            return ReplayOperationResult(
+                session_id=session_id,
+                status=ReplayStatus.CREATED,
+                message="Replay session created successfully",
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to create replay session: {e}")
+            raise ReplayOperationError("", "create", str(e)) from e
+
+    async def start_session(self, session_id: str) -> ReplayOperationResult:
+        """Start a replay session and persist the status change."""
+        await self.start_replay(session_id)
+        await self._repository.update_session_status(session_id, ReplayStatus.RUNNING)
+        return ReplayOperationResult(
+            session_id=session_id, status=ReplayStatus.RUNNING, message="Replay session started"
+        )
+
+    async def pause_session(self, session_id: str) -> ReplayOperationResult:
+        """Pause a replay session and persist the status change."""
+        await self.pause_replay(session_id)
+        await self._repository.update_session_status(session_id, ReplayStatus.PAUSED)
+        return ReplayOperationResult(
+            session_id=session_id, status=ReplayStatus.PAUSED, message="Replay session paused"
+        )
+
+    async def resume_session(self, session_id: str) -> ReplayOperationResult:
+        """Resume a paused replay session and persist the status change."""
+        await self.resume_replay(session_id)
+        await self._repository.update_session_status(session_id, ReplayStatus.RUNNING)
+        return ReplayOperationResult(
+            session_id=session_id, status=ReplayStatus.RUNNING, message="Replay session resumed"
+        )
+
+    async def cancel_session(self, session_id: str) -> ReplayOperationResult:
+        """Cancel a replay session and persist the status change."""
+        await self.cancel_replay(session_id)
+        await self._repository.update_session_status(session_id, ReplayStatus.CANCELLED)
+        return ReplayOperationResult(
+            session_id=session_id, status=ReplayStatus.CANCELLED, message="Replay session cancelled"
+        )
 
     async def _update_session_in_db(self, session: ReplaySessionState) -> None:
         """Update session progress in the database."""

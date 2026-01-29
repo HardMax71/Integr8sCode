@@ -40,7 +40,6 @@ Track scheduling and queue management.
 | `coordinator.scheduling.duration`        | Histogram     | -        | Scheduling time           |
 | `coordinator.executions.active`          | UpDownCounter | -        | Active managed executions |
 | `coordinator.queue.wait_time`            | Histogram     | priority | Queue wait by priority    |
-| `execution.queue.depth`                  | UpDownCounter | -        | Queue depth               |
 | `coordinator.executions.scheduled.total` | Counter       | status   | Scheduled executions      |
 
 ### Rate Limit Metrics

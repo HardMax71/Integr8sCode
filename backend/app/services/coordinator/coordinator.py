@@ -62,8 +62,8 @@ class ExecutionCoordinator:
         self._max_per_user = max_executions_per_user
         self._stale_timeout = stale_timeout_seconds
 
-        # Queue state – heap of (priority_index, sequence, event) tuples
-        self._queue: list[tuple[int, int, ExecutionRequestedEvent]] = []
+        # Queue state – heap of (priority_index, sequence, enqueued_at, event) tuples
+        self._queue: list[tuple[int, int, float, ExecutionRequestedEvent]] = []
         self._enqueue_counter = 0
         self._queue_lock = asyncio.Lock()
         self._user_counts: dict[str, int] = defaultdict(int)
@@ -129,6 +129,7 @@ class ExecutionCoordinator:
 
         removed = await self._remove_from_queue(execution_id)
         self._active_executions.discard(execution_id)
+        self._untrack_user(execution_id)
         self.metrics.update_coordinator_active_executions(len(self._active_executions))
 
         if removed:
@@ -141,6 +142,7 @@ class ExecutionCoordinator:
         execution_id = event.execution_id
 
         self._active_executions.discard(execution_id)
+        self._untrack_user(execution_id)
         self.metrics.update_coordinator_active_executions(len(self._active_executions))
 
         self.logger.info(f"Execution {execution_id} completed")
@@ -151,6 +153,7 @@ class ExecutionCoordinator:
         execution_id = event.execution_id
 
         self._active_executions.discard(execution_id)
+        self._untrack_user(execution_id)
         self.metrics.update_coordinator_active_executions(len(self._active_executions))
 
         await self._try_schedule_next()
@@ -175,22 +178,17 @@ class ExecutionCoordinator:
         try:
             await self._publish_create_pod_command(event)
 
-            queue_time = start_time - event.timestamp.timestamp()
-            self.metrics.record_coordinator_queue_time(queue_time, event.priority)
-
             scheduling_duration = time.time() - start_time
             self.metrics.record_coordinator_scheduling_duration(scheduling_duration)
             self.metrics.record_coordinator_execution_scheduled("scheduled")
 
-            self.logger.info(
-                f"Scheduled execution {event.execution_id}. "
-                f"Queue time: {queue_time:.2f}s"
-            )
+            self.logger.info(f"Scheduled execution {event.execution_id}")
 
         except Exception as e:
             self.logger.error(f"Failed to schedule execution {event.execution_id}: {e}", exc_info=True)
 
             self._active_executions.discard(event.execution_id)
+            self._untrack_user(event.execution_id)
             self.metrics.update_coordinator_active_executions(len(self._active_executions))
             self.metrics.record_coordinator_execution_scheduled("error")
 
@@ -210,7 +208,7 @@ class ExecutionCoordinator:
                 raise QueueRejectError(f"User execution limit exceeded ({self._max_per_user})")
 
             self._enqueue_counter += 1
-            heapq.heappush(self._queue, (_PRIORITY_SORT[event.priority], self._enqueue_counter, event))
+            heapq.heappush(self._queue, (_PRIORITY_SORT[event.priority], self._enqueue_counter, time.time(), event))
             self._track_user(event.execution_id, user_id)
             position = self._find_position(event.execution_id) or 0
 
@@ -228,14 +226,13 @@ class ExecutionCoordinator:
         """Pop the highest-priority non-stale execution from the queue."""
         async with self._queue_lock:
             while self._queue:
-                _, _, event = heapq.heappop(self._queue)
-                age = time.time() - event.timestamp.timestamp()
+                _, _, enqueued_at, event = heapq.heappop(self._queue)
+                age = time.time() - enqueued_at
 
                 if age > self._stale_timeout:
                     self._untrack_user(event.execution_id)
                     continue
 
-                self._untrack_user(event.execution_id)
                 self.metrics.record_coordinator_queue_time(age, event.priority)
                 self.metrics.update_execution_request_queue_size(len(self._queue))
 
@@ -252,7 +249,7 @@ class ExecutionCoordinator:
         """Remove a specific execution from the queue (e.g. on cancellation)."""
         async with self._queue_lock:
             initial_size = len(self._queue)
-            self._queue = [(p, s, e) for p, s, e in self._queue if e.execution_id != execution_id]
+            self._queue = [(p, s, t, e) for p, s, t, e in self._queue if e.execution_id != execution_id]
 
             if len(self._queue) < initial_size:
                 heapq.heapify(self._queue)
@@ -264,7 +261,7 @@ class ExecutionCoordinator:
             return False
 
     def _find_position(self, execution_id: str) -> int | None:
-        for position, (_, _, event) in enumerate(self._queue):
+        for position, (_, _, _, event) in enumerate(self._queue):
             if event.execution_id == execution_id:
                 return position
         return None
@@ -282,12 +279,12 @@ class ExecutionCoordinator:
 
     def _sweep_stale(self) -> None:
         """Remove stale executions from queue. Must be called under _queue_lock."""
-        active: list[tuple[int, int, ExecutionRequestedEvent]] = []
+        active: list[tuple[int, int, float, ExecutionRequestedEvent]] = []
         removed = 0
         now = time.time()
         for entry in self._queue:
-            if now - entry[2].timestamp.timestamp() > self._stale_timeout:
-                self._untrack_user(entry[2].execution_id)
+            if now - entry[2] > self._stale_timeout:
+                self._untrack_user(entry[3].execution_id)
                 removed += 1
             else:
                 active.append(entry)

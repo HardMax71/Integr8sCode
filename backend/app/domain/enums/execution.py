@@ -1,14 +1,14 @@
-from enum import IntEnum
-
 from app.core.utils import StringEnum
 
 
-class QueuePriority(IntEnum):
-    CRITICAL = 0
-    HIGH = 1
-    NORMAL = 5
-    LOW = 8
-    BACKGROUND = 10
+class QueuePriority(StringEnum):
+    """Execution priority, ordered highest to lowest."""
+
+    CRITICAL = "critical"
+    HIGH = "high"
+    NORMAL = "normal"
+    LOW = "low"
+    BACKGROUND = "background"
 
 
 class ExecutionStatus(StringEnum):

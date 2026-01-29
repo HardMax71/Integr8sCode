@@ -3,7 +3,6 @@ import heapq
 import logging
 import time
 from collections import defaultdict
-from dataclasses import dataclass, field
 from uuid import uuid4
 
 from app.core.metrics import CoordinatorMetrics
@@ -28,23 +27,7 @@ class QueueRejectError(Exception):
     """Raised when an execution cannot be added to the queue."""
 
 
-@dataclass(order=True)
-class _QueuedExecution:
-    priority: QueuePriority
-    timestamp: float = field(compare=False)
-    event: ExecutionRequestedEvent = field(compare=False)
-
-    @property
-    def execution_id(self) -> str:
-        return self.event.execution_id
-
-    @property
-    def user_id(self) -> str:
-        return self.event.metadata.user_id or "anonymous"
-
-    @property
-    def age_seconds(self) -> float:
-        return time.time() - self.timestamp
+_PRIORITY_SORT = {p: i for i, p in enumerate(QueuePriority)}
 
 
 class ExecutionCoordinator:
@@ -79,8 +62,9 @@ class ExecutionCoordinator:
         self._max_per_user = max_executions_per_user
         self._stale_timeout = stale_timeout_seconds
 
-        # Queue state
-        self._queue: list[_QueuedExecution] = []
+        # Queue state – heap of (priority_index, sequence, event) tuples
+        self._queue: list[tuple[int, int, ExecutionRequestedEvent]] = []
+        self._enqueue_counter = 0
         self._queue_lock = asyncio.Lock()
         self._user_counts: dict[str, int] = defaultdict(int)
         self._execution_users: dict[str, str] = {}
@@ -192,7 +176,7 @@ class ExecutionCoordinator:
             await self._publish_create_pod_command(event)
 
             queue_time = start_time - event.timestamp.timestamp()
-            self.metrics.record_coordinator_queue_time(queue_time, event.priority.name)
+            self.metrics.record_coordinator_queue_time(queue_time, event.priority)
 
             scheduling_duration = time.time() - start_time
             self.metrics.record_coordinator_scheduling_duration(scheduling_duration)
@@ -225,9 +209,8 @@ class ExecutionCoordinator:
             if self._user_counts[user_id] >= self._max_per_user:
                 raise QueueRejectError(f"User execution limit exceeded ({self._max_per_user})")
 
-            queued = _QueuedExecution(priority=event.priority, timestamp=time.time(), event=event)
-
-            heapq.heappush(self._queue, queued)
+            self._enqueue_counter += 1
+            heapq.heappush(self._queue, (_PRIORITY_SORT[event.priority], self._enqueue_counter, event))
             self._track_user(event.execution_id, user_id)
             position = self._find_position(event.execution_id) or 0
 
@@ -235,7 +218,7 @@ class ExecutionCoordinator:
 
             self.logger.info(
                 f"Added execution {event.execution_id} to queue. "
-                f"Priority: {event.priority.name}, Position: {position}, "
+                f"Priority: {event.priority}, Position: {position}, "
                 f"Queue size: {len(self._queue)}"
             )
 
@@ -245,22 +228,23 @@ class ExecutionCoordinator:
         """Pop the highest-priority non-stale execution from the queue."""
         async with self._queue_lock:
             while self._queue:
-                queued = heapq.heappop(self._queue)
+                _, _, event = heapq.heappop(self._queue)
+                age = time.time() - event.timestamp.timestamp()
 
-                if queued.age_seconds > self._stale_timeout:
-                    self._untrack_user(queued.execution_id)
+                if age > self._stale_timeout:
+                    self._untrack_user(event.execution_id)
                     continue
 
-                self._untrack_user(queued.execution_id)
-                self.metrics.record_coordinator_queue_time(queued.age_seconds, queued.priority.name)
+                self._untrack_user(event.execution_id)
+                self.metrics.record_coordinator_queue_time(age, event.priority)
                 self.metrics.update_execution_request_queue_size(len(self._queue))
 
                 self.logger.info(
-                    f"Retrieved execution {queued.execution_id} from queue. "
-                    f"Wait time: {queued.age_seconds:.2f}s, Queue size: {len(self._queue)}"
+                    f"Retrieved execution {event.execution_id} from queue. "
+                    f"Wait time: {age:.2f}s, Queue size: {len(self._queue)}"
                 )
 
-                return queued.event
+                return event
 
             return None
 
@@ -268,7 +252,7 @@ class ExecutionCoordinator:
         """Remove a specific execution from the queue (e.g. on cancellation)."""
         async with self._queue_lock:
             initial_size = len(self._queue)
-            self._queue = [q for q in self._queue if q.execution_id != execution_id]
+            self._queue = [(p, s, e) for p, s, e in self._queue if e.execution_id != execution_id]
 
             if len(self._queue) < initial_size:
                 heapq.heapify(self._queue)
@@ -280,8 +264,8 @@ class ExecutionCoordinator:
             return False
 
     def _find_position(self, execution_id: str) -> int | None:
-        for position, queued in enumerate(self._queue):
-            if queued.execution_id == execution_id:
+        for position, (_, _, event) in enumerate(self._queue):
+            if event.execution_id == execution_id:
                 return position
         return None
 
@@ -298,14 +282,15 @@ class ExecutionCoordinator:
 
     def _sweep_stale(self) -> None:
         """Remove stale executions from queue. Must be called under _queue_lock."""
-        active: list[_QueuedExecution] = []
+        active: list[tuple[int, int, ExecutionRequestedEvent]] = []
         removed = 0
-        for queued in self._queue:
-            if queued.age_seconds > self._stale_timeout:
-                self._untrack_user(queued.execution_id)
+        now = time.time()
+        for entry in self._queue:
+            if now - entry[2].timestamp.timestamp() > self._stale_timeout:
+                self._untrack_user(entry[2].execution_id)
                 removed += 1
             else:
-                active.append(queued)
+                active.append(entry)
         if removed:
             self._queue = active
             heapq.heapify(self._queue)

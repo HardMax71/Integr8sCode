@@ -8,8 +8,8 @@ from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.kafka import GroupId
+from app.events.core import UnifiedConsumer
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
-from app.services.idempotency.middleware import IdempotentConsumerWrapper
 from app.services.k8s_worker import KubernetesWorker
 from app.settings import Settings
 from beanie import init_beanie
@@ -35,7 +35,7 @@ async def run_kubernetes_worker(settings: Settings) -> None:
 
     # Get consumer (triggers consumer creation and start)
     # Consumer runs in background via its internal consume loop
-    await container.get(IdempotentConsumerWrapper)
+    await container.get(UnifiedConsumer)
 
     # Bootstrap: ensure image pre-puller DaemonSet exists
     # Save task to variable to prevent premature garbage collection

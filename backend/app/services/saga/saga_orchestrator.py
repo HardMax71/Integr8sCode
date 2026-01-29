@@ -14,14 +14,11 @@ from app.db.repositories.saga_repository import SagaRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.saga import SagaState
 from app.domain.events.typed import DomainEvent, EventMetadata, SagaCancelledEvent
-from app.domain.idempotency import KeyStrategy
 from app.domain.saga.models import Saga, SagaConfig
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
 from app.events.event_store import EventStore
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.mappings import get_topic_for_event
-from app.services.idempotency import IdempotentConsumerWrapper
-from app.services.idempotency.idempotency_manager import IdempotencyManager
 from app.settings import Settings
 
 from .base_saga import BaseSaga
@@ -40,7 +37,6 @@ class SagaOrchestrator(LifecycleEnabled):
         schema_registry_manager: SchemaRegistryManager,
         settings: Settings,
         event_store: EventStore,
-        idempotency_manager: IdempotencyManager,
         resource_allocation_repository: ResourceAllocationRepository,
         logger: logging.Logger,
         event_metrics: EventMetrics,
@@ -49,8 +45,7 @@ class SagaOrchestrator(LifecycleEnabled):
         self.config = config
         self._sagas: dict[str, type[BaseSaga]] = {}
         self._running_instances: dict[str, Saga] = {}
-        self._consumer: IdempotentConsumerWrapper | None = None
-        self._idempotency_manager: IdempotencyManager = idempotency_manager
+        self._consumer: UnifiedConsumer | None = None
         self._producer = producer
         self._schema_registry_manager = schema_registry_manager
         self._settings = settings
@@ -88,8 +83,6 @@ class SagaOrchestrator(LifecycleEnabled):
 
         if self._consumer:
             await self._consumer.stop()
-
-        await self._idempotency_manager.close()
 
         for task in self._tasks:
             if not task.done():
@@ -147,7 +140,7 @@ class SagaOrchestrator(LifecycleEnabled):
             dispatcher.register_handler(event_type, self._handle_event)
             self.logger.info(f"Registered handler for event type: {event_type}")
 
-        base_consumer = UnifiedConsumer(
+        self._consumer = UnifiedConsumer(
             config=consumer_config,
             event_dispatcher=dispatcher,
             schema_registry=self._schema_registry_manager,
@@ -155,17 +148,7 @@ class SagaOrchestrator(LifecycleEnabled):
             logger=self.logger,
             event_metrics=self._event_metrics,
         )
-        self._consumer = IdempotentConsumerWrapper(
-            consumer=base_consumer,
-            idempotency_manager=self._idempotency_manager,
-            dispatcher=dispatcher,
-            logger=self.logger,
-            default_key_strategy=KeyStrategy.EVENT_BASED,
-            default_ttl_seconds=7200,
-            enable_for_all_handlers=False,
-        )
 
-        assert self._consumer is not None
         await self._consumer.start(list(topics))
 
         self.logger.info(f"Saga consumer started for topics: {topics}")
@@ -611,7 +594,6 @@ def create_saga_orchestrator(
     schema_registry_manager: SchemaRegistryManager,
     settings: Settings,
     event_store: EventStore,
-    idempotency_manager: IdempotencyManager,
     resource_allocation_repository: ResourceAllocationRepository,
     config: SagaConfig,
     logger: logging.Logger,
@@ -625,7 +607,6 @@ def create_saga_orchestrator(
         schema_registry_manager: Schema registry manager for event serialization
         settings: Application settings
         event_store: Event store instance for event sourcing
-        idempotency_manager: Manager for idempotent event processing
         resource_allocation_repository: Repository for resource allocations
         config: Saga configuration
         logger: Logger instance
@@ -641,7 +622,6 @@ def create_saga_orchestrator(
         schema_registry_manager=schema_registry_manager,
         settings=settings,
         event_store=event_store,
-        idempotency_manager=idempotency_manager,
         resource_allocation_repository=resource_allocation_repository,
         logger=logger,
         event_metrics=event_metrics,

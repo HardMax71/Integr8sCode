@@ -43,7 +43,7 @@ async def test_router_bridges_to_redis(redis_client: redis.Redis, test_settings:
     subscription = await bus.open_subscription(execution_id)
 
     ev = make_execution_requested_event(execution_id=execution_id)
-    handler = disp.get_handlers(ev.event_type)[0]
+    handler = disp._handlers[ev.event_type][0]
     await handler(ev)
 
     # Await the subscription directly - true async, no polling

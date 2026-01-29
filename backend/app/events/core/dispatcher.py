@@ -6,7 +6,6 @@ from typing import TypeAlias, TypeVar
 
 from app.domain.enums.events import EventType
 from app.domain.events.typed import DomainEvent
-from app.infrastructure.kafka.mappings import get_event_class_for_type
 
 T = TypeVar("T", bound=DomainEvent)
 EventHandler: TypeAlias = Callable[[DomainEvent], Awaitable[None]]
@@ -18,20 +17,20 @@ class EventDispatcher:
 
     This dispatcher eliminates the need for manual if/elif routing by maintaining
     a direct mapping from event types to their handlers.
+
+    Subclasses may override ``_wrap_handler`` to intercept handler registration
+    (e.g. ``IdempotentEventDispatcher`` adds idempotency protection).
     """
 
     def __init__(self, logger: logging.Logger) -> None:
         self.logger = logger
+
         # Map event types to their handlers
         self._handlers: dict[EventType, list[Callable[[DomainEvent], Awaitable[None]]]] = defaultdict(list)
 
-        # Map topics to event types that can appear on them
-        self._topic_event_types: dict[str, set[type[DomainEvent]]] = defaultdict(set)
-
-        # Metrics per event type
-        self._event_metrics: dict[EventType, dict[str, int]] = defaultdict(
-            lambda: {"processed": 0, "failed": 0, "skipped": 0}
-        )
+    def _wrap_handler(self, handler: EventHandler) -> EventHandler:
+        """Hook for subclasses to wrap handlers at registration time."""
+        return handler
 
     def register(
         self, event_type: EventType
@@ -51,7 +50,7 @@ class EventDispatcher:
         def decorator(handler: Callable[[T], Awaitable[None]]) -> Callable[[T], Awaitable[None]]:
             self.logger.info(f"Registering handler '{handler.__name__}' for event type '{event_type}'")
             # Safe: dispatch() routes by event_type, guaranteeing correct types at runtime
-            self._handlers[event_type].append(handler)  # type: ignore[arg-type]
+            self._handlers[event_type].append(self._wrap_handler(handler))  # type: ignore[arg-type]
             return handler
 
         return decorator
@@ -65,27 +64,7 @@ class EventDispatcher:
             handler: The async handler function
         """
         self.logger.info(f"Registering handler '{handler.__name__}' for event type '{event_type}'")
-        self._handlers[event_type].append(handler)
-
-    def remove_handler(self, event_type: EventType, handler: EventHandler) -> bool:
-        """
-        Remove a specific handler for an event type.
-
-        Args:
-            event_type: The event type to remove handler from
-            handler: The handler function to remove
-
-        Returns:
-            True if handler was found and removed, False otherwise
-        """
-        if event_type in self._handlers and handler in self._handlers[event_type]:
-            self._handlers[event_type].remove(handler)
-            self.logger.info(f"Removed handler '{handler.__name__}' for event type '{event_type}'")
-            # Clean up empty lists
-            if not self._handlers[event_type]:
-                del self._handlers[event_type]
-            return True
-        return False
+        self._handlers[event_type].append(self._wrap_handler(handler))
 
     async def dispatch(self, event: DomainEvent) -> None:
         """
@@ -102,25 +81,14 @@ class EventDispatcher:
         )
 
         if not handlers:
-            self._event_metrics[event_type]["skipped"] += 1
             self.logger.debug(f"No handlers registered for event type {event_type}")
             return
 
         self.logger.debug(f"Dispatching {event_type} to {len(handlers)} handler(s)")
 
         # Run handlers concurrently for better performance
-        tasks = []
-        for handler in handlers:
-            tasks.append(self._execute_handler(handler, event))
-
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        # Count successes and failures
-        for result in results:
-            if isinstance(result, Exception):
-                self._event_metrics[event_type]["failed"] += 1
-            else:
-                self._event_metrics[event_type]["processed"] += 1
+        tasks = [self._execute_handler(handler, event) for handler in handlers]
+        await asyncio.gather(*tasks)
 
     async def _execute_handler(self, handler: EventHandler, event: DomainEvent) -> None:
         """
@@ -140,38 +108,3 @@ class EventDispatcher:
             )
             raise
 
-    def get_topics_for_registered_handlers(self) -> set[str]:
-        """
-        Get all topics that have registered handlers.
-
-        Returns:
-            Set of topic names that should be subscribed to
-        """
-        topics = set()
-        for event_type in self._handlers.keys():
-            # Find event class for this type
-            event_class = get_event_class_for_type(event_type)
-            if event_class and hasattr(event_class, "topic"):
-                topics.add(str(event_class.topic))
-        return topics
-
-    def get_metrics(self) -> dict[str, dict[str, int]]:
-        """Get processing metrics for all event types."""
-        return {event_type: metrics for event_type, metrics in self._event_metrics.items()}
-
-    def clear_handlers(self) -> None:
-        """Clear all registered handlers (useful for testing)."""
-        self._handlers.clear()
-        self.logger.info("All event handlers cleared")
-
-    def get_handlers(self, event_type: EventType) -> list[Callable[[DomainEvent], Awaitable[None]]]:
-        """Get all handlers for a specific event type."""
-        return self._handlers.get(event_type, []).copy()
-
-    def get_all_handlers(self) -> dict[EventType, list[Callable[[DomainEvent], Awaitable[None]]]]:
-        """Get all registered handlers (returns a copy)."""
-        return {k: v.copy() for k, v in self._handlers.items()}
-
-    def replace_handlers(self, event_type: EventType, handlers: list[Callable[[DomainEvent], Awaitable[None]]]) -> None:
-        """Replace all handlers for a specific event type."""
-        self._handlers[event_type] = handlers

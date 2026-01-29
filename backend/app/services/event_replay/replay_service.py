@@ -18,7 +18,6 @@ from app.domain.events.typed import DomainEvent
 from app.domain.replay import ReplayConfig, ReplayError, ReplaySessionState
 from app.events.core import UnifiedProducer
 from app.events.event_store import EventStore
-from app.settings import Settings
 
 
 class EventReplayService:
@@ -27,7 +26,7 @@ class EventReplayService:
         repository: ReplayRepository,
         producer: UnifiedProducer,
         event_store: EventStore,
-        settings: Settings,
+        replay_metrics: ReplayMetrics,
         logger: logging.Logger,
     ) -> None:
         self._sessions: dict[str, ReplaySessionState] = {}
@@ -38,7 +37,7 @@ class EventReplayService:
         self.logger = logger
         self._callbacks: dict[ReplayTarget, Callable[..., Any]] = {}
         self._file_locks: dict[str, asyncio.Lock] = {}
-        self._metrics = ReplayMetrics(settings)
+        self._metrics = replay_metrics
         self.logger.info("Event replay service initialized")
 
     async def create_replay_session(self, config: ReplayConfig) -> str:

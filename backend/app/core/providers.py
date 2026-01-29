@@ -864,13 +864,13 @@ class EventReplayProvider(Provider):
             replay_repository: ReplayRepository,
             kafka_producer: UnifiedProducer,
             event_store: EventStore,
-            settings: Settings,
+            replay_metrics: ReplayMetrics,
             logger: logging.Logger,
     ) -> EventReplayService:
         return EventReplayService(
             repository=replay_repository,
             producer=kafka_producer,
             event_store=event_store,
-            settings=settings,
+            replay_metrics=replay_metrics,
             logger=logger,
         )

@@ -48,7 +48,7 @@ async def test_register_and_route_events_without_kafka() -> None:
 
     disp = EventDispatcher(_test_logger)
     bridge._register_routing_handlers(disp)
-    handlers = disp.get_handlers(EventType.EXECUTION_STARTED)
+    handlers = disp._handlers[EventType.EXECUTION_STARTED]
     assert len(handlers) > 0
 
     # Event with empty execution_id is ignored

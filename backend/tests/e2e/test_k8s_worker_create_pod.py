@@ -1,6 +1,5 @@
 import logging
 import uuid
-from unittest.mock import MagicMock
 
 import pytest
 from app.core.metrics import EventMetrics
@@ -25,17 +24,13 @@ async def test_worker_creates_configmap_and_pod(
     producer: UnifiedProducer = await scope.get(UnifiedProducer)
     event_metrics: EventMetrics = await scope.get(EventMetrics)
 
-    # Create settings with test-specific max_concurrent_pods
-    worker_settings = MagicMock(wraps=test_settings)
-    worker_settings.K8S_MAX_CONCURRENT_PODS = 1
-
     dispatcher = EventDispatcher(logger=_test_logger)
 
     worker = KubernetesWorker(
         api_client=api_client,
         producer=producer,
         dispatcher=dispatcher,
-        settings=worker_settings,
+        settings=test_settings,
         logger=_test_logger,
         event_metrics=event_metrics,
     )

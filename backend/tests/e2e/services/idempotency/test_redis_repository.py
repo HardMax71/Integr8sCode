@@ -137,34 +137,5 @@ async def test_update_record_when_missing(
 
 
 @pytest.mark.asyncio
-async def test_aggregate_status_counts(
-    repository: RedisIdempotencyRepository, redis_client: redis.Redis
-) -> None:
-    # Use unique prefix to avoid collision with other tests
-    prefix = uuid.uuid4().hex[:8]
-    # Seed few keys directly using repository
-    statuses = (IdempotencyStatus.PROCESSING, IdempotencyStatus.PROCESSING, IdempotencyStatus.COMPLETED)
-    for i, status in enumerate(statuses):
-        rec = IdempotencyRecord(
-            key=f"{prefix}_k{i}",
-            status=status,
-            event_type="t",
-            event_id=f"{prefix}_e{i}",
-            created_at=datetime.now(timezone.utc),
-            ttl_seconds=60,
-        )
-        await repository.insert_processing(rec)
-        if status != IdempotencyStatus.PROCESSING:
-            rec.status = status
-            rec.completed_at = datetime.now(timezone.utc)
-            await repository.update_record(rec)
-
-    counts = await repository.aggregate_status_counts("idempotency")
-    # Counts include all records in namespace, check we have at least our seeded counts
-    assert counts[IdempotencyStatus.PROCESSING] >= 2
-    assert counts[IdempotencyStatus.COMPLETED] >= 1
-
-
-@pytest.mark.asyncio
 async def test_health_check(repository: RedisIdempotencyRepository) -> None:
     await repository.health_check()  # should not raise

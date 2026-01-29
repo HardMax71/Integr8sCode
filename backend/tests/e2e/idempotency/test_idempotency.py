@@ -2,7 +2,6 @@ import asyncio
 import json
 import logging
 import uuid
-from collections.abc import AsyncGenerator
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -28,7 +27,7 @@ class TestIdempotencyManager:
     """IdempotencyManager backed by real Redis repository (DI-provided client)."""
 
     @pytest.fixture
-    async def manager(self, redis_client: redis.Redis, test_settings: Settings) -> AsyncGenerator[IdempotencyManager, None]:
+    def manager(self, redis_client: redis.Redis, test_settings: Settings) -> IdempotencyManager:
         prefix = f"idemp_ut:{uuid.uuid4().hex[:6]}"
         cfg = IdempotencyConfig(
             key_prefix=prefix,
@@ -40,12 +39,7 @@ class TestIdempotencyManager:
         )
         repo = RedisIdempotencyRepository(redis_client, key_prefix=prefix)
         database_metrics = DatabaseMetrics(test_settings)
-        m = IdempotencyManager(cfg, repo, _test_logger, database_metrics=database_metrics)
-        await m.initialize()
-        try:
-            yield m
-        finally:
-            await m.close()
+        return IdempotencyManager(cfg, repo, _test_logger, database_metrics=database_metrics)
 
     @pytest.mark.asyncio
     async def test_complete_flow_new_event(self, manager: IdempotencyManager) -> None:
@@ -201,38 +195,6 @@ class TestIdempotencyManager:
         assert duplicate_result.has_cached_result is True
 
     @pytest.mark.asyncio
-    async def test_stats_aggregation(self, manager: IdempotencyManager) -> None:
-        """Test statistics aggregation"""
-        # Create various events with different statuses
-        events = []
-        for i in range(10):
-            event = make_execution_requested_event(
-                execution_id=f"exec-{i}",
-                script=f"print({i})",
-                service_name="test-service",
-            )
-            events.append(event)
-
-        # Process events with different outcomes
-        for i, event in enumerate(events):
-            await manager.check_and_reserve(event, key_strategy=KeyStrategy.EVENT_BASED)
-
-            if i < 6:
-                await manager.mark_completed(event, key_strategy=KeyStrategy.EVENT_BASED)
-            elif i < 8:
-                await manager.mark_failed(event, "Test error", key_strategy=KeyStrategy.EVENT_BASED)
-            # Leave rest in processing
-
-        # Get stats
-        stats = await manager.get_stats()
-
-        assert stats.total_keys == 10
-        assert stats.status_counts[IdempotencyStatus.COMPLETED] == 6
-        assert stats.status_counts[IdempotencyStatus.FAILED] == 2
-        assert stats.status_counts[IdempotencyStatus.PROCESSING] == 2
-        assert stats.prefix == manager.config.key_prefix
-
-    @pytest.mark.asyncio
     async def test_remove_key(self, manager: IdempotencyManager) -> None:
         """Test removing idempotency keys"""
         real_event = make_execution_requested_event(execution_id="exec-remove-1")
@@ -257,17 +219,12 @@ class TestIdempotentEventHandlerIntegration:
     """Test IdempotentEventHandler with real components"""
 
     @pytest.fixture
-    async def manager(self, redis_client: redis.Redis, test_settings: Settings) -> AsyncGenerator[IdempotencyManager, None]:
+    def manager(self, redis_client: redis.Redis, test_settings: Settings) -> IdempotencyManager:
         prefix = f"handler_test:{uuid.uuid4().hex[:6]}"
         config = IdempotencyConfig(key_prefix=prefix, enable_metrics=False)
         repo = RedisIdempotencyRepository(redis_client, key_prefix=prefix)
         database_metrics = DatabaseMetrics(test_settings)
-        m = IdempotencyManager(config, repo, _test_logger, database_metrics=database_metrics)
-        await m.initialize()
-        try:
-            yield m
-        finally:
-            await m.close()
+        return IdempotencyManager(config, repo, _test_logger, database_metrics=database_metrics)
 
     @pytest.mark.asyncio
     async def test_handler_processes_new_event(self, manager: IdempotencyManager) -> None:
@@ -511,21 +468,6 @@ class TestIdempotentEventHandlerIntegration:
         # Note: actual cleanup implementation depends on repository
         record = await manager._repo.find_by_key(expired_key)
         assert record is not None  # Still exists until explicit cleanup
-
-    @pytest.mark.asyncio
-    async def test_metrics_enabled(self, redis_client: redis.Redis, test_settings: Settings) -> None:
-        """Test manager with metrics enabled"""
-        config = IdempotencyConfig(key_prefix=f"metrics:{uuid.uuid4().hex[:6]}", enable_metrics=True)
-        repository = RedisIdempotencyRepository(redis_client, key_prefix=config.key_prefix)
-        database_metrics = DatabaseMetrics(test_settings)
-        manager = IdempotencyManager(config, repository, _test_logger, database_metrics=database_metrics)
-
-        # Initialize with metrics
-        await manager.initialize()
-        assert manager._stats_update_task is not None
-
-        # Cleanup
-        await manager.close()
 
     @pytest.mark.asyncio
     async def test_content_hash_with_fields(self, manager: IdempotencyManager) -> None:

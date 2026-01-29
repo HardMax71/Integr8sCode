@@ -1,4 +1,3 @@
-import asyncio
 import hashlib
 import json
 import logging
@@ -10,7 +9,7 @@ from pymongo.errors import DuplicateKeyError
 
 from app.core.metrics import DatabaseMetrics
 from app.domain.events.typed import BaseEvent
-from app.domain.idempotency import IdempotencyRecord, IdempotencyStats, IdempotencyStatus, KeyStrategy
+from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus, KeyStrategy
 
 
 class IdempotencyResult(BaseModel):
@@ -62,7 +61,6 @@ class IdempotencyRepoProtocol(Protocol):
     async def insert_processing(self, record: IdempotencyRecord) -> None: ...
     async def update_record(self, record: IdempotencyRecord) -> int: ...
     async def delete_key(self, key: str) -> int: ...
-    async def aggregate_status_counts(self, key_prefix: str) -> dict[str, int]: ...
     async def health_check(self) -> None: ...
 
 
@@ -77,22 +75,8 @@ class IdempotencyManager:
         self.config = config
         self.metrics = database_metrics
         self._repo: IdempotencyRepoProtocol = repository
-        self._stats_update_task: asyncio.Task[None] | None = None
         self.logger = logger
-
-    async def initialize(self) -> None:
-        if self.config.enable_metrics and self._stats_update_task is None:
-            self._stats_update_task = asyncio.create_task(self._update_stats_loop())
-        self.logger.info("Idempotency manager ready")
-
-    async def close(self) -> None:
-        if self._stats_update_task:
-            self._stats_update_task.cancel()
-            try:
-                await self._stats_update_task
-            except asyncio.CancelledError:
-                pass
-        self.logger.info("Closed idempotency manager")
+        self.logger.info("Idempotency manager initialized")
 
     def _generate_key(
         self, event: BaseEvent, key_strategy: KeyStrategy, custom_key: str | None = None, fields: set[str] | None = None
@@ -188,6 +172,7 @@ class IdempotencyManager:
                 ttl_seconds=ttl,
             )
             await self._repo.insert_processing(record)
+            self.metrics.increment_idempotency_keys(self.config.key_prefix)
             return IdempotencyResult(
                 is_duplicate=False, status=IdempotencyStatus.PROCESSING, created_at=created_at, key=full_key
             )
@@ -291,41 +276,8 @@ class IdempotencyManager:
         fields: set[str] | None = None,
     ) -> bool:
         full_key = self._generate_key(event, key_strategy, custom_key, fields)
-        try:
-            deleted = await self._repo.delete_key(full_key)
-            return deleted > 0
-        except Exception as e:
-            self.logger.error(f"Failed to remove idempotency key: {e}")
-            return False
-
-    async def get_stats(self) -> IdempotencyStats:
-        counts_raw = await self._repo.aggregate_status_counts(self.config.key_prefix)
-        status_counts: dict[IdempotencyStatus, int] = {
-            IdempotencyStatus.PROCESSING: counts_raw.get(IdempotencyStatus.PROCESSING, 0),
-            IdempotencyStatus.COMPLETED: counts_raw.get(IdempotencyStatus.COMPLETED, 0),
-            IdempotencyStatus.FAILED: counts_raw.get(IdempotencyStatus.FAILED, 0),
-        }
-        total = sum(status_counts.values())
-        return IdempotencyStats(total_keys=total, status_counts=status_counts, prefix=self.config.key_prefix)
-
-    async def _update_stats_loop(self) -> None:
-        while True:
-            try:
-                stats = await self.get_stats()
-                self.metrics.update_idempotency_keys_active(stats.total_keys, self.config.key_prefix)
-                await asyncio.sleep(60)
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                self.logger.error(f"Failed to update idempotency stats: {e}")
-                await asyncio.sleep(300)
-
-
-def create_idempotency_manager(
-    *,
-    repository: IdempotencyRepoProtocol,
-    config: IdempotencyConfig | None = None,
-    logger: logging.Logger,
-    database_metrics: DatabaseMetrics,
-) -> IdempotencyManager:
-    return IdempotencyManager(config or IdempotencyConfig(), repository, logger, database_metrics)
+        deleted = await self._repo.delete_key(full_key)
+        if deleted > 0:
+            self.metrics.decrement_idempotency_keys(self.config.key_prefix)
+            return True
+        return False

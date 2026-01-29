@@ -61,7 +61,6 @@ from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
 from app.services.grafana_alert_processor import GrafanaAlertProcessor
 from app.services.idempotency import IdempotencyConfig, IdempotencyManager
-from app.services.idempotency.idempotency_manager import create_idempotency_manager
 from app.services.idempotency.middleware import IdempotentConsumerWrapper
 from app.services.idempotency.redis_repository import RedisIdempotencyRepository
 from app.services.k8s_worker import KubernetesWorker
@@ -185,17 +184,10 @@ class MessagingProvider(Provider):
         return RedisIdempotencyRepository(redis_client, key_prefix="idempotency")
 
     @provide
-    async def get_idempotency_manager(
+    def get_idempotency_manager(
             self, repo: RedisIdempotencyRepository, logger: logging.Logger, database_metrics: DatabaseMetrics
-    ) -> AsyncIterator[IdempotencyManager]:
-        manager = create_idempotency_manager(
-            repository=repo, config=IdempotencyConfig(), logger=logger, database_metrics=database_metrics
-        )
-        await manager.initialize()
-        try:
-            yield manager
-        finally:
-            await manager.close()
+    ) -> IdempotencyManager:
+        return IdempotencyManager(IdempotencyConfig(), repo, logger, database_metrics)
 
 
 class EventProvider(Provider):

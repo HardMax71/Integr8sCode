@@ -118,8 +118,6 @@ class ExecutionCoordinator(LifecycleEnabled):
 
         await self.queue_manager.start()
 
-        await self.idempotency_manager.initialize()
-
         consumer_config = ConsumerConfig(
             bootstrap_servers=self.kafka_servers,
             group_id=self.consumer_group,
@@ -195,10 +193,6 @@ class ExecutionCoordinator(LifecycleEnabled):
             await self.idempotent_consumer.stop()
 
         await self.queue_manager.stop()
-
-        # Close idempotency manager
-        if hasattr(self, "idempotency_manager") and self.idempotency_manager:
-            await self.idempotency_manager.close()
 
         self.logger.info(f"ExecutionCoordinator service stopped. Active executions: {len(self._active_executions)}")
 

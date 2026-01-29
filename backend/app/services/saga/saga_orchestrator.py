@@ -89,8 +89,6 @@ class SagaOrchestrator(LifecycleEnabled):
         if self._consumer:
             await self._consumer.stop()
 
-        await self._idempotency_manager.close()
-
         for task in self._tasks:
             if not task.done():
                 task.cancel()

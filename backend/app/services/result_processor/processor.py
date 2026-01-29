@@ -85,10 +85,6 @@ class ResultProcessor(LifecycleEnabled):
         """Start the result processor."""
         self.logger.info("Starting ResultProcessor...")
 
-        # Initialize idempotency manager (safe to call multiple times)
-        await self._idempotency_manager.initialize()
-        self.logger.info("Idempotency manager initialized for ResultProcessor")
-
         self._dispatcher = self._create_dispatcher()
         self._consumer = await self._create_consumer()
         self._state = ProcessingState.PROCESSING
@@ -102,7 +98,6 @@ class ResultProcessor(LifecycleEnabled):
         if self._consumer:
             await self._consumer.stop()
 
-        await self._idempotency_manager.close()
         # Note: producer is managed by DI container, not stopped here
         self.logger.info("ResultProcessor stopped")
 

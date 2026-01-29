@@ -38,6 +38,7 @@ class EventReplayService:
     ) -> None:
         self._sessions: dict[str, ReplaySessionState] = {}
         self._active_tasks: dict[str, asyncio.Task[None]] = {}
+        self._resume_events: dict[str, asyncio.Event] = {}
         self._repository = repository
         self._producer = producer
         self._event_store = event_store
@@ -64,6 +65,10 @@ class EventReplayService:
         if session.status != ReplayStatus.CREATED:
             raise ReplayOperationError(session_id, "start", "Session already started")
 
+        resume_event = asyncio.Event()
+        resume_event.set()
+        self._resume_events[session_id] = resume_event
+
         task = asyncio.create_task(self._run_replay(session))
         self._active_tasks[session_id] = task
 
@@ -81,6 +86,9 @@ class EventReplayService:
         if session.status != ReplayStatus.RUNNING:
             raise ReplayOperationError(session_id, "pause", "Session is not running")
         session.status = ReplayStatus.PAUSED
+        resume_event = self._resume_events.get(session_id)
+        if resume_event:
+            resume_event.clear()
         await self._repository.update_session_status(session_id, ReplayStatus.PAUSED)
         return ReplayOperationResult(
             session_id=session_id, status=ReplayStatus.PAUSED, message="Replay session paused"
@@ -91,6 +99,9 @@ class EventReplayService:
         if session.status != ReplayStatus.PAUSED:
             raise ReplayOperationError(session_id, "resume", "Session is not paused")
         session.status = ReplayStatus.RUNNING
+        resume_event = self._resume_events.get(session_id)
+        if resume_event:
+            resume_event.set()
         await self._repository.update_session_status(session_id, ReplayStatus.RUNNING)
         return ReplayOperationResult(
             session_id=session_id, status=ReplayStatus.RUNNING, message="Replay session resumed"
@@ -99,6 +110,10 @@ class EventReplayService:
     async def cancel_session(self, session_id: str) -> ReplayOperationResult:
         session = self.get_session(session_id)
         session.status = ReplayStatus.CANCELLED
+
+        resume_event = self._resume_events.get(session_id)
+        if resume_event:
+            resume_event.set()
 
         task = self._active_tasks.get(session_id)
         if task and not task.done():
@@ -154,42 +169,52 @@ class EventReplayService:
                 session.total_events = min(total_count, session.config.max_events or total_count)
 
                 async for batch in self._fetch_event_batches(session):
+                    await self._await_if_paused(session)
                     if session.status != ReplayStatus.RUNNING:
-                        break
+                        return
                     await self._process_batch(session, batch)
 
                 session.status = ReplayStatus.COMPLETED
-                session.completed_at = datetime.now(timezone.utc)
-                duration = (session.completed_at - session.started_at).total_seconds() if session.started_at else 0.0
-                self._metrics.record_replay_duration(duration, session.config.replay_type)
-                await self._update_session_in_db(session)
-                self.logger.info(
-                    "Replay session completed",
-                    extra={
-                        "session_id": session.session_id,
-                        "replayed_events": session.replayed_events,
-                        "failed_events": session.failed_events,
-                        "skipped_events": session.skipped_events,
-                        "duration_seconds": round(duration, 2),
-                    },
-                )
 
+        except asyncio.CancelledError:
+            session.status = ReplayStatus.CANCELLED
         except Exception as e:
+            if session.status == ReplayStatus.CANCELLED:
+                return
+            session.status = ReplayStatus.FAILED
+            session.errors.append(
+                ReplayError(timestamp=datetime.now(timezone.utc), error=str(e), error_type=type(e).__name__)
+            )
+            self._metrics.record_replay_error(type(e).__name__)
             self.logger.error(
                 "Replay session failed",
                 extra={"session_id": session.session_id, "error": str(e)},
                 exc_info=True,
             )
-            session.status = ReplayStatus.FAILED
-            session.completed_at = datetime.now(timezone.utc)
-            session.errors.append(
-                ReplayError(timestamp=datetime.now(timezone.utc), error=str(e), error_type=type(e).__name__)
-            )
-            self._metrics.record_replay_error(type(e).__name__)
-            await self._update_session_in_db(session)
         finally:
+            session.completed_at = datetime.now(timezone.utc)
+            if session.status == ReplayStatus.COMPLETED and session.started_at:
+                duration = (session.completed_at - session.started_at).total_seconds()
+                self._metrics.record_replay_duration(duration, session.config.replay_type)
             self._metrics.decrement_active_replays()
+            await self._update_session_in_db(session)
             self._active_tasks.pop(session.session_id, None)
+            self._resume_events.pop(session.session_id, None)
+            self.logger.info(
+                "Replay session finished",
+                extra={
+                    "session_id": session.session_id,
+                    "status": session.status.value if hasattr(session.status, "value") else session.status,
+                    "replayed_events": session.replayed_events,
+                    "failed_events": session.failed_events,
+                },
+            )
+
+    async def _await_if_paused(self, session: ReplaySessionState) -> None:
+        if session.status == ReplayStatus.PAUSED:
+            resume_event = self._resume_events.get(session.session_id)
+            if resume_event:
+                await resume_event.wait()
 
     async def _fetch_event_batches(self, session: ReplaySessionState) -> AsyncIterator[list[DomainEvent]]:
         events_processed = 0
@@ -225,8 +250,9 @@ class EventReplayService:
             },
         ):
             for event in batch:
+                await self._await_if_paused(session)
                 if session.status != ReplayStatus.RUNNING:
-                    break
+                    return
 
                 if session.last_event_at and session.config.speed_multiplier < 100:
                     time_diff = (event.timestamp - session.last_event_at).total_seconds()
@@ -262,22 +288,22 @@ class EventReplayService:
 
         for attempt in range(attempts):
             try:
-                if config.target == ReplayTarget.KAFKA:
-                    if not config.preserve_timestamps:
-                        event.timestamp = datetime.now(timezone.utc)
-                    await self._producer.produce(event_to_produce=event)
-                    return True
-                elif config.target == ReplayTarget.FILE:
-                    if not config.target_file_path:
-                        self.logger.error("No target file path specified")
+                match config.target:
+                    case ReplayTarget.KAFKA:
+                        if not config.preserve_timestamps:
+                            event.timestamp = datetime.now(timezone.utc)
+                        await self._producer.produce(event_to_produce=event)
+                    case ReplayTarget.FILE:
+                        if not config.target_file_path:
+                            self.logger.error("No target file path specified")
+                            return False
+                        await self._write_event_to_file(event, config.target_file_path)
+                    case ReplayTarget.TEST:
+                        pass
+                    case _:
+                        self.logger.error("Unknown replay target", extra={"target": config.target})
                         return False
-                    await self._write_event_to_file(event, config.target_file_path)
-                    return True
-                elif config.target == ReplayTarget.TEST:
-                    return True
-                else:
-                    self.logger.error("Unknown replay target", extra={"target": config.target})
-                    return False
+                return True
             except Exception as e:
                 self.logger.error(
                     "Failed to replay event",
@@ -285,7 +311,6 @@ class EventReplayService:
                 )
                 if attempt < attempts - 1:
                     await asyncio.sleep(min(2**attempt, 10))
-                    continue
 
         return False
 

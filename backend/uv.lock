@@ -1179,7 +1179,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aiofiles", specifier = ">=25.1.0" },
+    { name = "aiofiles", specifier = "==25.1.0" },
     { name = "aiohappyeyeballs", specifier = "==2.6.1" },
     { name = "aiohttp", specifier = "==3.13.3" },
     { name = "aiokafka", specifier = "==0.13.0" },

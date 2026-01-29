@@ -78,8 +78,9 @@ class EventReplayService:
 
     async def pause_session(self, session_id: str) -> ReplayOperationResult:
         session = self.get_session(session_id)
-        if session.status == ReplayStatus.RUNNING:
-            session.status = ReplayStatus.PAUSED
+        if session.status != ReplayStatus.RUNNING:
+            raise ReplayOperationError(session_id, "pause", "Session is not running")
+        session.status = ReplayStatus.PAUSED
         await self._repository.update_session_status(session_id, ReplayStatus.PAUSED)
         return ReplayOperationResult(
             session_id=session_id, status=ReplayStatus.PAUSED, message="Replay session paused"
@@ -87,8 +88,9 @@ class EventReplayService:
 
     async def resume_session(self, session_id: str) -> ReplayOperationResult:
         session = self.get_session(session_id)
-        if session.status == ReplayStatus.PAUSED:
-            session.status = ReplayStatus.RUNNING
+        if session.status != ReplayStatus.PAUSED:
+            raise ReplayOperationError(session_id, "resume", "Session is not paused")
+        session.status = ReplayStatus.RUNNING
         await self._repository.update_session_status(session_id, ReplayStatus.RUNNING)
         return ReplayOperationResult(
             session_id=session_id, status=ReplayStatus.RUNNING, message="Replay session resumed"

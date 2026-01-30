@@ -48,6 +48,9 @@ jobs:
           uv python install 3.12
           uv sync --frozen
 
+      - name: Set up config
+        run: cp backend/secrets.example.toml backend/secrets.toml
+
       - name: Run unit tests
         timeout-minutes: 5
         run: |
@@ -211,7 +214,9 @@ jobs:
         uses: ./.github/actions/k3s-setup
 
       - name: Use test environment config
-        run: cp backend/.env.test backend/.env
+        run: |
+          cp backend/config.test.toml backend/config.toml
+          cp backend/secrets.example.toml backend/secrets.toml
 
       - name: Start stack
         run: ./deploy.sh dev --wait
@@ -322,7 +327,9 @@ jobs:
         uses: ./.github/actions/k3s-setup
 
       - name: Use test environment config
-        run: cp backend/.env.test backend/.env
+        run: |
+          cp backend/config.test.toml backend/config.toml
+          cp backend/secrets.example.toml backend/secrets.toml
 
       - name: Start stack
         run: ./deploy.sh dev --wait

@@ -80,7 +80,7 @@ def create_test_kafka_event_service(event_metrics: EventMetrics) -> tuple[KafkaE
     """Create real KafkaEventService with fake dependencies for testing."""
     fake_producer = FakeUnifiedProducer()
     fake_repo = FakeEventRepository()
-    settings = Settings()  # Uses defaults/env vars
+    settings = Settings(config_path="config.test.toml")
 
     service = KafkaEventService(
         event_repository=fake_repo,
@@ -428,7 +428,7 @@ async def test_publish_event_exception_handling(event_metrics: EventMetrics, kub
     failing_service = KafkaEventService(
         event_repository=fake_repo,
         kafka_producer=failing_producer,
-        settings=Settings(),
+        settings=Settings(config_path="config.test.toml"),
         logger=_test_logger,
         event_metrics=event_metrics,
     )

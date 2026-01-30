@@ -52,7 +52,7 @@ async def run_saga_orchestrator(settings: Settings) -> None:
 
 def main() -> None:
     """Main entry point for saga orchestrator worker"""
-    settings = Settings()
+    settings = Settings(override_path="config.saga-orchestrator.toml")
 
     logger = setup_logger(settings.LOG_LEVEL)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")

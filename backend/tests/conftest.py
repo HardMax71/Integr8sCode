@@ -31,7 +31,7 @@ def test_settings() -> Settings:
     - Kafka: Tests with consumers use xdist_group markers for serial execution
     - Redis: Per-worker DB number (0-15) to avoid key collisions
     """
-    base = Settings(_env_file=".env.test")
+    base = Settings(config_path="config.test.toml")
     return base.model_copy(update={"REDIS_DB": _get_worker_num() % 16})
 
 

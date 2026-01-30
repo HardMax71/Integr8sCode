@@ -64,6 +64,9 @@ dmypy.json
 .env.*.local
 *.local.env
 
+# TOML secrets (dev values — production mounts from K8s Secret)
+secrets.toml
+
 # Certificates (generated locally)
 certs/
 *.pem

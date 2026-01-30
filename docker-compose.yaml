@@ -106,7 +106,9 @@ services:
       - ./backend/scripts:/app/scripts
       - ./backend/tests:/app/tests:ro
       - ./backend/certs:/app/certs:ro
-      - ./backend/.env.test:/app/.env.test:ro
+      - ./backend/config.test.toml:/app/config.test.toml:ro
+      - ./backend/config.toml:/app/config.toml:ro
+      - ./backend/secrets.toml:/app/secrets.toml:ro
       - shared_ca:/shared_ca:ro
       - ./backend/kubeconfig.yaml:/app/kubeconfig.yaml:ro
     ports:
@@ -117,11 +119,6 @@ services:
     container_name: backend
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    env_file:
-      - ./backend/.env
-    environment:
-      - SERVER_HOST=0.0.0.0
-      - KUBECONFIG=/app/kubeconfig.yaml
     healthcheck:
       # Simpler, reliable healthcheck: curl fails non-zero for HTTP >=400 with -f
       test: ["CMD-SHELL", "curl -k -f -s https://localhost:443/api/v1/health/live >/dev/null || exit 1"]
@@ -381,6 +378,9 @@ services:
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - SCHEMA_REGISTRY_URL=http://schema-registry:8081
+    volumes:
+      - ./backend/config.toml:/app/config.toml:ro
+      - ./backend/secrets.toml:/app/secrets.toml:ro
     command: ["python", "-m", "scripts.create_topics"]
     networks:
       - app-network
@@ -400,9 +400,11 @@ services:
       mongo:
         condition: service_healthy
     environment:
-      - MONGODB_URL=mongodb://${MONGO_ROOT_USER:-root}:${MONGO_ROOT_PASSWORD:-rootpassword}@mongo:27017/integr8scode?authSource=admin
       - DEFAULT_USER_PASSWORD=${DEFAULT_USER_PASSWORD:-user123}
       - ADMIN_USER_PASSWORD=${ADMIN_USER_PASSWORD:-admin123}
+    volumes:
+      - ./backend/config.toml:/app/config.toml:ro
+      - ./backend/secrets.toml:/app/secrets.toml:ro
     command: ["python", "-m", "scripts.seed_users"]
     networks:
       - app-network
@@ -423,14 +425,12 @@ services:
         condition: service_completed_successfully
       mongo:
         condition: service_started
-    env_file:
-      - ./backend/.env
-    environment:
-      - TRACING_SERVICE_NAME=execution-coordinator
-      - KAFKA_CONSUMER_GROUP_ID=execution-coordinator
     volumes:
       - ./backend/app:/app/app:ro
       - ./backend/workers:/app/workers:ro
+      - ./backend/config.toml:/app/config.toml:ro
+      - ./backend/secrets.toml:/app/secrets.toml:ro
+      - ./backend/config.coordinator.toml:/app/config.coordinator.toml:ro
     networks:
       - app-network
     restart: unless-stopped
@@ -449,16 +449,13 @@ services:
         condition: service_completed_successfully
       mongo:
         condition: service_started
-    env_file:
-      - ./backend/.env
-    environment:
-      - TRACING_SERVICE_NAME=k8s-worker
-      - KAFKA_CONSUMER_GROUP_ID=k8s-worker
-      - KUBECONFIG=/app/kubeconfig.yaml
     volumes:
       - ./backend/app:/app/app:ro
       - ./backend/workers:/app/workers:ro
       - ./backend/kubeconfig.yaml:/app/kubeconfig.yaml:ro
+      - ./backend/config.toml:/app/config.toml:ro
+      - ./backend/secrets.toml:/app/secrets.toml:ro
+      - ./backend/config.k8s-worker.toml:/app/config.k8s-worker.toml:ro
     networks:
       - app-network
     extra_hosts:
@@ -477,16 +474,13 @@ services:
         condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
-    env_file:
-      - ./backend/.env
-    environment:
-      - TRACING_SERVICE_NAME=pod-monitor
-      - KAFKA_CONSUMER_GROUP_ID=pod-monitor
-      - KUBECONFIG=/app/kubeconfig.yaml
     volumes:
       - ./backend/app:/app/app:ro
       - ./backend/workers:/app/workers:ro
       - ./backend/kubeconfig.yaml:/app/kubeconfig.yaml:ro
+      - ./backend/config.toml:/app/config.toml:ro
+      - ./backend/secrets.toml:/app/secrets.toml:ro
+      - ./backend/config.pod-monitor.toml:/app/config.pod-monitor.toml:ro
     networks:
       - app-network
     extra_hosts:
@@ -507,16 +501,13 @@ services:
         condition: service_completed_successfully
       mongo:
         condition: service_started
-    env_file:
-      - ./backend/.env
-    environment:
-      - TRACING_SERVICE_NAME=result-processor
-      - KAFKA_CONSUMER_GROUP_ID=result-processor-group
-      - KUBECONFIG=/app/kubeconfig.yaml
     volumes:
       - ./backend/app:/app/app:ro
       - ./backend/workers:/app/workers:ro
       - ./backend/kubeconfig.yaml:/app/kubeconfig.yaml:ro
+      - ./backend/config.toml:/app/config.toml:ro
+      - ./backend/secrets.toml:/app/secrets.toml:ro
+      - ./backend/config.result-processor.toml:/app/config.result-processor.toml:ro
     networks:
       - app-network
     extra_hosts:
@@ -537,14 +528,12 @@ services:
         condition: service_completed_successfully
       mongo:
         condition: service_started
-    env_file:
-      - ./backend/.env
-    environment:
-      - TRACING_SERVICE_NAME=saga-orchestrator
-      - KAFKA_CONSUMER_GROUP_ID=saga-orchestrator
     volumes:
       - ./backend/app:/app/app:ro
       - ./backend/workers:/app/workers:ro
+      - ./backend/config.toml:/app/config.toml:ro
+      - ./backend/secrets.toml:/app/secrets.toml:ro
+      - ./backend/config.saga-orchestrator.toml:/app/config.saga-orchestrator.toml:ro
     networks:
       - app-network
     restart: unless-stopped
@@ -585,14 +574,12 @@ services:
       mongo:
         condition: service_started
     command: ["python", "workers/run_event_replay.py"]
-    env_file:
-      - ./backend/.env
-    environment:
-      - TRACING_SERVICE_NAME=event-replay
-      - KAFKA_CONSUMER_GROUP_ID=event-replay
     volumes:
       - ./backend/app:/app/app:ro
       - ./backend/workers:/app/workers:ro
+      - ./backend/config.toml:/app/config.toml:ro
+      - ./backend/secrets.toml:/app/secrets.toml:ro
+      - ./backend/config.event-replay.toml:/app/config.event-replay.toml:ro
     networks:
       - app-network
     restart: unless-stopped
@@ -613,14 +600,12 @@ services:
       mongo:
         condition: service_started
     command: ["python", "workers/dlq_processor.py"]
-    env_file:
-      - ./backend/.env
-    environment:
-      - TRACING_SERVICE_NAME=dlq-processor
-      - KAFKA_CONSUMER_GROUP_ID=dlq-processor
     volumes:
       - ./backend/app:/app/app:ro
       - ./backend/workers:/app/workers:ro
+      - ./backend/config.toml:/app/config.toml:ro
+      - ./backend/secrets.toml:/app/secrets.toml:ro
+      - ./backend/config.dlq-processor.toml:/app/config.dlq-processor.toml:ro
     networks:
       - app-network
     restart: unless-stopped

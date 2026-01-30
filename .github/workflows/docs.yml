@@ -42,6 +42,9 @@ jobs:
       - name: Install backend dependencies
         run: cd backend && uv sync --frozen
 
+      - name: Set up config for OpenAPI generation
+        run: cp backend/secrets.example.toml backend/secrets.toml
+
       - name: Generate OpenAPI spec
         run: ./deploy.sh openapi
 

@@ -82,7 +82,7 @@ async def run_result_processor(settings: Settings) -> None:
 
 def main() -> None:
     """Main entry point for result processor worker"""
-    settings = Settings()
+    settings = Settings(override_path="config.result-processor.toml")
 
     logger = setup_logger(settings.LOG_LEVEL)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")

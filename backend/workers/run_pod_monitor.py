@@ -54,7 +54,7 @@ async def run_pod_monitor(settings: Settings) -> None:
 
 def main() -> None:
     """Main entry point for pod monitor worker"""
-    settings = Settings()
+    settings = Settings(override_path="config.pod-monitor.toml")
 
     logger = setup_logger(settings.LOG_LEVEL)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")

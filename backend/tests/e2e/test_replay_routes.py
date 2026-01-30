@@ -209,7 +209,7 @@ class TestResumeReplaySession:
     async def test_resume_replay_session(
         self, test_admin: AsyncClient
     ) -> None:
-        """Resume a replay session."""
+        """Resume a paused replay session."""
         request = ReplayRequest(
             replay_type=ReplayType.TIME_RANGE,
             target=ReplayTarget.KAFKA,
@@ -221,12 +221,26 @@ class TestResumeReplaySession:
         assert create_response.status_code == 200
         session = ReplayResponse.model_validate(create_response.json())
 
+        # Start session first
+        start_response = await test_admin.post(
+            f"/api/v1/replay/sessions/{session.session_id}/start"
+        )
+        assert start_response.status_code == 200
+
+        # Pause session
+        pause_response = await test_admin.post(
+            f"/api/v1/replay/sessions/{session.session_id}/pause"
+        )
+        assert pause_response.status_code == 200
+
+        # Resume session
         response = await test_admin.post(
             f"/api/v1/replay/sessions/{session.session_id}/resume"
         )
         assert response.status_code == 200
         result = ReplayResponse.model_validate(response.json())
         assert result.session_id == session.session_id
+        assert result.status == ReplayStatus.RUNNING
 
     @pytest.mark.asyncio
     async def test_resume_nonexistent_session(

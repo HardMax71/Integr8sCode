@@ -247,11 +247,20 @@ jobs:
         if: failure()
         run: |
           mkdir -p logs
-          docker compose logs > logs/docker-compose.log 2>&1
-          docker compose logs backend > logs/backend.log 2>&1
-          docker compose logs kafka > logs/kafka.log 2>&1
-          docker compose logs coordinator > logs/coordinator.log 2>&1 || true
-          docker compose logs k8s-worker > logs/k8s-worker.log 2>&1 || true
+          docker compose logs --timestamps > logs/docker-compose.log 2>&1
+          docker compose logs --timestamps backend > logs/backend.log 2>&1
+          docker compose logs --timestamps mongo > logs/mongo.log 2>&1 || true
+          docker compose logs --timestamps redis > logs/redis.log 2>&1 || true
+          docker compose logs --timestamps kafka > logs/kafka.log 2>&1 || true
+          docker compose logs --timestamps zookeeper > logs/zookeeper.log 2>&1 || true
+          docker compose logs --timestamps schema-registry > logs/schema-registry.log 2>&1 || true
+          docker compose logs --timestamps coordinator > logs/coordinator.log 2>&1 || true
+          docker compose logs --timestamps k8s-worker > logs/k8s-worker.log 2>&1 || true
+          docker compose logs --timestamps pod-monitor > logs/pod-monitor.log 2>&1 || true
+          docker compose logs --timestamps result-processor > logs/result-processor.log 2>&1 || true
+          docker compose logs --timestamps saga-orchestrator > logs/saga-orchestrator.log 2>&1 || true
+          docker compose logs --timestamps event-replay > logs/event-replay.log 2>&1 || true
+          docker compose logs --timestamps dlq-processor > logs/dlq-processor.log 2>&1 || true
           kubectl get events --sort-by='.metadata.creationTimestamp' -A > logs/k8s-events.log 2>&1 || true
 
       - name: Upload logs

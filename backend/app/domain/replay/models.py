@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
@@ -127,14 +127,6 @@ class ReplayConfig(BaseModel):
     retry_attempts: int = 3
 
     enable_progress_tracking: bool = True
-    # Use PrivateAttr to avoid including callables in schema and serialization
-    _progress_callback: Any = PrivateAttr(default=None)
-
-    def set_progress_callback(self, cb: Any) -> None:
-        self._progress_callback = cb
-
-    def get_progress_callback(self) -> Any:
-        return self._progress_callback
 
 
 class ReplaySessionState(BaseModel):

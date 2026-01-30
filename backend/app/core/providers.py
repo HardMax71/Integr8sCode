@@ -70,7 +70,6 @@ from app.services.pod_monitor.config import PodMonitorConfig
 from app.services.pod_monitor.event_mapper import PodEventMapper
 from app.services.pod_monitor.monitor import PodMonitor
 from app.services.rate_limit_service import RateLimitService
-from app.services.replay_service import ReplayService
 from app.services.result_processor.resource_cleaner import ResourceCleaner
 from app.services.saga import SagaOrchestrator, create_saga_orchestrator
 from app.services.saga.saga_service import SagaService
@@ -497,10 +496,10 @@ class AdminServicesProvider(Provider):
     def get_admin_events_service(
             self,
             admin_events_repository: AdminEventsRepository,
-            replay_service: ReplayService,
+            event_replay_service: EventReplayService,
             logger: logging.Logger,
     ) -> AdminEventsService:
-        return AdminEventsService(admin_events_repository, replay_service, logger)
+        return AdminEventsService(admin_events_repository, event_replay_service, logger)
 
     @provide
     def get_admin_settings_service(
@@ -632,15 +631,6 @@ class BusinessServicesProvider(Provider):
             self, saved_script_repository: SavedScriptRepository, logger: logging.Logger
     ) -> SavedScriptService:
         return SavedScriptService(saved_script_repository, logger)
-
-    @provide
-    def get_replay_service(
-            self,
-            replay_repository: ReplayRepository,
-            event_replay_service: EventReplayService,
-            logger: logging.Logger,
-    ) -> ReplayService:
-        return ReplayService(replay_repository, event_replay_service, logger)
 
     @provide
     def get_admin_user_service(
@@ -864,13 +854,13 @@ class EventReplayProvider(Provider):
             replay_repository: ReplayRepository,
             kafka_producer: UnifiedProducer,
             event_store: EventStore,
-            settings: Settings,
+            replay_metrics: ReplayMetrics,
             logger: logging.Logger,
     ) -> EventReplayService:
         return EventReplayService(
             repository=replay_repository,
             producer=kafka_producer,
             event_store=event_store,
-            settings=settings,
+            replay_metrics=replay_metrics,
             logger=logger,
         )

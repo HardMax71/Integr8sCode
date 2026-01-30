@@ -21,7 +21,7 @@ from app.domain.events.event_models import (
     EventSummary,
 )
 from app.domain.replay import ReplayConfig, ReplayFilter
-from app.services.replay_service import ReplayService
+from app.services.event_replay import EventReplayService
 
 
 def _export_row_to_dict(row: EventExportRow) -> dict[str, str]:
@@ -69,7 +69,7 @@ class ExportResult:
 
 class AdminEventsService:
     def __init__(
-        self, repository: AdminEventsRepository, replay_service: ReplayService, logger: logging.Logger
+        self, repository: AdminEventsRepository, replay_service: EventReplayService, logger: logging.Logger
     ) -> None:
         self._repo = repository
         self._replay_service = replay_service

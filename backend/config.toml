@@ -1,13 +1,14 @@
-# Integr8sCode backend configuration
-# All settings loaded via tomllib + pydantic BaseModel.model_validate()
+# Integr8sCode backend configuration (development defaults).
+# Secrets (SECRET_KEY, MONGODB_URL credentials) live in secrets.toml (gitignored).
+# Production: mount secrets.toml from a Kubernetes Secret or generate in CI.
+# See secrets.example.toml for the required keys.
 
 PROJECT_NAME = "integr8scode"
 DATABASE_NAME = "integr8scode_db"
-SECRET_KEY = "uS5xBF-OKXHV-1vqU4ASLwyPcKpSdUTLqGHPYs3y-Yc"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 1440
 
-MONGODB_URL = "mongodb://root:rootpassword@mongo:27017/integr8scode?authSource=admin"
+MONGODB_URL = "mongodb://mongo:27017/integr8scode"
 
 KUBERNETES_CONFIG_PATH = "/app/kubeconfig.yaml"
 KUBERNETES_CA_CERTIFICATE_PATH = "/app/certs/k8s-ca.pem"

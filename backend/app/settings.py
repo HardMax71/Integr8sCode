@@ -1,4 +1,5 @@
 import tomllib
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -13,17 +14,30 @@ class Settings(BaseModel):
 
     All config is read from TOML — no environment variables, no .env files.
 
+    Load order (each layer overrides the previous):
+        1. config_path    — base settings (committed to git)
+        2. secrets_path   — sensitive overrides (gitignored, mounted from K8s Secret in prod)
+        3. override_path  — per-worker service overrides (TRACING_SERVICE_NAME, etc.)
+
     Usage:
-        Settings()                                                       # loads config.toml
-        Settings(config_path="config.test.toml")                         # loads test config
-        Settings(override_path="config.coordinator.toml")                # base + per-worker override
+        Settings()                                                       # config.toml + secrets
+        Settings(config_path="config.test.toml")                         # test config (has own secrets)
+        Settings(override_path="config.coordinator.toml")                # base + secrets + worker
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    def __init__(self, config_path: str = "config.toml", override_path: str | None = None) -> None:
+    def __init__(
+        self,
+        config_path: str = "config.toml",
+        override_path: str | None = None,
+        secrets_path: str = "secrets.toml",
+    ) -> None:
         with open(config_path, "rb") as f:
             data = tomllib.load(f)
+        if Path(secrets_path).is_file():
+            with open(secrets_path, "rb") as f:
+                data |= tomllib.load(f)
         if override_path:
             with open(override_path, "rb") as f:
                 data |= tomllib.load(f)

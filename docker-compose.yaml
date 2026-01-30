@@ -108,6 +108,7 @@ services:
       - ./backend/certs:/app/certs:ro
       - ./backend/config.test.toml:/app/config.test.toml:ro
       - ./backend/config.toml:/app/config.toml:ro
+      - ./backend/secrets.toml:/app/secrets.toml:ro
       - shared_ca:/shared_ca:ro
       - ./backend/kubeconfig.yaml:/app/kubeconfig.yaml:ro
     ports:
@@ -423,6 +424,7 @@ services:
       - ./backend/app:/app/app:ro
       - ./backend/workers:/app/workers:ro
       - ./backend/config.toml:/app/config.toml:ro
+      - ./backend/secrets.toml:/app/secrets.toml:ro
       - ./backend/config.coordinator.toml:/app/config.coordinator.toml:ro
     networks:
       - app-network
@@ -447,6 +449,7 @@ services:
       - ./backend/workers:/app/workers:ro
       - ./backend/kubeconfig.yaml:/app/kubeconfig.yaml:ro
       - ./backend/config.toml:/app/config.toml:ro
+      - ./backend/secrets.toml:/app/secrets.toml:ro
       - ./backend/config.k8s-worker.toml:/app/config.k8s-worker.toml:ro
     networks:
       - app-network
@@ -471,6 +474,7 @@ services:
       - ./backend/workers:/app/workers:ro
       - ./backend/kubeconfig.yaml:/app/kubeconfig.yaml:ro
       - ./backend/config.toml:/app/config.toml:ro
+      - ./backend/secrets.toml:/app/secrets.toml:ro
       - ./backend/config.pod-monitor.toml:/app/config.pod-monitor.toml:ro
     networks:
       - app-network
@@ -497,6 +501,7 @@ services:
       - ./backend/workers:/app/workers:ro
       - ./backend/kubeconfig.yaml:/app/kubeconfig.yaml:ro
       - ./backend/config.toml:/app/config.toml:ro
+      - ./backend/secrets.toml:/app/secrets.toml:ro
       - ./backend/config.result-processor.toml:/app/config.result-processor.toml:ro
     networks:
       - app-network
@@ -522,6 +527,7 @@ services:
       - ./backend/app:/app/app:ro
       - ./backend/workers:/app/workers:ro
       - ./backend/config.toml:/app/config.toml:ro
+      - ./backend/secrets.toml:/app/secrets.toml:ro
       - ./backend/config.saga-orchestrator.toml:/app/config.saga-orchestrator.toml:ro
     networks:
       - app-network
@@ -567,6 +573,7 @@ services:
       - ./backend/app:/app/app:ro
       - ./backend/workers:/app/workers:ro
       - ./backend/config.toml:/app/config.toml:ro
+      - ./backend/secrets.toml:/app/secrets.toml:ro
       - ./backend/config.event-replay.toml:/app/config.event-replay.toml:ro
     networks:
       - app-network
@@ -592,6 +599,7 @@ services:
       - ./backend/app:/app/app:ro
       - ./backend/workers:/app/workers:ro
       - ./backend/config.toml:/app/config.toml:ro
+      - ./backend/secrets.toml:/app/secrets.toml:ro
       - ./backend/config.dlq-processor.toml:/app/config.dlq-processor.toml:ro
     networks:
       - app-network

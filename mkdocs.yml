@@ -128,7 +128,7 @@ nav:
     - Service Lifecycle: architecture/lifecycle.md
 
   - API Reference: reference/api-reference.md
-  - Environment Variables: reference/environment-variables.md
+  - Configuration Reference: reference/configuration.md
 
   - Components:
     - SSE:

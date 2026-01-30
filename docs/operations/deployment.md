@@ -161,7 +161,7 @@ The Helm chart organizes templates by function:
 |-----------------------------|-------------------------------------------|
 | `templates/rbac/`           | ServiceAccount, Role, RoleBinding         |
 | `templates/secrets/`        | Kubeconfig and Kafka JAAS                 |
-| `templates/configmaps/`     | Environment variables                     |
+| `templates/configmaps/`     | TOML configuration and environment        |
 | `templates/infrastructure/` | Zookeeper, Kafka, Schema Registry, Jaeger |
 | `templates/app/`            | Backend and Frontend deployments          |
 | `templates/workers/`        | All seven worker deployments              |
@@ -214,8 +214,7 @@ The `values.yaml` file contains all configurable options. Key sections:
 --8<-- "helm/integr8scode/values.yaml:10:19"
 ```
 
-Environment variables shared across services live in the `env` section and get rendered into a ConfigMap.
-Service-specific overrides go in their respective sections. For example, to increase backend replicas and memory:
+Application settings are loaded from TOML files (`config.toml` + `secrets.toml`), not environment variables. The Helm chart mounts these as files into each pod. Service-specific overrides go in their respective sections. For example, to increase backend replicas and memory:
 
 ```yaml
 backend:

@@ -1,13 +1,11 @@
 # Integr8sCode backend test configuration
 # Differences from config.toml: lower timeouts, faster bcrypt, relaxed rate limits
+# Secrets (SECRET_KEY, MONGODB_URL) live in secrets.toml — use secrets.test.toml in CI.
 
 PROJECT_NAME = "integr8scode"
 DATABASE_NAME = "integr8scode_db"
-SECRET_KEY = "uS5xBF-OKXHV-1vqU4ASLwyPcKpSdUTLqGHPYs3y-Yc"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 1440
-
-MONGODB_URL = "mongodb://root:rootpassword@mongo:27017/integr8scode?authSource=admin"
 
 KUBERNETES_CONFIG_PATH = "/app/kubeconfig.yaml"
 KUBERNETES_CA_CERTIFICATE_PATH = "/app/certs/k8s-ca.pem"

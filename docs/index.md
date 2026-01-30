@@ -81,11 +81,11 @@ automatic retries via dead letter queue for failed processing.
 
     Policies, network isolation, and supply chain
 
--   :material-variable: **[Environment Variables](reference/environment-variables.md)**
+-   :material-cog: **[Configuration Reference](reference/configuration.md)**
 
     ---
 
-    Complete configuration reference
+    TOML configuration and secrets
 
 -   :material-monitor: **[Frontend](frontend/routing.md)**
 

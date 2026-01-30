@@ -11,8 +11,11 @@ The full stack includes a Svelte frontend, FastAPI backend, MongoDB, Redis, Kafk
 ```bash
 git clone https://github.com/HardMax71/Integr8sCode.git
 cd Integr8sCode
+cp backend/secrets.example.toml backend/secrets.toml
 ./deploy.sh dev
 ```
+
+The `secrets.toml` file holds credentials (`SECRET_KEY`, `MONGODB_URL`) and is gitignored. The example template ships with working development defaults, so copying it is all you need for local use.
 
 Wait for the services to come up. You can watch progress with `docker compose logs -f` in another terminal. When you see the backend responding to health checks, you're ready.
 
@@ -111,4 +114,4 @@ docker compose down -v
 - [Architecture Overview](architecture/overview.md) - How the pieces fit together
 - [Deployment](operations/deployment.md) - Production deployment with Helm
 - [API Reference](reference/api-reference.md) - Full endpoint documentation
-- [Environment Variables](reference/environment-variables.md) - Configuration options
+- [Configuration Reference](reference/configuration.md) - TOML configuration options

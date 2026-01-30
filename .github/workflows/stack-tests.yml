@@ -213,7 +213,7 @@ jobs:
       - name: Use test environment config
         run: |
           cp backend/config.test.toml backend/config.toml
-          touch backend/secrets.toml
+          cp backend/secrets.example.toml backend/secrets.toml
 
       - name: Start stack
         run: ./deploy.sh dev --wait
@@ -326,7 +326,7 @@ jobs:
       - name: Use test environment config
         run: |
           cp backend/config.test.toml backend/config.toml
-          touch backend/secrets.toml
+          cp backend/secrets.example.toml backend/secrets.toml
 
       - name: Start stack
         run: ./deploy.sh dev --wait

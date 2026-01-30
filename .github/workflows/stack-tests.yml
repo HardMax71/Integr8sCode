@@ -48,6 +48,9 @@ jobs:
           uv python install 3.12
           uv sync --frozen
 
+      - name: Set up config
+        run: cp backend/secrets.example.toml backend/secrets.toml
+
       - name: Run unit tests
         timeout-minutes: 5
         run: |

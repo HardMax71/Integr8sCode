@@ -1,12 +1,7 @@
 import { EventSourcePlus } from 'event-source-plus';
-import type { NotificationResponse, SseNotificationEventData } from '$lib/api';
+import type { NotificationResponse } from '$lib/api';
 
 type NotificationCallback = (data: NotificationResponse) => void;
-
-// Validates SSE notification has all required fields for UI
-function isCompleteNotification(data: SseNotificationEventData): boolean {
-    return !!(data.notification_id && data.subject && data.body && data.status && data.created_at);
-}
 
 class NotificationStream {
     #controller: ReturnType<EventSourcePlus['listen']> | null = null;
@@ -34,18 +29,14 @@ class NotificationStream {
                 this.error = null;
                 console.log('Notification stream connected');
             },
-            onMessage: (event) => {
+            onMessage: (message) => {
+                if (message.event !== 'notification') return;
                 try {
-                    const data: SseNotificationEventData = JSON.parse(event.data);
+                    const data: NotificationResponse = JSON.parse(message.data);
+                    this.#onNotification?.(data);
 
-                    // Only process actual notification events with complete data
-                    if (data.event_type === 'notification' && isCompleteNotification(data)) {
-                        // SSE data matches NotificationResponse except 'channel' (unused by UI)
-                        this.#onNotification?.(data as unknown as NotificationResponse);
-
-                        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-                            new Notification(data.subject!, { body: data.body!, icon: '/favicon.png' });
-                        }
+                    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+                        new Notification(data.subject, { body: data.body, icon: '/favicon.png' });
                     }
                 } catch (err) {
                     console.error('Error processing notification:', err);

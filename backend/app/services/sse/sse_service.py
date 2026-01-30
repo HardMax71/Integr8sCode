@@ -7,14 +7,15 @@ from typing import Any
 from app.core.metrics import ConnectionMetrics
 from app.db.repositories.sse_repository import SSERepository
 from app.domain.enums.events import EventType
-from app.domain.enums.sse import SSEControlEvent, SSEHealthStatus, SSENotificationEvent
+from app.domain.enums.notification import NotificationChannel
+from app.domain.enums.sse import SSEControlEvent, SSEHealthStatus
 from app.domain.sse import SSEHealthDomain
 from app.schemas_pydantic.execution import ExecutionResult
+from app.schemas_pydantic.notification import NotificationResponse
 from app.schemas_pydantic.sse import (
     RedisNotificationMessage,
     RedisSSEMessage,
     SSEExecutionEventData,
-    SSENotificationEventData,
 )
 from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
 from app.services.sse.redis_bus import SSERedisBus
@@ -197,66 +198,32 @@ class SSEService:
 
     async def create_notification_stream(self, user_id: str) -> AsyncGenerator[dict[str, Any], None]:
         subscription = None
-
         try:
-            # Start opening subscription concurrently, then yield handshake
-            sub_task = asyncio.create_task(self.sse_bus.open_notification_subscription(user_id))
-            yield self._format_notification_event(
-                SSENotificationEventData(
-                    event_type=SSENotificationEvent.CONNECTED,
-                    user_id=user_id,
-                    timestamp=datetime.now(timezone.utc),
-                    message="Connected to notification stream",
-                )
-            )
+            subscription = await self.sse_bus.open_notification_subscription(user_id)
+            self.logger.info("Notification subscription opened", extra={"user_id": user_id})
 
-            # Complete Redis subscription after handshake
-            subscription = await sub_task
-
-            # Signal that subscription is ready - safe to publish notifications now
-            yield self._format_notification_event(
-                SSENotificationEventData(
-                    event_type=SSENotificationEvent.SUBSCRIBED,
-                    user_id=user_id,
-                    timestamp=datetime.now(timezone.utc),
-                    message="Redis subscription established",
-                )
-            )
-
-            last_heartbeat = datetime.now(timezone.utc)
             while not self.shutdown_manager.is_shutting_down():
-                # Heartbeat
-                now = datetime.now(timezone.utc)
-                if (now - last_heartbeat).total_seconds() >= self.heartbeat_interval:
-                    yield self._format_notification_event(
-                        SSENotificationEventData(
-                            event_type=SSENotificationEvent.HEARTBEAT,
-                            user_id=user_id,
-                            timestamp=now,
-                            message="Notification stream active",
-                        )
-                    )
-                    last_heartbeat = now
-
-                # Forward notification messages as SSE data
                 redis_msg = await subscription.get(RedisNotificationMessage)
-                if redis_msg:
-                    yield self._format_notification_event(
-                        SSENotificationEventData(
-                            event_type=SSENotificationEvent.NOTIFICATION,
-                            notification_id=redis_msg.notification_id,
-                            severity=redis_msg.severity,
-                            status=redis_msg.status,
-                            tags=redis_msg.tags,
-                            subject=redis_msg.subject,
-                            body=redis_msg.body,
-                            action_url=redis_msg.action_url,
-                            created_at=redis_msg.created_at,
-                        )
-                    )
+                if not redis_msg:
+                    continue
+
+                notification = NotificationResponse(
+                    notification_id=redis_msg.notification_id,
+                    channel=NotificationChannel.IN_APP,
+                    status=redis_msg.status,
+                    subject=redis_msg.subject,
+                    body=redis_msg.body,
+                    action_url=redis_msg.action_url,
+                    created_at=redis_msg.created_at,
+                    read_at=None,
+                    severity=redis_msg.severity,
+                    tags=redis_msg.tags,
+                )
+                yield {"event": "notification", "data": notification.model_dump_json()}
         finally:
             if subscription is not None:
                 await asyncio.shield(subscription.close())
+            self.logger.info("Notification stream closed", extra={"user_id": user_id})
 
     async def get_health_status(self) -> SSEHealthDomain:
         router_stats = self.router.get_stats()
@@ -273,8 +240,4 @@ class SSEService:
 
     def _format_sse_event(self, event: SSEExecutionEventData) -> dict[str, Any]:
         """Format typed SSE event for sse-starlette."""
-        return {"data": event.model_dump_json(exclude_none=True)}
-
-    def _format_notification_event(self, event: SSENotificationEventData) -> dict[str, Any]:
-        """Format typed notification SSE event for sse-starlette."""
         return {"data": event.model_dump_json(exclude_none=True)}

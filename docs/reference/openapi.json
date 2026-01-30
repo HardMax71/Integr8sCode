@@ -1808,7 +1808,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SSENotificationEventData"
+                  "$ref": "#/components/schemas/NotificationResponse"
                 }
               }
             }
@@ -5616,9 +5616,8 @@
             "title": "Memory Request"
           },
           "priority": {
-            "type": "integer",
-            "title": "Priority",
-            "default": 5
+            "$ref": "#/components/schemas/QueuePriority",
+            "default": "normal"
           }
         },
         "type": "object",
@@ -8843,9 +8842,8 @@
             "title": "Estimated Wait Seconds"
           },
           "priority": {
-            "type": "integer",
-            "title": "Priority",
-            "default": 5
+            "$ref": "#/components/schemas/QueuePriority",
+            "default": "normal"
           }
         },
         "type": "object",
@@ -9387,9 +9385,8 @@
             "title": "Memory Request"
           },
           "priority": {
-            "type": "integer",
-            "title": "Priority",
-            "default": 5
+            "$ref": "#/components/schemas/QueuePriority",
+            "default": "normal"
           }
         },
         "type": "object",
@@ -11542,6 +11539,18 @@
         "title": "PublishEventResponse",
         "description": "Response model for publishing events"
       },
+      "QueuePriority": {
+        "type": "string",
+        "enum": [
+          "critical",
+          "high",
+          "normal",
+          "low",
+          "background"
+        ],
+        "title": "QueuePriority",
+        "description": "Execution priority, ordered highest to lowest."
+      },
       "QuotaExceededEvent": {
         "properties": {
           "event_id": {
@@ -13349,166 +13358,6 @@
         ],
         "title": "SSEHealthStatus",
         "description": "Health status for SSE service."
-      },
-      "SSENotificationEvent": {
-        "type": "string",
-        "enum": [
-          "connected",
-          "subscribed",
-          "heartbeat",
-          "notification"
-        ],
-        "title": "SSENotificationEvent",
-        "description": "Event types for notification SSE streams."
-      },
-      "SSENotificationEventData": {
-        "properties": {
-          "event_type": {
-            "$ref": "#/components/schemas/SSENotificationEvent",
-            "description": "SSE notification event type"
-          },
-          "user_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "User Id",
-            "description": "User ID for the notification stream"
-          },
-          "timestamp": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Timestamp",
-            "description": "Event timestamp"
-          },
-          "message": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Message",
-            "description": "Human-readable message"
-          },
-          "notification_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notification Id",
-            "description": "Unique notification ID"
-          },
-          "severity": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/NotificationSeverity"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Notification severity level"
-          },
-          "status": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/NotificationStatus"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Notification delivery status"
-          },
-          "tags": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tags",
-            "description": "Notification tags"
-          },
-          "subject": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Subject",
-            "description": "Notification subject/title"
-          },
-          "body": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Body",
-            "description": "Notification body content"
-          },
-          "action_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Action Url",
-            "description": "Optional action URL"
-          },
-          "created_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created At",
-            "description": "Creation timestamp"
-          }
-        },
-        "type": "object",
-        "required": [
-          "event_type"
-        ],
-        "title": "SSENotificationEventData",
-        "description": "Typed model for SSE notification stream event payload.\n\nThis represents the JSON data sent inside each SSE message for notification streams."
       },
       "SagaCancellationResponse": {
         "properties": {

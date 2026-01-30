@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.notification import NotificationSeverity, NotificationStatus
-from app.domain.enums.sse import SSEControlEvent, SSEHealthStatus, SSENotificationEvent
+from app.domain.enums.sse import SSEControlEvent, SSEHealthStatus
 from app.schemas_pydantic.execution import ExecutionResult, ResourceUsage
 
 # Type variable for generic Redis message parsing
@@ -61,31 +61,6 @@ class RedisSSEMessage(BaseModel):
     event_type: EventType = Field(description="Event type from Kafka")
     execution_id: str | None = Field(None, description="Execution ID")
     data: dict[str, Any] = Field(description="Full event data from BaseEvent.model_dump()")
-
-
-class SSENotificationEventData(BaseModel):
-    """Typed model for SSE notification stream event payload.
-
-    This represents the JSON data sent inside each SSE message for notification streams.
-    """
-
-    # Always present - identifies the event type
-    event_type: SSENotificationEvent = Field(description="SSE notification event type")
-
-    # Present in control events (connected, heartbeat)
-    user_id: str | None = Field(default=None, description="User ID for the notification stream")
-    timestamp: datetime | None = Field(default=None, description="Event timestamp")
-    message: str | None = Field(default=None, description="Human-readable message")
-
-    # Present only in notification events
-    notification_id: str | None = Field(default=None, description="Unique notification ID")
-    severity: NotificationSeverity | None = Field(default=None, description="Notification severity level")
-    status: NotificationStatus | None = Field(default=None, description="Notification delivery status")
-    tags: list[str] | None = Field(default=None, description="Notification tags")
-    subject: str | None = Field(default=None, description="Notification subject/title")
-    body: str | None = Field(default=None, description="Notification body content")
-    action_url: str | None = Field(default=None, description="Optional action URL")
-    created_at: datetime | None = Field(default=None, description="Creation timestamp")
 
 
 class RedisNotificationMessage(BaseModel):

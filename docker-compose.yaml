@@ -378,6 +378,9 @@ services:
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - SCHEMA_REGISTRY_URL=http://schema-registry:8081
+    volumes:
+      - ./backend/config.toml:/app/config.toml:ro
+      - ./backend/secrets.toml:/app/secrets.toml:ro
     command: ["python", "-m", "scripts.create_topics"]
     networks:
       - app-network
@@ -397,9 +400,11 @@ services:
       mongo:
         condition: service_healthy
     environment:
-      - MONGODB_URL=mongodb://${MONGO_ROOT_USER:-root}:${MONGO_ROOT_PASSWORD:-rootpassword}@mongo:27017/integr8scode?authSource=admin
       - DEFAULT_USER_PASSWORD=${DEFAULT_USER_PASSWORD:-user123}
       - ADMIN_USER_PASSWORD=${ADMIN_USER_PASSWORD:-admin123}
+    volumes:
+      - ./backend/config.toml:/app/config.toml:ro
+      - ./backend/secrets.toml:/app/secrets.toml:ro
     command: ["python", "-m", "scripts.seed_users"]
     networks:
       - app-network

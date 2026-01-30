@@ -5,7 +5,7 @@ FROM base
 COPY ./app /app/app
 COPY ./workers /app/workers
 COPY ./scripts /app/scripts
-COPY .env /app/.env
+COPY config.toml /app/config.toml
 COPY openssl.cnf /app/openssl.cnf
 
 # Ensure the certs directory exists
@@ -25,17 +25,16 @@ while [ ! -f /app/certs/server.key ]; do
 done
 
 echo "Starting application..."
-[ -f /app/kubeconfig.yaml ] && export KUBECONFIG=/app/kubeconfig.yaml
 
 exec gunicorn 'app.main:create_app()' \
   -k uvicorn.workers.UvicornWorker \
   --bind 0.0.0.0:443 \
-  --workers ${WEB_CONCURRENCY:-4} \
-  --threads ${WEB_THREADS:-1} \
-  --timeout ${WEB_TIMEOUT:-60} \
+  --workers 4 \
+  --threads 4 \
+  --timeout 60 \
   --graceful-timeout 30 \
   --keep-alive 2 \
-  --backlog ${WEB_BACKLOG:-2048} \
+  --backlog 2048 \
   --log-level info \
   --access-logfile - \
   --error-logfile - \

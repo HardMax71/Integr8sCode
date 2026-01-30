@@ -47,7 +47,7 @@ async def run_coordinator(settings: Settings) -> None:
 
 def main() -> None:
     """Main entry point for coordinator worker"""
-    settings = Settings()
+    settings = Settings(override_path="config.coordinator.toml")
 
     logger = setup_logger(settings.LOG_LEVEL)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")

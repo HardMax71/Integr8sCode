@@ -1,19 +1,39 @@
+import tomllib
 from typing import Literal
 
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.execution import LanguageInfoDomain
 from app.runtime_registry import EXAMPLE_SCRIPTS as EXEC_EXAMPLE_SCRIPTS
 from app.runtime_registry import SUPPORTED_RUNTIMES as RUNTIME_MATRIX
 
 
-class Settings(BaseSettings):
+class Settings(BaseModel):
+    """Application settings loaded from TOML configuration files.
+
+    All config is read from TOML — no environment variables, no .env files.
+
+    Usage:
+        Settings()                                                       # loads config.toml
+        Settings(config_path="config.test.toml")                         # loads test config
+        Settings(override_path="config.coordinator.toml")                # base + per-worker override
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    def __init__(self, config_path: str = "config.toml", override_path: str | None = None) -> None:
+        with open(config_path, "rb") as f:
+            data = tomllib.load(f)
+        if override_path:
+            with open(override_path, "rb") as f:
+                data |= tomllib.load(f)
+        super().__init__(**data)
+
     PROJECT_NAME: str = "integr8scode"
     DATABASE_NAME: str = "integr8scode_db"
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str = Field(
-        ...,  # Actual key be loaded from .env file
+        ...,
         min_length=32,
         description="Secret key for JWT token signing. Must be at least 32 characters.",
     )
@@ -145,27 +165,14 @@ class Settings(BaseSettings):
     OTEL_RESOURCE_ATTRIBUTES: str | None = None
 
     # Web server (Gunicorn/Uvicorn) concurrency settings
-    # These are read from environment and used by the runtime entrypoint
-    # and by app.main when started directly via uvicorn.
     WEB_CONCURRENCY: int = 4
     WEB_THREADS: int = 1
     WEB_TIMEOUT: int = 60
     WEB_BACKLOG: int = 2048
 
-    # Additional MongoDB settings (for docker-compose compatibility)
-    MONGO_ROOT_USER: str | None = None
-    MONGO_ROOT_PASSWORD: str | None = None
-
     # Development mode detection
     DEVELOPMENT_MODE: bool = False
-    SECURE_COOKIES: bool = True  # Can be overridden in .env for development
+    SECURE_COOKIES: bool = True
 
     # Logging configuration
     LOG_LEVEL: str = Field(default="DEBUG", description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
-
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        case_sensitive=True,
-        extra="forbid",  # Raise error on extra fields
-    )

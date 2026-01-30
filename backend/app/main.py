@@ -48,7 +48,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     Args:
         settings: Optional pre-configured settings (e.g., TestSettings for testing).
-                 If None, creates Settings() which reads from env vars then .env file.
+                 If None, loads from config.toml.
     """
     settings = settings or Settings()
     logger = setup_logger(settings.LOG_LEVEL)

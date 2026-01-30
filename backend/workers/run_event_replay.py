@@ -59,7 +59,7 @@ async def run_replay_service(settings: Settings) -> None:
 
 def main() -> None:
     """Main entry point for event replay service"""
-    settings = Settings()
+    settings = Settings(override_path="config.event-replay.toml")
 
     logger = setup_logger(settings.LOG_LEVEL)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")

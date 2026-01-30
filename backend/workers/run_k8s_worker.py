@@ -60,7 +60,7 @@ async def run_kubernetes_worker(settings: Settings) -> None:
 
 def main() -> None:
     """Main entry point for Kubernetes worker"""
-    settings = Settings()
+    settings = Settings(override_path="config.k8s-worker.toml")
 
     logger = setup_logger(settings.LOG_LEVEL)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")

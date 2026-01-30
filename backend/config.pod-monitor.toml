@@ -1,0 +1,2 @@
+TRACING_SERVICE_NAME = "pod-monitor"
+KAFKA_CONSUMER_GROUP_ID = "pod-monitor"

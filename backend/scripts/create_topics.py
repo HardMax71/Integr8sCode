@@ -96,7 +96,7 @@ async def create_topics(settings: Settings) -> None:
 
 
 async def main() -> None:
-    """Main entry point - creates Settings() which reads from env vars then .env file."""
+    """Main entry point - loads settings from config.toml."""
     logger.info("Starting Kafka topic creation...")
 
     try:

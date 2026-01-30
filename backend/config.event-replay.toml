@@ -1,0 +1,2 @@
+TRACING_SERVICE_NAME = "event-replay"
+KAFKA_CONSUMER_GROUP_ID = "event-replay"

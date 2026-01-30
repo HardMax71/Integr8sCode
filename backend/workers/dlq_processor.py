@@ -108,4 +108,4 @@ async def main(settings: Settings) -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main(Settings()))
+    asyncio.run(main(Settings(override_path="config.dlq-processor.toml")))

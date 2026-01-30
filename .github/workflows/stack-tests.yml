@@ -211,7 +211,7 @@ jobs:
         uses: ./.github/actions/k3s-setup
 
       - name: Use test environment config
-        run: cp backend/.env.test backend/.env
+        run: cp backend/config.test.toml backend/config.toml
 
       - name: Start stack
         run: ./deploy.sh dev --wait
@@ -322,7 +322,7 @@ jobs:
         uses: ./.github/actions/k3s-setup
 
       - name: Use test environment config
-        run: cp backend/.env.test backend/.env
+        run: cp backend/config.test.toml backend/config.toml
 
       - name: Start stack
         run: ./deploy.sh dev --wait

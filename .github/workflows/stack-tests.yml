@@ -302,6 +302,15 @@ jobs:
         with:
           images: ${{ env.MONGO_IMAGE }} ${{ env.REDIS_IMAGE }} ${{ env.KAFKA_IMAGE }} ${{ env.ZOOKEEPER_IMAGE }} ${{ env.SCHEMA_REGISTRY_IMAGE }}
 
+      - name: Pre-warm infrastructure (background)
+        env:
+          IMAGE_TAG: ${{ needs.build-images.outputs.sha-tag }}
+        run: |
+          nohup docker compose up -d --no-build \
+            mongo redis shared-ca cert-generator zookeeper-certgen zookeeper kafka schema-registry \
+            > /tmp/infra-warm.log 2>&1 &
+          echo $! > /tmp/infra-warm.pid
+
       - name: Setup k3s
         uses: ./.github/actions/k3s-setup
 
@@ -310,16 +319,19 @@ jobs:
           cp backend/config.test.toml backend/config.toml
           cp backend/secrets.example.toml backend/secrets.toml
 
-      - name: Wait for GHCR images
+      - name: Wait for background tasks
         run: |
-          if [ -f /tmp/ghcr-pull.pid ]; then
-            PID=$(cat /tmp/ghcr-pull.pid)
-            if kill -0 "$PID" 2>/dev/null; then
-              echo "Waiting for GHCR image pull to complete..."
-              tail --pid="$PID" -f /dev/null 2>/dev/null || true
+          for pidfile in /tmp/ghcr-pull.pid /tmp/infra-warm.pid; do
+            if [ -f "$pidfile" ]; then
+              PID=$(cat "$pidfile")
+              if kill -0 "$PID" 2>/dev/null; then
+                echo "Waiting for $(basename $pidfile .pid)..."
+                tail --pid="$PID" -f /dev/null 2>/dev/null || true
+              fi
             fi
-            cat /tmp/ghcr-pull.log 2>/dev/null || true
-          fi
+          done
+          cat /tmp/ghcr-pull.log 2>/dev/null || true
+          cat /tmp/infra-warm.log 2>/dev/null || true
 
       - name: Start stack
         env:
@@ -433,6 +445,18 @@ jobs:
         with:
           images: ${{ env.MONGO_IMAGE }} ${{ env.REDIS_IMAGE }} ${{ env.KAFKA_IMAGE }} ${{ env.ZOOKEEPER_IMAGE }} ${{ env.SCHEMA_REGISTRY_IMAGE }}
 
+      - name: Pre-warm infrastructure (background)
+        env:
+          IMAGE_TAG: ${{ needs.build-images.outputs.sha-tag }}
+        run: |
+          # Start infra services in background while k3s installs.
+          # Compose handles dependency ordering (zookeeper-certgen → zookeeper → kafka).
+          # GHCR images for cert-generator/zookeeper-certgen should be pre-pulled by now.
+          nohup docker compose up -d --no-build \
+            mongo redis shared-ca cert-generator zookeeper-certgen zookeeper kafka schema-registry \
+            > /tmp/infra-warm.log 2>&1 &
+          echo $! > /tmp/infra-warm.pid
+
       - name: Setup k3s
         uses: ./.github/actions/k3s-setup
 
@@ -441,16 +465,19 @@ jobs:
           cp backend/config.test.toml backend/config.toml
           cp backend/secrets.example.toml backend/secrets.toml
 
-      - name: Wait for GHCR images
+      - name: Wait for background tasks
         run: |
-          if [ -f /tmp/ghcr-pull.pid ]; then
-            PID=$(cat /tmp/ghcr-pull.pid)
-            if kill -0 "$PID" 2>/dev/null; then
-              echo "Waiting for GHCR image pull to complete..."
-              tail --pid="$PID" -f /dev/null 2>/dev/null || true
+          for pidfile in /tmp/ghcr-pull.pid /tmp/infra-warm.pid; do
+            if [ -f "$pidfile" ]; then
+              PID=$(cat "$pidfile")
+              if kill -0 "$PID" 2>/dev/null; then
+                echo "Waiting for $(basename $pidfile .pid)..."
+                tail --pid="$PID" -f /dev/null 2>/dev/null || true
+              fi
             fi
-            cat /tmp/ghcr-pull.log 2>/dev/null || true
-          fi
+          done
+          cat /tmp/ghcr-pull.log 2>/dev/null || true
+          cat /tmp/infra-warm.log 2>/dev/null || true
 
       - name: Start stack
         env:

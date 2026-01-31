@@ -29,6 +29,7 @@ runs:
           echo "--- pull done, starting infra ---"
           docker compose up -d --no-build \
             mongo redis shared-ca zookeeper-certgen zookeeper kafka schema-registry 2>&1
+          echo $? > /tmp/infra-pull.exit
         ' > /tmp/infra-pull.log 2>&1 &
         echo $! > /tmp/infra-pull.pid
 
@@ -37,5 +38,6 @@ runs:
       run: |
         K3S_TAG=$(echo "$K3S_VERSION" | sed 's/+/%2B/g')
         curl -sfL "https://raw.githubusercontent.com/k3s-io/k3s/${K3S_TAG}/install.sh" -o /tmp/k3s-install.sh
+        echo "$K3S_INSTALL_SHA256  /tmp/k3s-install.sh" | sha256sum -c -
         chmod +x /tmp/k3s-install.sh
         INSTALL_K3S_VERSION="$K3S_VERSION" INSTALL_K3S_EXEC="--disable=traefik --bind-address 0.0.0.0 --tls-san host.docker.internal" /tmp/k3s-install.sh

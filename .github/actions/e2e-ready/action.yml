@@ -52,6 +52,13 @@ runs:
         fi
         cat /tmp/infra-pull.log 2>/dev/null || true
         cat /tmp/cert-gen.log 2>/dev/null || true
+        if [ -f /tmp/infra-pull.exit ]; then
+          EXIT_CODE=$(cat /tmp/infra-pull.exit)
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "::error::Background image pull / infra pre-warm failed (exit $EXIT_CODE)"
+            exit 1
+          fi
+        fi
 
     - name: Start stack
       shell: bash

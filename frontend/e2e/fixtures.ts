@@ -1,5 +1,7 @@
 import { test as base, expect, type Page, type BrowserContext } from '@playwright/test';
+import { attachCoverageReport } from 'monocart-reporter';
 import { ADMIN_ROUTES, type AdminPath } from '../src/lib/admin/constants';
+
 
 export const TEST_USERS = {
   user: { username: 'user', password: 'user123' },
@@ -15,9 +17,23 @@ type WorkerFixtures = {
 type TestFixtures = {
   userPage: Page;
   adminPage: Page;
+  page: Page;
 };
 
 export const test = base.extend<TestFixtures, WorkerFixtures>({
+  // Override default page fixture to collect coverage
+  page: async ({ page }, use, testInfo) => {
+    await page.coverage.startJSCoverage({ resetOnNavigation: false });
+    try {
+      await use(page);
+    } finally {
+      if (!page.isClosed()) {
+        const coverage = await page.coverage.stopJSCoverage();
+        await attachCoverageReport(coverage, testInfo);
+      }
+    }
+  },
+
   // Worker-scoped: one login per worker, shared across all tests in that worker
   userContext: [async ({ browser }, use) => {
     const context = await browser.newContext({ ignoreHTTPSErrors: true });
@@ -46,16 +62,32 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
   }, { scope: 'worker' }],
 
   // Test-scoped: new page per test, but reuses authenticated context
-  userPage: async ({ userContext }, use) => {
+  userPage: async ({ userContext }, use, testInfo) => {
     const page = await userContext.newPage();
-    await use(page);
-    await page.close();
+    await page.coverage.startJSCoverage({ resetOnNavigation: false });
+    try {
+      await use(page);
+    } finally {
+      if (!page.isClosed()) {
+        const coverage = await page.coverage.stopJSCoverage();
+        await attachCoverageReport(coverage, testInfo);
+        await page.close();
+      }
+    }
   },
 
-  adminPage: async ({ adminContext }, use) => {
+  adminPage: async ({ adminContext }, use, testInfo) => {
     const page = await adminContext.newPage();
-    await use(page);
-    await page.close();
+    await page.coverage.startJSCoverage({ resetOnNavigation: false });
+    try {
+      await use(page);
+    } finally {
+      if (!page.isClosed()) {
+        const coverage = await page.coverage.stopJSCoverage();
+        await attachCoverageReport(coverage, testInfo);
+        await page.close();
+      }
+    }
   },
 });
 

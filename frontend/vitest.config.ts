@@ -16,7 +16,12 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
       include: ['src/**/*.{ts,svelte}'],
-      exclude: ['src/lib/api/**', 'src/**/*.test.ts'],
+      exclude: [
+        'src/lib/api/**',
+        'src/**/*.test.ts',
+        'src/**/__tests__/**',
+        'src/**/index.ts',
+      ],
     },
   },
   resolve: {

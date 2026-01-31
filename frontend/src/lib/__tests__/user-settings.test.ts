@@ -31,6 +31,13 @@ vi.mock('../../stores/auth', () => ({
   },
 }));
 
+vi.mock('../api-interceptors', () => ({
+  unwrap: <T>(result: { data?: T; error?: unknown }): T => {
+    if (result.error) throw result.error;
+    return result.data as T;
+  },
+}));
+
 describe('user-settings', () => {
   beforeEach(async () => {
     mockGetUserSettings.mockReset();

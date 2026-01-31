@@ -10,7 +10,21 @@ export default defineConfig({
   expect: {
     timeout: 3000,  // 3s for assertions
   },
-  reporter: process.env.CI ? [['list'], ['html'], ['github']] : 'list',
+  reporter: [
+    ...(process.env.CI ? [['list'] as const, ['html'] as const, ['github'] as const] : [['list'] as const]),
+    ['monocart-reporter', {
+      name: 'E2E Coverage Report',
+      outputFile: 'coverage/e2e/report.html',
+      coverage: {
+        reports: ['v8', 'text', ['lcovonly', { outputFile: 'coverage/e2e/lcov.info' }]],
+        sourceFilter: (sourcePath: string) => {
+          return sourcePath.includes('/src/') &&
+            !sourcePath.includes('node_modules') &&
+            !sourcePath.includes('__tests__');
+        },
+      },
+    }],
+  ],
   use: {
     baseURL: 'https://localhost:5001',
     ignoreHTTPSErrors: true,

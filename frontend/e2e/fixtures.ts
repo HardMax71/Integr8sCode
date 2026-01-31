@@ -1,5 +1,5 @@
 import { test as base, expect, type Page, type BrowserContext } from '@playwright/test';
-import { attachCoverageReport } from 'monocart-reporter/playwright';
+import { attachCoverageReport } from 'monocart-reporter';
 import { ADMIN_ROUTES, type AdminPath } from '../src/lib/admin/constants';
 
 
